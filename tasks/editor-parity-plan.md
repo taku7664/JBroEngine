@@ -211,7 +211,8 @@
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
 | `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |
 | `Main/Inspector/ButtonRectFit` | — | 해당 없음 (`Button2D` 없음) |
-| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임) | 완료 (D-128·D-135) |
+| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임·오브젝트 눈) | 완료 (D-128·D-135·D-163) |
+| `Engine/Editor/ImEditor` (창·팝업·미룬 일·뷰 타깃·캔버스 뷰 선택/숨김) | `EditorApplication` · `EditorPanel` · `EditorPopup` | 완료 (D-163 에서 공개 기능 하나씩 대조), 카메라 컬링 통계·GPU 미리보기는 열림 |
 | `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기) | 완료 (D-139·D-141·D-147·D-154) |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |
 | `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156) |
@@ -239,6 +240,6 @@
 | `Path/EditorPathUtils` | `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 |
 | `Script/ScriptSchema` | — | 해당 없음 (JBroScript 미구현) |
 
-`ImPathField` 는 경로 칸에 "찾아보기" 단추를 단다. 플랫폼에 폴더 고르기 대화상자가 없어 열림으로 둔다 -
-지금 경로 칸은 글자로만 고친다. `ImReferenceField` 는 오브젝트 참조 칸인데, 그런 필드를 가진 컴포넌트가 아직
+`ImPathField` 는 경로 칸에 "찾아보기" 단추를 단다. 플랫폼의 폴더 고르기 대화상자는 D-160 에서 섰으므로 이제
+막힌 것은 없다 - 다음 차례다. 지금 경로 칸은 글자로만 고친다. `ImReferenceField` 는 오브젝트 참조 칸인데, 그런 필드를 가진 컴포넌트가 아직
 없다(스크립트가 생기면 필요해진다).

@@ -23,6 +23,7 @@ namespace JBro
         const char* name = object.GetTag();
         entry.name = name != nullptr ? name : "";
         entry.active = object.IsActiveSelf();
+        entry.flags = object.GetFlags();
         entry.parentIndex = parentIndex;
 
         const Array<ComponentSlot>& components = object.GetComponents();
@@ -82,6 +83,7 @@ namespace JBro
                 object->SetParent(parent);
             }
             object->SetActive(entry.active);
+            object->SetFlags(entry.flags);
             if (rebind)
             {
                 // **옛 번호에 다시 건다.** 이 오브젝트를 가리키던 커맨드들이 계속 찾아야 한다.

@@ -3,6 +3,7 @@
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Runtime/GameObject.h>
 
 #include <algorithm>
 #include <cmath>
@@ -52,18 +53,26 @@ namespace JBro::Internal
     namespace
     {
         // 모아 둔 메시를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가 같은 목록을 쓴다.
-        bool PushMeshes(const RenderWorld3D& world, Renderer& renderer)
+        // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 게임 뷰는 보지 않는다.
+        bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, bool editorView)
         {
             constexpr std::size_t BatchSize = 64;
             MeshSubmit batch[BatchSize];
             bool accepted = world.GetDroppedMeshCount() == 0;
-            for (std::size_t offset = 0; offset < world.GetMeshCount(); offset += BatchSize)
+            std::size_t next = 0;
+            while (next < world.GetMeshCount())
             {
-                const std::size_t count = (std::min)(BatchSize, world.GetMeshCount() - offset);
-                for (std::size_t index = 0; index < count; ++index)
+                std::size_t count = 0;
+                while (count < BatchSize && next < world.GetMeshCount())
                 {
-                    const MeshRenderItem& item = world.GetMesh(offset + index);
-                    MeshSubmit& submit = batch[index];
+                    const MeshRenderItem& item = world.GetMesh(next);
+                    ++next;
+                    if (editorView && item.owner != nullptr && item.owner->IsEditorHidden())
+                    {
+                        continue;
+                    }
+                    MeshSubmit& submit = batch[count];
+                    ++count;
                     submit.world = MakeTransformMatrix3D(item.position, item.rotation, item.scale);
                     submit.mesh = item.mesh;
                     submit.material = item.material;
@@ -71,6 +80,10 @@ namespace JBro::Internal
                     submit.tint[1] = item.tint.G;
                     submit.tint[2] = item.tint.B;
                     submit.tint[3] = item.tint.A;
+                }
+                if (count == 0)
+                {
+                    break;
                 }
                 if (false == renderer.SubmitMeshes({batch, static_cast<std::uint32_t>(count)}))
                 {
@@ -121,7 +134,7 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushMeshes(world, renderer);
+        const bool accepted = PushMeshes(world, renderer, true);
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
@@ -139,7 +152,7 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushMeshes(world, renderer);
+        const bool accepted = PushMeshes(world, renderer, false);
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }

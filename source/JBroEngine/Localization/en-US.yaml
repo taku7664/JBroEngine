@@ -179,3 +179,4 @@ Entries:
   new_project.invalid_name: That name cannot be a folder name
   new_project.already_exists: Something with that name is already in the folder
   new_project.cannot_write: The project files could not be written
+  hierarchy.object_hidden: show or hide this object in the canvas view

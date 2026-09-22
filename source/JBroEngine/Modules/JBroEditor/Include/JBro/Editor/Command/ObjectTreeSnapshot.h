@@ -25,6 +25,8 @@ namespace JBro
         EditorObjectId id = InvalidEditorObjectId;
         String name;
         bool active = true;
+        // 오브젝트 플래그다(D-163). 없으면 지웠다 되돌린 감춘 오브젝트가 보이는 채로 돌아온다.
+        std::uint32_t flags = 0;
         // 이 배열 안에서의 부모 위치다. -1 이면 뜬 나무의 뿌리다.
         std::int64_t parentIndex = -1;
         Array<ComponentSnapshot> components;

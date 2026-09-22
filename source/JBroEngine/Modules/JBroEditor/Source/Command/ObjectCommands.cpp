@@ -301,10 +301,12 @@ namespace JBro
         return true;
     }
 
-    SetObjectActiveCommand::SetObjectActiveCommand(EditorObjectRegistry& registry,
-        const Array<EditorObjectId>& objects, bool active)
+    ObjectToggleCommand::ObjectToggleCommand(EditorObjectRegistry& registry,
+        const Array<EditorObjectId>& objects, bool after, Getter getter, Setter setter)
         : m_registry(&registry)
-        , m_after(active)
+        , m_getter(getter)
+        , m_setter(setter)
+        , m_after(after)
     {
         for (std::size_t index = 0; index < objects.Size(); ++index)
         {
@@ -315,8 +317,27 @@ namespace JBro
             }
             // **되살릴 값을 먼저 뜬다**(§11.5). 못 뜬 것은 목록에 넣지 않는다.
             m_objects.Add(objects[index]);
-            m_before.Add(object->IsActiveSelf() ? std::uint8_t{1} : std::uint8_t{0});
+            m_before.Add(m_getter(*object) ? std::uint8_t{1} : std::uint8_t{0});
         }
+    }
+
+    void ObjectToggleCommand::Apply(bool value)
+    {
+        for (std::size_t index = 0; index < m_objects.Size(); ++index)
+        {
+            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            {
+                m_setter(*object, value);
+            }
+        }
+    }
+
+    SetObjectActiveCommand::SetObjectActiveCommand(EditorObjectRegistry& registry,
+        const Array<EditorObjectId>& objects, bool active)
+        : ObjectToggleCommand(registry, objects, active,
+            [](const GameObject& object) { return object.IsActiveSelf(); },
+            [](GameObject& object, bool value) { object.SetActive(value); })
+    {
     }
 
     const char* SetObjectActiveCommand::GetName() const
@@ -324,18 +345,20 @@ namespace JBro
         return "Set Active";
     }
 
-    void SetObjectActiveCommand::Apply(bool active)
+    SetObjectEditorHiddenCommand::SetObjectEditorHiddenCommand(EditorObjectRegistry& registry,
+        const Array<EditorObjectId>& objects, bool hidden)
+        : ObjectToggleCommand(registry, objects, hidden,
+            [](const GameObject& object) { return object.IsEditorHidden(); },
+            [](GameObject& object, bool value) { object.SetEditorHidden(value); })
     {
-        for (std::size_t index = 0; index < m_objects.Size(); ++index)
-        {
-            if (GameObject* object = m_registry->Resolve(m_objects[index]))
-            {
-                object->SetActive(active);
-            }
-        }
     }
 
-    bool SetObjectActiveCommand::Execute()
+    const char* SetObjectEditorHiddenCommand::GetName() const
+    {
+        return "Hide in Canvas View";
+    }
+
+    bool ObjectToggleCommand::Execute()
     {
         if (m_objects.IsEmpty())
         {
@@ -358,18 +381,18 @@ namespace JBro
         return true;
     }
 
-    void SetObjectActiveCommand::Undo()
+    void ObjectToggleCommand::Undo()
     {
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
         {
             if (GameObject* object = m_registry->Resolve(m_objects[index]))
             {
-                object->SetActive(m_before[index] != 0);
+                m_setter(*object, m_before[index] != 0);
             }
         }
     }
 
-    void SetObjectActiveCommand::Redo()
+    void ObjectToggleCommand::Redo()
     {
         Apply(m_after);
     }

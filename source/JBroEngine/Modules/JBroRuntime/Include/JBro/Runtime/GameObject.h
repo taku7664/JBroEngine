@@ -33,6 +33,13 @@ namespace JBro
         ComponentTypeId        typeId = 0;
     };
 
+    // 오브젝트 플래그의 비트다(D-163). 캔버스 파일에 `Flags` 로 적힌다.
+    // `EditorHidden` 은 **에디터의 캔버스 뷰에서만** 감춘다(기존 엔진 `ObjectFlag_EditorHidden`) - 게임 뷰와 게임 실행은
+    // 보지 않고, 게임으로 묶을 때(패킹) 파일에서 뺀다.
+    inline constexpr std::uint32_t ObjectFlagEditorHidden = 1u << 0;
+    // 패킹할 때 지우는 비트들이다. 에디터에서만 뜻이 있다.
+    inline constexpr std::uint32_t EditorOnlyObjectFlags = ObjectFlagEditorHidden;
+
     // TObjectPool 이 소유하는 주소 안정 객체. Transform 은 멤버가 아니라 컴포넌트다.
     class GameObject final : public EnableSafeFromThis<GameObject>
     {
@@ -79,6 +86,14 @@ namespace JBro
         void          SetTagId(NameId tag);
         std::uint32_t GetFlags() const;
         void          SetFlags(std::uint32_t flags);
+        bool IsEditorHidden() const
+        {
+            return (m_flags & ObjectFlagEditorHidden) != 0;
+        }
+        void SetEditorHidden(bool hidden)
+        {
+            m_flags = hidden ? (m_flags | ObjectFlagEditorHidden) : (m_flags & ~ObjectFlagEditorHidden);
+        }
 
         // 컴포넌트 풀의 주소를 SafePtr 로만 기록한다. 조회는 캐시 친화적인 선형 순회다.
         const Array<ComponentSlot>& GetComponents() const;

@@ -595,6 +595,11 @@ namespace JBro
 
         canvas->ForEachObject([&](GameObject& object)
         {
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
+            if (object.IsEditorHidden())
+            {
+                return;
+            }
             Component::Collider2D* collider =
                 canvas->FindComponentRaw<Component::Collider2D>(&object);
             if (collider == nullptr || false == collider->IsEnabled())
@@ -805,6 +810,11 @@ namespace JBro
         float bestArea = 0.0f;
         canvas->ForEachObject([&](GameObject& object)
         {
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
+            if (object.IsEditorHidden())
+            {
+                return;
+            }
             float minX = 0.0f;
             float minY = 0.0f;
             float maxX = 0.0f;
@@ -1008,6 +1018,11 @@ namespace JBro
         Array<GameObject*> hit;
         canvas->ForEachObject([&](GameObject& object)
         {
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
+            if (object.IsEditorHidden())
+            {
+                return;
+            }
             float minX = 0.0f;
             float minY = 0.0f;
             float maxX = 0.0f;
@@ -1368,6 +1383,11 @@ namespace JBro
         float bestDistance = PickRadius * PickRadius;
         canvas->ForEachObject([&](GameObject& object)
         {
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
+            if (object.IsEditorHidden())
+            {
+                return;
+            }
             Component::Transform3D* transform =
                 canvas->FindComponentRaw<Component::Transform3D>(&object);
             if (transform == nullptr)

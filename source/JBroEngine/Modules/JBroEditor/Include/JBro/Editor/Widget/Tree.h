@@ -41,6 +41,11 @@ namespace JBro::Widget
         float minContentHeight = 0.0f);
     void TreeEnd();
 
+    // **줄의 오른쪽 끝에 눈 표시를 얹는다**(D-163). 보이면 눈, 감췄으면 가린 눈이고 눌리면 참이다. 레이어 줄과
+    // 오브젝트 줄이 같은 자리·같은 크기로 쓴다 - 기존 레이어 창도 둘을 같은 모양으로 두었다. 커서는 되돌려 둔다.
+    // 이것의 Id 는 `id` 다. 줄마다 다른 Id 범위 안에서 부른다.
+    bool RowEyeToggle(const TreeDrawContext& row, const char* id, bool shown, const char* tooltip);
+
     namespace Internal
     {
         template <typename TDrawer>

@@ -1,4 +1,6 @@
 ﻿#include <JBro/Editor/Widget/Tree.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/Widget/Button.h>
 
 // **기존 엔진 `Application/Editor/ImItem/ImTree.cpp` 를 그대로 옮긴 것이다.**
 // 이름과 네임스페이스만 바꾸었다 - 그리는 규칙은 눈으로 맞춰 깎은 값이라
@@ -669,5 +671,19 @@ namespace JBro::Widget
 
             return is_open;
         }
+    }
+
+    bool RowEyeToggle(const TreeDrawContext& row, const char* id, bool shown, const char* tooltip)
+    {
+        const ImVec2 cursor = ImGui::GetCursorScreenPos();
+        // 눈 칸은 줄 높이의 정사각형이다. 기존 레이어 창과 같은 자리(오른쪽 끝)다.
+        const float height = row.RowRect.Max.y - row.RowRect.Min.y;
+        ImGui::SetCursorScreenPos(ImVec2(row.RowRect.Max.x - height, row.RowRect.Min.y));
+        ImGui::PushID(id);
+        const bool pressed = TextButton(shown ? Icons::Eye : Icons::EyeSlash, ImVec2(height, height));
+        ImGui::PopID();
+        HoveredTooltip(tooltip);
+        ImGui::SetCursorScreenPos(cursor);
+        return pressed;
     }
 }

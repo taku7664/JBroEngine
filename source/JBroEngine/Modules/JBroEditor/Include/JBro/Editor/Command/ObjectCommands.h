@@ -81,30 +81,55 @@ namespace JBro
         bool m_captured = false;
     };
 
-    // 오브젝트의 활성 상태를 바꾼다(D-142). 여럿을 한 번에 바꿔도 커맨드는 하나다.
-    //
-    // 예전에는 인스펙터가 `SetActive` 를 그대로 불렀다. 화면에서는 같아 보이지만
-    // **되돌릴 수 없었다** - 에디터의 편집은 커맨드로만 한다(§11.5).
-    class SetObjectActiveCommand final : public EditorCommand
+    // **오브젝트마다 켜고 끄는 값 하나를 바꾸는 커맨드의 몸이다**(D-163). 활성과 에디터 숨김이 같은 모양이라
+    // 한 벌로 둔다 - 되살릴 값을 먼저 뜨는 것, 바뀌는 것이 없으면 쌓지 않는 것, 오브젝트마다 제 값으로 되돌리는 것.
+    // 여럿을 한 번에 바꿔도 커맨드는 하나다.
+    class ObjectToggleCommand : public EditorCommand
     {
     public:
-        SetObjectActiveCommand(EditorObjectRegistry& registry,
-            const Array<EditorObjectId>& objects, bool active);
+        using Getter = bool (*)(const GameObject& object);
+        using Setter = void (*)(GameObject& object, bool value);
 
-        const char* GetName() const override;
         bool Execute() override;
         void Undo() override;
         void Redo() override;
 
+    protected:
+        ObjectToggleCommand(EditorObjectRegistry& registry,
+            const Array<EditorObjectId>& objects, bool after, Getter getter, Setter setter);
+
     private:
-        void Apply(bool active);
+        void Apply(bool value);
 
         EditorObjectRegistry* m_registry = nullptr;
+        Getter m_getter = nullptr;
+        Setter m_setter = nullptr;
         Array<EditorObjectId> m_objects;
         // 오브젝트마다 바꾸기 전의 값이다. 다 같은 값이라고 볼 수 없다 - 여럿을 골랐을 때
         // 하나는 켜져 있고 하나는 꺼져 있을 수 있고, 되돌리면 각자 제 값으로 가야 한다.
         Array<std::uint8_t> m_before;
         bool m_after = true;
+    };
+
+    // 오브젝트의 활성 상태를 바꾼다(D-142).
+    //
+    // 예전에는 인스펙터가 `SetActive` 를 그대로 불렀다. 화면에서는 같아 보이지만
+    // **되돌릴 수 없었다** - 에디터의 편집은 커맨드로만 한다(§11.5).
+    class SetObjectActiveCommand final : public ObjectToggleCommand
+    {
+    public:
+        SetObjectActiveCommand(EditorObjectRegistry& registry,
+            const Array<EditorObjectId>& objects, bool active);
+        const char* GetName() const override;
+    };
+
+    // 오브젝트를 **캔버스 뷰에서만** 감추거나 보인다(D-163, 기존 레이어 창의 눈 표시). 캔버스 파일에 남는다.
+    class SetObjectEditorHiddenCommand final : public ObjectToggleCommand
+    {
+    public:
+        SetObjectEditorHiddenCommand(EditorObjectRegistry& registry,
+            const Array<EditorObjectId>& objects, bool hidden);
+        const char* GetName() const override;
     };
 
     // 컴포넌트의 사용 여부를 바꾼다(D-142). 이쪽도 예전에는 커맨드 없이 바로 바꿨다.

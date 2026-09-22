@@ -6362,6 +6362,126 @@ namespace
         return false;
     }
 
+    // 캔버스 뷰 창 안에서 빨간 스프라이트가 차지한 픽셀 수다. 백버퍼는 BGRA 다.
+    std::size_t CountRedPixelsIn(JBro::Renderer& renderer, const char* windowName)
+    {
+        ImGuiWindow* window = ImGui::FindWindowByName(windowName);
+        Check(window != nullptr, "the view must have a window");
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        ReadBackBufferInto(renderer, 1024, 768, image, readback);
+        const PixelBox box = MeasurePixels(image, readback, window->InnerRect,
+            [](const unsigned char* pixel) { return pixel[2] > 200 && pixel[1] < 40 && pixel[0] < 40; });
+        return box.IsEmpty() ? 0 : static_cast<std::size_t>((box.maxX - box.minX + 1) * (box.maxY - box.minY + 1));
+    }
+
+    // **레이어 창의 오브젝트 줄 눈 표시는 캔버스 뷰에서만 감춘다**(D-163, 기존 `EditorHidden`). 감춘 것은 캔버스 뷰에
+    // 그려지지도 집히지도 않고, 게임 뷰에는 그대로 나온다. 눈은 커맨드라 되돌릴 수 있다.
+    void TestEditorHiddenObjectsLeaveOnlyTheCanvasView()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; editor hiding not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "EditorHiddenProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must expose its renderer");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* red = canvas->CreateObject("Red");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(red) != nullptr, "the sprite needs a transform");
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(red);
+        Check(sprite != nullptr, "the sprite renderer must attach");
+        sprite->tint = {1.0f, 0.0f, 0.0f, 1.0f};
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {3.0f, 3.0f};
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(CountRedPixelsIn(*renderer, "CanvasView") > 100, "the red sprite shows in the canvas view");
+
+        // 눈은 줄의 오른쪽 끝이다. 줄을 찾아 그 끝을 누른다.
+        Spot row;
+        Check(FindHierarchyRow(editor, hwnd, red, row), "the red object must have a row");
+        ImGuiWindow* layers = ImGui::FindWindowByName("Hierarchy");
+        Spot eye;
+        // 줄의 오른쪽 끝은 창의 작업 영역 끝이고, 눈 칸은 그 앞의 줄 높이만한 정사각형이다. 그 한가운데를 누른다.
+        eye.x = static_cast<int>(layers->WorkRect.Max.x - ImGui::GetFrameHeight() * 0.5f);
+        eye.y = row.y + 2;
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, eye);
+        Check(red->IsEditorHidden(), "clicking the row's eye hides the object in the canvas view");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the hidden state");
+        }
+        Check(CountRedPixelsIn(*renderer, "CanvasView") == 0, "a hidden object is not drawn in the canvas view");
+
+        // **집히지도 않는다.** 캔버스 한가운데(오브젝트 자리)를 눌러도 고르지 않는다.
+        editor.SetSelectedObject(nullptr);
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Spot middle;
+        middle.x = static_cast<int>(view->InnerRect.GetCenter().x);
+        middle.y = static_cast<int>(view->InnerRect.GetCenter().y + 20.0f);
+        ClickAt(editor, hwnd, middle);
+        Check(editor.GetSelectedObject() != red, "a hidden object cannot be picked in the canvas view");
+
+        Check(editor.GetCommands().Undo(), "hiding undoes");
+        Check(false == red->IsEditorHidden(), "and the object is back");
+        for (int frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+        }
+        ClickAt(editor, hwnd, middle);
+        Check(editor.GetSelectedObject() == red, "shown again, the same click picks it");
+        Check(editor.GetCommands().Redo(), "and hiding redoes");
+
+        // **지웠다 되돌려도 감춘 채다.** 되살리는 스냅숏이 플래그를 뜨지 않으면 보이는 채로 돌아온다.
+        {
+            const JBro::EditorObjectId redId = editor.GetObjectIds().Track(red);
+            Check(editor.GetCommands().Execute(
+                    JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(*canvas, editor.GetObjectIds(), red)),
+                "the hidden object deletes");
+            Check(editor.GetCommands().Undo(), "and comes back");
+            red = editor.GetObjectIds().Resolve(redId);
+            Check(red != nullptr && red->IsEditorHidden(), "still hidden after the undo");
+        }
+
+        // **게임 뷰는 감춘 것을 그대로 그린다.** 감추는 것은 편집을 위한 것이다.
+        JBro::GameObject* eyeObject = canvas->CreateObject("Camera");
+        canvas->AttachComponent<JBro::Component::Transform2D>(eyeObject);
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eyeObject);
+        Check(camera != nullptr, "the probe camera must attach");
+        camera->primary = true;
+        camera->clearColor = {0.05f, 0.05f, 0.05f, 1.0f};
+        if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
+        {
+            canvasView->SetOpen(false);
+        }
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must show the game view");
+        }
+        Check(red->IsEditorHidden(), "the object is still hidden in the editor");
+        Check(CountRedPixelsIn(*renderer, "Game") > 0, "yet the game view draws it");
+
+        editor.Shutdown();
+    }
+
     // 사용자가 화면에서 짚은 자리다: **계층에서 순서를 바꾸고 부모를 떼는 것**.
     // 명령 쪽 계약은 `EditorObjectCommandTests` 가 재고, 여기서는 마우스로 끌어
     // 놓는 손짓이 실제로 그 명령에 닿는지를 본다.
@@ -6519,6 +6639,7 @@ int RunEditorApplicationTests()
     TestTheAssetBrowserSelectsManyFilesAtOnce();
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();
+    TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();
     TestClosingTheWindowDoesNotTakeTheUiDownWithIt();

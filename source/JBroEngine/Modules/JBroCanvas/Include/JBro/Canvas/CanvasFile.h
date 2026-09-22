@@ -34,7 +34,16 @@ namespace JBro
     // 캔버스를 텍스트로 적는다. 실패하면 text 는 손대지 않고 error 를 채운다.
     // **파일은 여기서 열지 않는다**(D-112). 부르는 쪽(에디터·호스트)이 `IPlatform` 으로 읽고 쓴다 - 이 모듈은 플랫폼을
     // 보지 않는다.
-    bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error);
+    //
+    // `Editor` 는 에디터가 저장하는 모양이다 - 에디터에서만 뜻이 있는 오브젝트 플래그(`EditorOnlyObjectFlags`)도 적는다.
+    // `Package` 는 게임으로 묶을 때 쓴다 - 그 비트를 지우고 적는다(D-163, 사용자 결정 2026-09-22).
+    enum class CanvasWriteMode : std::uint8_t
+    {
+        Editor,
+        Package
+    };
+    bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error,
+        CanvasWriteMode mode = CanvasWriteMode::Editor);
 
     // 텍스트를 **빈 캔버스에** 읽어 넣는다. 이미 내용이 있으면 거절한다 —
     // 섞으면 무엇이 파일에서 온 것인지 알 수 없고, 되돌릴 방법도 없다.

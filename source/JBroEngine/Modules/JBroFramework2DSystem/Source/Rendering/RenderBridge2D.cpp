@@ -2,6 +2,7 @@
 
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Runtime/GameObject.h>
 
 #include <algorithm>
 #include <cmath>
@@ -95,17 +96,32 @@ namespace JBro::Internal
     {
         // 모아 둔 스프라이트를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가
         // 같은 목록을 쓰므로 이 부분만 따로 뗀다.
-        bool PushSprites(const RenderWorld2D& world, Renderer& renderer)
+        //
+        // `editorView` 면 **에디터에서 감춘 오브젝트를 건너뛴다**(D-163, 기존 `EditorHidden`). 게임 뷰는 보지 않는다 -
+        // 감추는 것은 편집을 위한 것이지 게임의 모습이 아니다.
+        bool PushSprites(const RenderWorld2D& world, Renderer& renderer, bool editorView)
         {
             constexpr std::size_t BatchSize = 64;
             SpriteSubmit batch[BatchSize];
             bool accepted = world.GetDroppedSpriteCount() == 0;
-            for (std::size_t offset = 0; offset < world.GetSpriteCount(); offset += BatchSize)
+            std::size_t next = 0;
+            while (next < world.GetSpriteCount())
             {
-                const std::size_t count = (std::min)(BatchSize, world.GetSpriteCount() - offset);
-                for (std::size_t index = 0; index < count; ++index)
+                std::size_t count = 0;
+                while (count < BatchSize && next < world.GetSpriteCount())
                 {
-                    batch[index] = BuildSprite(world.GetSprite(offset + index));
+                    const SpriteRenderItem& item = world.GetSprite(next);
+                    ++next;
+                    if (editorView && item.owner != nullptr && item.owner->IsEditorHidden())
+                    {
+                        continue;
+                    }
+                    batch[count] = BuildSprite(item);
+                    ++count;
+                }
+                if (count == 0)
+                {
+                    break;
                 }
                 if (false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
                 {
@@ -144,7 +160,7 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushSprites(world, renderer);
+        const bool accepted = PushSprites(world, renderer, true);
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
@@ -166,7 +182,7 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushSprites(world, renderer);
+        const bool accepted = PushSprites(world, renderer, false);
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }

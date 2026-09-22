@@ -96,7 +96,7 @@ namespace JBro
         }
     }
 
-    bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error)
+    bool WriteCanvasText(Canvas& canvas, String& text, CanvasFileError& error, CanvasWriteMode mode)
     {
         error = CanvasFileError{};
 
@@ -153,6 +153,14 @@ namespace JBro
             writer.BeginMap(nullptr);
             writer.WriteString("Name", object->GetTag());
             writer.WriteBool("Active", object->IsActiveSelf());
+            // 플래그는 있을 때만 적는다 - 대부분의 오브젝트는 0 이고, 없으면 0 으로 읽는다.
+            const std::uint32_t flags = mode == CanvasWriteMode::Package
+                ? (object->GetFlags() & ~EditorOnlyObjectFlags)
+                : object->GetFlags();
+            if (flags != 0)
+            {
+                writer.WriteInt("Flags", static_cast<std::int64_t>(flags));
+            }
 
             std::int64_t parentIndex = -1;
             if (object->GetParent() != nullptr)
@@ -266,6 +274,15 @@ namespace JBro
                 return Fail(error, "an object in this file could not be created");
             }
             created.Add(object);
+            std::int64_t flags = 0;
+            if (document.FindInt(entry, "Flags", flags))
+            {
+                if (flags < 0 || flags > static_cast<std::int64_t>(UINT32_MAX))
+                {
+                    return Fail(error, "an object in this file has flags that do not fit");
+                }
+                object->SetFlags(static_cast<std::uint32_t>(flags));
+            }
 
             std::int64_t parentIndex = -1;
             if (false == document.FindInt(entry, "ParentIndex", parentIndex))

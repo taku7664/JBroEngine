@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/HierarchyCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/LayerCommands.h>
+#include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorActions.h>
 
 #include <JBro/Canvas/Canvas.h>
@@ -265,18 +266,15 @@ namespace JBro
                 Widget::HintText(layer.GetName());
             }
 
-            // **눈 표시는 줄의 오른쪽 끝이다.** 기존 엔진도 같은 자리에 두었다.
-            const float height = row.RowRect.Max.y - row.RowRect.Min.y;
-            ImGui::SetCursorScreenPos(ImVec2(row.RowRect.Max.x - height, row.RowRect.Min.y));
+            ImGui::SetCursorScreenPos(cursor);
+            // **눈 표시는 줄의 오른쪽 끝이다.** 기존 엔진도 같은 자리에 두었다. 오브젝트 줄과 같은 함수다.
             const bool visible = layer.IsVisible();
-            if (Widget::TextButton(visible ? Icons::Eye : Icons::EyeSlash,
-                    ImVec2(height, height)))
+            if (Widget::RowEyeToggle(row, "##eye", visible,
+                    Loc::TextOr(LocKeys::HierarchyLayerVisible, "show this layer")))
             {
                 m_editor->GetCommands().Execute(
                     MakeOwnerPtr<SetLayerVisibleCommand>(*canvas, layerId, false == visible));
             }
-            Widget::HoveredTooltip(Loc::TextOr(LocKeys::HierarchyLayerVisible, "show this layer"));
-            ImGui::SetCursorScreenPos(cursor);
         }
 
         if (opened && alive)
@@ -814,6 +812,16 @@ namespace JBro
                 Widget::HintText(name);
             }
             ImGui::SetCursorScreenPos(cursor);
+            // **캔버스 뷰에서만 감추는 눈이다**(D-163, 기존 레이어 창의 `EditorHidden`). 게임 뷰와 게임에는 그대로 나온다.
+            const bool shown = false == object.IsEditorHidden();
+            if (Widget::RowEyeToggle(row, "##eye", shown,
+                    Loc::TextOr(LocKeys::HierarchyObjectHidden, "hide or show in the canvas view")))
+            {
+                Array<EditorObjectId> ids;
+                ids.Add(m_editor->GetObjectIds().Track(&object));
+                m_editor->GetCommands().Execute(
+                    MakeOwnerPtr<SetObjectEditorHiddenCommand>(m_editor->GetObjectIds(), ids, shown));
+            }
         }
 
         if (opened && hasChildren)

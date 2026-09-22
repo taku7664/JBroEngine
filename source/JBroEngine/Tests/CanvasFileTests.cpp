@@ -567,6 +567,41 @@ namespace
     // 읽기
     // -----------------------------------------------------------------------
 
+    bool Load(JBro::Canvas& canvas, const JBro::String& text, JBro::CanvasFileError& error);
+    void LoadOrFail(JBro::Canvas& canvas, const JBro::String& text);
+
+    // **에디터에서 감춘 오브젝트는 파일에 남고, 게임으로 묶을 때는 빠진다**(D-163, 사용자 결정 2026-09-22).
+    void TestEditorHiddenIsSavedButNotPacked()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::GameObject* hidden = canvas.CreateObject("Hidden");
+        canvas.CreateObject("Shown");
+        hidden->SetEditorHidden(true);
+        Check(hidden->IsEditorHidden() && (hidden->GetFlags() & JBro::ObjectFlagEditorHidden) != 0,
+            "the flag lives in the object's flags");
+
+        const JBro::String saved = Save(canvas);
+        Check(saved.find("Flags: 1") != JBro::String::npos, "the editor's save writes the flag");
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, saved);
+        int hiddenCount = 0;
+        reopened.ForEachObject([&](JBro::GameObject& object)
+        {
+            if (object.IsEditorHidden())
+            {
+                ++hiddenCount;
+                Check(std::strcmp(object.GetTag(), "Hidden") == 0, "and it comes back on the same object");
+            }
+        });
+        Check(hiddenCount == 1, "exactly one object comes back hidden");
+
+        JBro::String packed;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(canvas, packed, error, JBro::CanvasWriteMode::Package), "packing writes the canvas");
+        Check(packed.find("Flags") == JBro::String::npos, "and leaves the editor-only flag out");
+    }
+
     bool Load(JBro::Canvas& canvas, const JBro::String& text, JBro::CanvasFileError& error)
     {
         return JBro::ReadCanvasText(canvas, text.c_str(), text.size(), error);
@@ -1081,6 +1116,7 @@ int RunCanvasFileTests()
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
     TestA3DSceneMakesTheRoundTripToo();
+    TestEditorHiddenIsSavedButNotPacked();
     std::cout << "Canvas file tests passed.\n";
     return 0;
 }
