@@ -261,6 +261,46 @@ namespace JBro
                 event.x = static_cast<float>(GET_X_LPARAM(lParam));
                 event.y = static_cast<float>(GET_Y_LPARAM(lParam));
                 platform->RecordInputEvent(event);
+                // **누르는 동안 마우스를 붙잡는다**(D-158). 붙잡지 않으면 끌다가 창 밖에서 뗀 버튼의
+                // 뗌이 다른 창으로 가서, 이 창은 버튼이 아직 눌려 있다고 여긴다 - 끌기가 끝나지
+                // 않고 남는다. 뗄 때 놓는다. 여러 버튼이 겹쳐 눌렸으면 마지막 것을 뗄 때 놓는다.
+                if (down)
+                {
+                    if (platform->HeldMouseButtons() == 0 && GetCapture() == nullptr)
+                    {
+                        SetCapture(window);
+                    }
+                    ++platform->HeldMouseButtons();
+                }
+                else
+                {
+                    if (platform->HeldMouseButtons() > 0)
+                    {
+                        --platform->HeldMouseButtons();
+                    }
+                    if (platform->HeldMouseButtons() == 0 && GetCapture() == window)
+                    {
+                        ReleaseCapture();
+                    }
+                }
+                break;
+            }
+
+            case WM_CAPTURECHANGED:
+            {
+                // 붙잡음을 남에게 빼앗겼다(Alt+Tab, 다른 창의 대화상자). 그 뒤의 뗌은 오지 않으므로
+                // **눌린 버튼을 모두 뗀 것으로 알린다** - 알리지 않으면 끌기가 남는다.
+                if (reinterpret_cast<HWND>(lParam) != window && platform->HeldMouseButtons() > 0)
+                {
+                    platform->HeldMouseButtons() = 0;
+                    for (const MouseButton button : {MouseButton::Left, MouseButton::Right, MouseButton::Middle})
+                    {
+                        InputEvent released;
+                        released.kind = InputEventKind::MouseButtonUp;
+                        released.button = button;
+                        platform->RecordInputEvent(released);
+                    }
+                }
                 break;
             }
 

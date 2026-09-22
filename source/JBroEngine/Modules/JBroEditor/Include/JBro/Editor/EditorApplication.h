@@ -8,7 +8,6 @@
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPopup.h>
-#include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Host/IFramework.h>
@@ -22,6 +21,10 @@ namespace JBro
 {
     class Canvas;
     class EditorThumbnails;
+    // 단축키 표(`EditorShortcuts.h`)는 ImGui 를 끌어온다. 이 헤더는 에디터 호스트처럼 ImGui 를
+    // 모르는 쪽도 include 하므로 **열거형만 앞선언한다**(D-158) - 헤더를 통째로 끌어오면
+    // 그쪽 빌드가 `imgui.h` 를 찾지 못해 깨진다(실제로 깨져 있었다).
+    enum class EditorShortcut : std::uint8_t;
     class SpriteViewerWindow;
     class GameObject;
     class Renderer;

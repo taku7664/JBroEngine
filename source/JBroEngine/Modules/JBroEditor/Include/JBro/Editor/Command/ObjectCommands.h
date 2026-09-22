@@ -23,11 +23,15 @@ namespace JBro
     class CreateObjectCommand final : public EditorCommand
     {
     public:
+        // `defaultComponent` 는 만들자마자 붙일 컴포넌트의 등록 이름이다(D-158). 에디터는 프레임워크의
+        // 트랜스폼(`Component::Transform2D`·`Transform3D`)을 준다 - 트랜스폼이 없는 오브젝트는 캔버스 뷰에
+        // 보이지도 않고 옮길 수도 없다. 기존 엔진은 트랜스폼이 오브젝트의 멤버라 늘 있었다.
         CreateObjectCommand(
             Canvas& canvas,
             EditorObjectRegistry& registry,
             const char* name,
-            EditorObjectId parentId);
+            EditorObjectId parentId,
+            const char* defaultComponent = nullptr);
 
         const char* GetName() const override;
         bool Execute() override;
@@ -43,6 +47,7 @@ namespace JBro
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
         String m_name;
+        String m_defaultComponent;
         EditorObjectId m_parentId = InvalidEditorObjectId;
         EditorObjectId m_objectId = InvalidEditorObjectId;
     };

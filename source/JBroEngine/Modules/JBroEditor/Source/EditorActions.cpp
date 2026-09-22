@@ -54,7 +54,12 @@ namespace JBro::EditorActions
         EditorObjectRegistry& ids = editor.GetObjectIds();
         const EditorObjectId parentId = parent != nullptr
             ? ids.Track(parent) : InvalidEditorObjectId;
-        auto command = MakeOwnerPtr<CreateObjectCommand>(*canvas, ids, "GameObject", parentId);
+        // **트랜스폼을 갖고 태어난다**(D-158). 없으면 캔버스 뷰에 보이지도 않고 옮길 수도 없다.
+        const char* transform = editor.GetFrameworkKind() == FrameworkKind::Framework3D
+            ? "Component::Transform3D"
+            : "Component::Transform2D";
+        auto command = MakeOwnerPtr<CreateObjectCommand>(
+            *canvas, ids, "GameObject", parentId, transform);
         CreateObjectCommand* raw = command.Get();
         if (false == editor.GetCommands().Execute(std::move(command)))
         {

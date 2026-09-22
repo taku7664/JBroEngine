@@ -17,10 +17,12 @@ namespace JBro
         Canvas& canvas,
         EditorObjectRegistry& registry,
         const char* name,
-        EditorObjectId parentId)
+        EditorObjectId parentId,
+        const char* defaultComponent)
         : m_canvas(&canvas)
         , m_registry(&registry)
         , m_name(name != nullptr ? name : "GameObject")
+        , m_defaultComponent(defaultComponent != nullptr ? defaultComponent : "")
         , m_parentId(parentId)
     {
     }
@@ -36,6 +38,18 @@ namespace JBro
         if (object == nullptr)
         {
             return false;
+        }
+        if (false == m_defaultComponent.empty())
+        {
+            // 등록부에서 이름으로 찾아 붙인다. 커맨드는 어느 프레임워크인지 모른다 - 모르는 것이 맞다.
+            if (const ComponentTypeInfo* info =
+                    ComponentRegistry::Get().Find(m_defaultComponent.c_str()))
+            {
+                if (info->Attach != nullptr)
+                {
+                    info->Attach(*m_canvas, object);
+                }
+            }
         }
         if (m_parentId != InvalidEditorObjectId)
         {

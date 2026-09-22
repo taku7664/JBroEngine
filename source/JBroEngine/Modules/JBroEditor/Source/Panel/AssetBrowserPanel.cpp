@@ -294,9 +294,21 @@ namespace JBro
         // **누를 때가 아니라 끌지 않고 뗄 때 고른다**(D-154). 누르는 순간 고르면, 에셋을 끌어
         // 인스펙터의 칸에 놓으려는 손짓이 시작하자마자 인스펙터를 그 에셋의 화면으로 바꿔
         // 놓을 칸이 사라진다.
+        //
+        // **누른 줄에서 뗐을 때만이다.** 뗀 자리만 보면, 폴더를 눌러 연 순간 같은 자리에 새로 나타난
+        // 파일이 골라진다(실제 에디터에서 그랬다). 누를 때 그 줄을 기억해 두고 뗄 때 견준다.
+        if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+        {
+            m_pressedPath = entry.record->relativePath;
+        }
         const bool clicked = ImGui::IsItemHovered()
             && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
-            && false == Widget::MouseWasDragged(ImGuiMouseButton_Left);
+            && false == Widget::MouseWasDragged(ImGuiMouseButton_Left)
+            && m_pressedPath == entry.record->relativePath;
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && clicked)
+        {
+            m_pressedPath.clear();
+        }
         // 오른쪽 누름은 **고른 것을 뒤엎지 않는다.** 여럿을 골라 놓고 그중 하나에 대고
         // 메뉴를 열었을 때 선택이 하나로 줄면, 여럿에 하려던 일이 하나에만 간다.
         if (ImGui::IsItemClicked(ImGuiMouseButton_Right)
@@ -911,6 +923,12 @@ namespace JBro
         }
         ImGui::EndChild();
 
+        // 뗀 프레임이 지나면 누른 줄을 잊는다. 남겨 두면 다른 곳에서 누르고 그 줄 위에서 뗐을 때
+        // 그 줄이 골라진다.
+        if (ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            m_pressedPath.clear();
+        }
         // 묻는 창은 칸 밖에서 연다. 칸 안에서 열면 그 칸에 갇혀 잘린다.
         DrawRenamePopup();
         DrawDeletePopup();

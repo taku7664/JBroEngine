@@ -12,6 +12,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -4973,10 +4974,12 @@ namespace
         const fs::path root(TempPath("JBroAssetDropProbe").c_str());
         std::error_code ignored;
         fs::remove_all(root, ignored);
-        fs::create_directories(root / "Assets", ignored);
+        fs::create_directories(root / "Assets" / "sub", ignored);
         {
             std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+            std::ofstream inner(root / "Assets" / "sub" / "inner.png", std::ios::binary);
+            inner.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
         const JBro::String projectPath = TempPath("JBroAssetDropProbe\\Drop.jproject");
         Check(WriteTextFile(projectPath,
@@ -5067,6 +5070,44 @@ namespace
         Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
         Check(editor.GetCommands().Undo(), "and it undoes");
         Check(sprite->spriteId.IsNull(), "back to no sprite");
+
+        // **누른 줄에서 뗐을 때만 고른다**(D-158). 오른쪽 칸에서 폴더를 누르면 그 자리에 폴더 속
+        // 파일이 나타나는데, 뗀 자리만 보고 고르면 그 파일이 골라졌다(실제 에디터에서 그랬다).
+        {
+            Check(editor.GetSelectedAsset().IsNull(), "no asset is selected before opening the folder");
+            assets = ImGui::FindWindowByName("Assets");
+            contents = FindChildWindow(assets, "##contents");
+            const ImGuiID subRow = LabelId(LabelId(contents->ID, "sub"), "##sub");
+            Spot folder;
+            bool foundFolder = false;
+            for (int y = static_cast<int>(contents->Pos.y); y < bottom && false == foundFolder; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking for the folder");
+                if (ImGui::GetHoveredID() == subRow)
+                {
+                    folder.x = x;
+                    folder.y = y;
+                    foundFolder = true;
+                }
+            }
+            Check(foundFolder, "the sub folder must be a row in the contents pane");
+            // **사람의 누름 길이로 누른다.** 누름과 뗌 사이에 한 프레임만 두면, 사라진 폴더 줄이 아직
+            // 눌린 항목으로 남아 새 줄의 호버가 막혀 결함이 드러나지 않는다(처음 쓴 판이 그랬다 -
+            // 누른 줄 검사를 빼도 통과했다). 사람은 누른 채로 몇 프레임을 보낸다.
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(folder.x, folder.y));
+            Check(editor.Tick(Frame), "the editor must tick");
+            PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(folder.x, folder.y));
+            for (int frame = 0; frame < 5; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while the button is held");
+            }
+            PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(folder.x, folder.y));
+            Check(editor.Tick(Frame), "the editor must tick on the release");
+            Check(editor.Tick(Frame), "the editor must settle in the folder");
+            Check(editor.GetSelectedAsset().IsNull(),
+                "opening a folder must not select the file that appears under the cursor");
+        }
 
         editor.Shutdown();
         fs::remove_all(root, ignored);
@@ -5365,6 +5406,48 @@ namespace
         Check(editor.GetSelectedObject() == body, "and outside again, the arm picks the body");
 
         editor.Shutdown();
+    }
+
+    // **새 오브젝트는 트랜스폼을 갖고 태어난다**(D-158). 실제 에디터를 띄워 보고서야 알았다 -
+    // 메뉴로 만든 오브젝트에 트랜스폼이 없어 캔버스 뷰에 보이지도 않고 옮길 수도 없었다.
+    void TestCreatedObjectsCarryTheFrameworkTransform()
+    {
+        for (const JBro::FrameworkKind kind : {JBro::FrameworkKind::Framework2D, JBro::FrameworkKind::Framework3D})
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device; object creation not verified" << std::endl;
+                return;
+            }
+            JBro::ProjectDescriptor project;
+            constexpr char name[] = "CreateProbe";
+            project.name = {name, sizeof(name) - 1};
+            project.framework = kind;
+            Check(editor.OpenProject(project), "the probe project must open");
+            JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
+            Check(made != nullptr, "the create action must make an object");
+            JBro::Canvas* canvas = editor.GetCanvas();
+            const bool has = kind == JBro::FrameworkKind::Framework3D
+                ? canvas->FindComponentRaw<JBro::Component::Transform3D>(made) != nullptr
+                : canvas->FindComponentRaw<JBro::Component::Transform2D>(made) != nullptr;
+            Check(has, "a created object carries its framework's transform");
+            Check(editor.GetCommands().Undo() && editor.GetCommands().Redo(), "creation undoes and redoes");
+            JBro::GameObject* again = editor.GetSelectedObject();
+            if (again == nullptr)
+            {
+                JBro::Array<JBro::GameObject*> roots;
+                canvas->GetRootObjects(roots);
+                again = roots.Size() > 0 ? roots[0] : nullptr;
+            }
+            const bool hasAgain = again != nullptr && (kind == JBro::FrameworkKind::Framework3D
+                ? canvas->FindComponentRaw<JBro::Component::Transform3D>(again) != nullptr
+                : canvas->FindComponentRaw<JBro::Component::Transform2D>(again) != nullptr);
+            Check(hasAgain, "and the redone object has it too");
+            editor.Shutdown();
+        }
     }
 
     void TestPanelsGoThroughTheWidgetLayer()
@@ -6227,6 +6310,7 @@ int RunEditorApplicationTests()
     TestTheSpriteViewerDocksBesideTheMainDock();
     TestImportingAPictureCopiesAndRegistersIt();
     TestTheCanvasViewPicksTheRootUntilYouStepInside();
+    TestCreatedObjectsCarryTheFrameworkTransform();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();

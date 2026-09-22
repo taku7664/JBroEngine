@@ -101,6 +101,8 @@ namespace JBro
         String m_anchor;
         // 이번 프레임에 오른쪽 칸이 그린 파일들의 차례다. 범위 선택이 이것을 쓴다.
         Array<String> m_visible;
+        // 왼쪽 단추를 누른 파일 줄이다. 고르기는 **같은 줄에서 뗐을 때만** 한다.
+        String m_pressedPath;
 
         // 물어보는 중인 것. 비어 있으면 묻지 않는다.
         String m_pending;

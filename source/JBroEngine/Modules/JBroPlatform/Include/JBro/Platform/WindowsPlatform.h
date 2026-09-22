@@ -47,6 +47,8 @@ namespace JBro
         // UTF-16 서러게이트 쌍의 앞쪽을 들고 있는 자리다.
         std::uint16_t TakePendingHighSurrogate();
         void SetPendingHighSurrogate(std::uint16_t unit);
+        // 지금 눌려 있는 마우스 버튼의 수다(D-158). 첫 버튼에 마우스를 붙잡고 마지막 버튼에 놓는다.
+        std::uint32_t& HeldMouseButtons() { return m_heldButtons; }
 
     private:
         // 한 프레임에 받아 둘 입력의 상한이다.
@@ -60,5 +62,6 @@ namespace JBro
         std::uint16_t m_windowClassAtom = 0;
         bool m_ownsWindowClass = false;
         bool m_quitRequested = false;
+        std::uint32_t m_heldButtons = 0;
     };
 }
