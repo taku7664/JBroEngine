@@ -70,6 +70,9 @@ namespace JBro
         bool DrawObjectContextMenu(GameObject& object);
         // 레이어 줄의 우클릭 메뉴. 거짓이면 그 레이어가 더 이상 없다.
         bool DrawLayerContextMenu(Layer& layer);
+        // Shift 로 찍은 범위를 고른다(D-169). **줄을 다 그린 뒤에** 부른다 - 기준과 찍은 줄
+        // 사이에는 아직 그리지 않은 줄이 있을 수 있다.
+        void FlushRangeSelection();
 
         EditorApplication* m_editor = nullptr;
         String m_filter;
@@ -102,5 +105,13 @@ namespace JBro
         // 이름을 고치는 중인 레이어와 그 글자. 무효값이면 고치는 중이 아니다.
         LayerId m_renaming = InvalidLayerId;
         String m_renameText;
+
+        // **Shift 는 범위다**(D-169, 기존 `LayerTool` 의 선택 기준점). 이번 프레임에 그린 줄을
+        // 차례대로 들고 있다가, Shift 로 찍은 줄과 기준 줄 사이를 통째로 고른다.
+        // 접힌 자식과 검색에 걸러진 줄은 들어오지 않는다 - 보이지 않는 것이 딸려 오면
+        // 무엇을 고른 것인지 화면에서 알 수 없다.
+        Array<GameObject*> m_visibleRows;
+        SafePtr<GameObject> m_selectionAnchor;
+        SafePtr<GameObject> m_rangeClick;
     };
 }

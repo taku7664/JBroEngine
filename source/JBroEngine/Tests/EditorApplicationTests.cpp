@@ -7024,6 +7024,79 @@ namespace
         (void)beta;
         editor.Shutdown();
     }
+
+    // **Shift 로 찍으면 기준 줄까지 통째로 골라진다**(D-169, 기존 `LayerTool` 의 선택 기준점).
+    // 우리는 Shift 를 Ctrl 과 똑같이 하나씩 넣고 빼는 것으로 두어, 줄이 여럿일 때
+    // 한 벌을 고르려면 Ctrl 로 하나씩 찍어야 했다.
+    void TestShiftClickingTheHierarchyPicksTheWholeRange()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; range selection not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "RangeSelectProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::GameObject* gamma = canvas->CreateObject("Gamma");
+        JBro::GameObject* delta = canvas->CreateObject("Delta");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        Spot first;
+        Spot third;
+        Check(FindHierarchyRow(editor, hwnd, alpha, first), "Alpha must have a row");
+        Check(FindHierarchyRow(editor, hwnd, gamma, third), "Gamma must have a row");
+
+        // 맨 줄을 그냥 찍으면 그것 하나이고, 그 줄이 기준이 된다.
+        ClickAt(editor, hwnd, first);
+        Check(editor.GetSelectionCount() == 1 && editor.GetSelectedObject() == alpha,
+            "a plain click picks one row");
+
+        // Shift 로 셋째 줄을 찍으면 사이의 줄까지 셋이다.
+        ClickAtWith(editor, hwnd, third, ImGuiMod_Shift);
+        Check(editor.GetSelectionCount() == 3, "shift-clicking must take the whole range");
+        Check(editor.IsSelected(alpha) && editor.IsSelected(beta) && editor.IsSelected(gamma),
+            "which is the anchor, the clicked row and everything between");
+        Check(false == editor.IsSelected(delta), "and nothing past the clicked row");
+
+        // **기준은 그대로다.** 같은 기준에서 다시 재므로 범위가 줄어든다.
+        Spot second;
+        Check(FindHierarchyRow(editor, hwnd, beta, second), "Beta must have a row");
+        ClickAtWith(editor, hwnd, second, ImGuiMod_Shift);
+        Check(editor.GetSelectionCount() == 2,
+            "a second shift-click measures from the same anchor again");
+        Check(editor.IsSelected(alpha) && editor.IsSelected(beta),
+            "so the range shrinks instead of growing from the last click");
+
+        // Ctrl 은 여전히 하나씩 넣고 뺀다. 그리고 그 줄이 다음 범위의 기준이다.
+        Spot fourth;
+        Check(FindHierarchyRow(editor, hwnd, delta, fourth), "Delta must have a row");
+        ClickAtWith(editor, hwnd, fourth, ImGuiMod_Ctrl);
+        Check(editor.GetSelectionCount() == 3 && editor.IsSelected(delta),
+            "ctrl-clicking adds one row");
+        ClickAtWith(editor, hwnd, third, ImGuiMod_Shift);
+        Check(editor.GetSelectionCount() == 2
+                && editor.IsSelected(gamma) && editor.IsSelected(delta),
+            "and the range that follows starts at the row ctrl picked");
+
+        editor.Shutdown();
+    }
 }
 
 int RunEditorApplicationTests()
@@ -7084,6 +7157,7 @@ int RunEditorApplicationTests()
     TestTheAssetBrowserSelectsManyFilesAtOnce();
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();
+    TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

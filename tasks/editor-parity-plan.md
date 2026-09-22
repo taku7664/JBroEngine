@@ -212,7 +212,7 @@
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
 | `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |
 | `Main/Inspector/ButtonRectFit` | — | 해당 없음 (`Button2D` 없음) |
-| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임·오브젝트 눈) | 완료 (D-128·D-135·D-163) |
+| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임·오브젝트 눈·Shift 범위 선택) | 완료 (D-128·D-135·D-163·D-169), 캔버스 줄은 열림(캔버스 설정이 없다) |
 | `Engine/Editor/ImEditor` (창·팝업·미룬 일·뷰 타깃·캔버스 뷰 선택/숨김) | `EditorApplication` · `EditorPanel` · `EditorPopup` | 완료 (D-163 에서 공개 기능 하나씩 대조), 카메라 컬링 통계·GPU 미리보기는 열림 |
 | `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기) | 완료 (D-139·D-141·D-147·D-154) |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |

@@ -184,6 +184,8 @@ namespace JBro
         // **레이어부터 내려간다**(D-135). 위가 앞이다 - 캔버스가 든 차례는 0 이 맨 뒤이므로
         // 역순으로 그린다(포토샵과 같은 쪽이다).
         canvas->GetRootObjects(m_roots);
+        // 이번 프레임에 실제로 그린 줄만 모은다(D-169). 범위 선택이 이 차례를 쓴다.
+        m_visibleRows.Clear();
         const std::size_t layerCount = canvas->GetLayerCount();
         for (std::size_t step = layerCount; step > 0; --step)
         {
@@ -226,7 +228,45 @@ namespace JBro
             }
         }
 
+        FlushRangeSelection();
         FlushPendingMove();
+    }
+
+    void HierarchyPanel::FlushRangeSelection()
+    {
+        GameObject* clicked = m_rangeClick.TryGet();
+        m_rangeClick = SafePtr<GameObject>();
+        if (clicked == nullptr)
+        {
+            return;
+        }
+        // 기준이 없거나 이 프레임에 보이지 않으면 찍은 줄이 새 기준이다.
+        GameObject* anchor = m_selectionAnchor.TryGet();
+        const std::size_t clickedIndex = m_visibleRows.IndexOf(clicked);
+        const std::size_t anchorIndex = anchor != nullptr
+            ? m_visibleRows.IndexOf(anchor)
+            : decltype(m_visibleRows)::InvalidIndex;
+        if (clickedIndex == decltype(m_visibleRows)::InvalidIndex
+            || anchorIndex == decltype(m_visibleRows)::InvalidIndex)
+        {
+            m_editor->SetSelectedObject(clicked);
+            m_selectionAnchor = clicked->SafeFromThis();
+            return;
+        }
+        const std::size_t first = anchorIndex < clickedIndex ? anchorIndex : clickedIndex;
+        const std::size_t last = anchorIndex < clickedIndex ? clickedIndex : anchorIndex;
+        Array<GameObject*> range;
+        range.Reserve(last - first + 1);
+        for (std::size_t index = first; index <= last; ++index)
+        {
+            if (m_visibleRows[index] != nullptr)
+            {
+                range.Add(m_visibleRows[index]);
+            }
+        }
+        // **기준은 그대로 둔다.** Shift 를 누른 채 다른 줄을 찍으면 같은 기준에서 다시 잰다.
+        // 주된 것은 목록의 머리이므로(§선택), 인스펙터에는 범위의 맨 위 줄이 보인다.
+        m_editor->SelectObjects({range.Data(), static_cast<std::uint32_t>(range.Size())});
     }
 
     void HierarchyPanel::DrawLayer(Layer& layer, std::size_t index)
@@ -709,6 +749,10 @@ namespace JBro
             return;
         }
 
+        // 그린 차례대로 적어 둔다(D-169). 범위 선택이 이 차례를 쓰므로, 걸러져 돌아간
+        // 줄과 접혀서 그리지 않은 자식은 들어오지 않는다.
+        m_visibleRows.Add(&object);
+
         // 이름은 태그로 산다 - `Canvas::CreateObject(name)` 이 거기에 넣는다.
         const char* name = object.GetTag();
         if (name == nullptr || *name == '\0')
@@ -782,7 +826,13 @@ namespace JBro
             && false == Widget::MouseWasDragged(ImGuiMouseButton_Left))
         {
             const ImGuiIO& io = ImGui::GetIO();
-            if (io.KeyCtrl || io.KeyShift)
+            if (io.KeyShift)
+            {
+                // **범위다**(D-169). 기준 줄과 이 줄 사이를 통째로 고른다 - 파일 목록과
+                // 기존 엔진이 같다. 아직 그리지 않은 줄이 사이에 있으므로 프레임 끝에 한다.
+                m_rangeClick = object.SafeFromThis();
+            }
+            else if (io.KeyCtrl)
             {
                 if (m_editor->IsSelected(&object))
                 {
@@ -792,10 +842,13 @@ namespace JBro
                 {
                     m_editor->AddToSelection(&object);
                 }
+                // 하나씩 더하고 뺀 자리가 다음 범위의 기준이다.
+                m_selectionAnchor = object.SafeFromThis();
             }
             else
             {
                 m_editor->SetSelectedObject(&object);
+                m_selectionAnchor = object.SafeFromThis();
             }
         }
 
