@@ -1,5 +1,6 @@
 ﻿#include "CanvasViewPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Host/ProjectFile.h>
@@ -229,7 +230,7 @@ namespace JBro
         // **뒤에 오는 것에 자리를 내준다.** 기즈모 손잡이는 이 단추 위에 그려지는데,
         // 겹침을 허락하지 않으면 손잡이를 눌러도 이 단추가 먼저 잡아 끌기가 시작되지 않는다.
         ImGui::SetNextItemAllowOverlap();
-        ImGui::InvisibleButton("##canvas", available,
+        Widget::HitArea("##canvas", available,
             ImGuiButtonFlags_MouseButtonLeft
                 | ImGuiButtonFlags_MouseButtonRight
                 | ImGuiButtonFlags_MouseButtonMiddle);
@@ -285,7 +286,7 @@ namespace JBro
         // 기즈모 모드와 보기 단추는 **다른 무리**다. 사이를 띄우고 줄을 그어 가른다 -
         // 붙여 두면 `크기` 와 `격자` 가 한 낱말처럼 읽힌다.
         Widget::ToolBarSeparator();
-        if (ImGui::Button(Loc::TextOr(LocKeys::CanvasViewGrid, "Grid")))
+        if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewGrid, "Grid")))
         {
             m_showGrid = false == m_showGrid;
         }
@@ -294,7 +295,7 @@ namespace JBro
         {
             // 3D 에는 그릴 콜라이더가 없다. 누를 수 없는 단추를 두면 무엇이 되는 것인지 흐려진다.
             ImGui::SameLine(0.0f, 6.0f);
-            if (ImGui::Button(Loc::TextOr(LocKeys::CanvasViewColliders, "Colliders")))
+            if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewColliders, "Colliders")))
             {
                 m_showColliders = false == m_showColliders;
             }
@@ -302,7 +303,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::CanvasViewCollidersTooltip, "show or hide collider shapes"));
         }
         ImGui::SameLine(0.0f, 6.0f);
-        if (ImGui::Button(Loc::TextOr(LocKeys::CanvasViewFrame, "Frame")))
+        if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewFrame, "Frame")))
         {
             FrameSelection();
         }
@@ -973,13 +974,13 @@ namespace JBro
         {
             return;
         }
-        if (false == ImGui::BeginPopupContextItem("##CanvasViewMenu"))
+        if (false == Widget::BeginContextMenu("##CanvasViewMenu"))
         {
             return;
         }
         // 계층의 빈자리와 **같은 한 벌**이다(D-132). 두 화면의 메뉴가 갈라지지 않는다.
         EditorActions::DrawBackgroundMenu(*m_editor);
-        ImGui::EndPopup();
+        Widget::EndContextMenu();
     }
 
     void CanvasViewPanel::FrameSelection()

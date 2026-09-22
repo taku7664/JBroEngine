@@ -1,5 +1,6 @@
 ﻿#include "InspectorPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
@@ -149,7 +150,7 @@ namespace JBro
                 DrawAsset(*meta);
                 return;
             }
-            ImGui::TextDisabled("%s",
+            Widget::HintTextF("%s",
                 Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected"));
             return;
         }
@@ -159,7 +160,7 @@ namespace JBro
         const std::size_t chosen = m_editor->GetSelectionCount();
         if (chosen > 1)
         {
-            ImGui::TextDisabled(
+            Widget::HintTextF(
                 Loc::TextOr(LocKeys::InspectorMultipleSelected, "%d objects selected"),
                 static_cast<int>(chosen));
         }
@@ -234,15 +235,14 @@ namespace JBro
 
             // 이름이 아니라 슬롯으로 구분한다. 같은 타입을 두 개 붙일 수 있다.
             ImGui::PushID(static_cast<int>(index));
-            const bool opened = ImGui::CollapsingHeader(
+            const bool opened = Widget::CollapsingSection(
                 typeName != nullptr
                     ? typeName
                     : Loc::TextOr(LocKeys::InspectorUnknownComponent,
-                        "(unknown component)"),
-                ImGuiTreeNodeFlags_DefaultOpen);
+                        "(unknown component)"));
             // **머리에 우클릭하면 뗄 수 있다.** 기존 엔진도 여기가 그 자리다.
             // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
-            if (ImGui::BeginPopupContextItem("##ComponentMenu"))
+            if (Widget::BeginContextMenu("##ComponentMenu"))
             {
                 // **자리 옮기기.** 슬롯 순서가 스크립트 실행 순서다(D-45). 양 끝에서는 그쪽
                 // 항목을 잠근다.
@@ -251,7 +251,7 @@ namespace JBro
                 {
                     ImGui::BeginDisabled();
                 }
-                if (ImGui::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up")))
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up")))
                 {
                     moveTo = index - 1;
                 }
@@ -264,7 +264,7 @@ namespace JBro
                 {
                     ImGui::BeginDisabled();
                 }
-                if (ImGui::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down")))
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down")))
                 {
                     moveTo = index + 1;
                 }
@@ -275,23 +275,23 @@ namespace JBro
                 if (moveTo != index)
                 {
                     MoveComponent(*object, index, moveTo);
-                    ImGui::EndPopup();
+                    Widget::EndContextMenu();
                     ImGui::PopID();
                     // 옮긴 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다. 다음 프레임에 다시 그린다.
                     return;
                 }
                 ImGui::Separator();
-                if (ImGui::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent,
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent,
                         "Remove Component")))
                 {
                     RemoveComponent(*object, *component);
-                    ImGui::EndPopup();
+                    Widget::EndContextMenu();
                     ImGui::PopID();
                     // 뗀 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다.
                     // 계속 돌면 죽은 슬롯을 읽는다 - 다음 프레임에 다시 그린다.
                     return;
                 }
-                ImGui::EndPopup();
+                Widget::EndContextMenu();
             }
             if (opened)
             {
@@ -320,7 +320,7 @@ namespace JBro
                     layout.FullRow([&]() {
                         // 저장도 안 되는 컴포넌트다. 조용히 빈 칸으로 두면 왜
                         // 안 보이는지 알 수 없으므로 그렇게 말해 준다.
-                        ImGui::TextDisabled("%s",
+                        Widget::HintTextF("%s",
                             Loc::TextOr(LocKeys::InspectorUnregisteredType,
                                 "this type never registered its properties"));
                     });
@@ -520,13 +520,13 @@ namespace JBro
         }
         if (false == snapped)
         {
-            ImGui::TextDisabled("%s", Loc::TextOr(LocKeys::InspectorTooLong,
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorTooLong,
                 "(too long to show)"));
             return false;
         }
         if (type.codec->FromText == nullptr)
         {
-            ImGui::TextUnformatted(before.c_str());
+            Widget::Text(before.c_str());
             return false;
         }
         String text = before;
@@ -574,7 +574,7 @@ namespace JBro
     void InspectorPanel::DrawAsset(const AssetMetaFile& meta)
     {
         const AssetRecord* record = m_editor->GetAssetRegistry().Find(meta.id);
-        ImGui::TextUnformatted(record != nullptr ? record->relativePath.c_str() : "?");
+        Widget::Text(record != nullptr ? record->relativePath.c_str() : "?");
 
         // **그림을 보여 준다**(D-147, 기존 `AssetInspectorPreview` 자리). 임포트 옵션을
         // 고치는 자리에 그림이 없으면 무엇을 고치고 있는지 이름으로만 알아야 한다.
@@ -584,8 +584,7 @@ namespace JBro
             // 칸 너비에 맞추되 원본 비율을 지킨다. 늘여 붙이면 픽셀 아트가 기울어 보인다.
             const float width = ImGui::GetContentRegionAvail().x;
             const float side = width < PreviewMaxSide ? width : PreviewMaxSide;
-            ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(preview)),
-                ImVec2(side, side));
+            Widget::Image(preview, ImVec2(side, side));
             ImGui::Spacing();
         }
 
@@ -603,7 +602,7 @@ namespace JBro
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
             scope.spriteBlock = spriteBlock;
-            if (ImGui::CollapsingHeader(title, ImGuiTreeNodeFlags_DefaultOpen) && type.fields != nullptr)
+            if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
                 DrawFieldsInto(layout, *type.fields, options, context);
@@ -791,7 +790,7 @@ namespace JBro
         const TypeDescriptor* element = type.element;
         if (element == nullptr)
         {
-            ImGui::TextDisabled("%s",
+            Widget::HintTextF("%s",
                 Loc::TextOr(LocKeys::InspectorUndrawableType, "(no way to show this type)"));
             return;
         }
@@ -898,7 +897,7 @@ namespace JBro
         const float width = ImGui::CalcItemWidth();
         // 계층 패널의 트리 위젯(`Widget::Tree`)은 쓰지 않는다. 그 위젯은 고름·올려놓음 배경을
         // 줄 왼쪽 끝부터 칠해, 목록 행에서는 손잡이와 번호를 덮었다. 중첩 구조체 필드와 같은 마디다.
-        if (false == ImGui::TreeNodeEx(name != nullptr ? name : "?", ImGuiTreeNodeFlags_None))
+        if (false == Widget::FoldNode(name != nullptr ? name : "?", ImGuiTreeNodeFlags_None))
         {
             return;
         }
@@ -914,7 +913,7 @@ namespace JBro
             }
             ImGui::Indent();
         }
-        ImGui::TreePop();
+        Widget::TreePop();
     }
 
     ListEdit InspectorPanel::MakeElementEdit(const ElementScope& scope)
@@ -1021,7 +1020,7 @@ namespace JBro
                         .Tooltip(Loc::TextOr(LocKeys::InspectorTooDeep,
                             "(too deeply nested to edit)")),
                     [&]() {
-                        ImGui::TextDisabled("%s",
+                        Widget::HintTextF("%s",
                             Loc::TextOr(LocKeys::InspectorTooDeep,
                                 "(too deeply nested to edit)"));
                     });
@@ -1099,7 +1098,7 @@ namespace JBro
                     // 속살만 고칠 수 있게 된다.
                     Widget::DisableScope locked(false == editable);
                     layout.FullRow([&]() {
-                        opened = ImGui::TreeNodeEx(label != nullptr ? label : "?",
+                        opened = Widget::FoldNode(label != nullptr ? label : "?",
                             ImGuiTreeNodeFlags_DefaultOpen
                                 | ImGuiTreeNodeFlags_SpanAllColumns);
                     });
@@ -1108,7 +1107,7 @@ namespace JBro
                         ++context.openTrees;
                         DrawFieldsInto(layout, *property.type->fields, address, context);
                         --context.openTrees;
-                        ImGui::TreePop();
+                        Widget::TreePop();
                     }
                 }
                 leave();
@@ -1161,7 +1160,7 @@ namespace JBro
             const std::size_t count = type.arrayOps != nullptr
                 ? (type.arrayOps->GetSize != nullptr ? type.arrayOps->GetSize(address) : 0)
                 : (type.tableOps->GetSize != nullptr ? type.tableOps->GetSize(address) : 0);
-            ImGui::TextDisabled(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
+            Widget::HintTextF(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
                 static_cast<int>(count));
             return;
         }
@@ -1177,7 +1176,7 @@ namespace JBro
             // 표는 키를 받아야 원소를 만들 수 있고, 그 키 칸을 어떻게 그릴지가
             // 아직 정해지지 않았다. 지금은 개수만 보여 준다 - 목록 위젯의
             // `drawAddRow` 자리가 그것을 위해 열려 있다.
-            ImGui::Text(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
+            Widget::TextF(Loc::TextOr(LocKeys::ListElementCount, "%d item(s)"),
                 static_cast<int>(type.tableOps->GetSize(address)));
             return;
         }
@@ -1244,7 +1243,7 @@ namespace JBro
         }
 
         // 필드도 코덱도 없는 타입이다. 등록이 덜 된 것이고, 빈 줄로 두면 모른다.
-        ImGui::TextDisabled("%s",
+        Widget::HintTextF("%s",
             Loc::TextOr(LocKeys::InspectorUndrawableType, "(no way to show this type)"));
     }
 }

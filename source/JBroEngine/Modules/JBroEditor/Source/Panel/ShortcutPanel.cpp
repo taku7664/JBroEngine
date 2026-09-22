@@ -1,5 +1,6 @@
 ﻿#include "ShortcutPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/Localization.h>
@@ -60,18 +61,18 @@ namespace JBro
             // 줄마다 달라 읽히지 않는다.
             Widget::FormLayout layout("##shortcut");
             layout.Row(
-                [&] { ImGui::TextUnformatted(Loc::TextOr(info.labelKey, info.labelKey)); },
+                [&] { Widget::Text(Loc::TextOr(info.labelKey, info.labelKey)); },
                 [&]
                 {
                     const EditorShortcutText primary = EditorShortcuts::Describe(info.primary);
                     const EditorShortcutText secondary = EditorShortcuts::Describe(info.secondary);
                     if (secondary.value[0] != '\0')
                     {
-                        ImGui::Text("%s, %s", primary.value, secondary.value);
+                        Widget::TextF("%s, %s", primary.value, secondary.value);
                     }
                     else
                     {
-                        ImGui::TextUnformatted(primary.value);
+                        Widget::Text(primary.value);
                     }
                 });
         }

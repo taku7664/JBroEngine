@@ -1,5 +1,6 @@
 ﻿#include "LogPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -128,12 +129,15 @@ namespace JBro
 
     void LogPanel::DrawToolBar()
     {
-        if (ImGui::Button(Loc::TextOr(LocKeys::LogClear, "Clear")))
+        if (Widget::Button(Loc::TextOr(LocKeys::LogClear, "Clear")))
         {
             Log::Clear();
         }
         ImGui::SameLine(0.0f, 6.0f);
-        ImGui::Checkbox(Loc::TextOr(LocKeys::LogAutoScroll, "Follow"), &m_autoScroll);
+        // 이름표는 칸 옆 글자다. 위젯에 넘기면 그 글자가 Id 가 되어 번역이 바뀔 때 상태가 풀린다.
+        Widget::Checkbox("##follow", m_autoScroll);
+        ImGui::SameLine(0.0f, 4.0f);
+        Widget::Text(Loc::TextOr(LocKeys::LogAutoScroll, "Follow"));
         Widget::ToolBarSeparator();
 
         // 등급 토글. `Trace` 는 켤 일이 드물어 기본이 꺼짐이다.
@@ -147,9 +151,12 @@ namespace JBro
                 ImGui::SameLine(0.0f, 6.0f);
             }
             const std::size_t slot = static_cast<std::size_t>(Levels[index]);
+            Widget::IdScope id(static_cast<int>(slot));
+            Widget::Checkbox("##level", m_levels[slot]);
+            ImGui::SameLine(0.0f, 4.0f);
             Widget::StyleScope style;
             style.PushColor(ImGuiCol_Text, LevelColor(Levels[index]));
-            ImGui::Checkbox(LevelLabel(Levels[index]), &m_levels[slot]);
+            Widget::Text(LevelLabel(Levels[index]));
         }
 
         ImGui::SameLine(0.0f, 12.0f);
@@ -184,18 +191,18 @@ namespace JBro
             style.PushColor(ImGuiCol_Text, LevelColor(entry->level));
             if (entry->category[0] != '\0')
             {
-                ImGui::Text("[%s] %s", entry->category, entry->message);
+                Widget::TextF("[%s] %s", entry->category, entry->message);
             }
             else
             {
-                ImGui::TextUnformatted(entry->message);
+                Widget::Text(entry->message);
             }
             ImGui::PopID();
         }
 
         if (shown == 0)
         {
-            ImGui::TextDisabled("%s", count == 0
+            Widget::HintText(count == 0
                 ? Loc::TextOr(LocKeys::LogEmpty, "nothing has been logged")
                 : Loc::TextOr(LocKeys::CommonNoMatches, "no matches"));
         }

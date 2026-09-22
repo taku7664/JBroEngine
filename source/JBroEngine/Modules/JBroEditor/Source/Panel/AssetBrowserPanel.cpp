@@ -1,5 +1,6 @@
 ﻿#include "AssetBrowserPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -336,11 +337,11 @@ namespace JBro
             ImGui::SetDragDropPayload(AssetDragPayload, bundle.c_str(), bundle.size() + 1);
             if (count > 1)
             {
-                ImGui::Text("%s +%d", entry.name, static_cast<int>(count - 1));
+                Widget::TextF("%s +%d", entry.name, static_cast<int>(count - 1));
             }
             else
             {
-                ImGui::TextUnformatted(entry.name);
+                Widget::Text(entry.name);
             }
             ImGui::EndDragDropSource();
         }
@@ -380,8 +381,8 @@ namespace JBro
         const ImVec2 origin = ImGui::GetCursorScreenPos();
 
         ImGui::SetNextItemAllowOverlap();
-        ImGui::InvisibleButton("##tile", cell, ImGuiButtonFlags_MouseButtonLeft
-            | ImGuiButtonFlags_MouseButtonRight);
+        Widget::HitArea("##tile", cell,
+            ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
         HandleEntryInput(entry);
 
         ImDrawList* draw = ImGui::GetWindowDrawList();
@@ -433,9 +434,9 @@ namespace JBro
         {
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
             ImGui::SetCursorScreenPos(row.ContentRect.Min);
-            ImGui::TextUnformatted(entry.name);
+            Widget::Text(entry.name);
             ImGui::SameLine();
-            ImGui::TextDisabled("%s", AssetTypeRules::GetTypeName(entry.record->type));
+            Widget::HintText(AssetTypeRules::GetTypeName(entry.record->type));
             ImGui::SetCursorScreenPos(cursor);
         }
         ImGui::PopID();
@@ -468,7 +469,7 @@ namespace JBro
             {
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(row.ContentRect.Min);
-                ImGui::TextUnformatted(LeafOf(child));
+                Widget::Text(LeafOf(child));
                 ImGui::SetCursorScreenPos(cursor);
             }
             if (clicked)
@@ -478,7 +479,7 @@ namespace JBro
             if (opened)
             {
                 DrawFolderTree(child);
-                ImGui::TreePop();
+                Widget::TreePop();
             }
             ImGui::PopID();
         }
@@ -505,7 +506,7 @@ namespace JBro
         {
             const String& part = chain[step - 1];
             ImGui::SameLine(0.0f, 4.0f);
-            ImGui::TextDisabled("/");
+            Widget::HintTextF("/");
             ImGui::SameLine(0.0f, 4.0f);
             ImGui::PushID(part.c_str());
             if (Widget::TextButton(LeafOf(part)))
@@ -542,7 +543,7 @@ namespace JBro
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(row.ContentRect.Min);
                 // 폴더임을 글자로 말한다. 아이콘 글꼴이 없어도 갈린다.
-                ImGui::Text("%s/", LeafOf(child));
+                Widget::TextF("%s/", LeafOf(child));
                 ImGui::SetCursorScreenPos(cursor);
             }
             if (clicked)
@@ -587,26 +588,26 @@ namespace JBro
         }
         if (false == any)
         {
-            ImGui::TextDisabled("%s",
+            Widget::HintTextF("%s",
                 Loc::TextOr(LocKeys::AssetsFolderEmpty, "this folder has no assets"));
         }
     }
 
     void AssetBrowserPanel::DrawBackgroundMenu()
     {
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder")))
         {
             m_pending = m_openFolder;
             m_pendingIsFolder = true;
             m_nameBuffer = "New Folder";
             m_openNewFolder = true;
         }
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
         {
             m_editor->RevealAsset(m_openFolder.c_str());
         }
         ImGui::Separator();
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::AssetsRescan, "Rescan")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsRescan, "Rescan")))
         {
             // 감시가 서지 않은 자리(폴더가 없다가 생긴 경우)에서 사람이 새로 고치는 길이다.
             m_editor->RescanAssets();
@@ -615,78 +616,76 @@ namespace JBro
 
     void AssetBrowserPanel::DrawEntryMenu(const String& relativePath, bool isFolder)
     {
-        if (false == ImGui::BeginPopupContextItem("##AssetMenu"))
+        if (false == Widget::BeginContextMenu("##AssetMenu"))
         {
             return;
         }
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::AssetsRename, "Rename")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsRename, "Rename")))
         {
             m_pending = relativePath;
             m_pendingIsFolder = isFolder;
             m_nameBuffer = LeafOf(relativePath);
             m_openRename = true;
         }
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
         {
             m_pending = relativePath;
             m_pendingIsFolder = isFolder;
             m_openDelete = true;
         }
         ImGui::Separator();
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
         {
             m_editor->RevealAsset(relativePath.c_str());
         }
-        ImGui::EndPopup();
+        Widget::EndContextMenu();
     }
 
     void AssetBrowserPanel::DrawRenamePopup()
     {
         if (m_openRename)
         {
-            ImGui::OpenPopup("##RenameAsset");
+            Widget::OpenModal("##RenameAsset");
             m_openRename = false;
         }
-        if (false == ImGui::BeginPopupModal("##RenameAsset", nullptr,
-                ImGuiWindowFlags_AlwaysAutoResize))
+        if (false == Widget::BeginModal("##RenameAsset"))
         {
             return;
         }
-        ImGui::TextUnformatted(Loc::TextOr(LocKeys::AssetsRename, "Rename"));
-        ImGui::TextDisabled("%s", m_pending.c_str());
+        Widget::Text(Loc::TextOr(LocKeys::AssetsRename, "Rename"));
+        Widget::HintText(m_pending.c_str());
         ImGui::Spacing();
         Widget::TextField("##newName", m_nameBuffer).Width(260.0f).Draw();
         ImGui::Spacing();
         const bool valid = false == m_nameBuffer.empty();
         {
             Widget::DisableScope disabled(false == valid);
-            if (ImGui::Button(Loc::TextOr(LocKeys::CommonOk, "OK")))
+            if (Widget::Button(Loc::TextOr(LocKeys::CommonOk, "OK")))
             {
                 if (false == m_editor->RenameAsset(m_pending.c_str(), m_nameBuffer.c_str()))
                 {
                     m_message = Loc::TextOr(LocKeys::AssetsRenameFailed,
                         "that name is taken, or the file could not be renamed");
                 }
-                ImGui::CloseCurrentPopup();
+                Widget::CloseModal();
             }
         }
         ImGui::SameLine(0.0f, 6.0f);
-        if (ImGui::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
+        if (Widget::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
         {
-            ImGui::CloseCurrentPopup();
+            Widget::CloseModal();
         }
-        ImGui::EndPopup();
+        Widget::EndModal();
     }
 
     void AssetBrowserPanel::DrawDeletePopup()
     {
         if (m_openDelete)
         {
-            ImGui::OpenPopup("##DeleteAsset");
+            Widget::OpenModal("##DeleteAsset");
             m_openDelete = false;
         }
-        if (false == ImGui::BeginPopupModal("##DeleteAsset", nullptr,
-                ImGuiWindowFlags_AlwaysAutoResize))
+        if (false == Widget::BeginModal("##DeleteAsset"))
         {
             return;
         }
@@ -694,24 +693,24 @@ namespace JBro
         const bool many = false == m_pendingIsFolder && m_selection.Size() > 1;
         if (many)
         {
-            ImGui::Text(Loc::TextOr(LocKeys::AssetsDeleteManyAsk, "delete these %d assets?"),
+            Widget::TextF(Loc::TextOr(LocKeys::AssetsDeleteManyAsk, "delete these %d assets?"),
                 static_cast<int>(m_selection.Size()));
             // 무엇이 사라지는지 한 줄씩 보여 준다. 개수만으로는 잘못 고른 것을 알 수 없다.
             for (std::size_t index = 0; index < m_selection.Size(); ++index)
             {
-                ImGui::TextDisabled("%s", m_selection[index].c_str());
+                Widget::HintText(m_selection[index].c_str());
             }
         }
         else
         {
-            ImGui::TextUnformatted(m_pendingIsFolder
+            Widget::Text(m_pendingIsFolder
                 ? Loc::TextOr(LocKeys::AssetsDeleteFolderAsk,
                     "delete this folder and everything in it?")
                 : Loc::TextOr(LocKeys::AssetsDeleteAsk, "delete this asset?"));
-            ImGui::TextDisabled("%s", m_pending.c_str());
+            Widget::HintText(m_pending.c_str());
         }
         ImGui::Spacing();
-        if (ImGui::Button(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
+        if (Widget::Button(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
         {
             if (m_pendingIsFolder)
             {
@@ -725,50 +724,49 @@ namespace JBro
             {
                 DeleteSelection();
             }
-            ImGui::CloseCurrentPopup();
+            Widget::CloseModal();
         }
         ImGui::SameLine(0.0f, 6.0f);
-        if (ImGui::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
+        if (Widget::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
         {
-            ImGui::CloseCurrentPopup();
+            Widget::CloseModal();
         }
-        ImGui::EndPopup();
+        Widget::EndModal();
     }
 
     void AssetBrowserPanel::DrawNewFolderPopup()
     {
         if (m_openNewFolder)
         {
-            ImGui::OpenPopup("##NewFolder");
+            Widget::OpenModal("##NewFolder");
             m_openNewFolder = false;
         }
-        if (false == ImGui::BeginPopupModal("##NewFolder", nullptr,
-                ImGuiWindowFlags_AlwaysAutoResize))
+        if (false == Widget::BeginModal("##NewFolder"))
         {
             return;
         }
-        ImGui::TextUnformatted(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder"));
+        Widget::Text(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder"));
         ImGui::Spacing();
         Widget::TextField("##folderName", m_nameBuffer).Width(260.0f).Draw();
         ImGui::Spacing();
         {
             Widget::DisableScope disabled(m_nameBuffer.empty());
-            if (ImGui::Button(Loc::TextOr(LocKeys::CommonOk, "OK")))
+            if (Widget::Button(Loc::TextOr(LocKeys::CommonOk, "OK")))
             {
                 if (false == m_editor->CreateAssetFolder(m_pending.c_str(), m_nameBuffer.c_str()))
                 {
                     m_message = Loc::TextOr(LocKeys::AssetsNewFolderFailed,
                         "that folder could not be made");
                 }
-                ImGui::CloseCurrentPopup();
+                Widget::CloseModal();
             }
         }
         ImGui::SameLine(0.0f, 6.0f);
-        if (ImGui::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
+        if (Widget::Button(Loc::TextOr(LocKeys::CommonCancel, "Cancel")))
         {
-            ImGui::CloseCurrentPopup();
+            Widget::CloseModal();
         }
-        ImGui::EndPopup();
+        Widget::EndModal();
     }
 
     void AssetBrowserPanel::OnDraw()
@@ -779,7 +777,7 @@ namespace JBro
         }
         if (false == m_editor->HasOpenProject())
         {
-            ImGui::TextDisabled("%s", Loc::TextOr(LocKeys::HierarchyNoProject, "no project is open"));
+            Widget::HintText(Loc::TextOr(LocKeys::HierarchyNoProject, "no project is open"));
             return;
         }
         Widget::SearchBox("##filter", m_filter)
@@ -787,7 +785,7 @@ namespace JBro
             .Width(200.0f)
             .Draw();
         ImGui::SameLine(0.0f, 8.0f);
-        if (ImGui::Button(m_iconView
+        if (Widget::Button(m_iconView
                 ? Loc::TextOr(LocKeys::AssetsListView, "List")
                 : Loc::TextOr(LocKeys::AssetsIconView, "Icons")))
         {
@@ -813,13 +811,12 @@ namespace JBro
         Collect();
         if (m_entries.IsEmpty() && m_folders.IsEmpty())
         {
-            ImGui::TextDisabled("%s", Loc::TextOr(LocKeys::AssetsEmpty, "the asset folder has no files"));
+            Widget::HintText(Loc::TextOr(LocKeys::AssetsEmpty, "the asset folder has no files"));
             // 파일이 하나도 없어도 폴더는 만들 수 있어야 한다.
-            if (ImGui::BeginPopupContextWindow("##AssetsBackground",
-                    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+            if (Widget::BeginContextMenu("##AssetsBackground", true))
             {
                 DrawBackgroundMenu();
-                ImGui::EndPopup();
+                Widget::EndContextMenu();
             }
             DrawNewFolderPopup();
             return;
@@ -846,7 +843,7 @@ namespace JBro
             {
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(rootRow.ContentRect.Min);
-                ImGui::TextUnformatted(Loc::TextOr(LocKeys::AssetsRoot, "Assets"));
+                Widget::Text(Loc::TextOr(LocKeys::AssetsRoot, "Assets"));
                 ImGui::SetCursorScreenPos(cursor);
             }
             if (rootClicked)
@@ -865,11 +862,10 @@ namespace JBro
         if (ImGui::BeginChild("##contents", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))
         {
             DrawContents();
-            if (ImGui::BeginPopupContextWindow("##AssetsBackground",
-                    ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+            if (Widget::BeginContextMenu("##AssetsBackground", true))
             {
                 DrawBackgroundMenu();
-                ImGui::EndPopup();
+                Widget::EndContextMenu();
             }
         }
         ImGui::EndChild();

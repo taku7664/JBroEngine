@@ -2517,6 +2517,19 @@ EditorApplication::Tick
   차례는 기존과 같다(파일 · 시뮬레이션 · 편집 · 설정 · 디버그 · 창). 패널이 없으면 항목을 잠근다.
   `[열림]` 새 프로젝트(런처가 맡는다, D-97), 빌드·빌드 설정, GPU 프로파일링, 임포터 메뉴는 그
   기능이 없어 두지 않았다.
+- **D-152. 패널의 글자·단추·메뉴·팝업·콤보는 공용 위젯을 거친다. 소스 검사가 그것을 지킨다.**
+  (2026-09-22, ProjectRule §11.1)
+  세어 보니 패널들이 `ImGui::` 원시 위젯을 **백 번 넘게** 곧장 부르고 있었다. 같은 "흐린 안내 글자" 가
+  `TextDisabled("%s", …)` 와 `TextDisabled(…)`(글자를 서식으로 읽어 `%` 가 든 파일 이름에서 깨진다)로
+  갈렸고, 메뉴의 잠금·팝업의 크기 처리도 패널마다 달랐다. 기존 엔진은 `ImText`·`ImTextButton`·팝업
+  계층(`Application/Editor/ImItem/`)을 거쳤다.
+  `Widget/Basic.h` 가 섰다: `Text`·`TextF`·`HintText`·`SeverityTextF`, `Button`·`HitArea`,
+  `MenuItem`·`MenuToggle`, `Begin/EndContextMenu`·`Open/Begin/Close/EndModal`, `CollapsingSection`·
+  `FoldNode`·`TreePop`, `Image`. 로그 창의 체크박스는 이름표를 위젯에 넘기지 않게 바꿨고(번역이 바뀌면
+  Id 가 바뀌어 상태가 풀린다), 설정 창의 언어 목록은 `FilterCombo` 로 갔다(D-118).
+  **새 패널이 다시 원시 호출을 들이지 않게** `TestPanelsGoThroughTheWidgetLayer` 가 패널 소스를 읽어
+  금지 목록의 호출을 찾는다. 하나를 도로 넣으면 그 파일과 호출 이름을 말하며 죽는 것을 확인했다.
+  배치(`SameLine`·`Separator`)와 그리기 목록은 위젯이 아니라 목록에 없다.
 
 ## Assumptions
 

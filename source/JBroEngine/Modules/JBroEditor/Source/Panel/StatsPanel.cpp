@@ -1,5 +1,7 @@
 ﻿#include "StatsPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -53,12 +55,12 @@ namespace JBro
             ? total / static_cast<float>(m_filledSamples)
             : 0.0f;
 
-        ImGui::Text(Loc::TextOr(LocKeys::StatsFrameTime, "frame %.2f ms"),
+        Widget::TextF(Loc::TextOr(LocKeys::StatsFrameTime, "frame %.2f ms"),
             average * 1000.0f);
-        ImGui::Text(Loc::TextOr(LocKeys::StatsPerSecond, "%.0f per second"),
+        Widget::TextF(Loc::TextOr(LocKeys::StatsPerSecond, "%.0f per second"),
             average > 0.0f ? 1.0f / average : 0.0f);
         ImGui::Separator();
-        ImGui::Text(Loc::TextOr(LocKeys::StatsFrameCount, "frames %llu"),
+        Widget::TextF(Loc::TextOr(LocKeys::StatsFrameCount, "frames %llu"),
             static_cast<unsigned long long>(m_frames));
 
         if (m_editor == nullptr)
@@ -72,12 +74,12 @@ namespace JBro
         }
         const RendererFrameStats stats = renderer->GetLastFrameStats();
         ImGui::Separator();
-        ImGui::Text(Loc::TextOr(LocKeys::StatsViews, "views %u"), stats.viewCount);
-        ImGui::Text(Loc::TextOr(LocKeys::StatsSprites, "sprites %u"), stats.spriteCount);
+        Widget::TextF(Loc::TextOr(LocKeys::StatsViews, "views %u"), stats.viewCount);
+        Widget::TextF(Loc::TextOr(LocKeys::StatsSprites, "sprites %u"), stats.spriteCount);
         if (stats.droppedViewCount != 0 || stats.droppedSpriteCount != 0)
         {
             // 넘치면 조용히 버려진다. 버려진 것이 있으면 그것부터 보여야 한다.
-            ImGui::TextColored(ImVec4(1.0f, 0.55f, 0.2f, 1.0f),
+            Widget::SeverityTextF(Widget::Severity::Warning,
                 Loc::TextOr(LocKeys::StatsDropped, "dropped %u view(s), %u sprite(s)"),
                 stats.droppedViewCount, stats.droppedSpriteCount);
         }
@@ -92,44 +94,44 @@ namespace JBro
             std::size_t objectLive = 0;
             std::size_t objectCapacity = 0;
             canvas->GetObjectPoolUsage(objectLive, objectCapacity);
-            ImGui::Text(Loc::TextOr(LocKeys::StatsObjects, "objects %llu / %llu"),
+            Widget::TextF(Loc::TextOr(LocKeys::StatsObjects, "objects %llu / %llu"),
                 static_cast<unsigned long long>(objectLive),
                 static_cast<unsigned long long>(objectCapacity));
-            ImGui::Text(Loc::TextOr(LocKeys::StatsLayers, "layers %llu"),
+            Widget::TextF(Loc::TextOr(LocKeys::StatsLayers, "layers %llu"),
                 static_cast<unsigned long long>(canvas->GetLayerCount()));
-            ImGui::Text(Loc::TextOr(LocKeys::StatsSelected, "selected %llu"),
+            Widget::TextF(Loc::TextOr(LocKeys::StatsSelected, "selected %llu"),
                 static_cast<unsigned long long>(m_editor->GetSelectionCount()));
 
             // 컴포넌트 풀은 타입마다 따로 산다. **늘어나는 순간이 프레임을 늘어지게 만드는
             // 자리**라, 얼마나 남았는지가 보여야 한다.
-            if (ImGui::TreeNodeEx(Loc::TextOr(LocKeys::StatsPools, "component pools"),
+            if (Widget::Tree(Loc::TextOr(LocKeys::StatsPools, "component pools"),
                     ImGuiTreeNodeFlags_DefaultOpen))
             {
                 bool any = false;
                 canvas->ForEachComponentPool([&](const Canvas::ComponentPoolUsage& usage) {
                     any = true;
                     const char* typeName = NameTable::Get().Resolve(usage.typeId);
-                    ImGui::Text("%s  %llu / %llu",
+                    Widget::TextF("%s  %llu / %llu",
                         typeName != nullptr ? typeName : "?",
                         static_cast<unsigned long long>(usage.live),
                         static_cast<unsigned long long>(usage.capacity));
                 });
                 if (false == any)
                 {
-                    ImGui::TextDisabled("%s",
+                    Widget::HintTextF("%s",
                         Loc::TextOr(LocKeys::StatsNoPools, "no component pool has been made yet"));
                 }
-                ImGui::TreePop();
+                Widget::TreePop();
             }
         }
 
         // 되돌리기의 상태. 기존도 같은 세 줄을 냈다.
         ImGui::Separator();
         const EditorCommandManager& commands = m_editor->GetCommands();
-        ImGui::Text(Loc::TextOr(LocKeys::StatsUndo, "undo %llu / redo %llu"),
+        Widget::TextF(Loc::TextOr(LocKeys::StatsUndo, "undo %llu / redo %llu"),
             static_cast<unsigned long long>(commands.GetUndoCount()),
             static_cast<unsigned long long>(commands.GetRedoCount()));
-        ImGui::Text("%s", commands.IsDirty()
+        Widget::TextF("%s", commands.IsDirty()
             ? Loc::TextOr(LocKeys::StatsDirty, "there are unsaved changes")
             : Loc::TextOr(LocKeys::StatsClean, "everything is saved"));
     }

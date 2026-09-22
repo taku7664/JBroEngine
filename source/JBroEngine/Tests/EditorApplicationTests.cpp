@@ -4947,6 +4947,52 @@ namespace
     // **집는 칸이 에셋이 정한 크기를 따른다**(D-148). `sizeMode` 가 `FromSprite` 면 실제 크기는
     // 칸 픽셀을 그 에셋의 PPU 로 나눈 값이다(D-117). 선언된 `size` 를 대신 쓰면 집는 칸이
     // 그림과 어긋나, 그림 밖 빈 곳을 눌러도 잡히고 그림 가장자리를 눌러도 놓친다.
+    // **패널은 공용 위젯 계층을 거친다**(§11.1, D-152). 글자·단추·메뉴·팝업·콤보를 패널이
+    // `ImGui::` 로 곧장 부르면 같은 자리가 패널마다 다른 모양이 된다. 소스를 읽어 막는다 -
+    // 눈으로 훑는 검사는 새 패널이 생길 때마다 다시 해야 하고, 다시 하지 않게 된다.
+    void TestPanelsGoThroughTheWidgetLayer()
+    {
+        namespace fs = std::filesystem;
+        const fs::path panels("Modules/JBroEditor/Source/Panel");
+        std::error_code ignored;
+        if (false == fs::is_directory(panels, ignored))
+        {
+            std::cout << "  [skip] panel sources are not beside the test" << std::endl;
+            return;
+        }
+        // 공용 위젯이 대신하는 원시 호출들이다. 배치(`SameLine`·`Separator`)와 그리기 목록은
+        // 위젯이 아니라 여기 넣지 않는다.
+        const char* forbidden[] = {
+            "ImGui::Text(", "ImGui::TextUnformatted(", "ImGui::TextDisabled(", "ImGui::TextColored(",
+            "ImGui::Button(", "ImGui::Checkbox(", "ImGui::MenuItem(", "ImGui::Selectable(",
+            "ImGui::BeginCombo(", "ImGui::BeginPopupContextItem(", "ImGui::BeginPopupContextWindow(",
+            "ImGui::BeginPopupModal(", "ImGui::OpenPopup(", "ImGui::EndPopup(",
+            "ImGui::InvisibleButton(", "ImGui::Image(", "ImGui::CollapsingHeader(",
+            "ImGui::TreeNodeEx(", "ImGui::TreeNode(", "ImGui::TreePop(", "ImGui::InputText("};
+        std::size_t scanned = 0;
+        for (const fs::directory_entry& entry : fs::directory_iterator(panels, ignored))
+        {
+            if (entry.path().extension() != ".cpp")
+            {
+                continue;
+            }
+            ++scanned;
+            std::ifstream in(entry.path(), std::ios::binary);
+            const std::string text((std::istreambuf_iterator<char>(in)),
+                std::istreambuf_iterator<char>());
+            for (const char* token : forbidden)
+            {
+                if (text.find(token) != std::string::npos)
+                {
+                    std::cout << "  " << entry.path().filename().string() << " calls " << token
+                        << std::endl;
+                    Check(false, "a panel must draw through the shared widget layer");
+                }
+            }
+        }
+        Check(scanned >= 8, "the panel sources must actually have been read");
+    }
+
     void TestPickingFollowsTheSpriteAssetSize()
     {
         namespace fs = std::filesystem;
@@ -5760,6 +5806,7 @@ int RunEditorApplicationTests()
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
+    TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();
     TestTheStatsPanelShowsWhatTheCanvasHolds();

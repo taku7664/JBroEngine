@@ -1,5 +1,7 @@
 ﻿#include "ProjectSettingsPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
@@ -60,7 +62,7 @@ namespace JBro
         if (path.empty())
         {
             // 파일로 열지 않은 프로젝트다(테스트의 것이 그렇다). 고칠 파일이 없다.
-            ImGui::TextDisabled("%s",
+            Widget::HintTextF("%s",
                 Loc::TextOr(LocKeys::ProjectSettingsNoFile, "this project has no file to edit"));
             m_loaded = false;
             return;
@@ -78,22 +80,22 @@ namespace JBro
             // 엔진 판과 차원은 **보여만 준다.** 판은 런처가 어느 설치를 띄울지 고르는 값이고,
             // 차원은 열려 있는 프로젝트에서 바꾸면 지금 선 프레임워크와 어긋난다.
             layout.Row(
-                [] { ImGui::TextUnformatted("EngineVersion"); },
+                [] { Widget::Text("EngineVersion"); },
                 [&]
                 {
                     Widget::DisableScope disabled(true);
-                    ImGui::TextUnformatted(m_draft.engineVersion.c_str());
+                    Widget::Text(m_draft.engineVersion.c_str());
                 });
             layout.Row(
-                [] { ImGui::TextUnformatted("Framework"); },
+                [] { Widget::Text("Framework"); },
                 [&]
                 {
                     Widget::DisableScope disabled(true);
-                    ImGui::TextUnformatted(
+                    Widget::Text(
                         m_draft.framework == FrameworkKind::Framework3D ? "3D" : "2D");
                 });
             layout.Row(
-                [] { ImGui::TextUnformatted("ResolutionWidth"); },
+                [] { Widget::Text("ResolutionWidth"); },
                 [&]
                 {
                     int value = static_cast<int>(m_draft.resolutionWidth);
@@ -103,7 +105,7 @@ namespace JBro
                     }
                 });
             layout.Row(
-                [] { ImGui::TextUnformatted("ResolutionHeight"); },
+                [] { Widget::Text("ResolutionHeight"); },
                 [&]
                 {
                     int value = static_cast<int>(m_draft.resolutionHeight);
@@ -113,7 +115,7 @@ namespace JBro
                     }
                 });
             layout.Row(
-                [] { ImGui::TextUnformatted("TextureFilter"); },
+                [] { Widget::Text("TextureFilter"); },
                 [&]
                 {
                     // 둘뿐이다(`Default` 는 텍스처의 임포트 옵션에만 있다, D-117).
@@ -128,7 +130,7 @@ namespace JBro
                         "linear sampling; off is nearest, which is the pixel-art default"));
                 });
             layout.Row(
-                [] { ImGui::TextUnformatted("DebugModeEnabled"); },
+                [] { Widget::Text("DebugModeEnabled"); },
                 [&] { Widget::Checkbox("##debug", m_draft.debugModeEnabled); });
         }
 
@@ -143,29 +145,30 @@ namespace JBro
                 [&]() {
                     if (locales.IsEmpty())
                     {
-                        ImGui::TextDisabled("%s", Loc::TextOr(LocKeys::ProjectSettingsNoLanguages,
+                        Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsNoLanguages,
                             "no language files were found"));
                         return;
                     }
-                    if (false == ImGui::BeginCombo("##language", m_editor->GetEditorLocale().c_str()))
-                    {
-                        return;
-                    }
+                    // 고르는 목록은 공용 콤보다(§11.1). 패널이 `BeginCombo` 로 직접 그리지 않는다.
+                    Array<const char*> names;
+                    int current = -1;
                     for (std::size_t index = 0; index < locales.Size(); ++index)
                     {
-                        const bool chosen = locales[index] == m_editor->GetEditorLocale();
-                        if (ImGui::Selectable(locales[index].c_str(), chosen)
-                            && false == chosen)
+                        names.Add(locales[index].c_str());
+                        if (locales[index] == m_editor->GetEditorLocale())
                         {
-                            m_editor->SetEditorLocale(locales[index].c_str());
-                            m_draft.editorLocale = m_editor->GetEditorLocale();
-                        }
-                        if (chosen)
-                        {
-                            ImGui::SetItemDefaultFocus();
+                            current = static_cast<int>(index);
                         }
                     }
-                    ImGui::EndCombo();
+                    if (Widget::FilterCombo("##language",
+                            ArrayView<const char* const>(names.Data(), names.Size()), current)
+                            .ShowFilter(false)
+                            .Draw()
+                        && current >= 0)
+                    {
+                        m_editor->SetEditorLocale(locales[static_cast<std::size_t>(current)].c_str());
+                        m_draft.editorLocale = m_editor->GetEditorLocale();
+                    }
                 });
         }
 
@@ -174,16 +177,16 @@ namespace JBro
         {
             Widget::FormLayout layout("##paths");
             layout.Row(
-                [] { ImGui::TextUnformatted("AssetDirectory"); },
+                [] { Widget::Text("AssetDirectory"); },
                 [&] { Widget::TextField("##assets", m_draft.assetDirectory).Draw(); });
             layout.Row(
-                [] { ImGui::TextUnformatted("ScriptSourceDirectory"); },
+                [] { Widget::Text("ScriptSourceDirectory"); },
                 [&] { Widget::TextField("##scriptSource", m_draft.scriptSourceDirectory).Draw(); });
             layout.Row(
-                [] { ImGui::TextUnformatted("ScriptOutputLibraryPath"); },
+                [] { Widget::Text("ScriptOutputLibraryPath"); },
                 [&] { Widget::TextField("##scriptOut", m_draft.scriptOutputLibraryPath).Draw(); });
             layout.Row(
-                [] { ImGui::TextUnformatted("LastOpenedCanvasPath"); },
+                [] { Widget::Text("LastOpenedCanvasPath"); },
                 [&] { Widget::TextField("##lastCanvas", m_draft.lastOpenedCanvasPath).Draw(); });
         }
 
@@ -192,30 +195,30 @@ namespace JBro
         {
             Widget::FormLayout layout("##build");
             layout.Row(
-                [] { ImGui::TextUnformatted("ProductName"); },
+                [] { Widget::Text("ProductName"); },
                 [&] { Widget::TextField("##product", m_draft.build.productName).Draw(); });
             layout.Row(
-                [] { ImGui::TextUnformatted("OutputDirectory"); },
+                [] { Widget::Text("OutputDirectory"); },
                 [&] { Widget::TextField("##output", m_draft.build.outputDirectory).Draw(); });
             layout.Row(
-                [] { ImGui::TextUnformatted("StartupCanvas"); },
+                [] { Widget::Text("StartupCanvas"); },
                 [&] { Widget::TextField("##startup", m_draft.build.startupCanvas).Draw(); });
             layout.Row(
-                [] { ImGui::TextUnformatted("EnableWindows"); },
+                [] { Widget::Text("EnableWindows"); },
                 [&] { Widget::Checkbox("##windows", m_draft.build.enableWindows); });
             layout.Row(
-                [] { ImGui::TextUnformatted("EnableWeb"); },
+                [] { Widget::Text("EnableWeb"); },
                 [&] { Widget::Checkbox("##web", m_draft.build.enableWeb); });
             layout.Row(
-                [] { ImGui::TextUnformatted("EnableAndroid"); },
+                [] { Widget::Text("EnableAndroid"); },
                 [&] { Widget::Checkbox("##android", m_draft.build.enableAndroid); });
             layout.Row(
-                [] { ImGui::TextUnformatted("EnableIOS"); },
+                [] { Widget::Text("EnableIOS"); },
                 [&] { Widget::Checkbox("##ios", m_draft.build.enableIOS); });
         }
 
         ImGui::Spacing();
-        if (ImGui::Button(Loc::TextOr(LocKeys::ProjectSettingsSave, "Save")))
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsSave, "Save")))
         {
             // **여기서야 파일에 간다.** 고치는 동안 파일을 건드리면 되돌릴 방법이 없다.
             ProjectFileError error;
@@ -234,7 +237,7 @@ namespace JBro
             }
         }
         ImGui::SameLine(0.0f, 6.0f);
-        if (ImGui::Button(Loc::TextOr(LocKeys::ProjectSettingsRevert, "Revert")))
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsRevert, "Revert")))
         {
             Reload();
         }

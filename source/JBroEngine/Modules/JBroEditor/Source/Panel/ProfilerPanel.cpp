@@ -1,5 +1,6 @@
 ﻿#include "ProfilerPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -93,13 +94,13 @@ namespace JBro
         {
             return;
         }
-        ImGui::Text("%s", Loc::TextOr(LocKeys::ProfilerHint,
+        Widget::TextF("%s", Loc::TextOr(LocKeys::ProfilerHint,
             "measured while this window is open"));
         ImGui::Separator();
 
         if (m_rowCount == 0)
         {
-            ImGui::TextDisabled("%s",
+            Widget::HintTextF("%s",
                 Loc::TextOr(LocKeys::ProfilerEmpty, "nothing has been measured yet"));
             return;
         }
@@ -137,25 +138,25 @@ namespace JBro
             {
                 ImGui::Indent(indent);
             }
-            ImGui::TextUnformatted(row.name);
+            Widget::Text(row.name);
             if (indent > 0.0f)
             {
                 ImGui::Unindent(indent);
             }
             ImGui::TableSetColumnIndex(1);
-            ImGui::Text("%.3f", row.milliseconds);
+            Widget::TextF("%.3f", row.milliseconds);
             ImGui::TableSetColumnIndex(2);
-            ImGui::Text("%u", row.callCount);
+            Widget::TextF("%u", row.callCount);
             ImGui::TableSetColumnIndex(3);
             const double share = m_frameMilliseconds > 0.0001
                 ? row.milliseconds / m_frameMilliseconds * 100.0
                 : 0.0;
-            ImGui::Text("%.1f%%", share);
+            Widget::TextF("%.1f%%", share);
         }
         ImGui::EndTable();
 
         ImGui::Spacing();
-        ImGui::Text("%s %.3f ms",
+        Widget::TextF("%s %.3f ms",
             Loc::TextOr(LocKeys::ProfilerFrame, "frame"), m_frameMilliseconds);
     }
 }

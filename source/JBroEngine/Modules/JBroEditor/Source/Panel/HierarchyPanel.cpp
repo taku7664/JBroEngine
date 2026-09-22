@@ -1,5 +1,6 @@
 ﻿#include "HierarchyPanel.h"
 
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Command/HierarchyCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/LayerCommands.h>
@@ -142,7 +143,7 @@ namespace JBro
         Canvas* canvas = m_editor->GetCanvas();
         if (canvas == nullptr)
         {
-            ImGui::TextDisabled("%s",
+            Widget::HintTextF("%s",
                 Loc::TextOr(LocKeys::HierarchyNoProject, "no project is open"));
             return;
         }
@@ -160,19 +161,18 @@ namespace JBro
 
         // 빈 자리에 우클릭하면 뿌리에 만든다. 기존 엔진도 하이어라키의 맥락
         // 메뉴가 이 자리다.
-        if (ImGui::BeginPopupContextWindow("##HierarchyMenu",
-            ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        if (Widget::BeginContextMenu("##HierarchyMenu", true))
         {
             // 빈자리의 메뉴는 캔버스 뷰의 것과 **같은 한 벌**이다(D-132).
             bool changed = EditorActions::DrawBackgroundMenu(*m_editor);
             ImGui::Separator();
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyAddLayer, "Add Layer")))
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyAddLayer, "Add Layer")))
             {
                 m_editor->GetCommands().Execute(
                     MakeOwnerPtr<CreateLayerCommand>(*canvas, "Layer"));
                 changed = true;
             }
-            ImGui::EndPopup();
+            Widget::EndContextMenu();
             if (changed)
             {
                 // 계층이 그 자리에서 달라졌다. 이 프레임에 더 그리지 않는다.
@@ -205,7 +205,7 @@ namespace JBro
                 (std::max)(available.x, 1.0f),
                 (std::max)(available.y, ImGui::GetTextLineHeightWithSpacing()));
             const ImVec2 start = ImGui::GetCursorScreenPos();
-            ImGui::InvisibleButton("##RootDrop", size);
+            Widget::HitArea("##RootDrop", size);
             if (ImGui::BeginDragDropTarget())
             {
                 ImGui::GetWindowDrawList()->AddRect(
@@ -245,7 +245,7 @@ namespace JBro
         if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoHoldToOpenOthers))
         {
             ImGui::SetDragDropPayload(LayerDragPayload, &layerId, sizeof(layerId));
-            ImGui::TextUnformatted(layer.GetName());
+            Widget::Text(layer.GetName());
             ImGui::EndDragDropSource();
         }
         const bool alive = DrawLayerContextMenu(layer);
@@ -258,11 +258,11 @@ namespace JBro
             // 숨긴 레이어는 흐리게. 화면에 안 나오는 이유가 줄에서 보여야 한다.
             if (layer.IsVisible())
             {
-                ImGui::TextUnformatted(layer.GetName());
+                Widget::Text(layer.GetName());
             }
             else
             {
-                ImGui::TextDisabled("%s", layer.GetName());
+                Widget::HintText(layer.GetName());
             }
 
             // **눈 표시는 줄의 오른쪽 끝이다.** 기존 엔진도 같은 자리에 두었다.
@@ -296,7 +296,7 @@ namespace JBro
             }
             if (false == any)
             {
-                ImGui::TextDisabled("%s",
+                Widget::HintTextF("%s",
                     Loc::TextOr(LocKeys::HierarchyLayerEmpty, "this layer is empty"));
             }
         }
@@ -304,7 +304,7 @@ namespace JBro
         {
             // **`TreeBegin` 이 연 마디는 열렸으면 늘 닫는다.** 레이어가 그 사이에
             // 지워졌어도 ImGui 의 짝은 맞춰야 한다 - 안 맞으면 그 뒤가 한 칸씩 들여써진다.
-            ImGui::TreePop();
+            Widget::TreePop();
         }
         ImGui::PopID();
     }
@@ -319,7 +319,7 @@ namespace JBro
         }
         const ImVec2 cursor = ImGui::GetCursorScreenPos();
         ImGui::SetCursorScreenPos(rowRect.Min);
-        ImGui::InvisibleButton("##LayerDrop", rowRect.GetSize());
+        Widget::HitArea("##LayerDrop", rowRect.GetSize());
         ImGui::SetCursorScreenPos(cursor);
 
         if (false == ImGui::BeginDragDropTarget())
@@ -374,7 +374,7 @@ namespace JBro
     bool HierarchyPanel::DrawLayerContextMenu(Layer& layer)
     {
         Canvas* canvas = m_editor->GetCanvas();
-        if (false == ImGui::BeginPopupContextItem("##LayerMenu"))
+        if (false == Widget::BeginContextMenu("##LayerMenu"))
         {
             return true;
         }
@@ -388,7 +388,7 @@ namespace JBro
             m_renaming = layerId;
             m_renameText = layer.GetName();
         }
-        ImGui::TextUnformatted(Loc::TextOr(LocKeys::HierarchyLayerName, "Name"));
+        Widget::Text(Loc::TextOr(LocKeys::HierarchyLayerName, "Name"));
         Widget::TextField("##layerName", m_renameText).Width(180.0f).Draw();
         if (m_renameText != layer.GetName())
         {
@@ -397,7 +397,7 @@ namespace JBro
         }
 
         ImGui::Separator();
-        if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
         {
             if (GameObject* made = EditorActions::CreateObject(*m_editor, nullptr))
             {
@@ -417,7 +417,7 @@ namespace JBro
             {
                 ImGui::BeginDisabled();
             }
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer")))
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer")))
             {
                 m_editor->ClearSelection();
                 m_editor->SetSelectedObject(nullptr);
@@ -430,7 +430,7 @@ namespace JBro
                 ImGui::EndDisabled();
             }
         }
-        ImGui::EndPopup();
+        Widget::EndContextMenu();
         if (false == alive)
         {
             m_renaming = InvalidLayerId;
@@ -450,7 +450,7 @@ namespace JBro
         const EditorObjectId id = m_editor->GetObjectIds().Track(&object);
         ImGui::SetDragDropPayload(DragPayload, &id, sizeof(id));
         const char* name = object.GetTag();
-        ImGui::TextUnformatted(name != nullptr && *name != '\0'
+        Widget::Text(name != nullptr && *name != '\0'
             ? name
             : Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)"));
         ImGui::EndDragDropSource();
@@ -471,7 +471,7 @@ namespace JBro
         // 그대로 두면 줄의 오른쪽 빈 곳에 떨어뜨릴 수 없다.
         const ImVec2 cursor = ImGui::GetCursorScreenPos();
         ImGui::SetCursorScreenPos(rowRect.Min);
-        ImGui::InvisibleButton("##RowDrop", rowRect.GetSize());
+        Widget::HitArea("##RowDrop", rowRect.GetSize());
         ImGui::SetCursorScreenPos(cursor);
 
         if (false == ImGui::BeginDragDropTarget())
@@ -654,7 +654,7 @@ namespace JBro
 
     bool HierarchyPanel::DrawObjectContextMenu(GameObject& object)
     {
-        if (false == ImGui::BeginPopupContextItem("##ObjectMenu"))
+        if (false == Widget::BeginContextMenu("##ObjectMenu"))
         {
             return true;
         }
@@ -696,7 +696,7 @@ namespace JBro
                 alive = false;
             }
         }
-        ImGui::EndPopup();
+        Widget::EndContextMenu();
         return alive;
     }
 
@@ -767,7 +767,7 @@ namespace JBro
             // 않으면 다음 줄들이 한 칸씩 들여써진다.
             if (opened && hasChildren)
             {
-                ImGui::TreePop();
+                Widget::TreePop();
             }
             ImGui::PopID();
             return;
@@ -807,11 +807,11 @@ namespace JBro
             // 꺼져 있는 오브젝트는 흐리게. 사용 여부는 화면에서 바로 보여야 한다.
             if (object.IsActiveSelf())
             {
-                ImGui::TextUnformatted(name);
+                Widget::Text(name);
             }
             else
             {
-                ImGui::TextDisabled("%s", name);
+                Widget::HintText(name);
             }
             ImGui::SetCursorScreenPos(cursor);
         }
@@ -826,7 +826,7 @@ namespace JBro
                     DrawObject(*child, &object, index);
                 }
             }
-            ImGui::TreePop();
+            Widget::TreePop();
         }
         ImGui::PopID();
     }
