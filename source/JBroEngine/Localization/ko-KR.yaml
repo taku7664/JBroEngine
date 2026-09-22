@@ -4,8 +4,8 @@ Entries:
   panel.canvas_view: 캔버스 뷰
   panel.hierarchy: 계층 구조
   panel.inspector: 인스펙터
-  panel.assets: 에셋
-  panel.shortcuts: 단축키
+  panel.assets: 에셋 브라우저
+  panel.shortcuts: 단축키 안내
   panel.log: 로그
   panel.stats: 통계
   gizmo.translate: 이동

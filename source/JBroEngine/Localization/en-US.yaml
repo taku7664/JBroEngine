@@ -4,8 +4,8 @@ Entries:
   panel.canvas_view: Canvas
   panel.hierarchy: Hierarchy
   panel.inspector: Inspector
-  panel.assets: Assets
-  panel.shortcuts: Shortcuts
+  panel.assets: Asset Browser
+  panel.shortcuts: Shortcut Reference
   panel.log: Log
   panel.stats: Stats
   gizmo.translate: Move
