@@ -19,6 +19,8 @@ namespace JBro::Widget
     void Text(const char* text);
     // 서식을 채워 적는다.
     void TextF(const char* format, ...) IM_FMTARGS(1);
+    // 칸 끝에서 줄을 바꾸는 글자다. 경로처럼 길이를 모르는 값이 잘리지 않게 한다(D-160).
+    void WrappedText(const char* text);
     // **흐린 안내 글자**다. "선택한 것이 없습니다" 처럼 값이 아니라 상태를 말하는 자리에 쓴다.
     void HintText(const char* text);
     void HintTextF(const char* format, ...) IM_FMTARGS(1);

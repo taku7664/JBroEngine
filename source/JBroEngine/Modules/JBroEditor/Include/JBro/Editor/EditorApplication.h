@@ -350,6 +350,13 @@ namespace JBro
         void RequestSaveProject();
         // 프로젝트를 골라 연다. 대화상자는 프레임 밖에서 뜬다 - 지금 연 프로젝트는 닫힌다.
         void RequestOpenProject();
+        // **새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 프레임 밖에서 폴더를 고르고,
+        // 이름과 프레임워크를 받는 팝업을 띄운다.
+        void RequestNewProject();
+        // `<parentFolder>/<name>/` 에 프로젝트를 세우고, 이 프레임이 끝나면 그 프로젝트로 넘어간다.
+        // 실패하면 거짓이고 `failure` 에 까닭이 온다. 팝업이 그것으로 번역된 문장을 고른다.
+        bool CreateProject(const char* parentFolder, const char* name, FrameworkKind framework,
+            ProjectCreateFailure* failure = nullptr);
         // 마지막으로 열거나 저장한 캔버스 경로. 없으면 빈 글자다.
         const String& GetCanvasPath() const
         {
@@ -391,6 +398,9 @@ namespace JBro
         void PerformSaveRequest();
         // 프로젝트 열기도 저장과 같다: **막히는 대화상자라 프레임 밖에서** 한다(D-93).
         void PerformOpenProjectRequest();
+        void PerformNewProjectRequest();
+        // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
+        bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();
         void ReleaseEditorUi();
         void DestroyPanels();
@@ -413,6 +423,9 @@ namespace JBro
         String m_canvasPath;
         bool m_saveRequested = false;
         bool m_openProjectRequested = false;
+        bool m_newProjectRequested = false;
+        // 만든 프로젝트. 프레임이 끝나면 그리로 넘어간다 - 팝업 안(프레임 안)에서 프로젝트를 닫을 수 없다.
+        String m_pendingProjectPath;
         Array<ObjectTreeSnapshot> m_clipboard;
         bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* m_fileDialogUser = nullptr;

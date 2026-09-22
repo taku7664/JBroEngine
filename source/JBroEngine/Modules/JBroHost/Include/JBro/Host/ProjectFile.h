@@ -97,11 +97,23 @@ namespace JBro
         ProjectBuildSettings build;
     };
 
+    // 새 프로젝트를 세우지 못한 까닭이다(D-160). 에디터가 이 값으로 번역된 문장을 고른다 - `message` 는 로그용 영어다.
+    enum class ProjectCreateFailure : std::uint8_t
+    {
+        None,
+        InvalidName,
+        AlreadyExists,
+        NoEngineVersion,
+        CannotWrite
+    };
+
     struct ProjectFileError
     {
         // 0 이면 파일 자체를 열지 못한 것이다.
         std::uint32_t line = 0;
         String        message;
+        // `CreateProjectFile` 만 채운다.
+        ProjectCreateFailure createFailure = ProjectCreateFailure::None;
     };
 
     // 파일에서 읽는다. 실패하면 result 는 손대지 않고 error 를 채운다.
@@ -133,6 +145,14 @@ namespace JBro
     // 위의 글자를 파일에 쓴다. **바꿔치기다**(D-124) - `<파일>.tmp` 에 먼저 쓰고 옮긴다.
     // 쓰다 만 파일로 프로젝트를 잃지 않는다.
     bool SaveProjectFile(IPlatform& platform, const char* utf8Path, const ProjectFile& project,
+        ProjectFileError& error);
+
+    // **새 프로젝트를 세운다**(D-160, 기존 `CProjectManager::CreateProject`). `<parentFolder>/<name>/` 에
+    // `<name>.jproject` 와 에셋 폴더(`AssetDirectory` 기본값)를 만든다. 이름은 파일 이름이 될 수 있어야 하고,
+    // **그 폴더가 이미 있으면 거절한다** - 남의 파일 위에 프로젝트를 덮어 세우지 않는다. 쓴 파일은 다시 읽어
+    // 열리는 것까지 확인한다. 성공하면 `outProjectFilePath` 에 프로젝트 파일 경로가 온다.
+    bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
+        FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
         ProjectFileError& error);
 
     // 프로젝트 루트와 합쳐 실제로 로드할 스크립트 DLL 경로를 만든다.

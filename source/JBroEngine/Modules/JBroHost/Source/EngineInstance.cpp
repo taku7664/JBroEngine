@@ -549,6 +549,10 @@ namespace JBro
         }
         if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
         {
+            // 멈춘 까닭을 남긴다. 켜자마자 꺼지는 창을 설명할 길이 이 줄뿐이었다(D-160).
+            Log::Write(LogLevel::Info, "engine", m_exitRequested
+                ? "stopping: exit was requested"
+                : "stopping: the window was closed");
             return false;
         }
         // 소켓은 프레임 밖에서 돌린다. 이 뒤의 고정 스텝이 받은 것을 입히고 보낼 것을 만든다.

@@ -94,6 +94,9 @@
         pch 를 걷어내면서 모든 모듈에 공통으로 적용되도록 여기로 옮겼다.
       -->
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <!-- 코드가 엔진 버전을 알아야 할 때(새 프로젝트의 `EngineVersion`, D-160) 위의 세 줄에서 받는다.
+           `JBro/Core/Version.h` 가 글자로 바꾼다. 코드에 버전을 옮겨 적지 않는다(D-101). -->
+      <PreprocessorDefinitions>JBRO_VERSION_MAJOR=$(JBroVersionMajor);JBRO_VERSION_MINOR=$(JBroVersionMinor);JBRO_VERSION_PATCH=$(JBroVersionPatch);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Debug'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)'=='Release'">NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>

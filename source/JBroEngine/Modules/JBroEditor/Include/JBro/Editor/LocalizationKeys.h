@@ -74,6 +74,18 @@ namespace JBro::LocKeys
     inline constexpr const char* PopupOpenProjectFailed = "popup.open_project_failed";
     inline constexpr const char* DialogOpenProjectTitle = "dialog.open_project_title";
     inline constexpr const char* DialogProjectFilter = "dialog.project_filter";
+    // 새 프로젝트(D-160, 기존 루트 도크의 `MenuFileNewProject`)
+    inline constexpr const char* MenuNewProject = "menu.new_project";
+    inline constexpr const char* DialogNewProjectFolder = "dialog.new_project_folder";
+    inline constexpr const char* NewProjectLocation = "new_project.location";
+    inline constexpr const char* NewProjectName = "new_project.name";
+    inline constexpr const char* NewProjectFramework = "new_project.framework";
+    inline constexpr const char* NewProjectNameHint = "new_project.name_hint";
+    inline constexpr const char* CommonCreate = "common.create";
+    inline constexpr const char* PopupNewProjectFailed = "popup.new_project_failed";
+    inline constexpr const char* NewProjectInvalidName = "new_project.invalid_name";
+    inline constexpr const char* NewProjectAlreadyExists = "new_project.already_exists";
+    inline constexpr const char* NewProjectCannotWrite = "new_project.cannot_write";
 
     // ── 계층 ─────────────────────────────────────────────────────────────
     inline constexpr const char* HierarchyNoProject = "hierarchy.no_project";

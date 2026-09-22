@@ -19,6 +19,13 @@ namespace JBro::Widget
         va_end(args);
     }
 
+    void WrappedText(const char* text)
+    {
+        ImGui::PushTextWrapPos(0.0f);
+        ImGui::TextUnformatted(text != nullptr ? text : "");
+        ImGui::PopTextWrapPos();
+    }
+
     void HintText(const char* text)
     {
         // `TextDisabled(text)` 는 글자를 서식으로 읽는다. 파일 이름에 `%` 가 있으면 깨진다.

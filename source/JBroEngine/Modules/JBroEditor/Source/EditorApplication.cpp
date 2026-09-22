@@ -1,4 +1,5 @@
 ﻿#include <JBro/Core/Log.h>
+#include <JBro/Core/Version.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorShortcuts.h>
@@ -26,6 +27,7 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include "EditorThumbnails.h"
+#include "NewProjectPopup.h"
 #include "Tool/SpriteViewerWindow.h"
 
 #include "Panel/AssetBrowserPanel.h"
@@ -1039,7 +1041,11 @@ namespace JBro
         {
             return;
         }
+        SwitchToProject(path.c_str());
+    }
 
+    bool EditorApplication::SwitchToProject(const char* projectFilePath)
+    {
         // **지금 연 것을 먼저 닫는다.** 고른 것·번호·되돌리기는 이 프로젝트의 것이라
         // 다음 프로젝트에서 그 번호를 믿으면 엉뚱한 오브젝트를 가리킨다.
         ClearSelection();
@@ -1051,19 +1057,73 @@ namespace JBro
         CloseProject();
 
         ProjectFileError error;
-        if (false == OpenProjectFile(path.c_str(), error))
+        if (false == OpenProjectFile(projectFilePath, error))
         {
-            String message = path;
+            String message = projectFilePath;
             message.append("\n", 1);
             message.append(error.message.c_str(), error.message.size());
             OpenPopup(MakeOwnerPtr<MessagePopup>(
                 Loc::TextOr(LocKeys::PopupOpenProjectFailed, "The project could not be opened"),
                 message.c_str(), "open_project_failed"));
-            return;
+            return false;
         }
         // 새 프로젝트도 멈춘 채로 시작한다(D-131).
         m_engine->SetSimulationEnabled(false);
-        Log::Write(LogLevel::Info, "project", "opened %s", path.c_str());
+        Log::Write(LogLevel::Info, "project", "opened %s", projectFilePath);
+        return true;
+    }
+
+    void EditorApplication::RequestNewProject()
+    {
+        m_newProjectRequested = true;
+    }
+
+    void EditorApplication::PerformNewProjectRequest()
+    {
+        if (false == m_pendingProjectPath.empty())
+        {
+            // 팝업이 만든 프로젝트로 넘어간다. 팝업은 프레임 안이라 거기서는 닫을 수 없었다.
+            const String path = m_pendingProjectPath;
+            m_pendingProjectPath.clear();
+            SwitchToProject(path.c_str());
+        }
+        if (false == m_newProjectRequested)
+        {
+            return;
+        }
+        m_newProjectRequested = false;
+        // **막히는 대화상자라 프레임 밖이다**(D-93). 기존과 같이 폴더를 먼저 고르고 이름은 팝업이 받는다.
+        FileDialogDesc desc;
+        desc.title = Loc::TextOr(LocKeys::DialogNewProjectFolder, "Choose a folder for the project");
+        desc.pickFolder = true;
+        String folder;
+        const bool chosen = m_fileDialog != nullptr
+            ? m_fileDialog(desc, folder, m_fileDialogUser)
+            : m_platform->ShowFileDialog(m_engine->GetMainWindow(), desc, folder);
+        if (false == chosen || folder.empty())
+        {
+            return;
+        }
+        OpenPopup(MakeOwnerPtr<NewProjectPopup>(folder.c_str()));
+    }
+
+    bool EditorApplication::CreateProject(
+        const char* parentFolder, const char* name, FrameworkKind framework, ProjectCreateFailure* failure)
+    {
+        String path;
+        ProjectFileError error;
+        if (false == CreateProjectFile(*m_platform, parentFolder, name, framework, EngineVersionText, path, error))
+        {
+            Log::Write(LogLevel::Warning, "project", "a new project could not be created: %s", error.message.c_str());
+            if (failure != nullptr)
+            {
+                *failure = error.createFailure;
+            }
+            return false;
+        }
+        Log::Write(LogLevel::Info, "project", "created %s", path.c_str());
+        m_pendingProjectPath = path;
+        return true;
     }
 
     void EditorApplication::PerformSaveRequest()
@@ -1946,6 +2006,12 @@ namespace JBro
         // 메뉴는 창과 달리 도킹 자리 같은 것을 남기지 않으므로 잃는 것이 없다.
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
+            // 기존과 같은 차례다: 새 프로젝트 · 구분선 · 열기 · 저장.
+            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
+            {
+                RequestNewProject();
+            }
+            ImGui::Separator();
             if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
             {
                 RequestOpenProject();
@@ -2273,7 +2339,12 @@ namespace JBro
             return false;
         }
 
-        if (false == m_ui.BeginFrame(display, deltaTime))
+        // **시계가 움직이지 않은 프레임은 실패가 아니다**(D-160). 호스트는 첫 프레임의 시간을 `now - previous` 로
+        // 재는데, 시계가 그 사이 넘어가지 않으면 0 이다. UI 는 0 을 받지 않으므로(ImGui 가 단언에서 멈춘다) 거절했고,
+        // 에디터가 켜지자마자 꺼졌다 - 서른 번에 세 번꼴이었다. 음수와 NaN 은 여전히 잘못이다.
+        constexpr float StillFrameTime = 1.0e-6f;
+        const float uiDeltaTime = deltaTime == 0.0f ? StillFrameTime : deltaTime;
+        if (false == m_ui.BeginFrame(display, uiDeltaTime))
         {
             return false;
         }
@@ -2331,10 +2402,25 @@ namespace JBro
             }
             const float width = popup.GetInitialWidth();
             const float height = popup.GetInitialHeight();
-            const bool autoSize = width <= 0.0f || height <= 0.0f;
-            if (false == autoSize && false == popup.m_shown)
+            // **폭만 정하고 높이는 내용에 맞출 수 있다**(D-160, 기존 `ImPopupDesc::InitSize(400, 0)`). ImGui 는 크기의
+            // 한 축이 0 이면 그 축을 내용에 맞춘다 - 기존도 이렇게 매 프레임 불렀다. 폭까지 내용에 맞추면 긴 경로를
+            // 보이는 팝업이 경로 폭만큼 늘고, 짧으면 칸이 좁아진다.
+            const bool fixedWidth = width > 0.0f && height <= 0.0f;
+            const bool autoSize = false == fixedWidth && (width <= 0.0f || height <= 0.0f);
+            if (fixedWidth)
+            {
+                ImGui::SetNextWindowSize(ImVec2(width, 0.0f));
+            }
+            else if (false == autoSize && false == popup.m_shown)
             {
                 ImGui::SetNextWindowSize(ImVec2(width, height));
+            }
+            // **화면 가운데에 뜬다.** 내용에 맞추는 높이는 첫 프레임에 알 수 없어, ImGui 가 화면 높이로 가운데를
+            // 잡아 팝업이 맨 위에 붙었다(실제 에디터에서 그랬다). 크기가 서는 동안만 붙들고 그 뒤는 끌어 옮길 수 있다.
+            constexpr std::uint8_t SettleFrames = 3;
+            if (popup.m_framesShown < SettleFrames)
+            {
+                ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
             }
             // p_open 이 nullptr 이면 ImGui 가 제목줄의 X 를 그리지 않는다.
             bool* open = popup.HasCloseButton() ? &popup.m_open : nullptr;
@@ -2354,6 +2440,10 @@ namespace JBro
                 ImGui::EndPopup();
             }
             popup.m_shown = true;
+            if (popup.m_framesShown < SettleFrames)
+            {
+                ++popup.m_framesShown;
+            }
         }
         // 3) 닫혔으면 나가는 훅을 부르고 뺀다. 다음 프레임에 다음 것이 뜬다.
         if (false == popup.IsAlive())
@@ -2514,6 +2604,7 @@ namespace JBro
         // 하는데, 엔진 Tick 이 그 프레임을 연다.
         if (m_uiEnabled && false == BuildEditorUi(deltaTime))
         {
+            Log::Write(LogLevel::Error, "editor", "the editor UI could not build a frame");
             return false;
         }
         // **게임 뷰 렌더는 매 프레임 opt-in 이다**(D-63). UI 를 먼저 만들었으므로 이 프레임에
@@ -2547,6 +2638,7 @@ namespace JBro
         // 어느 프레임도 열려 있지 않다.
         PerformSaveRequest();
         PerformOpenProjectRequest();
+        PerformNewProjectRequest();
         PerformImportRequest();
         if (m_exitRequested)
         {

@@ -373,6 +373,75 @@ namespace
         Check(again.engineVersion == "1.0.0" && again.framework == JBro::FrameworkKind::Framework2D,
             "and what was not touched is untouched");
     }
+
+    // **새 프로젝트를 세운다**(D-160, 기존 `CProjectManager::CreateProject`). 폴더·프로젝트 파일·에셋 폴더가
+    // 서고 그대로 열린다. 이미 있는 폴더 위에는 세우지 않고, 파일 이름이 될 수 없는 이름은 거절한다.
+    void TestCreatesANewProject()
+    {
+        namespace fs = std::filesystem;
+        std::error_code ignored;
+        const fs::path parent = fs::temp_directory_path() / "JBroCreateProjectProbe";
+        fs::remove_all(parent, ignored);
+        fs::create_directories(parent, ignored);
+        const std::u8string parentText = parent.u8string();
+        const JBro::String parentUtf8(reinterpret_cast<const char*>(parentText.c_str()), parentText.size());
+
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
+
+        // 한글과 공백이 섞인 이름이다. 폴더와 파일 이름이 UTF-8 로 끝까지 가야 한다.
+        const char* name = "\xEC\x83\x88 \xEA\xB2\x8C\xEC\x9E\x84";  // "새 게임"
+        JBro::String path;
+        JBro::ProjectFileError error;
+        if (false == JBro::CreateProjectFile(platform, parentUtf8.c_str(), name,
+                JBro::FrameworkKind::Framework3D, "0.1.0", path, error))
+        {
+            std::cout << "  create failed: " << error.message.c_str() << std::endl;
+            Check(false, "a new project must be created in an empty folder");
+        }
+        const fs::path root = parent / fs::path(std::u8string(u8"새 게임"));
+        Check(fs::is_regular_file(root / std::u8string(u8"새 게임.jproject"), ignored),
+            "the project file stands in a folder of the same name");
+        Check(fs::is_directory(root / "Contents" / "Assets", ignored), "with the asset folder");
+
+        JBro::ProjectFile opened;
+        Check(JBro::LoadProjectFile(platform, path.c_str(), opened, error), "and it opens");
+        Check(opened.framework == JBro::FrameworkKind::Framework3D, "as the framework that was chosen");
+        Check(opened.engineVersion == "0.1.0", "with the engine version that made it");
+        Check(opened.build.productName == name, "and the name as the product name");
+        {
+            // 새 파일은 첫 줄부터 키다. 빈 원문을 빈 줄 하나로 세어 파일이 빈 줄로 시작했다.
+            JBro::Array<std::byte> bytes;
+            Check(platform.ReadWholeFile(path.c_str(), bytes) && bytes.Size() > 0
+                    && static_cast<char>(bytes[0]) == 'V',
+                "the new file starts with its first key, not a blank line");
+        }
+
+        // **있는 폴더 위에는 세우지 않는다.** 남의 파일을 덮어 프로젝트를 만들면 되돌릴 길이 없다.
+        const JBro::String firstPath = path;
+        Check(false == JBro::CreateProjectFile(platform, parentUtf8.c_str(), name,
+                JBro::FrameworkKind::Framework2D, "0.1.0", path, error),
+            "the same name again is refused");
+        Check(error.createFailure == JBro::ProjectCreateFailure::AlreadyExists, "and says it is already there");
+        JBro::ProjectFile still;
+        Check(JBro::LoadProjectFile(platform, firstPath.c_str(), still, error)
+                && still.framework == JBro::FrameworkKind::Framework3D,
+            "and the first project is untouched");
+
+        for (const char* bad : {"", " lead", "trail ", "a/b", "a\\b", "what?", "..", "dot."})
+        {
+            Check(false == JBro::CreateProjectFile(platform, parentUtf8.c_str(), bad,
+                    JBro::FrameworkKind::Framework2D, "0.1.0", path, error),
+                "a name that cannot be a file name is refused");
+        }
+        Check(false == JBro::CreateProjectFile(platform, parentUtf8.c_str(), "NoVersion",
+                JBro::FrameworkKind::Framework2D, "", path, error),
+            "a project without an engine version is refused");
+        Check(false == fs::exists(parent / "NoVersion", ignored), "and leaves nothing behind");
+
+        fs::remove_all(parent, ignored);
+    }
 }
 
 int RunProjectFileTests()
@@ -385,6 +454,7 @@ int RunProjectFileTests()
     TestScriptModulePathResolution();
     TestDefaultsSurviveAnEmptyProject();
     TestRewritingKeepsWhatItDoesNotKnow();
+    TestCreatesANewProject();
     std::cout << "Project file tests passed.\n";
     return 0;
 }

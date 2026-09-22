@@ -793,8 +793,9 @@ namespace JBro
             return false;
         }
         IFileDialog* dialog = nullptr;
+        const bool save = desc.save && false == desc.pickFolder;
         const HRESULT created = CoCreateInstance(
-            desc.save ? CLSID_FileSaveDialog : CLSID_FileOpenDialog,
+            save ? CLSID_FileSaveDialog : CLSID_FileOpenDialog,
             nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog));
         if (FAILED(created) || dialog == nullptr)
         {
@@ -805,7 +806,14 @@ namespace JBro
         if (SUCCEEDED(dialog->GetOptions(&options)))
         {
             options |= FOS_FORCEFILESYSTEM | FOS_NOCHANGEDIR | FOS_PATHMUSTEXIST;
-            options |= desc.save ? FOS_OVERWRITEPROMPT : FOS_FILEMUSTEXIST;
+            if (desc.pickFolder)
+            {
+                options |= FOS_PICKFOLDERS;
+            }
+            else
+            {
+                options |= save ? FOS_OVERWRITEPROMPT : FOS_FILEMUSTEXIST;
+            }
             dialog->SetOptions(options);
         }
 
@@ -832,7 +840,7 @@ namespace JBro
         }
         wchar_t filterName[256] = {};
         wchar_t filterPattern[256] = {};
-        if (desc.filterName != nullptr && desc.filterPattern != nullptr
+        if (false == desc.pickFolder && desc.filterName != nullptr && desc.filterPattern != nullptr
             && ToWide(desc.filterName, filterName, 256) && ToWide(desc.filterPattern, filterPattern, 256)
             && filterName[0] != L'\0' && filterPattern[0] != L'\0')
         {

@@ -86,5 +86,7 @@ namespace JBro
         bool m_open = true;
         // 한 번이라도 그려졌는가. `OpenPopup` 을 부를 때와 `OnEnter` 를 부를 때를 가른다.
         bool m_shown = false;
+        // 그려진 프레임 수(몇까지만 센다). 내용에 맞추는 크기는 첫 몇 프레임에 선다 - 그동안은 가운데에 붙들어 둔다.
+        std::uint8_t m_framesShown = 0;
     };
 }

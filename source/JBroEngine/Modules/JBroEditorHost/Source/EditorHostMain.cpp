@@ -343,7 +343,12 @@ int main(int argumentCount, char** arguments)
         }
     }
 
-    std::printf("the editor ran %lld frame(s)\n", frames);
+    // **왜 멈췄는지 남긴다.** 창을 닫은 것인지 프레임이 실패한 것인지 모르면, 켜자마자 꺼지는 에디터를
+    // 사람도 런처도 설명할 수 없다(실제로 그런 일이 있었다, D-160).
+    const char* const statusNames[] = {"ready", "skipped", "surface lost", "device lost", "invalid state"};
+    const auto status = static_cast<std::size_t>(editor.GetLastFrameStatus());
+    std::printf("the editor ran %lld frame(s); last frame: %s\n", frames,
+        status < sizeof(statusNames) / sizeof(statusNames[0]) ? statusNames[status] : "?");
     editor.Shutdown();
     return ExitOk;
 }

@@ -621,7 +621,8 @@ namespace JBro
         std::size_t buildEnd = String::npos;
 
         std::size_t at = 0;
-        while (at <= originalLength)
+        // 빈 원문(새 프로젝트, D-160)은 줄이 하나도 없다. 빈 줄 하나로 세면 파일이 빈 줄로 시작한다.
+        while (originalLength > 0 && at <= originalLength)
         {
             std::size_t stop = at;
             while (stop < originalLength && originalText[stop] != '\n')
@@ -792,6 +793,94 @@ namespace JBro
         {
             return Fail(error, 0, "the project file could not be replaced");
         }
+        return true;
+    }
+
+    bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
+        FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
+        ProjectFileError& error)
+    {
+        error = ProjectFileError{};
+        outProjectFilePath.clear();
+        const auto fail = [&error](ProjectCreateFailure failure, const char* message) {
+            Fail(error, 0, message);
+            error.createFailure = failure;
+            return false;
+        };
+        if (parentFolder == nullptr || parentFolder[0] == '\0')
+        {
+            return fail(ProjectCreateFailure::CannotWrite, "no folder was given");
+        }
+        if (engineVersion == nullptr || engineVersion[0] == '\0')
+        {
+            return fail(ProjectCreateFailure::NoEngineVersion, "the project must say which engine version it opens with (EngineVersion)");
+        }
+        // **이름은 폴더와 파일의 이름이 된다.** 경로를 가르는 글자나 윈도우가 받지 않는 글자가 들어가면
+        // 엉뚱한 곳에 서거나 만들다 만다. 앞뒤 공백과 `.`·`..` 도 같은 이유로 막는다.
+        const String projectName(name != nullptr ? name : "");
+        if (projectName.empty() || projectName == "." || projectName == ".."
+            || projectName[0] == ' ' || projectName[projectName.size() - 1] == ' '
+            || projectName[projectName.size() - 1] == '.')
+        {
+            return fail(ProjectCreateFailure::InvalidName, "the name cannot be a file name");
+        }
+        for (const char character : projectName)
+        {
+            if (static_cast<unsigned char>(character) < 0x20 || std::strchr("\\/:*?\"<>|", character) != nullptr)
+            {
+                return fail(ProjectCreateFailure::InvalidName, "the name cannot be a file name");
+            }
+        }
+
+        String root(parentFolder);
+        if (root[root.size() - 1] != '/' && root[root.size() - 1] != '\\')
+        {
+            root.append("/", 1);
+        }
+        root.append(projectName.c_str(), projectName.size());
+        if (platform.DirectoryExists(root.c_str()) || platform.FileExists(root.c_str()))
+        {
+            return fail(ProjectCreateFailure::AlreadyExists, "something with that name is already in the folder");
+        }
+
+        ProjectFile project;
+        project.engineVersion = engineVersion;
+        project.framework = framework;
+        project.build.productName = projectName;
+        String assets = root;
+        assets.append("/", 1);
+        assets.append(project.assetDirectory.c_str(), project.assetDirectory.size());
+        if (false == platform.CreateDirectoryAt(assets.c_str()))
+        {
+            return fail(ProjectCreateFailure::CannotWrite, "the project folder could not be created");
+        }
+
+        // 빈 원문에 쓰면 아는 키가 모두 제 차례로 붙는다 - 새 파일의 모양도 고쳐 쓰는 길과 같다.
+        String text;
+        if (false == WriteProjectFileText(project, "", 0, text, error))
+        {
+            error.createFailure = ProjectCreateFailure::CannotWrite;
+            return false;
+        }
+        String path = root;
+        path.append("/", 1);
+        path.append(projectName.c_str(), projectName.size());
+        path.append(".jproject", 9);
+        const JArrayView<std::byte> bytes{
+            reinterpret_cast<const std::byte*>(text.c_str()),
+            static_cast<std::uint32_t>(text.size())};
+        if (false == platform.WriteWholeFile(path.c_str(), bytes))
+        {
+            return fail(ProjectCreateFailure::CannotWrite, "the project file could not be written");
+        }
+        // 쓴 것이 열리는지 본다. 열리지 않는 프로젝트를 만들어 놓고 성공이라 하지 않는다.
+        ProjectFile check;
+        if (false == LoadProjectFile(platform, path.c_str(), check, error))
+        {
+            error.createFailure = ProjectCreateFailure::CannotWrite;
+            return false;
+        }
+        outProjectFilePath = path;
         return true;
     }
 

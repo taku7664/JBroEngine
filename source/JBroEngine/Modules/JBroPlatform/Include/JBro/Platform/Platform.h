@@ -59,6 +59,8 @@ namespace JBro
         const char* initialDirectory = nullptr;
         // 참이면 저장 대화상자(덮어쓰기 확인), 거짓이면 열기 대화상자(있는 파일만).
         bool save = false;
+        // 참이면 파일이 아니라 **폴더**를 고른다(D-160, 기존 `ShowOpenFolderDialog`). 필터와 `save` 는 보지 않는다.
+        bool pickFolder = false;
     };
 
     // 폴더 열거의 방문자다. `relativeUtf8Path` 는 열거를 시작한 폴더 기준 상대경로이고 구분자는 `/` 다.

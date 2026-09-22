@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Core/Version.h>
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Profiler.h>
@@ -1883,6 +1884,7 @@ namespace
         JBro::String path;
         int calls = 0;
         bool save = false;
+        bool pickFolder = false;
         JBro::String defaultFileName;
 
         static bool Answer(const JBro::FileDialogDesc& desc, JBro::String& outPath, void* user)
@@ -1890,6 +1892,7 @@ namespace
             DialogProbe& probe = *static_cast<DialogProbe*>(user);
             ++probe.calls;
             probe.save = desc.save;
+            probe.pickFolder = desc.pickFolder;
             probe.defaultFileName = desc.defaultFileName != nullptr ? desc.defaultFileName : "";
             if (probe.path.empty())
             {
@@ -5300,6 +5303,123 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **파일 → 새 프로젝트**(D-160, 기존 루트 도크의 `MenuFileNewProject`). 폴더를 고르면 이름과 프레임워크를
+    // 받는 팝업이 뜨고, 이름을 치고 Enter 를 누르면 그 폴더에 프로젝트가 서고 에디터가 그리로 넘어간다.
+    // 2D 프로젝트를 연 채로 3D 를 골라 프레임워크까지 바뀌는지 본다.
+    void TestNewProjectCreatesAndOpensIt()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroNewProjectProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Current" / "Assets", ignored);
+        fs::create_directories(root / "Parent", ignored);
+        const JBro::String currentPath = TempPath("JBroNewProjectProbe\\Current\\Current.jproject");
+        Check(WriteTextFile(currentPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        DialogProbe dialog;
+        dialog.path = TempPath("JBroNewProjectProbe\\Parent");
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; new project not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(currentPath.c_str(), error), "the current project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        // **시간이 흐르지 않은 프레임에 에디터가 멈추지 않는다**(D-160). 호스트의 첫 프레임이 0 초로 재어지면 UI 가
+        // 프레임을 거절해 에디터가 켜지자마자 꺼졌다.
+        Check(editor.Tick(0.0f), "a frame in which no time passed does not stop the editor");
+        Check(editor.Tick(Frame), "the editor must settle");
+
+        editor.RequestNewProject();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick through the folder dialog");
+        }
+        Check(dialog.calls == 1 && dialog.pickFolder, "a new project first asks for a folder");
+        Check(editor.IsPopupOpenById("new_project"), "then the popup asks for the name");
+        {
+            // **팝업은 화면 가운데에 선다.** 폭을 고정하고 높이를 내용에 맞추자 첫 프레임에 높이를 몰라 맨 위에
+            // 붙었다(실제 에디터에서 그랬다). 가운데에 붙드는 몇 프레임이 지난 뒤에 잰다 - 그 뒤에도 가운데여야 한다.
+            for (int frame = 0; frame < 6; ++frame)
+            {
+                Check(editor.Tick(Frame), "the popup must settle");
+            }
+            ImGuiWindow* popupWindow = nullptr;
+            for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+            {
+                if (window->Active && std::strstr(window->Name, "###popup_") != nullptr)
+                {
+                    popupWindow = window;
+                }
+            }
+            Check(popupWindow != nullptr, "the popup must have a window");
+            const ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+            const float middleY = popupWindow->Pos.y + popupWindow->Size.y * 0.5f;
+            const float middleX = popupWindow->Pos.x + popupWindow->Size.x * 0.5f;
+            Check(std::fabs(middleY - center.y) < 4.0f && std::fabs(middleX - center.x) < 4.0f,
+                "the popup stands in the middle of the screen");
+            Check(std::fabs(popupWindow->Size.x - 460.0f) < 1.0f, "at the width it asked for");
+        }
+
+        // 이름 칸은 팝업이 뜬 첫 프레임에 포커스를 받는다. 글자와 Enter 를 ImGui 에 바로 넣는다 -
+        // 숨긴 창에 부친 키는 조합 상태를 읽는 길이 달라 믿을 수 없다(ClickAtWith 와 같은 이유).
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddInputCharactersUTF8("Space Game");
+        Check(editor.Tick(Frame), "the editor must take the name");
+        // 첫 것은 팝업의 기본값(2D)으로 만든다. 3D 는 아래에서 팝업이 부르는 `CreateProject` 로 잰다.
+        io.AddKeyEvent(ImGuiKey_Enter, true);
+        Check(editor.Tick(Frame), "the editor must see Enter");
+        io.AddKeyEvent(ImGuiKey_Enter, false);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must switch to the new project");
+        }
+        Check(false == editor.IsPopupOpenById("new_project"), "the popup closes once the project is made");
+        const fs::path made = root / "Parent" / "Space Game" / "Space Game.jproject";
+        Check(fs::is_regular_file(made, ignored), "the project file stands in a folder of its name");
+        Check(editor.HasOpenProject(), "and the editor has a project open");
+        Check(editor.GetProjectFile().build.productName == "Space Game", "it is the new one");
+        Check(editor.GetProjectFile().engineVersion == JBro::EngineVersionText,
+            "written with this engine's version");
+        Check(editor.GetCanvas() != nullptr, "and a canvas to edit");
+        Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework2D, "as a 2D project by default");
+
+        // 3D 를 고르면 프레임워크까지 바뀐다.
+        JBro::ProjectCreateFailure failure = JBro::ProjectCreateFailure::None;
+        Check(false == editor.CreateProject(dialog.path.c_str(), "Space Game", JBro::FrameworkKind::Framework3D, &failure)
+                && failure == JBro::ProjectCreateFailure::AlreadyExists,
+            "the same name again is refused, saying why");
+        Check(false == editor.CreateProject(dialog.path.c_str(), "a/b", JBro::FrameworkKind::Framework3D, &failure)
+                && failure == JBro::ProjectCreateFailure::InvalidName,
+            "and a name that cannot be a folder is refused as such");
+        Check(editor.CreateProject(dialog.path.c_str(), "Deep Space", JBro::FrameworkKind::Framework3D, &failure),
+            "a 3D project is made");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must switch again");
+        }
+        Check(editor.GetFrameworkKind() == JBro::FrameworkKind::Framework3D,
+            "and the editor now runs the 3D framework");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // **밖의 그림을 가져온다**(D-156, 기존 `SpriteImporterWindow`). 에셋 폴더로 복사되고 스캔이
     // 등록하며 `.jmeta` 가 선다. 그림이면 바로 스프라이트 뷰어가 열린다. 같은 이름은 덮어쓰지 않는다.
     void TestImportingAPictureCopiesAndRegistersIt()
@@ -6387,6 +6507,7 @@ int RunEditorApplicationTests()
     TestDraggingAnAssetOntoTheFieldPicksIt();
     TestTheSpriteViewerDocksBesideTheMainDock();
     TestImportingAPictureCopiesAndRegistersIt();
+    TestNewProjectCreatesAndOpensIt();
     TestTheCanvasViewPicksTheRootUntilYouStepInside();
     TestCreatedObjectsCarryTheFrameworkTransform();
     TestPanelsGoThroughTheWidgetLayer();

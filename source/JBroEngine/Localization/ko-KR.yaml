@@ -168,3 +168,14 @@ Entries:
   assets.icon_view: 아이콘
   assets.list_view: 목록
   assets.view_tooltip: 목록과 아이콘 보기를 오갑니다
+  menu.new_project: 새 프로젝트
+  dialog.new_project_folder: 프로젝트를 만들 폴더 선택
+  new_project.location: 위치
+  new_project.name: 이름
+  new_project.framework: 프레임워크
+  new_project.name_hint: 이 이름으로 폴더와 프로젝트 파일이 만들어집니다
+  common.create: 만들기
+  popup.new_project_failed: 프로젝트를 만들지 못했습니다
+  new_project.invalid_name: 폴더 이름으로 쓸 수 없는 이름입니다
+  new_project.already_exists: 이 폴더에 같은 이름이 이미 있습니다
+  new_project.cannot_write: 프로젝트 파일을 만들 수 없습니다

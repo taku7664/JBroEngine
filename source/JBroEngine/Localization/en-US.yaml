@@ -168,3 +168,14 @@ Entries:
   assets.icon_view: Icons
   assets.list_view: List
   assets.view_tooltip: switch between the list and the icons
+  menu.new_project: New Project
+  dialog.new_project_folder: Choose a folder for the project
+  new_project.location: Location
+  new_project.name: Name
+  new_project.framework: Framework
+  new_project.name_hint: the folder and the project file take this name
+  common.create: Create
+  popup.new_project_failed: The project could not be created
+  new_project.invalid_name: That name cannot be a folder name
+  new_project.already_exists: Something with that name is already in the folder
+  new_project.cannot_write: The project files could not be written
