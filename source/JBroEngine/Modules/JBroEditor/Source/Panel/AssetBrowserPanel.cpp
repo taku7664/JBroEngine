@@ -432,8 +432,15 @@ namespace JBro
         const TextureHandle thumbnail = m_editor->GetAssetThumbnail(entry.record->id);
         if (thumbnail.IsValid())
         {
+            // 칸 가운데에 비율을 지켜 넣는다(D-159). 늘여 붙이면 가로로 긴 시트가 찌그러진다.
+            std::uint32_t sourceWidth = 0;
+            std::uint32_t sourceHeight = 0;
+            m_editor->GetAssetSourceSize(entry.record->id, sourceWidth, sourceHeight);
+            const ImVec2 box(imageMax.x - imageMin.x, imageMax.y - imageMin.y);
+            const ImVec2 fitted = Widget::FitInside(sourceWidth, sourceHeight, box);
+            const ImVec2 fittedMin(imageMin.x + (box.x - fitted.x) * 0.5f, imageMin.y + (box.y - fitted.y) * 0.5f);
             draw->AddImage(static_cast<ImTextureID>(EditorUI::ToTextureId(thumbnail)),
-                imageMin, imageMax);
+                fittedMin, ImVec2(fittedMin.x + fitted.x, fittedMin.y + fitted.y));
         }
         else
         {

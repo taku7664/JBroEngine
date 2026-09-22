@@ -104,6 +104,8 @@
   우클릭 맥락 메뉴. 렌더러에 **뷰마다 타깃**을 넣는 일이 여기 들어간다. → 지적 ②의 뒤쪽.
 - `[완료]` **6. 루트 도크 - 메인 도크.** 두 겹 도크와 메뉴 나눔. → 지적 ③.
   `[완료]` **뿌리에 붙는 파일 창**(D-155). 스프라이트 뷰어가 메인 도크와 탭으로 선다.
+  가려져 있어도 열면 앞으로 나오고, 미리보기·아이콘은 그림 비율을 지킨다(D-159, 실제 에디터에서 칸 나눔·재생까지 확인).
+  `[열림]` 크게 키운 픽셀 아트는 선형 샘플러라 흐리다(기존도 같다). 점 샘플링은 렌더 백엔드의 그리기 콜백이 든다.
   `[완료]` **스프라이트 가져오기**(D-156). 밖의 그림을 복사해 등록하고 뷰어로 연다.
   `[열림]` 오디오 임포터는 오디오가 없어 두지 않았다.
   `[열림]` **메인 도크의 수명**은 기존과 다르다 - 기존은 프로젝트를 열어야 생겼고 우리는 늘 있다.
@@ -210,7 +212,7 @@
 | `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기) | 완료 (D-139·D-141·D-147·D-154) |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |
 | `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156) |
-| `Main/Importer/SpriteViewerWindow`·`SpriteFramePick`·`SpriteImportOptionsEditor` | `SpriteViewerWindow` + `InspectorPanel::DrawAssetOptions` | 완료 (D-155) |
+| `Main/Importer/SpriteViewerWindow`·`SpriteFramePick`·`SpriteImportOptionsEditor` | `SpriteViewerWindow` + `InspectorPanel::DrawAssetOptions` | 완료 (D-155·D-159) |
 | `Main/Importer/AudioImporterWindow` | — | 해당 없음 (오디오 없음) |
 | `Main/Log/LogTool` | `LogPanel` | 완료 (D-133) |
 | `Main/ShortcutReference/ShortcutReferenceTool` | `ShortcutPanel` | 완료 (D-132) |

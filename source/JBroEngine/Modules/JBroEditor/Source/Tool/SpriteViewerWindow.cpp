@@ -165,6 +165,13 @@ namespace JBro
             m_dockNext = false;
         }
         ImGui::SetNextWindowClass(&rootClass);
+        // **열 때마다 앞으로 꺼낸다**(D-159). 메인 도크 탭 뒤에 가려진 채로 새 탭만 더하면, 두 번 누르기가
+        // 아무 일도 하지 않은 것처럼 보인다(실제 에디터에서 그랬다). 가려진 창은 `Begin` 이 거짓이라 탭도
+        // 고를 수 없다.
+        if (m_selectNext != NoTab)
+        {
+            ImGui::SetNextWindowFocus();
+        }
         // `###` 뒤가 식별자라 언어가 바뀌어도 도킹 자리를 잃지 않는다(D-80).
         String title = Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer");
         title.append("###SpriteViewer", 15);
@@ -334,9 +341,7 @@ namespace JBro
             const SpriteFrame& frame = data->frames[tab.frame];
             const float widthAvailable = ImGui::GetContentRegionAvail().x;
             const float side = (std::min)(PreviewMaxSide, widthAvailable);
-            const float aspect = frame.height != 0
-                ? static_cast<float>(frame.width) / static_cast<float>(frame.height) : 1.0f;
-            const ImVec2 size = aspect >= 1.0f ? ImVec2(side, side / aspect) : ImVec2(side * aspect, side);
+            const ImVec2 size = Widget::FitInside(frame.width, frame.height, ImVec2(side, side));
             const ImVec2 uvMin(static_cast<float>(frame.x) / static_cast<float>(width),
                 static_cast<float>(frame.y) / static_cast<float>(height));
             const ImVec2 uvMax(static_cast<float>(frame.x + frame.width) / static_cast<float>(width),

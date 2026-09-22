@@ -61,6 +61,9 @@ namespace JBro::Widget
     // RHI 텍스처를 붙인다. `uvMin`·`uvMax` 로 텍스처의 일부(시트의 한 칸)만 보일 수 있다.
     void Image(TextureHandle texture, const ImVec2& size,
         const ImVec2& uvMin = ImVec2(0.0f, 0.0f), const ImVec2& uvMax = ImVec2(1.0f, 1.0f));
+    // `width`×`height` 그림을 `box` 안에 비율을 지켜 가장 크게 넣은 크기다(D-159). 크기를 모르면(0) 칸 그대로다.
+    // 그림을 칸에 늘여 붙이면 픽셀 아트가 찌그러진다 - 미리보기·아이콘·뷰어가 모두 이것을 쓴다.
+    ImVec2 FitInside(std::uint32_t width, std::uint32_t height, const ImVec2& box);
 
     // ── 탭 ──────────────────────────────────────────────────────────────────
     // 탭 줄이다. `BeginTabs` 가 참일 때만 `EndTabs` 를 부른다.

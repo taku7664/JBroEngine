@@ -584,7 +584,10 @@ namespace JBro
             // 칸 너비에 맞추되 원본 비율을 지킨다. 늘여 붙이면 픽셀 아트가 기울어 보인다.
             const float width = ImGui::GetContentRegionAvail().x;
             const float side = width < PreviewMaxSide ? width : PreviewMaxSide;
-            Widget::Image(preview, ImVec2(side, side));
+            std::uint32_t sourceWidth = 0;
+            std::uint32_t sourceHeight = 0;
+            m_editor->GetAssetSourceSize(meta.id, sourceWidth, sourceHeight);
+            Widget::Image(preview, Widget::FitInside(sourceWidth, sourceHeight, ImVec2(side, side)));
             ImGui::Spacing();
         }
         DrawAssetOptions(meta);

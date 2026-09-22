@@ -126,6 +126,18 @@ namespace JBro::Widget
         ImGui::Image(static_cast<ImTextureID>(EditorUI::ToTextureId(texture)), size, uvMin, uvMax);
     }
 
+    ImVec2 FitInside(std::uint32_t width, std::uint32_t height, const ImVec2& box)
+    {
+        if (width == 0 || height == 0 || box.x <= 0.0f || box.y <= 0.0f)
+        {
+            return box;
+        }
+        const float scaleX = box.x / static_cast<float>(width);
+        const float scaleY = box.y / static_cast<float>(height);
+        const float scale = scaleX < scaleY ? scaleX : scaleY;
+        return ImVec2(static_cast<float>(width) * scale, static_cast<float>(height) * scale);
+    }
+
     bool BeginTabs(const char* id)
     {
         return ImGui::BeginTabBar(id, ImGuiTabBarFlags_Reorderable | ImGuiTabBarFlags_FittingPolicyScroll);

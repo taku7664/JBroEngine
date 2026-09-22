@@ -15,6 +15,7 @@
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -5109,6 +5110,59 @@ namespace
                 "opening a folder must not select the file that appears under the cursor");
         }
 
+        // **그림 줄을 두 번 누르면 스프라이트 뷰어가 열린다**(D-155·D-159). 실제 에디터에서 열리지 않았다.
+        // 사람처럼 누른다: 누름마다 몇 프레임을 들고, 두 번째 누름은 창이 받는 모양대로 `WM_LBUTTONDBLCLK` 다.
+        {
+            for (int frame = 0; frame < 30; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+            }
+            Check(editor.GetSpriteViewerTabCount() == 0, "no viewer tab before the double-click");
+            assets = ImGui::FindWindowByName("Assets");
+            contents = FindChildWindow(assets, "##contents");
+            const ImGuiID innerRow = LabelId(LabelId(contents->ID, "sub/inner.png"), "##file");
+            // **줄의 가운데를 누른다.** 호버가 잡힌 구간의 한가운데를 쓴다.
+            int firstY = -1;
+            int lastY = -1;
+            for (int y = static_cast<int>(contents->Pos.y); y < bottom; y += 2)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking for the picture row");
+                // `GetHoveredID` 는 이 프레임에 없으면 **앞 프레임의 호버**를 준다. 폴더를 누른 자리에 지금
+                // inner.png 가 있어, 첫 줄(창 맨 위)이 그 줄로 잘못 읽혔다. 이 프레임의 것만 본다.
+                if (ImGui::GetCurrentContext()->HoveredId == innerRow)
+                {
+                    firstY = firstY < 0 ? y : firstY;
+                    lastY = y;
+                }
+                else if (firstY >= 0)
+                {
+                    break;
+                }
+            }
+            Check(firstY >= 0, "inner.png must be a row inside the sub folder");
+            Spot inner;
+            inner.x = x;
+            inner.y = (firstY + lastY) / 2;
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(inner.x, inner.y));
+            Check(editor.Tick(Frame), "the editor must tick");
+            Check(ImGui::GetCurrentContext()->HoveredId == innerRow, "the middle of the row is on the row");
+            for (const UINT press : {static_cast<UINT>(WM_LBUTTONDOWN), static_cast<UINT>(WM_LBUTTONDBLCLK)})
+            {
+                PostMessageW(hwnd, press, MK_LBUTTON, MAKELPARAM(inner.x, inner.y));
+                for (int frame = 0; frame < 3; ++frame)
+                {
+                    Check(editor.Tick(Frame), "the editor must tick while the button is held");
+                }
+                PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(inner.x, inner.y));
+                for (int frame = 0; frame < 2; ++frame)
+                {
+                    Check(editor.Tick(Frame), "the editor must tick on the release");
+                }
+            }
+            Check(editor.GetSpriteViewerTabCount() == 1, "double-clicking a picture opens it in the sprite viewer");
+        }
+
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }
@@ -5117,6 +5171,15 @@ namespace
     // 도구 창(패널)은 메인 도크 안에, 파일을 여는 창은 뿌리에 - 두 겹 도크의 나눔이다(D-134).
     void TestTheSpriteViewerDocksBesideTheMainDock()
     {
+        // **그림은 비율을 지켜 칸에 넣는다**(D-159). 인스펙터 미리보기가 128×32 시트를 정사각형으로 늘여 그렸다.
+        {
+            const ImVec2 wide = JBro::Widget::FitInside(128, 32, ImVec2(100.0f, 100.0f));
+            Check(wide.x == 100.0f && wide.y == 25.0f, "a wide sheet fills the width and keeps its ratio");
+            const ImVec2 tall = JBro::Widget::FitInside(16, 64, ImVec2(100.0f, 50.0f));
+            Check(tall.x == 12.5f && tall.y == 50.0f, "a tall picture fills the height and keeps its ratio");
+            const ImVec2 unknown = JBro::Widget::FitInside(0, 0, ImVec2(80.0f, 80.0f));
+            Check(unknown.x == 80.0f && unknown.y == 80.0f, "an unknown size keeps the box");
+        }
         namespace fs = std::filesystem;
         const fs::path root(TempPath("JBroSpriteViewerProbe").c_str());
         std::error_code ignored;
@@ -5200,6 +5263,21 @@ namespace
         {
             SaveScreenshot(*renderer, 1024, 768, "sprite_viewer");
         }
+
+        // **메인 탭 뒤로 가려져 있어도 열면 앞으로 나온다**(D-159). 가려진 창에 탭만 더하면 두 번 누르기가
+        // 아무 일도 하지 않은 것처럼 보였다(실제 에디터에서 그랬다).
+        ImGui::SetWindowFocus(mainDock->Name);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must bring the main dock forward");
+        }
+        Check(false == viewer->DockTabIsVisible, "the main dock tab now hides the viewer");
+        Check(editor.OpenSpriteViewer(heroTexture), "the picture opens again");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the viewer");
+        }
+        Check(viewer->DockTabIsVisible, "opening a picture brings the hidden viewer forward");
 
         // 탭을 닫으면 창도 사라지고 잡고 있던 스프라이트를 놓는다.
         JBro::AssetSystem* assets = editor.GetAssetSystem();
