@@ -51,6 +51,13 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuOpenProject = "menu.open_project";
     inline constexpr const char* MenuWindowEditor = "menu.window_editor";
     inline constexpr const char* MenuSaveCanvas = "menu.save_canvas";
+    inline constexpr const char* MenuSaveProject = "menu.save_project";
+    inline constexpr const char* MenuSettings = "menu.settings";
+    inline constexpr const char* MenuSettingsProject = "menu.settings_project";
+    inline constexpr const char* MenuDebug = "menu.debug";
+    inline constexpr const char* MenuDebugCpuProfiler = "menu.debug_cpu_profiler";
+    inline constexpr const char* MenuDebugStats = "menu.debug_stats";
+    inline constexpr const char* MenuDebugLog = "menu.debug_log";
     inline constexpr const char* MenuExit = "menu.exit";
     inline constexpr const char* MenuUndo = "menu.undo";
     inline constexpr const char* MenuRedo = "menu.redo";

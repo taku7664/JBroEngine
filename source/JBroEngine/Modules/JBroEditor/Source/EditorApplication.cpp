@@ -1069,6 +1069,8 @@ namespace JBro
             }
         }
         CanvasFileError error;
+        const bool alsoSession = m_saveProjectRequested;
+        m_saveProjectRequested = false;
         if (false == SaveCanvas(path.c_str(), error))
         {
             // 실패는 로그가 아니라 사용자에게 간다. 같은 Id 라 연달아 실패해도 하나만 뜬다.
@@ -1078,7 +1080,18 @@ namespace JBro
             OpenPopup(MakeOwnerPtr<MessagePopup>(
                 Loc::TextOr(LocKeys::PopupSaveFailed, "The canvas could not be saved"),
                 message.c_str(), "save_failed"));
+            return;
         }
+        if (alsoSession)
+        {
+            SaveEditorSession();
+        }
+    }
+
+    void EditorApplication::RequestSaveProject()
+    {
+        m_saveProjectRequested = true;
+        RequestSaveCanvas();
     }
 
     bool EditorApplication::EnableEditorUi(const Extent2D& gameViewExtent)
@@ -1801,6 +1814,14 @@ namespace JBro
             ImGui::Separator();
             DrawShortcutItem(EditorShortcut::SaveCanvas,
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"));
+            {
+                // 파일로 연 프로젝트만 적을 자리가 있다.
+                Widget::DisableScope disabled(m_projectFilePath.empty());
+                if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSaveProject, "Save Project")))
+                {
+                    RequestSaveProject();
+                }
+            }
             ImGui::Separator();
             if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
             {
@@ -1856,6 +1877,23 @@ namespace JBro
             ImGui::EndMenu();
         }
 
+        // **설정과 디버그는 따로 선다**(D-151). 기존 엔진의 차례와 같다. 같은 창이 창 메뉴의
+        // 목록에도 있지만, 설정을 찾는 사람은 "설정" 을 먼저 연다 - 창 목록을 훑게 하면
+        // 있는 기능도 없는 것처럼 보인다. 빌드 설정과 GPU 프로파일링은 그 기능이 없어 두지 않는다.
+        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuSettings, "Settings")))
+        {
+            DrawPanelMenuItem("ProjectSettings",
+                Loc::TextOr(LocKeys::MenuSettingsProject, "Project Settings"));
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuDebug, "Debug")))
+        {
+            DrawPanelMenuItem("Profiler", Loc::TextOr(LocKeys::MenuDebugCpuProfiler, "CPU Profiler"));
+            DrawPanelMenuItem("Stats", Loc::TextOr(LocKeys::MenuDebugStats, "Statistics"));
+            DrawPanelMenuItem("Log", Loc::TextOr(LocKeys::MenuDebugLog, "Log"));
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
         {
             // 기존 엔진처럼 한 겹 더 들어간다 - 도구 창 말고도 열 것이 늘어날 자리다.
@@ -1881,6 +1919,23 @@ namespace JBro
             ImGui::EndMenu();
         }
         ImGui::EndMenuBar();
+    }
+
+    void EditorApplication::DrawPanelMenuItem(const char* panelTitle, const char* label)
+    {
+        EditorPanel* panel = FindPanel(panelTitle);
+        // 없는 패널이면 항목을 잠근다. 눌러도 아무 일도 없는 항목은 없는 것보다 나쁘다(D-134).
+        Widget::DisableScope disabled(panel == nullptr);
+        bool open = panel != nullptr && panel->IsOpen();
+        if (ImGui::MenuItem(label, nullptr, &open) && panel != nullptr)
+        {
+            panel->SetOpen(open);
+            if (open)
+            {
+                // 다른 탭 뒤에 있으면 연 것이 보이지 않는다. 앞으로 꺼낸다.
+                ImGui::SetWindowFocus(panelTitle);
+            }
+        }
     }
 
     void EditorApplication::DrawRootDock(const Extent2D& display)

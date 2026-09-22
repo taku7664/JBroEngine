@@ -321,6 +321,11 @@ namespace JBro
         // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
         // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
         void RequestSaveCanvas();
+        // **프로젝트 저장**(D-151, 기존 `MenuFileSaveProject`). 캔버스를 저장하고, 그것이
+        // 되면 세션(보던 캔버스·카메라·언어·창 배치)도 프로젝트 파일에 적는다.
+        // 캔버스를 저장하지 못했으면 세션도 적지 않는다 - 저장되지 않은 캔버스를 "마지막으로
+        // 연 것" 으로 적어 두면 다음에 열 때 그 파일이 없거나 옛 것이다.
+        void RequestSaveProject();
         // 프로젝트를 골라 연다. 대화상자는 프레임 밖에서 뜬다 - 지금 연 프로젝트는 닫힌다.
         void RequestOpenProject();
         // 마지막으로 열거나 저장한 캔버스 경로. 없으면 빈 글자다.
@@ -351,6 +356,8 @@ namespace JBro
         void DrawMainMenuBar();
         // 창 전체를 덮는 도크 뿌리. 메인 도크 하나만 여기에 붙는다.
         void DrawRootDock(const Extent2D& display);
+        // 패널 하나를 여닫는 메뉴 항목이다. 설정·디버그 메뉴가 같은 모양으로 쓴다.
+        void DrawPanelMenuItem(const char* panelTitle, const char* label);
         // 도구 창들이 붙는 안쪽 도크. 자기 메뉴 막대를 가진다.
         void DrawMainDock(float deltaTime);
         // 메뉴 항목 하나를 단축키 표의 값으로 그린다: 이름·조합키 글자·할 수 있는지.
@@ -443,6 +450,8 @@ namespace JBro
         // 적힌 배치를 읽었는가. 읽었으면 기본 배치를 만들지 않는다 - 둘이 같은 프레임에
         // 겹치면 사람이 옮겨 둔 자리가 매번 지워진다.
         bool m_layoutRestored = false;
+        // 이번 저장 요청이 프로젝트 저장인가. 캔버스 저장이 성공하면 세션도 적는다.
+        bool m_saveProjectRequested = false;
         // 에셋의 작은 그림들. 프로젝트를 닫을 때 비운다 - 다음 프로젝트의 아이디는 다른 파일이다.
         OwnerPtr<EditorThumbnails> m_thumbnails;
         // 스프라이트의 실제 모양. 같은 이유로 프로젝트를 닫을 때 비운다.

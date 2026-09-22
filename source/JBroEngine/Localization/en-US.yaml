@@ -19,6 +19,13 @@ Entries:
   menu.simulation_stop: Stop
   menu.simulation_pause: Pause
   menu.save_canvas: Save Canvas
+  menu.save_project: Save Project
+  menu.settings: Settings
+  menu.settings_project: Project Settings
+  menu.debug: Debug
+  menu.debug_cpu_profiler: CPU Profiler
+  menu.debug_stats: Statistics
+  menu.debug_log: Log
   menu.exit: Exit
   menu.undo: Undo
   menu.redo: Redo

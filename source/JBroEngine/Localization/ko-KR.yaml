@@ -19,6 +19,13 @@ Entries:
   menu.simulation_stop: 정지
   menu.simulation_pause: 일시정지
   menu.save_canvas: 캔버스 저장
+  menu.save_project: 프로젝트 저장
+  menu.settings: 설정
+  menu.settings_project: 프로젝트 설정
+  menu.debug: 디버그
+  menu.debug_cpu_profiler: CPU 프로파일러
+  menu.debug_stats: 통계
+  menu.debug_log: 로그
   menu.exit: 종료
   menu.undo: 실행 취소
   menu.redo: 다시 실행

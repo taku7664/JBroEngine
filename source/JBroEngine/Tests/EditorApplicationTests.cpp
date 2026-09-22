@@ -5197,6 +5197,24 @@ namespace
             savedInspectorWidth = inspector->DockNode->Size.x;
             Check(savedInspectorWidth < nodeSize.x - 1.0f, "and the dock must have narrowed");
 
+            // **설정·디버그 메뉴가 여는 창들이 실제로 있다**(D-151). 이름이 어긋나면 항목이
+            // 잠긴 채로 서 있어, 메뉴는 보이는데 열리지 않는다.
+            for (const char* title : {"ProjectSettings", "Profiler", "Stats", "Log"})
+            {
+                Check(editor.FindPanel(title) != nullptr, "every panel the menus name must exist");
+            }
+
+            // **프로젝트 저장**은 캔버스를 저장하고 세션을 적는다. 닫기 전에 파일에 가 있어야 한다.
+            editor.RequestSaveProject();
+            Check(editor.Tick(Frame), "the editor must tick through the save");
+            {
+                std::ifstream in(std::filesystem::path(projectPath.c_str()), std::ios::binary);
+                const std::string text((std::istreambuf_iterator<char>(in)),
+                    std::istreambuf_iterator<char>());
+                Check(text.find("LastOpenedCanvasPath: scenes/Work.jcanvas") != std::string::npos,
+                    "save project writes the session without waiting for the project to close");
+            }
+
             // 닫으면 적힌다.
             editor.CloseProject();
             editor.Shutdown();
