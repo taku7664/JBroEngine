@@ -40,6 +40,11 @@ namespace JBro
         return {};
     }
 
+    void WebPlatform::ClearInputEvents()
+    {
+        // 모으지 않으니 비울 것도 없다.
+    }
+
     void WebPlatform::WaitForEvents(std::uint32_t)
     {
         // Browser hosts must yield through their external event loop.

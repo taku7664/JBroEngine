@@ -98,6 +98,13 @@ namespace JBro
         // Input gathered by the last PumpEvents. The next PumpEvents clears it,
         // so the view is only valid until then. Main-thread only.
         virtual JArrayView<InputEvent> GetInputEvents() const = 0;
+        // **꺼내 간 쪽이 비운다**(D-177). 펌프는 쌓기만 한다 - 예전에는 펌프가 먼저 비웠고,
+        // 한 프레임에 펌프가 두 번 도는 에디터에서 **뒤의 펌프가 가져간 입력을 아무도 보지
+        // 못한 채 버렸다**. 빠르게 친 글자가 하나씩 빠졌다.
+        // 모으지 않는 플랫폼은 비울 것도 없다.
+        virtual void ClearInputEvents()
+        {
+        }
         // Main-thread only. Waits up to the timeout; externally paced platforms may return early.
         virtual void WaitForEvents(std::uint32_t timeoutMilliseconds) = 0;
         // A close request does not destroy the surface. The host drains GPU work first.

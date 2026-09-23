@@ -545,6 +545,13 @@ namespace JBro
         const ProfileScope frameScope("Frame");
         {
             const ProfileScope scope("Platform");
+            // **꺼내 가는 쪽이 없으면 여기서 비운다**(D-177). 호스트(에디터)가 자기 UI 에
+            // 넣어 주고 비우는 동안에는 건드리지 않는다 - 그러지 않으면 UI 가 그 입력을
+            // 보지 못한 채 사라진다.
+            if (false == m_inputOwnedByHost)
+            {
+                m_platform->ClearInputEvents();
+            }
             m_platform->PumpEvents();
         }
         if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
@@ -716,6 +723,11 @@ namespace JBro
         {
             m_assets->SetDefaultTextureFilter(project.textureFilter);
         }
+    }
+
+    void EngineInstance::SetInputOwnedByHost(bool owned)
+    {
+        m_inputOwnedByHost = owned;
     }
 
     void EngineInstance::SetSimulationEnabled(bool enabled)

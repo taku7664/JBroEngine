@@ -52,6 +52,9 @@ namespace
         // 다른 경로를 재게 된다. WM_CHAR 는 TranslateMessage 가 만들어 주는 것이다.
         void PostAndPump(UINT message, WPARAM wParam, LPARAM lParam)
         {
+            // **꺼내 간 셈 치고 비운다**(D-177). 펌프는 쌓기만 하므로, 한 번에 하나를 보려면
+            // 부르는 쪽이 앞의 것을 비워야 한다 - 실제 프로그램에서는 UI 에 넣어 준 뒤 비운다.
+            platform.ClearInputEvents();
             PostMessageW(native, message, wParam, lParam);
             platform.PumpEvents();
         }
@@ -68,6 +71,43 @@ namespace
             }
         }
         return nullptr;
+    }
+
+    // **꺼내 가지 않은 입력은 다음 펌프에도 남는다**(D-177). 예전에는 펌프가 먼저 비워서,
+    // 한 프레임에 펌프가 두 번 도는 에디터에서 뒤의 펌프가 앞의 입력을 지웠다 - 빠르게 친
+    // 글자가 하나씩 빠졌다(실제 에디터에서 `Beta` 가 `Bea` 로 들어갔다).
+    void TestUnreadInputSurvivesAnotherPump()
+    {
+        Probe probe;
+        probe.Open("JBro input keep probe");
+
+        probe.PostAndPump(WM_KEYDOWN, VK_LEFT, 0);
+        Check(FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::KeyDown) != nullptr,
+            "the first press must be there");
+        const std::uint32_t afterFirst = probe.platform.GetInputEvents().size;
+
+        // 아무도 꺼내 가지 않은 채 한 번 더 돈다. 앞의 것이 그대로 있어야 한다.
+        PostMessageW(probe.native, WM_KEYDOWN, VK_RIGHT, 0);
+        probe.platform.PumpEvents();
+        JBro::JArrayView<JBro::InputEvent> events = probe.platform.GetInputEvents();
+        Check(events.size > afterFirst, "the second pump must add to what was there");
+        bool sawLeft = false;
+        bool sawRight = false;
+        for (std::uint32_t index = 0; index < events.size; ++index)
+        {
+            if (events.data[index].kind != JBro::InputEventKind::KeyDown)
+            {
+                continue;
+            }
+            sawLeft = sawLeft || events.data[index].key == JBro::Key::Left;
+            sawRight = sawRight || events.data[index].key == JBro::Key::Right;
+        }
+        Check(sawLeft && sawRight, "both presses must still be readable");
+
+        // 비우면 사라진다. 그것이 꺼내 간 쪽의 몫이다.
+        probe.platform.ClearInputEvents();
+        Check(probe.platform.GetInputEvents().size == 0, "clearing empties the queue");
+        probe.Close();
     }
 
     void TestKeysComeOutAsKeys()
@@ -146,6 +186,9 @@ namespace
 
         // **BMP 밖 글자는 UTF-16 서러게이트 쌍으로 두 번에 나눠 온다.**
         // 앞쪽만으로는 글자가 아니므로 아무것도 내보내지 않고 들고 있어야 한다.
+        // 앞의 글자들을 먼저 비운다. 펌프는 쌓기만 하므로(D-177) 비우지 않으면 여기서
+        // 찾는 것이 방금 친 반쪽이 아니라 앞의 글자다.
+        probe.platform.ClearInputEvents();
         PostMessageW(probe.native, WM_CHAR, static_cast<WPARAM>(0xD83D), 0);
         probe.platform.PumpEvents();
         Check(FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::Text) == nullptr,
@@ -213,11 +256,17 @@ namespace
         probe.PostAndPump(WM_KEYDOWN, VK_SPACE, 0);
         Check(probe.platform.GetInputEvents().size > 0, "the pump must gather what arrived");
 
-        // **다음 펌프가 지난 것을 버린다.** 버리지 않으면 한 번 누른 키가 영원히 눌린
-        // 것으로 보이고, 목록은 끝없이 자란다.
+        // **비우는 것은 꺼내 간 쪽의 몫이다**(D-177). 펌프가 먼저 비우면 한 프레임에 펌프가
+        // 두 번 도는 자리(에디터)에서 뒤의 펌프가 앞의 입력을 아무도 못 본 채 지운다.
+        //
+        // 그렇다고 끝없이 자라지는 않는다 - 꺼내 간 쪽이 비우고(에디터), 꺼내 가는 쪽이 없으면
+        // 엔진이 프레임마다 비운다. 여기서는 그 약속의 앞쪽을 잰다.
         probe.platform.PumpEvents();
+        Check(probe.platform.GetInputEvents().size > 0,
+            "the next pump must leave what nobody has read yet");
+        probe.platform.ClearInputEvents();
         Check(probe.platform.GetInputEvents().size == 0,
-            "and the next pump must clear what the last one gathered");
+            "and clearing is what empties it");
 
         // 창을 닫아도 플랫폼은 살아 있다. 남은 메시지가 사라진 창을 건드리면 안 된다.
         probe.Close();
@@ -226,6 +275,7 @@ namespace
 
 int RunInputTests()
 {
+    TestUnreadInputSurvivesAnotherPump();
     TestKeysComeOutAsKeys();
     TestTextComesOutSeparately();
     TestTheMouseComesOut();

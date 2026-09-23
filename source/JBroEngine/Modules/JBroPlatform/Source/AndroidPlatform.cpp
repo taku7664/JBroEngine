@@ -35,6 +35,11 @@ namespace JBro
         return {};
     }
 
+    void AndroidPlatform::ClearInputEvents()
+    {
+        // 모으지 않으니 비울 것도 없다.
+    }
+
     void AndroidPlatform::WaitForEvents(std::uint32_t)
     {
         // The Android backend is still a declared extension point.

@@ -14,6 +14,7 @@ namespace JBro
         SurfaceHandle CreateSurface(WindowHandle window) override;
         void PumpEvents() override;
         JArrayView<InputEvent> GetInputEvents() const override;
+        void ClearInputEvents() override;
         void WaitForEvents(std::uint32_t timeoutMilliseconds) override;
         bool ShouldClose(WindowHandle window) const override;
         bool GetWindowState(WindowHandle window, WindowState& state) const override;

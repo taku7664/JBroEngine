@@ -208,6 +208,9 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
+            // **입력은 에디터가 꺼내 간다**(D-177). 엔진이 프레임마다 비우면 UI 가 그것을
+            // 보지 못한다 - 에디터는 한 프레임에 펌프를 두 번 돌기 때문이다.
+            m_engine->SetInputOwnedByHost(true);
         }
         catch (const std::bad_alloc&)
         {
@@ -2789,8 +2792,14 @@ namespace JBro
 
         // **여기서 한 번 더 펌프를 돈다.** 엔진의 Tick 도 펌프를 돌지만 그것은 UI 를
         // 다 만든 뒤라, 거기서 받은 입력은 다음 프레임에나 반영된다.
+        //
+        // **꺼내 가는 쪽이 비운다**(D-177). 엔진 펌프가 가져간 것도 여기서 함께 받는다 -
+        // 예전에는 펌프가 먼저 비워서, 엔진 펌프가 집어 간 입력을 UI 가 보지 못한 채
+        // 사라졌다. 빠르게 친 글자가 하나씩 빠졌다(`Beta` 가 `Bea` 로 들어갔다).
         m_platform->PumpEvents();
-        if (false == m_ui.PushInput(m_platform->GetInputEvents()))
+        const bool pushed = m_ui.PushInput(m_platform->GetInputEvents());
+        m_platform->ClearInputEvents();
+        if (false == pushed)
         {
             return false;
         }

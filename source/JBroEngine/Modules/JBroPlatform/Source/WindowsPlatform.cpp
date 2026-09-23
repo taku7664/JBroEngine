@@ -515,9 +515,8 @@ namespace JBro
 
     void WindowsPlatform::PumpEvents()
     {
-        // 지난 프레임 것을 버리고 다시 모은다. 꺼내 가지 않은 입력은 사라진다 -
-        // 한 프레임을 통째로 건너뛴 쪽이 옛 입력을 뒤늦게 받는 것보다 낫다.
-        m_inputEvents.Resize(0);
+        // **쌓기만 한다**(D-177). 비우는 것은 꺼내 간 쪽의 몫이다 - 여기서 비우면 한 프레임에
+        // 펌프가 두 번 도는 자리(에디터)에서 뒤의 펌프가 앞의 것을 지운다.
         MSG message = {};
         while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
         {
@@ -534,6 +533,11 @@ namespace JBro
     JArrayView<InputEvent> WindowsPlatform::GetInputEvents() const
     {
         return {m_inputEvents.Data(), static_cast<std::uint32_t>(m_inputEvents.Size())};
+    }
+
+    void WindowsPlatform::ClearInputEvents()
+    {
+        m_inputEvents.Resize(0);
     }
 
     void WindowsPlatform::RecordInputEvent(const InputEvent& event)

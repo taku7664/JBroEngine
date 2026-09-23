@@ -101,6 +101,10 @@ namespace JBro
         //
         // 거짓이어도 **그리기는 그대로 돈다.** 캔버스 뷰도 게임 뷰도 멈춘 장면을 보여야 한다.
         void SetSimulationEnabled(bool enabled);
+        // **입력을 꺼내 가는 쪽이 있는가**(D-177). 에디터는 자기 UI 에 넣어 주고 스스로 비우므로
+        // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
+        // 입력이 쌓이기만 한다.
+        void SetInputOwnedByHost(bool owned);
         bool IsSimulationEnabled() const;
 
         bool Tick(float deltaTime);
@@ -186,6 +190,7 @@ namespace JBro
         // 다시 걸어야 그려진다.
         EditorViewDesc m_editorView;
         bool m_hasEditorView = false;
+        bool m_inputOwnedByHost = false;
         // 게임을 돌릴 것인가(D-131). 게임 호스트는 손대지 않으므로 기본이 참이다.
         bool m_simulationEnabled = true;
         State m_state = State::Stopped;
