@@ -203,6 +203,7 @@
 | `Main/CanvasView/CanvasViewTool` | `CanvasViewPanel` (격자·눈금·콜라이더·기즈모·상자 선택·맞춤) | 완료 (D-136·D-143·D-144) |
 | `Main/CanvasView/CanvasViewContour` | `EditorSpriteContours` | 완료 (D-149) |
 | `Main/CanvasView/CanvasViewCoordinates` | `WorldToScreen`·`ScreenToWorld` (그린 화면 기준) | 완료 (D-150) |
+| 캔버스 뷰의 텍스트 오버레이 | `DrawOverlay` (선택·카메라·들어간 곳) | 완료 (D-172), 픽셀/유닛 토글은 전역 PPU 가 없어 열림 |
 | `Main/CanvasView/CanvasViewEditContext` | `MapToLevel`·들어가 고르기 | 완료 (D-157) |
 | 캔버스 뷰의 오브젝트 우클릭 메뉴 | `EditorActions::DrawObjectMenu` (계층 줄과 같은 한 벌) | 완료 (D-170) |
 | `Main/GameView/GameViewTool` | `GameViewPanel` (보기만, 상태 글자) | 완료 (D-130) |

@@ -109,8 +109,9 @@ namespace JBro
         // 걸린 오브젝트를 **지금 층의 오브젝트**로 올린다. 뿌리에서는 맨 위 조상, 들어가 있으면
         // 그 오브젝트의 직계 자식(또는 그 오브젝트 자신). 들어간 오브젝트 밖이면 nullptr 이다.
         GameObject* MapToLevel(GameObject* hit) const;
-        // 들어가 있을 때 화면 위에 그 사실과 나오는 법을 적는다. 모르면 왜 부모가 안 잡히는지 알 수 없다.
-        void DrawFocusBanner(const ViewRect& rect);
+        // 화면 왼쪽 위의 상태 글자(D-172, 기존 캔버스 뷰의 오버레이): 고른 것, 편집 카메라,
+        // 그리고 들어가 있으면 그 사실과 나오는 법.
+        void DrawOverlay(const ViewRect& rect);
         // 오브젝트가 화면에서 차지하는 사각형(회전은 무시한 외접 사각형)을 월드로 낸다.
         bool GetWorldBounds(const GameObject& object,
             float& minX, float& minY, float& maxX, float& maxY) const;

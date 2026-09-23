@@ -1793,6 +1793,37 @@ namespace JBro
         return living;
     }
 
+    void EditorApplication::DescribeSelection(char* out, std::size_t size) const
+    {
+        if (out == nullptr || size == 0)
+        {
+            return;
+        }
+        out[0] = '\0';
+        const std::size_t chosen = GetSelectionCount();
+        GameObject* primary = m_selected.TryGet();
+        if (chosen == 0 || primary == nullptr)
+        {
+            std::snprintf(out, size, "%s",
+                Loc::TextOr(LocKeys::CanvasViewSelectedNone, "nothing chosen"));
+            return;
+        }
+        const char* name = primary->GetTag();
+        if (name == nullptr || name[0] == '\0')
+        {
+            name = Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)");
+        }
+        if (chosen == 1)
+        {
+            std::snprintf(out, size,
+                Loc::TextOr(LocKeys::CanvasViewSelectedFormat, "chosen: %s"), name);
+            return;
+        }
+        std::snprintf(out, size,
+            Loc::TextOr(LocKeys::CanvasViewSelectedCountFormat, "chosen: %s and %d more"),
+            name, static_cast<int>(chosen) - 1);
+    }
+
     Array<GameObject*> EditorApplication::GetSelectedObjects() const
     {
         Array<GameObject*> living;

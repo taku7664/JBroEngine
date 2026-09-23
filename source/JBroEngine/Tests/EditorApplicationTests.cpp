@@ -7025,6 +7025,70 @@ namespace
         editor.Shutdown();
     }
 
+    // **캔버스 뷰가 화면 왼쪽 위에 적는 글**이다(D-172, 기존 캔버스 뷰의 오버레이).
+    // 규칙은 상태를 아는 에디터가 갖는다 - 화면마다 다시 쓰면 이름 없는 것과 여럿 고른 것을
+    // 저마다 다르게 적는다.
+    void TestTheEditorSaysWhatIsChosen()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the selection text not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "SelectionTextProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::GameObject* nameless = canvas->CreateObject("");
+
+        char text[256] = {};
+        editor.ClearSelection();
+        editor.DescribeSelection(text, sizeof(text));
+        Check(std::strcmp(text,
+                  JBro::Loc::TextOr(JBro::LocKeys::CanvasViewSelectedNone, "nothing chosen")) == 0,
+            "with nothing chosen it says so");
+
+        char expected[256] = {};
+        editor.SetSelectedObject(alpha);
+        editor.DescribeSelection(text, sizeof(text));
+        std::snprintf(expected, sizeof(expected),
+            JBro::Loc::TextOr(JBro::LocKeys::CanvasViewSelectedFormat, "chosen: %s"), "Alpha");
+        Check(std::strcmp(text, expected) == 0,
+            "one chosen object is named, and nothing is counted after it");
+
+        JBro::GameObject* both[] = {alpha, beta};
+        editor.SelectObjects({both, 2});
+        editor.DescribeSelection(text, sizeof(text));
+        std::snprintf(expected, sizeof(expected),
+            JBro::Loc::TextOr(JBro::LocKeys::CanvasViewSelectedCountFormat,
+                "chosen: %s and %d more"), "Alpha", 1);
+        Check(std::strcmp(text, expected) == 0,
+            "several chosen name the primary one and count the rest");
+
+        editor.SetSelectedObject(nameless);
+        editor.DescribeSelection(text, sizeof(text));
+        Check(std::strstr(text,
+                  JBro::Loc::TextOr(JBro::LocKeys::HierarchyUnnamed, "(unnamed)")) != nullptr,
+            "an object without a name is called what the hierarchy calls it");
+
+        // **짧은 칸에 넘치게 쓰지 않는다.** 화면 글은 좁은 칸에도 들어간다.
+        char small[8] = {};
+        editor.SetSelectedObject(alpha);
+        editor.DescribeSelection(small, sizeof(small));
+        Check(small[sizeof(small) - 1] == '\0', "a short buffer must still be terminated");
+
+        editor.Shutdown();
+    }
+
     // **월드 축으로 바꾸면 손잡이가 화면의 축을 따른다**(D-171, 기존 기즈모의 `L`/`W`).
     // 우리 기즈모는 늘 오브젝트의 축이라, 45도 돌아간 것을 오른쪽으로 곧게 밀 길이 없었다.
     void TestTheGizmoCanWorkInWorldAxes()
@@ -7379,6 +7443,7 @@ int RunEditorApplicationTests()
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
     TestTheGizmoCanWorkInWorldAxes();
+    TestTheEditorSaysWhatIsChosen();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

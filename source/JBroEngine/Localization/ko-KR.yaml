@@ -43,6 +43,11 @@ Entries:
   canvas_view.grid_tooltip: 격자를 보이거나 감춥니다
   canvas_view.colliders: 충돌
   canvas_view.inside_format: "%s 안에서 고르는 중 - 빈 곳을 두 번 누르면 나옵니다"
+  canvas_view.selected_none: 선택 없음
+  canvas_view.selected_format: "선택: %s"
+  canvas_view.selected_count_format: "선택: %s 외 %d개"
+  canvas_view.camera_format: "카메라 (%.2f, %.2f) 크기 %.2f"
+  canvas_view.camera_3d_format: "카메라 좌우 %.0f° 위아래 %.0f° 거리 %.1f"
   canvas_view.colliders_tooltip: 콜라이더 모양을 보이거나 감춥니다
   canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
   game_view.playing: 실행 중

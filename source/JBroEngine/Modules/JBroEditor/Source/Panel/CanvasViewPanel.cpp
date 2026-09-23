@@ -252,7 +252,7 @@ namespace JBro
                 DrawColliders(rect);
             }
             DrawSelectionOutlines(rect);
-            DrawFocusBanner(rect);
+            DrawOverlay(rect);
         }
         else
         {
@@ -884,24 +884,53 @@ namespace JBro
         return nullptr;
     }
 
-    void CanvasViewPanel::DrawFocusBanner(const ViewRect& rect)
+    void CanvasViewPanel::DrawOverlay(const ViewRect& rect)
     {
-        GameObject* focus = GetFocus();
-        if (focus == nullptr)
-        {
-            return;
-        }
-        const char* name = focus->GetTag();
-        char text[256] = {};
-        std::snprintf(text, sizeof(text),
-            Loc::TextOr(LocKeys::CanvasViewInsideFormat, "inside %s - double-click empty space to leave"),
-            name != nullptr && name[0] != '\0' ? name : "?");
+        // **화면 왼쪽 위에 지금 상태를 적는다**(D-172, 기존 캔버스 뷰의 텍스트 오버레이).
+        // 고른 것과 편집 카메라의 자리는 화면만 보고는 알 수 없다 - 배율을 얼마나 당겨 두었는지,
+        // 여럿 골랐는지 하나 골랐는지가 인스펙터를 봐야 드러났다.
         ImDrawList* draw = ImGui::GetWindowDrawList();
-        const ImVec2 extent = ImGui::CalcTextSize(text);
-        const ImVec2 at(rect.left + 8.0f, rect.top + 8.0f);
-        draw->AddRectFilled(ImVec2(at.x - 4.0f, at.y - 2.0f),
-            ImVec2(at.x + extent.x + 4.0f, at.y + extent.y + 2.0f), IM_COL32(20, 21, 26, 210), 3.0f);
-        draw->AddText(at, IM_COL32(255, 200, 120, 255), text);
+        float y = rect.top + 8.0f;
+        const float x = rect.left + 8.0f;
+        const auto line = [&](const char* text, ImU32 color)
+        {
+            const ImVec2 extent = ImGui::CalcTextSize(text);
+            draw->AddRectFilled(ImVec2(x - 4.0f, y - 2.0f),
+                ImVec2(x + extent.x + 4.0f, y + extent.y + 2.0f), IM_COL32(20, 21, 26, 190), 3.0f);
+            draw->AddText(ImVec2(x, y), color, text);
+            y += extent.y + 4.0f;
+        };
+
+        char text[256] = {};
+        // 고른 것을 적는 규칙은 에디터가 안다(D-172). 상태를 아는 쪽이 그 글도 낸다 -
+        // 화면마다 다시 쓰면 이름 없는 것과 여럿 고른 것을 저마다 다르게 적는다.
+        m_editor->DescribeSelection(text, sizeof(text));
+        line(text, IM_COL32(210, 216, 224, 255));
+
+        if (Is3D())
+        {
+            std::snprintf(text, sizeof(text),
+                Loc::TextOr(LocKeys::CanvasViewCamera3DFormat, "camera yaw %.0f pitch %.0f distance %.1f"),
+                m_yawDegrees, m_pitchDegrees, m_distance);
+        }
+        else
+        {
+            std::snprintf(text, sizeof(text),
+                Loc::TextOr(LocKeys::CanvasViewCameraFormat, "camera (%.2f, %.2f) size %.2f"),
+                m_centerX, m_centerY, m_orthographicSize);
+        }
+        line(text, IM_COL32(150, 158, 170, 255));
+
+        // 들어가 있으면 그 사실과 나오는 법을 적는다. 모르면 왜 부모가 안 잡히는지 알 수 없다.
+        if (GameObject* focus = GetFocus())
+        {
+            const char* name = focus->GetTag();
+            std::snprintf(text, sizeof(text),
+                Loc::TextOr(LocKeys::CanvasViewInsideFormat,
+                    "inside %s - double-click empty space to leave"),
+                name != nullptr && name[0] != '\0' ? name : "?");
+            line(text, IM_COL32(255, 220, 120, 230));
+        }
     }
 
     void CanvasViewPanel::HandlePicking(const ViewRect& rect, bool hovered)

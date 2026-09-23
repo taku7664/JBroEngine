@@ -35,6 +35,11 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewGridTooltip = "canvas_view.grid_tooltip";
     inline constexpr const char* CanvasViewColliders = "canvas_view.colliders";
     inline constexpr const char* CanvasViewInsideFormat = "canvas_view.inside_format";
+    inline constexpr const char* CanvasViewSelectedNone = "canvas_view.selected_none";
+    inline constexpr const char* CanvasViewSelectedFormat = "canvas_view.selected_format";
+    inline constexpr const char* CanvasViewSelectedCountFormat = "canvas_view.selected_count_format";
+    inline constexpr const char* CanvasViewCameraFormat = "canvas_view.camera_format";
+    inline constexpr const char* CanvasViewCamera3DFormat = "canvas_view.camera_3d_format";
     inline constexpr const char* CanvasViewCollidersTooltip = "canvas_view.colliders_tooltip";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
 

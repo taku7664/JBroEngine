@@ -260,6 +260,10 @@ namespace JBro
         void ClearSelection();
         // 살아 있는 것만 센다. 죽은 것은 목록에 남아 있어도 없는 것이다.
         std::size_t GetSelectionCount() const;
+        // **고른 것을 한 줄로 적는다**(D-172). 캔버스 뷰의 오버레이가 쓴다 - 여럿 고르면
+        // 주된 것과 나머지 수를, 이름이 없으면 `(이름 없음)` 을, 아무것도 없으면 그렇다고 적는다.
+        // 로컬라이징 키를 거치므로 언어를 바꾸면 이 글도 바뀐다.
+        void DescribeSelection(char* out, std::size_t size) const;
         Array<GameObject*> GetSelectedObjects() const;
         // **조상이 함께 골라졌으면 뺀다.** 부모를 옮기면 자식은 따라 움직이므로,
         // 둘 다 대상으로 삼으면 자식에게 두 번 적용된다. 트랜스폼 편집과 삭제가
