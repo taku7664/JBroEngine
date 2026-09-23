@@ -50,6 +50,9 @@ Entries:
   canvas_view.camera_3d_format: "카메라 좌우 %.0f° 위아래 %.0f° 거리 %.1f"
   canvas_view.colliders_tooltip: 콜라이더 모양을 보이거나 감춥니다
   canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
+  canvas_view.unit_world: "단위: 유닛"
+  canvas_view.unit_pixel: "단위: 픽셀"
+  canvas_view.unit_tooltip: 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지 바꿉니다. 픽셀은 에셋 PPU 기본값(100) 기준입니다
   game_view.playing: 실행 중
   game_view.stopped: 정지됨
   game_view.no_canvas: 열린 캔버스가 없습니다

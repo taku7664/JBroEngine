@@ -50,6 +50,9 @@ Entries:
   canvas_view.camera_3d_format: "camera yaw %.0f pitch %.0f distance %.1f"
   canvas_view.colliders_tooltip: show or hide collider shapes
   canvas_view.frame_tooltip: fit the view to the selection
+  canvas_view.unit_world: "Unit"
+  canvas_view.unit_pixel: "Pixel"
+  canvas_view.unit_tooltip: read the ruler in world units or in pixels, against the default asset PPU of 100
   game_view.playing: Playing
   game_view.stopped: Stopped
   game_view.no_canvas: no canvas is open

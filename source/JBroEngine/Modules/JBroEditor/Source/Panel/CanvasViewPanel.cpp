@@ -13,6 +13,7 @@
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Asset/Asset.h>
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -333,6 +334,20 @@ namespace JBro
         }
         Widget::HoveredTooltip(
             Loc::TextOr(LocKeys::CanvasViewFrameTooltip, "fit the view to the selection"));
+        if (false == Is3D())
+        {
+            // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글).
+            // 3D 에는 픽셀로 읽을 자가 없다 - 원근에서는 한 유닛이 거리마다 다른 픽셀이다.
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::Button(m_rulerInPixels
+                    ? Loc::TextOr(LocKeys::CanvasViewUnitPixel, "Pixel")
+                    : Loc::TextOr(LocKeys::CanvasViewUnitWorld, "Unit")))
+            {
+                m_rulerInPixels = false == m_rulerInPixels;
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewUnitTooltip,
+                "read the ruler in world units or in pixels"));
+        }
     }
 
     void CanvasViewPanel::HandleCameraInput(const ViewRect& rect, bool hovered)
@@ -463,6 +478,10 @@ namespace JBro
         const float labelBottom = rect.top + rect.height - labelSize - 2.0f;
         const float labelLeft = rect.left + 3.0f;
 
+        // **픽셀로 읽을 때는 에셋 PPU 의 기본값을 곱한다**(D-184). 유닛으로 읽을 때는 1 이다 -
+        // 곱하는 값만 달라지고 자리를 잡는 셈은 그대로라, 두 모드가 따로 어긋날 자리가 없다.
+        const float rulerScale = m_rulerInPixels ? DefaultPixelsPerUnit : 1.0f;
+
         // **선마다 번호로 센다**(D-162). `x += step` 으로 더해 가면 오차가 쌓여 0 이어야 할 선이
         // `-2.98e-08` 로 적혔다(실제 에디터에서 그랬다). 번호에 간격을 곱하면 0 은 정확히 0 이다.
         const long long firstX = static_cast<long long>(std::floor(minX / step));
@@ -481,7 +500,7 @@ namespace JBro
                 tenth ? strong : line);
 
             char text[32] = {};
-            std::snprintf(text, sizeof(text), "%.4g", x);
+            std::snprintf(text, sizeof(text), "%.4g", x * rulerScale);
             const ImVec2 extent = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, text);
             const float textLeft = screenX - extent.x * 0.5f;
             // 넉넉히 띄운다. 닿을 듯 말 듯 붙은 숫자는 읽는 데 눈이 더 든다.
@@ -513,7 +532,7 @@ namespace JBro
             }
             lastLabelY = screenY;
             char text[32] = {};
-            std::snprintf(text, sizeof(text), "%.4g", y);
+            std::snprintf(text, sizeof(text), "%.4g", y * rulerScale);
             draw->AddText(labelFont, labelSize,
                 ImVec2(labelLeft, screenY - labelSize * 0.5f), labelColor, text);
         }

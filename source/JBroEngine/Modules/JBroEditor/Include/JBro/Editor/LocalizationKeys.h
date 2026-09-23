@@ -42,6 +42,10 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewCamera3DFormat = "canvas_view.camera_3d_format";
     inline constexpr const char* CanvasViewCollidersTooltip = "canvas_view.colliders_tooltip";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
+    // 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지(D-184, 기존 `canvas_view.unit.*`).
+    inline constexpr const char* CanvasViewUnitWorld = "canvas_view.unit_world";
+    inline constexpr const char* CanvasViewUnitPixel = "canvas_view.unit_pixel";
+    inline constexpr const char* CanvasViewUnitTooltip = "canvas_view.unit_tooltip";
 
     // ── 게임 뷰의 상태 표시 (D-131) ──────────────────────────────────────
     inline constexpr const char* GameViewPlaying = "game_view.playing";

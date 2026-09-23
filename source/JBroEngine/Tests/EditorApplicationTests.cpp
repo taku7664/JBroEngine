@@ -340,6 +340,32 @@ namespace
         return differing;
     }
 
+    // 같은 셈을 **화면의 한 조각에만** 한다(D-184). 창 전체로 재면 툴바의 단추 글자가
+    // 바뀐 것까지 차이에 섞여, 정작 재려던 자리가 그대로여도 검사가 통과한다.
+    std::size_t CountDifferingPixelsIn(const JBro::Array<std::byte>& first,
+        const JBro::Array<std::byte>& second, const JBro::TextureReadback& readback,
+        std::uint32_t left, std::uint32_t top, std::uint32_t right, std::uint32_t bottom)
+    {
+        std::size_t differing = 0;
+        for (std::uint32_t y = top; y < bottom; ++y)
+        {
+            for (std::uint32_t x = left; x < right; ++x)
+            {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                const unsigned char* a =
+                    reinterpret_cast<const unsigned char*>(first.Data() + offset);
+                const unsigned char* b =
+                    reinterpret_cast<const unsigned char*>(second.Data() + offset);
+                if (a[0] != b[0] || a[1] != b[1] || a[2] != b[2])
+                {
+                    ++differing;
+                }
+            }
+        }
+        return differing;
+    }
+
     struct PixelBox
     {
         int minX = 1 << 30;
@@ -6979,6 +7005,93 @@ namespace
         editor.Shutdown();
     }
 
+    // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글). 그림은 픽셀로
+    // 그려 오는데 씬은 유닛으로 세므로, 스프라이트를 자리에 맞출 때 그 둘을 머리로 곱하고
+    // 있어야 했다. 곱하는 값은 에셋 PPU 의 기본값(100)이다 - 프로젝트에는 PPU 가 없다(D-117).
+    void TestTheCanvasViewRulerReadsInPixelsToo()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the ruler unit toggle not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "RulerUnitProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const char* unitLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewUnitWorld, "Unit");
+        const char* pixelLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewUnitPixel, "Pixel");
+        Check(std::strcmp(unitLabel, pixelLabel) != 0,
+            "the two readings must not share one label, or the button says nothing");
+        Spot toggle;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, unitLabel), toggle),
+            "the unit button must be on the canvas view tool bar and start on world units");
+
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must expose its renderer");
+        JBro::Array<std::byte> inUnits;
+        JBro::Array<std::byte> inPixels;
+        JBro::TextureReadback readback;
+        ReadBackBufferInto(*renderer, 640, 480, inUnits, readback);
+        // 마우스는 단추 위에 그대로 둔 채 누른다. 자리를 옮기면 단추의 강조가 달라져
+        // 그 픽셀까지 차이에 섞인다.
+        ClickAt(editor, hwnd, toggle);
+        Check(editor.Tick(Frame), "the editor must settle with the ruler in pixels");
+        ReadBackBufferInto(*renderer, 640, 480, inPixels, readback);
+        // **눈금 숫자가 있는 자리만 잰다.** 창 전체로 재면 단추 글자가 `유닛` 에서 `픽셀` 로
+        // 바뀐 것까지 섞여 들어와, 정작 눈금이 그대로여도 검사가 통과한다(처음에 그랬다).
+        // X 숫자는 뷰 아래쪽 한 줄, Y 숫자는 왼쪽 한 칸이다.
+        const std::uint32_t viewLeft = static_cast<std::uint32_t>(view->Pos.x);
+        const std::uint32_t viewRight = static_cast<std::uint32_t>(view->Pos.x + view->Size.x);
+        const std::uint32_t viewBottom = static_cast<std::uint32_t>(view->Pos.y + view->Size.y);
+        const std::size_t alongX = CountDifferingPixelsIn(inUnits, inPixels, readback,
+            viewLeft, viewBottom > 22 ? viewBottom - 22 : 0, viewRight, viewBottom);
+        // 세로 줄은 **툴바 아래부터** 잰다. 툴바까지 넣으면 단추가 다시 칠해진 픽셀이
+        // 섞여 들어와, y 숫자가 그대로여도 이 수가 천을 넘는다(처음에 그랬다).
+        const std::uint32_t belowToolBar = static_cast<std::uint32_t>(view->Pos.y) + 100;
+        const std::size_t alongY = CountDifferingPixelsIn(inUnits, inPixels, readback,
+            viewLeft, belowToolBar, viewLeft + 36,
+            viewBottom > 24 ? viewBottom - 24 : belowToolBar);
+        std::cout << "  the pixel ruler repainted " << alongX << " along x and "
+                  << alongY << " along y" << std::endl;
+        // 숫자가 `1` 에서 `100` 으로 바뀐다. 두 축 **모두** 바뀌어야 한다 - 한쪽만 고치면
+        // 가로와 세로가 다른 자로 읽힌다.
+        Check(alongX > 100, "the numbers under the view must change");
+        Check(alongY > 100, "and so must the ones down its left edge");
+
+        // **단추가 지금 무엇으로 읽는지 말한다.** 누르고도 글자가 그대로면 어느 쪽인지 모른다.
+        Spot after;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, pixelLabel), after),
+            "and the button must now read as the pixel one");
+        Check(false == FindItemAnywhereInWindow(
+                  editor, hwnd, view, LabelId(view->ID, unitLabel), after),
+            "the world-unit label must be gone while pixels are on");
+        SaveScreenshot(*renderer, 640, 480, "ruler-pixels");
+
+        // 다시 누르면 유닛으로 돌아온다. 한쪽으로만 가는 토글은 토글이 아니다.
+        ClickAt(editor, hwnd, after);
+        Check(editor.Tick(Frame), "the editor must settle back on world units");
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, unitLabel), toggle),
+            "pressing it again must read as world units");
+
+        editor.Shutdown();
+    }
+
     void TestTheInspectorRenamesAndTogglesThroughCommands()
     {
         JBro::EditorApplication editor;
@@ -8125,6 +8238,7 @@ int RunEditorApplicationTests()
     TestTheEditorSessionSurvivesReopening();
     TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();
+    TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheAssetBrowserSelectsManyFilesAtOnce();
     TestAssetFileOperationsCarryTheMeta();
