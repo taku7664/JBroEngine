@@ -6249,6 +6249,20 @@ namespace
         waitOutDoubleClick();
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == body, "and outside again, the arm picks the body");
+        waitOutDoubleClick();
+
+        // **손잡이 위에서 두 번 눌러도 들어간다**(D-179). 고른 오브젝트의 한가운데에는 늘
+        // 기즈모가 있어서, 입력 자리의 hover 로 재던 때에는 **거기서 두 번 누르기가 없는 일**이
+        // 되었다 - 실제 에디터에서 오브젝트 한가운데를 두 번 눌러도 들어가지지 않았다.
+        ClickAt(editor, hwnd, onBody);
+        Check(editor.GetSelectedObject() == body, "clicking the body selects it, so the gizmo sits there");
+        waitOutDoubleClick();
+        ClickAt(editor, hwnd, onBody);
+        ClickAt(editor, hwnd, onBody);
+        waitOutDoubleClick();
+        ClickAt(editor, hwnd, onArm);
+        Check(editor.GetSelectedObject() == arm,
+            "double-clicking the middle of the body steps inside it, gizmo or no gizmo");
 
         editor.Shutdown();
     }

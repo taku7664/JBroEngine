@@ -860,6 +860,19 @@ namespace JBro
         return best;
     }
 
+    bool CanvasViewPanel::PointerInView(const ViewRect& rect) const
+    {
+        // **입력 자리의 hover 로는 잴 수 없다**(D-179, D-170 과 같은 까닭). 그것은 기즈모를
+        // 그리기 **전에** 재는 값이라, 손잡이가 앞 프레임부터 hover 를 쥐고 있으면 거짓이다 -
+        // 고른 오브젝트의 한가운데에는 늘 손잡이가 있다. 창 위에 마우스가 있고 그 자리가
+        // 뷰 안이면 그것으로 충분하다.
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const bool inside = mouse.x >= rect.left && mouse.x < rect.left + rect.width
+            && mouse.y >= rect.top && mouse.y < rect.top + rect.height;
+        return inside
+            && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    }
+
     GameObject* CanvasViewPanel::GetFocus() const
     {
         return m_focus != 0 ? m_editor->GetObjectIds().Resolve(m_focus) : nullptr;
@@ -945,12 +958,22 @@ namespace JBro
         // 되면 끌 때마다 선택이 풀린다.
         // 손잡이 위에서 놓은 것은 고르기가 아니다. 끌지 않고 눌렀다 뗀 것도 마찬가지다 -
         // 기즈모를 건드릴 때마다 선택이 바뀌면 여럿 골라 놓고 옮길 수 없다.
-        if (hovered && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        // **손잡이 위에서 두 번 눌러도 들어간다**(D-179). `hovered` 로 재면 오브젝트의
+        // 한가운데 - 늘 기즈모가 있는 자리 - 에서는 두 번 누르기가 없는 일이 된다.
+        const bool pointerHere = PointerInView(rect);
+        if (pointerHere && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
         {
             m_doubleClick = true;
         }
-        if (false == hovered || m_gizmoState.dragging || m_editing.IsActive()
-            || m_boxSelecting || m_gizmoState.hovered != GizmoAxis::None)
+        if (false == pointerHere || m_gizmoState.dragging || m_editing.IsActive()
+            || m_boxSelecting)
+        {
+            return;
+        }
+        // **손잡이 위에서 한 번 누른 것은 고르기가 아니다.** 기즈모를 건드릴 때마다 선택이
+        // 바뀌면 여럿 골라 놓고 옮길 수 없다. 두 번 누르기는 들어가기이므로 통과시킨다 -
+        // 그러지 않으면 고른 오브젝트의 한가운데로는 영영 들어갈 수 없다.
+        if (m_gizmoState.hovered != GizmoAxis::None && false == m_doubleClick)
         {
             return;
         }
@@ -1143,11 +1166,7 @@ namespace JBro
         // 입력 자리(`##canvas`)의 hover 도 쓰지 못한다. 그것은 기즈모를 그리기 **전에** 재는데,
         // 손잡이가 앞 프레임부터 hover 를 쥐고 있으면 거짓이다 - 같은 자리가 또 막힌다.
         // 창 위에 마우스가 있고 그 자리가 뷰 안이면 그것으로 충분하다.
-        const ImVec2 mouse = ImGui::GetIO().MousePos;
-        const bool inView = mouse.x >= rect.left && mouse.x < rect.left + rect.width
-            && mouse.y >= rect.top && mouse.y < rect.top + rect.height;
-        if (inView && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)
-            && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
+        if (PointerInView(rect) && ImGui::IsMouseReleased(ImGuiMouseButton_Right))
         {
             Widget::OpenContextMenu("##CanvasViewMenu");
         }

@@ -105,6 +105,8 @@ namespace JBro
         // 고르는 단위다. 빈 곳을 두 번 누르면 한 층 나온다.
         //
         // 지금 들어가 있는 오브젝트다. 없으면(뿌리) nullptr 이다. 번호로 들고 있어 지워져도 안전하다.
+        // 마우스가 이 뷰의 그림 위에 있는가(D-179). 기즈모 손잡이에 가려도 참이다.
+        bool PointerInView(const ViewRect& rect) const;
         GameObject* GetFocus() const;
         // 걸린 오브젝트를 **지금 층의 오브젝트**로 올린다. 뿌리에서는 맨 위 조상, 들어가 있으면
         // 그 오브젝트의 직계 자식(또는 그 오브젝트 자신). 들어간 오브젝트 밖이면 nullptr 이다.
