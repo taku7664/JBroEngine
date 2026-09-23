@@ -63,6 +63,20 @@ namespace JBro
         void SelectRange(const String& to);
         // 고른 것들을 지운다. 하나든 여럿이든 같은 길로 간다.
         void DeleteSelection();
+        // **파일 클립보드**(D-182, 기존 `CutToClipboard`·`CopyToClipboard`·`PasteIntoFolder`).
+        // 끌어 놓기로는 보이는 폴더로만 옮길 수 있다 - 깊은 두 폴더 사이를 오가려면
+        // 잘라내어 옮겨 간 뒤 붙이는 길이 있어야 한다.
+        //
+        // **오브젝트 클립보드와 따로 산다.** 파일을 잘라 두고 오브젝트를 복사하는 일이
+        // 보통이고, 하나로 합치면 둘 중 하나가 늘 지워진다(D-167 과 같은 까닭).
+        void CutToClipboard(const String& relativePath);
+        void CopyToClipboard(const String& relativePath);
+        // 그 폴더에 붙인다. 잘라 둔 것이면 옮기고 클립보드를 비우며, 복사해 둔 것이면
+        // 내용을 복사하고 클립보드는 남는다(여러 폴더에 잇달아 붙일 수 있다).
+        void PasteIntoFolder(const String& folder);
+        // 잘라내기·복사가 담을 것들이다. 우클릭한 것이 고른 것들 안에 있으면 고른 것 전부,
+        // 아니면 그 하나다 - 메뉴가 무엇에 대한 것인지 보이는 것과 어긋나면 안 된다.
+        Array<String> TargetsFor(const String& relativePath) const;
         // 길잡이 줄. 누르면 그 자리로 간다.
         void DrawBreadcrumb();
         // 빈자리·줄의 우클릭 메뉴. 같은 항목을 쓴다.
@@ -103,6 +117,11 @@ namespace JBro
         Array<String> m_visible;
         // 왼쪽 단추를 누른 파일 줄이다. 고르기는 **같은 줄에서 뗐을 때만** 한다.
         String m_pressedPath;
+
+        // 잘라내거나 복사해 둔 파일들의 상대경로다(D-182). 비어 있으면 붙여넣기가 잠긴다.
+        Array<String> m_fileClipboard;
+        // 참이면 잘라내기다 - 붙이면 옮기고 클립보드를 비운다.
+        bool m_clipboardIsCut = false;
 
         // 물어보는 중인 것. 비어 있으면 묻지 않는다.
         String m_pending;

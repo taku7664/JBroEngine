@@ -200,6 +200,10 @@ namespace JBro
         // **`.jmeta` 는 따라가지 않는다** - 그 안의 아이디까지 같아지면 두 파일이 한 에셋 행세를 한다.
         // 새 아이디는 스캔이 매긴다. 만든 파일의 상대경로를 돌려준다. 실패하면 빈 글자다.
         String DuplicateAsset(const char* relativePath);
+        // **다른 폴더로 내용을 복사한다**(D-182, 기존 에셋 브라우저의 복사·붙여넣기).
+        // 복제와 같은 몸이다 - 복제는 목적지가 제자리일 뿐이다. 그 폴더에 같은 이름이
+        // 없으면 이름 그대로 가고, 있으면 뒤에 숫자를 붙인다. `.jmeta` 는 따라가지 않는다.
+        String CopyAssetInto(const char* relativePath, const char* targetFolder);
         // **되돌릴 수 없다.** 부르는 쪽이 먼저 물어야 한다.
         bool DeleteAsset(const char* relativePath);
         bool RevealAsset(const char* relativePath);

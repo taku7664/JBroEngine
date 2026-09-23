@@ -617,6 +617,18 @@ namespace JBro
 
     String EditorApplication::DuplicateAsset(const char* relativePath)
     {
+        // 복제는 **제자리 복사**다(D-182). 붙여넣기와 같은 길을 쓴다 - 겹치지 않는 이름을
+        // 짓는 규칙이 둘로 갈리면 한쪽만 고쳐져 폴더마다 다른 이름이 나온다.
+        if (relativePath == nullptr || relativePath[0] == '\0')
+        {
+            return String();
+        }
+        const String folder = EditorPaths::FolderOf(relativePath);
+        return CopyAssetInto(relativePath, folder.c_str());
+    }
+
+    String EditorApplication::CopyAssetInto(const char* relativePath, const char* targetFolder)
+    {
         if (relativePath == nullptr || relativePath[0] == '\0' || GetAssetRoot().empty())
         {
             return String();
@@ -629,17 +641,22 @@ namespace JBro
             return String();
         }
         // 이름과 확장자를 가른다. `art/enemy.png` → `art/enemy1.png`, `art/enemy2.png`, ...
-        const String folder = EditorPaths::FolderOf(relativePath);
+        const String folder = targetFolder != nullptr ? String(targetFolder) : String();
         const String leaf = EditorPaths::LeafOfPath(relativePath);
         const std::size_t dot = leaf.find_last_of(".");
         const String stem = dot == String::npos ? leaf : String(leaf.substr(0, dot).c_str());
         const String extension = dot == String::npos ? String() : String(leaf.substr(dot).c_str());
         String relative;
         String absolute;
-        for (int attempt = 1; attempt < 100; ++attempt)
+        // **0 번은 이름 그대로다.** 다른 폴더로 붙여넣는 것이면 거기에 같은 이름이 없으므로
+        // 숫자를 붙일 까닭이 없다. 제자리 복제는 늘 부딪히므로 1 부터 쓰게 된다.
+        for (int attempt = 0; attempt < 100; ++attempt)
         {
             char suffix[16] = {};
-            std::snprintf(suffix, sizeof(suffix), "%d", attempt);
+            if (attempt > 0)
+            {
+                std::snprintf(suffix, sizeof(suffix), "%d", attempt);
+            }
             String name = stem;
             name.append(suffix, std::strlen(suffix));
             name += extension;
@@ -665,7 +682,7 @@ namespace JBro
         // **`.jmeta` 는 복사하지 않는다.** 아이디까지 같아지면 두 파일이 한 에셋 행세를 한다.
         // 새 아이디는 스캔이 매긴다 - 가져오기와 같은 길이다.
         RescanAssets();
-        Log::Write(LogLevel::Info, "asset", "duplicated %s as %s", relativePath, relative.c_str());
+        Log::Write(LogLevel::Info, "asset", "copied %s to %s", relativePath, relative.c_str());
         return relative;
     }
 
@@ -2461,15 +2478,9 @@ namespace JBro
         // 키를 바꿨을 때 화면만 옛 글자로 남는다.
         const bool enabled = EditorShortcuts::CanExecute(*this, id);
         const EditorShortcutText keys = EditorShortcuts::Describe(id);
-        if (false == enabled)
-        {
-            ImGui::BeginDisabled();
-        }
-        const bool chosen = ImGui::MenuItem(label, keys.value);
-        if (false == enabled)
-        {
-            ImGui::EndDisabled();
-        }
+        // 잠긴 까닭도 같은 표에서 온다(D-181). 회색으로만 두면 무엇을 해야 켜지는지 모른다.
+        const bool chosen = Widget::MenuItem(label, keys.value, enabled,
+            EditorShortcuts::WhyBlocked(*this, id));
         if (chosen)
         {
             EditorShortcuts::Execute(*this, id);
@@ -2503,9 +2514,22 @@ namespace JBro
             DrawShortcutItem(EditorShortcut::SaveCanvas,
                 Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"));
             {
-                // 파일로 연 프로젝트만 적을 자리가 있다.
-                Widget::DisableScope disabled(m_projectFilePath.empty() || IsSimulationPlaying());
-                if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuSaveProject, "Save Project")))
+                // 파일로 연 프로젝트만 적을 자리가 있고, 돌고 있는 동안에는 적지 않는다.
+                const bool noFile = m_projectFilePath.empty();
+                const bool playing = IsSimulationPlaying();
+                const char* why = nullptr;
+                if (noFile)
+                {
+                    why = Loc::TextOr(LocKeys::BlockedProjectHasNoFile,
+                        "only a project opened from a file can be saved");
+                }
+                else if (playing)
+                {
+                    why = Loc::TextOr(LocKeys::PopupSaveBlockedWhilePlaying,
+                        "stop the simulation before saving");
+                }
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuSaveProject, "Save Project"),
+                        nullptr, false == (noFile || playing), why))
                 {
                     RequestSaveProject();
                 }
@@ -2613,12 +2637,14 @@ namespace JBro
                 const AssetRecord* chosen = GetAssetRegistry().Find(GetSelectedAsset());
                 const bool image = chosen != nullptr && AssetTypeRules::IsImageType(chosen->type);
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuImportSprite, "Import Sprite"),
-                        nullptr, false == GetAssetRoot().empty()))
+                        nullptr, false == GetAssetRoot().empty(),
+                        Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))
                 {
                     RequestImportAsset("");
                 }
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::SpriteViewerTitle, "Sprite Viewer"),
-                        nullptr, image))
+                        nullptr, image,
+                        Loc::TextOr(LocKeys::BlockedPickAnImage, "pick an image asset first")))
                 {
                     OpenSpriteViewer(GetSelectedAsset());
                 }

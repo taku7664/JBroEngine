@@ -218,15 +218,15 @@
 | 캔버스 뷰의 오브젝트 우클릭 메뉴 | `EditorActions::DrawObjectMenu` (계층 줄과 같은 한 벌) | 완료 (D-170) |
 | `Main/GameView/GameViewTool` | `GameViewPanel` (보기만, 상태 글자) | 완료 (D-130) |
 | `Main/Guizmo/Guizmo2D`·`Guizmo3D`·`EditorGuizmoController` | `GizmoModel`·`GizmoEditing`·`Widget::Gizmo` (로컬·월드 포함) | 완료 (D-109·D-140·D-171) |
-| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기·컴포넌트 복사와 붙여넣기) | 완료 (D-142·D-165·D-167), 레이어·캔버스 인스펙터는 열림 |
+| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기·컴포넌트 복사와 붙여넣기) | 완료 (D-142·D-165·D-167), 레이어 인스펙터는 해당 없음(이름·보임이 전부이고 계층의 줄과 메뉴에 있다, D-183), 캔버스 인스펙터는 열림 |
 | `Main/Importer/SpriteFramePick` | `EditorApplication::BeginSpriteFramePick` + 뷰어의 고르기 줄 | 완료 (D-165) |
 | `Main/Inspector/AssetInspectorPreview` | 인스펙터 미리보기 + 머리 네 줄·뷰어에서 열기 | 완료 (D-147·D-173) |
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
 | `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |
 | `Main/Inspector/ButtonRectFit` | — | 해당 없음 (`Button2D` 없음) |
-| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임·오브젝트 눈·Shift 범위 선택) | 완료 (D-128·D-135·D-163·D-169), 캔버스 줄은 열림(캔버스 설정이 없다) |
+| `Main/Layers/LayerTool` | `HierarchyPanel` (레이어 머리·순서·부모 해제·보임·오브젝트 눈·Shift 범위 선택) | 완료 (D-128·D-135·D-163·D-169), 이름 고치기가 한 커맨드인 것은 D-183, 캔버스 줄은 열림(캔버스 설정이 없다) |
 | `Engine/Editor/ImEditor` (창·팝업·미룬 일·뷰 타깃·캔버스 뷰 선택/숨김) | `EditorApplication` · `EditorPanel` · `EditorPopup` | 완료 (D-163 에서 공개 기능 하나씩 대조), 카메라 컬링 통계·GPU 미리보기는 열림 |
-| `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기) | 완료 (D-139·D-141·D-147·D-154) |
+| `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기·파일 클립보드) | 완료 (D-139·D-141·D-147·D-154·D-182), `.meta` 보이기는 해당 없음(레지스트리를 본다), 즐겨찾기는 기존도 빈 제목줄 |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |
 | `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156) |
 | `Main/Importer/SpriteViewerWindow`·`SpriteFramePick`·`SpriteImportOptionsEditor` | `SpriteViewerWindow` + `InspectorPanel::DrawAssetOptions` | 완료 (D-155·D-159) |
@@ -246,7 +246,7 @@
 | `EditorContext` | `EditorApplication` | 완료 |
 | `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132), `PasteObjectsAsChild` 는 D-166, 컴포넌트 복사·붙여넣기는 D-167, `spawnWorldPos`·`ResolveTargetLayer` 는 D-168, `DrawAddComponentMenu`(갈래·다중성·`이미 추가됨`)는 D-180 |
 | `Gui/EditorMessagePopup` | `MessagePopup` | 완료 |
-| `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132), 표를 항목마다 견주어 빠져 있던 `PasteObjectsAsChild` 를 채웠다 (D-166) |
+| `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132), 표를 항목마다 견주어 빠져 있던 `PasteObjectsAsChild` 를 채웠다 (D-166), 잠긴 까닭(`WhyBlocked`)은 D-181 |
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |
 | `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 오디오 위젯·`ImReferenceField` 는 열림 |
 | `Localization/EditorReflectionLabels` | `JBro/Editor/EditorNames.h` 의 `DisplayTypeName`·`ComponentCategoryLabel` | 완료 (D-180), 필드 라벨은 해당 없음 (필드 이름으로 보인다, §11.2) |

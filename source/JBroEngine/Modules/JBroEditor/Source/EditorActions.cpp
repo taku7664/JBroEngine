@@ -9,6 +9,7 @@
 #include <JBro/Editor/EditorNames.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -20,32 +21,22 @@ namespace JBro::EditorActions
 {
     namespace
     {
-        // 못 하는 항목은 회색으로 그린다. 스코프로 두어 돌아 나가는 길이 생겨도
-        // `EndDisabled` 를 잊지 않는다.
-        class DisabledIf
+        // 항목이 회색일 때 띄우는 까닭들이다(D-181). 같은 말을 자리마다 다시 쓰면
+        // 한 곳만 고쳐져 화면마다 다른 말이 나온다.
+        const char* NoProjectReason()
         {
-        public:
-            explicit DisabledIf(bool disabled)
-                : m_disabled(disabled)
-            {
-                if (m_disabled)
-                {
-                    ImGui::BeginDisabled();
-                }
-            }
-            ~DisabledIf()
-            {
-                if (m_disabled)
-                {
-                    ImGui::EndDisabled();
-                }
-            }
-            DisabledIf(const DisabledIf&) = delete;
-            DisabledIf& operator=(const DisabledIf&) = delete;
+            return Loc::TextOr(LocKeys::BlockedNoProject, "no project is open");
+        }
 
-        private:
-            bool m_disabled = false;
-        };
+        const char* NothingSelectedReason()
+        {
+            return Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected");
+        }
+
+        const char* ClipboardEmptyReason()
+        {
+            return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
+        }
     }
 
     LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent)
@@ -159,9 +150,9 @@ namespace JBro::EditorActions
     bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent,
         const ObjectPlacement& placement)
     {
-        const DisabledIf disabled(editor.GetCanvas() == nullptr);
-        if (false == ImGui::MenuItem(
-                Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
+        if (false == Widget::MenuItem(
+                Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object"), nullptr,
+                editor.GetCanvas() != nullptr, NoProjectReason()))
         {
             return false;
         }
@@ -171,9 +162,9 @@ namespace JBro::EditorActions
     bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent,
         const ObjectPlacement& placement)
     {
-        const DisabledIf disabled(editor.GetCanvas() == nullptr);
-        if (false == ImGui::MenuItem(
-                Loc::TextOr(LocKeys::HierarchyCreateChild, "Create Child")))
+        if (false == Widget::MenuItem(
+                Loc::TextOr(LocKeys::HierarchyCreateChild, "Create Child"), nullptr,
+                editor.GetCanvas() != nullptr, NoProjectReason()))
         {
             return false;
         }
@@ -197,8 +188,8 @@ namespace JBro::EditorActions
 
     bool DrawCopyItem(EditorApplication& editor)
     {
-        const DisabledIf disabled(editor.GetSelectionCount() == 0);
-        if (false == ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"), "Ctrl+C"))
+        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"), "Ctrl+C",
+                editor.GetSelectionCount() != 0, NothingSelectedReason()))
         {
             return false;
         }
@@ -207,8 +198,8 @@ namespace JBro::EditorActions
 
     bool DrawPasteItem(EditorApplication& editor)
     {
-        const DisabledIf disabled(false == editor.HasClipboard());
-        if (false == ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V"))
+        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V",
+                editor.HasClipboard(), ClipboardEmptyReason()))
         {
             return false;
         }
@@ -218,9 +209,9 @@ namespace JBro::EditorActions
     bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object)
     {
         // **고른 것 안으로 붙인다**(D-166, 기존 `PasteObjectsAsChild`). 줄에서 연 메뉴이므로 그 줄이 곧 부모다.
-        const DisabledIf disabled(false == editor.HasClipboard());
-        if (false == ImGui::MenuItem(
-                Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"), "Ctrl+Shift+V"))
+        if (false == Widget::MenuItem(
+                Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"), "Ctrl+Shift+V",
+                editor.HasClipboard(), ClipboardEmptyReason()))
         {
             return false;
         }
@@ -230,8 +221,8 @@ namespace JBro::EditorActions
 
     bool DrawDeleteItem(EditorApplication& editor, GameObject& object)
     {
-        const DisabledIf disabled(editor.GetCanvas() == nullptr);
-        if (false == ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"), "Del"))
+        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"), "Del",
+                editor.GetCanvas() != nullptr, NoProjectReason()))
         {
             return false;
         }
@@ -332,15 +323,10 @@ namespace JBro::EditorActions
             {
                 continue;
             }
-            const bool addable = list.addable[index];
-            if (ImGui::MenuItem(list.names[index], nullptr, false, addable))
+            if (Widget::MenuItem(list.names[index], nullptr, list.addable[index],
+                    Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")))
             {
                 added = AddComponent(editor, object, list.typeNames[index]) || added;
-            }
-            // 왜 못 누르는지는 여기 말고 말할 자리가 없다.
-            if (false == addable && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-            {
-                ImGui::SetTooltip("%s", Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added"));
             }
         }
         if (inGroup)
@@ -412,14 +398,11 @@ namespace JBro::EditorActions
             return true;
         }
         // 빈자리의 붙여넣기는 뿌리에 붙는다. 고른 것 밑이 아니다.
-        const bool hasClipboard = editor.HasClipboard();
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V",
+                editor.HasClipboard(), ClipboardEmptyReason()))
         {
-            const DisabledIf disabled(false == hasClipboard);
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V"))
-            {
-                editor.ClearSelection();
-                changed = editor.PasteClipboard();
-            }
+            editor.ClearSelection();
+            changed = editor.PasteClipboard();
         }
         return changed;
     }

@@ -427,8 +427,15 @@ namespace JBro
             m_renameText = layer.GetName();
         }
         Widget::Text(Loc::TextOr(LocKeys::HierarchyLayerName, "Name"));
-        Widget::TextField("##layerName", m_renameText).Width(180.0f).Draw();
-        if (m_renameText != layer.GetName())
+        // **편집이 끝날 때 한 번만 커맨드를 낸다**(D-183, 기존 `ImInputText` +
+        // `IsItemDeactivatedAfterEdit`). 글자마다 내면 이름을 열 자 고친 것을 되돌리는 데
+        // 실행 취소가 열 번 들고, 커맨드 병합은 마우스를 누른 채일 때만 일어나므로
+        // 타이핑에는 걸리지 않는다. 인스펙터의 오브젝트 이름 칸이 이미 이 수를 쓴다.
+        const bool renamed = Widget::TextField("##layerName", m_renameText)
+            .Width(180.0f)
+            .CommitOnFinish()
+            .Draw();
+        if (renamed && m_renameText != layer.GetName())
         {
             m_editor->GetCommands().Execute(
                 MakeOwnerPtr<RenameLayerCommand>(*canvas, layerId, m_renameText.c_str()));
@@ -450,21 +457,15 @@ namespace JBro
         {
             // **마지막 하나는 지우지 못한다.** 캔버스가 레이어 없이 설 수 없다.
             const bool canDelete = canvas->GetLayerCount() > 1;
-            if (false == canDelete)
-            {
-                ImGui::BeginDisabled();
-            }
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer")))
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer"),
+                    nullptr, canDelete,
+                    Loc::TextOr(LocKeys::BlockedLastLayer, "a canvas needs at least one layer")))
             {
                 m_editor->ClearSelection();
                 m_editor->SetSelectedObject(nullptr);
                 m_editor->GetCommands().Execute(MakeOwnerPtr<DeleteLayerCommand>(
                     *canvas, m_editor->GetObjectIds(), layerId));
                 alive = false;
-            }
-            if (false == canDelete)
-            {
-                ImGui::EndDisabled();
             }
         }
         Widget::EndContextMenu();

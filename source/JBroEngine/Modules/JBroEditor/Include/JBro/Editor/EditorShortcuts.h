@@ -64,6 +64,13 @@ namespace JBro
         // 지금 할 수 있는가. **메뉴가 회색으로 그릴지 정하는 값**이고, 누른 키도 이것을 본다 -
         // 둘이 갈리면 메뉴에서는 못 하는데 키로는 되는 자리가 생긴다.
         bool CanExecute(const EditorApplication& editor, EditorShortcut id);
+        // **왜 지금 못 하는가**(D-181, 기존 `EditorSimulationGuard::GetSaveBlockedMessage`).
+        // 할 수 있으면 nullptr 이고, 막혀 있으면 번역된 한 줄이다. 메뉴가 회색 항목에
+        // 띄운다 - 회색으로만 두면 무엇을 해야 켜지는지 알 수 없다.
+        //
+        // `CanExecute` 옆에 두는 이유: 막는 조건이 그쪽에 있으므로, 떨어뜨려 놓으면
+        // 조건을 고칠 때 한쪽만 고쳐져 엉뚱한 까닭이 뜬다.
+        const char* WhyBlocked(const EditorApplication& editor, EditorShortcut id);
         bool Execute(EditorApplication& editor, EditorShortcut id);
         // `Ctrl+Shift+Z` 같은 글자. 비어 있는 자리는 빈 글자다.
         EditorShortcutText Describe(const EditorShortcutBinding& binding);

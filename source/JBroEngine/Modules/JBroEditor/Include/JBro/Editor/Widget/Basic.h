@@ -38,7 +38,15 @@ namespace JBro::Widget
     // ── 메뉴 ────────────────────────────────────────────────────────────────
     // 누르면 참이다. `enabled` 가 거짓이면 **회색으로 보이고 눌리지 않는다** - 숨기면
     // 그 기능이 있다는 것조차 알 수 없고, 눌리는데 아무 일도 없으면 고장인지 모른다.
-    bool MenuItem(const char* label, const char* shortcut = nullptr, bool enabled = true);
+    //
+    // `disabledReason` 을 주면 회색일 때 마우스를 올린 자리에 그 까닭이 뜬다(D-181,
+    // 기존 엔진의 저장 항목이 그랬다). **회색으로만 두면 무엇을 해야 켜지는지 알 수 없다.**
+    bool MenuItem(const char* label, const char* shortcut = nullptr, bool enabled = true,
+        const char* disabledReason = nullptr);
+
+    // 방금 그린 항목이 회색일 때 그 까닭을 띄운다. 메뉴 항목이 아닌 것(단추·칸)도
+    // 같은 수를 쓸 수 있도록 따로 낸다. `disabled` 가 거짓이거나 까닭이 없으면 아무 일도 없다.
+    void DisabledReason(bool disabled, const char* reason);
     // 켜고 끄는 항목이다. 바뀌었으면 참이고 `checked` 가 새 값이다.
     bool MenuToggle(const char* label, bool& checked, bool enabled = true);
 

@@ -108,6 +108,14 @@ Entries:
   common.clear: 지우기
   common.no_matches: 일치하는 항목이 없습니다
   common.already_added: 이미 추가됨
+  blocked.no_project: 열린 프로젝트가 없습니다
+  blocked.nothing_to_undo: 되돌릴 것이 없습니다
+  blocked.nothing_to_redo: 다시 실행할 것이 없습니다
+  blocked.clipboard_empty: 복사해 둔 것이 없습니다
+  blocked.not_playing: 시뮬레이션이 돌고 있지 않습니다
+  blocked.project_has_no_file: 파일에서 연 프로젝트만 저장할 수 있습니다
+  blocked.pick_an_image: 그림 에셋을 먼저 고르세요
+  blocked.last_layer: 캔버스에는 레이어가 하나 이상 있어야 합니다
   component_category.Transform: 트랜스폼
   component_category.Rendering: 렌더링
   component_category.Physics: 물리
@@ -175,6 +183,10 @@ Entries:
   assets.new_canvas: 새 캔버스
   assets.duplicate: 복제
   assets.copy_path: 경로 복사
+  assets.cut: 잘라내기
+  assets.copy_file: 복사
+  assets.paste: 붙여넣기
+  assets.paste_failed: 붙여넣지 못했습니다
   assets.selection_count: "%d개 선택됨"
   popup.unsaved_canvas_title: 저장하지 않은 변경
   popup.unsaved_canvas_message: 지금 캔버스에 저장하지 않은 변경이 있습니다. 다른 캔버스를 열면 그 변경은 사라집니다.

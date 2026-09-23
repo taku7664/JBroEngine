@@ -108,6 +108,14 @@ Entries:
   common.clear: Clear
   common.no_matches: No matches
   common.already_added: Already added
+  blocked.no_project: no project is open
+  blocked.nothing_to_undo: there is nothing to undo
+  blocked.nothing_to_redo: there is nothing to redo
+  blocked.clipboard_empty: nothing has been copied
+  blocked.not_playing: the simulation is not running
+  blocked.project_has_no_file: only a project opened from a file can be saved
+  blocked.pick_an_image: pick an image asset first
+  blocked.last_layer: a canvas needs at least one layer
   component_category.Transform: Transform
   component_category.Rendering: Rendering
   component_category.Physics: Physics
@@ -175,6 +183,10 @@ Entries:
   assets.new_canvas: New Canvas
   assets.duplicate: Duplicate
   assets.copy_path: Copy Path
+  assets.cut: Cut
+  assets.copy_file: Copy
+  assets.paste: Paste
+  assets.paste_failed: that could not be pasted
   assets.selection_count: "%d chosen"
   popup.unsaved_canvas_title: Unsaved changes
   popup.unsaved_canvas_message: This canvas has changes that are not saved. Opening another canvas loses them.

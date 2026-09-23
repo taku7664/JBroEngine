@@ -285,6 +285,74 @@ namespace JBro
         m_anchor.clear();
     }
 
+    Array<String> AssetBrowserPanel::TargetsFor(const String& relativePath) const
+    {
+        Array<String> targets;
+        // 우클릭한 것이 고른 것들 안에 있으면 고른 것 전부다. 여럿 골라 놓고 그중
+        // 하나에 우클릭하는 것은 "이것들에 대해" 라는 뜻이다(오브젝트 메뉴와 같은 규칙).
+        if (IsSelected(relativePath))
+        {
+            for (std::size_t index = 0; index < m_selection.Size(); ++index)
+            {
+                targets.Add(m_selection[index]);
+            }
+            return targets;
+        }
+        targets.Add(relativePath);
+        return targets;
+    }
+
+    void AssetBrowserPanel::CutToClipboard(const String& relativePath)
+    {
+        m_fileClipboard = TargetsFor(relativePath);
+        m_clipboardIsCut = true;
+    }
+
+    void AssetBrowserPanel::CopyToClipboard(const String& relativePath)
+    {
+        m_fileClipboard = TargetsFor(relativePath);
+        m_clipboardIsCut = false;
+    }
+
+    void AssetBrowserPanel::PasteIntoFolder(const String& folder)
+    {
+        if (m_fileClipboard.IsEmpty() || m_editor == nullptr)
+        {
+            return;
+        }
+        // **붙이는 도중에 목록이 바뀐다.** 하나씩 옮기거나 복사할 때마다 레지스트리를
+        // 다시 훑으므로, 클립보드를 먼저 베껴 두고 그 사본으로 돈다.
+        Array<String> sources = m_fileClipboard;
+        bool failed = false;
+        for (std::size_t index = 0; index < sources.Size(); ++index)
+        {
+            const String& source = sources[index];
+            // 제자리로 옮기는 것은 아무 일도 아니다. 복사는 제자리여도 복제로서 뜻이 있다.
+            if (m_clipboardIsCut && EditorPaths::FolderOf(source.c_str()) == folder)
+            {
+                continue;
+            }
+            const bool moved = m_clipboardIsCut
+                ? m_editor->MoveAsset(source.c_str(), folder.c_str())
+                : false == m_editor->CopyAssetInto(source.c_str(), folder.c_str()).empty();
+            if (false == moved)
+            {
+                failed = true;
+            }
+        }
+        if (failed)
+        {
+            m_message = Loc::TextOr(LocKeys::AssetsPasteFailed, "that could not be pasted");
+        }
+        if (m_clipboardIsCut)
+        {
+            // **잘라낸 것은 한 번만 간다.** 남겨 두면 다음 붙여넣기가 이미 없는 파일을 찾는다.
+            m_fileClipboard.Clear();
+            m_selection.Clear();
+            m_anchor.clear();
+        }
+    }
+
     void AssetBrowserPanel::HandleEntryInput(const Entry& entry)
     {
         // **누를 때가 아니라 끌지 않고 뗄 때 고른다**(D-154). 누르는 순간 고르면, 에셋을 끌어
@@ -663,6 +731,13 @@ namespace JBro
             m_nameBuffer = "New Folder";
             m_openNewFolder = true;
         }
+        // 지금 보고 있는 폴더에 붙인다. 빈자리에서 연 메뉴이므로 그 폴더가 곧 목적지다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsPaste, "Paste"), nullptr,
+                false == m_fileClipboard.IsEmpty(),
+                Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied")))
+        {
+            PasteIntoFolder(m_openFolder);
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
         {
             m_editor->RevealAsset(m_openFolder.c_str());
@@ -704,6 +779,32 @@ namespace JBro
         {
             m_editor->DuplicateAsset(relativePath.c_str());
         }
+        // ── 잘라내기 · 복사 · 붙여넣기 ─────────────────────────────────
+        //
+        // 폴더는 담지 않는다. 폴더를 통째로 옮기는 것은 안의 파일마다 아이디를 지켜야
+        // 하는 다른 일이고, 그쪽은 끌어 놓기가 이미 한다.
+        ImGui::Separator();
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsCut, "Cut"), nullptr,
+                false == isFolder))
+        {
+            CutToClipboard(relativePath);
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsCopyFile, "Copy"), nullptr,
+                false == isFolder))
+        {
+            CopyToClipboard(relativePath);
+        }
+        {
+            // 폴더에서 열었으면 그 폴더로, 파일에서 열었으면 지금 보고 있는 폴더로 간다.
+            const String target = isFolder ? relativePath : m_openFolder;
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsPaste, "Paste"), nullptr,
+                    false == m_fileClipboard.IsEmpty(),
+                    Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied")))
+            {
+                PasteIntoFolder(target);
+            }
+        }
+        ImGui::Separator();
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
         {
             m_pending = relativePath;

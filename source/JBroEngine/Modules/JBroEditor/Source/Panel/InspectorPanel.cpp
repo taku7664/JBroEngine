@@ -285,25 +285,15 @@ namespace JBro
                     // 하나만 붙는 타입이 이미 있으면 회색이다(D-180). 눌러도 아무 일이
                     // 일어나지 않는 항목을 켜 두면 고장과 구분되지 않는다.
                     const bool canPaste = m_editor->CanPasteComponent(*object);
-                    if (false == canPaste)
-                    {
-                        ImGui::BeginDisabled();
-                    }
+                    // 떠 둔 것이 없는 것과, 떠 두었지만 이미 붙어 있는 것은 다른 이야기다.
+                    const char* why = m_editor->HasComponentClipboard()
+                        ? Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")
+                        : Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
                     if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponent,
-                            "Paste Component")))
+                            "Paste Component"), nullptr, canPaste, why))
                     {
                         m_editor->PasteComponent(*object);
                         pasted = true;
-                    }
-                    if (false == canPaste)
-                    {
-                        ImGui::EndDisabled();
-                    }
-                    if (false == canPaste && m_editor->HasComponentClipboard()
-                        && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-                    {
-                        ImGui::SetTooltip("%s",
-                            Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added"));
                     }
                 }
                 if (pasted)

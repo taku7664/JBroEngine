@@ -1,4 +1,4 @@
-#include <JBro/Editor/EditorApplication.h>
+﻿#include <JBro/Editor/EditorApplication.h>
 #include <JBro/Core/Version.h>
 
 #include <JBro/Asset/Asset.h>
@@ -2236,9 +2236,43 @@ namespace
         Check(JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::PasteAsChild),
             "and with an object chosen and a full clipboard it must be available");
 
+        // **왜 지금 못 하는지도 같은 표가 말한다**(D-181). 회색으로만 두면 무엇을 해야
+        // 켜지는지 알 수 없다. 할 수 있는 동안에는 말할 것이 없다.
+        Check(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::PasteAsChild)
+                  == nullptr,
+            "an available action has nothing to explain");
+        editor.ClearSelection();
+        const char* noTarget
+            = JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::PasteAsChild);
+        Check(noTarget != nullptr
+                && std::strcmp(noTarget,
+                       JBro::Loc::TextOr(JBro::LocKeys::InspectorNothingSelected, "")) == 0,
+            "with a full clipboard and nothing chosen it must name the missing target");
+        Check(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::Copy) != nullptr,
+            "and copy must say the same");
+        // 붙일 것이 없는 것과 들어갈 곳이 없는 것은 다른 이야기다.
+        const char* emptyClipboard
+            = JBro::Loc::TextOr(JBro::LocKeys::BlockedClipboardEmpty, "");
+        Check(std::strcmp(noTarget, emptyClipboard) != 0,
+            "the two reasons must not be the same sentence");
+        Check(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::TogglePause)
+                  != nullptr,
+            "pausing while stopped must say why");
+        Check(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::TogglePlay)
+                  == nullptr,
+            "but playing is available with a canvas open");
+
         // 프로젝트를 닫으면 클립보드도 비운다.
         editor.CloseProject();
         Check(false == editor.HasClipboard(), "closing the project must empty the clipboard");
+        // 프로젝트가 없으면 **먼저 풀어야 하는 것**을 말한다. 붙여넣기에 대고
+        // "복사해 둔 것이 없습니다" 라고 하면 복사할 것을 찾다 끝난다.
+        const char* noProject
+            = JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::Paste);
+        Check(noProject != nullptr
+                && std::strcmp(noProject,
+                       JBro::Loc::TextOr(JBro::LocKeys::BlockedNoProject, "")) == 0,
+            "with no project open that is what the menu must say");
 
         editor.Shutdown();
     }
@@ -7104,6 +7138,37 @@ namespace
         Check(fs::exists(root / "Assets" / "sprites" / "villain.png", errorCode),
             "and must leave the file where it was");
 
+        // ── 다른 폴더로 복사 ────────────────────────────────────────────
+        //
+        // **에셋 브라우저의 붙여넣기가 지나는 길이다**(D-182). 복제와 같은 몸이라,
+        // 겹치지 않는 이름을 짓는 규칙도 하나뿐이다.
+        Check(editor.CreateAssetFolder("", "copies"), "a second folder can be made");
+        const JBro::String copied = editor.CopyAssetInto("sprites/villain.png", "copies");
+        Check(copied == JBro::String("copies/villain.png"),
+            "an empty folder takes the file under its own name, with no number");
+        Check(fs::exists(root / "Assets" / "copies" / "villain.png", errorCode),
+            "and the bytes are there");
+        Check(fs::exists(root / "Assets" / "sprites" / "villain.png", errorCode),
+            "copying leaves the original where it was");
+        Check(editor.GetAssetRegistry().FindByPath("copies/villain.png") != nullptr,
+            "and the scan gives the copy an id of its own");
+        // **`.jmeta` 는 복사하지 않는다.** 뒤따르는 스캔이 새 메타를 새 아이디로 쓰므로
+        // 파일은 생기지만, 그 아이디가 원본과 같으면 두 파일이 한 에셋 행세를 한다.
+        Check(editor.GetAssetRegistry().FindByPath("copies/villain.png")->id
+                != editor.GetAssetRegistry().FindByPath("sprites/villain.png")->id,
+            "with an id that is not the one the file came from");
+        // 두 번째는 부딪히므로 숫자가 붙는다. 덮어쓰면 방금 붙인 것을 잃는다.
+        const JBro::String again = editor.CopyAssetInto("sprites/villain.png", "copies");
+        Check(again == JBro::String("copies/villain1.png"),
+            "a second copy into the same folder must get a number, not overwrite");
+        // 제자리 복사가 곧 복제다. 이름 짓는 규칙이 하나라는 뜻이다.
+        const JBro::String duplicated = editor.DuplicateAsset("copies/villain.png");
+        Check(duplicated == JBro::String("copies/villain2.png"),
+            "duplicating in place must use the same numbering");
+        Check(editor.DeleteAsset("copies/villain.png"), "the probe copies can go");
+        Check(editor.DeleteAsset("copies/villain1.png"), "all of them");
+        Check(editor.DeleteAsset("copies/villain2.png"), "including the duplicate");
+
         // ── 지우기: 메타도 함께 ─────────────────────────────────────────
         Check(editor.DeleteAsset("sprites/villain.png"), "an asset can be deleted");
         Check(false == fs::exists(root / "Assets" / "sprites" / "villain.png", errorCode),
@@ -7113,6 +7178,82 @@ namespace
 
         editor.Shutdown();
         fs::remove_all(root, errorCode);
+    }
+
+    // **레이어 이름은 편집이 끝날 때 한 번만 커맨드가 된다**(D-183). 기존 엔진이
+    // 주석으로 경고한 자리다 - 글자마다 커맨드를 내면 이름 석 자를 고친 것을 되돌리는 데
+    // 실행 취소가 세 번 든다. 인스펙터의 오브젝트 이름 칸은 이미 그렇게 하고 있었다.
+    void TestRenamingALayerIsOneCommandNotOnePerLetter()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the layer rename not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "LayerRenameProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const JBro::LayerId layerId = canvas->GetDefaultLayer();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(hierarchy != nullptr, "the hierarchy must have a window");
+        // 레이어 줄은 `PushID(layerId)` 위의 `##layer` 마디다(오브젝트 줄과 같은 셈).
+        const ImGuiID rowId = LabelId(
+            PushedId(hierarchy->ID, static_cast<int>(layerId)), "##layer");
+        Spot row;
+        Check(FindItemAnywhereInWindow(editor, hwnd, hierarchy, rowId, row),
+            "the layer row must be findable in the hierarchy");
+        RightClickAt(editor, hwnd, row);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the layer must open its menu");
+
+        Spot field;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "##layerName"), field),
+            "the menu must carry the name field");
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, field);
+        Check(editor.Tick(Frame), "the field must take focus");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        for (const char* at = "Sky"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        Check(editor.GetCommands().GetUndoCount() == undoBefore,
+            "nothing is recorded while the letters are still being typed");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        JBro::Layer* layer = canvas->FindLayer(layerId);
+        Check(layer != nullptr, "the layer must still be there");
+        Check(std::strcmp(layer->GetName(), "DefaultSky") == 0,
+            "typing in the field must rename the layer");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1,
+            "and the three keystrokes must be one command, not three");
+        Check(editor.GetCommands().Undo(), "the rename must undo");
+        Check(std::strcmp(canvas->FindLayer(layerId)->GetName(), "Default") == 0,
+            "back to the name it had, in one step");
+
+        editor.Shutdown();
     }
 
     // 계층의 줄 하나가 차지한 Id.
@@ -7990,6 +8131,7 @@ int RunEditorApplicationTests()
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
+    TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestTheGizmoCanWorkInWorldAxes();
     TestThePathHelpersAgreeOnOneAnswer();
     TestTheEditorMakesAndOpensCanvases();

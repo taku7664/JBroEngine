@@ -60,9 +60,25 @@ namespace JBro::Widget
         return ImGui::InvisibleButton(id, safe, buttons);
     }
 
-    bool MenuItem(const char* label, const char* shortcut, bool enabled)
+    bool MenuItem(const char* label, const char* shortcut, bool enabled,
+        const char* disabledReason)
     {
-        return ImGui::MenuItem(label, shortcut, false, enabled);
+        const bool chosen = ImGui::MenuItem(label, shortcut, false, enabled);
+        DisabledReason(false == enabled, disabledReason);
+        return chosen;
+    }
+
+    void DisabledReason(bool disabled, const char* reason)
+    {
+        if (false == disabled || reason == nullptr || reason[0] == '\0')
+        {
+            return;
+        }
+        // 회색 항목은 기본 hover 판정에서 빠진다. 그 자리에 뜨게 하려면 이 플래그가 필요하다.
+        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+        {
+            ImGui::SetTooltip("%s", reason);
+        }
     }
 
     bool MenuToggle(const char* label, bool& checked, bool enabled)

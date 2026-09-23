@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 
 #include <cstring>
@@ -108,6 +109,50 @@ namespace JBro::EditorShortcuts
             return editor.IsSimulationPlaying();
         default:
             return false;
+        }
+    }
+
+    const char* WhyBlocked(const EditorApplication& editor, EditorShortcut id)
+    {
+        if (CanExecute(editor, id))
+        {
+            return nullptr;
+        }
+        EditorApplication& mutableEditor = const_cast<EditorApplication&>(editor);
+        const bool hasCanvas = mutableEditor.GetCanvas() != nullptr;
+        // 막은 조건이 여럿이면 **먼저 풀어야 하는 것**을 말한다. 프로젝트가 없는데
+        // "시뮬레이션을 멈추세요" 라고 하면 멈출 것을 찾다 끝난다.
+        if (false == hasCanvas
+            && (id == EditorShortcut::SaveCanvas || id == EditorShortcut::Paste
+                || id == EditorShortcut::PasteAsChild || id == EditorShortcut::TogglePlay))
+        {
+            return Loc::TextOr(LocKeys::BlockedNoProject, "no project is open");
+        }
+        switch (id)
+        {
+        case EditorShortcut::SaveCanvas:
+            return Loc::TextOr(LocKeys::PopupSaveBlockedWhilePlaying,
+                "stop the simulation before saving");
+        case EditorShortcut::Undo:
+            return Loc::TextOr(LocKeys::BlockedNothingToUndo, "there is nothing to undo");
+        case EditorShortcut::Redo:
+            return Loc::TextOr(LocKeys::BlockedNothingToRedo, "there is nothing to redo");
+        case EditorShortcut::Copy:
+        case EditorShortcut::DeleteSelection:
+            return Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected");
+        case EditorShortcut::Paste:
+            return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
+        case EditorShortcut::PasteAsChild:
+            // 붙일 것이 없는 것과 들어갈 곳이 없는 것은 다른 이야기다.
+            if (false == editor.HasClipboard())
+            {
+                return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
+            }
+            return Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected");
+        case EditorShortcut::TogglePause:
+            return Loc::TextOr(LocKeys::BlockedNotPlaying, "the simulation is not running");
+        default:
+            return nullptr;
         }
     }
 

@@ -168,6 +168,19 @@ namespace JBro::LocKeys
     inline constexpr const char* CommonNoMatches = "common.no_matches";
     inline constexpr const char* CommonAlreadyAdded = "common.already_added";
 
+    // ── 잠긴 까닭 ────────────────────────────────────────────────────────
+    //
+    // 회색 항목에 마우스를 올렸을 때 뜨는 한 줄이다(D-181). 저장이 막힌 까닭은
+    // 이미 `popup.save_blocked_while_playing` 이 있어 그것을 같이 쓴다.
+    inline constexpr const char* BlockedNoProject = "blocked.no_project";
+    inline constexpr const char* BlockedNothingToUndo = "blocked.nothing_to_undo";
+    inline constexpr const char* BlockedNothingToRedo = "blocked.nothing_to_redo";
+    inline constexpr const char* BlockedClipboardEmpty = "blocked.clipboard_empty";
+    inline constexpr const char* BlockedNotPlaying = "blocked.not_playing";
+    inline constexpr const char* BlockedProjectHasNoFile = "blocked.project_has_no_file";
+    inline constexpr const char* BlockedPickAnImage = "blocked.pick_an_image";
+    inline constexpr const char* BlockedLastLayer = "blocked.last_layer";
+
     // ── 컴포넌트 갈래 ────────────────────────────────────────────────────
     //
     // 키는 `component_category.<갈래>` 로 그 자리에서 지어진다(`EditorNames`).
@@ -200,6 +213,12 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsNewCanvas = "assets.new_canvas";
     inline constexpr const char* AssetsDuplicate = "assets.duplicate";
     inline constexpr const char* AssetsCopyPath = "assets.copy_path";
+    // 파일 클립보드(D-182). 오브젝트 쪽의 복사·붙여넣기와 **다른 키**다 - 같은 말이라도
+    // 한쪽 문구만 고치고 싶을 때 키가 하나면 둘 다 바뀐다.
+    inline constexpr const char* AssetsCut = "assets.cut";
+    inline constexpr const char* AssetsCopyFile = "assets.copy_file";
+    inline constexpr const char* AssetsPaste = "assets.paste";
+    inline constexpr const char* AssetsPasteFailed = "assets.paste_failed";
     inline constexpr const char* AssetsSelectionCount = "assets.selection_count";
     inline constexpr const char* PopupUnsavedCanvasTitle = "popup.unsaved_canvas_title";
     inline constexpr const char* PopupUnsavedCanvasMessage = "popup.unsaved_canvas_message";
