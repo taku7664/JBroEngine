@@ -25,30 +25,35 @@
 
 ## 2. 대조표 — 기존에 있고 우리에게 없는 것
 
+> **이 절은 2026-09-21 에 처음 조사한 그때의 상태다.** "현재" 칸과 "판정" 칸은 그날의 것이고,
+> 그 뒤에 무엇이 섰는지는 §3 의 단계와 §5 의 표가 갖는다. 그날 **없음** 이던 것 대부분은
+> 지금 서 있다 - 그 자리에 `→` 로 어디서 섰는지만 적어 둔다. 역사와 현재를 한 칸에 섞으면
+> 둘 다 믿을 수 없게 된다.
+
 ### 2.1 창 구조
 
 | 기존 | 현재 | 판정 |
 | --- | --- | --- |
-| `CRootDockWindow` — 전체화면 도크 뿌리, 메뉴 막대(파일·설정·디버그), 프로젝트 없이도 뜬다 | `##EditorRoot` 한 겹 | **없음** |
-| `CMainDockWindow` — 루트에 도킹되는 둘째 도크, 자기 메뉴 막대(시뮬레이션·편집·창), **프로젝트를 열어야 생긴다** | 없음 | **없음** |
-| 임포터 창 — 도킹하지 않는 떠 있는 대화상자(`SpriteImporter`·`AudioImporter`) | 없음 | **없음** |
-| `IMWINDOW_FLAG_NO_CLOSE_BUTTON` — 창마다 닫기 단추를 고른다. 메인 도크와 루트 도크가 끈다 | `HasCloseButton()` 은 있으나 **아무 패널도 끄지 않는다** | 정책 미적용 |
-| 도크 노드 버튼(닫기·창 메뉴) 끄기가 `CImDockWindow` 기본값 | 안 끈다 → **탭 줄 오른쪽 끝에 X 가 나온다** | 사용자가 지적한 그 X |
+| `CRootDockWindow` — 전체화면 도크 뿌리, 메뉴 막대(파일·설정·디버그), 프로젝트 없이도 뜬다 | `##EditorRoot` 한 겹 | 그때 **없음** → 완료 (D-134) |
+| `CMainDockWindow` — 루트에 도킹되는 둘째 도크, 자기 메뉴 막대(시뮬레이션·편집·창), **프로젝트를 열어야 생긴다** | 없음 | 그때 **없음** → 완료 (D-134), 수명은 우리 쪽이 다르다(§3 의 6) |
+| 임포터 창 — 도킹하지 않는 떠 있는 대화상자(`SpriteImporter`·`AudioImporter`) | 없음 | 그때 **없음** → 스프라이트는 뿌리 도크의 뷰어로 완료 (D-155·D-156), 오디오는 해당 없음 |
+| `IMWINDOW_FLAG_NO_CLOSE_BUTTON` — 창마다 닫기 단추를 고른다. 메인 도크와 루트 도크가 끈다 | `HasCloseButton()` 은 있으나 **아무 패널도 끄지 않는다** | 그때 정책 미적용 → 완료 (§3 의 2) |
+| 도크 노드 버튼(닫기·창 메뉴) 끄기가 `CImDockWindow` 기본값 | 안 끈다 → **탭 줄 오른쪽 끝에 X 가 나온다** | 그때 지적 ⑤ → 완료 (§3 의 2), 지금은 X 가 없다 |
 
 ### 2.2 도구 창
 
 | 기존 도구 | 현재 | 판정 |
 | --- | --- | --- |
-| `CCanvasViewTool`(1,645줄) + `CanvasViewContour`·`CanvasViewEditContext`·`CanvasViewCoordinates` | 없음 | **없음 — 지적 ②의 핵심** |
-| `CGameViewTool`(210줄) — 그림만 붙이고 **기즈모도 편집도 없다**. 상태 오버레이·입력 게이팅 | `GameViewPanel` 이 기즈모를 그리고 편집한다 | **역할이 뒤바뀌어 있다** |
+| `CCanvasViewTool`(1,645줄) + `CanvasViewContour`·`CanvasViewEditContext`·`CanvasViewCoordinates` | 없음 | 그때 **없음 — 지적 ②의 핵심** → 완료 (D-130·D-149·D-150·D-157·D-170·D-172) |
+| `CGameViewTool`(210줄) — 그림만 붙이고 **기즈모도 편집도 없다**. 상태 오버레이·입력 게이팅 | `GameViewPanel` 이 기즈모를 그리고 편집한다 | 그때 **역할이 뒤바뀌어 있었다** → 완료 (D-130), 지금 게임 뷰는 보기만 한다 |
 | `CLayerTool`(695줄) — 계층 + 레이어. 행 3분할 드롭, 레이어 행 드롭, 우클릭 `부모 해제`, 눈 아이콘 | `HierarchyPanel` — 세 구역 드롭·부모 해제·뿌리 순서·레이어까지 섰다(D-128·D-135) | 맞춤 |
 | `CInspectorTool`(3,068줄) | `InspectorPanel`(1,183줄) | 레이아웃은 사용자가 좋다고 했다. 기능 차이는 §4 에서 따로 잰다 |
 | `CAssetBrowserTool`(2,652줄) | `AssetBrowserPanel` — 두 칸·길잡이·새 폴더·이름·삭제·끌어 옮기기·탐색기(D-139), 아이콘 보기(D-147)·다중 선택(D-141)·새 캔버스와 캔버스 열기(D-174) | `에셋 추가` 의 나머지(재질·프리팹·폰트·이펙트·애니메이션)는 그 에셋이 없어 열림 |
-| `CLogTool`(117줄) | 없음 | **없음** |
-| `CShortcutReferenceTool`(69줄) | 없음 | **없음** |
+| `CLogTool`(117줄) | 없음 | 그때 **없음** → 완료 (§3 의 10) |
+| `CShortcutReferenceTool`(69줄) | 없음 | 그때 **없음** → 완료 (D-132) |
 | `CCpuProfilerWindow`(425줄)·`CGpuProfilerWindow`(334줄) | `StatsPanel` + `ProfilerPanel`(D-138) | CPU 는 섰다. GPU 타임스탬프는 RHI 에 없다 |
 | `CProjectSettingsWindow`(826줄)·`CBuildSettingsWindow`(1,156줄) | `ProjectSettingsPanel` 이 섰다(D-137). 빌드 설정은 빌드 시스템이 없어 보류 | 반쯤 |
-| 임포터 4종(`SpriteImporter`·`AudioImporter`·`SpriteViewer`·`SpriteImportOptionsEditor`) | 인스펙터의 임포트 옵션만 | **없음** |
+| 임포터 4종(`SpriteImporter`·`AudioImporter`·`SpriteViewer`·`SpriteImportOptionsEditor`) | 인스펙터의 임포트 옵션만 | 그때 **없음** → 스프라이트 셋은 완료 (D-155·D-156·D-159·D-173), 오디오는 해당 없음 |
 | `EffectEditorWindow`·`AssetInspectorPreview`·`EditorAudioPreview` | 없음 | 오디오·이펙트가 없어 보류 |
 
 ### 2.3 메뉴
@@ -60,18 +65,23 @@
 기존 메인 도크: **시뮬레이션**(재생 토글 / 일시정지 토글), **편집**(실행 취소 / 다시 실행 /
 복사 / 붙여넣기), **창**(에디터→자식 창 토글, 임포터→스프라이트·오디오).
 
-현재: **파일**(캔버스 저장 / 종료), **편집**(실행 취소 / 다시 실행), **창**(패널 토글).
-→ **시뮬레이션·설정·디버그 메뉴가 통째로 없고, 파일 메뉴는 프로젝트를 다루지 못한다.**
+그때의 우리: **파일**(캔버스 저장 / 종료), **편집**(실행 취소 / 다시 실행), **창**(패널 토글).
+→ **시뮬레이션·설정·디버그 메뉴가 통째로 없고, 파일 메뉴는 프로젝트를 다루지 못한다** 는 것이 그날의 판정이었다.
+
+지금은 기존과 같은 차례로 선다(§3 의 7): 뿌리에 **파일**(새 프로젝트·프로젝트 열기·프로젝트 저장·캔버스 저장·종료)·
+**설정**(프로젝트 설정)·**디버그**(CPU 프로파일러·통계·로그), 메인 도크에 **시뮬레이션**·**편집**(실행 취소·다시 실행·
+복사·붙여넣기·자식으로 붙여넣기·삭제)·**창**(에디터 패널·임포터). 빌드·빌드 설정·GPU 프로파일링은 그 기능이 없어
+넣지 않았다.
 
 ### 2.4 그 밖
 
 | 기존 | 현재 | 판정 |
 | --- | --- | --- |
-| `CEditorShortcutManager`(259줄) — 단축키를 한곳에 두고 `CanExecute`/`Execute`/`GetShortcutText` | `EditorApplication` 안에 `ImGui::Shortcut` 이 흩어져 있다 | **없음 — 지적 ⑦** |
-| `EditorGuiActions`(476줄) — 오브젝트 추가·복사·붙여넣기·컴포넌트 추가·삭제 메뉴를 **한 벌로** 만들어 계층·캔버스 뷰가 함께 쓴다 | 계층 패널이 자기 안에서 직접 그린다 | **없음 — 지적 ⑦** |
-| `EditorDragDrop`(152줄) — 드래그 꾸러미 이름과 해석을 한곳에 | 패널 안 상수 | **없음** |
-| `EditorSimulationGuard` — 시뮬레이션 중 저장·빌드를 막고 사유를 말한다 | 시뮬레이션 개념 자체가 없다 | **없음** |
-| `EditorSessionPersistence` — 도크 배치·카메라를 프로젝트에 저장 | 없다 | **없음** |
+| `CEditorShortcutManager`(259줄) — 단축키를 한곳에 두고 `CanExecute`/`Execute`/`GetShortcutText` | `EditorApplication` 안에 `ImGui::Shortcut` 이 흩어져 있다 | 그때 **없음 — 지적 ⑦** → 완료 (D-132·D-166) |
+| `EditorGuiActions`(476줄) — 오브젝트 추가·복사·붙여넣기·컴포넌트 추가·삭제 메뉴를 **한 벌로** 만들어 계층·캔버스 뷰가 함께 쓴다 | 계층 패널이 자기 안에서 직접 그린다 | 그때 **없음 — 지적 ⑦** → 완료 (D-132·D-166~D-168·D-170) |
+| `EditorDragDrop`(152줄) — 드래그 꾸러미 이름과 해석을 한곳에 | 패널 안 상수 | 그때 **없음** → 완료 (D-154) |
+| `EditorSimulationGuard` — 시뮬레이션 중 저장·빌드를 막고 사유를 말한다 | 시뮬레이션 개념 자체가 없다 | 그때 **없음** → 완료 (D-153) |
+| `EditorSessionPersistence` — 도크 배치·카메라를 프로젝트에 저장 | 없다 | 그때 **없음** → 완료 (D-146) |
 | `EditorTheme`(95줄) | `EditorTheme`(222줄) | 있다 |
 
 ### 2.5 엔진 쪽 전제
