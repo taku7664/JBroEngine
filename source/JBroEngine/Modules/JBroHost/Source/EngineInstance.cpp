@@ -637,6 +637,10 @@ namespace JBro
             const ProfileScope scope("Submit");
             renderResult = m_framework->Render();
         }
+        // **게임이 이번 프레임에 낼 것이 있었는가**(D-178). 게임 뷰가 "카메라 없음" 과
+        // "빈 화면" 을 가리는 데 쓴다 - 검은 화면만 보여 주면 둘을 구분할 길이 없다.
+        // 편집 화면의 제출은 여기에 들어가지 않는다. 그것은 게임 카메라가 아니다.
+        m_gameSubmittedLastFrame = renderResult == RenderResult::Submitted;
         // **편집 화면은 게임 화면 바로 뒤다**(D-130). 프레임워크가 이번 프레임에 모아 둔
         // 그릴 것을 그대로 쓰므로, `Render` 와 같은 프레임 안에서만 뜻이 있다.
         // 요청은 한 프레임짜리라 여기서 비운다.
@@ -723,6 +727,11 @@ namespace JBro
         {
             m_assets->SetDefaultTextureFilter(project.textureFilter);
         }
+    }
+
+    bool EngineInstance::DidGameSubmitLastFrame() const
+    {
+        return m_gameSubmittedLastFrame;
     }
 
     void EngineInstance::SetInputOwnedByHost(bool owned)

@@ -100,7 +100,23 @@ namespace JBro
             m_open = open;
         }
 
+        // **이 패널을 앞으로 가져와 달라**(D-178, 기존 `GameView->Focus()`). 탭으로 겹쳐 있으면
+        // 열려 있어도 보이지 않는다 - 재생을 눌렀는데 게임 뷰가 뒤에 있으면 아무 일도 일어나지
+        // 않은 것처럼 보인다. 닫혀 있으면 함께 연다. 에디터가 다음 프레임에 한 번 쓰고 내린다.
+        void RequestFocus()
+        {
+            m_open = true;
+            m_focusRequested = true;
+        }
+        bool TakeFocusRequest()
+        {
+            const bool requested = m_focusRequested;
+            m_focusRequested = false;
+            return requested;
+        }
+
     private:
         bool m_open = true;
+        bool m_focusRequested = false;
     };
 }

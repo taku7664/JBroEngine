@@ -105,6 +105,9 @@ namespace JBro
         // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
         // 입력이 쌓이기만 한다.
         void SetInputOwnedByHost(bool owned);
+        // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
+        // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
+        bool DidGameSubmitLastFrame() const;
         bool IsSimulationEnabled() const;
 
         bool Tick(float deltaTime);
@@ -191,6 +194,7 @@ namespace JBro
         EditorViewDesc m_editorView;
         bool m_hasEditorView = false;
         bool m_inputOwnedByHost = false;
+        bool m_gameSubmittedLastFrame = false;
         // 게임을 돌릴 것인가(D-131). 게임 호스트는 손대지 않으므로 기본이 참이다.
         bool m_simulationEnabled = true;
         State m_state = State::Stopped;

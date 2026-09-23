@@ -2505,6 +2505,57 @@ namespace
 
     // **게임 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
     // 텍스처에 그릴 이유가 없다. 다시 열면 그 프레임부터 이어진다 - 텍스처는 파기하지 않는다.
+    // **게임 뷰는 카메라가 없는 것과 빈 화면을 가른다**(D-178, 기존 `GameViewNoCamera`).
+    // 예전에는 텍스처가 있는지만 보아서, 카메라 없는 검은 화면을 "실행 중" 이라고 말했다.
+    void TestTheGameViewKnowsWhenNoCameraDrew()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the game view status not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GameViewStatusProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(false == editor.DidGameSubmitLastFrame(),
+            "with no camera in the canvas the game submits nothing");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr,
+            "the camera needs a transform");
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        Check(camera != nullptr, "the probe camera must attach");
+        camera->primary = true;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with a camera");
+        }
+        Check(editor.DidGameSubmitLastFrame(), "with one, the game draws");
+
+        // 카메라를 끄면 다시 낼 것이 없다.
+        camera->primary = false;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the camera was turned off");
+        }
+        Check(false == editor.DidGameSubmitLastFrame(),
+            "and turning the only camera off takes the picture away again");
+
+        editor.Shutdown();
+    }
+
     void TestTheGameViewIsRenderedOnlyWhileItsPanelShows()
     {
         JBro::EditorApplication editor;
@@ -4877,8 +4928,24 @@ namespace
         transform->position = JBro::Vec2{3.0f, 4.0f};
         Check(editor.Tick(Frame), "the editor must tick before play");
 
+        // **게임 뷰를 뒤로 보내 두고 재생한다**(D-178, 기존도 재생에서 앞으로 가져왔다).
+        // 캔버스 뷰와 탭으로 겹쳐 있으면 재생을 눌러도 화면이 그대로라 아무 일도 없는 것처럼 보인다.
+        JBro::EditorPanel* gameView = editor.FindPanel("Game");
+        Check(gameView != nullptr, "the game view must exist");
+        gameView->SetOpen(false);
+        Check(editor.Tick(Frame), "the editor must tick with the game view closed");
+
         Check(editor.StartSimulation(), "play must start");
         Check(editor.IsSimulationPlaying(), "and say so");
+        Check(gameView->IsOpen(), "starting play must bring the game view back");
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after play started");
+        }
+        if (ImGuiWindow* window = ImGui::FindWindowByName("Game"))
+        {
+            Check(window->Active, "and that window must be the one in front of its tabs");
+        }
 
         // 게임이 하는 일을 흉내 낸다: 오브젝트를 하나 만들고 값을 고친다.
         JBro::GameObject* spawned = canvas->CreateObject("Spawned");
@@ -7723,6 +7790,7 @@ int RunEditorApplicationTests()
     TestListEditsReachEveryChosenObjectAsOneUndo();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
+    TestTheGameViewKnowsWhenNoCameraDrew();
     TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
     TestDraggingTheGizmoMovesTheSelectionUnderOneUndo();
     TestPopupsOpenOneAtATimeAndCloseByHandle();

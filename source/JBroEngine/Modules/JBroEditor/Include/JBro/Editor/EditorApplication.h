@@ -300,6 +300,10 @@ namespace JBro
         TextureHandle GetGameViewTexture() const;
         // 게임 뷰 패널이 이 프레임에 게임 화면을 붙였다. 그 프레임에만 게임 뷰를 렌더한다(D-63).
         void RequestGameView();
+        // **게임이 지난 프레임에 그릴 것을 냈는가**(D-178). 게임 뷰가 "카메라 없음" 을
+        // 언제 말할지 정하는 값이다 - 텍스처가 있는지만 보면 카메라가 없어도 검은 화면을
+        // "실행 중" 이라고 말하게 된다.
+        bool DidGameSubmitLastFrame() const;
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetGameViewExtent() const;
 

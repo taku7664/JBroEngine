@@ -2102,6 +2102,11 @@ namespace JBro
         return m_gameView;
     }
 
+    bool EditorApplication::DidGameSubmitLastFrame() const
+    {
+        return m_engine.Get() != nullptr && m_engine->DidGameSubmitLastFrame();
+    }
+
     void EditorApplication::RequestGameView()
     {
         m_gameViewRequested = true;
@@ -2156,6 +2161,12 @@ namespace JBro
         m_simulationPlaying = true;
         m_simulationPaused = false;
         m_engine->SetSimulationEnabled(true);
+        // **게임 뷰를 앞으로 가져온다**(D-178, 기존도 재생에서 그랬다). 캔버스 뷰와 탭으로
+        // 겹쳐 있으면 재생을 눌러도 화면이 그대로라 아무 일도 없는 것처럼 보인다.
+        if (EditorPanel* gameView = FindPanel("Game"))
+        {
+            gameView->RequestFocus();
+        }
         return true;
     }
 
@@ -2762,6 +2773,11 @@ namespace JBro
             // 닫기 단추를 원하지 않는 패널에는 불리언을 넘기지 않는다. ImGui 는
             // 그것으로 단추를 그릴지 정한다.
             bool* closable = panel->HasCloseButton() ? &panelOpen : nullptr;
+            // 앞으로 와 달라고 한 패널은 이 프레임에 탭의 앞으로 온다(D-178).
+            if (panel->TakeFocusRequest())
+            {
+                ImGui::SetNextWindowFocus();
+            }
             if (ImGui::Begin(label.c_str(), closable, flags))
             {
                 if (panel->HasMenuBar() && ImGui::BeginMenuBar())

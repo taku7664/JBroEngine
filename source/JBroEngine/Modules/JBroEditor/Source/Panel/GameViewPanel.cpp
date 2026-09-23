@@ -94,8 +94,11 @@ namespace JBro
         {
             text = Loc::TextOr(LocKeys::GameViewNoCanvas, "no canvas is open");
         }
-        else if (false == hasImage)
+        else if (false == hasImage || false == m_editor->DidGameSubmitLastFrame())
         {
+            // **그림 자리가 있어도 게임이 낸 것이 없으면 카메라가 없는 것이다**(D-178).
+            // 텍스처가 있는지만 보면 카메라 없는 검은 화면을 "실행 중" 이라고 말한다 -
+            // 기존 게임 뷰는 그 둘을 갈랐다.
             text = Loc::TextOr(LocKeys::GameViewNoCamera, "there is no camera");
         }
         else if (playing)
