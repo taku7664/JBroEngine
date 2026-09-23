@@ -5866,6 +5866,30 @@ namespace
             std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
+        // **칸을 네 개로 자른다.** 그림은 2x2 인데 자르는 기본값은 그보다 큰 칸이라,
+        // 메타를 적어 두지 않으면 칸이 하나도 나오지 않는다 - 그러면 시트에 테두리도
+        // 피벗도 없어 눈으로도 검사로도 아무것도 볼 수 없다(처음에 그러했다).
+        {
+            std::ofstream meta(root / "Assets" / "hero.png.jmeta", std::ios::binary);
+            meta << "Version: 1\n"
+                    "Id: 11111111111111111111111111111111\n"
+                    "Type: Texture\n"
+                    "Sprite:\n"
+                    "  Id: 22222222222222222222222222222222\n"
+                    "  ImportOptions:\n"
+                    "    sliceType: CellCount\n"
+                    "    rowCount: 2\n"
+                    "    columnCount: 2\n"
+                    "    cellWidth: 1\n"
+                    "    cellHeight: 1\n"
+                    "    marginX: 0\n"
+                    "    marginY: 0\n"
+                    "    gapX: 0\n"
+                    "    gapY: 0\n"
+                    "    pivotX: 0.5\n"
+                    "    pivotY: 0.5\n"
+                    "    pixelsPerUnit: 100\n";
+        }
         const JBro::String projectPath = TempPath("JBroSpriteViewerProbe\\Viewer.jproject");
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
@@ -5939,6 +5963,121 @@ namespace
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
             SaveScreenshot(*renderer, 1024, 768, "sprite_viewer");
+        }
+
+        // **시트를 보는 세 가지 손잡이**(D-185, 기존 `확대`·`창에 맞추기`·`피벗 표시`·`가리킴`).
+        // 넷 다 시트 칸 안에서 일어난다 - 그래서 **재는 자리도 시트 칸으로 자른다.** 창 전체로
+        // 재면 슬라이더의 숫자가 바뀜 것만으로도 검사가 통과한다(처음에 그래서 넷 중 넷이
+        // 그대로 살아남았다). 마우스도 재기 전에 늘 같은 자리로 치워 둔다 - 가리킨 칸의 테두리가
+        // 바뀌는 것까지 차이에 섞이면 무엇을 재는 것인지 흐려진다.
+        {
+            const char* fitLabel = JBro::Loc::TextOr(JBro::LocKeys::SpriteViewerFit, "Fit");
+            const char* pivotLabel =
+                JBro::Loc::TextOr(JBro::LocKeys::SpriteViewerShowPivot, "Show pivot");
+            // 시트는 뷰어 창 안의 자식 창(`##sheet`)이다. Id 의 씨앗은 그 자식 창이다.
+            ImGuiWindow* sheet = nullptr;
+            for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+            {
+                if (std::strstr(window->Name, "##sheet") != nullptr && window->WasActive
+                    && std::strstr(window->Name, "##sheetSplit") == nullptr)
+                {
+                    sheet = window;
+                }
+            }
+            Check(sheet != nullptr, "the viewer must have its sheet pane");
+            Spot slider;
+            Check(FindItemAnywhereInWindow(editor, hwnd, sheet, LabelId(sheet->ID, "##zoom"), slider),
+                "the zoom slider must be on the sheet");
+            Spot fitButton;
+            Check(FindItemAnywhereInWindow(editor, hwnd, sheet, LabelId(sheet->ID, fitLabel), fitButton),
+                "and the fit button beside it");
+            Spot pivotToggle;
+            Check(FindItemAnywhereInWindow(editor, hwnd, sheet, LabelId(sheet->ID, pivotLabel), pivotToggle),
+                "and the pivot toggle");
+
+            JBro::Renderer* renderer = editor.GetRenderer();
+            Check(renderer != nullptr, "the editor must expose its renderer");
+            // 재는 칸: 시트 자식 창에서 확대 줄을 끝 자리다.
+            const std::uint32_t sheetLeft = static_cast<std::uint32_t>(sheet->Pos.x);
+            const std::uint32_t sheetTop = static_cast<std::uint32_t>(sheet->Pos.y) + 30;
+            const std::uint32_t sheetRight = static_cast<std::uint32_t>(sheet->Pos.x + sheet->Size.x);
+            const std::uint32_t sheetBottom = static_cast<std::uint32_t>(sheet->Pos.y + sheet->Size.y);
+            // 마우스를 시트 밖으로 치운다. 가리킨 칸의 강조가 차이에 섞이지 않게.
+            const auto park = [&]() {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0,
+                    MAKELPARAM(static_cast<int>(sheetRight) + 40, static_cast<int>(sheetTop)));
+                Check(editor.Tick(Frame), "the editor must tick with the mouse parked");
+                Check(editor.Tick(Frame), "and once more so the sheet redraws");
+            };
+            JBro::TextureReadback readback;
+            JBro::Array<std::byte> before;
+            JBro::Array<std::byte> after;
+
+            // ── 가리킨 칸 ───────────────────────────────────
+            park();
+            ReadBackBufferInto(*renderer, 1024, 768, before, readback);
+            // **칸을 찾아서 가리킨다.** 시트 그림은 자식 창의 왼육에 그려지고 크기는
+            // 그림과 배율이 정하므로, 자리를 짐작하면 빈 곳을 가리키게 된다(처음에
+            // 그래서 가리킴 검사가 늘 0 이었다). 뷰어가 알면 그때 멈춘다.
+            bool foundCell = false;
+            for (std::uint32_t y = sheetTop; y + 4 < sheetBottom && false == foundCell; y += 6)
+            {
+                for (std::uint32_t x = sheetLeft; x + 4 < sheetRight && false == foundCell; x += 6)
+                {
+                    PostMessageW(hwnd, WM_MOUSEMOVE, 0,
+                        MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
+                    Check(editor.Tick(Frame), "the editor must tick while looking for a cell");
+                    foundCell = editor.GetSpriteViewerHoveredFrame() >= 0;
+                }
+            }
+            Check(foundCell, "somewhere in the sheet pane there must be a cell to point at");
+            Check(editor.Tick(Frame), "and once more so the sheet redraws");
+            ReadBackBufferInto(*renderer, 1024, 768, after, readback);
+            const std::size_t hovered = CountDifferingPixelsIn(
+                before, after, readback, sheetLeft, sheetTop, sheetRight, sheetBottom);
+            std::cout << "  hovering a cell repainted " << hovered << " pixels" << std::endl;
+            Check(hovered > 20,
+                "pointing at a cell must mark it on the sheet");
+            Check(editor.GetSpriteViewerHoveredFrame() >= 0,
+                "and the viewer must know which cell that is");
+
+            // ── 피벗 표시 ──────────────────────────────────
+            park();
+            ReadBackBufferInto(*renderer, 1024, 768, before, readback);
+            ClickAt(editor, hwnd, pivotToggle);
+            park();
+            ReadBackBufferInto(*renderer, 1024, 768, after, readback);
+            const std::size_t pivots = CountDifferingPixelsIn(
+                before, after, readback, sheetLeft, sheetTop, sheetRight, sheetBottom);
+            std::cout << "  the pivot marks painted " << pivots << " pixels on the sheet"
+                      << std::endl;
+            Check(pivots > 20, "the pivot marks must reach the sheet, not only the preview");
+            ClickAt(editor, hwnd, pivotToggle);
+            park();
+
+            // ── 확대와 창에 맞추기 ─────────────────────────────
+            ReadBackBufferInto(*renderer, 1024, 768, before, readback);
+            // 슬라이더의 왼쪽 끝을 누른다. 가장 작은 배율이라 시트가 확 줄어든다.
+            // **끌어서 왼쪽 끝까지 민다.** 한 번 누르는 것으로는 어디가 눌렸는지에 따라
+            // 값이 거의 그대로일 수 있고, 지금 배율은 이미 위쪽 한계라 더 키울 수도 없다.
+            Spot low = slider;
+            low.x = static_cast<int>(sheetLeft);
+            DragTo(editor, hwnd, slider, low);
+            park();
+            ReadBackBufferInto(*renderer, 1024, 768, after, readback);
+            const std::size_t zoomed = CountDifferingPixelsIn(
+                before, after, readback, sheetLeft, sheetTop, sheetRight, sheetBottom);
+            std::cout << "  the chosen zoom repainted " << zoomed << " pixels on the sheet"
+                      << std::endl;
+            Check(zoomed > 1000, "choosing a zoom must change how big the sheet is drawn");
+            ClickAt(editor, hwnd, fitButton);
+            park();
+            JBro::Array<std::byte> refitted;
+            ReadBackBufferInto(*renderer, 1024, 768, refitted, readback);
+            const std::size_t back = CountDifferingPixelsIn(
+                before, refitted, readback, sheetLeft, sheetTop, sheetRight, sheetBottom);
+            std::cout << "  fitting again left " << back << " pixels different" << std::endl;
+            Check(back < zoomed / 4, "fitting must take the sheet back to where it started");
         }
 
         // **메인 탭 뒤로 가려져 있어도 열면 앞으로 나온다**(D-159). 가려진 창에 탭만 더하면 두 번 누르기가

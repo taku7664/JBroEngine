@@ -206,6 +206,10 @@ Entries:
   sprite_viewer.loading: reading the picture
   sprite_viewer.frame: Frame
   sprite_viewer.fps: Frames per second
+  sprite_viewer.zoom: Zoom
+  sprite_viewer.fit: Fit
+  sprite_viewer.show_pivot: Show pivot
+  sprite_viewer.hovered_frame: "hovering frame %d (%d, %d) %d x %d"
   sprite_viewer.play: Play
   sprite_viewer.stop: Stop
   sprite_viewer.select_to_edit: select this picture to edit its import options

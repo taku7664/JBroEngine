@@ -47,6 +47,8 @@ namespace JBro
         std::size_t GetTabCount() const { return m_tabs.Size(); }
         // 앞에 있는 탭의 칸 번호다. 탭이 없으면 거짓이다. 테스트와 진단이 쓴다.
         bool GetActiveFrame(std::uint32_t& frame) const;
+        // 마우스가 가리킨 칸이다. 가리킨 것이 없으면 -1 이고, 탭이 없어도 -1 이다(D-185).
+        int GetHoveredFrame() const;
 
     private:
         struct Tab
@@ -60,6 +62,15 @@ namespace JBro
             float framesPerSecond = 12.0f;
             float clock = 0.0f;
             bool open = true;
+            // **시트의 배율**(D-185, 기존 `확대` 슬라이더와 `창에 맞추기`). 0 이면 칸에 맞춘다 -
+            // 처음 열었을 때 시트 전체가 보여야 어디를 볼지 고를 수 있고, 그 뒤로 사람이 키우면
+            // 그 값을 지킨다. 창 크기가 바뀌어도 사람이 고른 배율은 따라 움직이지 않는다.
+            float sheetZoom = 0.0f;
+            // 미리보기에 피벗을 십자로 그릴지(기존 `피벗 표시`). 그림이 어느 점을 기준으로
+            // 놓이는지는 눈으로 봐야 안다.
+            bool showPivot = false;
+            // 마우스가 가리킨 칸이다. 없으면 -1 이다. 시트를 그리며 정하고 그 아래에 적는다.
+            int hoveredFrame = -1;
         };
 
         void DrawTab(Tab& tab, float deltaTime);

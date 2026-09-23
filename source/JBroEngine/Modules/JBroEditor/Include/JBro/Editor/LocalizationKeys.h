@@ -239,6 +239,11 @@ namespace JBro::LocKeys
     inline constexpr const char* SpriteViewerLoading = "sprite_viewer.loading";
     inline constexpr const char* SpriteViewerFrame = "sprite_viewer.frame";
     inline constexpr const char* SpriteViewerFps = "sprite_viewer.fps";
+    // 시트를 보는 배율과 피벗 표시(D-185, 기존 `확대`·`창에 맞추기`·`피벗 표시`·`가리킴`).
+    inline constexpr const char* SpriteViewerZoom = "sprite_viewer.zoom";
+    inline constexpr const char* SpriteViewerFit = "sprite_viewer.fit";
+    inline constexpr const char* SpriteViewerShowPivot = "sprite_viewer.show_pivot";
+    inline constexpr const char* SpriteViewerHoveredFrame = "sprite_viewer.hovered_frame";
     inline constexpr const char* SpriteViewerPlay = "sprite_viewer.play";
     inline constexpr const char* SpriteViewerStop = "sprite_viewer.stop";
     inline constexpr const char* SpriteViewerSelectToEdit = "sprite_viewer.select_to_edit";

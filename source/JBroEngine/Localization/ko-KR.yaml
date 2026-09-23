@@ -206,6 +206,10 @@ Entries:
   sprite_viewer.loading: 그림을 읽는 중입니다
   sprite_viewer.frame: 프레임
   sprite_viewer.fps: 초당 프레임
+  sprite_viewer.zoom: 확대
+  sprite_viewer.fit: 창에 맞추기
+  sprite_viewer.show_pivot: 피벗 표시
+  sprite_viewer.hovered_frame: "가리킴: 프레임 %d (%d, %d) %d x %d"
   sprite_viewer.play: 재생
   sprite_viewer.stop: 정지
   sprite_viewer.select_to_edit: 임포트 옵션을 고치려면 이 그림을 선택하세요

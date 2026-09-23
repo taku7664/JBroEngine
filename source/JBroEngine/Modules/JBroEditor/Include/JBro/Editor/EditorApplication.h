@@ -158,6 +158,8 @@ namespace JBro
         std::size_t GetSpriteViewerTabCount() const;
         // 앞에 있는 뷰어 탭의 칸 번호다. 탭이 없으면 거짓이다.
         bool GetSpriteViewerFrame(std::uint32_t& frame) const;
+        // 마우스가 시트에서 가리킨 칸이다. 없으면 -1 이다(D-185).
+        int GetSpriteViewerHoveredFrame() const;
         // 스프라이트가 그리는 **실제 모양**이다(D-149). 칸 안의 비율 좌표로 된 선분들이고,
         // 아직 재지 못했으면 nullptr 다. 크기·피벗·회전은 부르는 쪽이 얹는다.
         const Array<EditorSpriteContours::Segment>* GetSpriteContour(

@@ -229,7 +229,7 @@
 | `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기·파일 클립보드) | 완료 (D-139·D-141·D-147·D-154·D-182), `.meta` 보이기는 해당 없음(레지스트리를 본다), 즐겨찾기는 기존도 빈 제목줄 |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |
 | `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156) |
-| `Main/Importer/SpriteViewerWindow`·`SpriteFramePick`·`SpriteImportOptionsEditor` | `SpriteViewerWindow` + `InspectorPanel::DrawAssetOptions` | 완료 (D-155·D-159) |
+| `Main/Importer/SpriteViewerWindow`·`SpriteFramePick`·`SpriteImportOptionsEditor` | `SpriteViewerWindow` + `InspectorPanel::DrawAssetOptions` | 완료 (D-155·D-159·D-185), 확대·창에 맞추기·피벗 표시·가리킴은 D-185, 창 메뉴(열기·탭 닫기)는 해당 없음(브라우저에서 열고 탭의 `x` 로 닫는다) |
 | `Main/Importer/AudioImporterWindow` | — | 해당 없음 (오디오 없음) |
 | `Main/Log/LogTool` | `LogPanel` | 완료 (D-133) |
 | `Main/ShortcutReference/ShortcutReferenceTool` | `ShortcutPanel` | 완료 (D-132) |

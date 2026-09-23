@@ -387,6 +387,11 @@ namespace JBro
         return m_spriteViewer.Get() != nullptr && m_spriteViewer->GetActiveFrame(frame);
     }
 
+    int EditorApplication::GetSpriteViewerHoveredFrame() const
+    {
+        return m_spriteViewer.Get() != nullptr ? m_spriteViewer->GetHoveredFrame() : -1;
+    }
+
     TextureHandle EditorApplication::GetAssetThumbnail(AssetId asset, std::uint32_t maxSide)
     {
         if (m_thumbnails.Get() == nullptr || asset.IsNull())

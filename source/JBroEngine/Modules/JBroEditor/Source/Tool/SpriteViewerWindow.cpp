@@ -26,6 +26,9 @@ namespace JBro
         // 작은 그림은 키워 보인다. 16 픽셀짜리 시트를 16 픽셀로 보이면 칸을 누를 수 없다.
         // 창에 맞춰 키우되 서른두 배에서 멈춘다 - 그 너머로는 한 픽셀이 칸 하나보다 커진다.
         constexpr float MaxSheetZoom = 32.0f;
+        // 큰 시트를 줄여 보는 쪽의 한계다(D-185). 기존 엔진과 같은 값이다 - 이보다 줄이면
+        // 칸 테두리가 서로 붙어 자른 모양을 볼 수 없다.
+        constexpr float MinSheetZoom = 0.05f;
         constexpr float PreviewMaxSide = 192.0f;
     }
 
@@ -160,6 +163,15 @@ namespace JBro
         return true;
     }
 
+    int SpriteViewerWindow::GetHoveredFrame() const
+    {
+        if (m_active == NoTab || m_active >= m_tabs.Size())
+        {
+            return -1;
+        }
+        return m_tabs[m_active].hoveredFrame;
+    }
+
     void SpriteViewerWindow::Draw(ImGuiID rootDock, const ImGuiWindowClass& rootClass)
     {
         if (m_editor == nullptr || m_tabs.IsEmpty())
@@ -271,8 +283,30 @@ namespace JBro
             Widget::HintText(Loc::TextOr(LocKeys::SpriteViewerLoading, "reading the picture"));
             return;
         }
-        const float zoom = (std::min)(MaxSheetZoom,
-            (std::min)(area.x / static_cast<float>(width), area.y / static_cast<float>(height)));
+        // **칸에 맞춘 배율이 바닥이다**(D-185). 사람이 확대를 고르지 않았으면 그것을 쓴다 -
+        // 처음 열었을 때 시트 전체가 보여야 어디를 볼지 고를 수 있다.
+        const float fitZoom = std::clamp(
+            (std::min)(area.x / static_cast<float>(width), area.y / static_cast<float>(height)),
+            MinSheetZoom, MaxSheetZoom);
+        // 확대 줄. 기존 엔진도 슬라이더와 `창에 맞추기` 단추를 나란히 두었다.
+        {
+            float chosen = tab.sheetZoom > 0.0f ? tab.sheetZoom : fitZoom;
+            if (Widget::SliderFloat("##zoom", chosen, MinSheetZoom, MaxSheetZoom, 160.0f))
+            {
+                tab.sheetZoom = chosen;
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::SpriteViewerZoom, "Zoom"));
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::Button(Loc::TextOr(LocKeys::SpriteViewerFit, "Fit")))
+            {
+                // 0 으로 돌려놓는다. 지금 값을 넣으면 창을 늘렸을 때 다시 어긋난다.
+                tab.sheetZoom = 0.0f;
+            }
+            ImGui::SameLine(0.0f, 12.0f);
+            Widget::Checkbox(Loc::TextOr(LocKeys::SpriteViewerShowPivot, "Show pivot"),
+                tab.showPivot);
+        }
+        const float zoom = tab.sheetZoom > 0.0f ? tab.sheetZoom : fitZoom;
         const ImVec2 size(static_cast<float>(width) * zoom, static_cast<float>(height) * zoom);
         const ImVec2 origin = ImGui::GetCursorScreenPos();
 
@@ -297,6 +331,26 @@ namespace JBro
         // **칸마다 테두리를 두른다.** 자른 모양이 보여야 자르는 옵션을 고칠 수 있다.
         const ImU32 cellColor = IM_COL32(255, 255, 255, 90);
         const ImU32 chosenColor = IM_COL32(255, 168, 64, 255);
+        const ImU32 hoverColor = IM_COL32(120, 200, 255, 220);
+        // 마우스가 가리킨 칸을 이 자리에서 정한다(D-185, 기존 `가리킴`). 시트 위에 있지
+        // 않으면 없음이다 - 지난 프레임의 값을 들고 있으면 마우스를 뺀 뒤에도 남는다.
+        tab.hoveredFrame = -1;
+        const bool overSheet = ImGui::IsItemHovered();
+        const ImVec2 mouse = ImGui::GetIO().MousePos;
+        const float hoverX = (mouse.x - origin.x) / zoom;
+        const float hoverY = (mouse.y - origin.y) / zoom;
+        for (std::size_t index = 0; index < data->frames.Size(); ++index)
+        {
+            const SpriteFrame& frame = data->frames[index];
+            if (overSheet && tab.hoveredFrame < 0
+                && hoverX >= static_cast<float>(frame.x)
+                && hoverX < static_cast<float>(frame.x + frame.width)
+                && hoverY >= static_cast<float>(frame.y)
+                && hoverY < static_cast<float>(frame.y + frame.height))
+            {
+                tab.hoveredFrame = static_cast<int>(index);
+            }
+        }
         for (std::size_t index = 0; index < data->frames.Size(); ++index)
         {
             const SpriteFrame& frame = data->frames[index];
@@ -305,33 +359,45 @@ namespace JBro
             const ImVec2 max(min.x + static_cast<float>(frame.width) * zoom,
                 min.y + static_cast<float>(frame.height) * zoom);
             const bool chosen = index == tab.frame;
-            draw->AddRect(min, max, chosen ? chosenColor : cellColor, 0.0f, 0, chosen ? 2.0f : 1.0f);
+            const bool hovered = static_cast<int>(index) == tab.hoveredFrame;
+            const ImU32 color = hovered ? hoverColor : (chosen ? chosenColor : cellColor);
+            draw->AddRect(min, max, color, 0.0f, 0, (hovered || chosen) ? 2.0f : 1.0f);
+            // 피벗은 **칸마다** 다를 수 있다. 시트에서 한눈에 견주려면 다 그려야 한다.
+            if (tab.showPivot)
+            {
+                const float pivotX = min.x + static_cast<float>(frame.width) * frame.pivotX * zoom;
+                const float pivotY = min.y + static_cast<float>(frame.height) * frame.pivotY * zoom;
+                constexpr float Arm = 4.0f;
+                draw->AddLine(ImVec2(pivotX - Arm, pivotY), ImVec2(pivotX + Arm, pivotY),
+                    chosenColor, 1.5f);
+                draw->AddLine(ImVec2(pivotX, pivotY - Arm), ImVec2(pivotX, pivotY + Arm),
+                    chosenColor, 1.5f);
+            }
         }
 
-        if (clicked)
+        if (clicked && tab.hoveredFrame >= 0)
         {
-            // 누른 자리를 픽셀로 바꿔 그 픽셀을 담은 칸을 고른다. 칸 사이 틈을 누르면 그대로다.
-            const ImVec2 mouse = ImGui::GetIO().MousePos;
-            const float pixelX = (mouse.x - origin.x) / zoom;
-            const float pixelY = (mouse.y - origin.y) / zoom;
-            for (std::size_t index = 0; index < data->frames.Size(); ++index)
+            // 누른 자리의 칸은 이미 위에서 찾아 두었다. 칸 사이 틈을 누르면 그대로다.
+            tab.frame = static_cast<std::uint32_t>(tab.hoveredFrame);
+            tab.playing = false;
+            // 인스펙터가 이 그림으로 고르는 중이면 누른 칸이 곧 답이다.
+            if (m_editor->IsSpriteFramePickActive()
+                && m_editor->GetSpriteFramePickTexture() == tab.texture)
             {
-                const SpriteFrame& frame = data->frames[index];
-                if (pixelX >= static_cast<float>(frame.x)
-                    && pixelX < static_cast<float>(frame.x + frame.width)
-                    && pixelY >= static_cast<float>(frame.y)
-                    && pixelY < static_cast<float>(frame.y + frame.height))
-                {
-                    tab.frame = static_cast<std::uint32_t>(index);
-                    tab.playing = false;
-                    // 인스펙터가 이 그림으로 고르는 중이면 누른 칸이 곧 답이다.
-                    if (m_editor->IsSpriteFramePickActive() && m_editor->GetSpriteFramePickTexture() == tab.texture)
-                    {
-                        m_editor->CompleteSpriteFramePick(tab.frame);
-                    }
-                    break;
-                }
+                m_editor->CompleteSpriteFramePick(tab.frame);
             }
+        }
+
+        // **가리킨 칸의 자리와 크기를 적는다**(D-185, 기존 `가리킴`). 자르는 옵션을 고칠 때
+        // 지금 칸이 몇 픽셀인지가 유일하게 알고 싶은 값인데, 그림만 봐서는 셀 수 없다.
+        if (tab.hoveredFrame >= 0
+            && static_cast<std::size_t>(tab.hoveredFrame) < data->frames.Size())
+        {
+            const SpriteFrame& frame = data->frames[static_cast<std::size_t>(tab.hoveredFrame)];
+            Widget::HintTextF(
+                Loc::TextOr(LocKeys::SpriteViewerHoveredFrame, "hovering %d (%d, %d) %d x %d"),
+                tab.hoveredFrame, static_cast<int>(frame.x), static_cast<int>(frame.y),
+                static_cast<int>(frame.width), static_cast<int>(frame.height));
         }
     }
 
@@ -373,7 +439,19 @@ namespace JBro
                 static_cast<float>(frame.y) / static_cast<float>(height));
             const ImVec2 uvMax(static_cast<float>(frame.x + frame.width) / static_cast<float>(width),
                 static_cast<float>(frame.y + frame.height) / static_cast<float>(height));
+            const ImVec2 previewOrigin = ImGui::GetCursorScreenPos();
             Widget::Image(sheet, size, uvMin, uvMax);
+            // 미리보기에도 피벗을 찍는다(D-185). 시트에서는 칸이 작아 잘 보이지 않는다.
+            if (tab.showPivot)
+            {
+                ImDrawList* draw = ImGui::GetWindowDrawList();
+                const float pivotX = previewOrigin.x + size.x * frame.pivotX;
+                const float pivotY = previewOrigin.y + size.y * frame.pivotY;
+                constexpr float Arm = 7.0f;
+                const ImU32 color = IM_COL32(255, 168, 64, 255);
+                draw->AddLine(ImVec2(pivotX - Arm, pivotY), ImVec2(pivotX + Arm, pivotY), color, 1.5f);
+                draw->AddLine(ImVec2(pivotX, pivotY - Arm), ImVec2(pivotX, pivotY + Arm), color, 1.5f);
+            }
 
             Widget::FormLayout layout("##playback");
             layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::SpriteViewerFrame, "Frame")), [&]() {
