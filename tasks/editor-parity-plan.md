@@ -43,7 +43,7 @@
 | `CGameViewTool`(210줄) — 그림만 붙이고 **기즈모도 편집도 없다**. 상태 오버레이·입력 게이팅 | `GameViewPanel` 이 기즈모를 그리고 편집한다 | **역할이 뒤바뀌어 있다** |
 | `CLayerTool`(695줄) — 계층 + 레이어. 행 3분할 드롭, 레이어 행 드롭, 우클릭 `부모 해제`, 눈 아이콘 | `HierarchyPanel` — 세 구역 드롭·부모 해제·뿌리 순서·레이어까지 섰다(D-128·D-135) | 맞춤 |
 | `CInspectorTool`(3,068줄) | `InspectorPanel`(1,183줄) | 레이아웃은 사용자가 좋다고 했다. 기능 차이는 §4 에서 따로 잰다 |
-| `CAssetBrowserTool`(2,652줄) | `AssetBrowserPanel` — 두 칸·길잡이·새 폴더·이름·삭제·끌어 옮기기·탐색기(D-139) | 아이콘 보기와 다중 선택이 남았다 |
+| `CAssetBrowserTool`(2,652줄) | `AssetBrowserPanel` — 두 칸·길잡이·새 폴더·이름·삭제·끌어 옮기기·탐색기(D-139), 아이콘 보기(D-147)·다중 선택(D-141)·새 캔버스와 캔버스 열기(D-174) | `에셋 추가` 의 나머지(재질·프리팹·폰트·이펙트·애니메이션)는 그 에셋이 없어 열림 |
 | `CLogTool`(117줄) | 없음 | **없음** |
 | `CShortcutReferenceTool`(69줄) | 없음 | **없음** |
 | `CCpuProfilerWindow`(425줄)·`CGpuProfilerWindow`(334줄) | `StatsPanel` + `ProfilerPanel`(D-138) | CPU 는 섰다. GPU 타임스탬프는 RHI 에 없다 |

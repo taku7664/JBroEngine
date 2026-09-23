@@ -167,6 +167,12 @@ Entries:
   assets.reveal: Show in Explorer
   common.cancel: Cancel
   assets.rescan: Rescan
+  assets.new_canvas: New Canvas
+  popup.unsaved_canvas_title: Unsaved changes
+  popup.unsaved_canvas_message: This canvas has changes that are not saved. Opening another canvas loses them.
+  common.save_and_open: Save and open
+  common.open_without_saving: Open without saving
+  assets.open_canvas: Open Canvas
   assets.open_in_sprite_viewer: Open in Sprite Viewer
   assets.import: Import...
   menu.import_sprite: Import Sprite

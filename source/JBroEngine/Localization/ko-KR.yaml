@@ -167,6 +167,12 @@ Entries:
   assets.reveal: 탐색기에서 보기
   common.cancel: 취소
   assets.rescan: 새로 고침
+  assets.new_canvas: 새 캔버스
+  popup.unsaved_canvas_title: 저장하지 않은 변경
+  popup.unsaved_canvas_message: 지금 캔버스에 저장하지 않은 변경이 있습니다. 다른 캔버스를 열면 그 변경은 사라집니다.
+  common.save_and_open: 저장하고 열기
+  common.open_without_saving: 저장하지 않고 열기
+  assets.open_canvas: 캔버스 열기
   assets.open_in_sprite_viewer: 스프라이트 뷰어에서 열기
   assets.import: 가져오기...
   menu.import_sprite: 스프라이트 가져오기

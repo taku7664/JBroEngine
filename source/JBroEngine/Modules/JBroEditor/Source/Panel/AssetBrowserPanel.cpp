@@ -373,10 +373,17 @@ namespace JBro
         }
         DrawEntryMenu(entry.record->relativePath, false);
         // 그림을 두 번 누르면 스프라이트 뷰어에서 연다(D-155). 기존 브라우저도 그랬다.
-        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)
-            && AssetTypeRules::IsImageType(entry.record->type))
+        // **캔버스는 편집하러 열린다**(D-174) - 기존도 두 번 누르는 것이 그 길이었다.
+        if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
         {
-            m_editor->OpenSpriteViewer(entry.record->id);
+            if (AssetTypeRules::IsImageType(entry.record->type))
+            {
+                m_editor->OpenSpriteViewer(entry.record->id);
+            }
+            else if (entry.record->type == AssetType::Canvas)
+            {
+                m_editor->RequestOpenCanvas(entry.record->relativePath.c_str());
+            }
         }
 
         if (false == clicked)
@@ -639,6 +646,16 @@ namespace JBro
         {
             m_editor->RequestImportAsset(m_openFolder.c_str());
         }
+        // **새 캔버스**(D-174, 기존 `에셋 추가 ▸ 캔버스`). 만들고 바로 연다 - 만들어 놓고
+        // 열리지 않으면 방금 만든 것이 어디 있는지 목록에서 찾아야 한다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewCanvas, "New Canvas")))
+        {
+            const String created = m_editor->CreateCanvasAsset(m_openFolder.c_str());
+            if (false == created.empty())
+            {
+                m_editor->RequestOpenCanvas(created.c_str());
+            }
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder")))
         {
             m_pending = m_openFolder;
@@ -687,6 +704,13 @@ namespace JBro
                     "Open in Sprite Viewer"), nullptr, image))
             {
                 m_editor->OpenSpriteViewer(record->id);
+            }
+            // 캔버스면 그것을 **편집하러 연다**(D-174). 지금 캔버스의 내용이 그것으로 바뀐다.
+            const bool canvas = record != nullptr && record->type == AssetType::Canvas;
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsOpenCanvas, "Open Canvas"),
+                    nullptr, canvas))
+            {
+                m_editor->RequestOpenCanvas(relativePath.c_str());
             }
         }
         ImGui::Separator();

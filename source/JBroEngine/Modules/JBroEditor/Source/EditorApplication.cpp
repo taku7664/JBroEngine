@@ -6,6 +6,7 @@
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
+#include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/MessagePopup.h>
 
 #include <JBro/Editor/Localization.h>
@@ -1415,6 +1416,161 @@ namespace JBro
             *importedPath = relative;
         }
         return true;
+    }
+
+    String EditorApplication::CreateCanvasAsset(const char* folder)
+    {
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr || GetAssetRoot().empty())
+        {
+            return String();
+        }
+        // **빈 캔버스의 글자는 캔버스 자신이 낸다.** 파일 형식을 여기서 다시 적으면
+        // 형식이 바뀌는 날 이 자리만 옛 모양으로 남는다(기존은 상수 문자열이었다).
+        // **레이어를 더 만들지 않는다.** 캔버스는 기본 레이어 하나를 들고 태어난다 -
+        // 여기서 하나 더 만들면 파일에 빈 칸이 둘로 적히고, 그 파일을 열 때마다 칸이 는다.
+        Canvas blank(CreateDefaultAllocator());
+        String text;
+        CanvasFileError error;
+        if (false == WriteCanvasText(blank, text, error))
+        {
+            Log::Write(LogLevel::Error, "editor", "a blank canvas could not be written: %s",
+                error.message.c_str());
+            return String();
+        }
+
+        // 겹치지 않는 이름을 고른다. `NewCanvas.jcanvas`, `NewCanvas1.jcanvas`, ...
+        const String base = folder != nullptr ? folder : "";
+        String relative;
+        String absolute;
+        for (int attempt = 0; attempt < 100; ++attempt)
+        {
+            char name[64] = {};
+            if (attempt == 0)
+            {
+                std::snprintf(name, sizeof(name), "NewCanvas.jcanvas");
+            }
+            else
+            {
+                std::snprintf(name, sizeof(name), "NewCanvas%d.jcanvas", attempt);
+            }
+            relative = EditorPaths::JoinPath(base.c_str(), name);
+            absolute = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
+            if (false == m_platform->FileExists(absolute.c_str()))
+            {
+                break;
+            }
+            relative.clear();
+        }
+        if (relative.empty())
+        {
+            return String();
+        }
+        const String directory = EditorPaths::JoinPath(GetAssetRoot().c_str(), base.c_str());
+        m_platform->CreateDirectoryAt(directory.c_str());
+        if (false == m_platform->WriteWholeFile(absolute.c_str(),
+                {reinterpret_cast<const std::byte*>(text.c_str()),
+                    static_cast<std::uint32_t>(text.size())}))
+        {
+            Log::Write(LogLevel::Error, "editor", "the canvas file could not be written: %s",
+                absolute.c_str());
+            return String();
+        }
+        // 등록은 스캔이 한다 - 가져오기와 같은 길이다.
+        RescanAssets();
+        Log::Write(LogLevel::Info, "editor", "created %s", relative.c_str());
+        return relative;
+    }
+
+    void EditorApplication::RequestOpenCanvas(const char* assetRelativePath)
+    {
+        m_openCanvasRequest = assetRelativePath != nullptr ? assetRelativePath : "";
+    }
+
+    void EditorApplication::PerformOpenCanvasRequest()
+    {
+        if (m_openCanvasRequest.empty())
+        {
+            return;
+        }
+        const String relative = m_openCanvasRequest;
+        m_openCanvasRequest.clear();
+        Canvas* canvas = GetCanvas();
+        if (canvas == nullptr || GetAssetRoot().empty())
+        {
+            return;
+        }
+        // **저장하지 않은 것을 말없이 버리지 않는다.** 기존 엔진은 그냥 갈아 끼웠다 -
+        // 한 시간 작업한 캔버스가 더블클릭 한 번에 사라진다. 물어보고 고른 대로 한다.
+        if (m_commands.IsDirty() && false == m_canvasSwitchConfirmed)
+        {
+            m_pendingCanvasPath = relative;
+            OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+                Loc::TextOr(LocKeys::PopupUnsavedCanvasTitle, "Unsaved changes"),
+                Loc::TextOr(LocKeys::PopupUnsavedCanvasMessage,
+                    "this canvas has changes that are not saved"),
+                Loc::TextOr(LocKeys::CommonSaveAndOpen, "Save and open"),
+                Loc::TextOr(LocKeys::CommonOpenWithoutSaving, "Open without saving"),
+                Loc::TextOr(LocKeys::CommonCancel, "Cancel"),
+                [](EditorApplication& editor, int choice, void*)
+                {
+                    editor.AnswerCanvasSwitch(choice);
+                },
+                nullptr,
+                "##UnsavedCanvas"));
+            return;
+        }
+        m_canvasSwitchConfirmed = false;
+        // **돌고 있는 게임 위에 다른 캔버스를 얹지 않는다.** 시뮬레이션은 지금 캔버스의 값을
+        // 되돌리려고 스냅샷을 들고 있다.
+        StopSimulation();
+        // 지난 캔버스를 가리키던 것을 전부 놓는다(D-165 와 같은 규칙).
+        ClearSelection();
+        SetSelectedObject(nullptr);
+        SetSelectedAsset({});
+        m_commands.Clear();
+        m_objectIds.Clear();
+        m_clipboard.Clear();
+        CancelSpriteFramePick();
+        if (false == canvas->Clear())
+        {
+            Log::Write(LogLevel::Error, "editor", "the canvas is busy and cannot be replaced");
+            return;
+        }
+        const String absolute = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
+        CanvasFileError error;
+        if (false == LoadCanvas(absolute.c_str(), error))
+        {
+            // **빈 채로 남는다.** 읽다 만 것을 섞어 두는 것보다 낫고, 무엇이 잘못됐는지는 로그가 말한다.
+            Log::Write(LogLevel::Error, "editor", "the canvas could not be opened: %s (%s)",
+                relative.c_str(), error.message.c_str());
+            return;
+        }
+        Log::Write(LogLevel::Info, "editor", "opened %s", relative.c_str());
+    }
+
+    void EditorApplication::AnswerCanvasSwitch(int choice)
+    {
+        const String pending = m_pendingCanvasPath;
+        m_pendingCanvasPath.clear();
+        if (pending.empty() || choice == ConfirmPopup::Cancelled || choice == 2)
+        {
+            // 그만두기다. 기다리던 것을 지운다 - 남겨 두면 다음 손짓에 되살아난다.
+            return;
+        }
+        if (choice == 0)
+        {
+            // 저장하고 연다. 저장이 실패하면 열지 않는다 - 그것이 사라지는 자리다.
+            RequestSaveCanvas();
+            PerformSaveRequest();
+            if (m_commands.IsDirty())
+            {
+                return;
+            }
+        }
+        // 물어본 답을 들고 다시 요청한다. 여는 일은 프레임 밖에서 한다(D-93).
+        m_canvasSwitchConfirmed = true;
+        RequestOpenCanvas(pending.c_str());
     }
 
     void EditorApplication::RequestImportAsset(const char* relativeFolder)
@@ -2850,6 +3006,7 @@ namespace JBro
         PerformNewProjectRequest();
         PerformBrowseRequest();
         PerformImportRequest();
+        PerformOpenCanvasRequest();
         if (m_exitRequested)
         {
             // 메뉴에서 끝내기를 골랐다. UI 를 먼저 놓고 내려간다 -

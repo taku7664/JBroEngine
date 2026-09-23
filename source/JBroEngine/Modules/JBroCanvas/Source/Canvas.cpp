@@ -181,6 +181,42 @@ namespace JBro
         return m_objects->GetLiveCount();
     }
 
+    bool Canvas::Clear()
+    {
+        // **도는 중에는 비우지 않는다**(D-174). 지금 도는 배열을 그 자리에서 비우면
+        // 바깥 순회가 죽은 자리를 읽는다(§8 과 같은 규칙).
+        if (IsIterating())
+        {
+            return false;
+        }
+        // 파괴자와 같은 길이다: 살아 있는 것을 하나씩 집어 나무째 지운다. 부모를 먼저 만나면
+        // 자식은 따라 사라지므로 다시 셀 때마다 남은 것만 나온다.
+        while (m_objects->GetLiveCount() != 0)
+        {
+            GameObject* object = nullptr;
+            m_objects->ForEachLive([&object](GameObject& candidate)
+            {
+                if (object == nullptr)
+                {
+                    object = &candidate;
+                }
+            });
+            if (object == nullptr || false == DestroyObject(object))
+            {
+                return false;
+            }
+            FlushPendingDestroy();
+        }
+
+        // 레이어는 기본 하나로 되돌린다. 파일에서 읽어 들일 것이 자기 레이어를 가져오므로,
+        // 지난 캔버스의 칸이 남아 있으면 없는 레이어를 가리키는 오브젝트가 생긴다.
+        m_layers.Clear();
+        m_defaultLayer = InvalidLayerId;
+        CreateLayer("Default");
+        MarkScriptOrderDirty();
+        return true;
+    }
+
     void Canvas::GetRootObjects(Array<GameObject*>& result)
     {
         // **죽었거나 더 이상 뿌리가 아닌 것을 먼저 뺀다.** 순서를 지키며 빼야 한다 -

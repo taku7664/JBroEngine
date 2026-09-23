@@ -40,6 +40,14 @@ namespace JBro
         bool        DestroyObject(GameObject* object);
         std::size_t GetObjectCount() const;
 
+        // **캔버스를 비운다**(D-174). 오브젝트를 모두 없애고 레이어를 기본 하나로 되돌린다.
+        // 시스템과 풀은 그대로다 - 인스턴스를 버리지 않으므로 프레임워크가 든 포인터가 산다.
+        //
+        // 캔버스 파일을 **다른 것으로 갈아 끼우는 자리**가 쓴다. `ReadCanvasText` 는 빈 캔버스에만
+        // 들어가므로(섞으면 무엇이 파일에서 온 것인지 알 수 없다), 다른 캔버스를 열려면 먼저
+        // 이것을 부른다. 순회 중이면 거짓이다 - 도는 배열을 그 자리에서 비울 수 없다.
+        bool Clear();
+
         template<typename Fn>
         void ForEachObject(Fn&& function);
 

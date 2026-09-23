@@ -381,6 +381,20 @@ namespace JBro
         // 클립보드에 든 컴포넌트의 타입 이름이다. 없으면 nullptr 이다. 메뉴가 무엇이 붙을지
         // 말하는 데 쓴다.
         const char* GetComponentClipboardTypeName() const;
+        // **다른 캔버스를 연다**(D-174, 기존 에셋 브라우저의 캔버스 더블클릭). 프로젝트 파일에 적힌
+        // 캔버스 하나만 편집할 수 있었다 - 새로 만들 길도, 다른 것을 열 길도 에디터 안에 없었다.
+        //
+        // 여는 것은 지금 캔버스의 **내용을 갈아 끼우는 일**이다. 고른 것·오브젝트 번호·되돌리기
+        // 더미가 지난 캔버스의 것이므로 함께 비우고, 시뮬레이션 중이면 먼저 멈춘다.
+        // 프레임 밖에서 한다(D-93) - 파일을 읽는 동안 UI 가 그 오브젝트들을 그리고 있으면 안 된다.
+        void RequestOpenCanvas(const char* assetRelativePath);
+        // **새 캔버스 파일을 만든다**(기존 `에셋 추가 ▸ 캔버스`). 에셋 폴더 아래 `folder` 에
+        // 겹치지 않는 이름으로 빈 캔버스를 쓰고, 등록한 뒤 그것을 연다.
+        // 만든 파일의 에셋 폴더 기준 경로를 돌려준다. 실패하면 빈 글자다.
+        String CreateCanvasAsset(const char* folder);
+        // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
+        // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
+        void AnswerCanvasSwitch(int choice);
         // 저장 메뉴와 Ctrl+S 가 부른다. 이 프레임의 UI 가 끝난 뒤 처리한다 - 아는 경로가 있으면
         // 거기에, 없으면 대화상자로 경로를 받아 저장하고, 실패하면 팝업으로 알린다.
         void RequestSaveCanvas();
@@ -462,6 +476,8 @@ namespace JBro
         void PerformOpenProjectRequest();
         void PerformNewProjectRequest();
         void PerformBrowseRequest();
+        // `RequestOpenCanvas` 를 프레임 밖에서 처리한다(D-174).
+        void PerformOpenCanvasRequest();
         // 그림·외곽선 캐시를 지금 프로젝트의 에셋 시스템에 잇는다. 프로젝트가 없으면 끊는다(D-165).
         void BindAssetTools();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
@@ -491,6 +507,11 @@ namespace JBro
         bool m_newProjectRequested = false;
         PathBrowseRequest m_browseRequest;
         bool m_browseRequested = false;
+        // 열어 달라고 한 캔버스(에셋 폴더 기준 상대경로). 비어 있으면 요청이 없다.
+        String m_openCanvasRequest;
+        // 저장하지 않은 변경을 묻는 동안 붙들어 둔 것과, 그 답을 받았다는 표시다.
+        String m_pendingCanvasPath;
+        bool m_canvasSwitchConfirmed = false;
         ComponentAddress m_framePickTarget;
         AssetId m_framePickTexture;
         bool m_framePickActive = false;

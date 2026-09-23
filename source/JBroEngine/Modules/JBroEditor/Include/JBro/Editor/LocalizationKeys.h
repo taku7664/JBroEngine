@@ -186,6 +186,12 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsMoveFailed = "assets.move_failed";
     inline constexpr const char* AssetsReveal = "assets.reveal";
     inline constexpr const char* AssetsRescan = "assets.rescan";
+    inline constexpr const char* AssetsNewCanvas = "assets.new_canvas";
+    inline constexpr const char* PopupUnsavedCanvasTitle = "popup.unsaved_canvas_title";
+    inline constexpr const char* PopupUnsavedCanvasMessage = "popup.unsaved_canvas_message";
+    inline constexpr const char* CommonSaveAndOpen = "common.save_and_open";
+    inline constexpr const char* CommonOpenWithoutSaving = "common.open_without_saving";
+    inline constexpr const char* AssetsOpenCanvas = "assets.open_canvas";
     inline constexpr const char* AssetsOpenInSpriteViewer = "assets.open_in_sprite_viewer";
     inline constexpr const char* AssetsImport = "assets.import";
     inline constexpr const char* MenuImportSprite = "menu.import_sprite";

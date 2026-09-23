@@ -15,6 +15,7 @@
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -7026,6 +7027,148 @@ namespace
         editor.Shutdown();
     }
 
+    // **캔버스를 새로 만들고 다른 것을 연다**(D-174, 기존 `에셋 추가 ▸ 캔버스` 와 더블클릭).
+    // 프로젝트 파일에 적힌 캔버스 하나만 편집할 수 있었다 - 새로 만들 길도 다른 것을 열 길도
+    // 에디터 안에 없었다.
+    void TestTheEditorMakesAndOpensCanvases()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; canvas files not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root =
+            std::filesystem::temp_directory_path() / "JBroCanvasSwitchProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\n"
+                 << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error),
+            "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        // 첫 캔버스를 만든다. 만든 파일은 에셋으로 등록된다.
+        const JBro::String first = editor.CreateCanvasAsset("");
+        Check(false == first.empty(), "creating a canvas must give back its path");
+        Check(std::filesystem::exists(root / "Assets" / first.c_str()),
+            "and the file must be on disk");
+        const JBro::AssetRecord* record =
+            editor.GetAssetRegistry().FindByPath(first.c_str());
+        Check(record != nullptr && record->type == JBro::AssetType::Canvas,
+            "and it must be registered as a canvas");
+        // **칸이 늘지 않는다.** 캔버스는 기본 레이어 하나를 들고 태어나므로 만드는 쪽이 하나
+        // 더 얹으면 파일에 빈 칸이 둘로 적히고, 열 때마다 하나씩 는다(실제 에디터에서 그랬다).
+        JBro::Canvas* canvasForLayers = editor.GetCanvas();
+        const std::size_t layersBefore = canvasForLayers->GetLayerCount();
+
+        // 이름이 겹치지 않는다.
+        const JBro::String second = editor.CreateCanvasAsset("");
+        Check(false == second.empty() && second != first,
+            "a second canvas must not take the first one's name");
+
+        // 지금 캔버스에 무언가 만들어 두고 첫 캔버스를 연다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* stale = canvas->CreateObject("Stale");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(stale) != nullptr,
+            "the stale object needs a transform");
+        editor.SetSelectedObject(stale);
+        editor.RequestOpenCanvas(first.c_str());
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the open request");
+        }
+        Check(canvas->GetObjectCount() == 0,
+            "opening another canvas must take the old contents away");
+        Check(canvas->GetLayerCount() == layersBefore,
+            "and leave the same one empty layer, not add another");
+        Check(editor.GetSelectedObject() == nullptr, "and let go of what was chosen");
+        Check(editor.GetCommands().GetUndoCount() == 0, "and empty the undo stack");
+
+        // 연 캔버스에 오브젝트를 만들고 저장한 뒤, 빈 캔버스를 열었다가 다시 돌아온다.
+        JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(made != nullptr, "the new canvas must accept an object");
+        JBro::CanvasFileError saveError;
+        const std::filesystem::path firstPath = root / "Assets" / first.c_str();
+        Check(editor.SaveCanvas(firstPath.generic_string().c_str(), saveError),
+            "saving the canvas must go through");
+
+        editor.RequestOpenCanvas(second.c_str());
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the second canvas");
+        }
+        Check(canvas->GetObjectCount() == 0, "the second canvas is empty");
+
+        // **저장하지 않은 것은 말없이 버리지 않는다.** 고치고 나서 다른 캔버스를 열면 묻는다.
+        // **둘을 만든다.** 첫 캔버스에는 하나뿐이라, 하나만 만들면 바뀌었는지 안 바뀌었는지를
+        // 개수로 가릴 수 없다(그래서 뮤테이션이 한 번 살아남았다).
+        Check(JBro::EditorActions::CreateObject(editor, nullptr) != nullptr,
+            "the second canvas must accept an object");
+        Check(JBro::EditorActions::CreateObject(editor, nullptr) != nullptr,
+            "and another one");
+        Check(canvas->GetObjectCount() == 2, "so the second canvas now holds two");
+        Check(editor.GetCommands().IsDirty(), "which leaves the canvas unsaved");
+        editor.RequestOpenCanvas(first.c_str());
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle while it asks");
+        }
+        Check(canvas->GetObjectCount() == 2,
+            "asking must not open anything yet - the unsaved objects are still there");
+
+        // 그만두면 아무 일도 없다.
+        editor.AnswerCanvasSwitch(JBro::ConfirmPopup::Cancelled);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the cancel");
+        }
+        Check(canvas->GetObjectCount() == 2, "cancelling leaves the canvas as it was");
+
+        // 저장하지 않고 열기를 고르면 그때 바뀐다.
+        editor.RequestOpenCanvas(first.c_str());
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle while it asks again");
+        }
+        editor.AnswerCanvasSwitch(1);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after opening anyway");
+        }
+        Check(canvas->GetObjectCount() == 1, "the first canvas comes back with its one object");
+        Check(false == editor.GetCommands().IsDirty(),
+            "and the new canvas starts with nothing to save");
+
+        editor.RequestOpenCanvas(second.c_str());
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the second canvas again");
+        }
+        Check(canvas->GetObjectCount() == 0,
+            "the object that was never saved is gone, as the question warned");
+
+        editor.RequestOpenCanvas(first.c_str());
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle back on the first canvas");
+        }
+        Check(canvas->GetObjectCount() == 1, "and the saved object comes back with it");
+
+        editor.Shutdown();
+        std::filesystem::remove_all(root, code);
+    }
+
     // **경로 조각을 다루는 한 벌**이다(D-173, 기존 `Path/EditorPathUtils`).
     // 같은 세 줄이 `EditorApplication` 과 에셋 브라우저에 따로 있었고, 인스펙터가 셋째 벌을
     // 쓸 뻔했다. 창을 띄우지 않으므로 그래픽 장치가 없어도 돈다.
@@ -7481,6 +7624,7 @@ int RunEditorApplicationTests()
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
     TestTheGizmoCanWorkInWorldAxes();
     TestThePathHelpersAgreeOnOneAnswer();
+    TestTheEditorMakesAndOpensCanvases();
     TestTheEditorSaysWhatIsChosen();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();
