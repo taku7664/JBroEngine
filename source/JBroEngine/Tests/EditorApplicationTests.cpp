@@ -6251,6 +6251,31 @@ namespace
         Check(editor.GetSelectedObject() == body, "and outside again, the arm picks the body");
         waitOutDoubleClick();
 
+        // **손잡이 위에서도 휠이 먹는다**(D-179). 편집 카메라도 같은 hover 로 재고 있어서,
+        // 오브젝트의 한가운데에 마우스를 두면 화면이 확대되지 않았다.
+        {
+            ClickAt(editor, hwnd, onBody);
+            Check(editor.GetSelectedObject() == body, "the body must be selected so its gizmo is there");
+            float centerX = 0.0f;
+            float centerY = 0.0f;
+            float before = 0.0f;
+            editor.GetCanvasViewCamera(centerX, centerY, before);
+            Check(before > 0.0f, "the canvas view must report its camera");
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(onBody.x, onBody.y));
+            Check(editor.Tick(Frame), "the editor must tick with the pointer on the handle");
+            PostMessageW(hwnd, WM_MOUSEWHEEL,
+                MAKEWPARAM(0, static_cast<WORD>(WHEEL_DELTA)), MAKELPARAM(onBody.x, onBody.y));
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick after the wheel");
+            }
+            float after = 0.0f;
+            editor.GetCanvasViewCamera(centerX, centerY, after);
+            Check(after < before,
+                "a wheel notch over the gizmo must still zoom the canvas view in");
+            waitOutDoubleClick();
+        }
+
         // **손잡이 위에서 두 번 눌러도 들어간다**(D-179). 고른 오브젝트의 한가운데에는 늘
         // 기즈모가 있어서, 입력 자리의 hover 로 재던 때에는 **거기서 두 번 누르기가 없는 일**이
         // 되었다 - 실제 에디터에서 오브젝트 한가운데를 두 번 눌러도 들어가지지 않았다.

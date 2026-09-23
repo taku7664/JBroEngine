@@ -338,6 +338,10 @@ namespace JBro
     void CanvasViewPanel::HandleCameraInput(const ViewRect& rect, bool hovered)
     {
         const ImGuiIO& io = ImGui::GetIO();
+        // **입력 자리의 hover 로는 잴 수 없다**(D-179). 기즈모 손잡이가 그것을 가리므로,
+        // 오브젝트의 한가운데에 마우스를 두면 **휠이 먹지 않고 화면도 끌리지 않았다**.
+        (void)hovered;
+        const bool pointerHere = PointerInView(rect);
 
         // **끌던 것은 마우스가 밖으로 나가도 이어진다.** 화면 가장자리까지 옮기려면
         // 그 바깥으로 나가게 되는데, 거기서 멈추면 끌기가 끊어진다.
@@ -381,7 +385,7 @@ namespace JBro
                 m_panning = false;
             }
         }
-        else if (hovered
+        else if (pointerHere
             && (ImGui::IsMouseClicked(ImGuiMouseButton_Right)
                 || ImGui::IsMouseClicked(ImGuiMouseButton_Middle)))
         {
@@ -389,7 +393,7 @@ namespace JBro
             m_panMoved = false;
         }
 
-        if (false == hovered || io.MouseWheel == 0.0f)
+        if (false == pointerHere || io.MouseWheel == 0.0f)
         {
             return;
         }
@@ -866,6 +870,12 @@ namespace JBro
         // 그리기 **전에** 재는 값이라, 손잡이가 앞 프레임부터 hover 를 쥐고 있으면 거짓이다 -
         // 고른 오브젝트의 한가운데에는 늘 손잡이가 있다. 창 위에 마우스가 있고 그 자리가
         // 뷰 안이면 그것으로 충분하다.
+        // **무언가를 끌고 지나가는 중이면 아니다.** 에셋을 끌어 인스펙터로 가져가다 이 화면을
+        // 지나면, 그것이 사각 선택의 시작이 되어 꾸러미를 집어삼킨다(테스트가 그것을 잡았다).
+        if (ImGui::GetDragDropPayload() != nullptr)
+        {
+            return false;
+        }
         const ImVec2 mouse = ImGui::GetIO().MousePos;
         const bool inside = mouse.x >= rect.left && mouse.x < rect.left + rect.width
             && mouse.y >= rect.top && mouse.y < rect.top + rect.height;
@@ -1044,7 +1054,7 @@ namespace JBro
         {
             // **임계값을 넘어야 시작한다.** 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가
             // 되어, 무언가를 고르려던 손짓이 선택을 푸는 손짓이 된다.
-            const bool startable = hovered
+            const bool startable = PointerInView(rect)
                 && m_gizmoState.hovered == GizmoAxis::None
                 && ImGui::IsMouseDown(ImGuiMouseButton_Left)
                 && Widget::MouseWasDragged(ImGuiMouseButton_Left);
@@ -1471,7 +1481,7 @@ namespace JBro
 
     void CanvasViewPanel::HandlePicking3D(const ViewRect& rect, bool hovered)
     {
-        if (false == hovered || m_gizmoState.dragging || m_editing.IsActive()
+        if (false == PointerInView(rect) || m_gizmoState.dragging || m_editing.IsActive()
             || m_gizmoState.hovered != GizmoAxis::None)
         {
             return;
