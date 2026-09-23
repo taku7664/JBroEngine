@@ -20,10 +20,36 @@ namespace JBro
     //
     // 저장은 하지 않는다. 컴포넌트 메모리는 `Canvas` 의 타입별 풀이 계속 소유하며,
     // 이 표는 "그 풀에 하나 만들어라" 를 이름으로 부를 수 있게 할 뿐이다.
+    // 한 오브젝트에 몇 개까지 붙는가(기존 엔진 `EComponentMultiplicity`, D-180).
+    //
+    // 기본이 `Multiple` 인 이유는 **막는 쪽이 정보를 가진 쪽이기 때문이다.** 콜라이더를
+    // 여럿 붙이는 것은 흔한 일이고, 하나만 있어야 하는 타입은 그 타입을 등록하는 자리가
+    // 그 사실을 안다. 반대로 기본을 `Single` 로 두면 등록을 빠뜨린 타입이 조용히 하나로
+    // 묶여, 왜 두 번째가 안 붙는지 알 길이 없다.
+    enum class ComponentMultiplicity : std::uint8_t
+    {
+        Single,
+        Multiple
+    };
+
+    // 추가 목록에서 묶이는 갈래다. 기존 엔진의 `Type.Category` 와 같은 값을 쓴다 -
+    // 로컬라이징 키 `component_category.<이름>` 으로 번역된다.
+    namespace ComponentCategory
+    {
+        inline constexpr const char* Transform = "Transform";
+        inline constexpr const char* Rendering = "Rendering";
+        inline constexpr const char* Physics = "Physics";
+        // 갈래를 대지 않은 타입이 묶이는 자리다.
+        inline constexpr const char* Default = "Components";
+    }
+
     struct ComponentTypeInfo
     {
         NameId          name = InvalidNameId;
         ComponentTypeId typeId = InvalidComponentTypeId;
+        // 목록에서 묶이는 갈래다. 비어 있으면 `ComponentCategory::Default` 로 본다.
+        const char* category = nullptr;
+        ComponentMultiplicity multiplicity = ComponentMultiplicity::Multiple;
         // 오브젝트에 하나 붙이고 그것을 돌려준다. 실패하면 nullptr 이다.
         ComponentBase* (*Attach)(Canvas& canvas, GameObject* owner) = nullptr;
         // 붙인 것을 뗀다. **붙이는 함수와 짝으로 여기 둔다** - 풀이 메모리를
@@ -56,14 +82,28 @@ namespace JBro
         // 실행할 때마다 다른 차례로 나와 눈이 자리를 못 외운다.
         Array<const ComponentTypeInfo*> CollectTypes() const;
 
+        // 이 오브젝트에 이 타입을 **하나 더** 붙일 수 있는가(D-180).
+        //
+        // 기존 엔진의 `CReflectionRegistry::CanAddComponent` 와 같은 판정이다. 인스펙터가
+        // 이것을 묻지 않으면 Transform2D 가 한 오브젝트에 둘씩 붙는데, 그 뒤로는 조회가
+        // 먼저 붙은 쪽만 돌려주므로 사용자가 고친 값이 화면에 반영되지 않는다.
+        //
+        // 등록되지 않은 이름은 거짓이다. 붙일 방법이 없는 것을 붙일 수 있다고 말하지 않는다.
+        bool CanAttach(const GameObject& object, NameId name) const;
+
     private:
         Table<NameId, ComponentTypeInfo> m_types;
     };
 
     // 타입 하나를 표에 넣는다. 붙이는 함수가 이 자리에서 만들어지므로 타입별 풀 기계는
     // 그대로 쓰인다 — 여기서 따로 메모리를 잡지 않는다.
+    //
+    // 갈래와 다중성은 **등록하는 자리가 댄다**(D-180). 타입 자신의 정적 멤버로 두지 않는
+    // 이유는, 그 둘이 타입의 성질이 아니라 편집기의 규칙이기 때문이다 - 프레임워크 타입이
+    // 에디터를 위해 자기 헤더에 갈래 이름을 적을 까닭이 없다.
     template <typename T>
-    bool RegisterComponentType()
+    bool RegisterComponentType(const char* category = nullptr,
+        ComponentMultiplicity multiplicity = ComponentMultiplicity::Multiple)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>,
             "a registered component must derive from ComponentBase");
@@ -71,6 +111,8 @@ namespace JBro
         ComponentTypeInfo info;
         info.name = NameTable::Get().Intern(T::StaticTypeName());
         info.typeId = MakeStableTypeId(T::StaticTypeName());
+        info.category = category != nullptr ? category : ComponentCategory::Default;
+        info.multiplicity = multiplicity;
         info.Attach = [](Canvas& canvas, GameObject* owner) -> ComponentBase*
         {
             return canvas.AttachComponent<T>(owner);

@@ -14,12 +14,16 @@ namespace JBro::Component
         {
             // && 로 엮지 않는다. 하나가 실패하면 뒤의 것이 아예 등록되지 않고,
             // 그러면 첫 실패 하나가 여러 컴포넌트를 씬에서 통째로 지운다.
+            // 2D 쪽과 같은 갈래·다중성을 쓴다(D-180).
             bool all = true;
-            all = RegisterComponentType<Transform3D>()    && all;
-            all = RegisterComponentType<Camera3D>()       && all;
-            all = RegisterComponentType<MeshRenderer3D>() && all;
-            all = RegisterComponentType<Rigidbody3D>()    && all;
-            all = RegisterComponentType<Collider3D>()     && all;
+            all = RegisterComponentType<Transform3D>(
+                      ComponentCategory::Transform, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<Camera3D>(
+                      ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<MeshRenderer3D>(ComponentCategory::Rendering) && all;
+            all = RegisterComponentType<Rigidbody3D>(
+                      ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
+            all = RegisterComponentType<Collider3D>(ComponentCategory::Physics) && all;
             return all;
         }();
         return registered;

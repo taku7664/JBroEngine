@@ -741,6 +741,27 @@ namespace
                 canvas, ids, id, TypeNameOf("Component::NobodyRegisteredThis"))),
             "a type the registry never heard of must be refused");
         Check(commands.GetUndoCount() == 1, "and must not be remembered");
+
+        // **하나만 붙는 타입은 커맨드가 막는다**(D-180). 목록과 메뉴가 이미 회색으로 두지만,
+        // 판정이 화면 쪽에만 있으면 붙여넣기와 다시하기가 그 옆으로 지나간다.
+        const JBro::ComponentTypeId transformType =
+            JBro::MakeStableTypeId(JBro::Component::Transform2D::StaticTypeName());
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(
+                canvas, ids, id, TypeNameOf(JBro::Component::Transform2D::StaticTypeName()))),
+            "the first transform must go on");
+        Check(CountComponents(*object, transformType) == 1, "and there must be exactly one");
+        const std::size_t remembered = commands.GetUndoCount();
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(
+                canvas, ids, id, TypeNameOf(JBro::Component::Transform2D::StaticTypeName()))),
+            "a second transform must be refused");
+        Check(CountComponents(*object, transformType) == 1, "and leave the first one alone");
+        Check(commands.GetUndoCount() == remembered, "a refused add must not be remembered");
+
+        // 여럿 붙는 타입은 그대로 하나 더 붙는다. 막는 것은 다중성이 `Single` 인 것뿐이다.
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(
+                canvas, ids, id, TypeNameOf(JBro::Component::SpriteRenderer2D::StaticTypeName()))),
+            "a second sprite renderer must still go on");
+        Check(CountComponents(*object, spriteType) == 2, "making two of them");
     }
 
     // 뗀 것을 되돌리면 **값까지** 돌아와야 한다. 껍데기만 다시 붙이면 되돌린 것이

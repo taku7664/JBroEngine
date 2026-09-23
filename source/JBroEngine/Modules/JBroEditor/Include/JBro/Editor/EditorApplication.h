@@ -374,10 +374,14 @@ namespace JBro
         // **컴포넌트 복사·붙여넣기**(D-167, 기존 `DrawCopyComponentMenuItem`·
         // `DrawPasteComponentMenuItem`). 오브젝트 클립보드와 **따로 산다** - 오브젝트를 복사해 둔
         // 채로 컴포넌트를 옮기고 싶은 것이 보통이고, 하나로 합치면 둘 중 하나가 늘 지워진다.
-        // 붙여넣기는 같은 타입을 하나 **더** 붙인다(기존과 같다) - 있는 것을 덮어쓰면 덮인 값이
-        // 어디로 갔는지 보이지 않는다.
+        // 붙여넣기는 같은 타입을 하나 **더** 붙인다 - 있는 것을 덮어쓰면 덮인 값이 어디로
+        // 갔는지 보이지 않는다. **다만 하나만 붙는 타입은 거절한다**(D-180) - 기존 엔진은
+        // 붙여넣기만 다중성 판정을 지나치지 않아 Transform 이 둘씩 붙었고, 그렇게 되면
+        // 조회가 먼저 붙은 쪽만 돌려주어 나중 것은 보이지도 지워지지도 않는다.
         bool CopyComponent(ComponentBase& component);
         bool PasteComponent(GameObject& object);
+        // 그 오브젝트에 떠 둔 컴포넌트를 붙일 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
+        bool CanPasteComponent(const GameObject& object) const;
         // 이미 붙어 있는 컴포넌트에 값만 덮는다. 떠 둔 것이 그 타입이 아니면 거짓이다.
         bool PasteComponentValues(GameObject& object, ComponentBase& component);
         // 그 컴포넌트에 값을 덮을 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.

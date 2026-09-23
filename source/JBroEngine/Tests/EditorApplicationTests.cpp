@@ -2455,12 +2455,33 @@ namespace
         Check(pasted != nullptr && pasted->rotation == 1.25f,
             "and bring the values back with it");
 
-        // 같은 타입을 하나 더 붙인다. 있는 것을 덮어쓰지 않는다.
+        // **하나만 붙는 타입은 두 번 붙지 않는다**(D-180). 기존 엔진은 붙여넣기만 다중성
+        // 판정을 지나쳐 Transform 이 둘씩 붙었고, 그 뒤로는 조회가 먼저 붙은 쪽만 돌려주어
+        // 나중 것이 보이지도 지워지지도 않았다.
         const std::size_t slots = target->GetComponents().Size();
-        Check(editor.PasteComponent(*target), "pasting again must go through");
-        Check(target->GetComponents().Size() == slots + 1,
-            "and add another slot instead of overwriting the first");
+        Check(false == editor.CanPasteComponent(*target),
+            "the target already has the only transform it can have");
+        Check(false == editor.PasteComponent(*target),
+            "so pasting the same single component again must be refused");
+        Check(target->GetComponents().Size() == slots,
+            "and leave the slot count alone");
+
+        // 여럿 붙는 타입은 그대로 하나 더 붙는다. 막는 것은 다중성이 `Single` 인 것뿐이다.
+        auto* sourceCollider = canvas->AttachComponent<JBro::Component::Collider2D>(source);
+        Check(sourceCollider != nullptr, "the probe collider must attach");
+        sourceCollider->size = {5.0f, 6.0f};
+        Check(editor.CopyComponent(*sourceCollider), "copying the collider must go through");
+        Check(editor.CanPasteComponent(*target), "a collider may be pasted onto the target");
+        Check(editor.PasteComponent(*target), "pasting it must go through");
+        Check(target->GetComponents().Size() == slots + 1, "and add a slot");
+        Check(editor.CanPasteComponent(*target), "and another one may still be pasted");
+        Check(editor.PasteComponent(*target), "pasting a second collider must go through");
+        Check(target->GetComponents().Size() == slots + 2, "and add another slot");
         Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.GetCommands().Undo(), "and undo the first collider too");
+        Check(target->GetComponents().Size() == slots,
+            "leaving the target as it was before the colliders");
+        Check(editor.CopyComponent(*transform), "putting the transform back on the clipboard");
 
         // **값만 붙여넣기**는 있는 컴포넌트를 덮는다. 슬롯이 늘지 않는다.
         auto* targetTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
@@ -2499,6 +2520,106 @@ namespace
         editor.CloseProject();
         Check(false == editor.HasComponentClipboard(),
             "closing the project must empty the component clipboard too");
+
+        editor.Shutdown();
+    }
+
+    // **붙일 수 있는 컴포넌트 목록**이다(D-180, 기존 `DrawComponentList`). 인스펙터의
+    // 드롭다운과 오브젝트 메뉴가 같은 목록을 본다 - 갈래로 묶이고, 하나만 붙는 타입이
+    // 이미 붙어 있으면 그 자리에 남되 고를 수 없다.
+    void TestTheAddComponentListGroupsTypesAndMarksWhatIsAlreadyThere()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the add component list not verified"
+                      << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "AddComponentListProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Probe");
+        Check(object != nullptr, "the probe object must exist");
+
+        const auto find = [](const JBro::EditorActions::AddComponentList& list,
+                              const char* wanted) -> std::size_t {
+            for (std::size_t index = 0; index < list.names.Size(); ++index)
+            {
+                if (list.names[index] != nullptr && std::strcmp(list.names[index], wanted) == 0)
+                {
+                    return index;
+                }
+            }
+            return list.names.Size();
+        };
+
+        JBro::EditorActions::AddComponentList list;
+        JBro::EditorActions::BuildAddComponentList(*object, list);
+        Check(list.names.Size() == list.typeNames.Size()
+                && list.names.Size() == list.groups.Size()
+                && list.names.Size() == list.addable.Size(),
+            "every column of the list must be as long as the others");
+        const std::size_t transform = find(list, "Transform2D");
+        const std::size_t collider = find(list, "Collider2D");
+        const std::size_t camera = find(list, "Camera2D");
+        Check(transform < list.names.Size() && collider < list.names.Size()
+                && camera < list.names.Size(),
+            "the built-in 2D components must all be on the list");
+        // 이름공간을 떼고 보인다. `Component::Transform2D` 가 그대로 나오면 안 된다.
+        Check(std::strchr(list.names[transform], ':') == nullptr,
+            "the list shows the type name without its namespace");
+        Check(list.addable[transform] && list.addable[collider],
+            "a bare object can take any of them");
+
+        // 갈래가 같은 것끼리 붙어 있어야 위젯이 제목줄을 한 번만 넣는다.
+        for (std::size_t index = 1; index < list.groups.Size(); ++index)
+        {
+            if (std::strcmp(list.groups[index], list.groups[index - 1]) == 0)
+            {
+                continue;
+            }
+            for (std::size_t before = 0; before + 1 < index; ++before)
+            {
+                Check(std::strcmp(list.groups[before], list.groups[index]) != 0,
+                    "a category must not come back after another one started");
+            }
+        }
+        Check(std::strcmp(list.groups[transform], list.groups[collider]) != 0,
+            "the transform and the collider belong to different categories");
+
+        // 하나만 붙는 타입을 붙이면 그 자리는 회색이 되고, 여럿 붙는 타입은 그대로다.
+        Check(JBro::EditorActions::AddComponent(editor, *object, list.typeNames[transform]),
+            "adding the transform must go through");
+        Check(JBro::EditorActions::AddComponent(editor, *object, list.typeNames[collider]),
+            "and so must the collider");
+        JBro::EditorActions::BuildAddComponentList(*object, list);
+        Check(false == list.addable[find(list, "Transform2D")],
+            "a second transform cannot be added");
+        Check(list.addable[find(list, "Collider2D")],
+            "but another collider can");
+        Check(false == JBro::EditorActions::AddComponent(
+                  editor, *object, list.typeNames[find(list, "Transform2D")]),
+            "and asking for the second transform anyway must do nothing");
+        const std::size_t slots = object->GetComponents().Size();
+        Check(JBro::EditorActions::AddComponent(
+                  editor, *object, list.typeNames[find(list, "Collider2D")]),
+            "while a second collider still attaches");
+        Check(object->GetComponents().Size() == slots + 1, "adding exactly one slot");
+
+        // 되돌리면 다시 붙일 수 있는 상태로 돌아간다. 판정이 한 자리에만 있다는 뜻이다.
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.GetCommands().Undo(), "and once more to take the collider off");
+        Check(editor.GetCommands().Undo(), "and once more to take the transform off");
+        JBro::EditorActions::BuildAddComponentList(*object, list);
+        Check(list.addable[find(list, "Transform2D")],
+            "with the transform gone the list offers it again");
 
         editor.Shutdown();
     }
@@ -7837,6 +7958,7 @@ int RunEditorApplicationTests()
     TestMovingAComponentFromItsHeaderMenuCanBeUndone();
     TestCopyAndPasteMakeASiblingAndSelectIt();
     TestCopyingAComponentPastesItsValuesOntoAnotherObject();
+    TestTheAddComponentListGroupsTypesAndMarksWhatIsAlreadyThere();
     TestANewObjectLandsWhereItWasAskedFor();
     TestAnObjectKeepsItsLayerThroughDeleteAndPaste();
     TestAStructElementOpensAndEditsEveryChosenList();

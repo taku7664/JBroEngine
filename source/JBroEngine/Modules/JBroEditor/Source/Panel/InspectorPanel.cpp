@@ -7,7 +7,9 @@
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ListEdit.h>
+#include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorNames.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/ScalarRun.h>
@@ -89,19 +91,7 @@ namespace JBro
             return AssetTypeRules::ParseTypeName(std::string_view(buffer, length));
         }
 
-        const char* DisplayTypeName(const char* typeName)
-        {
-            if (typeName == nullptr)
-            {
-                return nullptr;
-            }
-            const char* lastColon = std::strrchr(typeName, ':');
-            if (lastColon != nullptr && *(lastColon + 1) != '\0')
-            {
-                return lastColon + 1;
-            }
-            return typeName;
-        }
+        using EditorNames::DisplayTypeName;
 
         bool ToText(const TypeDescriptor& type, const void* address, String& text)
         {
@@ -292,7 +282,9 @@ namespace JBro
                 }
                 bool pasted = false;
                 {
-                    const bool canPaste = m_editor->HasComponentClipboard();
+                    // 하나만 붙는 타입이 이미 있으면 회색이다(D-180). 눌러도 아무 일이
+                    // 일어나지 않는 항목을 켜 두면 고장과 구분되지 않는다.
+                    const bool canPaste = m_editor->CanPasteComponent(*object);
                     if (false == canPaste)
                     {
                         ImGui::BeginDisabled();
@@ -306,6 +298,12 @@ namespace JBro
                     if (false == canPaste)
                     {
                         ImGui::EndDisabled();
+                    }
+                    if (false == canPaste && m_editor->HasComponentClipboard()
+                        && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+                    {
+                        ImGui::SetTooltip("%s",
+                            Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added"));
                     }
                 }
                 if (pasted)
@@ -401,31 +399,29 @@ namespace JBro
     {
         // 검색 드롭다운 하나다(D-116). 현재 번호를 늘 -1 로 주므로 트리거에는 "컴포넌트
         // 추가" 가 보이고, 고르면 그 자리에서 커맨드 하나가 나간다.
-        const Array<const ComponentTypeInfo*> types =
-            ComponentRegistry::Get().CollectTypes();
-        Array<const char*> names;
-        names.Reserve(types.Size());
-        for (std::size_t index = 0; index < types.Size(); ++index)
-        {
-            const char* name = NameTable::Get().Resolve(types[index]->name);
-            names.Add(name != nullptr ? DisplayTypeName(name) : nullptr);
-        }
+        //
+        // 목록은 오브젝트 메뉴와 **같은 것**을 쓴다(D-180). 갈래로 묶이고, 이미 붙어 있어
+        // 더 붙일 수 없는 것은 회색으로 남는다 - 목록에서 빼 버리면 찾던 이름이 사라진다.
+        EditorActions::AddComponentList list;
+        EditorActions::BuildAddComponentList(object, list);
         int chosen = -1;
         const bool picked = Widget::FilterCombo("##AddComponent",
-            ArrayView<const char* const>(names.Data(), names.Size()), chosen)
+            ArrayView<const char* const>(list.names.Data(), list.names.Size()), chosen)
             .EmptyText(Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component"))
             .NoItemsText(Loc::TextOr(LocKeys::InspectorNoComponentTypes,
                 "no component type has registered itself"))
+            .ItemGroups(ArrayView<const char* const>(list.groups.Data(), list.groups.Size()))
+            .ItemEnabled(ArrayView<const bool>(list.addable.Data(), list.addable.Size()))
+            .DisabledTooltip(Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added"))
             .Width(-FLT_MIN)
             .Draw();
-        if (false == picked || chosen < 0 || static_cast<std::size_t>(chosen) >= types.Size())
+        if (false == picked || chosen < 0
+            || static_cast<std::size_t>(chosen) >= list.typeNames.Size())
         {
             return;
         }
-        const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
-        m_editor->GetCommands().Execute(MakeOwnerPtr<AddComponentCommand>(
-            *m_editor->GetCanvas(), m_editor->GetObjectIds(), objectId,
-            types[static_cast<std::size_t>(chosen)]->name));
+        EditorActions::AddComponent(
+            *m_editor, object, list.typeNames[static_cast<std::size_t>(chosen)]);
     }
 
     void InspectorPanel::MoveComponent(GameObject& object, std::size_t from, std::size_t to)

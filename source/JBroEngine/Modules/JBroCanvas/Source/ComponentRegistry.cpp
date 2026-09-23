@@ -72,6 +72,29 @@ namespace JBro
         return types;
     }
 
+    bool ComponentRegistry::CanAttach(const GameObject& object, NameId name) const
+    {
+        const ComponentTypeInfo* info = Find(name);
+        if (info == nullptr)
+        {
+            return false;
+        }
+        if (info->multiplicity == ComponentMultiplicity::Multiple)
+        {
+            return true;
+        }
+        // 슬롯이 들고 있는 타입 id 사본을 본다. 컴포넌트를 따라가지 않으므로
+        // 죽은 참조가 섞여 있어도 안전하고, 오브젝트당 컴포넌트는 몇 개뿐이다.
+        for (const ComponentSlot& slot : object.GetComponents())
+        {
+            if (slot.typeId == info->typeId)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     std::size_t ComponentRegistry::GetCount() const
     {
         return m_types.Size();

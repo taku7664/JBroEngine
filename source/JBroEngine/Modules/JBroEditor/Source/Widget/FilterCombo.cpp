@@ -23,6 +23,22 @@ namespace JBro::Widget
         {
             return static_cast<char>(std::tolower(static_cast<unsigned char>(value)));
         }
+
+        // 갈래 이름을 견준다. 같은 글자면 같은 갈래다 - 부르는 쪽이 같은 포인터를
+        // 넘긴다는 보장이 없고(로컬라이징을 거치면 매 프레임 다른 버퍼일 수 있다),
+        // 포인터로 견주면 갈래마다 제목줄이 겹쳐 뜬다.
+        bool SameGroup(const char* left, const char* right)
+        {
+            if (left == right)
+            {
+                return true;
+            }
+            if (left == nullptr || right == nullptr)
+            {
+                return false;
+            }
+            return std::strcmp(left, right) == 0;
+        }
     }
 
     bool MatchesFilter(const char* text, const char* filter)
@@ -91,6 +107,24 @@ namespace JBro::Widget
         return *this;
     }
 
+    FilterCombo& FilterCombo::ItemGroups(ArrayView<const char* const> groups)
+    {
+        m_groups = groups;
+        return *this;
+    }
+
+    FilterCombo& FilterCombo::ItemEnabled(ArrayView<const bool> enabled)
+    {
+        m_enabled = enabled;
+        return *this;
+    }
+
+    FilterCombo& FilterCombo::DisabledTooltip(const char* text)
+    {
+        m_disabledTooltip = text;
+        return *this;
+    }
+
     FilterCombo& FilterCombo::Width(float width)
     {
         m_width = width;
@@ -106,6 +140,24 @@ namespace JBro::Widget
     bool FilterCombo::Draw() const
     {
         const int itemCount = static_cast<int>(m_items.Size());
+        // 갈래는 항목과 길이가 맞을 때만 쓴다. 어긋난 배열을 읽으면 그 자리에서 죽는다.
+        const bool hasGroups = m_groups.Size() == m_items.Size() && m_items.Size() > 0;
+        const bool hasEnabled = m_enabled.Size() == m_items.Size();
+        // **제목줄도 자리를 먹는다.** 항목 수만으로 팝업 높이를 잡으면 갈래가 붙는 만큼
+        // 목록이 창 밖으로 흘러 마지막 갈래가 잘린다.
+        int groupCount = 0;
+        if (hasGroups)
+        {
+            for (std::size_t at = 0; at < m_groups.Size(); ++at)
+            {
+                if (at == 0 || false == SameGroup(m_groups[at], m_groups[at - 1]))
+                {
+                    ++groupCount;
+                }
+            }
+        }
+        const bool manyGroups = groupCount > 1;
+
         const bool hasCurrent = m_currentIndex >= 0 && m_currentIndex < itemCount
             && m_items[static_cast<std::size_t>(m_currentIndex)] != nullptr;
         const char* preview = hasCurrent
@@ -143,8 +195,12 @@ namespace JBro::Widget
             popupWidth + style.FramePadding.x * 4.0f + style.ScrollbarSize,
             ImGui::CalcItemWidth());
         const int maxVisible = std::clamp(m_maxVisibleItems, 1, DefaultMaxVisibleItems);
+        // 보이는 줄은 항목 여덟에 **갈래 제목줄까지**다. 제목줄을 빼고 재면 갈래가 붙는
+        // 만큼 팝업이 예산을 넘어, 창 아래에 열렸을 때 마지막 갈래가 화면 밖으로 나간다.
+        const int headingLines = manyGroups ? groupCount : 0;
         const float popupMaxHeight = (m_showFilter ? ImGui::GetFrameHeightWithSpacing() : 0.0f)
-            + ImGui::GetTextLineHeightWithSpacing() * static_cast<float>(maxVisible)
+            + ImGui::GetTextLineHeightWithSpacing()
+                * static_cast<float>(maxVisible + headingLines)
             + style.WindowPadding.y * 2.0f;
         ImGui::SetNextWindowSizeConstraints(
             ImVec2(popupWidth, 0.0f), ImVec2(FLT_MAX, popupMaxHeight));
@@ -181,23 +237,42 @@ namespace JBro::Widget
         }
 
         int chosen = -1;
-        int firstVisible = -1;
+        int firstEnabled = -1;
+        bool drewAny = false;
+        const char* drawnGroup = nullptr;
         for (int index = 0; index < itemCount; ++index)
         {
-            const char* item = m_items[static_cast<std::size_t>(index)];
+            const std::size_t at = static_cast<std::size_t>(index);
+            const char* item = m_items[at];
             if (item == nullptr || false == MatchesFilter(item, g_filter))
             {
                 continue;
             }
-            if (firstVisible < 0)
+            // 제목줄은 **보이는** 첫 항목 바로 앞에 넣는다. 그래야 걸러내기로 항목이
+            // 하나도 남지 않은 갈래의 제목만 덩그러니 남는 일이 없다.
+            if (manyGroups && (false == drewAny || false == SameGroup(m_groups[at], drawnGroup)))
             {
-                firstVisible = index;
+                ImGui::SeparatorText(m_groups[at] != nullptr ? m_groups[at] : "");
+                drawnGroup = m_groups[at];
+            }
+            drewAny = true;
+            const bool enabled = false == hasEnabled || m_enabled[at];
+            if (enabled && firstEnabled < 0)
+            {
+                firstEnabled = index;
             }
             ImGui::PushID(index);
             const bool selected = index == m_currentIndex;
-            if (ImGui::Selectable(item, selected))
+            ImGui::BeginDisabled(false == enabled);
+            if (ImGui::Selectable(item, selected) && enabled)
             {
                 chosen = index;
+            }
+            ImGui::EndDisabled();
+            if (false == enabled && m_disabledTooltip != nullptr
+                && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            {
+                ImGui::SetTooltip("%s", m_disabledTooltip);
             }
             if (selected)
             {
@@ -205,16 +280,18 @@ namespace JBro::Widget
             }
             ImGui::PopID();
         }
-        if (firstVisible < 0)
+        if (false == drewAny)
         {
             ImGui::TextDisabled("%s",
                 m_noItemsText != nullptr
                     ? m_noItemsText
                     : Loc::TextOr(LocKeys::CommonNoMatches, "No matches"));
         }
-        if (chosen < 0 && enterPressed && firstVisible >= 0)
+        // Enter 는 **고를 수 있는** 첫 항목을 고른다. 회색 항목이 맨 위에 있다고 해서
+        // Enter 가 아무 일도 하지 않으면, 왜 안 되는지 알 수 없다.
+        if (chosen < 0 && enterPressed && firstEnabled >= 0)
         {
-            chosen = firstVisible;
+            chosen = firstEnabled;
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndCombo();

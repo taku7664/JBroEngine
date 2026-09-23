@@ -166,6 +166,17 @@ namespace JBro::LocKeys
     inline constexpr const char* CommonSearch = "common.search";
     inline constexpr const char* CommonClear = "common.clear";
     inline constexpr const char* CommonNoMatches = "common.no_matches";
+    inline constexpr const char* CommonAlreadyAdded = "common.already_added";
+
+    // ── 컴포넌트 갈래 ────────────────────────────────────────────────────
+    //
+    // 키는 `component_category.<갈래>` 로 그 자리에서 지어진다(`EditorNames`).
+    // 여기 적는 것은 **번역 파일에 무엇이 있어야 하는지를 남기기 위한 것**이다 -
+    // 코드가 이 이름들을 직접 부르지는 않는다.
+    inline constexpr const char* ComponentCategoryTransform = "component_category.Transform";
+    inline constexpr const char* ComponentCategoryRendering = "component_category.Rendering";
+    inline constexpr const char* ComponentCategoryPhysics = "component_category.Physics";
+    inline constexpr const char* ComponentCategoryDefault = "component_category.Components";
 
     // ── 에셋 칸 ──────────────────────────────────────────────────────────
     inline constexpr const char* AssetNone = "asset.none";

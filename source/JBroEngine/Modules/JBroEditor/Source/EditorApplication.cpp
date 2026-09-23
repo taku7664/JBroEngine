@@ -27,6 +27,7 @@
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include "EditorThumbnails.h"
@@ -1108,10 +1109,24 @@ namespace JBro
         return true;
     }
 
+    bool EditorApplication::CanPasteComponent(const GameObject& object) const
+    {
+        if (false == m_hasComponentClipboard)
+        {
+            return false;
+        }
+        const char* typeName = NameTable::Get().Resolve(m_componentClipboard.typeId);
+        if (typeName == nullptr)
+        {
+            return false;
+        }
+        return ComponentRegistry::Get().CanAttach(object, NameTable::Get().Intern(typeName));
+    }
+
     bool EditorApplication::PasteComponent(GameObject& object)
     {
         Canvas* canvas = GetCanvas();
-        if (canvas == nullptr || false == m_hasComponentClipboard)
+        if (canvas == nullptr || false == CanPasteComponent(object))
         {
             return false;
         }

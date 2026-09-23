@@ -1,15 +1,19 @@
 ﻿#include <JBro/Editor/EditorActions.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/HierarchyCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorNames.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
 
+#include <cstring>
 #include <utility>
 
 namespace JBro::EditorActions
@@ -234,6 +238,119 @@ namespace JBro::EditorActions
         return DeleteObject(editor, object);
     }
 
+    void BuildAddComponentList(const GameObject& object, AddComponentList& out)
+    {
+        out.typeNames.Clear();
+        out.names.Clear();
+        out.groups.Clear();
+        out.addable.Clear();
+
+        ComponentRegistry& registry = ComponentRegistry::Get();
+        // 표는 이름 순으로 나온다. 갈래로 다시 묶되 갈래 안의 이름 순은 그대로 남기려고,
+        // 갈래를 처음 만난 차례대로 훑으면서 그 갈래의 것만 골라 담는다. 타입은 몇십 개라
+        // 이 자리에 정렬을 들여올 이유가 없다.
+        const Array<const ComponentTypeInfo*> types = registry.CollectTypes();
+        for (std::size_t lead = 0; lead < types.Size(); ++lead)
+        {
+            const char* category = types[lead]->category != nullptr
+                ? types[lead]->category
+                : ComponentCategory::Default;
+            bool seen = false;
+            for (std::size_t before = 0; before < lead && false == seen; ++before)
+            {
+                const char* other = types[before]->category != nullptr
+                    ? types[before]->category
+                    : ComponentCategory::Default;
+                seen = std::strcmp(other, category) == 0;
+            }
+            if (seen)
+            {
+                continue;
+            }
+            const char* groupLabel = EditorNames::ComponentCategoryLabel(category);
+            for (std::size_t index = lead; index < types.Size(); ++index)
+            {
+                const char* other = types[index]->category != nullptr
+                    ? types[index]->category
+                    : ComponentCategory::Default;
+                if (std::strcmp(other, category) != 0)
+                {
+                    continue;
+                }
+                const char* name = NameTable::Get().Resolve(types[index]->name);
+                if (name == nullptr)
+                {
+                    continue;
+                }
+                out.typeNames.Add(types[index]->name);
+                out.names.Add(EditorNames::DisplayTypeName(name));
+                out.groups.Add(groupLabel);
+                out.addable.Add(registry.CanAttach(object, types[index]->name));
+            }
+        }
+    }
+
+    bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName)
+    {
+        Canvas* canvas = editor.GetCanvas();
+        if (canvas == nullptr
+            || false == ComponentRegistry::Get().CanAttach(object, typeName))
+        {
+            return false;
+        }
+        const EditorObjectId objectId = editor.GetObjectIds().Track(&object);
+        return editor.GetCommands().Execute(MakeOwnerPtr<AddComponentCommand>(
+            *canvas, editor.GetObjectIds(), objectId, typeName));
+    }
+
+    bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object)
+    {
+        if (false == ImGui::BeginMenu(
+                Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component")))
+        {
+            return false;
+        }
+        AddComponentList list;
+        BuildAddComponentList(object, list);
+        bool added = false;
+        const char* drawnGroup = nullptr;
+        bool inGroup = false;
+        for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+        {
+            // 갈래마다 하위 메뉴 하나다(기존 엔진과 같은 모양). 목록이 길어져도
+            // 화면 밖으로 흐르지 않는다.
+            if (drawnGroup == nullptr || std::strcmp(drawnGroup, list.groups[index]) != 0)
+            {
+                if (inGroup)
+                {
+                    ImGui::EndMenu();
+                }
+                drawnGroup = list.groups[index];
+                inGroup = ImGui::BeginMenu(drawnGroup);
+            }
+            if (false == inGroup)
+            {
+                continue;
+            }
+            const bool addable = list.addable[index];
+            if (ImGui::MenuItem(list.names[index], nullptr, false, addable))
+            {
+                added = AddComponent(editor, object, list.typeNames[index]) || added;
+            }
+            // 왜 못 누르는지는 여기 말고 말할 자리가 없다.
+            if (false == addable && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            {
+                ImGui::SetTooltip("%s", Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added"));
+            }
+        }
+        if (inGroup)
+        {
+            ImGui::EndMenu();
+        }
+        ImGui::EndMenu();
+        return added;
+    }
+
     bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
         const ObjectPlacement& placement)
     {
@@ -254,6 +371,13 @@ namespace JBro::EditorActions
         {
             // 부모가 바뀌면 지금 도는 자식 배열이 그 자리에서 달라진다.
             alive = false;
+        }
+        if (alive)
+        {
+            // 기존 엔진도 캔버스 뷰와 계층의 오브젝트 메뉴에 이것이 있다(D-180).
+            // 인스펙터까지 눈을 옮기지 않고 그 자리에서 붙인다.
+            ImGui::Separator();
+            DrawAddComponentMenu(editor, object);
         }
         if (alive)
         {

@@ -639,6 +639,97 @@ namespace
         Check(current == 0 && changedFrames == 2, "picking the current item again is not a change");
     }
 
+    // **갈래로 묶고, 못 고르는 것은 회색으로 둔다**(D-180, 기존 컴포넌트 갈래 메뉴).
+    // 갈래 제목줄이 실제로 자리를 차지하는지, Enter 가 회색 항목을 건너뛰는지 잰다.
+    void TestTheFilterComboGroupsItemsAndSkipsTheDisabled()
+    {
+        Stage stage;
+        const char* const items[] = { "Collider2D", "Rigidbody2D", "Camera2D" };
+        const char* const groups[] = { "Physics", "Physics", "Rendering" };
+        // 첫 항목은 이미 붙어 있어 고를 수 없다.
+        const bool addable[] = { false, true, true };
+        int plain = -1;
+        int grouped = -1;
+        float plainHeight = 0.0f;
+        float groupedHeight = 0.0f;
+        ImVec2 triggerMin;
+        ImVec2 triggerMax;
+        bool triggerKnown = false;
+        bool useGroups = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            if (useGroups)
+            {
+                JBro::Widget::FilterCombo("##grouped", items, grouped)
+                    .EmptyText("(none)")
+                    .ItemGroups(groups)
+                    .ItemEnabled(addable)
+                    .DisabledTooltip("already added")
+                    .Width(200.0f)
+                    .Draw();
+            }
+            else
+            {
+                JBro::Widget::FilterCombo("##plain", items, plain)
+                    .EmptyText("(none)")
+                    .Width(200.0f)
+                    .Draw();
+            }
+            if (false == triggerKnown)
+            {
+                triggerMin = ImGui::GetItemRectMin();
+                triggerMax = ImGui::GetItemRectMax();
+                triggerKnown = true;
+            }
+            if (const ImGuiWindow* popup = FindComboPopup())
+            {
+                float& into = useGroups ? groupedHeight : plainHeight;
+                into = popup->ContentSize.y;
+            }
+            stage.End();
+        };
+        const auto open = [&]() {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddMousePosEvent((triggerMin.x + triggerMax.x) * 0.5f,
+                (triggerMin.y + triggerMax.y) * 0.5f);
+            frame();
+            io.AddMouseButtonEvent(0, true);
+            frame();
+            io.AddMouseButtonEvent(0, false);
+            frame();
+            frame();
+            frame();
+            Check(FindComboPopup() != nullptr, "clicking the trigger must open the popup");
+        };
+        const auto pressEnter = [&]() {
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Enter, true);
+            frame();
+            ImGui::GetIO().AddKeyEvent(ImGuiKey_Enter, false);
+            frame();
+            frame();
+        };
+
+        stage.Settle();
+        frame();
+        frame();
+        // 갈래 없이 같은 세 항목을 그린 팝업의 높이를 먼저 잰다.
+        open();
+        pressEnter();
+        Check(plain == 0, "without groups Enter picks the very first item");
+        Check(plainHeight > 0.0f, "and the plain popup must have been measured");
+
+        useGroups = true;
+        triggerKnown = false;
+        frame();
+        frame();
+        open();
+        Check(groupedHeight > plainHeight + ImGui::GetTextLineHeight(),
+            "two group headings must take space the plain list does not");
+        pressEnter();
+        Check(grouped == 1,
+            "Enter must skip the item that cannot be added and pick the next one");
+    }
+
     // 빈 목록은 열려도 아무것도 고르지 않고 무너지지 않는다.
     void TestAnEmptyFilterComboDrawsAndChangesNothing()
     {
@@ -854,6 +945,7 @@ int RunEditorWidgetTests()
     TestTheTreeHandsBackItsRowAndContent();
     TestTheTextFieldLeavesUntouchedValuesAlone();
     TestTheFilterComboPicksByTypingAndEnter();
+    TestTheFilterComboGroupsItemsAndSkipsTheDisabled();
     TestAnEmptyFilterComboDrawsAndChangesNothing();
     TestTheEnumComboChangesTheValueWhenAnItemIsClicked();
     TestTheAssetFieldWritesTheIdOfTheChosenName();

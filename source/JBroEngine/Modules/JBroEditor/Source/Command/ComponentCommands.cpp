@@ -61,6 +61,13 @@ namespace JBro
         {
             return false;
         }
+        // **하나만 붙는 타입을 두 번 붙이지 않는다**(D-180). 목록이 이미 막고 있지만,
+        // 붙여넣기도 다시하기도 이 길을 지나므로 판정은 여기에 있어야 한다. 둘씩 붙으면
+        // 조회가 먼저 붙은 쪽만 돌려주어, 나중에 붙은 것은 보이지도 지워지지도 않는다.
+        if (false == ComponentRegistry::Get().CanAttach(*object, m_typeName))
+        {
+            return false;
+        }
         ComponentBase* component = info->Attach(*m_canvas, object);
         if (component == nullptr)
         {

@@ -244,12 +244,12 @@
 | `EditorSimulationGuard` | `SaveCanvas` 의 재생 중 거절 | 완료 (D-153) |
 | `EditorDragDrop` | `Widget/AssetDrag.h` | 완료 (D-154), `.jlayer` 드롭은 해당 없음(레이어 에셋 없음) |
 | `EditorContext` | `EditorApplication` | 완료 |
-| `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132), `PasteObjectsAsChild` 는 D-166, 컴포넌트 복사·붙여넣기는 D-167, `spawnWorldPos`·`ResolveTargetLayer` 는 D-168 |
+| `Gui/EditorGuiActions` | `EditorActions` | 완료 (D-132), `PasteObjectsAsChild` 는 D-166, 컴포넌트 복사·붙여넣기는 D-167, `spawnWorldPos`·`ResolveTargetLayer` 는 D-168, `DrawAddComponentMenu`(갈래·다중성·`이미 추가됨`)는 D-180 |
 | `Gui/EditorMessagePopup` | `MessagePopup` | 완료 |
 | `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132), 표를 항목마다 견주어 빠져 있던 `PasteObjectsAsChild` 를 채웠다 (D-166) |
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |
 | `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 오디오 위젯·`ImReferenceField` 는 열림 |
-| `Localization/EditorReflectionLabels` | — | 해당 없음 (필드는 필드 이름으로 보인다, §11.2) |
+| `Localization/EditorReflectionLabels` | `JBro/Editor/EditorNames.h` 의 `DisplayTypeName`·`ComponentCategoryLabel` | 완료 (D-180), 필드 라벨은 해당 없음 (필드 이름으로 보인다, §11.2) |
 | `Path/EditorPathUtils` | `JBro/Editor/EditorPaths.h` 의 `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 (D-173), 그전까지는 패널마다 따로 있었다 |
 | `Script/ScriptSchema` | — | 해당 없음 (JBroScript 미구현) |
 

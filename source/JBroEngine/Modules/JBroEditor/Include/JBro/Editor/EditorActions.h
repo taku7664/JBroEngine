@@ -2,6 +2,8 @@
 
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Core/Core.h>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/NameTable.h>
 
 namespace JBro
 {
@@ -42,6 +44,9 @@ namespace JBro
         // 둘 다 없으면 `InvalidLayerId`(= 캔버스 기본 레이어)다. 메뉴와 단축키가 함께 쓴다 -
         // 규칙이 갈리면 같은 손짓이 들어온 자리마다 다른 칸에 오브젝트를 만든다.
         LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent);
+
+        // 컴포넌트 하나를 붙인다(D-180). 붙일 수 없는 타입이면 아무 일도 하지 않고 거짓이다.
+        bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName);
         // 부모를 떼어 뿌리 맨 뒤로 올린다. 이미 뿌리면 거짓이다.
         bool Unparent(EditorApplication& editor, GameObject& object);
         // 고른 것을 지운다. **맨 위 것들만** 지운다 - 부모를 지우면 자식은 따라 사라지므로
@@ -64,6 +69,28 @@ namespace JBro
         // 그 오브젝트의 자식으로 붙인다(D-166). 줄에서 연 메뉴가 쓴다.
         bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object);
         bool DrawDeleteItem(EditorApplication& editor, GameObject& object);
+
+        // **붙일 수 있는 컴포넌트 목록**이다(D-180). 인스펙터의 드롭다운과 오브젝트 메뉴의
+        // `컴포넌트 추가` 가 같은 목록을 본다 - 한쪽에만 회색 규칙이 있으면, 목록에서 막힌
+        // 것이 메뉴에서는 눌리고 그 뒤로 조용히 아무 일도 일어나지 않는다.
+        //
+        // 차례는 **갈래로 묶고 갈래 안에서는 이름 순**이다. 갈래끼리의 차례는 이름 순이라
+        // 실행할 때마다 같다.
+        struct AddComponentList
+        {
+            Array<NameId>      typeNames;
+            // 화면에 보이는 타입 이름이다. 이름표가 들고 있는 글자를 가리킨다.
+            Array<const char*> names;
+            // 항목마다의 갈래 이름이다. 이미 번역되어 있다.
+            Array<const char*> groups;
+            // 거짓이면 이미 붙어 있어 더 붙일 수 없다.
+            Array<bool>        addable;
+        };
+        void BuildAddComponentList(const GameObject& object, AddComponentList& out);
+
+        // 이미 열려 있는 메뉴 안에 `컴포넌트 추가` 하위 메뉴를 그린다(D-180, 기존
+        // `DrawAddComponentMenu`). 붙였으면 참이다.
+        bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object);
 
         // 오브젝트 하나를 두고 여는 메뉴 한 벌이다(D-170). 계층의 줄과 캔버스 뷰에서
         // 오브젝트를 우클릭한 자리가 같은 것을 쓴다 - 기존 엔진도 두 화면의 메뉴가 같다.

@@ -1,4 +1,4 @@
-Locale: en-US
+﻿Locale: en-US
 Entries:
   panel.game: Game
   panel.canvas_view: Canvas
@@ -107,6 +107,11 @@ Entries:
   common.search: Search
   common.clear: Clear
   common.no_matches: No matches
+  common.already_added: Already added
+  component_category.Transform: Transform
+  component_category.Rendering: Rendering
+  component_category.Physics: Physics
+  component_category.Components: Components
   asset.none: (None)
   asset.missing: (Missing asset)
   assets.empty: the asset folder has no files

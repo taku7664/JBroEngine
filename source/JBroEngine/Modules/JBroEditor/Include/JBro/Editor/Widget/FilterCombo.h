@@ -34,6 +34,19 @@ namespace JBro::Widget
         FilterCombo& NoItemsText(const char* text);
         // 거짓이면 검색 칸을 그리지 않는다. 항목이 몇 개뿐인 enum 에는 검색이 소음이다.
         FilterCombo& ShowFilter(bool show = true);
+        // 항목마다 붙는 갈래 이름이다(D-180, 기존 엔진의 컴포넌트 갈래 메뉴).
+        // 주면 갈래가 바뀌는 자리마다 제목줄이 들어간다 - 같은 갈래끼리 이미 모여
+        // 있어야 하고, 항목 배열과 길이가 같아야 한다. 길이가 다르면 무시한다.
+        //
+        // 갈래가 하나뿐이면 제목줄을 넣지 않는다. 줄 하나를 위해 머리글을 다는 것은
+        // 자리만 먹는다.
+        FilterCombo& ItemGroups(ArrayView<const char* const> groups);
+        // 거짓인 항목은 회색으로 보이고 골라지지 않는다. 목록에서 아예 빼지 않는
+        // 이유는, 없는 것과 지금 못 고르는 것이 다르기 때문이다 - 사용자가 찾던
+        // 이름이 사라지면 어디에 있는지를 다시 찾게 된다.
+        FilterCombo& ItemEnabled(ArrayView<const bool> enabled);
+        // 못 고르는 항목에 마우스를 올렸을 때 뜨는 까닭이다.
+        FilterCombo& DisabledTooltip(const char* text);
         FilterCombo& Width(float width);
         // 스크롤 없이 보이는 최대 줄 수. 1~8 로 자른다.
         FilterCombo& MaxVisibleItems(int count);
@@ -47,9 +60,12 @@ namespace JBro::Widget
         const char* m_id = nullptr;
         ArrayView<const char* const> m_items;
         int& m_currentIndex;
+        ArrayView<const char* const> m_groups;
+        ArrayView<const bool> m_enabled;
         const char* m_emptyText = nullptr;
         const char* m_filterHint = nullptr;
         const char* m_noItemsText = nullptr;
+        const char* m_disabledTooltip = nullptr;
         float m_width = 0.0f;
         int m_maxVisibleItems = DefaultMaxVisibleItems;
         bool m_showFilter = true;
