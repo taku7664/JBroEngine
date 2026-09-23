@@ -168,6 +168,9 @@ Entries:
   common.cancel: Cancel
   assets.rescan: Rescan
   assets.new_canvas: New Canvas
+  assets.duplicate: Duplicate
+  assets.copy_path: Copy Path
+  assets.selection_count: "%d chosen"
   popup.unsaved_canvas_title: Unsaved changes
   popup.unsaved_canvas_message: This canvas has changes that are not saved. Opening another canvas loses them.
   common.save_and_open: Save and open

@@ -574,6 +574,60 @@ namespace JBro
         return true;
     }
 
+    String EditorApplication::DuplicateAsset(const char* relativePath)
+    {
+        if (relativePath == nullptr || relativePath[0] == '\0' || GetAssetRoot().empty())
+        {
+            return String();
+        }
+        const String from = JoinPath(GetAssetRoot(), relativePath);
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(from.c_str(), bytes))
+        {
+            Log::Write(LogLevel::Warning, "asset", "the file could not be read: %s", relativePath);
+            return String();
+        }
+        // 이름과 확장자를 가른다. `art/enemy.png` → `art/enemy1.png`, `art/enemy2.png`, ...
+        const String folder = EditorPaths::FolderOf(relativePath);
+        const String leaf = EditorPaths::LeafOfPath(relativePath);
+        const std::size_t dot = leaf.find_last_of(".");
+        const String stem = dot == String::npos ? leaf : String(leaf.substr(0, dot).c_str());
+        const String extension = dot == String::npos ? String() : String(leaf.substr(dot).c_str());
+        String relative;
+        String absolute;
+        for (int attempt = 1; attempt < 100; ++attempt)
+        {
+            char suffix[16] = {};
+            std::snprintf(suffix, sizeof(suffix), "%d", attempt);
+            String name = stem;
+            name.append(suffix, std::strlen(suffix));
+            name += extension;
+            relative = EditorPaths::JoinPath(folder.c_str(), name.c_str());
+            absolute = JoinPath(GetAssetRoot(), relative.c_str());
+            if (false == m_platform->FileExists(absolute.c_str()))
+            {
+                break;
+            }
+            relative.clear();
+        }
+        if (relative.empty())
+        {
+            return String();
+        }
+        if (false == m_platform->WriteWholeFile(absolute.c_str(),
+                {bytes.Data(), static_cast<std::uint32_t>(bytes.Size())}))
+        {
+            Log::Write(LogLevel::Error, "asset", "the copy could not be written: %s",
+                relative.c_str());
+            return String();
+        }
+        // **`.jmeta` 는 복사하지 않는다.** 아이디까지 같아지면 두 파일이 한 에셋 행세를 한다.
+        // 새 아이디는 스캔이 매긴다 - 가져오기와 같은 길이다.
+        RescanAssets();
+        Log::Write(LogLevel::Info, "asset", "duplicated %s as %s", relativePath, relative.c_str());
+        return relative;
+    }
+
     bool EditorApplication::RenameAsset(const char* relativePath, const char* newName)
     {
         if (relativePath == nullptr || newName == nullptr || newName[0] == '\0'

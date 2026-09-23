@@ -168,6 +168,9 @@ Entries:
   common.cancel: 취소
   assets.rescan: 새로 고침
   assets.new_canvas: 새 캔버스
+  assets.duplicate: 복제
+  assets.copy_path: 경로 복사
+  assets.selection_count: "%d개 선택됨"
   popup.unsaved_canvas_title: 저장하지 않은 변경
   popup.unsaved_canvas_message: 지금 캔버스에 저장하지 않은 변경이 있습니다. 다른 캔버스를 열면 그 변경은 사라집니다.
   common.save_and_open: 저장하고 열기

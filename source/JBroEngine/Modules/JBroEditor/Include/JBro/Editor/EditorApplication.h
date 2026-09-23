@@ -196,6 +196,10 @@ namespace JBro
         bool RenameAsset(const char* relativePath, const char* newName);
         // 다른 폴더로 옮긴다. `targetFolder` 가 비면 에셋 폴더의 뿌리다.
         bool MoveAsset(const char* relativePath, const char* targetFolder);
+        // **복제한다**(D-175, 기존 `Duplicate`). 같은 폴더에 겹치지 않는 이름으로 내용을 복사한다.
+        // **`.jmeta` 는 따라가지 않는다** - 그 안의 아이디까지 같아지면 두 파일이 한 에셋 행세를 한다.
+        // 새 아이디는 스캔이 매긴다. 만든 파일의 상대경로를 돌려준다. 실패하면 빈 글자다.
+        String DuplicateAsset(const char* relativePath);
         // **되돌릴 수 없다.** 부르는 쪽이 먼저 물어야 한다.
         bool DeleteAsset(const char* relativePath);
         bool RevealAsset(const char* relativePath);

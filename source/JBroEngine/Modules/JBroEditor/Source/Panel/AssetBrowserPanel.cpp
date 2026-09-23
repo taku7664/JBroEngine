@@ -681,12 +681,28 @@ namespace JBro
         {
             return;
         }
+        // **여럿 골랐으면 몇 개인지 먼저 말한다**(D-175, 기존 `AssetBrowserSelectionCount`).
+        // 지우기가 고른 것 전체에 가므로(D-141), 몇 개인지 모르고 누르면 놀란다.
+        if (m_selection.Size() > 1)
+        {
+            Widget::HintTextF(
+                Loc::TextOr(LocKeys::AssetsSelectionCount, "%d chosen"),
+                static_cast<int>(m_selection.Size()));
+            ImGui::Separator();
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsRename, "Rename")))
         {
             m_pending = relativePath;
             m_pendingIsFolder = isFolder;
             m_nameBuffer = EditorPaths::LeafOfPath(relativePath);
             m_openRename = true;
+        }
+        // **복제**(D-175, 기존 `Duplicate`). 폴더는 복제하지 않는다 - 안의 파일마다 새 아이디를
+        // 매겨야 해서 그냥 복사와 다르다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsDuplicate, "Duplicate"),
+                nullptr, false == isFolder))
+        {
+            m_editor->DuplicateAsset(relativePath.c_str());
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
         {
@@ -717,6 +733,14 @@ namespace JBro
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
         {
             m_editor->RevealAsset(relativePath.c_str());
+        }
+        // **경로 복사**(D-175, 기존 `CopyPath`). 밖의 프로그램에 그 파일을 넘길 때 쓴다 -
+        // 에셋 폴더 기준 상대경로가 아니라 **실제 경로**여야 그쪽이 연다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsCopyPath, "Copy Path")))
+        {
+            const String absolute = EditorPaths::JoinPath(
+                m_editor->GetAssetRoot().c_str(), relativePath.c_str());
+            ImGui::SetClipboardText(absolute.c_str());
         }
         Widget::EndContextMenu();
     }

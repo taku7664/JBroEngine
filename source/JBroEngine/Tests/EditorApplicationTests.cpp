@@ -5865,6 +5865,75 @@ namespace
 
     // **밖의 그림을 가져온다**(D-156, 기존 `SpriteImporterWindow`). 에셋 폴더로 복사되고 스캔이
     // 등록하며 `.jmeta` 가 선다. 그림이면 바로 스프라이트 뷰어가 열린다. 같은 이름은 덮어쓰지 않는다.
+    // **복제는 파일을 베끼되 아이디는 새로 받는다**(D-175, 기존 `Duplicate`).
+    // `.jmeta` 까지 베끼면 두 파일이 한 에셋 행세를 해서, 한쪽을 고치면 다른 쪽을 가리키던
+    // 컴포넌트가 모르는 사이에 다른 그림을 그린다.
+    void TestDuplicatingAnAssetGivesItItsOwnId()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroDuplicateProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "art", ignored);
+        {
+            std::ofstream png(root / "Assets" / "art" / "walk.png", std::ios::binary);
+            png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath = TempPath("JBroDuplicateProbe\\Duplicate.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; duplicating not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        const JBro::AssetRecord* original =
+            editor.GetAssetRegistry().FindByPath("art/walk.png");
+        Check(original != nullptr, "the picture must be registered");
+        const JBro::AssetId originalId = original->id;
+
+        const JBro::String copy = editor.DuplicateAsset("art/walk.png");
+        Check(copy == JBro::String("art/walk1.png"),
+            "the copy must sit beside the original with a number on its name");
+        Check(fs::exists(root / "Assets" / "art" / "walk1.png"), "and be on disk");
+
+        const JBro::AssetRecord* duplicate =
+            editor.GetAssetRegistry().FindByPath(copy.c_str());
+        Check(duplicate != nullptr, "the copy must be registered too");
+        Check(false == (duplicate->id == originalId), "with an id of its own");
+        Check(editor.GetAssetRegistry().FindByPath("art/walk.png") != nullptr
+                && editor.GetAssetRegistry().FindByPath("art/walk.png")->id == originalId,
+            "and the original must keep the id it had");
+
+        // 한 번 더 복제하면 이름이 또 하나 는다.
+        const JBro::String third = editor.DuplicateAsset("art/walk.png");
+        Check(third == JBro::String("art/walk2.png"),
+            "a second copy must not take the first copy's name");
+
+        // 폴더나 없는 파일은 거절한다.
+        Check(editor.DuplicateAsset("art").empty(), "a folder cannot be duplicated");
+        Check(editor.DuplicateAsset("art/missing.png").empty(),
+            "and neither can something that is not there");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     void TestImportingAPictureCopiesAndRegistersIt()
     {
         namespace fs = std::filesystem;
@@ -7607,6 +7676,7 @@ int RunEditorApplicationTests()
     TestDraggingAnAssetOntoTheFieldPicksIt();
     TestAssetToolsFollowTheOpenProject();
     TestTheSpriteViewerDocksBesideTheMainDock();
+    TestDuplicatingAnAssetGivesItItsOwnId();
     TestImportingAPictureCopiesAndRegistersIt();
     TestNewProjectCreatesAndOpensIt();
     TestTheCanvasViewPicksTheRootUntilYouStepInside();
