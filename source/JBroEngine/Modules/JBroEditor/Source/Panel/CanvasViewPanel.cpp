@@ -915,9 +915,15 @@ namespace JBro
         }
         else
         {
+            // **-0.00 은 0 이다.** 부호 있는 0 이 화면에 나오면 어딘가 틀린 것처럼 읽힌다
+            // (격자 라벨도 같은 이유로 고쳤다, D-162).
+            const auto tidy = [](float value)
+            {
+                return value > -0.005f && value < 0.005f ? 0.0f : value;
+            };
             std::snprintf(text, sizeof(text),
                 Loc::TextOr(LocKeys::CanvasViewCameraFormat, "camera (%.2f, %.2f) size %.2f"),
-                m_centerX, m_centerY, m_orthographicSize);
+                tidy(m_centerX), tidy(m_centerY), m_orthographicSize);
         }
         line(text, IM_COL32(150, 158, 170, 255));
 
