@@ -15,6 +15,7 @@
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -7025,6 +7026,42 @@ namespace
         editor.Shutdown();
     }
 
+    // **경로 조각을 다루는 한 벌**이다(D-173, 기존 `Path/EditorPathUtils`).
+    // 같은 세 줄이 `EditorApplication` 과 에셋 브라우저에 따로 있었고, 인스펙터가 셋째 벌을
+    // 쓸 뻔했다. 창을 띄우지 않으므로 그래픽 장치가 없어도 돈다.
+    void TestThePathHelpersAgreeOnOneAnswer()
+    {
+        using namespace JBro::EditorPaths;
+
+        Check(std::strcmp(LeafOfPath("art/enemy.png"), "enemy.png") == 0,
+            "the leaf is what follows the last separator");
+        Check(std::strcmp(LeafOfPath("art\\ui\\button.png"), "button.png") == 0,
+            "and a windows separator counts too");
+        Check(std::strcmp(LeafOfPath("enemy.png"), "enemy.png") == 0,
+            "a bare name is its own leaf");
+        Check(LeafOfPath(nullptr) == nullptr, "nothing in, nothing out");
+        Check(std::strcmp(LeafOfPath("art/"), "") == 0,
+            "a trailing separator leaves an empty leaf, not the folder");
+
+        Check(std::strcmp(FolderOf("art/ui/button.png").c_str(), "art/ui") == 0,
+            "the folder is what comes before the last separator");
+        Check(FolderOf("enemy.png").empty(), "a bare name sits at the root");
+        Check(FolderOf(nullptr).empty(), "and nothing has no folder");
+
+        Check(std::strcmp(JoinPath("C:/Game", "art/a.png").c_str(), "C:/Game/art/a.png") == 0,
+            "joining puts exactly one separator in");
+        Check(std::strcmp(JoinPath("C:/Game/", "art/a.png").c_str(), "C:/Game/art/a.png") == 0,
+            "even when the root already ends with one");
+        Check(std::strcmp(JoinPath("C:/Game", "/art/a.png").c_str(), "C:/Game/art/a.png") == 0,
+            "and when the relative part starts with one");
+        Check(std::strcmp(JoinPath("", "art/a.png").c_str(), "art/a.png") == 0,
+            "an empty root leaves the relative path alone");
+        Check(std::strcmp(JoinPath("C:/Game", "").c_str(), "C:/Game") == 0,
+            "and an empty relative path leaves the root alone");
+
+        std::cout << "  path helper tests passed" << std::endl;
+    }
+
     // **캔버스 뷰가 화면 왼쪽 위에 적는 글**이다(D-172, 기존 캔버스 뷰의 오버레이).
     // 규칙은 상태를 아는 에디터가 갖는다 - 화면마다 다시 쓰면 이름 없는 것과 여럿 고른 것을
     // 저마다 다르게 적는다.
@@ -7443,6 +7480,7 @@ int RunEditorApplicationTests()
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
     TestTheGizmoCanWorkInWorldAxes();
+    TestThePathHelpersAgreeOnOneAnswer();
     TestTheEditorSaysWhatIsChosen();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();

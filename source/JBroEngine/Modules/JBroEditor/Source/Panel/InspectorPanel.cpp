@@ -23,6 +23,7 @@
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Editor/EditorPaths.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -627,7 +628,35 @@ namespace JBro
     void InspectorPanel::DrawAsset(const AssetMetaFile& meta)
     {
         const AssetRecord* record = m_editor->GetAssetRegistry().Find(meta.id);
-        Widget::Text(record != nullptr ? record->relativePath.c_str() : "?");
+        // **무엇을 보고 있는지 머리에 적는다**(D-173, 기존 에셋 인스펙터의 첫 네 줄).
+        // 경로 한 줄만 있으면 그 파일이 어떤 종류로 등록되었는지, 번호가 무엇인지 알 길이
+        // 에디터 안에 없었다 - `.jmeta` 를 직접 열어 봐야 했다.
+        {
+            Widget::FormLayout header("##assetHeader");
+            const char* path = record != nullptr ? record->relativePath.c_str() : "?";
+            const char* leaf = EditorPaths::LeafOfPath(path);
+            header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetName, "Asset")),
+                [&]() { Widget::WrappedText(leaf != nullptr ? leaf : path); });
+            header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetType, "Type")),
+                [&]() {
+                    const AssetType type = record != nullptr ? record->type : AssetType::Unknown;
+                    const char* name = AssetTypeRules::GetTypeName(type);
+                    Widget::Text(name != nullptr ? name : "?");
+                });
+            header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetPath, "Path")),
+                [&]() { Widget::WrappedText(path); });
+            header.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAssetId, "Id")),
+                [&]() {
+                    char text[Uuid::TextCapacity] = {};
+                    if (meta.id.ToText(text, sizeof(text)))
+                    {
+                        // 32 자리라 좁은 칸에서는 한 줄에 들어가지 않는다. 잘라 보이면
+                        // 그 번호로 파일을 찾을 수 없다.
+                        Widget::WrappedText(text);
+                    }
+                });
+        }
+        ImGui::Separator();
 
         // **그림을 보여 준다**(D-147, 기존 `AssetInspectorPreview` 자리). 임포트 옵션을
         // 고치는 자리에 그림이 없으면 무엇을 고치고 있는지 이름으로만 알아야 한다.
@@ -641,6 +670,16 @@ namespace JBro
             std::uint32_t sourceHeight = 0;
             m_editor->GetAssetSourceSize(meta.id, sourceWidth, sourceHeight);
             Widget::Image(preview, Widget::FitInside(sourceWidth, sourceHeight, ImVec2(side, side)));
+            ImGui::Spacing();
+        }
+        // **그림은 뷰어에서 크게 본다**(D-173, 기존 `뷰어에서 열기`). 에셋 브라우저에서 두 번
+        // 누르는 길만 있어서, 인스펙터에서 옵션을 고치다 칸을 확인하려면 브라우저로 건너가야 했다.
+        if (AssetTypeRules::IsImageType(meta.type))
+        {
+            if (Widget::Button(Loc::TextOr(LocKeys::InspectorOpenInViewer, "Open in Viewer")))
+            {
+                m_editor->OpenSpriteViewer(meta.id);
+            }
             ImGui::Spacing();
         }
         DrawAssetOptions(meta);

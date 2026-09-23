@@ -71,6 +71,11 @@ Entries:
   inspector.add_component: Add Component
   inspector.move_up: Move Up
   inspector.move_down: Move Down
+  inspector.asset_name: Asset
+  inspector.asset_type: Type
+  inspector.asset_path: Path
+  inspector.asset_id: Id
+  inspector.open_in_viewer: Open in Viewer
   inspector.copy_component: Copy Component
   inspector.paste_component: Paste Component
   inspector.paste_component_values: Paste Values Only

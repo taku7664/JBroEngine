@@ -3,6 +3,7 @@
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/MessagePopup.h>
@@ -221,35 +222,13 @@ namespace JBro
     namespace
     {
         // 에셋 폴더 기준 상대경로를 실제 경로로. 둘 다 비면 빈 글자다.
+        // 잇는 규칙은 공용이다(D-173) - 같은 세 줄이 패널마다 따로 있었다.
         String JoinPath(const String& root, const char* relative)
         {
-            String result = root;
-            if (relative == nullptr || relative[0] == '\0')
-            {
-                return result;
-            }
-            if (false == result.empty() && result.back() != '/' && result.back() != '\\')
-            {
-                result.append("/", 1);
-            }
-            result.append(relative, std::strlen(relative));
-            return result;
+            return EditorPaths::JoinPath(root.c_str(), relative);
         }
 
         // `art/enemy.png` 의 폴더는 `art` 다. 슬래시가 없으면 빈 글자(뿌리)다.
-        String FolderOf(const char* relative)
-        {
-            const String path(relative != nullptr ? relative : "");
-            const std::size_t slash = path.find_last_of("/\\");
-            return slash == String::npos ? String() : String(path.substr(0, slash).c_str());
-        }
-
-        String LeafOfPath(const char* relative)
-        {
-            const String path(relative != nullptr ? relative : "");
-            const std::size_t slash = path.find_last_of("/\\");
-            return slash == String::npos ? path : String(path.substr(slash + 1).c_str());
-        }
     }
 
     bool EditorApplication::OpenProjectFile(const char* projectFilePath, ProjectFileError& error)
@@ -601,7 +580,7 @@ namespace JBro
         {
             return false;
         }
-        String target = FolderOf(relativePath);
+        String target = EditorPaths::FolderOf(relativePath);
         if (false == target.empty())
         {
             target.append("/", 1);
@@ -645,7 +624,7 @@ namespace JBro
         {
             return false;
         }
-        const String leaf = LeafOfPath(relativePath);
+        const String leaf = EditorPaths::LeafOfPath(relativePath);
         String target(targetFolder != nullptr ? targetFolder : "");
         if (false == target.empty())
         {
@@ -1393,7 +1372,7 @@ namespace JBro
         {
             return false;
         }
-        const String leaf = LeafOfPath(sourcePath);
+        const String leaf = EditorPaths::LeafOfPath(sourcePath);
         if (leaf.empty() || AssetTypeRules::DetectTypeFromPath(leaf.c_str()) == AssetType::Unknown)
         {
             Log::Write(LogLevel::Warning, "asset", "not an asset type the engine knows: %s", sourcePath);

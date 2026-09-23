@@ -210,7 +210,7 @@
 | `Main/Guizmo/Guizmo2D`·`Guizmo3D`·`EditorGuizmoController` | `GizmoModel`·`GizmoEditing`·`Widget::Gizmo` (로컬·월드 포함) | 완료 (D-109·D-140·D-171) |
 | `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기·컴포넌트 복사와 붙여넣기) | 완료 (D-142·D-165·D-167), 레이어·캔버스 인스펙터는 열림 |
 | `Main/Importer/SpriteFramePick` | `EditorApplication::BeginSpriteFramePick` + 뷰어의 고르기 줄 | 완료 (D-165) |
-| `Main/Inspector/AssetInspectorPreview` | 인스펙터 미리보기 | 완료 (D-147) |
+| `Main/Inspector/AssetInspectorPreview` | 인스펙터 미리보기 + 머리 네 줄·뷰어에서 열기 | 완료 (D-147·D-173) |
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
 | `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |
 | `Main/Inspector/ButtonRectFit` | — | 해당 없음 (`Button2D` 없음) |
@@ -240,7 +240,7 @@
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |
 | `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 오디오 위젯·`ImReferenceField` 는 열림 |
 | `Localization/EditorReflectionLabels` | — | 해당 없음 (필드는 필드 이름으로 보인다, §11.2) |
-| `Path/EditorPathUtils` | `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 |
+| `Path/EditorPathUtils` | `JBro/Editor/EditorPaths.h` 의 `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 (D-173), 그전까지는 패널마다 따로 있었다 |
 | `Script/ScriptSchema` | — | 해당 없음 (JBroScript 미구현) |
 
 `ImPathField` 는 경로 칸에 "찾아보기" 단추를 단다. `Widget::PathField` 로 섰다(D-164) - 프로젝트 설정의 경로 여섯이 쓴다. `ImReferenceField` 는 오브젝트 참조 칸인데, 그런 필드를 가진 컴포넌트가 아직

@@ -5,6 +5,7 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Button.h>
@@ -39,11 +40,6 @@ namespace JBro
             return slash == std::string_view::npos ? String() : folder.Substr(0, slash);
         }
 
-        const char* LeafOf(const String& folder)
-        {
-            const std::size_t slash = folder.View().rfind('/');
-            return slash == std::string_view::npos ? folder.c_str() : folder.c_str() + slash + 1;
-        }
     }
 
     const char* AssetBrowserPanel::GetTitle() const
@@ -97,7 +93,7 @@ namespace JBro
             Entry entry;
             entry.record = &record;
             entry.folder = ParentOf(record.relativePath);
-            entry.name = LeafOf(record.relativePath);
+            entry.name = EditorPaths::LeafOfPath(record.relativePath);
             m_entries.Add(entry);
             // 조상 폴더까지 전부 등록한다 - 파일이 깊이 있어도 중간 폴더가 나무에 있어야 한다.
             for (String folder = entry.folder; false == folder.empty(); folder = ParentOf(folder))
@@ -512,7 +508,7 @@ namespace JBro
             {
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(row.ContentRect.Min);
-                Widget::Text(LeafOf(child));
+                Widget::Text(EditorPaths::LeafOfPath(child));
                 ImGui::SetCursorScreenPos(cursor);
             }
             if (clicked)
@@ -552,7 +548,7 @@ namespace JBro
             Widget::HintTextF("/");
             ImGui::SameLine(0.0f, 4.0f);
             ImGui::PushID(part.c_str());
-            if (Widget::TextButton(LeafOf(part)))
+            if (Widget::TextButton(EditorPaths::LeafOfPath(part)))
             {
                 m_openFolder = part;
             }
@@ -586,7 +582,7 @@ namespace JBro
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(row.ContentRect.Min);
                 // 폴더임을 글자로 말한다. 아이콘 글꼴이 없어도 갈린다.
-                Widget::TextF("%s/", LeafOf(child));
+                Widget::TextF("%s/", EditorPaths::LeafOfPath(child));
                 ImGui::SetCursorScreenPos(cursor);
             }
             if (clicked)
@@ -672,7 +668,7 @@ namespace JBro
         {
             m_pending = relativePath;
             m_pendingIsFolder = isFolder;
-            m_nameBuffer = LeafOf(relativePath);
+            m_nameBuffer = EditorPaths::LeafOfPath(relativePath);
             m_openRename = true;
         }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
