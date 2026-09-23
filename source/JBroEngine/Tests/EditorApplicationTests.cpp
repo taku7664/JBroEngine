@@ -4091,6 +4091,74 @@ namespace
     //
     // 글자는 되읽을 수 없지만 ImGui 는 메뉴의 Id 를 **보이는 이름으로** 센다.
     // 메뉴바 줄을 훑어 번역된 이름의 Id 가 가리켜지는지 본다.
+    // **어디서 띄우든 같은 것을 찾는다**(D-176). 글자 표와 아이콘 글꼴을 현재 작업 폴더에서
+    // 찾고 있었다 - 런처나 바로가기로 띄운 에디터는 그 둘을 못 찾아 **영어로, 아이콘 없이** 떴다.
+    void TestTheEditorFindsItsFilesFromAnywhere()
+    {
+        // 지금 폴더에서 한 번, 엉뚱한 폴더에서 한 번. 두 번의 결과가 같아야 한다.
+        JBro::String here;
+        JBro::String elsewhere;
+        bool hereIcons = false;
+        bool elsewhereIcons = false;
+        // **읽은 글자는 전역 표에 남는다.** 그래서 글자만 보면 둘째 에디터가 표를 못 찾아도
+        // 앞의 것이 읽어 둔 한국어가 나온다 - 폴더를 실제로 찾았는지는 그 안의 언어 수로 본다.
+        std::size_t hereLocales = 0;
+        std::size_t elsewhereLocales = 0;
+
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.windowWidth = WindowWidth;
+            config.windowHeight = WindowHeight;
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device; resource paths not verified" << std::endl;
+                return;
+            }
+            here = JBro::Loc::Text(JBro::LocKeys::MenuFile);
+            hereIcons = JBro::EditorTheme::HasIconFont();
+            hereLocales = editor.GetAvailableLocales().Size();
+            editor.Shutdown();
+        }
+        if (here == JBro::String(JBro::LocKeys::MenuFile) || here == JBro::String("File"))
+        {
+            std::cout << "  [skip] the menu names are not translated here; "
+                "resource paths not verified" << std::endl;
+            return;
+        }
+
+        wchar_t previous[1024] = {};
+        const DWORD written = GetCurrentDirectoryW(1024, previous);
+        Check(written != 0 && written < 1024, "the test must be able to remember where it is");
+        const std::filesystem::path away = std::filesystem::temp_directory_path();
+        Check(SetCurrentDirectoryW(away.wstring().c_str()) != 0,
+            "and be able to stand somewhere else");
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.windowWidth = WindowWidth;
+            config.windowHeight = WindowHeight;
+            if (editor.Initialize(config))
+            {
+                elsewhere = JBro::Loc::Text(JBro::LocKeys::MenuFile);
+                elsewhereIcons = JBro::EditorTheme::HasIconFont();
+                elsewhereLocales = editor.GetAvailableLocales().Size();
+                editor.Shutdown();
+            }
+        }
+        Check(SetCurrentDirectoryW(previous) != 0, "and come back");
+
+        Check(elsewhere == here,
+            "the editor speaks the same language wherever it was started from");
+        Check(elsewhereIcons == hereIcons,
+            "and finds its icon font from there too");
+        Check(hereLocales > 0, "the language folder must be found from here");
+        Check(elsewhereLocales == hereLocales,
+            "and the same languages must be found from there");
+    }
+
     void TestTheMenuBarSpeaksTheLoadedLocale()
     {
         JBro::EditorApplication editor;
@@ -7638,6 +7706,7 @@ int RunEditorApplicationTests()
     TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::D3D11);
     TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi::Vulkan);
     TestTheEditorDrawsWithNoProjectOpen();
+    TestTheEditorFindsItsFilesFromAnywhere();
     TestTheMenuBarSpeaksTheLoadedLocale();
     TestTheEditorForwardsInputToItsUi();
     TestThePanelRegistryRefusesWhatItCannotHold();

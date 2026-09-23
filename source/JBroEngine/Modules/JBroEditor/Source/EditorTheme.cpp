@@ -1,4 +1,6 @@
 ﻿#include <JBro/Editor/EditorTheme.h>
+#include <cstring>
+#include <JBro/Platform/Platform.h>
 #include <JBro/Editor/EditorIcons.h>
 
 #include <imgui.h>
@@ -107,11 +109,14 @@ namespace JBro::EditorTheme
     {
         const char* g_iconFontPath = nullptr;
         bool g_hasIconFont = false;
+        // 글꼴 파일을 읽어 줄 플랫폼이다. 널이면 아이콘 없이 간다.
+        IPlatform* g_platform = nullptr;
     }
 
-    void SetIconFontPath(const char* path)
+    void SetIconFontPath(const char* path, IPlatform* platform)
     {
         g_iconFontPath = path;
+        g_platform = platform;
     }
 
     bool HasIconFont()
@@ -129,43 +134,26 @@ namespace JBro::EditorTheme
         {
             return;
         }
-        // **파일은 우리가 직접 읽어서 넘긴다.** ImGui 에 경로를 주면 그 쪽이 경로를 UTF-8 로
-        // 보고 넓은 문자로 바꾸는데, 실행 인자로 들어온 경로는 이 기계의 ANSI 코드페이지다
-        // (D-97). 설치 폴더에 한글이 섞이면 ImGui 가 파일을 못 열고 단언으로 죽는다 -
-        // 아이콘 글꼴 하나 때문에 에디터가 뜨지 않으면 안 된다. C 런타임으로 열면 인자와
-        // 같은 인코딩이라 그 자리에서 맞는다.
-        FILE* file = nullptr;
-        if (fopen_s(&file, g_iconFontPath, "rb") != 0 || file == nullptr)
+        // **파일은 플랫폼이 읽는다**(D-176, D-112). 예전에는 `fopen_s` 로 열었는데, 그것은 경로를
+        // 이 기계의 ANSI 코드페이지로 본다 - 사용자 폴더에 한글이 있으면(`C:/Users/박주형/...`)
+        // UTF-8 경로가 맞지 않아 **글꼴을 못 찾았다**. 실제로 실행 파일 기준 절대경로로 바꾼
+        // 날 그 자리에서 났다. 플랫폼의 읽기는 UTF-8 을 넓은 문자로 제대로 바꾼다.
+        Array<std::byte> bytes;
+        if (g_platform == nullptr || false == g_platform->ReadWholeFile(g_iconFontPath, bytes)
+            || bytes.IsEmpty())
         {
             std::printf("note: icon font not found at %s; icons render as boxes\n", g_iconFontPath);
             return;
         }
-        std::fseek(file, 0, SEEK_END);
-        const long fileSize = std::ftell(file);
-        std::fseek(file, 0, SEEK_SET);
-        if (fileSize <= 0)
-        {
-            std::fclose(file);
-            std::printf("note: icon font at %s is empty; icons render as boxes\n", g_iconFontPath);
-            return;
-        }
+        const std::size_t fileSize = bytes.Size();
         // 아틀라스가 이 메모리를 물려받아 `IM_FREE` 로 놓는다. 그래서 ImGui 의 할당기로 잡는다.
-        void* fontData = ImGui::MemAlloc(static_cast<std::size_t>(fileSize));
+        void* fontData = ImGui::MemAlloc(fileSize);
         if (fontData == nullptr)
         {
-            std::fclose(file);
             std::printf("note: icon font at %s could not be read; icons render as boxes\n", g_iconFontPath);
             return;
         }
-        const std::size_t readSize =
-            std::fread(fontData, 1, static_cast<std::size_t>(fileSize), file);
-        std::fclose(file);
-        if (readSize != static_cast<std::size_t>(fileSize))
-        {
-            ImGui::MemFree(fontData);
-            std::printf("note: icon font at %s could not be read; icons render as boxes\n", g_iconFontPath);
-            return;
-        }
+        std::memcpy(fontData, bytes.Data(), fileSize);
 
         ImGuiIO& io = ImGui::GetIO();
         ImFontConfig config;

@@ -163,6 +163,39 @@ namespace JBro
         return false == static_cast<bool>(errorCode);
     }
 
+    String WindowsPlatform::GetExecutableFolder() const
+    {
+        // **경로 길이를 정해 두지 않는다.** `MAX_PATH` 로 잘라 두면 깊은 폴더에 설치한 사람의
+        // 에디터가 글자 표를 못 찾는다 - 모자라면 버퍼를 늘려 다시 묻는다.
+        std::wstring buffer(512, L'\0');
+        for (int attempt = 0; attempt < 5; ++attempt)
+        {
+            const DWORD written = GetModuleFileNameW(
+                nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+            if (written == 0)
+            {
+                return String();
+            }
+            if (written < buffer.size())
+            {
+                buffer.resize(written);
+                break;
+            }
+            buffer.resize(buffer.size() * 2);
+        }
+        std::error_code errorCode;
+        const fs::path folder = fs::path(buffer).parent_path();
+        if (folder.empty())
+        {
+            return String();
+        }
+        const std::string utf8 = folder.generic_u8string().empty()
+            ? std::string()
+            : std::string(reinterpret_cast<const char*>(folder.generic_u8string().c_str()));
+        (void)errorCode;
+        return String(utf8.c_str());
+    }
+
     bool WindowsPlatform::RevealInFileBrowser(const char* utf8Path)
     {
         const fs::path path = ToPath(utf8Path);

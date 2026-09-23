@@ -573,6 +573,8 @@ namespace JBro
         // 글자 표가 사는 곳과 지금 언어·폴백이다(D-146). 언어를 바꾸려면 다시 읽어야 하고,
         // 다시 읽으려면 처음에 어디서 읽었는지를 들고 있어야 한다.
         String m_localizationDirectory;
+        // 아이콘 글꼴의 경로다. 실행 파일 기준으로 풀어 둔 값이다(D-176).
+        String m_iconFontPath;
         String m_locale;
         String m_fallbackLocale;
         // 프로젝트를 열 때 파일에서 읽은 캔버스 뷰 카메라다. 패널이 만들어질 때 가져간다 -

@@ -113,7 +113,6 @@ namespace JBro
         {
             m_fileDialog = config.fileDialog;
             m_fileDialogUser = config.fileDialogUser;
-            EditorTheme::SetIconFontPath(config.iconFontPath);
             m_platform = MakeOwnerPtr<WindowsPlatform>();
             if (false == m_platform->Initialize(config.memory))
             {
@@ -121,11 +120,49 @@ namespace JBro
                 return false;
             }
 
+            // **프로그램과 함께 놓인 것은 실행 파일 기준으로 찾는다**(D-176). 현재 작업 폴더로
+            // 찾으면 어디서 띄웠는지에 따라 있다가 없다 - 런처나 바로가기로 띄운 에디터가
+            // 글자 표를 못 찾아 **영어로 떴다**(실제로 그랬다). 절대경로는 그대로 쓴다.
+            const String executableFolder = m_platform->GetExecutableFolder();
+            const auto besideExecutable = [&executableFolder](const char* relative) -> String
+            {
+                const String path(relative != nullptr ? relative : "");
+                if (path.empty() || executableFolder.empty())
+                {
+                    return path;
+                }
+                // 드라이브 문자(`C:`)나 구분자로 시작하면 이미 절대경로다.
+                const char* text = path.c_str();
+                const bool absolute = text[0] == '/' || text[0] == '\\'
+                    || (path.size() > 1 && text[1] == ':');
+                if (absolute)
+                {
+                    return path;
+                }
+                return EditorPaths::JoinPath(executableFolder.c_str(), text);
+            };
+            // **실행 파일 옆에 실제로 있을 때만 그리로 본다.** 개발 트리에서 돌릴 때는 글꼴처럼
+            // 실행 폴더로 복사되지 않는 것이 있다 - 없는 것을 가리키면 그것까지 못 읽는다.
+            const auto besideExecutableOrHere = [&](const char* relative) -> String
+            {
+                const String resolved = besideExecutable(relative);
+                if (resolved.empty() || resolved == String(relative != nullptr ? relative : ""))
+                {
+                    return resolved;
+                }
+                if (m_platform->FileExists(resolved.c_str())
+                    || m_platform->DirectoryExists(resolved.c_str()))
+                {
+                    return resolved;
+                }
+                return String(relative != nullptr ? relative : "");
+            };
+            m_iconFontPath = besideExecutableOrHere(config.iconFontPath);
+            EditorTheme::SetIconFontPath(m_iconFontPath.c_str(), m_platform.Get());
+
             // **글자를 먼저 읽는다.** 창 제목부터 이미 번역 대상이다. 파일은 플랫폼이 열므로(D-112) 플랫폼 뒤다.
             // 실패해도 그냥 간다 - 코드에 있는 영어 원문으로 떨어질 뿐이다.
-            m_localizationDirectory = config.localizationDirectory != nullptr
-                ? config.localizationDirectory
-                : "";
+            m_localizationDirectory = besideExecutableOrHere(config.localizationDirectory);
             m_locale = config.locale != nullptr ? config.locale : "";
             m_fallbackLocale = config.fallbackLocale != nullptr ? config.fallbackLocale : "";
             LocalizationTable::Get().Load(
@@ -3218,6 +3255,9 @@ namespace JBro
         }
         if (m_platform)
         {
+            // **테마가 든 플랫폼 포인터를 먼저 놓는다**(D-176). 정적 자리에 남겨 두면 다음
+            // 테마 적용이 이미 죽은 플랫폼으로 글꼴을 읽으러 간다 - 테스트가 그 자리에서 죽었다.
+            EditorTheme::SetIconFontPath(nullptr, nullptr);
             m_platform->Shutdown();
             m_platform.Reset();
         }

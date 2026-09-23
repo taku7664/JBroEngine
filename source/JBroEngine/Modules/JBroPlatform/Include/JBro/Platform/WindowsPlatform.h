@@ -31,6 +31,7 @@ namespace JBro
         bool CreateDirectoryAt(const char* utf8Path) override;
         bool DeleteFileAt(const char* utf8Path) override;
         bool DeleteDirectoryAt(const char* utf8Path) override;
+        String GetExecutableFolder() const override;
         bool RevealInFileBrowser(const char* utf8Path) override;
         bool FileExists(const char* utf8Path) const override;
         bool DirectoryExists(const char* utf8Path) const override;

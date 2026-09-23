@@ -159,6 +159,15 @@ namespace JBro
             (void)utf8Path;
             return false;
         }
+        // **실행 파일이 있는 폴더**다(D-176). 없는 플랫폼이면 빈 글자다.
+        //
+        // 프로그램과 함께 놓인 것(글자 표·아이콘 글꼴)은 이 폴더 기준으로 찾아야 한다.
+        // 현재 작업 폴더로 찾으면 **어디서 띄웠는지에 따라 있다가 없다** - 실제로 런처나
+        // 바로가기로 띄운 에디터가 글자 표를 못 찾아 영어로 떴다.
+        virtual String GetExecutableFolder() const
+        {
+            return String();
+        }
         // 그 경로를 운영체제의 파일 탐색기에서 연다. 없는 플랫폼이면 거짓이다.
         virtual bool RevealInFileBrowser(const char* utf8Path)
         {
