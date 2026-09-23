@@ -25,6 +25,9 @@ namespace JBro::LocKeys
     inline constexpr const char* GizmoTranslate = "gizmo.translate";
     inline constexpr const char* GizmoRotate = "gizmo.rotate";
     inline constexpr const char* GizmoScale = "gizmo.scale";
+    inline constexpr const char* GizmoSpaceLocal = "gizmo.space_local";
+    inline constexpr const char* GizmoSpaceWorld = "gizmo.space_world";
+    inline constexpr const char* GizmoSpaceTooltip = "gizmo.space_tooltip";
 
     // ── 캔버스 뷰 (D-130) ────────────────────────────────────────────────
     inline constexpr const char* CanvasViewGrid = "canvas_view.grid";

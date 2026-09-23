@@ -11,6 +11,9 @@ Entries:
   gizmo.translate: 이동
   gizmo.rotate: 회전
   gizmo.scale: 크기
+  gizmo.space_local: 로컬
+  gizmo.space_world: 월드
+  gizmo.space_tooltip: 손잡이를 오브젝트의 축에 둡니다. 월드로 바꾸면 화면의 축을 따릅니다 (크기는 늘 오브젝트의 축)
   menu.file: 파일
   menu.edit: 편집
   menu.window: 창

@@ -128,6 +128,8 @@ namespace JBro
         float m_pitchDegrees = -25.0f;
 
         GizmoMode m_gizmoMode = GizmoMode::Translate;
+        // 손잡이를 오브젝트의 축에 둘지 월드 축에 둘지(D-171). 크기 모드에서는 쓰지 않는다.
+        GizmoSpace m_gizmoSpace = GizmoSpace::Local;
         Widget::GizmoState m_gizmoState;
         GizmoEditing m_editing;
         bool m_showGrid = true;

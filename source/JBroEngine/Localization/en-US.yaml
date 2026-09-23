@@ -11,6 +11,9 @@ Entries:
   gizmo.translate: Move
   gizmo.rotate: Rotate
   gizmo.scale: Scale
+  gizmo.space_local: Local
+  gizmo.space_world: World
+  gizmo.space_tooltip: put the handles on the object's axes, or switch to World for the screen's (scaling always uses the object's)
   menu.file: File
   menu.edit: Edit
   menu.window: Window

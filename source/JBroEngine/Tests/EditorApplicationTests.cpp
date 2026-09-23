@@ -7025,6 +7025,116 @@ namespace
         editor.Shutdown();
     }
 
+    // **월드 축으로 바꾸면 손잡이가 화면의 축을 따른다**(D-171, 기존 기즈모의 `L`/`W`).
+    // 우리 기즈모는 늘 오브젝트의 축이라, 45도 돌아간 것을 오른쪽으로 곧게 밀 길이 없었다.
+    void TestTheGizmoCanWorkInWorldAxes()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; gizmo space not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GizmoSpaceProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* target = canvas->CreateObject("Turned");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(target);
+        Check(transform != nullptr, "the object needs a transform");
+        // **90도 돌려 둔다.** 그러면 로컬 X 는 화면의 위쪽이고 월드 X 는 오른쪽이라,
+        // 어느 축을 쓰는지가 손잡이의 자리로 드러난다.
+        transform->rotation = 90.0f;
+        editor.SetSelectedObject(target);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const int centerX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+
+        // 기즈모의 한가운데(= 오브젝트의 자리)를 찾는다. 뷰의 한가운데는 툴바만큼
+        // 창의 한가운데와 어긋나 있다.
+        Spot origin;
+        origin.x = centerX;
+        origin.y = 0;
+        bool foundOrigin = false;
+        for (int y = static_cast<int>(view->Pos.y) + 40;
+             y < static_cast<int>(view->Pos.y + view->Size.y) - 10 && false == foundOrigin;
+             y += 12)
+        {
+            editor.ClearSelection();
+            Check(editor.Tick(Frame), "the editor must tick before looking");
+            Spot probe;
+            probe.x = centerX;
+            probe.y = y;
+            ClickAt(editor, hwnd, probe);
+            if (editor.IsSelected(target))
+            {
+                origin = probe;
+                foundOrigin = true;
+            }
+        }
+        Check(foundOrigin, "the gizmo centre must be somewhere down the middle of the view");
+
+        // ── 로컬: 오른쪽에는 손잡이가 없다. 끌어도 오브젝트는 그 자리다. ──────
+        const float startX = transform->position.x;
+        const float startY = transform->position.y;
+        Spot from;
+        from.x = origin.x + 45;
+        from.y = origin.y;
+        Spot to;
+        to.x = from.x + 80;
+        to.y = from.y;
+        DragTo(editor, hwnd, from, to);
+        Check(transform->position.x == startX && transform->position.y == startY,
+            "with local axes there is no handle to the right of a 90 degree object");
+
+        // ── 월드로 바꾼다. 툴바의 단추가 그 자리다. ───────────────────────────
+        Spot button;
+        const char* localLabel = JBro::Loc::TextOr(JBro::LocKeys::GizmoSpaceLocal, "Local");
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, localLabel), button),
+            "the toolbar must offer the local/world toggle");
+        ClickAt(editor, hwnd, button);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the toggle");
+        }
+        const char* worldLabel = JBro::Loc::TextOr(JBro::LocKeys::GizmoSpaceWorld, "World");
+        Spot worldButton;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, worldLabel), worldButton),
+            "and the button must now say world");
+
+        // ── 월드: 오른쪽 손잡이를 잡아 오른쪽으로 민다. ───────────────────────
+        //
+        // 앞의 끌기는 손잡이를 못 잡아 **사각 선택**이 되었고, 그래서 고른 것이 풀렸다.
+        // 기즈모는 고른 것이 있어야 뜬다.
+        editor.SetSelectedObject(target);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the object chosen again");
+        }
+        DragTo(editor, hwnd, from, to);
+        Check(transform->position.x > startX + 0.1f,
+            "with world axes the handle to the right moves the object to the right");
+        Check(std::fabs(transform->position.y - startY) < 0.2f, "and not up or down");
+        Check(transform->rotation == 90.0f, "the object keeps its rotation");
+        Check(editor.GetCommands().GetUndoCount() >= 1, "and the drag leaves something to undo");
+
+        editor.Shutdown();
+    }
+
     // **캔버스 뷰에서 오브젝트를 우클릭하면 그 오브젝트의 메뉴가 뜬다**(D-170).
     // 기존 캔버스 뷰도 그 자리에서 추가·복사·붙여넣기·삭제를 냈는데, 우리는 무엇을
     // 눌러도 빈자리 메뉴(`오브젝트 추가`·`붙여넣기`)만 나왔다.
@@ -7268,6 +7378,7 @@ int RunEditorApplicationTests()
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
+    TestTheGizmoCanWorkInWorldAxes();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();
     TestDeletingAnObjectCanBeUndoneWithItsValues();

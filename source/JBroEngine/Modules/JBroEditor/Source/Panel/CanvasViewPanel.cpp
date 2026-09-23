@@ -284,6 +284,29 @@ namespace JBro
             Loc::TextOr(LocKeys::GizmoTranslate, "Move"),
             Loc::TextOr(LocKeys::GizmoRotate, "Rotate"),
             Loc::TextOr(LocKeys::GizmoScale, "Scale"), true);
+        // **로컬·월드**(D-171, 기존 기즈모의 `L`/`W`). 크기 모드에서는 쓰지 않으므로 잠근다 -
+        // 눌러도 아무 일이 없으면 고장과 구분되지 않는다.
+        ImGui::SameLine(0.0f, 6.0f);
+        {
+            const bool scaling = m_gizmoMode == GizmoMode::Scale;
+            if (scaling)
+            {
+                ImGui::BeginDisabled();
+            }
+            const bool world = m_gizmoSpace == GizmoSpace::World;
+            if (Widget::Button(world
+                    ? Loc::TextOr(LocKeys::GizmoSpaceWorld, "World")
+                    : Loc::TextOr(LocKeys::GizmoSpaceLocal, "Local")))
+            {
+                m_gizmoSpace = world ? GizmoSpace::Local : GizmoSpace::World;
+            }
+            if (scaling)
+            {
+                ImGui::EndDisabled();
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::GizmoSpaceTooltip,
+                "put the handles on the object's axes or on the world's; scaling always uses the object's"));
+        }
         // 기즈모 모드와 보기 단추는 **다른 무리**다. 사이를 띄우고 줄을 그어 가른다 -
         // 붙여 두면 `크기` 와 `격자` 가 한 낱말처럼 읽힌다.
         Widget::ToolBarSeparator();
@@ -1503,6 +1526,12 @@ namespace JBro
             return;
         }
 
+        // **월드 축으로 보면 손잡이의 회전만 지운다**(D-171). 옮기기·돌리기는 월드 델타로 쓰므로
+        // (`GizmoEditing::Write`) 주체의 회전은 손잡이가 어느 쪽을 가리키는지만 정한다.
+        if (m_gizmoSpace == GizmoSpace::World && m_gizmoMode != GizmoMode::Scale)
+        {
+            subject.rotation = Quaternion{0.0f, 0.0f, 0.0f, 1.0f};
+        }
         const GizmoSubject shown = m_gizmoState.dragging ? m_gizmoState.drag.start : subject;
         const Widget::GizmoOutput output =
             Widget::Gizmo(m_gizmoMode, camera, shown, m_gizmoState, true);
