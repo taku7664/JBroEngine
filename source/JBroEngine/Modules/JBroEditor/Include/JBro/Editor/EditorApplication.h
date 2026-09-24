@@ -87,6 +87,10 @@ namespace JBro
         // 없이 저장 경로를 주는 자리다 - 네이티브 대화상자는 사람 없이 닫히지 않는다.
         bool (*fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* fileDialogUser = nullptr;
+        // OS 의 기본 프로그램에게 넘기는 것을 대신하는 함수(D-192). 널이면 플랫폼이 연다.
+        // 대화상자와 같은 까닭이다 - 테스트가 진짜로 메모장을 띄울 수는 없다.
+        bool (*openPath)(const char* utf8Path, void* user) = nullptr;
+        void* openPathUser = nullptr;
         JMemoryContext memory;
     };
 
@@ -231,6 +235,15 @@ namespace JBro
         // **되돌릴 수 없다.** 부르는 쪽이 먼저 물어야 한다.
         bool DeleteAsset(const char* relativePath);
         bool RevealAsset(const char* relativePath);
+        // **에셋 브라우저를 그 에셋 앞으로 데려간다**(D-193, 기존 `ImReferenceField::OnActivate`).
+        // `RevealAsset` 은 탐색기를 여는 다른 일이다 - 이쪽은 에디터 안에서 찾아 준다.
+        // 브라우저가 다음 프레임에 가져간다: 폴더를 열고 그 줄을 고른다.
+        void RevealAssetInBrowser(AssetId asset);
+        // 브라우저가 부른다. 기다리는 것이 있으면 아이디를 주고 비운다.
+        bool TakeBrowserRevealRequest(AssetId& asset);
+        // 엔진이 모르는 파일을 OS 의 기본 프로그램으로 연다. 열 프로그램이 없으면
+        // 탐색기로 그 자리를 보여 준다 - 두 번 눌렀는데 아무 일도 없는 것보다 낫다.
+        bool OpenAssetExternally(const char* relativePath);
 
         // **에셋 선택**(D-120). 에셋 브라우저가 고르고 인스펙터가 임포트 옵션을 보여 준다. 오브젝트 선택과 배타다 -
         // 에셋을 고르면 오브젝트 선택이 비고, 오브젝트를 고르면 에셋 선택이 빈다. 인스펙터는 하나만 보인다.
@@ -545,6 +558,8 @@ namespace JBro
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;
         PopupHandle m_nextPopupHandle = 1;
+        // 브라우저가 찾아가야 할 에셋. 비어 있으면 기다리는 것이 없다(D-193).
+        AssetId m_revealInBrowser;
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
         std::uint64_t m_trashCounter = 0;
         String m_canvasPath;
@@ -568,6 +583,8 @@ namespace JBro
         bool m_hasComponentClipboard = false;
         bool (*m_fileDialog)(const FileDialogDesc& desc, String& outPath, void* user) = nullptr;
         void* m_fileDialogUser = nullptr;
+        bool (*m_openPath)(const char* utf8Path, void* user) = nullptr;
+        void* m_openPathUser = nullptr;
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과
         // 같다). Ctrl 로 빼다 보면 목록의 머리가 바뀌는데, 그때마다 인스펙터가
         // 다른 것을 보여 주면 손이 미끄러진 것처럼 보인다.

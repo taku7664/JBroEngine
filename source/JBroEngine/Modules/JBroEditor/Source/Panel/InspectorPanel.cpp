@@ -559,6 +559,23 @@ namespace JBro
             ArrayView<const AssetId>(choices.ids.Data(), choices.ids.Size()),
             *static_cast<AssetId*>(address))
             .Draw();
+        // **이 에셋이 어디 있는지 물어볼 수 있다**(D-193, 기존은 더블클릭이었다).
+        // 우리 칸은 콤보라 두 번 누르면 두 번째가 팝업 위에 떨어진다 - 같은 일을
+        // 우클릭으로 한다.
+        {
+            const AssetId chosen = *static_cast<const AssetId*>(address);
+            if (Widget::BeginContextMenu("##assetFieldMenu"))
+            {
+                if (Widget::MenuItem(
+                        Loc::TextOr(LocKeys::AssetsFindInBrowser, "Find in Asset Browser"),
+                        nullptr, false == chosen.IsNull(),
+                        Loc::TextOr(LocKeys::BlockedNoAssetHere, "this field is empty")))
+                {
+                    m_editor->RevealAssetInBrowser(chosen);
+                }
+                Widget::EndContextMenu();
+            }
+        }
         if (changed && snapped)
         {
             CommitEdit(type, address, before, context);

@@ -447,6 +447,12 @@ namespace JBro
             {
                 m_editor->RequestOpenCanvas(entry.record->relativePath.c_str());
             }
+            else
+            {
+                // **엔진이 모르는 파일은 OS 에게 넘긴다**(기존 브라우저의 기본 동작).
+                // 두 번 눌렀는데 아무 일도 없으면 고장으로 보인다.
+                m_editor->OpenAssetExternally(entry.record->relativePath.c_str());
+            }
         }
 
         if (false == clicked)
@@ -982,6 +988,21 @@ namespace JBro
         {
             Widget::HintText(Loc::TextOr(LocKeys::HierarchyNoProject, "no project is open"));
             return;
+        }
+        // **인스펙터가 "이 에셋 어디 있어" 라고 물었다**(D-193). 그 폴더를 열고 줄을 고른다.
+        // 경로 글자가 아니라 아이디로 찾는다 - 구분자 표기가 어긋나도 안전하다(기존과 같다).
+        AssetId wanted;
+        if (m_editor->TakeBrowserRevealRequest(wanted))
+        {
+            if (const AssetRecord* record = m_editor->GetAssetRegistry().Find(wanted))
+            {
+                m_openFolder = EditorPaths::FolderOf(record->relativePath.c_str());
+                SelectOnly(record->relativePath);
+                m_anchor = record->relativePath;
+                m_editor->SetSelectedAsset(record->id);
+                // 찾아온 자리가 검색에 걸려 안 보이면 찾아 준 뜻이 없다.
+                m_filter.clear();
+            }
         }
         Widget::SearchBox("##filter", m_filter)
             .Hint(Loc::TextOr(LocKeys::CommonSearch, "Search"))

@@ -116,6 +116,8 @@ namespace JBro
         {
             m_fileDialog = config.fileDialog;
             m_fileDialogUser = config.fileDialogUser;
+            m_openPath = config.openPath;
+            m_openPathUser = config.openPathUser;
             m_platform = MakeOwnerPtr<WindowsPlatform>();
             if (false == m_platform->Initialize(config.memory))
             {
@@ -931,6 +933,48 @@ namespace JBro
             all->Add(MakeOwnerPtr<DeleteAssetCommand>(*this, relativePaths[index]));
         }
         return m_commands.Execute(std::move(all), EditorCommandManager::AssetDatabase);
+    }
+
+    bool EditorApplication::OpenAssetExternally(const char* relativePath)
+    {
+        if (relativePath == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = JoinPath(GetAssetRoot(), relativePath);
+        if (m_openPath != nullptr)
+        {
+            return m_openPath(path.c_str(), m_openPathUser);
+        }
+        if (m_platform->OpenPathWithShell(path.c_str()))
+        {
+            return true;
+        }
+        // 열 프로그램이 없는 확장자다. 그 자리를 탐색기로 보여 준다 - 두 번 눌렀는데
+        // 아무 일도 없는 것보다는 어디 있는지라도 알려 주는 편이 낫다.
+        return m_platform->RevealInFileBrowser(path.c_str());
+    }
+
+    void EditorApplication::RevealAssetInBrowser(AssetId asset)
+    {
+        m_revealInBrowser = asset;
+        // **닫혀 있으면 그리지 않는다.** 브라우저가 스스로를 열 수는 없으므로 여기서 연다.
+        if (EditorPanel* panel = FindPanel("Assets"))
+        {
+            panel->SetOpen(true);
+            ImGui::SetWindowFocus(panel->GetTitle());
+        }
+    }
+
+    bool EditorApplication::TakeBrowserRevealRequest(AssetId& asset)
+    {
+        if (m_revealInBrowser.IsNull())
+        {
+            return false;
+        }
+        asset = m_revealInBrowser;
+        m_revealInBrowser = AssetId{};
+        return true;
     }
 
     bool EditorApplication::RevealAsset(const char* relativePath)

@@ -176,6 +176,14 @@ namespace JBro
             return String();
         }
         // 그 경로를 운영체제의 파일 탐색기에서 연다. 없는 플랫폼이면 거짓이다.
+        // **OS 의 기본 프로그램에게 넘긴다**(기존 `File::OpenFile`). 엔진이 모르는 파일을
+        // 에셋 브라우저에서 두 번 눌렀을 때 쓴다 - 탐색기로 보여 주는 `RevealInFileBrowser`
+        // 와 짝이고, 성격이 같아 나란히 둔다.
+        virtual bool OpenPathWithShell(const char* utf8Path)
+        {
+            (void)utf8Path;
+            return false;
+        }
         virtual bool RevealInFileBrowser(const char* utf8Path)
         {
             (void)utf8Path;

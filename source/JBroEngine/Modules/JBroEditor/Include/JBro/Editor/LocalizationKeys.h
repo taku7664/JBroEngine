@@ -183,6 +183,7 @@ namespace JBro::LocKeys
     // 회색 항목에 마우스를 올렸을 때 뜨는 한 줄이다(D-181). 저장이 막힌 까닭은
     // 이미 `popup.save_blocked_while_playing` 이 있어 그것을 같이 쓴다.
     inline constexpr const char* BlockedNoProject = "blocked.no_project";
+    inline constexpr const char* BlockedNoAssetHere = "blocked.no_asset_here";
     inline constexpr const char* BlockedNothingToUndo = "blocked.nothing_to_undo";
     inline constexpr const char* BlockedNothingToRedo = "blocked.nothing_to_redo";
     inline constexpr const char* BlockedClipboardEmpty = "blocked.clipboard_empty";
@@ -219,6 +220,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsDeleteFailed = "assets.delete_failed";
     inline constexpr const char* AssetsMoveFailed = "assets.move_failed";
     inline constexpr const char* AssetsReveal = "assets.reveal";
+    inline constexpr const char* AssetsFindInBrowser = "assets.find_in_browser";
     inline constexpr const char* AssetsRescan = "assets.rescan";
     inline constexpr const char* AssetsNewCanvas = "assets.new_canvas";
     inline constexpr const char* AssetsDuplicate = "assets.duplicate";

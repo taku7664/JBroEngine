@@ -113,6 +113,7 @@ Entries:
   common.no_matches: 일치하는 항목이 없습니다
   common.already_added: 이미 추가됨
   blocked.no_project: 열린 프로젝트가 없습니다
+  blocked.no_asset_here: 이 칸이 비어 있습니다
   blocked.nothing_to_undo: 되돌릴 것이 없습니다
   blocked.nothing_to_redo: 다시 실행할 것이 없습니다
   blocked.clipboard_empty: 복사해 둔 것이 없습니다
@@ -186,6 +187,7 @@ Entries:
   assets.delete_failed: 삭제하지 못했습니다
   assets.move_failed: 옮기지 못했습니다
   assets.reveal: 탐색기에서 보기
+  assets.find_in_browser: 에셋 브라우저에서 찾기
   common.cancel: 취소
   assets.rescan: 새로 고침
   assets.new_canvas: 새 캔버스

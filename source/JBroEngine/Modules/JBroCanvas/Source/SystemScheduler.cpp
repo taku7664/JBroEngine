@@ -1,5 +1,7 @@
 ﻿#include <JBro/Canvas/SystemScheduler.h>
 
+#include <JBro/Core/Profiler.h>
+
 #include <algorithm>
 
 namespace JBro
@@ -61,7 +63,11 @@ namespace JBro
         ExecutionScope scope(m_executing);
         for (auto& entry : m_systems)
         {
+            // 고정 스텝도 같은 이름 아래 쌓인다(기존도 풀의 총 순회시간을 합해 냈다).
+            // 부른 횟수가 함께 보이므로 한 프레임에 몇 번 돌았는지는 거기서 읽는다.
+            Profiler::Push(entry.profileName);
             entry.system->FixedUpdate(canvas, fixedDeltaTime);
+            Profiler::Pop();
         }
     }
 
@@ -74,7 +80,11 @@ namespace JBro
         ExecutionScope scope(m_executing);
         for (auto& entry : m_systems)
         {
+            // **어느 시스템이 느린지 보이게 한다**(D-194). 꺼져 있으면 `Push`·`Pop` 이
+            // 아무 일도 하지 않으므로 게임 실행에 값을 물리지 않는다.
+            Profiler::Push(entry.profileName);
             entry.system->Update(canvas, deltaTime);
+            Profiler::Pop();
         }
     }
 

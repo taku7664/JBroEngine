@@ -7680,6 +7680,206 @@ namespace
     //
     // **캔버스는 더러워지지 않는다.** 파일 이름을 바꿨다고 "저장 안 됨" 이 되면
     // 저장할 것이 없는데도 저장을 누르게 된다.
+    // 창이 받는 모양대로 두 번 누른다. 두 번째 누름은 `WM_LBUTTONDBLCLK` 다.
+    void DoubleClickAt(JBro::EditorApplication& editor, HWND hwnd, const Spot& spot)
+    {
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+        Check(editor.Tick(Frame), "the editor must tick");
+        for (const UINT press : {static_cast<UINT>(WM_LBUTTONDOWN),
+                                 static_cast<UINT>(WM_LBUTTONDBLCLK)})
+        {
+            PostMessageW(hwnd, press, MK_LBUTTON, MAKELPARAM(spot.x, spot.y));
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while the button is held");
+            }
+            PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(spot.x, spot.y));
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick on the release");
+            }
+        }
+    }
+
+    // 열어 달라고 넘어온 경로를 받아 적는 자리다. 진짜로 메모장을 띄울 수는 없다.
+    JBro::String g_openedPath;
+
+    bool RecordOpenedPath(const char* utf8Path, void* user)
+    {
+        (void)user;
+        g_openedPath = utf8Path != nullptr ? utf8Path : "";
+        return true;
+    }
+
+    // **엔진이 모르는 파일도 두 번 누르면 열린다**(D-192, 기존 브라우저의 기본 열기).
+    // 그림과 캔버스만 알고 나머지는 아무 일도 하지 않았다 - 두 번 눌렀는데 반응이 없으면
+    // 고장으로 보인다.
+    //
+    // **그리고 인스펙터가 "이 에셋 어디 있어" 를 물을 수 있다**(D-193, 기존 `OnActivate`).
+    // 브라우저가 그 폴더로 옮겨 가 그 줄을 고른다.
+    void TestUnknownFilesOpenAndAssetsCanBeFound()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / "JBroOpenFindProbe";
+        std::error_code errorCode;
+        fs::remove_all(root, errorCode);
+        fs::create_directories(root / "Assets" / "notes", errorCode);
+        fs::create_directories(root / "Assets" / "elsewhere", errorCode);
+        {
+            std::ofstream other(root / "Assets" / "elsewhere" / "other.png", std::ios::binary);
+            other.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        {
+            // **스캔이 아는 타입이어야 브라우저에 선다.** 모르는 확장자는 아예 등록되지
+            // 않으므로 줄이 없다 - 셰이더는 우리가 열 줄 모르는, 목록에 서는 파일이다.
+            std::ofstream shader(root / "Assets" / "notes" / "tint.hlsl", std::ios::binary);
+            shader << "float4 main() : SV_Target { return 1; }";
+        }
+        {
+            std::ofstream image(root / "Assets" / "notes" / "hero.png", std::ios::binary);
+            image.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath((root / "Probe.jproject").string().c_str());
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        g_openedPath.clear();
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        config.openPath = RecordOpenedPath;
+        JBro::EditorApplication editor;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; opening and finding not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // 브라우저 탭을 앞으로 꺼낸다. 뒤에 있으면 그 안의 줄을 가리킬 수 없다.
+        ImGuiWindow* browser = ImGui::FindWindowByName("Assets");
+        Check(browser != nullptr, "the asset browser must have a window");
+        if (false == browser->DockTabIsVisible && browser->DockNode != nullptr
+            && browser->DockNode->TabBar != nullptr)
+        {
+            ImGuiTabBar* tabBar = browser->DockNode->TabBar;
+            ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, browser->TabId);
+            Check(tab != nullptr, "the asset browser must have a tab in its dock");
+            Spot tabSpot;
+            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            ClickAt(editor, hwnd, tabSpot);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the tab");
+            }
+            browser = ImGui::FindWindowByName("Assets");
+        }
+        Check(browser != nullptr && browser->DockTabIsVisible,
+            "the asset browser tab must be in front");
+
+        // 줄은 왼쪽 나무(`##tree`)와 오른쪽 목록(`##contents`) 안에 있고, 각자 제 아이디를 쓴다.
+        const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
+            const int x = static_cast<int>(pane->Pos.x + 40.0f);
+            const int bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
+            for (int y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking for a row");
+                if (ImGui::GetHoveredID() == rowId)
+                {
+                    out.x = x;
+                    out.y = y;
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        // ── 모르는 파일을 두 번 누른다 ───────────────────────────────────
+        {
+            ImGuiWindow* tree = FindChildWindow(browser, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            Spot folder;
+            Check(findRow(tree, LabelId(LabelId(tree->ID, "notes"), "##folder"), folder),
+                "the notes folder must be a row in the tree");
+            ClickAt(editor, hwnd, folder);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle in the folder");
+            }
+        }
+        browser = ImGui::FindWindowByName("Assets");
+        ImGuiWindow* contents = FindChildWindow(browser, "##contents");
+        Check(contents != nullptr, "the contents pane must exist");
+        Spot note;
+        Check(findRow(contents, LabelId(LabelId(contents->ID, "notes/tint.hlsl"), "##file"), note),
+            "the shader must be a row in the folder");
+        DoubleClickAt(editor, hwnd, note);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the double click");
+        }
+        Check(g_openedPath.find("tint.hlsl") != JBro::String::npos,
+            "double clicking a file the editor cannot open must hand it to the OS");
+
+        // ── 인스펙터가 찾아 달라고 한다 ──────────────────────────────────
+        const JBro::AssetRecord* image = editor.GetAssetRegistry().FindByPath("notes/hero.png");
+        Check(image != nullptr, "the image must be registered");
+        // 다른 폴더로 옮겨 둔다. 찾아 달라는 말에 브라우저가 그 폴더로 **옮겨 가야** 한다.
+        {
+            ImGuiWindow* tree = FindChildWindow(browser, "##tree");
+            Check(tree != nullptr, "the folder tree pane must still exist");
+            Spot away;
+            Check(findRow(tree, LabelId(LabelId(tree->ID, "elsewhere"), "##folder"), away),
+                "the other folder must be a row in the tree");
+            ClickAt(editor, hwnd, away);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle in the other folder");
+            }
+        }
+        browser = ImGui::FindWindowByName("Assets");
+        contents = FindChildWindow(browser, "##contents");
+        Check(contents != nullptr, "the contents pane must exist in the other folder");
+        Spot beforeReveal;
+        Check(false == findRow(contents,
+                  LabelId(LabelId(contents->ID, "notes/hero.png"), "##file"), beforeReveal),
+            "the test needs the image to be out of sight before it asks for it");
+
+        editor.SetSelectedAsset(JBro::AssetId{});
+        editor.RevealAssetInBrowser(image->id);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after being asked to find it");
+        }
+        Check(editor.GetSelectedAsset() == image->id,
+            "being asked to find an asset must select it");
+        browser = ImGui::FindWindowByName("Assets");
+        contents = FindChildWindow(browser, "##contents");
+        Check(contents != nullptr, "the contents pane must exist after the reveal");
+        Spot shown;
+        Check(findRow(contents, LabelId(LabelId(contents->ID, "notes/hero.png"), "##file"), shown),
+            "and the browser must have moved to the folder it lives in");
+
+        editor.Shutdown();
+        fs::remove_all(root, errorCode);
+    }
+
     void TestAssetFileWorkCanBeUndone()
     {
         namespace fs = std::filesystem;
@@ -8833,6 +9033,7 @@ int RunEditorApplicationTests()
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheCanvasItselfCanBeSelectedAndPainted();
     TestTheAssetBrowserSelectsManyFilesAtOnce();
+    TestUnknownFilesOpenAndAssetsCanBeFound();
     TestAssetFileWorkCanBeUndone();
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();

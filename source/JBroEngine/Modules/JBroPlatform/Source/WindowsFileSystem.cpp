@@ -196,6 +196,19 @@ namespace JBro
         return String(utf8.c_str());
     }
 
+    bool WindowsPlatform::OpenPathWithShell(const char* utf8Path)
+    {
+        const fs::path path = ToPath(utf8Path);
+        if (path.empty())
+        {
+            return false;
+        }
+        // 확장자에 맞는 프로그램이 없으면 실패한다. 그때는 부르는 쪽이 탐색기로 보여 준다.
+        const HINSTANCE result = ShellExecuteW(
+            nullptr, L"open", path.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        return reinterpret_cast<INT_PTR>(result) > 32;
+    }
+
     bool WindowsPlatform::RevealInFileBrowser(const char* utf8Path)
     {
         const fs::path path = ToPath(utf8Path);
