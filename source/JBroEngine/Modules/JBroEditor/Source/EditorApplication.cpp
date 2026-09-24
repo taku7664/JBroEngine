@@ -1499,8 +1499,12 @@ namespace JBro
             }
         }
         CanvasFileError error;
-        const bool alsoSession = m_saveProjectRequested;
+        // **저장은 늘 세션까지 적는다**(D-188, 기존 `EditorSessionPersistence::Save`).
+        // 기존 엔진의 `Ctrl+S` 도 캔버스를 적고 이어서 프로젝트를 적었다 - 캔버스만 적고
+        // 보던 자리를 흘리면, 다시 열었을 때 어디를 보고 있었는지 아무도 모른다.
+        // 파일로 열지 않은 프로젝트에는 적을 자리가 없으므로 `SaveEditorSession` 이 건너뛴다.
         m_saveProjectRequested = false;
+        constexpr bool alsoSession = true;
         if (false == SaveCanvas(path.c_str(), error))
         {
             // 실패는 로그가 아니라 사용자에게 간다. 같은 Id 라 연달아 실패해도 하나만 뜬다.
@@ -3283,6 +3287,11 @@ namespace JBro
 
     void EditorApplication::Shutdown()
     {
+        // **닫기 전에 보던 자리를 적는다**(D-188). 세션을 적는 길은 `프로젝트 저장` 과
+        // `CloseProject` 뿐이었는데, 창을 닫는 길은 그 둘을 지나지 않았다 - 카메라를 옮기고
+        // `Ctrl+S` 로 캔버스만 저장한 뒤 창을 닫으면 보던 자리가 사라졌다.
+        // `CloseProject` 가 재생을 멈추고 세션을 적는 일을 이미 한 벌로 들고 있다.
+        CloseProject();
         ReleaseProcessResources();
     }
 

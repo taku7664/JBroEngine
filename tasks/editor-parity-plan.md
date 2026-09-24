@@ -240,7 +240,7 @@
 | `Command/EditorCommandManager` | `EditorCommandManager` | 완료 |
 | `Command/EditorObjectCommands`·`EditorLayerCommands` | `ObjectCommands`·`HierarchyCommands`·`LayerCommands` | 완료 (D-135·D-142) |
 | `Command/EditorCanvasCommands`·`EditorFileCommands` | 캔버스 저장·열기 요청, 에셋 파일 조작 | 완료 (D-139) |
-| `EditorSessionPersistence` | `SaveEditorSession`·`.layout.ini` | 완료 (D-146) |
+| `EditorSessionPersistence` | `SaveEditorSession`·`.layout.ini` | 완료 (D-146·D-188), 기존처럼 저장과 종료가 모두 세션을 적는다 |
 | `EditorSimulationGuard` | `SaveCanvas` 의 재생 중 거절 | 완료 (D-153) |
 | `EditorDragDrop` | `Widget/AssetDrag.h` | 완료 (D-154), `.jlayer` 드롭은 해당 없음(레이어 에셋 없음) |
 | `EditorContext` | `EditorApplication` | 완료 |

@@ -6875,6 +6875,80 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **창을 닫는 것만으로도 보던 자리가 남는다**(D-188). 세션을 적는 길은
+    // `프로젝트 저장` 과 `CloseProject` 뿐이었는데, 창을 닫는 길은 그 둘을 지나지
+    // 않았다 - 카메라를 옮기고 캔버스만 저장한 뒤 닫으면 보던 자리가 사라졌다.
+    void TestClosingTheEditorRemembersWhereYouWere()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroShutdownSessionProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        const JBro::String projectPath =
+            TempPath("JBroShutdownSessionProbe\\Session.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        float movedX = 0.0f;
+        float movedY = 0.0f;
+        float movedSize = 0.0f;
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.windowWidth = 800;
+            config.windowHeight = 600;
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device; the shutdown session not verified"
+                          << std::endl;
+                return;
+            }
+            JBro::ProjectFileError error;
+            Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+            Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+            HWND hwnd = FindOwnEditorWindow();
+            Check(hwnd != nullptr, "the editor window must be findable");
+            ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+            Check(view != nullptr, "the canvas view must have a window");
+            const int x = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+            const int y = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick");
+            PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, WHEEL_DELTA), MAKELPARAM(x, y));
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle after the wheel");
+            }
+            editor.GetCanvasViewCamera(movedX, movedY, movedSize);
+            Check(movedSize > 0.0f, "the canvas view must report a camera");
+            // **저장을 한 번도 안 한다.** 닫는 것만으로 남아야 한다.
+            editor.Shutdown();
+        }
+
+        std::ifstream in(fs::path(projectPath.c_str()), std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(in)),
+            std::istreambuf_iterator<char>());
+        Check(text.find("CanvasViewCameraSize") != std::string::npos,
+            "closing the editor must write where the view was looking");
+        char expected[64] = {};
+        std::snprintf(expected, sizeof(expected), "CanvasViewCameraSize: %g", movedSize);
+        Check(text.find(expected) != std::string::npos,
+            "and it must be the size the view actually had");
+
+        fs::remove_all(root, ignored);
+    }
+
     void TestTheEditorSessionSurvivesReopening()
     {
         namespace fs = std::filesystem;
@@ -8524,6 +8598,7 @@ int RunEditorApplicationTests()
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
     TestTheEditorSessionSurvivesReopening();
+    TestClosingTheEditorRemembersWhereYouWere();
     TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();
     TestTheCanvasViewRulerReadsInPixelsToo();
