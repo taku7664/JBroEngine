@@ -4,7 +4,7 @@
 #include <JBro/Platform/Platform.h>
 
 #include <cstdio>
-#include <string>
+#include <cstring>
 
 namespace JBro
 {
@@ -33,7 +33,7 @@ namespace JBro
         {
             return false;
         }
-        const std::string text(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        const String text(std::string_view(reinterpret_cast<const char*>(bytes.Data()), bytes.Size()));
 
         YamlDocument document;
         YamlError error;
@@ -68,7 +68,7 @@ namespace JBro
         Table<String, String> fallbackEntries;
         const bool loaded = LoadFile(platform, directory, locale, entries);
         const bool needsFallback = fallback != nullptr && locale != nullptr
-            && std::string(fallback) != std::string(locale);
+            && std::strcmp(fallback, locale) != 0;
         // **폴백이 없을 때 `true` 로 두면 안 된다.** 기존 엔진이 그렇게 되어 있는데,
         // 로케일과 폴백이 같고 그 파일이 없으면 "폴백은 필요 없었으니 성공" 이 되어
         // **빈 표를 성공이라며 깔아 버린다.** 그러면 이미 그려지던 화면이 통째로

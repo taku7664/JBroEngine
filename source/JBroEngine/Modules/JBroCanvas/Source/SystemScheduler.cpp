@@ -65,9 +65,8 @@ namespace JBro
         {
             // 고정 스텝도 같은 이름 아래 쌓인다(기존도 풀의 총 순회시간을 합해 냈다).
             // 부른 횟수가 함께 보이므로 한 프레임에 몇 번 돌았는지는 거기서 읽는다.
-            Profiler::Push(entry.profileName);
+            const ProfileScope timing(entry.profileName);
             entry.system->FixedUpdate(canvas, fixedDeltaTime);
-            Profiler::Pop();
         }
     }
 
@@ -80,11 +79,15 @@ namespace JBro
         ExecutionScope scope(m_executing);
         for (auto& entry : m_systems)
         {
-            // **어느 시스템이 느린지 보이게 한다**(D-194). 꺼져 있으면 `Push`·`Pop` 이
-            // 아무 일도 하지 않으므로 게임 실행에 값을 물리지 않는다.
-            Profiler::Push(entry.profileName);
+            // **어느 시스템이 느린지 보이게 한다**(D-194). 꺼져 있으면 재는 일 자체가
+            // 아무것도 하지 않으므로 게임 실행에 값을 물리지 않는다.
+            //
+            // **스스로 닫는 구간으로 잰다**(D-195). `Push`·`Pop` 을 손으로 짝지으면
+            // 시스템이 던질 때 `Pop` 을 건너뛰고, 그 프레임부터 겹이 0 으로 돌아오지
+            // 않아 그 뒤의 모든 구간이 엉뚱한 깊이로 쌓인다. `Initialize` 가 이미
+            // 시스템이 던지는 것을 전제로 쓰여 있다.
+            const ProfileScope timing(entry.profileName);
             entry.system->Update(canvas, deltaTime);
-            Profiler::Pop();
         }
     }
 

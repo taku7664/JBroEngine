@@ -10,6 +10,8 @@
 #include <iterator>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 // 화면에 나오는 글자를 키로 다루는 표다(ProjectRule §11.2).
 //
@@ -258,6 +260,135 @@ namespace
         // 형식 문자열이 하나도 없으면 이 검사는 아무것도 재지 않은 것이다.
         Check(formats > 0, "the shipped locales must contain format strings to compare");
     }
+
+    // 한 줄에서 `inline constexpr const char* Name = "key";` 의 둘을 꺼낸다.
+    bool ParseKeyLine(const std::string& line, std::string& name, std::string& key)
+    {
+        const std::size_t star = line.find("const char* ");
+        const std::size_t equals = line.find(" = \"", star);
+        if (star == std::string::npos || equals == std::string::npos)
+        {
+            return false;
+        }
+        const std::size_t close = line.find('"', equals + 4);
+        if (close == std::string::npos)
+        {
+            return false;
+        }
+        name = line.substr(star + 12, equals - (star + 12));
+        key = line.substr(equals + 4, close - (equals + 4));
+        return name.empty() == false && key.empty() == false;
+    }
+
+    // **키 목록과 로케일 파일과 코드가 셋 다 같은 것을 말하는지 본다**(D-195).
+    //
+    // 위의 `TestTheShippedLocalesAgree` 는 키 상수 넷만 짚어 본다 - "전부 세려면 목록이
+    // 둘이 된다" 는 이유였다. 목록을 또 적는 대신 **헤더를 읽으면** 그 문제가 없다.
+    // 이 검사가 막는 것은 셋이다. 로케일 파일에 없는 키를 코드가 부르면 화면에 키가
+    // 그대로 나오고(폴백), 코드가 아무 데서도 부르지 않는 키는 번역해야 할 목록을
+    // 부풀리며, 헤더에 없는 키가 파일에 있으면 아무도 그것이 죽은 줄 모른다.
+    void TestEveryKeyIsDeclaredTranslatedAndUsed()
+    {
+        namespace fs = std::filesystem;
+        const fs::path header(
+            "Modules/JBroEditor/Include/JBro/Editor/LocalizationKeys.h");
+        std::error_code ignored;
+        if (false == fs::is_regular_file(header, ignored))
+        {
+            std::cout << "  [skip] the editor sources are not beside the test" << std::endl;
+            return;
+        }
+        std::vector<std::pair<std::string, std::string>> declared;
+        {
+            std::ifstream in(header, std::ios::binary);
+            std::string line;
+            while (std::getline(in, line))
+            {
+                std::string name;
+                std::string key;
+                if (ParseKeyLine(line, name, key))
+                {
+                    declared.emplace_back(name, key);
+                }
+            }
+        }
+        Check(declared.size() > 200, "the key header must actually have been read");
+
+        // ① 선언한 키는 두 로케일 모두에 있어야 한다.
+        JBro::YamlDocument korean;
+        JBro::YamlDocument english;
+        std::uint32_t koreanEntries = 0;
+        std::uint32_t englishEntries = 0;
+        if (false == ReadEntries("Localization/ko-KR.yaml", korean, koreanEntries)
+            || false == ReadEntries("Localization/en-US.yaml", english, englishEntries))
+        {
+            std::cout << "  [skip] no Localization directory beside the test" << std::endl;
+            return;
+        }
+        for (const auto& [name, key] : declared)
+        {
+            if (korean.Find(koreanEntries, key.c_str()) == 0
+                || english.Find(englishEntries, key.c_str()) == 0)
+            {
+                std::cout << "  " << name << " (" << key << ")" << std::endl;
+                Check(false, "every declared key must be translated in both locales");
+            }
+        }
+
+        // ② 로케일 파일의 키는 헤더가 선언한 것이어야 한다.
+        const std::size_t count = korean.GetCount(koreanEntries);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            const char* key = korean.GetKey(koreanEntries, index);
+            bool found = false;
+            for (const auto& [name, declaredKey] : declared)
+            {
+                found = found || declaredKey == key;
+            }
+            if (false == found)
+            {
+                std::cout << "  " << key << std::endl;
+                Check(false, "a translated key that the header does not declare is dead");
+            }
+        }
+
+        // ③ 선언한 상수는 어딘가에서 불려야 한다. **갈래 이름만 예외다** -
+        // `EditorNames::ComponentCategoryLabel` 이 `component_category.<갈래>` 를
+        // 그 자리에서 지으므로 상수 이름으로는 코드에 나타나지 않는다.
+        std::string sources;
+        for (const char* folder : {"Modules/JBroEditor", "Modules/JBroEditorHost"})
+        {
+            for (const fs::directory_entry& entry :
+                fs::recursive_directory_iterator(folder, ignored))
+            {
+                const std::string extension = entry.path().extension().string();
+                if (extension != ".cpp" && extension != ".h")
+                {
+                    continue;
+                }
+                if (entry.path().filename() == "LocalizationKeys.h")
+                {
+                    continue;
+                }
+                std::ifstream in(entry.path(), std::ios::binary);
+                sources.append((std::istreambuf_iterator<char>(in)),
+                    std::istreambuf_iterator<char>());
+            }
+        }
+        Check(sources.size() > 100000, "the editor sources must actually have been read");
+        for (const auto& [name, key] : declared)
+        {
+            if (key.rfind("component_category.", 0) == 0)
+            {
+                continue;
+            }
+            if (sources.find(name) == std::string::npos)
+            {
+                std::cout << "  " << name << " (" << key << ")" << std::endl;
+                Check(false, "a key nobody names is a translation nobody needs");
+            }
+        }
+    }
 }
 
 int RunEditorLocalizationTests()
@@ -266,6 +397,7 @@ int RunEditorLocalizationTests()
     TestAFailedLoadLeavesTheOldTableStanding();
     TestTheShippedLocalesAgree();
     TestTheShippedLocalesAgreeOnFormats();
+    TestEveryKeyIsDeclaredTranslatedAndUsed();
     std::cout << "Editor localization tests passed.\n";
     return 0;
 }

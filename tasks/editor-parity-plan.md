@@ -250,7 +250,7 @@
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |
 | `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 한 줄 한 이름 목록(`ImNameListEdit`)은 D-189, 오디오 위젯·`ImReferenceField` 는 열림 |
 | `Localization/EditorReflectionLabels` | `JBro/Editor/EditorNames.h` 의 `DisplayTypeName`·`ComponentCategoryLabel` | 완료 (D-180), 필드 라벨은 해당 없음 (필드 이름으로 보인다, §11.2) |
-| `Localization/EditorLocalizationKeys` | `JBro/Editor/LocalizationKeys.h` + `Localization/{ko-KR,en-US}.yaml` | 완료 (D-184 에서 대조표에 채움), 키 수는 658 대 232 인데 차이는 거의 다 없는 기능(오디오·이펙트·빌드·폰트·프리팹·스크립트·머티리얼·애니메이션)의 것이다 |
+| `Localization/EditorLocalizationKeys` | `JBro/Editor/LocalizationKeys.h` + `Localization/{ko-KR,en-US}.yaml` | 완료 (D-184 에서 대조표에 채움), 키 수는 658 대 242 인데 차이는 거의 다 없는 기능(오디오·이펙트·빌드·폰트·프리팹·스크립트·머티리얼·애니메이션)의 것이다. 선언·번역·사용 셋이 어긋나지 않는 것은 D-195 가 검사로 붙잡는다 |
 | `Icons/FontAwesomeIcons` | `JBro/Editor/EditorIcons.h` | 완료 (D-184 에서 대조표에 채움), 기존이 **실제로 쓰는** 글리프는 넷(`X_MARK`·`EYE`·`EYE_SLASH`·`ELLIPSIS_VERTICAL`)이고 앞의 셋은 우리도 쓴다. 마지막 하나는 스크립트 스키마 위젯 전용이라 해당 없음 |
 | `Path/EditorPathUtils` | `JBro/Editor/EditorPaths.h` 의 `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 (D-173), 그전까지는 패널마다 따로 있었다 |
 | `Script/ScriptSchema` | — | 해당 없음 (JBroScript 미구현) |
@@ -288,6 +288,24 @@ D-189 을 마치고 위젯·명령·창을 한 번 더 항목 단위로 견주�
 | 프로젝트 설정의 짜임 | 왼쪽 갈래 목록 + 스플리터 + 오른쪽 내용, 갈래 여덟(일반·스크립트·입력·로컬라이징·오디오·폰트·디버그·에셋 감시) | 한 폼에 접는 절 셋(일반·경로·빌드) | **다름.** 있는 갈래는 절로 다 들어 있다(에셋 감시는 D-189, 로컬라이징은 `언어`, 디버그는 `DebugModeEnabled`). 없는 갈래는 그 기능이 없다(오디오·폰트·입력). **설정이 스무 개 남짓이라 한 폼이 더 짧다** - 갈래가 늘면 그때 목록을 세운다 |
 | 모르는 파일 두 번 누르기 | 기본 열기 처리기가 `File::OpenFile` 로 OS 에 넘긴다 | 그림과 캔버스만 알고 나머지는 아무 일도 없었다 | **완료** (D-192). `IPlatform::OpenPathWithShell` 이 섰고, 열 프로그램이 없으면 탐색기로 그 자리를 보여 준다 |
 | 프로파일러의 갈래 | 풀(시스템)마다 순회 시간을 내고, 고른 풀의 상세를 낸다 | 시스템마다 한 줄이다. 스케줄러가 `typeid(T).name()` 을 들고 구간을 감싼다 | **완료** (D-194). 고른 풀의 상세(스크립트 오브젝트별 시간)는 스크립트가 없어 해당 없음 |
+
+## 규칙을 지키는지 보는 검사를 훑었다 (2026-09-24, D-195)
+
+앞의 표들은 **기능**을 견준다. 이 절은 그 기능이 규칙대로 서 있는지 **재는 쪽**을 견준 것이다 -
+잘못 재면 표의 "완료" 가 거짓이 되므로, 재는 쪽이 낡는 것은 기능이 빠진 것과 같은 무게다.
+
+| 무엇이 | 무슨 일이 있었나 | 어디로 |
+| --- | --- | --- |
+| 위젯 계층 감시 | D-190 이 `Source/Panel` 만 보던 것을 넓히면서 **폴더 둘과 파일 다섯을 손으로 적었다.** 그 뒤에 생긴 것은 아무도 보지 않는다 - `Source/Command` 13 개와 `Source/Gizmo` 2 개를 포함해 26 개가 검사 밖이었다 | **완료** (D-195). `Source` 아래를 훑고 `Widget` 만 뺀다(43 개). 규칙이 깨졌던 두 파일은 이름이 바뀌어 빠지지 않도록 따로 확인한다. `LayerCommands.cpp` 에 `ImGui::Button(` 을 넣으면 옛 검사는 통과하고 새 검사는 실패한다 |
+| 로컬라이징 키 감시 | `TestTheShippedLocalesAgree` 가 "전부 세려면 목록이 둘이 된다" 며 **키 상수 넷만** 짚어 보았다. 키 수가 맞는지만 세고, 어느 키가 빠졌는지는 보지 않았다 | **완료** (D-195). 헤더를 읽으면 목록은 하나뿐이다. ①선언한 키의 두 로케일 번역 ②로케일 파일의 키가 헤더에 있는지 ③선언한 상수를 코드가 부르는지를 본다. 갈래 이름만 예외다(`EditorNames` 가 짓는다) |
+| 죽은 키 | 위 검사가 곧바로 잡았다 - `hierarchy.empty` 를 부르는 곳이 없다(레이어마다 `hierarchy.layer_empty` 를 내므로 자리가 없다) | **완료** (D-195). 키와 번역 둘을 지웠다. 242 개가 남는다 |
+| 헤더 자기포함 | 174 개 검사가 전부 통과하는데, **MSVC 하나로만 재고 있었다.** `SafePtr.h` 가 `std::forward` 를 쓰며 `<utility>` 를 넣지 않는다 - MSVC 는 `<type_traits>` 가 딸려 들여 주어 보이지 않는다 | **완료** (D-195). 넣었다. 그 하나로 173 개 중 143 개가 g++ 로도 서고, 남은 30 개의 실패 원인은 전부 `Field.h` 의 `__FUNCSIG__` 하나다(고치기 전에는 173 개가 전부 실패했다). `Field.h` 의 비-MSVC 갈래는 **열림** - 리플렉션 코어를 이 자리에서 건드리지 않는다 |
+| 스스로 닫는 구간 | D-194 가 `Profiler::Push`·`Pop` 을 손으로 짝지었다. `ProfileScope` 가 바로 그 이유로 있다 | **완료** (D-195). 시스템이 던지면 겹이 0 으로 돌아오지 않는다 |
+| 에디터의 날 `std::string` | `Localization.cpp` 가 파일 내용과 로케일 비교에 쓰고 있었다(§7) | **완료** (D-195). `String` 과 `std::strcmp` 로 바꿨다 |
+
+**이 절의 검증 한계**: Linux 컨테이너에서 한 작업이라 MSVC 빌드와 `JBroTests` 를 돌리지 못했다.
+g++ 자기포함 훑기와 고친 소스의 구문 검사, 새 검사 둘의 통과·음성 확인까지가 여기서 잰 것이다.
+**Windows 에서 빌드와 테스트를 한 번 돌려야 끝난다.**
 
 ## 사용자가 직접 지적한 것들 — 확인 기록
 

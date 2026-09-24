@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <type_traits>
+#include <utility>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  SafePtr / OwnerPtr — 소유(OwnerPtr) 와 비소유 안전참조(SafePtr) 한 쌍.

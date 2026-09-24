@@ -6766,9 +6766,9 @@ namespace
     void TestPanelsGoThroughTheWidgetLayer()
     {
         namespace fs = std::filesystem;
-        const fs::path panels("Modules/JBroEditor/Source/Panel");
+        const fs::path sourceRoot("Modules/JBroEditor/Source");
         std::error_code ignored;
-        if (false == fs::is_directory(panels, ignored))
+        if (false == fs::is_directory(sourceRoot / "Panel", ignored))
         {
             std::cout << "  [skip] panel sources are not beside the test" << std::endl;
             return;
@@ -6788,24 +6788,27 @@ namespace
         // 메뉴(`EditorActions`)는 패널 폴더 밖이라 규칙이 조용히 지켜지지 않았다 - 그래서
         // 메뉴 항목이 D-181 의 "왜 잠겼는지" 툴팁을 잃은 채였고, 지우기 단추가 그만두기와
         // 똑같이 생겼다.
+        //
+        // **폴더와 파일 이름을 손으로 적던 것을 훑기로 바꾼다**(D-195). 적어 둔 목록은
+        // 그때 있던 것만 보므로, 새로 생긴 소스는 아무도 보지 않는 채로 들어온다 -
+        // D-190 이 고친 바로 그 구멍이 목록이 낡는 방식으로 다시 열려 있었다.
+        // 실제로 `Source/Command` 13 개와 `Source/Gizmo` 2 개를 포함한 26 개가
+        // 이 검사 밖에 있었다. 이제 `Source` 아래 전부를 보고 `Widget` 만 뺀다 -
+        // 그 폴더가 곧 이 규칙이 거치라고 말하는 층이라, 자기 자신을 거칠 수는 없다.
         std::vector<fs::path> sources;
-        for (const fs::path& folder : {panels, fs::path("Modules/JBroEditor/Source/Tool")})
+        for (const fs::directory_entry& entry :
+            fs::recursive_directory_iterator(sourceRoot, ignored))
         {
-            for (const fs::directory_entry& entry : fs::directory_iterator(folder, ignored))
+            if (entry.path().extension() != ".cpp")
             {
-                if (entry.path().extension() == ".cpp")
-                {
-                    sources.push_back(entry.path());
-                }
+                continue;
             }
-        }
-        for (const char* name : {"EditorActions.cpp", "MessagePopup.cpp", "ConfirmPopup.cpp",
-                                 "NewProjectPopup.cpp", "EditorApplication.cpp"})
-        {
-            fs::path one("Modules/JBroEditor/Source");
-            one /= name;
-            Check(fs::is_regular_file(one, ignored), "a source named here must exist");
-            sources.push_back(one);
+            const fs::path folder = entry.path().parent_path();
+            if (folder.filename() == "Widget")
+            {
+                continue;
+            }
+            sources.push_back(entry.path());
         }
         std::size_t scanned = 0;
         for (const fs::path& source : sources)
@@ -6834,7 +6837,18 @@ namespace
                 }
             }
         }
-        Check(scanned >= 14, "the drawing sources must actually have been read");
+        // 훑기가 빈손으로 돌아오면 이 검사는 아무것도 재지 않은 것이다. 지금 43 개다.
+        Check(scanned >= 40, "the drawing sources must actually have been read");
+        // 이름이 바뀌어 빠지는 것까지 막는다 - 둘 다 이 규칙이 실제로 깨졌던 자리다.
+        for (const char* name : {"EditorActions.cpp", "EditorApplication.cpp"})
+        {
+            bool seen = false;
+            for (const fs::path& source : sources)
+            {
+                seen = seen || source.filename() == name;
+            }
+            Check(seen, "the sources that broke this rule before must still be read");
+        }
     }
 
     void TestPickingFollowsTheSpriteAssetSize()
