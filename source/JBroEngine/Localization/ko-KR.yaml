@@ -147,6 +147,9 @@ Entries:
   hierarchy.add_layer: 레이어 추가
   hierarchy.delete_layer: 레이어 삭제
   hierarchy.layer_name: 이름
+  hierarchy.canvas_unsaved: 캔버스 (저장 안 됨)
+  inspector.canvas_properties: 캔버스
+  inspector.canvas_background: 배경색
   hierarchy.layer_empty: 이 레이어에 오브젝트가 없습니다
   hierarchy.layer_visible: 이 레이어를 보이거나 감춥니다
   panel.project_settings: 프로젝트 설정

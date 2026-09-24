@@ -213,6 +213,10 @@ namespace JBro
         // **에셋 선택**(D-120). 에셋 브라우저가 고르고 인스펙터가 임포트 옵션을 보여 준다. 오브젝트 선택과 배타다 -
         // 에셋을 고르면 오브젝트 선택이 비고, 오브젝트를 고르면 에셋 선택이 빈다. 인스펙터는 하나만 보인다.
         void SetSelectedAsset(AssetId id);
+        // **캔버스 자신을 고른다**(D-186, 기존 계층의 캔버스 줄). 고르면 인스펙터가
+        // 캔버스의 값(배경색)을 보여 준다. 오브젝트·에셋 선택과 배타다 - 인스펙터는 하나만 보인다.
+        void SetCanvasSelected(bool selected);
+        bool IsCanvasSelected() const;
         AssetId GetSelectedAsset() const;
         // 고른 에셋의 메타(디스크에 있는 그대로)다. 고른 것이 없거나 메타를 읽지 못했으면 nullptr 다. 커맨드가 돌면
         // (판번호) 다시 읽으므로 편집·되돌리기 뒤에도 디스크와 같다.
@@ -551,6 +555,8 @@ namespace JBro
         // 골라내지 않는다. 되돌리기와 붙여넣기도 아이디를 바꾼다.
         std::uint64_t m_boundRevision = 0;
         AssetId m_selectedAsset;
+        // 캔버스 자신을 골랐는가(D-186). 위의 둘과 배타다.
+        bool    m_canvasSelected = false;
         OwnerPtr<AssetMetaFile> m_selectedAssetMeta;
         bool m_selectedAssetMetaLoaded = false;
         void ReloadSelectedAssetMeta();

@@ -13,6 +13,7 @@
 #include <JBro/Canvas/ScriptPool.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Color.h>
 #include <JBro/Types/Table.h>
 
 #include <cstddef>
@@ -97,6 +98,15 @@ namespace JBro
         void GetObjectPoolUsage(std::size_t& live, std::size_t& capacity) const;
         Layer*      GetLayerAt(std::size_t index);
         LayerId  GetDefaultLayer() const;
+
+        // **이 캔버스를 지우는 색**이다(D-186, 기존 `inspector.canvas.background_color`).
+        // 캔버스 뷰와 게임 뷰가 이 색으로 지우고, `.jcanvas` 에 `BackgroundColor` 로 적힌다.
+        //
+        // 렌더러가 아니라 **캔버스가 든다.** 배경은 그 씬이 어떻게 보여야 하는가의 일부라,
+        // 밤 장면과 낮 장면이 같은 파일을 열 때마다 서로 다른 색을 요구한다. 렌더러에 두면
+        // 캔버스를 바꿀 때마다 밖에서 다시 넣어 줘야 하고, 그 자리를 빠뜨리면 앞 씬의 색이 남는다.
+        const Color& GetBackgroundColor() const;
+        void SetBackgroundColor(const Color& color);
 
         // 같은 타입을 여러 개 붙일 수 있다. 시스템 순회는 타입 풀을 직접 순회한다.
         template<typename T>
@@ -260,6 +270,9 @@ namespace JBro
         OwnerPtr<TObjectPool<GameObject>>               m_objects;
         Array<OwnerPtr<Layer>>                          m_layers;
         LayerId                                      m_defaultLayer = InvalidLayerId;
+        // 기본은 지금까지 화면에 나오던 어두운 회색이다(D-186). 아무것도 적히지 않은
+        // 옛 캔버스 파일을 열어도 보이던 그대로여야 한다.
+        Color                                        m_backgroundColor{0.10f, 0.11f, 0.13f, 1.0f};
         LayerId                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
         // 이름으로 붙인 스크립트의 저장소다. 타입마다 하나씩 늦게 만든다.

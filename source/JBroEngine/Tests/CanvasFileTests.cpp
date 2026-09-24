@@ -246,6 +246,12 @@ namespace
         // 표기를 바꾸면 이 단언이 먼저 운다 — 저장 형식이 조용히 바뀌지 않게 한다.
         const char* const expected =
             "Version: 1\n"
+            // 배경색은 캔버스의 값이다(D-186). 적힐지 않은 옛 파일은 기본값으로 열린다.
+            "BackgroundColor:\n"
+            "  R: 0.1\n"
+            "  G: 0.11\n"
+            "  B: 0.13\n"
+            "  A: 1\n"
             "Layers:\n"
             "  - Id: 0\n"
             "    Name: Default\n"

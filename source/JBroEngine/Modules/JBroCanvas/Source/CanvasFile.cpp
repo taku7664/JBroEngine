@@ -127,6 +127,18 @@ namespace JBro
         YamlWriter writer;
         writer.WriteInt("Version", static_cast<std::int64_t>(CanvasFileVersion));
 
+        // **배경색은 캔버스의 것이다**(D-186). 네 채널을 한 줄씩 적는다 - 한 줄에 몰아
+        // 적으면 사람이 고칠 때 어느 숫자가 무엇인지 세어야 한다.
+        {
+            const Color& background = canvas.GetBackgroundColor();
+            writer.BeginMap("BackgroundColor");
+            writer.WriteFloat("R", background.R);
+            writer.WriteFloat("G", background.G);
+            writer.WriteFloat("B", background.B);
+            writer.WriteFloat("A", background.A);
+            writer.EndMap();
+        }
+
         writer.BeginSequence("Layers");
         for (std::size_t i = 0; i < canvas.GetLayerCount(); ++i)
         {
@@ -223,6 +235,21 @@ namespace JBro
         if (version != static_cast<std::int64_t>(CanvasFileVersion))
         {
             return Fail(error, "this file was written by a different version of the format");
+        }
+
+        // 배경색은 **없어도 된다**(D-186). 이 키가 생기기 전의 파일은 캔버스의 기본값으로
+        // 열린다 - 그것이 그때 화면에 나오던 색이다.
+        {
+            const std::uint32_t background = document.Find(root, "BackgroundColor");
+            if (background != YamlDocument::InvalidNode)
+            {
+                Color color = canvas.GetBackgroundColor();
+                document.FindFloat(background, "R", color.R);
+                document.FindFloat(background, "G", color.G);
+                document.FindFloat(background, "B", color.B);
+                document.FindFloat(background, "A", color.A);
+                canvas.SetBackgroundColor(color);
+            }
         }
 
         // 레이어부터 만든다. 파일의 Id 는 그대로 쓸 수 없으므로(캔버스가 스스로 매긴다)

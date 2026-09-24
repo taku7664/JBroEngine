@@ -143,6 +143,8 @@ namespace JBro
             bool snapped);
         // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
         void DrawAddComponent(GameObject& object);
+        // 캔버스 자신을 골랐을 때의 화면이다(D-186).
+        void DrawCanvas();
         void RemoveComponent(GameObject& object, ComponentBase& component);
         // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.
         void MoveComponent(GameObject& object, std::size_t from, std::size_t to);

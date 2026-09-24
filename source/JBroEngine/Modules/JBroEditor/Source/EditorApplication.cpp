@@ -872,9 +872,30 @@ namespace JBro
         {
             m_selection.Clear();
             m_selected = {};
+            m_canvasSelected = false;
         }
         m_selectedAsset = id;
         ReloadSelectedAssetMeta();
+    }
+
+    void EditorApplication::SetCanvasSelected(bool selected)
+    {
+        // **셋은 서로 배타다**(D-186). 인스펙터는 하나만 보이므로, 캔버스를 고르면
+        // 오브젝트와 에셋의 선택을 비운다 - 그러지 않으면 무엇을 고친 것인지 화면과
+        // 갈린다(에셋 선택이 오브젝트 선택을 비우는 것과 같은 까닭, D-120).
+        if (selected)
+        {
+            m_selection.Clear();
+            m_selected = {};
+            m_selectedAsset = AssetId{};
+            ReloadSelectedAssetMeta();
+        }
+        m_canvasSelected = selected;
+    }
+
+    bool EditorApplication::IsCanvasSelected() const
+    {
+        return m_canvasSelected;
     }
 
     AssetId EditorApplication::GetSelectedAsset() const
@@ -1949,9 +1970,10 @@ namespace JBro
         if (object != nullptr)
         {
             m_selection.Add(object->SafeFromThis());
-            // 오브젝트를 고르면 에셋 선택은 빈다 - 인스펙터는 하나만 보인다(D-120).
+            // 오브젝트를 고르면 에셋과 캔버스 선택은 빈다 - 인스펙터는 하나만 보인다(D-120·D-186).
             m_selectedAsset = {};
             m_selectedAssetMetaLoaded = false;
+            m_canvasSelected = false;
         }
         m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
     }
@@ -1968,6 +1990,7 @@ namespace JBro
         {
             m_selectedAsset = {};
             m_selectedAssetMetaLoaded = false;
+            m_canvasSelected = false;
         }
         for (std::size_t index = 0; index < objects.size; ++index)
         {
@@ -2044,6 +2067,7 @@ namespace JBro
         m_selected = {};
         m_selectedAsset = {};
         m_selectedAssetMetaLoaded = false;
+        m_canvasSelected = false;
     }
 
     std::size_t EditorApplication::GetSelectionCount() const
@@ -2357,6 +2381,16 @@ namespace JBro
         m_canvasViewRequest.centerX = centerX;
         m_canvasViewRequest.centerY = centerY;
         m_canvasViewRequest.orthographicSize = orthographicSize;
+        // **캔버스가 지우는 색을 쓴다**(D-186). 편집하는 배경이 게임에서 보일 배경과
+        // 달라 보이면, 색을 고르는 일 자체를 화면에서 판단할 수 없다.
+        if (const Canvas* canvas = GetCanvas())
+        {
+            const Color& background = canvas->GetBackgroundColor();
+            m_canvasViewRequest.clearColor[0] = background.R;
+            m_canvasViewRequest.clearColor[1] = background.G;
+            m_canvasViewRequest.clearColor[2] = background.B;
+            m_canvasViewRequest.clearColor[3] = background.A;
+        }
         m_canvasViewRequested = true;
         return true;
     }

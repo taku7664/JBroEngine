@@ -115,6 +115,10 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyAddLayer = "hierarchy.add_layer";
     inline constexpr const char* HierarchyDeleteLayer = "hierarchy.delete_layer";
     inline constexpr const char* HierarchyLayerName = "hierarchy.layer_name";
+    // 계층 맨 위의 캔버스 줄(D-186).
+    inline constexpr const char* HierarchyCanvasUnsaved = "hierarchy.canvas_unsaved";
+    inline constexpr const char* InspectorCanvasProperties = "inspector.canvas_properties";
+    inline constexpr const char* InspectorCanvasBackground = "inspector.canvas_background";
     inline constexpr const char* HierarchyLayerEmpty = "hierarchy.layer_empty";
     inline constexpr const char* HierarchyLayerVisible = "hierarchy.layer_visible";
 

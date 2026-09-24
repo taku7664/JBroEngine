@@ -213,6 +213,9 @@ namespace JBro
         m_layers.Clear();
         m_defaultLayer = InvalidLayerId;
         CreateLayer("Default");
+        // 배경색도 기본으로 되돌린다(D-186). 남겨 두면 다음에 여는 캔버스가 제 색을
+        // 적어 두지 않았을 때 앞 캔버스의 배경으로 그려진다.
+        m_backgroundColor = Color{0.10f, 0.11f, 0.13f, 1.0f};
         MarkScriptOrderDirty();
         return true;
     }
@@ -481,6 +484,16 @@ namespace JBro
     LayerId Canvas::GetDefaultLayer() const
     {
         return m_defaultLayer;
+    }
+
+    const Color& Canvas::GetBackgroundColor() const
+    {
+        return m_backgroundColor;
+    }
+
+    void Canvas::SetBackgroundColor(const Color& color)
+    {
+        m_backgroundColor = color;
     }
 
     bool Canvas::DestroyComponent(ComponentBase* component)

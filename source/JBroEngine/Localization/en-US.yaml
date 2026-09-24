@@ -147,6 +147,9 @@ Entries:
   hierarchy.add_layer: Add Layer
   hierarchy.delete_layer: Delete Layer
   hierarchy.layer_name: Name
+  hierarchy.canvas_unsaved: Canvas (unsaved)
+  inspector.canvas_properties: Canvas
+  inspector.canvas_background: Background colour
   hierarchy.layer_empty: this layer is empty
   hierarchy.layer_visible: show or hide this layer
   panel.project_settings: Project Settings

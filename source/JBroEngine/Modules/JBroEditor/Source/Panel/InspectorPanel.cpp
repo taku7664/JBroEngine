@@ -3,6 +3,7 @@
 
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Editor/Command/CanvasCommands.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
@@ -140,6 +141,12 @@ namespace JBro
             if (const AssetMetaFile* meta = m_editor->GetSelectedAssetMeta())
             {
                 DrawAsset(*meta);
+                return;
+            }
+            // 캔버스를 골랐으면 캔버스의 값이다(D-186).
+            if (m_editor->IsCanvasSelected())
+            {
+                DrawCanvas();
                 return;
             }
             Widget::HintTextF("%s",
@@ -381,6 +388,35 @@ namespace JBro
 
         ImGui::Spacing();
         DrawAddComponent(*object);
+    }
+
+    // **캔버스 자신의 값**이다(D-186, 기존 `DrawCanvasInspector`). 지금은 배경색 하나다 -
+    // 기존 엔진에는 뷰포트 목록도 있었지만 우리에게는 뷰포트라는 것이 없다.
+    void InspectorPanel::DrawCanvas()
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr)
+        {
+            Widget::HintTextF("%s",
+                Loc::TextOr(LocKeys::HierarchyNoProject, "no project is open"));
+            return;
+        }
+        Widget::SectionHeader(
+            Loc::TextOr(LocKeys::InspectorCanvasProperties, "Canvas")).Draw();
+        Widget::FormLayout layout("##canvas");
+        layout.Row(
+            Widget::FieldLabel(
+                Loc::TextOr(LocKeys::InspectorCanvasBackground, "Background colour")),
+            [&]() {
+                Color color = canvas->GetBackgroundColor();
+                if (Widget::ColorField("##background", color.Data()))
+                {
+                    // **커맨드로만 고친다**(§11.5). 고르개를 끄는 동안 프레임마다 값이
+                    // 바뀌는데, 커맨드끼리 합쳐지므로 되돌리기는 한 번이다.
+                    m_editor->GetCommands().Execute(
+                        MakeOwnerPtr<SetCanvasBackgroundCommand>(*canvas, color));
+                }
+            });
     }
 
     // 붙일 수 있는 것은 레지스트리에 있는 것이다. 인스펙터는 여기서도 타입을

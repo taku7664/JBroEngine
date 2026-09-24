@@ -13,6 +13,8 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/Command/CanvasCommands.h>
+#include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/ConfirmPopup.h>
@@ -7231,6 +7233,143 @@ namespace
         editor.Shutdown();
     }
 
+    // **캔버스 자신을 골라 배경색을 고친다**(D-186, 기존 `DrawCanvasInspector`).
+    // 오브젝트도 레이어도 아닌 값이 캔버스에 붙는 첫 자리다 - 그전까지는 그런 값이
+    // 갈 곳도, 그것을 고를 줄도 없었다.
+    void TestTheCanvasItselfCanBeSelectedAndPainted()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the canvas inspector not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "CanvasBackgroundProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe canvas must exist");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // ── 고르기는 셋이 서로 배타다 ─────────────────────────
+        Check(false == editor.IsCanvasSelected(), "nothing is selected to begin with");
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        editor.SetSelectedObject(probe);
+        editor.SetCanvasSelected(true);
+        Check(editor.IsCanvasSelected(), "choosing the canvas must take");
+        Check(editor.GetSelectedObject() == nullptr,
+            "and must let go of the object, or the inspector would have two things to show");
+        editor.SetSelectedObject(probe);
+        Check(false == editor.IsCanvasSelected(),
+            "choosing an object again must let go of the canvas");
+
+        // ── 계층의 캔버스 줄 ───────────────────────────────
+        ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(hierarchy != nullptr, "the hierarchy must have a window");
+        Spot canvasRow;
+        Check(FindItemAnywhereInWindow(editor, hwnd, hierarchy,
+                  LabelId(hierarchy->ID, "##canvas"), canvasRow),
+            "the hierarchy must carry a row for the canvas itself");
+        ClickAt(editor, hwnd, canvasRow);
+        Check(editor.Tick(Frame), "the editor must settle on the canvas row");
+        Check(editor.IsCanvasSelected(), "clicking that row must choose the canvas");
+
+        // ── 배경색은 커맨드로만 바뀐다 ──────────────────────
+        const JBro::Color before = canvas->GetBackgroundColor();
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetCanvasBackgroundCommand>(
+            *canvas, JBro::Color{0.8f, 0.2f, 0.1f, 1.0f}));
+        Check(canvas->GetBackgroundColor().R > 0.7f, "the command must paint the canvas");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "as one undo");
+        // **끌기 하나가 되돌리기 하나다.** 색 고르개를 끌면 프레임마다 값이 바뀌는데,
+        // 그때마다 한 칸씩 쌓이면 끌기 한 번을 되돌리는 데 수십 번이 든다.
+        // 병합은 **마우스를 누르고 있는 동안**만 일어나므로(매니저가 끌기 경계를 스스로
+        // 잰다), 여기서는 커맨드가 합쳐질 수 있다고 말하는지와 합쳤을 때 되살릴 값이
+        // 처음 것으로 남는지를 잰다. 실제 끌기는 에디터에서 눈으로 확인했다.
+        // **뒤의 것은 앞의 것이 적용된 뒤에 만들어진다** - 끌기가 실제로 그렇게 돌아간다.
+        // 둘을 나란히 만들어 두면 되살릴 값이 같아져, 합칠 때 어느 쪽을 남기든 검사가 통과한다.
+        canvas->SetBackgroundColor(JBro::Color{0.75f, 0.1f, 0.1f, 1.0f});
+        const JBro::Color beforeDrag = canvas->GetBackgroundColor();
+        JBro::SetCanvasBackgroundCommand first(*canvas, JBro::Color{0.5f, 0.5f, 0.5f, 1.0f});
+        Check(first.Execute(), "the first drag step must run");
+        const JBro::SetCanvasBackgroundCommand second(
+            *canvas, JBro::Color{0.9f, 0.3f, 0.2f, 1.0f});
+        Check(first.CanMerge(second), "two paints of the same canvas must be mergeable");
+        Check(first.TryMerge(second), "and merging must take");
+        Check(first.Execute(), "the merged command must run");
+        Check(canvas->GetBackgroundColor().R > 0.85f,
+            "and end on the later colour, not the earlier one");
+        first.Undo();
+        Check(canvas->GetBackgroundColor().R == beforeDrag.R
+                && canvas->GetBackgroundColor().G == beforeDrag.G,
+            "while undo goes all the way back to before the drag started");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(canvas->GetBackgroundColor().R == before.R
+                && canvas->GetBackgroundColor().G == before.G
+                && canvas->GetBackgroundColor().B == before.B,
+            "and one undo must bring the whole drag back");
+
+        // ── 캔버스 뷰가 그 색으로 지워진다 ─────────────────────
+        //
+        // 값만 바뀌고 화면은 그대로면 고치는 일 자체가 보이지 않는다.
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+            Check(view != nullptr, "the canvas view must have a window");
+            canvas->SetBackgroundColor(JBro::Color{0.05f, 0.05f, 0.05f, 1.0f});
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the dark background");
+            }
+            JBro::Array<std::byte> dark;
+            JBro::Array<std::byte> bright;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*renderer, 1024, 768, dark, readback);
+            canvas->SetBackgroundColor(JBro::Color{0.9f, 0.1f, 0.1f, 1.0f});
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the red background");
+            }
+            ReadBackBufferInto(*renderer, 1024, 768, bright, readback);
+            const std::size_t painted = CountDifferingPixelsIn(dark, bright, readback,
+                static_cast<std::uint32_t>(view->Pos.x) + 8,
+                static_cast<std::uint32_t>(view->Pos.y) + 60,
+                static_cast<std::uint32_t>(view->Pos.x + view->Size.x) - 8,
+                static_cast<std::uint32_t>(view->Pos.y + view->Size.y) - 8);
+            std::cout << "  the canvas background painted " << painted << " pixels" << std::endl;
+            Check(painted > 5000, "the canvas view must clear with the canvas's own colour");
+        }
+
+        // ── 파일을 왕복한다 ──────────────────────────────
+        canvas->SetBackgroundColor(JBro::Color{0.25f, 0.5f, 0.75f, 1.0f});
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(*canvas, text, error, JBro::CanvasWriteMode::Editor),
+            "the canvas must write");
+        Check(text.View().find("BackgroundColor") != std::string_view::npos,
+            "and the colour must be in the file");
+        Check(canvas->Clear(), "the canvas must empty for the read back");
+        Check(canvas->GetBackgroundColor().R < 0.2f,
+            "clearing must put the default back, or the next canvas wears this one's colour");
+        Check(JBro::ReadCanvasText(*canvas, text.c_str(), text.size(), error),
+            "the canvas must read back");
+        Check(canvas->GetBackgroundColor().R > 0.2f && canvas->GetBackgroundColor().B > 0.7f,
+            "and the colour must come back with it");
+
+        editor.Shutdown();
+    }
+
     void TestTheInspectorRenamesAndTogglesThroughCommands()
     {
         JBro::EditorApplication editor;
@@ -8379,6 +8518,7 @@ int RunEditorApplicationTests()
     TestTheCanvasViewDrawsColliderShapes();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheInspectorRenamesAndTogglesThroughCommands();
+    TestTheCanvasItselfCanBeSelectedAndPainted();
     TestTheAssetBrowserSelectsManyFilesAtOnce();
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();

@@ -12,6 +12,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/TextField.h>
@@ -178,6 +179,39 @@ namespace JBro
             {
                 // 계층이 그 자리에서 달라졌다. 이 프레임에 더 그리지 않는다.
                 return;
+            }
+        }
+
+        // **맨 위는 캔버스 줄이다**(D-186, 기존 계층의 캔버스 줄). 누르면 캔버스 자신을
+        // 골라 인스펙터가 그 값(배경색)을 보여 준다 - 레이어에도 오브젝트에도 붙지 않는
+        // 값이 갈 곳이 그전까지 없었다.
+        {
+            ImGuiTreeNodeFlags canvasFlags = ImGuiTreeNodeFlags_Leaf
+                | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+            if (m_editor->IsCanvasSelected())
+            {
+                canvasFlags |= ImGuiTreeNodeFlags_Selected;
+            }
+            Widget::TreeDrawContext canvasRow;
+            Widget::TreeBegin("##canvas", canvasFlags, &canvasRow);
+            Widget::TreeEnd();
+            const bool canvasClicked = ImGui::IsItemClicked();
+            if (canvasRow.IsVisible)
+            {
+                // 이름은 파일 이름이다. 아직 저장한 적이 없으면 그렇다고 말한다 -
+                // 빈 줄을 두면 무엇을 누르는 것인지 알 수 없다.
+                const String& path = m_editor->GetCanvasPath();
+                const char* leaf = path.empty()
+                    ? Loc::TextOr(LocKeys::HierarchyCanvasUnsaved, "Canvas (unsaved)")
+                    : EditorPaths::LeafOfPath(path);
+                const ImVec2 cursor = ImGui::GetCursorScreenPos();
+                ImGui::SetCursorScreenPos(canvasRow.ContentRect.Min);
+                Widget::Text(leaf);
+                ImGui::SetCursorScreenPos(cursor);
+            }
+            if (canvasClicked)
+            {
+                m_editor->SetCanvasSelected(true);
             }
         }
 
