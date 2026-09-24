@@ -1,4 +1,4 @@
-#include <JBro/Editor/ConfirmPopup.h>
+﻿#include <JBro/Editor/ConfirmPopup.h>
 
 #include <JBro/Editor/Widget/Basic.h>
 
@@ -48,7 +48,7 @@ namespace JBro
 
     void ConfirmPopup::OnDraw(EditorApplication& editor)
     {
-        ImGui::TextWrapped("%s", m_message.c_str());
+        Widget::WrappedText(m_message.c_str());
         ImGui::Spacing();
         for (int index = 0; index < 3; ++index)
         {
@@ -60,7 +60,9 @@ namespace JBro
             {
                 ImGui::SameLine(0.0f, 8.0f);
             }
-            if (Widget::Button(m_labels[index].c_str()))
+            // **무게가 다르다.** 첫째가 그 자리의 주된 확인이고, 둘째는 저장하지 않고
+            // 버리는 쪽이다 - 둘이 똑같이 생기면 손이 먼저 움직인다(D-190).
+            if (Widget::ActionButton(m_labels[index].c_str(), Weights[index]))
             {
                 Choose(editor, index);
             }

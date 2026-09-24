@@ -63,8 +63,13 @@ namespace JBro
         EditorCommandManager(const EditorCommandManager&) = delete;
         EditorCommandManager& operator=(const EditorCommandManager&) = delete;
 
+        // **어느 문서를 고치는 커맨드인가**(D-191, 기존 `documentKey`). 널이면 캔버스다.
+        // 에셋 파일을 지우고 이름을 바꾸는 것은 되돌릴 수 있어야 하지만(같은 Ctrl+Z),
+        // 그것 때문에 캔버스가 "저장 안 됨" 이 되면 안 된다 - 캔버스는 아무것도 바뀌지 않았다.
+        static constexpr const char* AssetDatabase = "__AssetDatabase";
+
         // 실행하고 쌓는다. 실행이 실패하면 쌓지 않고 거짓을 돌려준다.
-        bool Execute(OwnerPtr<EditorCommand> command);
+        bool Execute(OwnerPtr<EditorCommand> command, const char* documentKey = nullptr);
         bool Undo();
         bool Redo();
         void Clear();
@@ -78,8 +83,13 @@ namespace JBro
         // 왔는데도 "저장 안 됨" 으로 남는 것을 막으려고 기존 엔진이 택한 방식이고,
         // 여기서도 같다. 지금은 문서가 캔버스 하나뿐이라 판번호도 하나다 —
         // 기존 엔진은 스프라이트·이펙트 편집기가 따로 있어서 문서마다 두었다.
+        // **저장할 것이 있는 문서는 캔버스뿐이다.** 에셋 파일 작업은 실행하는 순간 디스크에
+        // 적히므로 "적지 않은 것" 이 남지 않는다 - 그래서 문서마다 판번호를 두지 않고,
+        // 캔버스의 것 하나만 센다. 저장할 문서가 둘이 되면 그때 표로 바꾼다.
         void MarkSaved();
         bool IsDirty() const;
+        // **문서를 가리지 않는 판번호**다. 되돌리기·다시하기까지 포함해 무엇이든 움직이면
+        // 올라간다 - 에셋 참조를 다시 잇는 자리(`BindCanvasAssets`)가 이것을 본다.
         std::uint64_t GetRevision() const;
 
     private:
@@ -88,16 +98,27 @@ namespace JBro
         // 일은 없고, 그 대가로 메모리가 끝없이 늘지 않는다.
         static constexpr std::size_t MaxUndoDepth = 256;
 
-        void PushUndo(OwnerPtr<EditorCommand> command);
+        // 커맨드 하나와 그것이 고친 문서. 되돌리기·다시하기가 그 문서를 다시 움직인다.
+        struct Entry
+        {
+            OwnerPtr<EditorCommand> command;
+            // 리터럴이다. 복사하지 않는다. 널이면 캔버스다.
+            const char* documentKey = nullptr;
+        };
+
+        void Touch(const char* documentKey);
+        void PushUndo(Entry entry);
         // 드래그 덩어리가 이어지는 중인지 본다. 매니저 밖에서는 볼 일이 없다.
         bool ContinuesDrag();
 
-        Array<OwnerPtr<EditorCommand>> m_undo;
-        Array<OwnerPtr<EditorCommand>> m_redo;
+        Array<Entry> m_undo;
+        Array<Entry> m_redo;
         bool m_mergingDrag = false;
         // 직전 실행 시점의 왼쪽 버튼 누른 시간. 새 누름을 알아내는 데 쓴다.
         float m_lastMouseDownDuration = -1.0f;
         std::uint64_t m_revision = 0;
-        std::uint64_t m_savedRevision = 0;
+        // 캔버스를 고친 마지막 판번호와, 그중 저장된 것.
+        std::uint64_t m_canvasRevision = 0;
+        std::uint64_t m_savedCanvasRevision = 0;
     };
 }

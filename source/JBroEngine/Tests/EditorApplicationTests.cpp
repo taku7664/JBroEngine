@@ -2047,6 +2047,39 @@ namespace
         std::remove(TempPath("JBroEditorMenuSave.jcanvas").c_str());
     }
 
+    // 그 자리 둘레의 픽셀에서 붉은 기운을 잰다. 백버퍼는 BGRA 다.
+    // 글자가 섞이므로 한 점이 아니라 작은 사각형의 평균을 본다.
+    int RednessAt(const JBro::Array<std::byte>& image, const JBro::TextureReadback& readback,
+        const Spot& spot)
+    {
+        long long redness = 0;
+        int counted = 0;
+        for (int dy = -4; dy <= 4; ++dy)
+        {
+            for (int dx = -10; dx <= 10; ++dx)
+            {
+                const int x = spot.x + dx;
+                const int y = spot.y + dy;
+                if (x < 0 || y < 0)
+                {
+                    continue;
+                }
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                if (offset + 3 >= image.Size())
+                {
+                    continue;
+                }
+                const auto* pixel = reinterpret_cast<const unsigned char*>(image.Data() + offset);
+                // 빨강에서 파랑과 초록의 큰 쪽을 뺀다. 테마의 회색 단추는 0 근처다.
+                const int other = pixel[0] > pixel[1] ? pixel[0] : pixel[1];
+                redness += static_cast<int>(pixel[2]) - other;
+                ++counted;
+            }
+        }
+        return counted == 0 ? 0 : static_cast<int>(redness / counted);
+    }
+
     void RightClickAt(JBro::EditorApplication& editor, HWND hwnd, const Spot& spot)
     {
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
@@ -5582,6 +5615,28 @@ namespace
         Spot confirm;
         Check(FindItemAnywhereInWindow(editor, hwnd, ask, LabelId(ask->ID, deleteLabel), confirm),
             "the question must have a delete button");
+
+        // **되돌릴 수 없는 단추는 그렇게 생겨야 한다**(D-190). 그만두기와 똑같이 생기면
+        // 손이 먼저 움직인다. 위젯이 색을 칠할 줄 아는 것과 이 자리가 그 색을 달라고 하는
+        // 것은 다른 일이라, 사용자가 보는 화면에서 잰다.
+        Spot keep;
+        const char* cancelLabel = JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel");
+        Check(FindItemAnywhereInWindow(editor, hwnd, ask, LabelId(ask->ID, cancelLabel), keep),
+            "the question must have a cancel button too");
+        {
+            JBro::Renderer* renderer = editor.GetRenderer();
+            Check(renderer != nullptr, "the editor must expose its renderer");
+            JBro::Array<std::byte> shot;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*renderer, 1024, 768, shot, readback);
+            const int onDelete = RednessAt(shot, readback, confirm);
+            const int onCancel = RednessAt(shot, readback, keep);
+            std::cout << "  the delete button reads " << onDelete << " red against "
+                      << onCancel << " on cancel" << std::endl;
+            Check(onDelete > onCancel + 12,
+                "the delete button must be visibly redder than the one beside it");
+        }
+
         ClickAt(editor, hwnd, confirm);
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -5601,6 +5656,18 @@ namespace
             "the registry no longer knows the deleted file");
         Check(editor.GetAssetRegistry().FindByPath("art/d.png") != nullptr,
             "and still knows the one that stayed");
+
+        // **한 번 지운 것은 한 번에 돌아온다**(D-191). 파일마다 커맨드를 쌓으면
+        // 세 개를 지운 뒤 Ctrl+Z 를 세 번 눌러야 한다.
+        Check(editor.GetCommands().GetUndoCount() == 1,
+            "deleting three files in one gesture must leave one thing to undo");
+        Check(editor.GetCommands().Undo(), "and that one undo brings them all back");
+        for (const char* name : {"a.png", "b.png", "c.png"})
+        {
+            fs::path back = root / "Assets" / "art";
+            back /= name;
+            Check(fs::exists(back, ignored), "every file of the gesture comes back");
+        }
 
         editor.Shutdown();
         fs::remove_all(root, ignored);
@@ -6706,37 +6773,68 @@ namespace
             std::cout << "  [skip] panel sources are not beside the test" << std::endl;
             return;
         }
-        // 공용 위젯이 대신하는 원시 호출들이다. 배치(`SameLine`·`Separator`)와 그리기 목록은
+        // 공용 위젯이 대신하는 원시 호출들이다. 배치(`SameLine`·`Spacing`)와 그리기 목록은
         // 위젯이 아니라 여기 넣지 않는다.
         const char* forbidden[] = {
             "ImGui::Text(", "ImGui::TextUnformatted(", "ImGui::TextDisabled(", "ImGui::TextColored(",
-            "ImGui::Button(", "ImGui::Checkbox(", "ImGui::MenuItem(", "ImGui::Selectable(",
+            "ImGui::TextWrapped(", "ImGui::Button(", "ImGui::Checkbox(", "ImGui::MenuItem(",
+            "ImGui::Selectable(", "ImGui::BeginMenu(", "ImGui::EndMenu(", "ImGui::BeginMenuBar(",
+            "ImGui::EndMenuBar(",
             "ImGui::BeginCombo(", "ImGui::BeginPopupContextItem(", "ImGui::BeginPopupContextWindow(",
             "ImGui::BeginPopupModal(", "ImGui::OpenPopup(", "ImGui::EndPopup(",
             "ImGui::InvisibleButton(", "ImGui::Image(", "ImGui::CollapsingHeader(",
             "ImGui::TreeNodeEx(", "ImGui::TreeNode(", "ImGui::TreePop(", "ImGui::InputText("};
-        std::size_t scanned = 0;
-        for (const fs::directory_entry& entry : fs::directory_iterator(panels, ignored))
+        // **패널만 보던 것을 그리는 것 전부로 넓힌다**(D-190). 메뉴 막대와 팝업과 공용
+        // 메뉴(`EditorActions`)는 패널 폴더 밖이라 규칙이 조용히 지켜지지 않았다 - 그래서
+        // 메뉴 항목이 D-181 의 "왜 잠겼는지" 툴팁을 잃은 채였고, 지우기 단추가 그만두기와
+        // 똑같이 생겼다.
+        std::vector<fs::path> sources;
+        for (const fs::path& folder : {panels, fs::path("Modules/JBroEditor/Source/Tool")})
         {
-            if (entry.path().extension() != ".cpp")
+            for (const fs::directory_entry& entry : fs::directory_iterator(folder, ignored))
             {
-                continue;
+                if (entry.path().extension() == ".cpp")
+                {
+                    sources.push_back(entry.path());
+                }
             }
+        }
+        for (const char* name : {"EditorActions.cpp", "MessagePopup.cpp", "ConfirmPopup.cpp",
+                                 "NewProjectPopup.cpp", "EditorApplication.cpp"})
+        {
+            fs::path one("Modules/JBroEditor/Source");
+            one /= name;
+            Check(fs::is_regular_file(one, ignored), "a source named here must exist");
+            sources.push_back(one);
+        }
+        std::size_t scanned = 0;
+        for (const fs::path& source : sources)
+        {
             ++scanned;
-            std::ifstream in(entry.path(), std::ios::binary);
+            std::ifstream in(source, std::ios::binary);
             const std::string text((std::istreambuf_iterator<char>(in)),
                 std::istreambuf_iterator<char>());
             for (const char* token : forbidden)
             {
+                // **모달을 돌리는 기계는 예외다.** `EditorApplication` 이 팝업 하나를 열고
+                // 닫는 그 자리가 곧 `Widget::BeginModal` 이 서 있는 층이다 - 자기 자신을
+                // 거치라고 할 수 없다. 그 셋만 빼고 나머지는 이 파일에도 똑같이 건다.
+                if (source.filename() == "EditorApplication.cpp"
+                    && (std::strcmp(token, "ImGui::OpenPopup(") == 0
+                        || std::strcmp(token, "ImGui::BeginPopupModal(") == 0
+                        || std::strcmp(token, "ImGui::EndPopup(") == 0))
+                {
+                    continue;
+                }
                 if (text.find(token) != std::string::npos)
                 {
-                    std::cout << "  " << entry.path().filename().string() << " calls " << token
+                    std::cout << "  " << source.filename().string() << " calls " << token
                         << std::endl;
-                    Check(false, "a panel must draw through the shared widget layer");
+                    Check(false, "everything that draws must go through the shared widget layer");
                 }
             }
         }
-        Check(scanned >= 8, "the panel sources must actually have been read");
+        Check(scanned >= 14, "the drawing sources must actually have been read");
     }
 
     void TestPickingFollowsTheSpriteAssetSize()
@@ -7573,6 +7671,106 @@ namespace
         Check(alpha->IsActiveSelf() && beta->IsActiveSelf(), "and both come back on");
 
         editor.Shutdown();
+    }
+
+    // **에셋 파일을 만진 것도 되돌아온다**(D-191, 기존 `EditorFileCommands`).
+    // 그전까지 지우기는 디스크에서 곧장 사라졌고, 잘못 지운 파일은 그것으로 끝이었다.
+    // 되돌리기는 파일과 `.jmeta` 를 함께 되살려야 한다 - 메타를 두고 오면 아이디가
+    // 달라지고, 그 에셋을 가리키던 참조가 전부 풀린다.
+    //
+    // **캔버스는 더러워지지 않는다.** 파일 이름을 바꿨다고 "저장 안 됨" 이 되면
+    // 저장할 것이 없는데도 저장을 누르게 된다.
+    void TestAssetFileWorkCanBeUndone()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / "JBroAssetUndoProbe";
+        std::error_code errorCode;
+        fs::remove_all(root, errorCode);
+        fs::create_directories(root / "Assets" / "art", errorCode);
+        {
+            std::ofstream image(root / "Assets" / "art" / "hero.png", std::ios::binary);
+            image.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        const JBro::String projectPath((root / "Probe.jproject").string().c_str());
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        JBro::EditorApplication editor;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; undoable file work not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        const JBro::AssetRecord* found = editor.GetAssetRegistry().FindByPath("art/hero.png");
+        Check(found != nullptr, "the scan must have registered the image");
+        const JBro::AssetId beforeId = found->id;
+        Check(false == editor.GetCommands().IsDirty(), "nothing is unsaved yet");
+
+        // ── 지우기 ───────────────────────────────────────────────────────
+        Check(editor.DeleteAsset("art/hero.png"), "the asset can be deleted");
+        Check(false == fs::exists(root / "Assets" / "art" / "hero.png", errorCode),
+            "and it leaves the assets folder");
+        Check(false == fs::exists(root / "Assets" / "art" / "hero.png.jmeta", errorCode),
+            "with its meta");
+        Check(editor.GetAssetRegistry().FindByPath("art/hero.png") == nullptr,
+            "the registry lets go of it too");
+        Check(false == editor.GetCommands().IsDirty(),
+            "**deleting a file does not make the canvas unsaved** - the canvas did not change");
+        Check(editor.GetCommands().CanUndo(), "but it did go on the undo stack");
+
+        Check(editor.GetCommands().Undo(), "and the delete comes back");
+        Check(fs::exists(root / "Assets" / "art" / "hero.png", errorCode),
+            "the file is where it was");
+        Check(fs::exists(root / "Assets" / "art" / "hero.png.jmeta", errorCode),
+            "and so is its meta - without it the id would be a new one");
+        const JBro::AssetRecord* again = editor.GetAssetRegistry().FindByPath("art/hero.png");
+        Check(again != nullptr && again->id == beforeId,
+            "so the asset comes back under the same id and nothing that pointed at it is lost");
+
+        // 다시 지우고, 다시 돌려놓는다. 되돌린 뒤의 다시하기도 같은 길이어야 한다.
+        Check(editor.GetCommands().Redo(), "redo deletes it again");
+        Check(false == fs::exists(root / "Assets" / "art" / "hero.png", errorCode),
+            "it is gone once more");
+        Check(editor.GetCommands().Undo(), "and undo brings it back a second time");
+        Check(fs::exists(root / "Assets" / "art" / "hero.png", errorCode), "it is back");
+
+        // ── 이름 바꾸기 ──────────────────────────────────────────────────
+        Check(editor.RenameAsset("art/hero.png", "villain.png"), "the asset can be renamed");
+        Check(fs::exists(root / "Assets" / "art" / "villain.png", errorCode), "under the new name");
+        Check(editor.GetCommands().Undo(), "and the rename comes back");
+        Check(fs::exists(root / "Assets" / "art" / "hero.png", errorCode),
+            "the old name is back on disk");
+        Check(fs::exists(root / "Assets" / "art" / "hero.png.jmeta", errorCode),
+            "meta and all");
+        Check(false == fs::exists(root / "Assets" / "art" / "villain.png", errorCode),
+            "and the new name is gone");
+
+        // ── 폴더 만들기 ──────────────────────────────────────────────────
+        Check(editor.CreateAssetFolder("", "sprites"), "a folder can be made");
+        Check(fs::is_directory(root / "Assets" / "sprites", errorCode), "and it is there");
+        Check(editor.GetCommands().Undo(), "making a folder can be undone");
+        Check(false == fs::is_directory(root / "Assets" / "sprites", errorCode),
+            "so the folder is gone again");
+        Check(false == editor.GetCommands().IsDirty(),
+            "and none of this touched the canvas's saved state");
+
+        // **휴지통은 에셋 폴더 밖이다.** 안에 두면 스캔이 지운 파일을 다시 등록한다.
+        const JBro::String trash = editor.GetTrashRoot();
+        Check(false == trash.empty(), "the trash must have a place to live");
+        Check(JBro::String(trash.c_str()).find("Assets") == JBro::String::npos,
+            "and that place is not inside the assets folder");
+
+        editor.Shutdown();
+        fs::remove_all(root, errorCode);
     }
 
     void TestAssetFileOperationsCarryTheMeta()
@@ -8635,6 +8833,7 @@ int RunEditorApplicationTests()
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheCanvasItselfCanBeSelectedAndPainted();
     TestTheAssetBrowserSelectsManyFilesAtOnce();
+    TestAssetFileWorkCanBeUndone();
     TestAssetFileOperationsCarryTheMeta();
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestShiftClickingTheHierarchyPicksTheWholeRange();

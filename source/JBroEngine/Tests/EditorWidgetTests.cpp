@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/Widget/AssetField.h>
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/EnumCombo.h>
@@ -950,6 +951,101 @@ namespace
         Check(nothing.IsEmpty(), "an empty buffer means no names at all");
     }
 
+    // 이 단추가 방금 칠한 색들을 모은다. 정점 색을 그대로 읽는다 - 테마를 밀고 당기는
+    // 것은 그리는 순간에만 서 있어서, 부른 뒤에 스타일을 물어보면 이미 원래대로다.
+    void CollectButtonColors(const ImDrawList* list, int fromVertex,
+        JBro::Array<unsigned int>& out)
+    {
+        out.Clear();
+        for (int at = fromVertex; at < list->VtxBuffer.Size; ++at)
+        {
+            const unsigned int color = list->VtxBuffer[at].col;
+            bool seen = false;
+            for (std::size_t index = 0; index < out.Size(); ++index)
+            {
+                seen = seen || out[index] == color;
+            }
+            if (false == seen)
+            {
+                out.Add(color);
+            }
+        }
+    }
+
+    bool HasColor(const JBro::Array<unsigned int>& colors, unsigned int color)
+    {
+        for (std::size_t index = 0; index < colors.Size(); ++index)
+        {
+            if (colors[index] == color)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // **되돌릴 수 없는 단추는 다르게 생겨야 한다**(D-190, 기존 `ImActionButton`).
+    // 지우기가 그만두기와 똑같이 생기면 손이 먼저 움직인다. 무게가 `Info` 인 것은
+    // 테마의 단추 그대로여야 한다 - 모든 단추가 물들면 무게가 뜻을 잃는다.
+    void TestAWeightedButtonLooksDifferentFromAPlainOne()
+    {
+        Stage stage;
+        stage.Begin();
+        ImDrawList* list = ImGui::GetWindowDrawList();
+        const unsigned int themeButton = ImGui::GetColorU32(ImGuiCol_Button);
+
+        int mark = list->VtxBuffer.Size;
+        JBro::Widget::ActionButton("plain", JBro::Widget::Severity::Info);
+        JBro::Array<unsigned int> plain;
+        CollectButtonColors(list, mark, plain);
+
+        mark = list->VtxBuffer.Size;
+        JBro::Widget::ActionButton("danger", JBro::Widget::Severity::Error);
+        JBro::Array<unsigned int> danger;
+        CollectButtonColors(list, mark, danger);
+
+        mark = list->VtxBuffer.Size;
+        JBro::Widget::ActionButton("go", JBro::Widget::Severity::Success);
+        JBro::Array<unsigned int> success;
+        CollectButtonColors(list, mark, success);
+
+        Check(HasColor(plain, themeButton), "a plain button keeps the theme's own colour");
+        Check(false == HasColor(danger, themeButton),
+            "an irreversible one must not look like the theme's button");
+        Check(false == HasColor(success, themeButton), "nor must the confirming one");
+        Check(false == HasColor(danger, success[0]) || danger.Size() != success.Size(),
+            "and the two weights must not be the same colour either");
+
+        stage.End();
+        Check(stage.IdStackDepth() == 1, "and the id stack comes back");
+
+        // **잠긴 단추는 눌러도 눌리지 않는다.** 같은 자리를 같은 손짓으로 두 번 누른다 -
+        // 한 번은 잠근 채로, 한 번은 풀고서. 잠갔을 때만 답이 없어야 한다.
+        bool locked = true;
+        bool pressed = false;
+        ImVec2 where(0.0f, 0.0f);
+        const auto frame = [&]() {
+            stage.Begin();
+            where = ImGui::GetCursorScreenPos();
+            pressed = JBro::Widget::ActionButton("locked", JBro::Widget::Severity::Error,
+                false == locked, "this is why");
+            stage.End();
+        };
+        frame();
+        const auto clickAt = [&](ImVec2 at) {
+            ImGui::GetIO().AddMousePosEvent(at.x + 8.0f, at.y + 6.0f);
+            frame();
+            ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+            frame();
+            ImGui::GetIO().AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+            frame();
+            return pressed;
+        };
+        Check(false == clickAt(where), "a locked button does not answer a press");
+        locked = false;
+        Check(clickAt(where), "and the same press on the same spot lands once it is open");
+    }
+
     // 무게마다 색이 달라야 한다. 같으면 경고와 오류를 눈으로 가릴 수 없다.
     void TestSeverityColoursDiffer()
     {
@@ -992,6 +1088,7 @@ int RunEditorWidgetTests()
     TestTheEnumComboChangesTheValueWhenAnItemIsClicked();
     TestTheAssetFieldWritesTheIdOfTheChosenName();
     TestTheNameListEditKeepsTheBufferAndTheListInStep();
+    TestAWeightedButtonLooksDifferentFromAPlainOne();
     TestSeverityColoursDiffer();
     std::cout << "Editor widget tests passed.\n";
     return 0;

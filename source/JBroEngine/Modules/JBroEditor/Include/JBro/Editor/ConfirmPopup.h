@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/Widget/Common.h>
 #include <JBro/Types/String.h>
 
 namespace JBro
@@ -23,6 +24,7 @@ namespace JBro
             const char* first, const char* second, const char* third,
             Answer answer, void* user, const char* id = nullptr);
 
+
         const char* GetTitle() const override;
         const char* GetId() const override;
         void OnDraw(EditorApplication& editor) override;
@@ -34,6 +36,11 @@ namespace JBro
         String m_title;
         String m_message;
         String m_labels[3];
+        // **단추의 차례가 곧 무게다**(D-190): 첫째가 하기, 둘째가 저장하지 않고 버리기,
+        // 셋째가 그만두기다. 이 차례를 따르지 않는 창은 이 클래스를 그대로 쓰지 않는다 -
+        // 버리는 쪽이 아닌 단추가 붉게 서면 색이 거짓말을 한다.
+        static constexpr Widget::Severity Weights[3] = {
+            Widget::Severity::Success, Widget::Severity::Error, Widget::Severity::Info};
         String m_id;
         Answer m_answer = nullptr;
         void* m_user = nullptr;

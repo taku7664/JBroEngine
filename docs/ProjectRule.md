@@ -736,6 +736,26 @@
   ImGui 호출 뭉치를 남기지 않는다.
   글자·단추·메뉴·팝업·콤보·트리의 원시 호출은 `Widget/Basic.h` 등이 대신하고,
   `TestPanelsGoThroughTheWidgetLayer` 가 패널 소스에서 그 호출을 찾아 막는다. (D-152)
+- **에셋 파일을 만지는 것도 커맨드다.** 지우기·이름 바꾸기·옮기기·폴더 만들기는
+  `AssetFileCommands` 를 거친다. (MUST) (D-191)
+  지운 것은 지우지 않고 **프로젝트 안 숨김 폴더(`.jbrotrash`)로 옮긴다** - 되살릴 자리를 먼저
+  마련하지 못하면 지우지 않는다는 규칙이 파일에도 똑같이 적용된다. 커맨드가 되돌리기 스택에서
+  밀려날 때 그 자리를 치우고, 프로젝트를 열고 닫을 때 남은 것을 치운다. `.jmeta` 는 늘 함께 간다.
+- **저장 여부는 문서마다 따로 센다.** 커맨드를 실행할 때 어느 문서인지 넘긴다
+  (`EditorCommandManager::AssetDatabase`, 널이면 캔버스). (MUST) (D-191)
+  되돌리기 더미는 하나지만, 파일 이름을 바꿨다고 캔버스가 "저장 안 됨" 이 되면 안 된다.
+  문서를 가리지 않는 판번호(`GetRevision`)는 에셋 참조를 다시 잇는 자리가 본다.
+  **저장 여부를 세는 문서는 지금 캔버스 하나뿐이다** - 에셋 파일 작업은 실행하는 순간
+  디스크에 적혀 "적지 않은 것" 이 남지 않는다. 저장할 문서가 둘이 되면 그때 문서별로 센다.
+- **되돌릴 수 없는 단추는 그렇게 생겨야 한다.** `Widget::ActionButton` 에 무게를 준다. (MUST) (D-190)
+  지우기는 `Error`, 그 자리의 주된 확인(저장·만들기·가져오기)은 `Success`, 나머지는 `Info` 로
+  테마 그대로다. **모든 단추가 물들면 무게가 뜻을 잃으므로** 보통 단추는 물들이지 않는다.
+- **패널만이 아니라 그리는 것 전부가 이 계층을 거친다.** 메뉴 막대도, 공용 메뉴(`EditorActions`)도,
+  팝업도 마찬가지다. (MUST) (D-190)
+  `TestPanelsGoThroughTheWidgetLayer` 가 `Source/Panel`·`Source/Tool` 과 `EditorActions`·
+  `MessagePopup`·`ConfirmPopup`·`NewProjectPopup`·`EditorApplication` 을 읽어 막는다.
+  **모달을 돌리는 기계만 예외다** - `EditorApplication` 이 팝업을 열고 닫는 자리가 곧
+  `Widget::BeginModal` 이 서 있는 층이다. 배치(`Separator`·`SameLine`·`Spacing`)는 위젯이 아니다.
 - 목록·표를 그리는 자리는 **저장소를 모르는 목록 위젯**을 쓴다. (MUST)
   기존 `ImListVirtual` 은 원소 접근을 전부 콜백으로 받아 `std::vector` 가 아닌 것
   (타입이 지워진 리플렉션 `Array` 등)도 같은 UI 로 그린다. 추가·삭제·드래그 재정렬과

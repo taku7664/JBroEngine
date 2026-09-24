@@ -269,14 +269,9 @@ namespace JBro
         {
             targets.Add(m_pending);
         }
-        bool failed = false;
-        for (std::size_t index = 0; index < targets.Size(); ++index)
-        {
-            if (false == m_editor->DeleteAsset(targets[index].c_str()))
-            {
-                failed = true;
-            }
-        }
+        // **한 번 지운 것은 한 번에 되돌아온다**(D-191). 파일마다 커맨드를 쌓으면
+        // 다섯 개를 지운 뒤 Ctrl+Z 를 다섯 번 눌러야 한다.
+        const bool failed = false == m_editor->DeleteAssets(targets);
         if (failed)
         {
             m_message = Loc::TextOr(LocKeys::AssetsDeleteFailed, "that could not be deleted");
@@ -865,7 +860,8 @@ namespace JBro
         const bool valid = false == m_nameBuffer.empty();
         {
             Widget::DisableScope disabled(false == valid);
-            if (Widget::Button(Loc::TextOr(LocKeys::CommonOk, "OK")))
+            if (Widget::ActionButton(Loc::TextOr(LocKeys::CommonOk, "OK"),
+                    Widget::Severity::Success))
             {
                 if (false == m_editor->RenameAsset(m_pending.c_str(), m_nameBuffer.c_str()))
                 {
@@ -915,7 +911,8 @@ namespace JBro
             Widget::HintText(m_pending.c_str());
         }
         ImGui::Spacing();
-        if (Widget::Button(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
+        if (Widget::ActionButton(Loc::TextOr(LocKeys::AssetsDelete, "Delete"),
+                Widget::Severity::Error))
         {
             if (m_pendingIsFolder)
             {
@@ -956,7 +953,8 @@ namespace JBro
         ImGui::Spacing();
         {
             Widget::DisableScope disabled(m_nameBuffer.empty());
-            if (Widget::Button(Loc::TextOr(LocKeys::CommonOk, "OK")))
+            if (Widget::ActionButton(Loc::TextOr(LocKeys::CommonOk, "OK"),
+                    Widget::Severity::Success))
             {
                 if (false == m_editor->CreateAssetFolder(m_pending.c_str(), m_nameBuffer.c_str()))
                 {

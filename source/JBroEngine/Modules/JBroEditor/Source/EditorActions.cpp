@@ -179,7 +179,7 @@ namespace JBro::EditorActions
         {
             return false;
         }
-        if (false == ImGui::MenuItem(Loc::TextOr(LocKeys::HierarchyUnparent, "Unparent")))
+        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyUnparent, "Unparent")))
         {
             return false;
         }
@@ -296,7 +296,7 @@ namespace JBro::EditorActions
 
     bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object)
     {
-        if (false == ImGui::BeginMenu(
+        if (false == Widget::BeginMenu(
                 Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component")))
         {
             return false;
@@ -314,10 +314,10 @@ namespace JBro::EditorActions
             {
                 if (inGroup)
                 {
-                    ImGui::EndMenu();
+                    Widget::EndMenu();
                 }
                 drawnGroup = list.groups[index];
-                inGroup = ImGui::BeginMenu(drawnGroup);
+                inGroup = Widget::BeginMenu(drawnGroup);
             }
             if (false == inGroup)
             {
@@ -331,9 +331,9 @@ namespace JBro::EditorActions
         }
         if (inGroup)
         {
-            ImGui::EndMenu();
+            Widget::EndMenu();
         }
-        ImGui::EndMenu();
+        Widget::EndMenu();
         return added;
     }
 

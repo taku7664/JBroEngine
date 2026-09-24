@@ -193,6 +193,28 @@ namespace JBro
         const String& GetAssetRoot() const;
         // 에셋 폴더를 지금 다시 훑는다. 감시가 서지 않은 자리에서 사람이 새로 고치는 길이다.
         bool RescanAssets();
+
+        // **한 손짓이 여럿을 지우면 되돌리기도 하나다**(§11). 고른 것 전부를 한 커맨드로 묶는다.
+        bool DeleteAssets(const Array<String>& relativePaths);
+
+        // ── 에셋 파일 작업의 알맹이(D-191) ─────────────────────────────────────────
+        // 아래 넷은 **커맨드가 부르는 자리**다. 되돌리기 없이 곧장 디스크를 고치므로
+        // 에셋 브라우저나 패널이 직접 부르지 않는다 - 그쪽은 `DeleteAsset` 같은
+        // 커맨드를 세우는 함수를 쓴다.
+        bool CreateAssetFolderNow(const char* relativePath);
+        bool MoveAssetPathNow(const char* fromRelative, const char* toRelative);
+        // 지운 것을 프로젝트 안 숨김 폴더로 옮긴다. 옮긴 자리(절대경로)를 돌려주고,
+        // 실패하면 빈 글자다. `.jmeta` 도 함께 간다.
+        String MoveAssetToTrash(const char* relativePath);
+        bool RestoreFromTrash(const char* trashPath, const char* relativePath);
+        // 그 휴지통 자리를 영영 지운다. 커맨드가 스택에서 밀려날 때 부른다.
+        void DropFromTrash(const char* trashPath);
+        // 프로젝트를 열 때 남아 있는 휴지통을 치운다(비정상 종료가 남긴 것).
+        void ClearTrash();
+        // 휴지통이 서는 자리(절대경로). 프로젝트가 없으면 빈 글자다.
+        String GetTrashRoot() const;
+        // 파일이 움직인 뒤 레지스트리와 캔버스의 참조를 다시 맞춘다.
+        void RefreshAfterAssetFileChange();
         bool CreateAssetFolder(const char* relativeFolder, const char* name);
         // 이름만 바꾼다. 확장자는 부르는 쪽이 붙인 그대로 쓴다.
         bool RenameAsset(const char* relativePath, const char* newName);
@@ -523,6 +545,8 @@ namespace JBro
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;
         PopupHandle m_nextPopupHandle = 1;
+        // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
+        std::uint64_t m_trashCounter = 0;
         String m_canvasPath;
         bool m_saveRequested = false;
         bool m_openProjectRequested = false;

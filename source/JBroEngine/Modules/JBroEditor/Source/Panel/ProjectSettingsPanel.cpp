@@ -259,7 +259,8 @@ namespace JBro
         }
 
         ImGui::Spacing();
-        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsSave, "Save")))
+        if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsSave, "Save"),
+                Widget::Severity::Success))
         {
             // **여기서야 파일에 간다.** 고치는 동안 파일을 건드리면 되돌릴 방법이 없다.
             ProjectFileError error;
@@ -278,7 +279,8 @@ namespace JBro
             }
         }
         ImGui::SameLine(0.0f, 6.0f);
-        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsRevert, "Revert")))
+        if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsRevert, "Revert"),
+                Widget::Severity::Warning))
         {
             Reload();
         }

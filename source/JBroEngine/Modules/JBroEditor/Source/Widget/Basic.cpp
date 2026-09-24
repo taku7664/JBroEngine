@@ -53,6 +53,35 @@ namespace JBro::Widget
         return ImGui::Button(label);
     }
 
+    bool ActionButton(const char* label, Severity severity, bool enabled,
+        const char* disabledReason, const ImVec2& size)
+    {
+        // `Info` 는 테마의 단추 그대로다 - 모든 단추가 물들면 무게가 뜻을 잃는다.
+        const bool tinted = severity != Severity::Info;
+        if (tinted)
+        {
+            const ImVec4 base = SeverityColor(severity);
+            ImGui::PushStyleColor(ImGuiCol_Button, WithAlpha(base, 0.55f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, WithAlpha(ScaleColor(base, 1.12f), 0.72f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive, WithAlpha(ScaleColor(base, 0.92f), 0.85f));
+        }
+        if (false == enabled)
+        {
+            ImGui::BeginDisabled();
+        }
+        const bool clicked = ImGui::Button(label, size);
+        if (false == enabled)
+        {
+            ImGui::EndDisabled();
+        }
+        if (tinted)
+        {
+            ImGui::PopStyleColor(3);
+        }
+        DisabledReason(false == enabled, disabledReason);
+        return clicked;
+    }
+
     bool HitArea(const char* id, const ImVec2& size, ImGuiButtonFlags buttons)
     {
         // 크기가 0 이면 ImGui 가 단언한다. 접힌 칸에서도 죽지 않게 한 픽셀은 둔다.
@@ -84,6 +113,26 @@ namespace JBro::Widget
     bool MenuToggle(const char* label, bool& checked, bool enabled)
     {
         return ImGui::MenuItem(label, nullptr, &checked, enabled);
+    }
+
+    bool BeginMenuBar()
+    {
+        return ImGui::BeginMenuBar();
+    }
+
+    void EndMenuBar()
+    {
+        ImGui::EndMenuBar();
+    }
+
+    bool BeginMenu(const char* label, bool enabled)
+    {
+        return ImGui::BeginMenu(label, enabled);
+    }
+
+    void EndMenu()
+    {
+        ImGui::EndMenu();
     }
 
     bool BeginContextMenu(const char* id, bool ofWindow)

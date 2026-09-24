@@ -6,26 +6,43 @@
 
 namespace JBro
 {
-    bool EditorCommandManager::Execute(OwnerPtr<EditorCommand> command)
+    bool EditorCommandManager::Execute(OwnerPtr<EditorCommand> command,
+        const char* documentKey)
     {
         if (command.Get() == nullptr || false == command->Execute())
         {
             return false;
         }
 
+        // 다른 문서끼리 합쳐질 걱정은 하지 않는다. 합치기는 커맨드가 스스로 받아들여야
+        // 일어나고(`TryMerge` 의 기본은 거짓이다), 받아들이는 것은 같은 대상을 끄는
+        // 같은 종류뿐이다 - 여기서 문서까지 견주면 잴 수 없는 줄이 하나 는다.
         if (ContinuesDrag() && false == m_undo.IsEmpty()
-            && m_undo[m_undo.Size() - 1]->TryMerge(*command))
+            && m_undo[m_undo.Size() - 1].command->TryMerge(*command))
         {
             // 합쳐졌다. 값은 위의 `Execute` 가 이미 적용했으므로 이 커맨드는 버린다.
             m_redo.Clear();
-            ++m_revision;
+            Touch(documentKey);
             return true;
         }
 
-        PushUndo(std::move(command));
+        Entry entry;
+        entry.command = std::move(command);
+        entry.documentKey = documentKey;
+        PushUndo(std::move(entry));
         m_redo.Clear();
-        ++m_revision;
+        Touch(documentKey);
         return true;
+    }
+
+    void EditorCommandManager::Touch(const char* documentKey)
+    {
+        // 판번호는 무엇이 움직이든 올라간다 - 에셋 참조를 다시 잇는 자리가 이것을 본다.
+        ++m_revision;
+        if (documentKey == nullptr)
+        {
+            m_canvasRevision = m_revision;
+        }
     }
 
     bool EditorCommandManager::ContinuesDrag()
@@ -52,7 +69,7 @@ namespace JBro
         return continues;
     }
 
-    void EditorCommandManager::PushUndo(OwnerPtr<EditorCommand> command)
+    void EditorCommandManager::PushUndo(Entry entry)
     {
         if (m_undo.Size() >= MaxUndoDepth)
         {
@@ -64,7 +81,7 @@ namespace JBro
             }
             m_undo.Resize(m_undo.Size() - 1);
         }
-        m_undo.Add(std::move(command));
+        m_undo.Add(std::move(entry));
     }
 
     bool EditorCommandManager::Undo()
@@ -73,11 +90,12 @@ namespace JBro
         {
             return false;
         }
-        OwnerPtr<EditorCommand> command = std::move(m_undo[m_undo.Size() - 1]);
+        Entry entry = std::move(m_undo[m_undo.Size() - 1]);
         m_undo.Resize(m_undo.Size() - 1);
-        command->Undo();
-        m_redo.Add(std::move(command));
-        ++m_revision;
+        entry.command->Undo();
+        const char* documentKey = entry.documentKey;
+        m_redo.Add(std::move(entry));
+        Touch(documentKey);
         // 되돌린 뒤에 이어서 드래그로 합치면 안 된다. 방금 되살린 값 위에 덮인다.
         m_mergingDrag = false;
         return true;
@@ -89,11 +107,12 @@ namespace JBro
         {
             return false;
         }
-        OwnerPtr<EditorCommand> command = std::move(m_redo[m_redo.Size() - 1]);
+        Entry entry = std::move(m_redo[m_redo.Size() - 1]);
         m_redo.Resize(m_redo.Size() - 1);
-        command->Redo();
-        PushUndo(std::move(command));
-        ++m_revision;
+        entry.command->Redo();
+        const char* documentKey = entry.documentKey;
+        PushUndo(std::move(entry));
+        Touch(documentKey);
         m_mergingDrag = false;
         return true;
     }
@@ -105,7 +124,8 @@ namespace JBro
         m_mergingDrag = false;
         m_lastMouseDownDuration = -1.0f;
         m_revision = 0;
-        m_savedRevision = 0;
+        m_canvasRevision = 0;
+        m_savedCanvasRevision = 0;
     }
 
     bool EditorCommandManager::CanUndo() const
@@ -130,12 +150,12 @@ namespace JBro
 
     void EditorCommandManager::MarkSaved()
     {
-        m_savedRevision = m_revision;
+        m_savedCanvasRevision = m_canvasRevision;
     }
 
     bool EditorCommandManager::IsDirty() const
     {
-        return m_revision != m_savedRevision;
+        return m_canvasRevision != m_savedCanvasRevision;
     }
 
     std::uint64_t EditorCommandManager::GetRevision() const

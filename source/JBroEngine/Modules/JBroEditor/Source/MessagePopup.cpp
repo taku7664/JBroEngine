@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/MessagePopup.h>
 
 #include <JBro/Editor/Localization.h>
+#include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/LocalizationKeys.h>
 
 #include <imgui.h>
@@ -27,9 +28,10 @@ namespace JBro
     void MessagePopup::OnDraw(EditorApplication& editor)
     {
         (void)editor;
-        ImGui::TextWrapped("%s", m_message.c_str());
+        Widget::WrappedText(m_message.c_str());
         ImGui::Spacing();
-        if (ImGui::Button(Loc::TextOr(LocKeys::CommonOk, "OK"), ImVec2(96.0f, 0.0f)))
+        if (Widget::ActionButton(Loc::TextOr(LocKeys::CommonOk, "OK"), Widget::Severity::Info,
+                true, nullptr, ImVec2(96.0f, 0.0f)))
         {
             Close();
         }

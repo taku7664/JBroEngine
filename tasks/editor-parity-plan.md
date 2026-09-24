@@ -266,7 +266,7 @@
 | `ImSplitter` (`ImVerticalSplitter`·`ImHorizontalSplitter`) | `Widget::Splitter` | 완료. 에셋 브라우저와 스프라이트 뷰어가 쓴다 |
 | `ImSectionHeader` | `Widget::CollapsingSection` | 완료. 설명 줄(`Description`)은 우리 쪽이 `HintText` 로 따로 낸다 |
 | `ImValidationMessage` | `Widget::SeverityTextF` · `WrappedText` | 완료 |
-| `ImActionButton` (무게별 색) | `Widget::Button` · `TextButton` | **열림.** 지우기 같은 되돌릴 수 없는 단추가 기존은 붉게 섰다 |
+| `ImActionButton` (무게별 색) | `Widget::ActionButton` | 완료 (D-190) |
 | `ImStatusBadge` | `Widget::StatusBadge` | 완료 |
 | `ImIconButton` | `Widget::SearchBox` 의 지우기 · `TextButton` | 완료 (D-152) |
 | `ImLayerHeader` | — | 해당 없음 (레이어가 자기 텍스처를 갖지 않는다, D-142) |
@@ -281,9 +281,9 @@ D-189 을 마치고 위젯·명령·창을 한 번 더 항목 단위로 견주�
 
 | 무엇이 | 기존 | 우리 | 어디로 |
 | --- | --- | --- | --- |
-| 에셋 파일 지우기·이름 바꾸기·폴더 만들기 | `EditorFileCommands` 셋. 지운 것은 임시 휴지통으로 옮겨 두었다가 되돌리기로 되살리고, `.jmeta` 도 함께 간다 | `DeleteAsset` · `RenameAsset` · `CreateAssetFolder` 를 곧장 부른다. **되돌릴 수 없고 지운 파일은 사라진다** | **열림.** 우리 규칙(§11 "되살릴 값을 먼저 뜨지 못했으면 지우지 않는다")도 어기고 있다 |
-| 되돌릴 수 없는 단추의 색 | `ImActionButton` 이 무게에 따라 물든다 | `삭제` 가 `취소` 와 똑같이 생겼다 | D-190 |
-| 메뉴가 위젯 계층을 거치는가 | — | 메뉴 막대와 공용 메뉴가 `ImGui::` 를 곧장 부른다. 감시 테스트가 `Source/Panel` 만 읽어 규칙이 조용히 안 지켜졌고, 그래서 그 항목들이 D-181 의 "왜 잠겼는지" 툴팁을 못 받는다 | D-190 |
+| 에셋 파일 지우기·이름 바꾸기·폴더 만들기 | `EditorFileCommands` 셋. 지운 것은 임시 휴지통으로 옮겨 두었다가 되돌리기로 되살리고, `.jmeta` 도 함께 간다 | `AssetFileCommands` 셋. 휴지통은 프로젝트 안 `.jbrotrash` 다(같은 볼륨이라 옮기기가 실패하지 않는다) | **완료** (D-191) |
+| 되돌릴 수 없는 단추의 색 | `ImActionButton` 이 무게에 따라 물든다 | `삭제` 가 `취소` 와 똑같이 생겼다 | **완료** (D-190) |
+| 메뉴가 위젯 계층을 거치는가 | — | 메뉴 막대와 공용 메뉴가 `ImGui::` 를 곧장 부른다. 감시 테스트가 `Source/Panel` 만 읽어 규칙이 조용히 안 지켜졌고, 그래서 그 항목들이 D-181 의 "왜 잠겼는지" 툴팁을 못 받는다 | **완료** (D-190) |
 | 인스펙터 에셋 칸 더블클릭 | 에셋 브라우저가 그 폴더로 가 그 에셋을 고른다(`ImReferenceField::OnActivate`) | 아무 일도 없다. `RevealAsset` 은 탐색기를 여는 다른 일이다 | **열림** |
 | 프로파일러의 갈래 | 풀(시스템)마다 순회 시간을 내고, 고른 풀의 상세를 낸다 | `Systems` 한 덩어리뿐이라 **어느 시스템이 느린지 알 수 없다** | **열림.** `GameSystem` 에 이름이 없어 스케줄러가 등록할 때 타입 이름을 함께 들어야 한다 |
 

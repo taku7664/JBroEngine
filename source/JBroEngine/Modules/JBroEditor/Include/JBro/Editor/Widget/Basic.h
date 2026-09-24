@@ -30,6 +30,14 @@ namespace JBro::Widget
     // ── 단추 ────────────────────────────────────────────────────────────────
     // 글자 단추다. 눌렸으면 참이다.
     bool Button(const char* label);
+    // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
+    // 붉게(`Error`), 저장·만들기처럼 그 자리의 주된 확인은 푸르게(`Success`) 선다 -
+    // `Info` 는 보통 단추와 같다. **지우기가 그만두기와 똑같이 생기면 손이 먼저 움직인다.**
+    //
+    // 회색일 때 까닭을 띄우는 것은 메뉴 항목과 같다(`disabledReason`).
+    bool ActionButton(const char* label, Severity severity = Severity::Info,
+        bool enabled = true, const char* disabledReason = nullptr,
+        const ImVec2& size = ImVec2(0.0f, 0.0f));
     // 보이지 않는 누름 자리다. 그림·칸 위를 누르게 할 때 쓴다. 받을 단추를 고를 수 있다 -
     // 캔버스 뷰는 가운데 단추로 끌어 옮긴다.
     bool HitArea(const char* id, const ImVec2& size,
@@ -49,6 +57,12 @@ namespace JBro::Widget
     void DisabledReason(bool disabled, const char* reason);
     // 켜고 끄는 항목이다. 바뀌었으면 참이고 `checked` 가 새 값이다.
     bool MenuToggle(const char* label, bool& checked, bool enabled = true);
+
+    // 메뉴 막대와 하위 메뉴다. 연 것만 닫는다 - 거짓일 때 `End*` 를 부르면 ImGui 가 단언한다.
+    bool BeginMenuBar();
+    void EndMenuBar();
+    bool BeginMenu(const char* label, bool enabled = true);
+    void EndMenu();
 
     // 우클릭 메뉴다. 열렸으면 참이고, 그때만 `EndContextMenu` 를 부른다.
     // `ofWindow` 가 참이면 항목이 아니라 창의 빈 곳에 붙는다(항목 위에서는 열리지 않는다).

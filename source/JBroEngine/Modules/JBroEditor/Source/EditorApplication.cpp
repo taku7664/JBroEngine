@@ -1,6 +1,8 @@
 ﻿#include <JBro/Core/Log.h>
 #include <JBro/Core/Version.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/Command/AssetFileCommands.h>
+#include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorPaths.h>
@@ -312,6 +314,7 @@ namespace JBro
         }
         m_frameworkKind = framework;
         m_projectFilePath = projectFilePath != nullptr ? projectFilePath : "";
+        ClearTrash();
         // 이 프로젝트의 에셋 시스템에 그림·외곽선 캐시를 잇는다(D-165).
         BindAssetTools();
 
@@ -610,7 +613,140 @@ namespace JBro
             relative.append("/", 1);
         }
         relative.append(name, std::strlen(name));
-        const String path = JoinPath(GetAssetRoot(), relative.c_str());
+        return m_commands.Execute(MakeOwnerPtr<CreateAssetFolderCommand>(*this, relative),
+            EditorCommandManager::AssetDatabase);
+    }
+
+    String EditorApplication::GetTrashRoot() const
+    {
+        // **프로젝트 옆이다.** 같은 볼륨이라 옮기기가 즉시 끝나고 중간에 실패할 자리가
+        // 없다 - 시스템 임시 폴더가 다른 드라이브면 지우기가 통째 복사가 된다.
+        // 에셋 폴더 **밖**이라 스캔과 파일 감시가 보지 않는다.
+        const String base = m_projectFilePath.empty()
+            ? EditorPaths::FolderOf(GetAssetRoot().c_str())
+            : EditorPaths::FolderOf(m_projectFilePath.c_str());
+        if (base.empty())
+        {
+            return String();
+        }
+        return EditorPaths::JoinPath(base.c_str(), ".jbrotrash");
+    }
+
+    String EditorApplication::MoveAssetToTrash(const char* relativePath)
+    {
+        const String root = GetTrashRoot();
+        if (relativePath == nullptr || relativePath[0] == '\0' || root.empty()
+            || GetAssetRoot().empty())
+        {
+            return String();
+        }
+        // 자리마다 칸을 하나 판다. 같은 이름을 두 번 지워도 서로 덮지 않는다.
+        char slot[24] = {};
+        std::snprintf(slot, sizeof(slot), "%llu",
+            static_cast<unsigned long long>(++m_trashCounter));
+        const String folder = EditorPaths::JoinPath(root.c_str(), slot);
+        if (false == m_platform->CreateDirectoryAt(folder.c_str()))
+        {
+            return String();
+        }
+        const char* leaf = EditorPaths::LeafOfPath(relativePath);
+        const String from = JoinPath(GetAssetRoot(), relativePath);
+        const String to = EditorPaths::JoinPath(folder.c_str(), leaf);
+        if (false == m_platform->MoveFileTo(from.c_str(), to.c_str()))
+        {
+            m_platform->DeleteDirectoryAt(folder.c_str());
+            return String();
+        }
+        // **`.jmeta` 도 함께 간다.** 두고 오면 되살릴 때 아이디가 달라진다.
+        String fromMeta = from;
+        fromMeta.append(".jmeta", 6);
+        if (m_platform->FileExists(fromMeta.c_str()))
+        {
+            String toMeta = to;
+            toMeta.append(".jmeta", 6);
+            m_platform->MoveFileTo(fromMeta.c_str(), toMeta.c_str());
+        }
+        // 고른 것이 방금 사라졌을 수 있다. 인스펙터가 죽은 것을 읽지 않게 비운다.
+        SetSelectedAsset(AssetId{});
+        RefreshAfterAssetFileChange();
+        return to;
+    }
+
+    bool EditorApplication::RestoreFromTrash(const char* trashPath, const char* relativePath)
+    {
+        if (trashPath == nullptr || relativePath == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String to = JoinPath(GetAssetRoot(), relativePath);
+        // 그 자리에 다른 것이 들어섰으면 덮지 않는다. 되돌리기가 남의 파일을 지우면 안 된다.
+        if (m_platform->FileExists(to.c_str()) || m_platform->DirectoryExists(to.c_str()))
+        {
+            return false;
+        }
+        if (false == m_platform->MoveFileTo(trashPath, to.c_str()))
+        {
+            return false;
+        }
+        String fromMeta(trashPath);
+        fromMeta.append(".jmeta", 6);
+        if (m_platform->FileExists(fromMeta.c_str()))
+        {
+            String toMeta = to;
+            toMeta.append(".jmeta", 6);
+            m_platform->MoveFileTo(fromMeta.c_str(), toMeta.c_str());
+        }
+        // 파 두었던 칸을 치운다. 비어 있을 때만 사라진다.
+        const String folder = EditorPaths::FolderOf(trashPath);
+        if (false == folder.empty())
+        {
+            m_platform->DeleteDirectoryAt(folder.c_str());
+        }
+        RefreshAfterAssetFileChange();
+        return true;
+    }
+
+    void EditorApplication::DropFromTrash(const char* trashPath)
+    {
+        if (trashPath == nullptr || m_platform.Get() == nullptr)
+        {
+            return;
+        }
+        // 칸째로 지운다. 안에 `.jmeta` 짝도 들어 있다.
+        const String folder = EditorPaths::FolderOf(trashPath);
+        if (false == folder.empty())
+        {
+            m_platform->DeleteDirectoryAt(folder.c_str());
+        }
+    }
+
+    void EditorApplication::ClearTrash()
+    {
+        const String root = GetTrashRoot();
+        if (false == root.empty() && m_platform.Get() != nullptr)
+        {
+            // 지난번에 비정상으로 끝나 남은 것이다. 프로젝트를 열 때 한 번 치운다.
+            m_platform->DeleteDirectoryAt(root.c_str());
+        }
+        m_trashCounter = 0;
+    }
+
+    void EditorApplication::RefreshAfterAssetFileChange()
+    {
+        m_engine->RescanAssets();
+        if (m_framework.Get() != nullptr)
+        {
+            m_framework->BindCanvasAssets();
+        }
+    }
+
+    bool EditorApplication::CreateAssetFolderNow(const char* relativePath)
+    {
+        if (relativePath == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = JoinPath(GetAssetRoot(), relativePath);
         if (false == m_platform->CreateDirectoryAt(path.c_str()))
         {
             return false;
@@ -708,8 +844,41 @@ namespace JBro
         {
             return true;
         }
-        const String from = JoinPath(GetAssetRoot(), relativePath);
-        const String to = JoinPath(GetAssetRoot(), target.c_str());
+        return m_commands.Execute(
+            MakeOwnerPtr<MoveAssetCommand>(*this, String(relativePath), target),
+            EditorCommandManager::AssetDatabase);
+    }
+
+    bool EditorApplication::MoveAsset(const char* relativePath, const char* targetFolder)
+    {
+        if (relativePath == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String leaf = EditorPaths::LeafOfPath(relativePath);
+        String target(targetFolder != nullptr ? targetFolder : "");
+        if (false == target.empty())
+        {
+            target.append("/", 1);
+        }
+        target.append(leaf.c_str(), leaf.size());
+        if (target == relativePath)
+        {
+            return true;
+        }
+        return m_commands.Execute(
+            MakeOwnerPtr<MoveAssetCommand>(*this, String(relativePath), target),
+            EditorCommandManager::AssetDatabase);
+    }
+
+    bool EditorApplication::MoveAssetPathNow(const char* fromRelative, const char* toRelative)
+    {
+        if (fromRelative == nullptr || toRelative == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String from = JoinPath(GetAssetRoot(), fromRelative);
+        const String to = JoinPath(GetAssetRoot(), toRelative);
         // **덮어쓰지 않는다.** 같은 이름이 이미 있으면 그 에셋을 잃는다.
         if (m_platform->FileExists(to.c_str()) || m_platform->DirectoryExists(to.c_str()))
         {
@@ -736,83 +905,32 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::MoveAsset(const char* relativePath, const char* targetFolder)
-    {
-        if (relativePath == nullptr || GetAssetRoot().empty())
-        {
-            return false;
-        }
-        const String leaf = EditorPaths::LeafOfPath(relativePath);
-        String target(targetFolder != nullptr ? targetFolder : "");
-        if (false == target.empty())
-        {
-            target.append("/", 1);
-        }
-        target.append(leaf.c_str(), leaf.size());
-        if (target == relativePath)
-        {
-            return true;
-        }
-        const String from = JoinPath(GetAssetRoot(), relativePath);
-        const String to = JoinPath(GetAssetRoot(), target.c_str());
-        if (m_platform->FileExists(to.c_str()) || m_platform->DirectoryExists(to.c_str()))
-        {
-            return false;
-        }
-        if (false == m_platform->MoveFileTo(from.c_str(), to.c_str()))
-        {
-            return false;
-        }
-        String fromMeta = from;
-        fromMeta.append(".jmeta", 6);
-        if (m_platform->FileExists(fromMeta.c_str()))
-        {
-            String toMeta = to;
-            toMeta.append(".jmeta", 6);
-            m_platform->MoveFileTo(fromMeta.c_str(), toMeta.c_str());
-        }
-        m_engine->RescanAssets();
-        if (m_framework.Get() != nullptr)
-        {
-            m_framework->BindCanvasAssets();
-        }
-        return true;
-    }
-
     bool EditorApplication::DeleteAsset(const char* relativePath)
     {
         if (relativePath == nullptr || GetAssetRoot().empty())
         {
             return false;
         }
-        const String path = JoinPath(GetAssetRoot(), relativePath);
-        bool removed = false;
-        if (m_platform->DirectoryExists(path.c_str()))
-        {
-            removed = m_platform->DeleteDirectoryAt(path.c_str());
-        }
-        else
-        {
-            removed = m_platform->DeleteFileAt(path.c_str());
-            String meta = path;
-            meta.append(".jmeta", 6);
-            if (removed && m_platform->FileExists(meta.c_str()))
-            {
-                m_platform->DeleteFileAt(meta.c_str());
-            }
-        }
-        if (false == removed)
+        return m_commands.Execute(MakeOwnerPtr<DeleteAssetCommand>(*this, String(relativePath)),
+            EditorCommandManager::AssetDatabase);
+    }
+
+    bool EditorApplication::DeleteAssets(const Array<String>& relativePaths)
+    {
+        if (relativePaths.IsEmpty() || GetAssetRoot().empty())
         {
             return false;
         }
-        // 고른 것이 방금 사라졌을 수 있다. 인스펙터가 죽은 것을 읽지 않게 비운다.
-        SetSelectedAsset(AssetId{});
-        m_engine->RescanAssets();
-        if (m_framework.Get() != nullptr)
+        if (relativePaths.Size() == 1)
         {
-            m_framework->BindCanvasAssets();
+            return DeleteAsset(relativePaths[0].c_str());
         }
-        return true;
+        OwnerPtr<CompoundCommand> all = MakeOwnerPtr<CompoundCommand>("Delete Assets");
+        for (std::size_t index = 0; index < relativePaths.Size(); ++index)
+        {
+            all->Add(MakeOwnerPtr<DeleteAssetCommand>(*this, relativePaths[index]));
+        }
+        return m_commands.Execute(std::move(all), EditorCommandManager::AssetDatabase);
     }
 
     bool EditorApplication::RevealAsset(const char* relativePath)
@@ -1661,7 +1779,7 @@ namespace JBro
         if (m_commands.IsDirty() && false == m_canvasSwitchConfirmed)
         {
             m_pendingCanvasPath = relative;
-            OpenPopup(MakeOwnerPtr<ConfirmPopup>(
+            OwnerPtr<ConfirmPopup> ask = MakeOwnerPtr<ConfirmPopup>(
                 Loc::TextOr(LocKeys::PopupUnsavedCanvasTitle, "Unsaved changes"),
                 Loc::TextOr(LocKeys::PopupUnsavedCanvasMessage,
                     "this canvas has changes that are not saved"),
@@ -1673,7 +1791,8 @@ namespace JBro
                     editor.AnswerCanvasSwitch(choice);
                 },
                 nullptr,
-                "##UnsavedCanvas"));
+                "##UnsavedCanvas");
+            OpenPopup(std::move(ask));
             return;
         }
         m_canvasSwitchConfirmed = false;
@@ -2533,7 +2652,7 @@ namespace JBro
 
     void EditorApplication::DrawRootMenuBar()
     {
-        if (false == ImGui::BeginMenuBar())
+        if (false == Widget::BeginMenuBar())
         {
             return;
         }
@@ -2541,15 +2660,15 @@ namespace JBro
         // **프로젝트에 대한 것이 여기 있다**(D-134). 기존 엔진의 도크 뿌리와 같은 자리다.
         // 메뉴는 보이는 이름으로 Id 를 받는다. 언어를 바꾸면 Id 가 달라지지만
         // 메뉴는 창과 달리 도킹 자리 같은 것을 남기지 않으므로 잃는 것이 없다.
-        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             // 기존과 같은 차례다: 새 프로젝트 · 구분선 · 열기 · 저장.
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuNewProject, "New Project")))
             {
                 RequestNewProject();
             }
             ImGui::Separator();
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuOpenProject, "Open Project")))
             {
                 RequestOpenProject();
             }
@@ -2578,11 +2697,11 @@ namespace JBro
                 }
             }
             ImGui::Separator();
-            if (ImGui::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
             {
                 m_exitRequested = true;
             }
-            ImGui::EndMenu();
+            Widget::EndMenu();
         }
 
         // 저장하지 않은 편집이 있으면 오른쪽 끝에 말해 준다. 판번호로 재므로
@@ -2593,21 +2712,21 @@ namespace JBro
             const float width = ImGui::CalcTextSize(mark).x;
             ImGui::SameLine(ImGui::GetContentRegionMax().x - width
                 - ImGui::GetStyle().ItemSpacing.x);
-            ImGui::TextDisabled("%s", mark);
+            Widget::HintText(mark);
         }
-        ImGui::EndMenuBar();
+        Widget::EndMenuBar();
     }
 
     void EditorApplication::DrawMainMenuBar()
     {
-        if (false == ImGui::BeginMenuBar())
+        if (false == Widget::BeginMenuBar())
         {
             return;
         }
 
         // **지금 연 캔버스에 대한 것이 여기 있다**(D-134). 기존 엔진의 메인 도크와 같은
         // 차례다: 시뮬레이션, 편집, 창.
-        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuSimulation, "Simulation")))
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuSimulation, "Simulation")))
         {
             const bool playing = IsSimulationPlaying();
             DrawShortcutItem(EditorShortcut::TogglePlay, playing
@@ -2615,10 +2734,10 @@ namespace JBro
                 : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"));
             DrawShortcutItem(EditorShortcut::TogglePause,
                 Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"));
-            ImGui::EndMenu();
+            Widget::EndMenu();
         }
 
-        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuEdit, "Edit")))
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuEdit, "Edit")))
         {
             // **할 수 없는 것은 회색으로 보인다.** 눌리는데 아무 일도 안 하면
             // 고장인지 할 게 없는 건지 알 수 없다. 그 판단은 단축키 표가 한다.
@@ -2631,30 +2750,30 @@ namespace JBro
                 Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"));
             DrawShortcutItem(EditorShortcut::DeleteSelection,
                 Loc::TextOr(LocKeys::HierarchyDelete, "Delete"));
-            ImGui::EndMenu();
+            Widget::EndMenu();
         }
 
         // **설정과 디버그는 따로 선다**(D-151). 기존 엔진의 차례와 같다. 같은 창이 창 메뉴의
         // 목록에도 있지만, 설정을 찾는 사람은 "설정" 을 먼저 연다 - 창 목록을 훑게 하면
         // 있는 기능도 없는 것처럼 보인다. 빌드 설정과 GPU 프로파일링은 그 기능이 없어 두지 않는다.
-        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuSettings, "Settings")))
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuSettings, "Settings")))
         {
             DrawPanelMenuItem("ProjectSettings",
                 Loc::TextOr(LocKeys::MenuSettingsProject, "Project Settings"));
-            ImGui::EndMenu();
+            Widget::EndMenu();
         }
-        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuDebug, "Debug")))
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuDebug, "Debug")))
         {
             DrawPanelMenuItem("Profiler", Loc::TextOr(LocKeys::MenuDebugCpuProfiler, "CPU Profiler"));
             DrawPanelMenuItem("Stats", Loc::TextOr(LocKeys::MenuDebugStats, "Statistics"));
             DrawPanelMenuItem("Log", Loc::TextOr(LocKeys::MenuDebugLog, "Log"));
-            ImGui::EndMenu();
+            Widget::EndMenu();
         }
 
-        if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindow, "Window")))
         {
             // 기존 엔진처럼 한 겹 더 들어간다 - 도구 창 말고도 열 것이 늘어날 자리다.
-            if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindowEditor, "Editor")))
+            if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindowEditor, "Editor")))
             {
                 // 패널이 무엇인지 모른 채로 만든다. 레지스트리에 있는 것이 곧
                 // 이 목록이라, 패널을 더해도 여기는 그대로다.
@@ -2666,16 +2785,16 @@ namespace JBro
                         continue;
                     }
                     bool open = panel->IsOpen();
-                    if (ImGui::MenuItem(panel->GetDisplayTitle(), nullptr, &open))
+                    if (Widget::MenuToggle(panel->GetDisplayTitle(), open))
                     {
                         panel->SetOpen(open);
                     }
                 }
-                ImGui::EndMenu();
+                Widget::EndMenu();
             }
             // **파일을 여는 창들**이다(기존 `MenuWindowImporter`). 고른 에셋이 그림일 때만 열 수 있다 -
             // 무엇을 열지 모르는 뷰어는 빈 창이다.
-            if (ImGui::BeginMenu(Loc::TextOr(LocKeys::MenuWindowImporter, "Importer")))
+            if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuWindowImporter, "Importer")))
             {
                 const AssetRecord* chosen = GetAssetRegistry().Find(GetSelectedAsset());
                 const bool image = chosen != nullptr && AssetTypeRules::IsImageType(chosen->type);
@@ -2691,11 +2810,11 @@ namespace JBro
                 {
                     OpenSpriteViewer(GetSelectedAsset());
                 }
-                ImGui::EndMenu();
+                Widget::EndMenu();
             }
-            ImGui::EndMenu();
+            Widget::EndMenu();
         }
-        ImGui::EndMenuBar();
+        Widget::EndMenuBar();
     }
 
     void EditorApplication::DrawPanelMenuItem(const char* panelTitle, const char* label)
@@ -2704,7 +2823,7 @@ namespace JBro
         // 없는 패널이면 항목을 잠근다. 눌러도 아무 일도 없는 항목은 없는 것보다 나쁘다(D-134).
         Widget::DisableScope disabled(panel == nullptr);
         bool open = panel != nullptr && panel->IsOpen();
-        if (ImGui::MenuItem(label, nullptr, &open) && panel != nullptr)
+        if (Widget::MenuToggle(label, open) && panel != nullptr)
         {
             panel->SetOpen(open);
             if (open)
@@ -2864,10 +2983,10 @@ namespace JBro
             }
             if (ImGui::Begin(label.c_str(), closable, flags))
             {
-                if (panel->HasMenuBar() && ImGui::BeginMenuBar())
+                if (panel->HasMenuBar() && Widget::BeginMenuBar())
                 {
                     panel->OnMenuBar();
-                    ImGui::EndMenuBar();
+                    Widget::EndMenuBar();
                 }
                 panel->OnDraw();
             }
@@ -3251,6 +3370,9 @@ namespace JBro
         SetSelectedObject(nullptr);
         SetSelectedAsset(AssetId{});
         m_commands.Clear();
+        // 되돌리기 더미가 방금 비었다. 그 안의 삭제 커맨드들이 자기 칸을 지우고 갔고,
+        // 남은 것이 있으면 여기서 치운다 - 다음 프로젝트가 남의 휴지통을 물려받지 않는다(D-191).
+        ClearTrash();
         m_objectIds.Clear();
         // 고르던 프레임은 이 프로젝트의 컴포넌트를 가리킨다. 다음 프로젝트의 같은 번호에 쓰면 안 된다.
         CancelSpriteFramePick();

@@ -73,7 +73,8 @@ namespace JBro
         const bool canCreate = false == m_name.empty();
         {
             Widget::DisableScope disabled(false == canCreate);
-            if (Widget::Button(Loc::TextOr(LocKeys::CommonCreate, "Create")))
+            if (Widget::ActionButton(Loc::TextOr(LocKeys::CommonCreate, "Create"),
+                    Widget::Severity::Success))
             {
                 submitted = true;
             }
