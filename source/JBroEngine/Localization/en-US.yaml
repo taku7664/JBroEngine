@@ -57,6 +57,7 @@ Entries:
   game_view.stopped: Stopped
   game_view.no_canvas: no canvas is open
   game_view.no_camera: there is no camera
+  game_view.camera_ambiguous: no camera is primary, so the first active one is used
   hierarchy.no_project: no project is open
   hierarchy.empty: the canvas is empty
   hierarchy.create_object: Create Object

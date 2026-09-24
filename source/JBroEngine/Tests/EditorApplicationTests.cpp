@@ -2727,8 +2727,18 @@ namespace
         }
         Check(editor.DidGameSubmitLastFrame(), "with one, the game draws");
 
-        // 카메라를 끄면 다시 낼 것이 없다.
+        // **`primary` 를 꺼도 살아 있으면 계속 그린다**(D-187). 지정이 없으면 첫 활성
+        // 카메라로 떨어진다 - 카메라가 있는데 검은 화면이 나오는 것이 그전의 문제였다.
         camera->primary = false;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the camera no longer primary");
+        }
+        Check(editor.DidGameSubmitLastFrame(),
+            "an active camera keeps drawing even when nothing is marked primary");
+
+        // 컴포넌트를 끄면 그제야 낼 것이 없다.
+        camera->SetEnabled(false);
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the camera was turned off");

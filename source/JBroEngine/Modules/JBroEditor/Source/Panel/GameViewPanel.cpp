@@ -1,6 +1,7 @@
 ﻿#include "GameViewPanel.h"
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
@@ -111,5 +112,29 @@ namespace JBro
             text = Loc::TextOr(LocKeys::GameViewStopped, "Stopped");
         }
         ImGui::GetWindowDrawList()->AddText(ImVec2(left + 12.0f, top + 10.0f), color, text);
+
+        // **어느 카메라로 그리고 있는지 애매하면 말한다**(D-187, 기존 캔버스 인스펙터의
+        // `camera_ambiguous` 경고). `primary` 를 켠 카메라가 없으면 첫 활성 카메라로
+        // 그리는데, 활성 카메라가 여럿이면 그중 무엇인지는 순회 순서가 정한다.
+        if (Canvas* canvas = m_editor->GetCanvas())
+        {
+            std::size_t active = 0;
+            bool anyPrimary = false;
+            canvas->ForEach<Component::Camera2D>([&](Component::Camera2D& camera) {
+                if (false == camera.IsActiveComponent())
+                {
+                    return;
+                }
+                ++active;
+                anyPrimary = anyPrimary || camera.primary;
+            });
+            if (false == anyPrimary && active > 1)
+            {
+                ImGui::GetWindowDrawList()->AddText(ImVec2(left + 12.0f, top + 28.0f),
+                    IM_COL32(255, 200, 90, 255),
+                    Loc::TextOr(LocKeys::GameViewCameraAmbiguous,
+                        "no camera is primary, so the first active one is used"));
+            }
+        }
     }
 }

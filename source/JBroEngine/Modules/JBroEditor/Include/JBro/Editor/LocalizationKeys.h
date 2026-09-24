@@ -52,6 +52,8 @@ namespace JBro::LocKeys
     inline constexpr const char* GameViewStopped = "game_view.stopped";
     inline constexpr const char* GameViewNoCanvas = "game_view.no_canvas";
     inline constexpr const char* GameViewNoCamera = "game_view.no_camera";
+    // `primary` 가 없어 첫 활성 카메라로 그리는데 그런 카메라가 여럿일 때(D-187).
+    inline constexpr const char* GameViewCameraAmbiguous = "game_view.camera_ambiguous";
 
     // ── 메뉴 ─────────────────────────────────────────────────────────────
     inline constexpr const char* MenuFile = "menu.file";

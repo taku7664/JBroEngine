@@ -412,7 +412,14 @@ namespace
         sprite->SetEnabled(false);
         cameras.Update(canvas, 0.0f);
         sprites.Update(canvas, 0.0f);
-        Check(world.GetCamera() == nullptr && world.GetSpriteCount() == 0, "non-primary camera and disabled sprite must skip");
+        // **`primary` 가 아니어도 살아 있으면 그린다**(D-187). 그전에는 아무것도 그리지
+        // 않았는데, 카메라를 붙이고 재생을 누른 사람에게는 검은 화면만 남았다.
+        Check(world.GetCamera() != nullptr,
+            "an active camera draws even when nothing is marked primary");
+        Check(world.GetSpriteCount() == 0, "while a disabled sprite still skips");
+        // **프레임을 새로 연다.** 추출은 카메라를 넣기만 하므로, 지우지 않으면 앞 프레임에
+        // 넣은 것이 남아 "아무것도 고르지 못했다" 를 잴 수 없다.
+        world.BeginFrame();
         camera->primary = true;
         cameraLocal->scale.x = 0.0f;
         transforms.Update(canvas, 0.0f);
@@ -456,6 +463,20 @@ namespace
         laterCamera->primary = true;
         cameras.Update(canvas, 0.0f);
         Check(world.GetCamera()->owner == cameraObject, "first valid primary camera must win");
+        // **`primary` 는 차례를 이긴다**(D-187). 지정한 카메라가 뒤에 있다고 해서 앞의
+        // 지정하지 않은 것으로 그리면, 지정이라는 것이 아무 뜻도 갖지 못한다.
+        world.BeginFrame();
+        camera->primary = false;
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCamera() != nullptr && world.GetCamera()->owner == spriteObject,
+            "a primary camera wins over an earlier one that is not primary");
+        // 아무것도 지정하지 않으면 첫 활성 카메라다. 차례가 같으면 늘 같은 것이어야 한다.
+        world.BeginFrame();
+        laterCamera->primary = false;
+        cameras.Update(canvas, 0.0f);
+        Check(world.GetCamera() != nullptr && world.GetCamera()->owner == cameraObject,
+            "with none primary the first active camera draws");
+        camera->primary = true;
         world.BeginFrame();
         cameraLocal->scale.x = 0.0f;
         transforms.Update(canvas, 0.0f);

@@ -54,10 +54,18 @@ namespace JBro::System
         {
             return;
         }
+        // **`primary` 가 먼저고, 하나도 없으면 첫 활성 카메라로 그린다**(D-187).
+        //
+        // 그전에는 `primary` 가 아니면 아예 그리지 않았다. 카메라를 붙이고 재생을 누른
+        // 사람에게는 검은 화면과 "카메라가 없습니다" 만 남는데, 카메라는 분명히 거기
+        // 있으므로 무엇이 잘못됐는지 화면에서 알 길이 없다(실제 에디터에서 그랬다).
+        // 기존 엔진도 지정이 없으면 첫 활성 카메라로 떨어졌다.
         bool selected = false;
+        bool hasFallback = false;
+        RenderCamera2D fallback;
         canvas.ForEach<Component::Camera2D>([&](Component::Camera2D& camera)
         {
-            if (selected || false == camera.primary || false == camera.IsActiveComponent())
+            if (selected || false == camera.IsActiveComponent())
             {
                 return;
             }
@@ -78,9 +86,24 @@ namespace JBro::System
             item.nearPlane = camera.nearPlane;
             item.farPlane = camera.farPlane;
             item.clearColor = camera.clearColor;
-            m_renderWorld->SetCamera(item);
-            selected = true;
+            if (camera.primary)
+            {
+                m_renderWorld->SetCamera(item);
+                selected = true;
+                return;
+            }
+            // 첫 번째 것만 든다. 뒤의 것으로 덮으면 순회 순서가 바뀔 때마다 다른
+            // 카메라로 그려져, 같은 캔버스가 실행할 때마다 다르게 보인다.
+            if (false == hasFallback)
+            {
+                fallback = item;
+                hasFallback = true;
+            }
         });
+        if (false == selected && hasFallback)
+        {
+            m_renderWorld->SetCamera(fallback);
+        }
     }
 
     void Camera2DSystem::OnUpdate(Canvas& canvas, float deltaTime)
