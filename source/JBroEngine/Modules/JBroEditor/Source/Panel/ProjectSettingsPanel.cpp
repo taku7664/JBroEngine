@@ -47,6 +47,7 @@ namespace JBro
     void ProjectSettingsPanel::Reload()
     {
         m_draft = m_editor->GetProjectFile();
+        Widget::JoinLines(m_draft.assetIgnorePatterns, m_ignorePatterns);
         m_loadedPath = m_editor->GetProjectFilePath();
         m_loaded = true;
         m_message.clear();
@@ -213,6 +214,18 @@ namespace JBro
             layout.Row(
                 [] { Widget::Text("LastOpenedCanvasPath"); },
                 [&] { DrawPathValue("##lastCanvas", m_draft.lastOpenedCanvasPath, canvasFilter, "*.jcanvas", true); });
+            // **스캔과 파일 감시가 건너뛸 이름들**(D-189, 기존 프로젝트 설정의 에셋 감시 칸).
+            // 프로젝트 파일에는 있는데 고칠 길이 없어, 손으로 파일을 열어야 했다.
+            layout.Row(
+                [] { Widget::Text("AssetIgnorePatterns"); },
+                [&] {
+                    if (Widget::NameListEdit("##ignore", m_ignorePatterns))
+                    {
+                        Widget::SplitLines(m_ignorePatterns, m_draft.assetIgnorePatterns);
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsIgnorePatterns,
+                        "one pattern a line; the scan and the watcher skip what matches"));
+                });
         }
 
         Widget::SectionHeader(

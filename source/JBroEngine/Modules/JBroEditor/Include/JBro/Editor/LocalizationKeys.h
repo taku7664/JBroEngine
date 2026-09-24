@@ -290,6 +290,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsRevert = "project_settings.revert";
     inline constexpr const char* ProjectSettingsSaved = "project_settings.saved";
     inline constexpr const char* ProjectSettingsLinearFilter = "project_settings.linear_filter";
+    inline constexpr const char* ProjectSettingsIgnorePatterns = "project_settings.ignore_patterns";
 
     // ── 로그 (D-133) ─────────────────────────────────────────────────────
     inline constexpr const char* LogClear = "log.clear";

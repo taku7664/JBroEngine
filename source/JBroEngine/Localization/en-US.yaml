@@ -164,6 +164,7 @@ Entries:
   project_settings.revert: Revert
   project_settings.saved: saved
   project_settings.linear_filter: linear sampling; off is nearest, which is the pixel-art default
+  project_settings.ignore_patterns: one pattern a line; the scan and the watcher skip what matches
   panel.profiler: Profiler
   profiler.hint: measured while this window is open
   profiler.empty: nothing has been measured yet

@@ -5373,6 +5373,11 @@ namespace
         edited.resolutionHeight = 480;
         edited.build.productName = "Renamed";
         edited.assetDirectory = "Art";
+        // **무시 패턴도 설정 화면에서 간다**(D-189). 시퀀스는 값이 여러 줄이라
+        // 한 줄 바꿔치기로 다룰 수 없어, 예전에는 고쳐도 파일에 남지 않았다.
+        edited.assetIgnorePatterns.Clear();
+        edited.assetIgnorePatterns.Add(JBro::String("*.psd"));
+        edited.assetIgnorePatterns.Add(JBro::String("Temp/"));
         Check(editor.SaveProjectSettings(edited, error), "saving the settings must go through");
 
         // 에디터가 든 값도 파일의 것으로 맞춰져야 한다.
@@ -5400,6 +5405,31 @@ namespace
         Check(text.find("ProductName: Renamed") != JBro::String::npos, "inside the block too");
         Check(text.find("AssetDirectory: Art") != JBro::String::npos,
             "and a key that was not in the file is added");
+        Check(text.find("AssetIgnorePatterns:") != JBro::String::npos
+                && text.find("- \"*.psd\"") != JBro::String::npos
+                && text.find("- \"Temp/\"") != JBro::String::npos,
+            "the ignore patterns must reach the file as a sequence");
+        Check(editor.GetProjectFile().assetIgnorePatterns.Size() == 2,
+            "and the editor must hold them afterwards");
+
+        // **거듭 저장해도 파일이 그대로다**(D-189). 저장할 때마다 값이 빈 키와 빈 줄이
+        // 하나씩 쌓여 실제 프로젝트 파일이 벌어져 있었다. 첫 저장은 원문에 없던 키를
+        // 채우고 빈 값에 기본값을 넣으므로 달라지는 것이 맞다 - 그 뒤로 멈춰야 한다.
+        const auto saveAndRead = [&]() {
+            Check(editor.SaveProjectSettings(editor.GetProjectFile(), error),
+                "saving again must go through");
+            std::FILE* file = nullptr;
+            Check(fopen_s(&file, projectPath.c_str(), "rb") == 0 && file != nullptr,
+                "the project file must be readable again");
+            char buffer[4096] = {};
+            const std::size_t read = std::fread(buffer, 1, sizeof(buffer) - 1, file);
+            std::fclose(file);
+            return JBro::String(buffer, read);
+        };
+        const JBro::String secondText = saveAndRead();
+        const JBro::String thirdText = saveAndRead();
+        Check(secondText == thirdText,
+            "saving a file that did not change must leave it byte for byte");
 
         editor.Shutdown();
         std::remove(projectPath.c_str());

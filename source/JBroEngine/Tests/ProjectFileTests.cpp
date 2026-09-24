@@ -315,8 +315,166 @@ namespace
     }
 
 
-    // **고쳐 쓰기는 원문을 타고 간다**(D-137). 우리가 모르는 키도, 주석도, 시퀀스도
-    // 그 자리에 남아야 한다 - 통째로 다시 쓰면 남의 설정이 조용히 사라진다.
+    // **이미 겹쳐 있는 파일은 저장하면서 고쳐진다**(D-189). 불어나기를 멈추는 것만으로는
+    // 이미 불어난 파일이 그대로 남고, 읽을 때 마지막 줄이 앞의 줄을 조용히 덮는다.
+    void TestSavingCollapsesKeysThatWereWrittenTwice()
+    {
+        const char* text =
+            "Version: 1\n"
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "SomeFutureKey: keep me\n"
+            "LastOpenedCanvasPath: \n"
+            "AssetIgnorePatterns:\n"
+            "  - \"*.psd\"\n"
+            "Build:\n"
+            "  ProductName: Hero\n"
+            "  ProductName: Hero\n"
+            "LastOpenedCanvasPath: \n"
+            "AssetIgnorePatterns:\n"
+            "  - \"*.psd\"\n";
+
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error),
+            "the damaged project must still parse");
+
+        JBro::String once;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), once, error),
+            "the rewrite must go through");
+
+        const auto countOf = [](const JBro::String& text, const char* needle) {
+            std::size_t found = 0;
+            std::size_t at = text.find(needle);
+            while (at != JBro::String::npos)
+            {
+                ++found;
+                at = text.find(needle, at + 1);
+            }
+            return found;
+        };
+        Check(countOf(once, "LastOpenedCanvasPath") == 1,
+            "a key written twice must come back once");
+        Check(countOf(once, "ProductName") == 1, "inside the block too");
+        Check(countOf(once, "AssetIgnorePatterns") == 1, "and so must the sequence");
+        Check(countOf(once, "*.psd") == 1, "with its items, not two copies of them");
+        Check(once.find("SomeFutureKey: keep me") != JBro::String::npos,
+            "a key the engine does not know must still survive");
+
+        // 고친 뒤로는 가만히 있어야 한다.
+        JBro::String twice;
+        Check(JBro::WriteProjectFileText(project, once.c_str(), once.size(), twice, error),
+            "the second rewrite must go through");
+        Check(once == twice, "and the repaired file must not move again");
+    }
+
+    // **두 번 저장해도 파일이 불어나지 않는다**(D-189). 값이 빈 키(`ProductName: `)를
+    // "적지 않은 키" 로 세는 바람에, 저장할 때마다 같은 키가 뒤에 하나씩 더 붙었다 -
+    // 실제 프로젝트 파일이 그렇게 망가져 있었다.
+    void TestSavingTwiceDoesNotGrowTheFile()
+    {
+        const char* text =
+            "Version: 1\n"
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "LastOpenedCanvasPath: \n"
+            "Build:\n"
+            "  ProductName: \n"
+            "  StartupCanvas: \n";
+
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error),
+            "the probe project must parse");
+
+        JBro::String once;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), once, error),
+            "the first rewrite must go through");
+        JBro::String twice;
+        Check(JBro::WriteProjectFileText(project, once.c_str(), once.size(), twice, error),
+            "the second rewrite must go through");
+        // 첫 저장은 원문에 없던 키를 채우므로 늘어나는 것이 맞다. **그 뒤로 가만히 있어야** 한다.
+        JBro::String thrice;
+        Check(JBro::WriteProjectFileText(project, twice.c_str(), twice.size(), thrice, error),
+            "the third rewrite must go through");
+        Check(twice == thrice, "saving a file that did not change must leave it byte for byte");
+        Check(once == twice, "and the pass that only fills in missing keys must settle at once");
+
+        const auto countOf = [](const JBro::String& text, const char* needle) {
+            std::size_t found = 0;
+            std::size_t at = text.find(needle);
+            while (at != JBro::String::npos)
+            {
+                ++found;
+                at = text.find(needle, at + 1);
+            }
+            return found;
+        };
+        Check(countOf(twice, "LastOpenedCanvasPath") == 1,
+            "an empty top-level key must appear once, not twice");
+        Check(countOf(twice, "ProductName") == 1,
+            "and an empty key inside a block must too");
+        Check(countOf(twice, "StartupCanvas") == 1, "all of them");
+    }
+
+    // **무시 패턴을 고치면 파일에 간다**(D-189, 기존 프로젝트 설정의 에셋 감시 칸).
+    // 시퀀스를 지나치던 동안에는 설정 화면에서 고칠 길도, 고쳐도 남을 길도 없었다.
+    void TestRewritingTheIgnorePatterns()
+    {
+        const char* text =
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "AssetIgnorePatterns:\n"
+            "  - \"*.psd\"\n"
+            "  - \"~$*\"\n"
+            "SomeFutureKey: keep me\n";
+
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error),
+            "the probe project must parse");
+        Check(project.assetIgnorePatterns.Size() == 2, "and read both patterns");
+
+        project.assetIgnorePatterns.Clear();
+        project.assetIgnorePatterns.Add(JBro::String("*.tmp"));
+        JBro::String written;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error),
+            "rewriting must go through");
+        Check(written.find("*.tmp") != JBro::String::npos, "the new pattern must be written");
+        Check(written.find("*.psd") == JBro::String::npos,
+            "and the ones that were taken out must be gone");
+        Check(written.find("SomeFutureKey: keep me") != JBro::String::npos,
+            "while the key after the sequence stays where it was");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error),
+            "the rewritten text must parse");
+        Check(reread.assetIgnorePatterns.Size() == 1
+                && reread.assetIgnorePatterns[0] == "*.tmp",
+            "and read back as the one pattern that is left");
+
+        // 비우면 `[]` 다. 머리줄만 남기면 다음 읽기가 값 없는 맵으로 본다.
+        project.assetIgnorePatterns.Clear();
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error),
+            "rewriting an empty list must go through");
+        Check(written.find("AssetIgnorePatterns: []") != JBro::String::npos,
+            "an empty list is written as an empty sequence");
+        JBro::ProjectFile emptied;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), emptied, error),
+            "and that must parse");
+        Check(emptied.assetIgnorePatterns.IsEmpty(), "with nothing in it");
+
+        // 원문에 그 키가 없으면 **패턴이 있을 때만** 붙인다.
+        const char* bare = "EngineVersion: 1.0.0\nFramework: 2D\n";
+        JBro::ProjectFile none;
+        Check(JBro::ParseProjectFile(bare, std::strlen(bare), none, error), "the bare file parses");
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error),
+            "rewriting the bare file must go through");
+        Check(written.find("AssetIgnorePatterns") == JBro::String::npos,
+            "a file with no patterns must not grow an empty list just by being saved");
+    }
+
+    // **고쳐 쓰기는 원문을 타고 간다**(D-137). 우리가 모르는 키도, 주석도 그 자리에
+    // 남아야 한다 - 통째로 다시 쓰면 남의 설정이 조용히 사라진다.
     void TestRewritingKeepsWhatItDoesNotKnow()
     {
         const char* text =
@@ -353,7 +511,19 @@ namespace
             "a key we do not know stays, with its value");
         Check(written.find("UnknownBuildKey: keep me too") != JBro::String::npos,
             "and so does one inside a block");
-        Check(written.find("  - *.psd") != JBro::String::npos, "sequences are left alone");
+        // **무시 패턴은 이제 고쳐 쓴다**(D-189). 그전에는 시퀀스를 통째로 지나쳐서,
+        // 설정 화면에서 고쳐도 파일에 가지 않았다. 따옴표는 늘 붙인다 - `~$*` 처럼
+        // YAML 이 다르게 읽는 글자로 시작하는 패턴이 있다.
+        Check(written.find("  - \"*.psd\"") != JBro::String::npos,
+            "the ignore patterns are written back");
+        {
+            JBro::ProjectFile reread;
+            Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error),
+                "the rewritten text must parse again");
+            Check(reread.assetIgnorePatterns.Size() == 1
+                    && reread.assetIgnorePatterns[0] == "*.psd",
+                "and the pattern must survive the round trip unchanged");
+        }
         Check(written.find("ResolutionWidth: 1280") != JBro::String::npos,
             "the value we changed is the one that changed");
         Check(written.find("1920") == JBro::String::npos, "and the old one is gone");
@@ -473,6 +643,9 @@ int RunProjectFileTests()
     TestScriptModulePathResolution();
     TestDefaultsSurviveAnEmptyProject();
     TestRewritingKeepsWhatItDoesNotKnow();
+    TestRewritingTheIgnorePatterns();
+    TestSavingTwiceDoesNotGrowTheFile();
+    TestSavingCollapsesKeysThatWereWrittenTwice();
     TestCreatesANewProject();
     TestPathsAreMadeRelativeToTheProject();
     std::cout << "Project file tests passed.\n";

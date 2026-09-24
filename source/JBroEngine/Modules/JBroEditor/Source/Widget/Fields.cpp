@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/TextField.h>
 
 #include <imgui_internal.h>
 
@@ -289,5 +290,53 @@ namespace JBro::Widget
 
         ImGui::PopID();
         return changed;
+    }
+
+    bool NameListEdit(const char* id, String& buffer, float lines)
+    {
+        // **글자 칸이 이미 하는 일이다.** `String` 과 ImGui 의 `char` 버퍼 사이를 옮겨
+        // 담는 것도, 여러 줄로 서는 것도, 아무도 치지 않았을 때 값을 그대로 두는 것도
+        // `TextField` 안에 있다. 여기서 같은 것을 한 벌 더 쓰면 고칠 자리가 둘이 된다.
+        return TextField(id, buffer).Multiline(true, lines).Draw();
+    }
+
+    void SplitLines(const String& buffer, Array<String>& out)
+    {
+        out.Clear();
+        std::size_t start = 0;
+        while (start <= buffer.size())
+        {
+            std::size_t stop = start;
+            while (stop < buffer.size() && buffer[stop] != '\n')
+            {
+                ++stop;
+            }
+            // 윈도우에서 온 글자는 줄 끝에 `\r` 이 남는다. 그것까지 이름에 들어가면
+            // 패턴이 영영 맞지 않는다.
+            std::size_t end = stop;
+            while (end > start && buffer[end - 1] == '\r')
+            {
+                --end;
+            }
+            if (end > start)
+            {
+                out.Add(String(buffer.c_str() + start, end - start));
+            }
+            if (stop >= buffer.size())
+            {
+                break;
+            }
+            start = stop + 1;
+        }
+    }
+
+    void JoinLines(const Array<String>& items, String& buffer)
+    {
+        buffer.clear();
+        for (std::size_t index = 0; index < items.Size(); ++index)
+        {
+            buffer.append(items[index].c_str(), items[index].size());
+            buffer.append("\n", 1);
+        }
     }
 }

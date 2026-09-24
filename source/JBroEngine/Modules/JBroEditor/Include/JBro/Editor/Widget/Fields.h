@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/Widget/Common.h>
 
+#include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
 namespace JBro::Widget
@@ -34,6 +35,25 @@ namespace JBro::Widget
         const char* m_clearTooltip = nullptr;
         ImGuiInputTextFlags m_flags = ImGuiInputTextFlags_None;
     };
+
+    // **한 줄이 한 이름인 목록**이다(D-189, 기존 `ImNameListEdit`). 무시 패턴처럼
+    // 짧은 글자가 몇 개 늘어선 값을 고친다 - 더하기는 줄을 쓰는 것이고 빼기는 줄을
+    // 지우는 것이라, `+` 와 `-` 단추가 따로 필요 없다.
+    //
+    // **버퍼는 부르는 쪽이 든다.** 여러 줄 글자 칸은 편집하는 동안 그 버퍼가 프레임을
+    // 넘어 살아 있어야 한다 - 매 프레임 목록에서 새로 지으면 커서와 선택이 풀린다.
+    // 그래서 버퍼가 원본이고 목록은 거기서 나온다.
+    //
+    // 칸 자체는 `TextField` 의 여러 줄 형태다. 이 함수가 더하는 것은 **한 줄이 한 이름**
+    // 이라는 약속과 그 약속을 지키는 `SplitLines` / `JoinLines` 뿐이다.
+    //
+    // 돌려주는 값: 참이면 버퍼가 바뀌었다. `SplitLines` 로 목록을 다시 만든다.
+    bool NameListEdit(const char* id, String& buffer, float lines = 4.0f);
+    // 버퍼를 줄 단위로 가른다. 빈 줄은 버린다 - 사람이 엔터를 한 번 더 친 것이
+    // 이름 없는 항목이 되면 안 된다.
+    void SplitLines(const String& buffer, Array<String>& out);
+    // 거꾸로. 목록을 버퍼에 담는다. 창을 열 때 한 번 부른다.
+    void JoinLines(const Array<String>& items, String& buffer);
 
     // 상태를 한눈에 보여 주는 작은 표다. 무게에 따라 테두리와 바탕이 물든다.
     class StatusBadge

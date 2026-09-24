@@ -908,6 +908,48 @@ namespace
             "an id that is not in the list is shown as missing, not overwritten");
     }
 
+    // **한 줄이 한 이름인 목록**이다(D-189). 아무도 만지지 않으면 값이 그대로여야 하고,
+    // 버퍼와 목록 사이를 오갈 때 빈 줄과 `\r` 이 이름으로 둔갑하면 안 된다 -
+    // 그 글자가 섞인 패턴은 어떤 파일 이름과도 맞지 않는다.
+    void TestTheNameListEditKeepsTheBufferAndTheListInStep()
+    {
+        Stage stage;
+        stage.Begin();
+
+        JBro::String buffer = "*.psd\n*.tmp\n";
+        const bool changed = JBro::Widget::NameListEdit("##names", buffer);
+        Check(false == changed, "nobody typed, so nothing changed");
+        Check(buffer == JBro::String("*.psd\n*.tmp\n"), "and the buffer is untouched");
+
+        stage.End();
+
+        JBro::Array<JBro::String> items;
+        JBro::Widget::SplitLines(JBro::String("*.psd\r\n\r\n  *.tmp\r\n"), items);
+        Check(items.Size() == 2, "a blank line is not a name");
+        Check(items[0] == JBro::String("*.psd"), "and the carriage return is not part of one");
+        Check(items[1] == JBro::String("  *.tmp"), "leading spaces belong to the name, though");
+
+        // 줄바꿈으로 끝나지 않는 마지막 줄도 이름이다. 사람이 엔터를 치기 전에
+        // 저장을 누르면 그 줄이 사라지면 안 된다.
+        JBro::Array<JBro::String> tail;
+        JBro::Widget::SplitLines(JBro::String("a\nb"), tail);
+        Check(tail.Size() == 2 && tail[1] == JBro::String("b"),
+            "a last line without a newline is still a name");
+
+        JBro::String joined;
+        JBro::Widget::JoinLines(items, joined);
+        Check(joined == JBro::String("*.psd\n  *.tmp\n"), "joining puts one name on one line");
+
+        JBro::Array<JBro::String> again;
+        JBro::Widget::SplitLines(joined, again);
+        Check(again.Size() == items.Size(), "and the round trip keeps the count");
+
+        JBro::Array<JBro::String> nothing;
+        nothing.Add(JBro::String("x"));
+        JBro::Widget::SplitLines(JBro::String(""), nothing);
+        Check(nothing.IsEmpty(), "an empty buffer means no names at all");
+    }
+
     // 무게마다 색이 달라야 한다. 같으면 경고와 오류를 눈으로 가릴 수 없다.
     void TestSeverityColoursDiffer()
     {
@@ -949,6 +991,7 @@ int RunEditorWidgetTests()
     TestAnEmptyFilterComboDrawsAndChangesNothing();
     TestTheEnumComboChangesTheValueWhenAnItemIsClicked();
     TestTheAssetFieldWritesTheIdOfTheChosenName();
+    TestTheNameListEditKeepsTheBufferAndTheListInStep();
     TestSeverityColoursDiffer();
     std::cout << "Editor widget tests passed.\n";
     return 0;

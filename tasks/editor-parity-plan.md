@@ -228,7 +228,7 @@
 | `Engine/Editor/ImEditor` (창·팝업·미룬 일·뷰 타깃·캔버스 뷰 선택/숨김) | `EditorApplication` · `EditorPanel` · `EditorPopup` | 완료 (D-163 에서 공개 기능 하나씩 대조), 카메라 컬링 통계·GPU 미리보기는 열림 |
 | `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기·파일 클립보드) | 완료 (D-139·D-141·D-147·D-154·D-182), `.meta` 보이기는 해당 없음(레지스트리를 본다), 즐겨찾기는 기존도 빈 제목줄 |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |
-| `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156) |
+| `Main/Importer/SpriteImporterWindow`·`ImporterWindowBase` | `ImportAssetFile`·"가져오기..." | 완료 (D-156). 흐름이 다르다: 기존은 창에서 원본·목적 폴더·자르기 옵션을 정한 뒤 가져오고, 우리는 파일 대화상자로 고르면 **부른 폴더에** 들어간 뒤 스프라이트 뷰어가 바로 열려 그 자리에서 자르기를 고친다. 모달이 하나 적은 대신 **목적 폴더와 이름을 가져오는 자리에서 고치는 칸이 없다**(옮기기·이름 바꾸기는 에셋 브라우저에서 한다) |
 | `Main/Importer/SpriteViewerWindow`·`SpriteFramePick`·`SpriteImportOptionsEditor` | `SpriteViewerWindow` + `InspectorPanel::DrawAssetOptions` | 완료 (D-155·D-159·D-185), 확대·창에 맞추기·피벗 표시·가리킴은 D-185, 창 메뉴(열기·탭 닫기)는 해당 없음(브라우저에서 열고 탭의 `x` 로 닫는다) |
 | `Main/Importer/AudioImporterWindow` | — | 해당 없음 (오디오 없음) |
 | `Main/Log/LogTool` | `LogPanel` | 완료 (D-133) |
@@ -248,7 +248,7 @@
 | `Gui/EditorMessagePopup` | `MessagePopup` | 완료 |
 | `Shortcut/EditorShortcutManager` | `EditorShortcuts` | 완료 (D-132), 표를 항목마다 견주어 빠져 있던 `PasteObjectsAsChild` 를 채웠다 (D-166), 잠긴 까닭(`WhyBlocked`)은 D-181 |
 | `Theme/EditorTheme` | `EditorTheme` | 완료 |
-| `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 오디오 위젯·`ImReferenceField` 는 열림 |
+| `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 한 줄 한 이름 목록(`ImNameListEdit`)은 D-189, 오디오 위젯·`ImReferenceField` 는 열림 |
 | `Localization/EditorReflectionLabels` | `JBro/Editor/EditorNames.h` 의 `DisplayTypeName`·`ComponentCategoryLabel` | 완료 (D-180), 필드 라벨은 해당 없음 (필드 이름으로 보인다, §11.2) |
 | `Localization/EditorLocalizationKeys` | `JBro/Editor/LocalizationKeys.h` + `Localization/{ko-KR,en-US}.yaml` | 완료 (D-184 에서 대조표에 채움), 키 수는 658 대 232 인데 차이는 거의 다 없는 기능(오디오·이펙트·빌드·폰트·프리팹·스크립트·머티리얼·애니메이션)의 것이다 |
 | `Icons/FontAwesomeIcons` | `JBro/Editor/EditorIcons.h` | 완료 (D-184 에서 대조표에 채움), 기존이 **실제로 쓰는** 글리프는 넷(`X_MARK`·`EYE`·`EYE_SLASH`·`ELLIPSIS_VERTICAL`)이고 앞의 셋은 우리도 쓴다. 마지막 하나는 스크립트 스키마 위젯 전용이라 해당 없음 |
@@ -258,6 +258,34 @@
 `ImPathField` 는 경로 칸에 "찾아보기" 단추를 단다. `Widget::PathField` 로 섰다(D-164) - 프로젝트 설정의 경로 여섯이 쓴다. `ImReferenceField` 는 오브젝트 참조 칸인데, 그런 필드를 가진 컴포넌트가 아직
 없다(스크립트가 생기면 필요해진다).
 
+위젯을 하나씩 다시 견준 결과를 남긴다(D-189 훑기). 이름이 달라 빠진 것처럼 보이던 것들이다.
+
+| 기존 | 우리 | 상태 |
+| --- | --- | --- |
+| `ImNameListEdit` | `Widget::NameListEdit` · `SplitLines` · `JoinLines` | 완료 (D-189). 프로젝트 설정의 무시 패턴 칸이 쓴다 |
+| `ImSplitter` (`ImVerticalSplitter`·`ImHorizontalSplitter`) | `Widget::Splitter` | 완료. 에셋 브라우저와 스프라이트 뷰어가 쓴다 |
+| `ImSectionHeader` | `Widget::CollapsingSection` | 완료. 설명 줄(`Description`)은 우리 쪽이 `HintText` 로 따로 낸다 |
+| `ImValidationMessage` | `Widget::SeverityTextF` · `WrappedText` | 완료 |
+| `ImActionButton` (무게별 색) | `Widget::Button` · `TextButton` | **열림.** 지우기 같은 되돌릴 수 없는 단추가 기존은 붉게 섰다 |
+| `ImStatusBadge` | `Widget::StatusBadge` | 완료 |
+| `ImIconButton` | `Widget::SearchBox` 의 지우기 · `TextButton` | 완료 (D-152) |
+| `ImLayerHeader` | — | 해당 없음 (레이어가 자기 텍스처를 갖지 않는다, D-142) |
+| `ImReferenceField` 의 `OnActivate` | — | **열림.** 기존은 인스펙터의 에셋 칸을 더블클릭하면 에셋 브라우저가 그 폴더로 옮겨 가 그 에셋을 고른다. 우리 `RevealAsset` 은 탐색기를 여는 다른 일이다 |
+| `ImAudioBusField`·`ImAudioVisualizer`·`ImSpectrumVisualizer` | — | 해당 없음 (오디오 없음) |
+
+
+## 다시 훑어 새로 찾은 것 (2026-09-24)
+
+D-189 을 마치고 위젯·명령·창을 한 번 더 항목 단위로 견주었다. 표에 **완료**로 적혀 있었지만
+실제로는 기존만 못한 자리들이다.
+
+| 무엇이 | 기존 | 우리 | 어디로 |
+| --- | --- | --- | --- |
+| 에셋 파일 지우기·이름 바꾸기·폴더 만들기 | `EditorFileCommands` 셋. 지운 것은 임시 휴지통으로 옮겨 두었다가 되돌리기로 되살리고, `.jmeta` 도 함께 간다 | `DeleteAsset` · `RenameAsset` · `CreateAssetFolder` 를 곧장 부른다. **되돌릴 수 없고 지운 파일은 사라진다** | **열림.** 우리 규칙(§11 "되살릴 값을 먼저 뜨지 못했으면 지우지 않는다")도 어기고 있다 |
+| 되돌릴 수 없는 단추의 색 | `ImActionButton` 이 무게에 따라 물든다 | `삭제` 가 `취소` 와 똑같이 생겼다 | D-190 |
+| 메뉴가 위젯 계층을 거치는가 | — | 메뉴 막대와 공용 메뉴가 `ImGui::` 를 곧장 부른다. 감시 테스트가 `Source/Panel` 만 읽어 규칙이 조용히 안 지켜졌고, 그래서 그 항목들이 D-181 의 "왜 잠겼는지" 툴팁을 못 받는다 | D-190 |
+| 인스펙터 에셋 칸 더블클릭 | 에셋 브라우저가 그 폴더로 가 그 에셋을 고른다(`ImReferenceField::OnActivate`) | 아무 일도 없다. `RevealAsset` 은 탐색기를 여는 다른 일이다 | **열림** |
+| 프로파일러의 갈래 | 풀(시스템)마다 순회 시간을 내고, 고른 풀의 상세를 낸다 | `Systems` 한 덩어리뿐이라 **어느 시스템이 느린지 알 수 없다** | **열림.** `GameSystem` 에 이름이 없어 스케줄러가 등록할 때 타입 이름을 함께 들어야 한다 |
 
 ## 사용자가 직접 지적한 것들 — 확인 기록
 

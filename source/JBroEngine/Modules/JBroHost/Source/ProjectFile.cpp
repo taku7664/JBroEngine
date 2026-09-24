@@ -586,6 +586,58 @@ namespace JBro
         }
     }
 
+    namespace
+    {
+        std::size_t IndentOf(const String& line)
+        {
+            std::size_t spaces = 0;
+            while (spaces < line.size() && line[spaces] == ' ')
+            {
+                ++spaces;
+            }
+            return spaces;
+        }
+
+        // `AssetIgnorePatterns` 를 적는다(D-189). 비어 있으면 `[]` 다 - 머리줄만 두면
+        // 다음에 읽을 때 그 키가 값 없는 맵으로 보인다.
+        //
+        // 항목은 늘 따옴표로 감싼다. `*.tmp` 는 따옴표 없이도 읽히지만 `~$*` 처럼
+        // YAML 이 다르게 읽는 글자로 시작하는 것이 있다.
+        // 이 키를 이미 적었는가. 적었으면 참을 돌려주고, 아니면 적었다고 표시한다.
+        // 아는 키 목록에 없으면 거짓이다 - 부르는 쪽이 이미 걸렀지만 여기서도 안전하다.
+        template <std::size_t Count>
+        bool MarkWritten(Array<bool>& wrote, const char* const (&keys)[Count], const String& key)
+        {
+            for (std::size_t index = 0; index < Count && index < wrote.Size(); ++index)
+            {
+                if (key == keys[index])
+                {
+                    const bool already = wrote[index];
+                    wrote[index] = true;
+                    return already;
+                }
+            }
+            return false;
+        }
+
+        void AppendIgnorePatterns(String& result, const ProjectFile& project)
+        {
+            if (project.assetIgnorePatterns.IsEmpty())
+            {
+                result.append("AssetIgnorePatterns: []\n", 24);
+                return;
+            }
+            result.append("AssetIgnorePatterns:\n", 21);
+            for (std::size_t index = 0; index < project.assetIgnorePatterns.Size(); ++index)
+            {
+                const String& pattern = project.assetIgnorePatterns[index];
+                result.append("  - \"", 5);
+                result.append(pattern.c_str(), pattern.size());
+                result.append("\"\n", 2);
+            }
+        }
+    }
+
     bool WriteProjectFileText(
         const ProjectFile& project,
         const char* originalText,
@@ -617,12 +669,20 @@ namespace JBro
 
         bool inBuild = false;
         bool sawBuild = false;
+        // **지금 고쳐 쓰는 시퀀스가 있는가**(D-189). 시퀀스는 값이 여러 줄이라 한 줄
+        // 바꿔치기로는 다룰 수 없다 - 머리줄을 새로 적고 원문의 항목 줄들은 건너뛴다.
+        bool skippingSequence = false;
+        bool sawIgnorePatterns = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
         std::size_t buildEnd = String::npos;
 
         std::size_t at = 0;
         // 빈 원문(새 프로젝트, D-160)은 줄이 하나도 없다. 빈 줄 하나로 세면 파일이 빈 줄로 시작한다.
-        while (originalLength > 0 && at <= originalLength)
+        // **마지막 줄바꿈 뒤는 줄이 아니다**(D-189). `at <= originalLength` 로 세면 파일 끝의
+        // `\n` 다음 자리가 빈 줄 하나로 잡혀, 저장할 때마다 파일 끝에 빈 줄이 하나씩 쌓였다
+        // (실제 프로젝트 파일이 그렇게 벌어져 있었다). 줄바꿈으로 끝나지 않는 원문의
+        // 마지막 줄은 `at < originalLength` 로도 그대로 들어온다.
+        while (at < originalLength)
         {
             std::size_t stop = at;
             while (stop < originalLength && originalText[stop] != '\n')
@@ -641,6 +701,21 @@ namespace JBro
             const bool pair = false == IsBlankOrComment(line)
                 && SplitLine(line, indent, key, hasValue);
 
+            // 시퀀스를 고쳐 쓰는 중이면 원문의 항목 줄은 버린다. 다음 최상위 키에서 멈춘다.
+            if (skippingSequence)
+            {
+                if (false == IsBlankOrComment(line) && IndentOf(line) > 0)
+                {
+                    if (stop >= originalLength)
+                    {
+                        break;
+                    }
+                    at = stop + 1;
+                    continue;
+                }
+                skippingSequence = false;
+            }
+
             if (pair && indent == 0)
             {
                 inBuild = key == "Build";
@@ -652,33 +727,51 @@ namespace JBro
 
             String value;
             bool replaced = false;
-            if (pair && hasValue)
+            bool dropped = false;
+            if (pair && indent == 0 && key == "AssetIgnorePatterns")
+            {
+                // 두 번째부터는 지운다. 시퀀스를 한 번 적었으면 그것이 전부다.
+                dropped = sawIgnorePatterns;
+                if (false == dropped)
+                {
+                    AppendIgnorePatterns(result, project);
+                    sawIgnorePatterns = true;
+                }
+                // 값이 같은 줄에 있으면(`[]`) 뒤따르는 항목 줄이 없다.
+                skippingSequence = false == hasValue;
+                replaced = true;
+            }
+            // **값이 비어 있어도 아는 키다.** `hasValue` 로 거르면 `ProductName: ` 같은 줄이
+            // "적지 않은 키" 로 남아, 저장할 때마다 같은 키가 파일 뒤에 하나씩 더 붙었다
+            // (실제 프로젝트 파일이 그렇게 불어나 있었다). 모르는 키는 아래 두 함수가
+            // 거짓을 돌려주므로 블록 머리줄(`Build:`)은 그대로 지나간다.
+            else if (pair)
             {
                 if (indent == 0 && TopLevelValue(project, key, value))
                 {
-                    AppendPair(result, "", key, value);
-                    replaced = true;
-                    for (std::size_t index = 0; index < wroteTopLevel.Size(); ++index)
+                    // **이미 적은 키면 이 줄은 지운다**(D-189). 예전 결함으로 같은 키가
+                    // 여러 줄 적힌 파일이 실제로 있고, 읽을 때는 마지막 줄이 앞의 줄을
+                    // 조용히 덮는다 - 값이 다르면 무엇이 맞는지 파일만 보고 알 수 없다.
+                    // 매핑에 같은 키가 두 번 있을 수 없으니 지우는 것이 고치는 것이다.
+                    dropped = MarkWritten(wroteTopLevel, TopLevelKeys, key);
+                    if (false == dropped)
                     {
-                        if (key == TopLevelKeys[index])
-                        {
-                            wroteTopLevel[index] = true;
-                        }
+                        AppendPair(result, "", key, value);
                     }
+                    replaced = true;
                 }
                 else if (indent == 2 && inBuild && BuildValue(project, key, value))
                 {
-                    AppendPair(result, "  ", key, value);
-                    replaced = true;
-                    for (std::size_t index = 0; index < wroteBuild.Size(); ++index)
+                    dropped = MarkWritten(wroteBuild, BuildKeys, key);
+                    if (false == dropped)
                     {
-                        if (key == BuildKeys[index])
-                        {
-                            wroteBuild[index] = true;
-                        }
+                        AppendPair(result, "  ", key, value);
                     }
+                    replaced = true;
                 }
             }
+            // `dropped` 는 여기서 보지 않는다. 지운 줄은 위의 세 갈래가 모두
+            // `replaced` 로 표시해 두므로, 두 조건을 함께 걸면 한쪽이 잴 수 없는 줄이 된다.
             if (false == replaced)
             {
                 AppendLine(result, line);
@@ -716,6 +809,13 @@ namespace JBro
             {
                 result.insert(buildEnd, added);
             }
+        }
+
+        // 적힌 적 없는 무시 패턴은 맨 뒤에 붙인다. 비어 있으면 적지 않는다 -
+        // 빈 시퀀스를 새로 만들어 넣으면 손대지 않은 파일이 저장만으로 길어진다.
+        if (false == sawIgnorePatterns && false == project.assetIgnorePatterns.IsEmpty())
+        {
+            AppendIgnorePatterns(result, project);
         }
 
         // 없던 최상위 키를 맨 뒤에 더한다.

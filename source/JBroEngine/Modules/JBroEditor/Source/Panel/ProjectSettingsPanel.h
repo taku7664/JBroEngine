@@ -40,6 +40,10 @@ namespace JBro
         // 어느 프로젝트의 값을 담고 있는가. 프로젝트가 바뀌면 다시 읽는다.
         String m_loadedPath;
         bool m_loaded = false;
+        // **무시 패턴을 고치는 버퍼**(D-189). 여러 줄 칸은 편집하는 동안 버퍼가
+        // 프레임을 넘어 살아 있어야 한다 - 매 프레임 목록에서 새로 지으면 커서가 풀린다.
+        // 창을 열 때 한 번 채우고, 그 뒤로는 이쪽이 원본이고 목록이 파생이다.
+        String m_ignorePatterns;
         // 저장한 뒤 남기는 한 줄. 성공과 실패를 같은 자리에서 말한다.
         String m_message;
         bool m_messageIsError = false;

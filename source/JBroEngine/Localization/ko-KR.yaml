@@ -164,6 +164,7 @@ Entries:
   project_settings.revert: 되돌리기
   project_settings.saved: 저장했습니다
   project_settings.linear_filter: 선형 샘플링을 씁니다. 끄면 니어리스트이고, 픽셀 아트의 기본입니다
+  project_settings.ignore_patterns: 한 줄에 패턴 하나입니다. 스캔과 파일 감시가 여기 맞는 것을 건너뜁니다
   panel.profiler: 프로파일러
   profiler.hint: 이 창이 열려 있는 동안 잽니다
   profiler.empty: 아직 잰 것이 없습니다
