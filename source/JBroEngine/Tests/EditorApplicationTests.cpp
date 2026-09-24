@@ -5067,12 +5067,23 @@ namespace
         // 창이 포커스를 받았어야 핫키가 먹는다.
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
         Check(editor.Tick(Frame), "the editor must tick with the mouse away");
+        const int framesBeforeE = ImGui::GetFrameCount();
+        const bool canvasFocusedBeforeE = ImGui::GetCurrentContext()->NavWindow != nullptr
+            && std::strstr(ImGui::GetCurrentContext()->NavWindow->Name, "CanvasView") != nullptr;
         PostMessageW(hwnd, WM_KEYDOWN, 'E', 0);
         Check(editor.Tick(Frame), "the editor must tick with E down");
         PostMessageW(hwnd, WM_KEYUP, 'E', 0);
         Check(editor.Tick(Frame), "the editor must tick with E up");
-        Check(FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_z"), spot),
-            "E must switch to rotation and put the z ring on screen");
+        const int framesAcrossE = ImGui::GetFrameCount() - framesBeforeE;
+        if (false == FindItemAnywhereInWindow(editor, hwnd, game, LabelId(game->ID, "##gizmo_z"), spot))
+        {
+            ImGuiWindow* focused = ImGui::GetCurrentContext()->NavWindow;
+            std::cout << "  [flake] frames across E=" << framesAcrossE << " (2 ticks)"
+                      << " canvasFocusedBefore=" << (canvasFocusedBeforeE ? 1 : 0)
+                      << " focusedNow=" << (focused != nullptr ? focused->Name : "(none)")
+                      << " appFocusLost=" << (ImGui::GetIO().AppFocusLost ? 1 : 0) << std::endl;
+            Check(false, "E must switch to rotation and put the z ring on screen");
+        }
         Spot to = spot;
         to.x += 40;
         to.y += 40;
@@ -7636,7 +7647,19 @@ namespace
             "the name field must be in the inspector header");
         const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
         ClickAt(editor, hwnd, nameField);
-        Check(editor.Tick(Frame), "the field must take focus");
+        // **칸이 입력을 받는 상태가 된 뒤에 친다.** 한 프레임만 돌리고 바로 치면, 칸이
+        // 아직 활성이 아닐 때 보낸 글자는 아무 데도 가지 않는다 - 그러면 실패가 "이름이
+        // 바뀌지 않았다" 로만 보여 어디서 어긋났는지 알 수 없다(한 번 그렇게 흔들렸다).
+        const ImGuiID nameId = LabelId(header, "##name");
+        for (int frame = 0; frame < 6 && ImGui::GetActiveID() != nameId; ++frame)
+        {
+            Check(editor.Tick(Frame), "the field must take focus");
+        }
+        Check(ImGui::GetActiveID() == nameId,
+            "clicking the name field must make it the field that takes the keys");
+        // 흔들림을 가르는 값이다(실패할 때만 찍는다). 틱이 ImGui 프레임을 돌리지 않았는지,
+        // 도착한 키가 버려졌는지를 여기서 가른다.
+        const int framesBeforeTyping = ImGui::GetFrameCount();
         // 커서를 끝에 두고 친다. 누른 자리에 따라 글자가 가운데 끼면 무엇이 붙었는지 흐려진다.
         PostMessageW(hwnd, WM_KEYDOWN, VK_END, 0);
         Check(editor.Tick(Frame), "the editor must tick");
@@ -7654,6 +7677,13 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
         PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
         Check(editor.Tick(Frame), "the editor must tick");
+        if (std::strcmp(alpha->GetTag(), "AlphaOne") != 0)
+        {
+            std::cout << "  [flake] tag='" << alpha->GetTag() << "' frames="
+                      << (ImGui::GetFrameCount() - framesBeforeTyping) << " (7 ticks)"
+                      << " active=" << (ImGui::GetActiveID() == nameId ? "name" : "other")
+                      << " appFocusLost=" << (ImGui::GetIO().AppFocusLost ? 1 : 0) << std::endl;
+        }
         Check(std::strcmp(alpha->GetTag(), "AlphaOne") == 0,
             "typing in the name field renames the object");
         // **친 글자 전체가 커맨드 하나다.** 글자마다 한 칸씩 쌓이면 되돌리기가 글자 수만큼 필요해진다.
