@@ -187,6 +187,11 @@ Entries:
   assets.move_failed: that could not be moved
   assets.reveal: Show in Explorer
   assets.find_in_browser: Find in Asset Browser
+  assets.column_name: Name
+  assets.column_type: Type
+  assets.column_modified: Date Modified
+  assets.column_id: ID
+  assets.sort_tooltip: Sort by
   common.cancel: Cancel
   assets.rescan: Rescan
   assets.new_canvas: New Canvas

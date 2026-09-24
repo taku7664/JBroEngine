@@ -7761,6 +7761,235 @@ namespace
     //
     // **그리고 인스펙터가 "이 에셋 어디 있어" 를 물을 수 있다**(D-193, 기존 `OnActivate`).
     // 브라우저가 그 폴더로 옮겨 가 그 줄을 고른다.
+    // **에셋 브라우저가 이름·종류·수정한 날짜로 늘어놓는다**(D-196, 기존 `ESortMode`).
+    // 전에는 경로순 하나뿐이라, 방금 고친 파일을 찾으려면 목록을 훑어야 했다.
+    //
+    // **마우스로만 고른다.** 키보드로 치는 두 테스트가 흔들렸다(D-196 절에 적었다) -
+    // 여기서는 콤보를 눌러 열고 줄을 눌러 고른다.
+    void TestTheAssetBrowserSortsByNameTypeOrDate()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root = fs::temp_directory_path() / "JBroSortProbe";
+        std::error_code errorCode;
+        fs::remove_all(root, errorCode);
+        fs::create_directories(root / "Assets" / "art", errorCode);
+        // 이름순은 a·b·c·m, 종류순은 셰이더(m)가 먼저, 날짜순은 최근 것(b)이 먼저다.
+        // 셋이 모두 다른 차례가 되게 짰다 - 둘이 같으면 어느 정렬이 걸렸는지 가를 수 없다.
+        for (const char* name : {"a.png", "b.png", "c.png"})
+        {
+            std::ofstream image(root / "Assets" / "art" / name, std::ios::binary);
+            image.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
+        }
+        {
+            std::ofstream shader(root / "Assets" / "art" / "m.hlsl", std::ios::binary);
+            shader << "float4 main() : SV_Target { return 1; }";
+        }
+        const auto now = fs::file_time_type::clock::now();
+        fs::last_write_time(root / "Assets" / "art" / "a.png", now - std::chrono::hours(3), errorCode);
+        fs::last_write_time(root / "Assets" / "art" / "b.png", now - std::chrono::hours(1), errorCode);
+        fs::last_write_time(root / "Assets" / "art" / "c.png", now - std::chrono::hours(5), errorCode);
+        fs::last_write_time(root / "Assets" / "art" / "m.hlsl", now - std::chrono::hours(4), errorCode);
+        const JBro::String projectPath((root / "Probe.jproject").string().c_str());
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        // **넓게 띄운다.** 1024 폭에서는 목록 칸이 400 픽셀 남짓이라 아이디 열이 칸 끝에
+        // 몇 글자만 걸려, 아이디 열이 빠져도 알아챌 수 없었다.
+        config.windowWidth = 1600;
+        config.windowHeight = 900;
+        JBro::EditorApplication editor;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; asset sorting not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* browser = ImGui::FindWindowByName("Assets");
+        Check(browser != nullptr, "the asset browser must have a window");
+        if (false == browser->DockTabIsVisible && browser->DockNode != nullptr
+            && browser->DockNode->TabBar != nullptr)
+        {
+            ImGuiTabBar* tabBar = browser->DockNode->TabBar;
+            ImGuiTabItem* tab = ImGui::TabBarFindTabByID(tabBar, browser->TabId);
+            Check(tab != nullptr, "the asset browser must have a tab in its dock");
+            Spot tabSpot;
+            tabSpot.x = static_cast<int>(tabBar->BarRect.Min.x + tab->Offset + tab->Width * 0.5f);
+            tabSpot.y = static_cast<int>((tabBar->BarRect.Min.y + tabBar->BarRect.Max.y) * 0.5f);
+            ClickAt(editor, hwnd, tabSpot);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the tab");
+            }
+            browser = ImGui::FindWindowByName("Assets");
+        }
+
+        const auto findRow = [&](ImGuiWindow* pane, ImGuiID rowId, Spot& out) {
+            const int x = static_cast<int>(pane->Pos.x + 40.0f);
+            const int bottom = static_cast<int>(pane->Pos.y + pane->Size.y);
+            for (int y = static_cast<int>(pane->Pos.y); y < bottom; y += 3)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                Check(editor.Tick(Frame), "the editor must tick while looking for a row");
+                if (ImGui::GetHoveredID() == rowId)
+                {
+                    out.x = x;
+                    out.y = y;
+                    return true;
+                }
+            }
+            return false;
+        };
+        {
+            ImGuiWindow* tree = FindChildWindow(browser, "##tree");
+            Check(tree != nullptr, "the folder tree pane must exist");
+            Spot folder;
+            Check(findRow(tree, LabelId(LabelId(tree->ID, "art"), "##folder"), folder),
+                "the art folder must be a row in the tree");
+            ClickAt(editor, hwnd, folder);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle in the folder");
+            }
+        }
+
+        // 네 줄의 높이를 재어 위에서 아래로 늘어선 차례를 글자로 만든다. "abcm" 같은 꼴이다.
+        const auto order = [&]() {
+            ImGuiWindow* pane = FindChildWindow(ImGui::FindWindowByName("Assets"), "##contents");
+            Check(pane != nullptr, "the contents pane must exist");
+            struct Row { char tag; int y; };
+            Row rows[4] = {{'a', 0}, {'b', 0}, {'c', 0}, {'m', 0}};
+            const char* paths[4] = {"art/a.png", "art/b.png", "art/c.png", "art/m.hlsl"};
+            for (int index = 0; index < 4; ++index)
+            {
+                Spot spot;
+                Check(findRow(pane, LabelId(LabelId(pane->ID, paths[index]), "##file"), spot),
+                    "every probe file must be a row in the folder");
+                rows[index].y = spot.y;
+            }
+            std::sort(rows, rows + 4, [](const Row& left, const Row& right) { return left.y < right.y; });
+            std::string text;
+            for (const Row& row : rows)
+            {
+                text.push_back(row.tag);
+            }
+            return text;
+        };
+        // 콤보를 눌러 열고, 그 안에서 차례 번호의 줄을 눌러 고른다.
+        const auto chooseSort = [&](int index, const char* label) {
+            ImGuiWindow* window = ImGui::FindWindowByName("Assets");
+            Spot combo;
+            Check(FindItemAnywhereInWindow(editor, hwnd, window, LabelId(window->ID, "##sort"), combo),
+                "the sort choice must be on the asset browser tool bar");
+            ClickAt(editor, hwnd, combo);
+            ImGuiWindow* popup = nullptr;
+            for (ImGuiWindow* candidate : ImGui::GetCurrentContext()->Windows)
+            {
+                if (std::strstr(candidate->Name, "##Combo_") != nullptr && candidate->Active)
+                {
+                    popup = candidate;
+                }
+            }
+            Check(popup != nullptr, "clicking the sort choice must open its list");
+            Spot item;
+            Check(FindItemAnywhereInWindow(editor, hwnd, popup,
+                      LabelId(PushedId(popup->ID, index), label), item),
+                "the sort list must offer that choice by its name");
+            ClickAt(editor, hwnd, item);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle after choosing");
+            }
+        };
+
+        Check(order() == "abcm", "by default the files are in name order");
+
+        // **목록 보기에 열이 선다**(D-196, 기존 목록의 네 열). 날짜와 아이디는 줄의 오른쪽
+        // 절반에 놓인다 - 전에는 이름 바로 뒤에 종류만 붙어 그 자리가 비어 있었다. 그 자리의
+        // 픽셀에 글자가 있는지 잰다.
+        {
+            ImGuiWindow* pane = FindChildWindow(ImGui::FindWindowByName("Assets"), "##contents");
+            Spot row;
+            Check(findRow(pane, LabelId(LabelId(pane->ID, "art/a.png"), "##file"), row),
+                "a.png must be a row to look at");
+            // 가리킨 줄은 밝게 칠해진다. 마우스를 창 밖으로 빼서 줄 배경이 글자를 가리지 않게 한다.
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
+            Check(editor.Tick(Frame), "the editor must tick with the mouse away");
+            JBro::Renderer* renderer = editor.GetRenderer();
+            Check(renderer != nullptr, "the editor must expose its renderer");
+            JBro::Array<std::byte> shot;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*renderer, 1600, 900, shot, readback);
+            // `findRow` 는 줄을 처음 가리킨 **윗가장자리**를 돌려준다. 글자는 줄 가운데에 있으므로
+            // 거기서 한 줄 높이만큼 아래로 잰다(처음에 위아래로 재어 글자를 비껴갔다).
+            const int rowHeight = static_cast<int>(ImGui::GetFrameHeight());
+            const auto pixelAt = [&](int x, int y) {
+                const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch
+                    + static_cast<std::size_t>(x) * 4;
+                return reinterpret_cast<const unsigned char*>(shot.Data() + offset);
+            };
+            // **그 줄의 배경과 견준다.** 날짜와 아이디는 흐린 글자라 밝기 문턱 하나로는 거의 잡히지
+            // 않았다(26 픽셀). 줄 맨 윗줄은 글자가 닿지 않으므로 거기가 배경이다.
+            const auto litIn = [&](float from, float to) {
+                const int left = static_cast<int>(pane->Pos.x + pane->Size.x * from);
+                const int right = static_cast<int>(pane->Pos.x + pane->Size.x * to);
+                const unsigned char* background = pixelAt(left, row.y);
+                std::size_t lit = 0;
+                for (int y = row.y; y <= row.y + rowHeight; ++y)
+                {
+                    for (int x = left; x < right; ++x)
+                    {
+                        const unsigned char* pixel = pixelAt(x, y);
+                        const int difference = std::abs(pixel[0] - background[0])
+                            + std::abs(pixel[1] - background[1])
+                            + std::abs(pixel[2] - background[2]);
+                        if (difference > 90)
+                        {
+                            ++lit;
+                        }
+                    }
+                }
+                return lit;
+            };
+            // 이름은 칸의 4 할, 종류와 날짜는 폭이 정해진 글자다. 날짜는 가운데 오른쪽, 아이디는
+            // 끝자락에 선다 - 둘을 따로 재야 하나만 빠진 것도 잡는다.
+            const std::size_t dateLit = litIn(0.55f, 0.70f);
+            const std::size_t idLit = litIn(0.80f, 0.97f);
+            std::cout << "  a file row carries " << dateLit << " lit pixels in the date column and "
+                      << idLit << " in the id column" << std::endl;
+            Check(dateLit > 40, "the list view must draw the date column");
+            Check(idLit > 40, "and the id column");
+        }
+
+        chooseSort(2, JBro::Loc::TextOr(JBro::LocKeys::AssetsColumnModified, "Date Modified"));
+        Check(order() == "bamc", "sorted by date the most recently changed file comes first");
+
+        chooseSort(1, JBro::Loc::TextOr(JBro::LocKeys::AssetsColumnType, "Type"));
+        Check(order() == "mabc",
+            "sorted by type the shader comes before the textures, and those stay in name order");
+
+        chooseSort(0, JBro::Loc::TextOr(JBro::LocKeys::AssetsColumnName, "Name"));
+        Check(order() == "abcm", "and choosing name puts them back");
+
+        editor.Shutdown();
+        fs::remove_all(root, errorCode);
+    }
+
     void TestUnknownFilesOpenAndAssetsCanBeFound()
     {
         namespace fs = std::filesystem;
@@ -9077,6 +9306,7 @@ int RunEditorApplicationTests()
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheCanvasItselfCanBeSelectedAndPainted();
     TestTheAssetBrowserSelectsManyFilesAtOnce();
+    TestTheAssetBrowserSortsByNameTypeOrDate();
     TestUnknownFilesOpenAndAssetsCanBeFound();
     TestAssetFileWorkCanBeUndone();
     TestAssetFileOperationsCarryTheMeta();

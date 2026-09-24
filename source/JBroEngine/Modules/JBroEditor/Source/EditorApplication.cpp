@@ -935,6 +935,18 @@ namespace JBro
         return m_commands.Execute(std::move(all), EditorCommandManager::AssetDatabase);
     }
 
+    bool EditorApplication::GetAssetWriteTime(const char* relativePath,
+        std::int64_t& outUnixSeconds) const
+    {
+        outUnixSeconds = 0;
+        if (relativePath == nullptr || m_platform.Get() == nullptr || GetAssetRoot().empty())
+        {
+            return false;
+        }
+        const String path = JoinPath(GetAssetRoot(), relativePath);
+        return m_platform->GetFileWriteTime(path.c_str(), outUnixSeconds);
+    }
+
     bool EditorApplication::OpenAssetExternally(const char* relativePath)
     {
         if (relativePath == nullptr || GetAssetRoot().empty())

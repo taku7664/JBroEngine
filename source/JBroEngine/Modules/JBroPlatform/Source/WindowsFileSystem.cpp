@@ -4,6 +4,7 @@
 // `ShellExecuteW` 가 여기 있다. 탐색기에서 보여 주는 데만 쓴다.
 #include <shellapi.h>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <string_view>
@@ -194,6 +195,27 @@ namespace JBro
             : std::string(reinterpret_cast<const char*>(folder.generic_u8string().c_str()));
         (void)errorCode;
         return String(utf8.c_str());
+    }
+
+    bool WindowsPlatform::GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const
+    {
+        outUnixSeconds = 0;
+        const fs::path path = ToPath(utf8Path);
+        if (path.empty())
+        {
+            return false;
+        }
+        std::error_code errorCode;
+        const fs::file_time_type written = fs::last_write_time(path, errorCode);
+        if (errorCode)
+        {
+            return false;
+        }
+        // 파일 시계를 벽시계로 옮겨 유닉스 초로 센다. 표시와 비교만 하므로 초면 넉넉하다.
+        const auto wall = std::chrono::clock_cast<std::chrono::system_clock>(written);
+        outUnixSeconds = std::chrono::duration_cast<std::chrono::seconds>(
+            wall.time_since_epoch()).count();
+        return true;
     }
 
     bool WindowsPlatform::OpenPathWithShell(const char* utf8Path)

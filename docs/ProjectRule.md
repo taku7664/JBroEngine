@@ -756,6 +756,8 @@
   `MessagePopup`·`ConfirmPopup`·`NewProjectPopup`·`EditorApplication` 을 읽어 막는다.
   **모달을 돌리는 기계만 예외다** - `EditorApplication` 이 팝업을 열고 닫는 자리가 곧
   `Widget::BeginModal` 이 서 있는 층이다. 배치(`Separator`·`SameLine`·`Spacing`)는 위젯이 아니다.
+- **목록의 줄에서 매 프레임 글자를 짓지 않는다.** 날짜·아이디처럼 바꿔 적어야 하는 값은 목록을
+  모을 때(레지스트리 판번호가 바뀔 때) 한 번 짓고 줄은 그것을 적기만 한다. (MUST) (D-196, §7)
 - 목록·표를 그리는 자리는 **저장소를 모르는 목록 위젯**을 쓴다. (MUST)
   기존 `ImListVirtual` 은 원소 접근을 전부 콜백으로 받아 `std::vector` 가 아닌 것
   (타입이 지워진 리플렉션 `Array` 등)도 같은 UI 로 그린다. 추가·삭제·드래그 재정렬과

@@ -141,6 +141,14 @@ namespace JBro
             (void)toUtf8Path;
             return false;
         }
+        // 파일을 마지막으로 고친 때(유닉스 초). 에셋 브라우저가 "수정한 날짜" 로 늘어놓고
+        // 보여 주는 데 쓴다(D-196, 기존 `AssetBrowserUtils::FileTimeToTimeT`). 없거나 읽지 못하면 거짓이다.
+        virtual bool GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const
+        {
+            (void)utf8Path;
+            outUnixSeconds = 0;
+            return false;
+        }
         virtual bool FileExists(const char* utf8Path) const
         {
             (void)utf8Path;

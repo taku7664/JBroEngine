@@ -41,7 +41,32 @@ namespace JBro
             const AssetRecord* record = nullptr;
             String folder;
             const char* name = nullptr;
+            // 파일을 마지막으로 고친 때(유닉스 초)와 그것을 적은 글자(D-196). 레지스트리가 바뀔
+            // 때만 모은다 - 매 프레임 날짜를 글자로 짓지 않는다(§7).
+            std::int64_t modified = 0;
+            String modifiedText;
+            // 아이디의 글자(32 자리). 기존 목록의 넷째 열이다.
+            String idText;
         };
+
+        // **무엇으로 늘어놓는가**(D-196, 기존 `ESortMode`). 폴더는 늘 이름순으로 먼저 온다.
+        enum class SortMode : std::uint8_t
+        {
+            Name,
+            Type,
+            Modified
+        };
+
+        // 목록 보기의 열이 줄 안에서 시작하는 자리(왼쪽에서의 거리)다. 머리줄과 줄이 함께 쓴다.
+        struct Columns
+        {
+            float type = 0.0f;
+            float modified = 0.0f;
+            float id = 0.0f;
+        };
+        static Columns ListColumns(float width);
+        void SortEntries();
+        void DrawListHeader();
 
         void Collect();
         // 왼쪽 칸. `folder` 바로 아래의 폴더들을 그린다.
@@ -108,6 +133,10 @@ namespace JBro
         bool m_iconView = false;
         // 아이콘 한 칸의 변 길이(픽셀)다.
         float m_iconSize = 72.0f;
+        SortMode m_sortMode = SortMode::Name;
+        // 줄의 글자가 시작하는 자리가 줄 왼쪽에서 얼마나 떨어졌는가. 머리줄이 같은 자리에서
+        // 시작하도록 지난 프레임의 줄에서 잰다(트리 줄은 화살표 몫만큼 안으로 들어간다).
+        float m_rowTextOffset = 0.0f;
 
         // 고른 파일들의 상대경로다. 폴더는 여기 들어오지 않는다.
         Array<String> m_selection;

@@ -220,6 +220,11 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsMoveFailed = "assets.move_failed";
     inline constexpr const char* AssetsReveal = "assets.reveal";
     inline constexpr const char* AssetsFindInBrowser = "assets.find_in_browser";
+    inline constexpr const char* AssetsColumnName = "assets.column_name";
+    inline constexpr const char* AssetsColumnType = "assets.column_type";
+    inline constexpr const char* AssetsColumnModified = "assets.column_modified";
+    inline constexpr const char* AssetsColumnId = "assets.column_id";
+    inline constexpr const char* AssetsSortTooltip = "assets.sort_tooltip";
     inline constexpr const char* AssetsRescan = "assets.rescan";
     inline constexpr const char* AssetsNewCanvas = "assets.new_canvas";
     inline constexpr const char* AssetsDuplicate = "assets.duplicate";

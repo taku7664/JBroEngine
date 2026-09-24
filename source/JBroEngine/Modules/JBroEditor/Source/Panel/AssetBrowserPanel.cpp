@@ -4,12 +4,14 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Types/Uuid.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/EnumCombo.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
@@ -21,6 +23,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 
 namespace JBro
 {
@@ -70,6 +73,57 @@ namespace JBro
                 && where[folder.size()] == '/');
     }
 
+    void AssetBrowserPanel::SortEntries()
+    {
+        // 셋 다 마지막에 이름으로 가른다. 같은 종류·같은 시각끼리 차례가 흔들리면 누를 때마다
+        // 줄이 자리를 바꾼다.
+        const SortMode mode = m_sortMode;
+        std::sort(m_entries.Data(), m_entries.Data() + m_entries.Size(),
+            [mode](const Entry& left, const Entry& right) {
+                if (mode == SortMode::Type && left.record->type != right.record->type)
+                {
+                    return std::strcmp(AssetTypeRules::GetTypeName(left.record->type),
+                        AssetTypeRules::GetTypeName(right.record->type)) < 0;
+                }
+                // 최근 것이 위다 - 방금 고친 파일을 찾으려고 고르는 정렬이다.
+                if (mode == SortMode::Modified && left.modified != right.modified)
+                {
+                    return left.modified > right.modified;
+                }
+                return left.record->relativePath.View() < right.record->relativePath.View();
+            });
+    }
+
+    AssetBrowserPanel::Columns AssetBrowserPanel::ListColumns(float width)
+    {
+        // 종류와 날짜는 폭이 정해진 글자다. 이름은 남는 자리를 가지되 너무 좁아지지 않는다.
+        constexpr float TypeWidth = 90.0f;
+        constexpr float ModifiedWidth = 130.0f;
+        const float name = width * 0.4f > 140.0f ? width * 0.4f : 140.0f;
+        Columns columns;
+        columns.type = name;
+        columns.modified = name + TypeWidth;
+        columns.id = name + TypeWidth + ModifiedWidth;
+        return columns;
+    }
+
+    void AssetBrowserPanel::DrawListHeader()
+    {
+        const ImVec2 start = ImGui::GetCursorScreenPos();
+        const float width = ImGui::GetContentRegionAvail().x;
+        const Columns columns = ListColumns(width - m_rowTextOffset);
+        const float x = start.x + m_rowTextOffset;
+        ImGui::SetCursorScreenPos(ImVec2(x, start.y));
+        Widget::HintText(Loc::TextOr(LocKeys::AssetsColumnName, "Name"));
+        ImGui::SetCursorScreenPos(ImVec2(x + columns.type, start.y));
+        Widget::HintText(Loc::TextOr(LocKeys::AssetsColumnType, "Type"));
+        ImGui::SetCursorScreenPos(ImVec2(x + columns.modified, start.y));
+        Widget::HintText(Loc::TextOr(LocKeys::AssetsColumnModified, "Date Modified"));
+        ImGui::SetCursorScreenPos(ImVec2(x + columns.id, start.y));
+        Widget::HintText(Loc::TextOr(LocKeys::AssetsColumnId, "ID"));
+        ImGui::Separator();
+    }
+
     void AssetBrowserPanel::Collect()
     {
         const AssetRegistry& registry = m_editor->GetAssetRegistry();
@@ -94,6 +148,22 @@ namespace JBro
             entry.record = &record;
             entry.folder = ParentOf(record.relativePath);
             entry.name = EditorPaths::LeafOfPath(record.relativePath);
+            if (m_editor->GetAssetWriteTime(record.relativePath.c_str(), entry.modified))
+            {
+                const std::time_t when = static_cast<std::time_t>(entry.modified);
+                std::tm local = {};
+                if (localtime_s(&local, &when) == 0)
+                {
+                    char text[32] = {};
+                    std::strftime(text, sizeof(text), "%Y-%m-%d %H:%M", &local);
+                    entry.modifiedText = text;
+                }
+            }
+            char idText[Uuid::TextCapacity] = {};
+            if (record.id.ToText(idText, sizeof(idText)))
+            {
+                entry.idText = idText;
+            }
             m_entries.Add(entry);
             // 조상 폴더까지 전부 등록한다 - 파일이 깊이 있어도 중간 폴더가 나무에 있어야 한다.
             for (String folder = entry.folder; false == folder.empty(); folder = ParentOf(folder))
@@ -111,10 +181,7 @@ namespace JBro
         }
         std::sort(m_folders.Data(), m_folders.Data() + m_folders.Size(),
             [](const String& left, const String& right) { return left.View() < right.View(); });
-        std::sort(m_entries.Data(), m_entries.Data() + m_entries.Size(),
-            [](const Entry& left, const Entry& right) {
-                return left.record->relativePath.View() < right.record->relativePath.View();
-            });
+        SortEntries();
 
         // 열어 둔 폴더가 그 사이에 사라졌으면 뿌리로 돌아간다. 없는 폴더를 열어 두면
         // 오른쪽 칸이 영원히 비어 있고 왜 그런지 화면에서 알 수 없다.
@@ -548,10 +615,23 @@ namespace JBro
         if (row.IsVisible)
         {
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
-            ImGui::SetCursorScreenPos(row.ContentRect.Min);
+            const ImVec2 origin = row.ContentRect.Min;
+            // 머리줄이 같은 자리에서 시작하도록 줄 글자가 줄 왼쪽에서 얼마나 들어갔는지 남긴다.
+            m_rowTextOffset = origin.x - ImGui::GetWindowPos().x - ImGui::GetStyle().WindowPadding.x
+                + ImGui::GetScrollX();
+            const Columns columns = ListColumns(row.ContentRect.GetWidth());
+            // 이름이 길면 종류 칸에서 잘린다. 겹쳐 그리면 둘 다 읽을 수 없다.
+            ImGui::PushClipRect(origin,
+                ImVec2(origin.x + columns.type - 8.0f, row.ContentRect.Max.y), true);
+            ImGui::SetCursorScreenPos(origin);
             Widget::Text(entry.name);
-            ImGui::SameLine();
+            ImGui::PopClipRect();
+            ImGui::SetCursorScreenPos(ImVec2(origin.x + columns.type, origin.y));
             Widget::HintText(AssetTypeRules::GetTypeName(entry.record->type));
+            ImGui::SetCursorScreenPos(ImVec2(origin.x + columns.modified, origin.y));
+            Widget::HintText(entry.modifiedText.c_str());
+            ImGui::SetCursorScreenPos(ImVec2(origin.x + columns.id, origin.y));
+            Widget::HintText(entry.idText.c_str());
             ImGui::SetCursorScreenPos(cursor);
         }
         ImGui::PopID();
@@ -669,6 +749,7 @@ namespace JBro
         }
 
         bool any = false;
+        bool headed = false;
         std::size_t drawnTiles = 0;
         // 이번 프레임에 그린 차례를 새로 모은다. 범위 선택이 이 차례를 쓴다.
         m_visible.Clear();
@@ -698,6 +779,11 @@ namespace JBro
             }
             else
             {
+                if (false == headed)
+                {
+                    DrawListHeader();
+                    headed = true;
+                }
                 DrawFile(entry);
             }
         }
@@ -1017,6 +1103,29 @@ namespace JBro
         }
         Widget::HoveredTooltip(Loc::TextOr(LocKeys::AssetsViewTooltip,
             "switch between the list and the icons"));
+        ImGui::SameLine(0.0f, 8.0f);
+        {
+            // **정렬 기준**(D-196). 칸에는 지금 고른 것만 보이고, 무엇을 고르는 칸인지는
+            // 마우스를 올리면 말한다 - 라벨을 칸 앞에 붙이지 않는다(§11.2).
+            const char* sortNames[] = {
+                Loc::TextOr(LocKeys::AssetsColumnName, "Name"),
+                Loc::TextOr(LocKeys::AssetsColumnType, "Type"),
+                Loc::TextOr(LocKeys::AssetsColumnModified, "Date Modified")};
+            EnumNames names;
+            names.names = sortNames;
+            names.count = 3;
+            names.ToIndex = [](const void* value) noexcept -> std::int32_t {
+                return static_cast<std::int32_t>(*static_cast<const SortMode*>(value));
+            };
+            names.FromIndex = [](void* value, std::int32_t index) noexcept {
+                *static_cast<SortMode*>(value) = static_cast<SortMode>(index);
+            };
+            if (Widget::EnumCombo("##sort", names, &m_sortMode, 120.0f))
+            {
+                SortEntries();
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::AssetsSortTooltip, "sort by"));
+        }
         ImGui::SameLine(0.0f, 12.0f);
         DrawBreadcrumb();
         if (false == m_editor->IsWatchingAssets())

@@ -244,6 +244,8 @@ namespace JBro
         // 엔진이 모르는 파일을 OS 의 기본 프로그램으로 연다. 열 프로그램이 없으면
         // 탐색기로 그 자리를 보여 준다 - 두 번 눌렀는데 아무 일도 없는 것보다 낫다.
         bool OpenAssetExternally(const char* relativePath);
+        // 에셋 파일을 마지막으로 고친 때(유닉스 초, D-196). 에셋 브라우저가 늘어놓는 데 쓴다.
+        bool GetAssetWriteTime(const char* relativePath, std::int64_t& outUnixSeconds) const;
 
         // **에셋 선택**(D-120). 에셋 브라우저가 고르고 인스펙터가 임포트 옵션을 보여 준다. 오브젝트 선택과 배타다 -
         // 에셋을 고르면 오브젝트 선택이 비고, 오브젝트를 고르면 에셋 선택이 빈다. 인스펙터는 하나만 보인다.

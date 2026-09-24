@@ -33,6 +33,7 @@ namespace JBro
         bool DeleteFileAt(const char* utf8Path) override;
         bool DeleteDirectoryAt(const char* utf8Path) override;
         String GetExecutableFolder() const override;
+        bool GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const override;
         bool OpenPathWithShell(const char* utf8Path) override;
         bool RevealInFileBrowser(const char* utf8Path) override;
         bool FileExists(const char* utf8Path) const override;

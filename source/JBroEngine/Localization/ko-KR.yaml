@@ -187,6 +187,11 @@ Entries:
   assets.move_failed: 옮기지 못했습니다
   assets.reveal: 탐색기에서 보기
   assets.find_in_browser: 에셋 브라우저에서 찾기
+  assets.column_name: 이름
+  assets.column_type: 종류
+  assets.column_modified: 수정한 날짜
+  assets.column_id: 아이디
+  assets.sort_tooltip: 정렬 기준
   common.cancel: 취소
   assets.rescan: 새로 고침
   assets.new_canvas: 새 캔버스
