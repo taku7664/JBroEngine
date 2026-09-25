@@ -28,7 +28,7 @@ namespace JBro::Service
         void SetGamepadDeadzones(float stick, float trigger) const;
 
         const TouchState& Touch() const;
-        // 손가락을 스스로 만든다(가상 조이스틱·자동 검사). 다음 프레임에 보인다. `Stationary` 는 받지 않는다.
+        // 손가락을 스스로 만든다(가상 조이스틱·자동 검사). 다음 프레임에 보인다. `Stationary` 는 아무 일도 하지 않는다.
         void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) const;
     };
 }

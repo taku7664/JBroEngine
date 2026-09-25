@@ -583,7 +583,8 @@ namespace JBro::System
 
     void InputSystem::InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept
     {
-        if (phase == TouchPhase::Stationary || m_injectedCount >= MaxInjectedTouches)
+        // `Stationary` 는 접는 쪽이 무시한다(닿아 있는 손가락은 저절로 가만히 있다).
+        if (m_injectedCount >= MaxInjectedTouches)
         {
             return;
         }

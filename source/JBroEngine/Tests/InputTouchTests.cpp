@@ -128,6 +128,8 @@ namespace
         service.InjectTouch(3, 0.0f, 0.0f, TouchPhase::Ended);
         input.BeginFrame({});
         Check(service.Touch().Get(0).phase == TouchPhase::Ended, "and an injected lift ends it");
+        input.BeginFrame({});
+        Check(service.Touch().count == 0, "an injected finger is folded once, not every frame after");
 
         struct TouchTaker final : IInputHandler
         {
