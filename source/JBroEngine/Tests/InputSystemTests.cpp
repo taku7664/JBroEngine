@@ -139,6 +139,16 @@ namespace
         Check(input.GetFrame().keyboard.IsDown(Key::Space), "a repeating key is still down");
         Check(false == input.GetFrame().keyboard.IsPressed(Key::Space), "a repeat is not a press");
 
+        // 키를 누른 채 창으로 돌아오면 첫 누름은 다른 창이 받았고 여기에는 반복만 온다.
+        // 누르고 있는 것은 사실이지만 이 프레임에 누른 것은 아니다.
+        System::InputSystem returning;
+        const InputEvent onlyRepeats[] = { KeyEvent(InputEventKind::KeyDown, Key::W, true) };
+        returning.BeginFrame(View(onlyRepeats));
+        Check(returning.GetFrame().keyboard.IsDown(Key::W),
+            "a repeat without a seen press still means the key is held");
+        Check(false == returning.GetFrame().keyboard.IsPressed(Key::W),
+            "but it is not a press on this frame");
+
         // 뗌을 잃고 다시 온 첫 누름도 두 번 세지 않는다.
         const InputEvent again[] = { KeyEvent(InputEventKind::KeyDown, Key::Space) };
         input.BeginFrame(View(again));

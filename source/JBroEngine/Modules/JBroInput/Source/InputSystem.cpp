@@ -94,10 +94,16 @@ namespace JBro::System
         {
         case InputEventKind::KeyDown:
             m_frame.keyboard.modifiers = event.modifiers;
-            // 자동 반복은 누름이 아니다. 글자 칸이 쓰는 반복은 Text 이벤트가 따로 준다.
-            if (false == event.repeat)
+            if (ButtonState* key = FindKey(m_frame.keyboard, event.key))
             {
-                if (ButtonState* key = FindKey(m_frame.keyboard, event.key))
+                // 자동 반복은 누름이 아니다. 글자 칸이 쓰는 반복은 Text 이벤트가 따로 준다.
+                // **그래도 키가 눌려 있다는 사실은 알려 준다.** 키를 누른 채 창으로 돌아오면 첫 누름은
+                // 다른 창이 받았고 이 창에는 반복만 온다 - 무시하면 사용자가 누르고 있는 키가 떼어진 것으로 보인다.
+                if (event.repeat)
+                {
+                    key->down = true;
+                }
+                else
                 {
                     Press(*key);
                 }
