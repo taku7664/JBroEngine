@@ -3,7 +3,8 @@
 > 계약은 `docs/ProjectRule.md`, 결정은 `tasks/todo.md` Decisions 다. 이 문서는 그 둘을 향해 가는 순서와
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
 > `[제안]` 은 **사용자 확인 전**이다. 2026-09-25 에 §0 의 방향(직접 믹서·공용 소스와 차원별 리스너·새 Tier S 모듈)이
-> 확인돼 D-197 이 됐다. 아직 코드는 없다.
+> 확인돼 D-197 이 됐다. 같은 날 남은 셋(임포트 옵션은 `Mode` 만, 모듈 이름은 관례대로, 보이스 64)도 정해졌고
+> 기존 자료의 이식은 하지 않기로 했다(이 엔진으로 만든 콘텐츠가 없다). 아직 코드는 없다.
 
 ## 0. 확정된 방향 (2026-09-25, D-197)
 
@@ -17,8 +18,8 @@
 4. **재생 컴포넌트는 차원과 무관한 `Component::AudioSource` 하나이고, 리스너는 차원별(`Component::AudioListener2D`, 뒤에
    `AudioListener3D`)이다.** 소스의 자료(클립·버스·볼륨·피치·루프·거리)에는 차원 의미가 없고, 리스너는 방향의 뜻이 차원마다
    다르다(§2.7).
-5. **공용 소스와 오디오 값 타입은 새 Tier S 모듈 `JBroAudioTypes` 에 둔다**(가칭, `JBroAssetTypes` 와 같은 자리). 엔진 쪽 믹서는
-   새 Tier E 모듈 `JBroAudio` 다(§2.1).
+5. **공용 소스와 오디오 값 타입은 새 Tier S 모듈 `JBroAudioTypes` 에 두고, 엔진 쪽 믹서는 새 Tier E 모듈 `JBroAudio` 다**(§2.1).
+   이름은 같은 모양의 선례 `JBroAssetTypes`(Tier S, 스크립트가 보는 값 타입) ↔ `JBroAsset`(Tier E, 엔진 본체)을 따른다.
 
 ## 1. 기존 엔진의 오디오 - 무엇이 있었고 무엇이 아팠나
 
@@ -64,7 +65,7 @@ Compressor·Limiter 는 Reverb 로 떨어졌다.
 | 매 프레임 할당·조회 (단계 6 "대기") | `unordered_map`·`seen` 집합·매 프레임 효과 `LoadAsset`·`map<string,float>` | 고정 풀·컴포넌트 순회·종류별 POD 파라미터 |
 | 스크립트가 `IAudioDevice` 를 그대로 받음 (`Script.Audio`) | — | 새 규칙 §5 위반(ServiceContext 에 하드웨어 금지). `Service::AudioService` 값 서비스만 (§2.8) |
 | 컴포넌트에 `String Bus` | — | 새 규칙 §10.4 위반. 버스는 `NameId` (§2.6) |
-| 자산 기본값과 컴포넌트 오버라이드의 우선순위가 정해지지 않음 (단계 4) | 같은 이름의 필드가 둘에 있음 | §2.2 `[제안]` - 재생 파라미터는 컴포넌트에만 둔다 |
+| 자산 기본값과 컴포넌트 오버라이드의 우선순위가 정해지지 않음 (단계 4) | 같은 이름의 필드가 둘에 있음 | 재생 파라미터는 컴포넌트에만 둔다 (§2.2) |
 
 ### 1.4 없었던 것 (백로그로만 있던 것)
 
@@ -92,7 +93,8 @@ JBroEditor               인스펙터·임포트 옵션·미리 듣기·버스 �
   `JBroFramework2DSystem` → `JBroAudio`·`JBroAudioTypes`. `JBroFramework2D` → `JBroAudioTypes`(프렐류드가 소스를 보이게).
 - 이름: 믹서는 업데이트하는 시스템도 스크립트 서비스도 아니므로 역할 이름 `AudioMixer` 다(§10.3). 공용 소스는 차원 마커가 없고
   (`AudioSource`), 리스너와 시스템은 있다(`AudioListener2D` ↔ `Audio2DSystem`).
-- `[열림]` 모듈 이름 `JBroAudioTypes`·`JBroAudio` 는 가칭이다. 1 단계를 시작할 때 정한다.
+- 모듈 이름 `JBroAudioTypes`·`JBroAudio` 는 `JBroAssetTypes`·`JBroAsset` 의 관례를 따른 것이다(2026-09-25 확인). 엔진 쪽 어댑터 모듈
+  (`JBroNetworkSystem` 같은 것)은 따로 두지 않는다 - 캔버스를 읽는 `Audio2DSystem` 은 `JBroFramework2DSystem` 에 산다.
 
 ### 2.2 에셋
 
@@ -103,9 +105,9 @@ JBroEditor               인스펙터·임포트 옵션·미리 듣기·버스 �
     파일은 `IPlatform::ReadWholeFile` 로만 열어야 하고(§2), 패키지(`.jpak`)와 Web 에서도 같은 길이어야 하기 때문이다.
     디스크에서 조금씩 읽는 스트리밍은 메모리가 실제로 문제가 될 때 `IPlatform` 에 읽기 API 를 더해서 한다 `[열림]`.
 - 임포트 옵션은 `.jmeta` 의 `Audio.ImportOptions` 블록이다(D-120 왕복).
-  `[제안]` **옵션에는 디코드 방식(`Mode`)만 둔다.** 기존의 DefaultVolume·Loop·Is3D·Min/MaxDistance·DefaultBus 는 컴포넌트와 같은
-  이름이 둘에 있어 우선순위가 끝내 정해지지 않았다(기존 단계 4). 재생 파라미터는 컴포넌트가 유일한 원천이다. 기존 메타의 그
-  키들은 읽고 버린다. 확인 전이다.
+  **옵션에는 디코드 방식(`Mode`: `Decompressed`|`Streaming`)만 둔다**(2026-09-25 확인). 기존의 DefaultVolume·Loop·Is3D·
+  Min/MaxDistance·DefaultBus 는 컴포넌트와 같은 이름이 둘에 있어 우선순위가 끝내 정해지지 않았다(기존 단계 4). 재생 파라미터는
+  컴포넌트가 유일한 원천이다. 기존 메타를 읽는 호환은 두지 않는다 - 이 엔진으로 만든 오디오 에셋이 없다.
 - **PCM·압축 바이트의 수명**: 에셋이 언로드·재로드돼도 오디오 스레드가 읽고 있을 수 있다. 그래서 로드한 자료는
   `AudioMixer::RegisterClip` 로 **믹서의 클립 버퍼**로 넘기고, 해제는 `UnregisterClip` 명령 → 오디오 스레드가 그 클립을 쓰는 보이스를
   멈추고 "놓았다" 를 상태 링에 올림 → 메인 스레드가 프레임 밖에서 메모리를 푸는 순서다(퇴역 큐). 오디오 스레드는 절대 풀지 않는다.
@@ -140,7 +142,8 @@ AudioMixer (프로세스 수명, 초기화 때 전부 할당)
 - `Play(desc) → AudioVoiceHandle` 은 메인 스레드에서 **슬롯을 바로 예약**하고(메인이 쥔 빈 목록) 명령을 쓴다. 그래서 핸들이 즉시
   돌아오고 같은 프레임에 `SetVolume` 을 이어 쓸 수 있다.
 - 슬롯이 없으면 **보이스 훔치기**: 우선순위가 낮은 것 → 들리는 크기가 작은 것 → 오래된 것. 결정적이어야 한다(테스트).
-  `[열림]` MaxVoices 기본값(기존 64).
+  MaxVoices 기본값은 **64** 다(기존 `AudioDeviceDesc::MaxPolyphony` 와 같다, 2026-09-25 확인). 고정 풀이라 믹서 초기화 때 정하고,
+  바꿀 자리는 `EngineConfig` 다 `[가정]`.
 - 버스는 우선 Master 아래 한 층이다(기존과 같다). 볼륨·음소거. 중첩·솔로·센드는 `[열림]`.
 - 명령이 링을 넘치면 그 프레임의 나머지 명령은 버리고 경고를 한 번 남긴다 `[가정]`. 링 크기는 프레임당 명령 수의 측정으로 정한다.
 - **miniaudio 부품의 `_init` 은 할당 콜백을 받는다**(`ma_spatializer_init`·`ma_linear_resampler_init`·`ma_decoder_init_memory`,
@@ -189,8 +192,8 @@ Component::AudioListener2D   (JBroFramework2D)
   non-loop `playOnStart` 가 반복되지 않는다.
 - 3D 는 `AudioListener3D` 와 `Audio3DSystem` 을 같은 모양으로 둔다(방향은 `Transform3D` 에서). D-116 에 따라 2D 뒤다.
 - 새 컴포넌트는 2D·3D 양쪽 내장 컴포넌트 등록과 리플렉션(`JBRO_FIELD`), 캔버스 직렬화, 인스펙터에 올린다.
-- `[열림]` 기존 캔버스 파일의 `AudioPlayer`·`AudioListener` 를 `AudioSource`·`AudioListener2D` 로 읽을지. `CanvasFile.h:13` 이
-  지금은 버린다.
+- 기존 캔버스 파일의 `AudioPlayer`·`AudioListener` 는 새 컴포넌트로 옮겨 읽지 않는다(2026-09-25 확인) - 이 엔진으로 만든 캔버스에
+  오디오가 없다. `CanvasFile.h:13` 이 지금처럼 모르는 타입으로 버린다.
 
 ### 2.8 스크립트 경계
 
@@ -253,10 +256,10 @@ Component::AudioListener2D   (JBroFramework2D)
 
 ## 5. 열린 것과 가정 모음
 
-- `[제안]` 임포트 옵션에서 재생 파라미터를 뺀다(§2.2).
-- `[열림]` 모듈 이름(§2.1), MaxVoices 기본값(§2.4), 버스 중첩·솔로·센드(§2.4), 디스크 스트리밍(§2.2), 기존 캔버스의 `AudioPlayer`
-  읽기(§2.7), Web autoplay unlock·장치 선택·핫 언플러그·포커스 잃었을 때 정책(기존 백로그).
-- `[가정]` 재로드는 쓰는 보이스를 멈춘다(§2.2), 명령 넘침은 버리고 경고(§2.4), 스트리밍 디코더는 슬롯별 고정 아레나(§2.4), Web 콜백과 SPSC(§2.5), `audioEnabled` 설정(§2.9),
+- 2026-09-25 에 정해진 것: 임포트 옵션은 `Mode` 만(§2.2), 모듈 이름은 `JBroAudioTypes`·`JBroAudio`(§2.1), MaxVoices 64(§2.4),
+  기존 캔버스·메타의 이식은 하지 않음(§2.2·§2.7).
+- `[열림]` 버스 중첩·솔로·센드(§2.4), 디스크 스트리밍(§2.2), Web autoplay unlock·장치 선택·핫 언플러그·포커스 잃었을 때 정책(기존 백로그).
+- `[가정]` 재로드는 쓰는 보이스를 멈춘다(§2.2), 명령 넘침은 버리고 경고(§2.4), 스트리밍 디코더는 슬롯별 고정 아레나(§2.4), Web 콜백과 SPSC(§2.5), `audioEnabled`·MaxVoices 설정 자리(§2.9·§2.4),
   미리 듣기는 Master 음소거와 무관(§2.9).
 - 기존 백로그(PlayOneShot 반환 핸들, 페이드, PlayAt·마커, 믹서 창·스냅숏·덕킹, 감쇠 곡선·도플러·occlusion, 라우드니스·트림,
   프로파일러)는 6 단계 뒤에 사용자 우선순위를 받아 단계로 올린다.
