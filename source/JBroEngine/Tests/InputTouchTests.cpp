@@ -9,7 +9,7 @@
 #include <limits>
 #include <stdexcept>
 
-// 터치(D-210, input-plan §4 의 7). 기존 엔진의 규칙(뗀 프레임에도 한 번 나온다, 포커스를 잃으면 취소)을 잇는다.
+// 터치(D-214, input-plan §4 의 7). 기존 엔진의 규칙(뗀 프레임에도 한 번 나온다, 포커스를 잃으면 취소)을 잇는다.
 namespace
 {
     using namespace JBro;

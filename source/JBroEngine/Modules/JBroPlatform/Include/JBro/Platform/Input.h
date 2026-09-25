@@ -24,7 +24,7 @@ namespace JBro
         MouseWheel,
         FocusGained,
         FocusLost,
-        // 손가락·펜(D-210). 포인터 번호는 `codePoint` 에, 자리는 `x`·`y`(클라이언트 픽셀)에 온다. 마우스는 여기로 오지 않는다.
+        // 손가락·펜(D-214). 포인터 번호는 `codePoint` 에, 자리는 `x`·`y`(클라이언트 픽셀)에 온다. 마우스는 여기로 오지 않는다.
         TouchBegan,
         TouchMoved,
         TouchEnded,
@@ -50,7 +50,7 @@ namespace JBro
 
     static_assert(sizeof(InputEvent) == 20, "InputEvent crosses the game DLL boundary");
 
-    // 게임패드 한 자리의 날 상태다(D-210). 게임패드는 이벤트가 아니라 **폴링**이다 - XInput 이 그렇다. 데드존·누름 세기는
+    // 게임패드 한 자리의 날 상태다(D-214). 게임패드는 이벤트가 아니라 **폴링**이다 - XInput 이 그렇다. 데드존·누름 세기는
     // 플랫폼이 하지 않는다(`System::InputSystem` 이 한다). 그래서 플랫폼마다 같은 규칙으로 접힌다.
     struct GamepadRawState
     {

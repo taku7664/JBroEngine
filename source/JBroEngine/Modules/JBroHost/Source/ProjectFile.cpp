@@ -192,7 +192,7 @@ namespace JBro
             return false;
         }
 
-        // 입력 액션의 글자(D-210). 기존 엔진이 `magic_enum` 으로 적던 열거자 이름 그대로다.
+        // 입력 액션의 글자(D-214). 기존 엔진이 `magic_enum` 으로 적던 열거자 이름 그대로다.
         constexpr const char* InputActionTypeNames[] = {"Bool", "Float", "Vector2"};
         constexpr const char* InputBindingSourceNames[] = {"Key", "MouseButton", "GamepadButton", "GamepadAxis", "GamepadStick"};
         constexpr const char* InputCompositeNames[] = {"None", "Up", "Down", "Left", "Right"};
@@ -333,7 +333,7 @@ namespace JBro
         std::size_t    skipDeeperThan = NotSkipping;
         // `AudioBuses:` 아래에 있는가. 맵의 시퀀스라 스칼라 시퀀스(`currentSequence`)와 따로 읽는다.
         bool           inAudioBuses = false;
-        // `InputActions:` 아래에 있는가(D-210). 액션 항목의 들여쓰기와 `Bindings:` 아래에 있는지를 함께 든다.
+        // `InputActions:` 아래에 있는가(D-214). 액션 항목의 들여쓰기와 `Bindings:` 아래에 있는지를 함께 든다.
         bool           inInputActions = false;
         bool           inInputBindings = false;
         std::size_t    inputActionIndent = 2;
@@ -399,7 +399,7 @@ namespace JBro
                 inInputBindings = false;
             }
 
-            // 입력 액션(D-210): `- Name: X` 가 액션을 열고 `Type:`·`Bindings:` 가 붙는다. `Bindings:` 아래의
+            // 입력 액션(D-214): `- Name: X` 가 액션을 열고 `Type:`·`Bindings:` 가 붙는다. `Bindings:` 아래의
             // `- Source: Key` 가 바인딩을 열고 `Code:`·`GamepadIndex:`·`Composite:` 가 붙는다. 들여쓰기로 가른다.
             if (inInputActions)
             {
@@ -1059,7 +1059,7 @@ namespace JBro
             return name[0] != '-' && name[0] != '?';
         }
 
-        // `InputLayers` 를 적는다(D-210). 비어 있으면 `[]` 다(원문에 키가 있었을 때만 불린다).
+        // `InputLayers` 를 적는다(D-214). 비어 있으면 `[]` 다(원문에 키가 있었을 때만 불린다).
         void AppendInputLayers(String& result, const ProjectFile& project)
         {
             if (project.inputLayers.IsEmpty())
@@ -1086,7 +1086,7 @@ namespace JBro
             }
         }
 
-        // `InputActions` 를 적는다(D-210). 모양은 기존 엔진과 같다.
+        // `InputActions` 를 적는다(D-214). 모양은 기존 엔진과 같다.
         void AppendInputActions(String& result, const ProjectFile& project)
         {
             if (project.inputActions.IsEmpty())
@@ -1504,7 +1504,7 @@ namespace JBro
         {
             AppendAudioBuses(result, project);
         }
-        // 입력도 같다(D-210): 적힌 적 없고 비어 있으면 적지 않는다.
+        // 입력도 같다(D-214): 적힌 적 없고 비어 있으면 적지 않는다.
         if (false == sawInputLayers && false == project.inputLayers.IsEmpty())
         {
             AppendInputLayers(result, project);

@@ -3113,7 +3113,7 @@ namespace JBro
         // 사라졌다. 빠르게 친 글자가 하나씩 빠졌다(`Beta` 가 `Bea` 로 들어갔다).
         m_platform->PumpEvents();
         const bool pushed = m_ui.PushInput(m_platform->GetInputEvents());
-        // **게임도 같은 이벤트를 받는다**(D-210) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
+        // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
         // 기존 엔진의 `SetViewportActive` 게이트와 같다. 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
         // 그러지 않으면 W 를 누른 채 인스펙터를 누르면 게임 속 캐릭터가 계속 걷는다.
         const bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_gameViewReported && m_gameViewFocused;

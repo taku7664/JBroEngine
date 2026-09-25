@@ -9,7 +9,7 @@
 
 namespace JBro
 {
-    // 핸들러가 돌려주는 값이다(D-210).
+    // 핸들러가 돌려주는 값이다(D-214).
     enum class InputResult : std::uint8_t
     {
         // 아래 레이어도 받는다. 기본이다.
@@ -43,7 +43,7 @@ namespace JBro
         }
     };
 
-    // 레이어와 순서를 상속 줄에 적는 믹스인이다(D-210). 기존 엔진과 같은 모양이다.
+    // 레이어와 순서를 상속 줄에 적는 믹스인이다(D-214). 기존 엔진과 같은 모양이다.
     //
     //   class Pause final : public GameScript2D, public InputHandler<"UI", 10>
     //   {

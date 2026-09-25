@@ -8,7 +8,7 @@
 #include <iostream>
 #include <stdexcept>
 
-// 입력 액션과 그 저장(D-210, input-plan §4 의 5).
+// 입력 액션과 그 저장(D-214, input-plan §4 의 5).
 namespace
 {
     using namespace JBro;

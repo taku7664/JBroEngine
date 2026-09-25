@@ -16,7 +16,7 @@
 #include <iostream>
 #include <stdexcept>
 
-// 입력 레이어 체인과 블로킹을 잰다(D-210, input-plan §4 의 3).
+// 입력 레이어 체인과 블로킹을 잰다(D-214, input-plan §4 의 3).
 namespace
 {
     using namespace JBro;
@@ -249,7 +249,7 @@ namespace
         Check(CountUnknownLayerWarnings() == 1, "rebuilding the chain does not repeat the warning");
     }
 
-    // 시작 훅을 받기 전에는 체인에 서지 않는다. 그 프레임에 붙인 것은 다음 프레임부터다(D-210 (6)).
+    // 시작 훅을 받기 전에는 체인에 서지 않는다. 그 프레임에 붙인 것은 다음 프레임부터다(D-214 (6)).
     void TestAScriptJoinsTheChainAfterItStarts()
     {
         Rig rig;
@@ -409,7 +409,7 @@ namespace
 #endif
     }
 
-    // 프레임워크가 체인을 고정 스텝보다 먼저 돌린다(D-210 (6)). 그러지 않으면 `OnFixedUpdate` 의 폴링이
+    // 프레임워크가 체인을 고정 스텝보다 먼저 돌린다(D-214 (6)). 그러지 않으면 `OnFixedUpdate` 의 폴링이
     // 막히기 전의 입력을 본다.
     void TestTheFrameworkDispatchesBeforeTheFixedSteps()
     {

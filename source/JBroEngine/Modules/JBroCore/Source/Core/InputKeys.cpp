@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstring>
 
-// 이름 표는 열거자 차례 그대로다(D-210). 열거자를 더하거나 빼면 아래 static_assert 가 운다 - 차례를 바꾸는 것은
+// 이름 표는 열거자 차례 그대로다(D-214). 열거자를 더하거나 빼면 아래 static_assert 가 운다 - 차례를 바꾸는 것은
 // 잡지 못하므로 테스트(`InputActionTests`)가 이름마다 되돌아오는지 잰다.
 namespace JBro
 {

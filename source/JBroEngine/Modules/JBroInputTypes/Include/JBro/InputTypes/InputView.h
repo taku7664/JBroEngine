@@ -12,7 +12,7 @@ namespace JBro
         class InputSystem;
     }
 
-    // 소비를 가르는 장치 단위다(D-210).
+    // 소비를 가르는 장치 단위다(D-214).
     enum class InputDevice : std::uint8_t
     {
         Keyboard,
@@ -24,7 +24,7 @@ namespace JBro
         Count
     };
 
-    // 핸들러와 폴링이 읽는 입력이다(D-210).
+    // 핸들러와 폴링이 읽는 입력이다(D-214).
     //
     // 레이어 체인을 따라 **하나가 내려간다.** 위의 핸들러가 `Consume` 한 장치는 아래에서 빈 장치로
     // 보이고, 체인이 다 돈 뒤 남은 것을 `Service::InputService` 가 `OnUpdate` 의 폴링에 준다.
@@ -82,7 +82,7 @@ namespace JBro
             return m_frame->touch;
         }
 
-        // 이름 붙인 입력이다(D-210). 소비된 장치의 바인딩은 빠진다 - 위에서 마우스를 가져갔으면 마우스로 묶은 액션도 아래에서는 0 이다.
+        // 이름 붙인 입력이다(D-214). 소비된 장치의 바인딩은 빠진다 - 위에서 마우스를 가져갔으면 마우스로 묶은 액션도 아래에서는 0 이다.
         // 프로젝트에 없는 이름이면 0 이고 한 번 경고가 남는다.
         InputActionValue Action(InputActionId action) const;
         bool IsActionDown(InputActionId action) const;

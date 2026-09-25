@@ -14,7 +14,7 @@
 
 namespace JBro::System
 {
-    // 게임 입력을 접고 레이어 체인에 내려보낸다(D-210). 엔진이 소유한다(ProjectRule §7).
+    // 게임 입력을 접고 레이어 체인에 내려보낸다(D-214). 엔진이 소유한다(ProjectRule §7).
     //
     // **폴링하지 않는다.** 플랫폼이 모은 이벤트(D-62)를 프레임마다 한 번 접는다 - 기존 엔진은
     // `GetAsyncKeyState` 로 긁어서 한 프레임 안에 눌렀다 뗀 키를 잃었다.
@@ -41,7 +41,7 @@ namespace JBro::System
         const InputSystemContext& GetSystemContext() const;
         const InputServiceContext& GetServiceContext() const;
 
-        // 레이어 체인이다(D-210). 누구를 어떤 차례로 부를지는 부르는 쪽(`ScriptSystem`)이 정하고, 여기는 소비를 나른다.
+        // 레이어 체인이다(D-214). 누구를 어떤 차례로 부를지는 부르는 쪽(`ScriptSystem`)이 정하고, 여기는 소비를 나른다.
         //   BeginDispatch() → 켜진 핸들러마다 Deliver() → EndDispatch()
         // `Deliver` 가 참이면 그 핸들러가 `Block` 한 것이고, 부르는 쪽은 거기서 멈춘다. 멈추지 않아도 아래는 빈 입력만 본다.
         void BeginDispatch();
@@ -57,11 +57,11 @@ namespace JBro::System
         // 레이어 순서가 바뀔 때마다 오른다. 체인을 들고 있는 쪽이 이 값으로 다시 줄 세울지 안다.
         std::uint64_t GetLayerRevision() const;
 
-        // 프로젝트의 액션 표다(D-210). 표를 복사해 두고, 체인과 폴링의 뷰가 이것을 읽는다. 없는 이름의 경고 기억도 여기서 지운다.
+        // 프로젝트의 액션 표다(D-214). 표를 복사해 두고, 체인과 폴링의 뷰가 이것을 읽는다. 없는 이름의 경고 기억도 여기서 지운다.
         void SetActionMap(const InputActionMap& actions);
         const InputActionMap& GetActionMap() const;
 
-        // ── 게임패드 (D-210) ──
+        // ── 게임패드 (D-214) ──
         // 날 상태 네 자리를 이번 프레임으로 접는다: 둥근 데드존과 트리거 문턱, 누름·뗌 수(지난 폴링과 견준다), 빠진 패드는
         // 눌린 것을 모두 뗀다. `BeginFrame` 뒤에 부른다. 폴링이라 두 폴링 사이의 눌렀다 떼기는 보이지 않는다(XInput 의 한계).
         void FoldGamepads(const GamepadRawState (&raw)[MaxGamepads]);

@@ -22,7 +22,7 @@ namespace JBro
 
     namespace System
     {
-        // 게임 입력(D-210). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
+        // 게임 입력(D-214). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
         class InputSystem;
     }
 
@@ -126,11 +126,11 @@ namespace JBro
         // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
         // 입력이 쌓이기만 한다.
         void SetInputOwnedByHost(bool owned);
-        // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-210). 다음 `Tick` 이 이것을 접고 비운다.
+        // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-214). 다음 `Tick` 이 이것을 접고 비운다.
         // 에디터는 재생 중이고 게임 뷰가 포커스를 가졌을 때만 부르고, 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
         // 한 틱에 여러 번 부르면 이어 붙는다. `mapping` 은 마지막 것을 쓴다.
         void SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping);
-        // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-210). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
+        // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-214). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
         // 꺼지면 다음 틱에 눌린 패드 버튼을 떼고 모터를 멈춘다.
         void SetHostGameInputActive(bool active);
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
@@ -213,7 +213,7 @@ namespace JBro
         void ReleaseResources();
         // 프로젝트의 버스 목록·장치·포커스 정책을 오디오 시스템에 건다.
         void ApplyAudioBuses();
-        // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-210).
+        // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-214).
         void ApplyInputSettings();
         // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
         bool OpenAudioOutput();

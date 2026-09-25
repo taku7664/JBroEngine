@@ -135,7 +135,7 @@ namespace JBro
                 BindNetworkSystemContext(m_network->GetSystemContext());
                 BindNetworkServiceContext(m_network->GetServiceContext());
             }
-            // 게임 입력(D-210). 네트워크처럼 호스트가 소유하고 두 차원이 같은 것을 쓴다. 이 모듈 사본에도 묶어
+            // 게임 입력(D-214). 네트워크처럼 호스트가 소유하고 두 차원이 같은 것을 쓴다. 이 모듈 사본에도 묶어
             // 호스트 안에서 붙인 스크립트(정적으로 붙인 것)도 같은 서비스를 읽는다.
             m_input = MakeOwnerPtr<System::InputSystem>();
             BindInputSystemContext(m_input->GetSystemContext());
@@ -681,7 +681,7 @@ namespace JBro
                 m_platform->ClearInputEvents();
             }
             m_platform->PumpEvents();
-            // 게임 입력을 이번 프레임으로 접는다(D-210). 호스트(에디터)가 이벤트를 자기 UI 에 넣는 동안은 게임이
+            // 게임 입력을 이번 프레임으로 접는다(D-214). 호스트(에디터)가 이벤트를 자기 UI 에 넣는 동안은 게임이
             // 그 이벤트를 보지 않는다 - 빈 목록으로라도 불러 지난 프레임의 누름·뗌을 비운다.
             if (m_input)
             {
@@ -695,7 +695,7 @@ namespace JBro
                 {
                     m_input->BeginFrame(m_platform->GetInputEvents());
                 }
-                // 게임패드는 폴링이다(D-210). 게임이 입력을 받는 동안만 읽고, 아니면 눌린 것을 떼고 모터를 멈춘다.
+                // 게임패드는 폴링이다(D-214). 게임이 입력을 받는 동안만 읽고, 아니면 눌린 것을 떼고 모터를 멈춘다.
                 if (false == m_inputOwnedByHost || m_hostGameInputActive)
                 {
                     m_input->PollGamepads(*m_platform, deltaTime);
@@ -891,7 +891,7 @@ namespace JBro
         }
         // 오디오 버스도 지금 적용한다(D-197). 설정 창에서 버스를 더하면 곧바로 고를 수 있어야 한다.
         ApplyAudioBuses();
-        // 입력도 같다(D-210). 설정 창에서 저장한 바인딩으로 곧바로 움직인다.
+        // 입력도 같다(D-214). 설정 창에서 저장한 바인딩으로 곧바로 움직인다.
         ApplyInputSettings();
     }
 

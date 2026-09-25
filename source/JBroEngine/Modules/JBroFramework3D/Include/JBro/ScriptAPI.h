@@ -22,7 +22,7 @@
 // 오디오 값 서비스와 소스(D-197). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/AudioTypes/ServiceContext.h>
-// 게임 입력(D-210). 키 이름·장치 상태와 `GetInputServices().Input` 이다. 이것도 두 프렐류드가 같은 줄을 공유한다.
+// 게임 입력(D-214). 키 이름·장치 상태와 `GetInputServices().Input` 이다. 이것도 두 프렐류드가 같은 줄을 공유한다.
 #include <JBro/InputTypes/InputHandler.h>
 #include <JBro/InputTypes/ServiceContext.h>
 

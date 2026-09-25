@@ -3212,7 +3212,7 @@ namespace
     }
 
 
-    // **게임 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-210, 기존 `SetViewportActive`).
+    // **게임 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-214, 기존 `SetViewportActive`).
     // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 게임 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
     // 게임이 키를 받는 동안 에디터 단축키는 재생 제어만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
     void TestOnlyTheFocusedGameViewGivesTheGameItsKeys()
@@ -3633,7 +3633,7 @@ namespace
         fs::remove_all(root, ignored);
     }
 
-    // **프로젝트 설정의 입력 갈래가 그려지고 저장된다**(D-210). 액션마다 접는 마디를 열어 바인딩 줄까지 그리고, 저장하면
+    // **프로젝트 설정의 입력 갈래가 그려지고 저장된다**(D-214). 액션마다 접는 마디를 열어 바인딩 줄까지 그리고, 저장하면
     // 고친 바인딩이 기존 엔진 모양으로 파일에 간다. 표를 마디 안에서 닫지 않으면 ImGui 의 ID 쌓기가 어긋나 단언이 터진다.
     void TestTheInputSettingsDrawAndSave()
     {

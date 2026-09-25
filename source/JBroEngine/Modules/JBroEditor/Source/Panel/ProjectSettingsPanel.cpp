@@ -83,7 +83,7 @@ namespace JBro
 
     namespace
     {
-        // 입력 설정의 고르기 목록이다(D-210). 파일에 적히는 글자와 같다.
+        // 입력 설정의 고르기 목록이다(D-214). 파일에 적히는 글자와 같다.
         constexpr const char* InputActionTypeChoices[] = {"Bool", "Float", "Vector2"};
         constexpr const char* InputBindingSourceChoices[] = {"Key", "MouseButton", "GamepadButton", "GamepadAxis", "GamepadStick"};
         constexpr const char* InputCompositeChoices[] = {"None", "Up", "Down", "Left", "Right"};

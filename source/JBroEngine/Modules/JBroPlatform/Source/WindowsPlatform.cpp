@@ -318,7 +318,7 @@ namespace JBro
                 platform->RecordInputEvent(event);
                 break;
 
-            // 터치·펜(D-210, 기존 엔진 `AccumulateTouchPointer`). 마우스 포인터는 여기서 거르고 WM_MOUSE 로 받는다.
+            // 터치·펜(D-214, 기존 엔진 `AccumulateTouchPointer`). 마우스 포인터는 여기서 거르고 WM_MOUSE 로 받는다.
             // 처리한 뒤에도 `DefWindowProcW` 로 넘긴다 - 그래야 Windows 가 터치를 마우스로도 흉내 내어 에디터 UI 가 손가락으로 눌린다.
             case WM_POINTERDOWN:
             case WM_POINTERUPDATE:

@@ -442,7 +442,7 @@ namespace
         bool pluggedIn = false;
         bool devicesChanged = false;
         int deviceChecks = 0;
-        // 게임패드 한 자리(0 번)다(D-210).
+        // 게임패드 한 자리(0 번)다(D-214).
         bool PollGamepad(std::uint32_t slot, JBro::GamepadRawState& state) override
         {
             state = slot == 0 ? pad : JBro::GamepadRawState{};
@@ -644,7 +644,7 @@ namespace
     };
 
     // 오버레이가 불렸는지, 그때 백버퍼가 무엇이었는지 남긴다.
-    // **엔진이 틱마다 게임패드를 읽고, 호스트가 입력을 가져간 동안에는 게임에 주지 않는다**(D-210). 진동은 서비스에서 플랫폼까지
+    // **엔진이 틱마다 게임패드를 읽고, 호스트가 입력을 가져간 동안에는 게임에 주지 않는다**(D-214). 진동은 서비스에서 플랫폼까지
     // 가고, 호스트가 게임 입력을 끄거나 엔진이 내려가면 모터가 멈춘다.
     void TestTheHostPollsGamepadsForTheGame()
     {

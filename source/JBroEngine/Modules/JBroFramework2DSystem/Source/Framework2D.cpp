@@ -145,7 +145,7 @@ namespace JBro
         }
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
-        // **입력 체인은 고정 스텝보다 먼저다**(D-210). `OnFixedUpdate` 가 폴링하는 입력에도 위 레이어의 블로킹이
+        // **입력 체인은 고정 스텝보다 먼저다**(D-214). `OnFixedUpdate` 가 폴링하는 입력에도 위 레이어의 블로킹이
         // 걸려야 한다 - 시스템 갱신 안(`ScriptSystem::OnUpdate`)에 두면 그보다 앞서 도는 고정 스텝이 막히기 전의 입력을 본다.
         // 멈춰 있으면 스크립트가 돌지 않으니 체인도 돌지 않는다. 그때 폴링은 이번 프레임 전체를 보지만 읽는 스크립트가 없다.
         if (m_simulationEnabled)

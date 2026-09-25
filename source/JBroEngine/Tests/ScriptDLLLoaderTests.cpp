@@ -797,7 +797,7 @@ namespace
         Check(engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsLoaded") != nullptr,
             "the loaded module must be queryable through the host");
 
-        // 게임 입력이 DLL 까지 닿는다(D-210). 창에 넣은 키를 엔진이 틱에서 접고, DLL 은 자기 사본의 서비스로
+        // 게임 입력이 DLL 까지 닿는다(D-214). 창에 넣은 키를 엔진이 틱에서 접고, DLL 은 자기 사본의 서비스로
         // 그것을 읽는다 - 호스트가 입력 블록을 내지 않았거나 DLL 이 묶지 않았으면 여기서 거짓이다.
         using IsKeyDown = bool (*)(std::uint16_t) noexcept;
         const auto isKeyDown = reinterpret_cast<IsKeyDown>(
@@ -816,7 +816,7 @@ namespace
         Check(engine.Tick(0.016f), "the host must keep ticking");
         Check(false == isKeyDown(space), "and releasing it must reach the DLL too");
 
-        // 프로젝트의 입력 액션이 곧바로 걸린다(D-210). 설정 창이 저장하면 부르는 길(`SetProjectFile`)이다.
+        // 프로젝트의 입력 액션이 곧바로 걸린다(D-214). 설정 창이 저장하면 부르는 길(`SetProjectFile`)이다.
         JBro::ProjectFile inputProject = engine.GetProjectFile();
         JBro::ProjectInputAction jumpAction;
         jumpAction.name = "Jump";

@@ -29,7 +29,7 @@ namespace JBro::System
         // 본다 - 아무것도 바뀌지 않은 프레임에서 이 값이 오르면 지연 재구축이 아니다(A1).
         std::size_t GetRebuildCount() const;
 
-        // 게임 입력(D-210). 없으면 체인을 세우지도 돌리지도 않는다.
+        // 게임 입력(D-214). 없으면 체인을 세우지도 돌리지도 않는다.
         void SetInputSystem(InputSystem* input);
         // 입력 레이어 체인을 한 번 돈다. 시작 훅을 받은 켜진 핸들러만, (레이어 순위, `Order` 내림차순, 실행 순서) 로 부른다.
         // **부르는 자리는 프레임워크가 고정 스텝보다 앞에서다** - `OnFixedUpdate` 의 폴링에도 블로킹이 걸려야 한다.
@@ -79,7 +79,7 @@ namespace JBro::System
         Array<GameObject*>           m_walkStack;
         Array<ScriptEntry>           m_ordered;
 
-        // 입력 레이어 체인이다(D-210). 실행 순서 목록과 같은 때에 다시 세운다 - 켜고 끄기·파괴·핫 리로드가 모두
+        // 입력 레이어 체인이다(D-214). 실행 순서 목록과 같은 때에 다시 세운다 - 켜고 끄기·파괴·핫 리로드가 모두
         // 그 리비전을 올리므로 **따로 등록하거나 해제할 곳이 없다**(기존 엔진은 날 포인터를 두 파일에서 넣고 뺐다).
         struct InputEntry
         {
