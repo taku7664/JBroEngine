@@ -43,4 +43,14 @@ namespace JBro
     };
 
     static_assert(sizeof(InputEvent) == 20, "InputEvent crosses the game DLL boundary");
+
+    // 창 클라이언트 좌표를 게임 화면 픽셀로 옮기는 값이다. 게임 화면 픽셀 = (클라이언트 - origin) * scale.
+    // 게임 호스트는 창 전체가 게임 화면이라 기본값(그대로)이다. 에디터는 게임 뷰의 사각형과 렌더 타깃 크기에서 만든다.
+    struct InputSurfaceMapping
+    {
+        float originX = 0.0f;
+        float originY = 0.0f;
+        float scaleX = 1.0f;
+        float scaleY = 1.0f;
+    };
 }

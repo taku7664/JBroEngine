@@ -111,6 +111,10 @@ namespace JBro
         // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
         // 입력이 쌓이기만 한다.
         void SetInputOwnedByHost(bool owned);
+        // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-201). 다음 `Tick` 이 이것을 접고 비운다.
+        // 에디터는 재생 중이고 게임 뷰가 포커스를 가졌을 때만 부르고, 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
+        // 한 틱에 여러 번 부르면 이어 붙는다. `mapping` 은 마지막 것을 쓴다.
+        void SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping);
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         bool DidGameSubmitLastFrame() const;
@@ -201,6 +205,8 @@ namespace JBro
         EditorViewDesc m_editorView;
         bool m_hasEditorView = false;
         bool m_inputOwnedByHost = false;
+        Array<InputEvent> m_hostInput;
+        InputSurfaceMapping m_hostInputMapping;
         bool m_gameSubmittedLastFrame = false;
         // 게임을 돌릴 것인가(D-131). 게임 호스트는 손대지 않으므로 기본이 참이다.
         bool m_simulationEnabled = true;

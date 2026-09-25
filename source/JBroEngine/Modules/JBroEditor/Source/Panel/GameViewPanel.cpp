@@ -50,6 +50,10 @@ namespace JBro
             IM_COL32(20, 20, 24, 255));
 
         const bool hasImage = gameView.IsValid() && extent.width != 0 && extent.height != 0;
+        float imageLeft = 0.0f;
+        float imageTop = 0.0f;
+        float imageWidth = 0.0f;
+        float imageHeight = 0.0f;
         if (hasImage)
         {
             // **비율을 지켜 패널 안에 맞춘다(레터박스).** 늘려 붙이면 에디터 창 모양에
@@ -69,6 +73,10 @@ namespace JBro
             const ImVec2 imageMin(
                 origin.x + (panel.x - size.x) * 0.5f,
                 origin.y + (panel.y - size.y) * 0.5f);
+            imageLeft = imageMin.x;
+            imageTop = imageMin.y;
+            imageWidth = size.x;
+            imageHeight = size.y;
             draw->AddImage(
                 static_cast<ImTextureID>(EditorUI::ToTextureId(gameView)),
                 imageMin, ImVec2(imageMin.x + size.x, imageMin.y + size.y));
@@ -80,6 +88,8 @@ namespace JBro
         // 이 프레임에 게임 화면을 붙였다. 붙이지 않은 프레임(닫힘·다른 탭에 가림)에는
         // 게임을 그리지 않는다(D-63).
         m_editor->RequestGameView();
+        // 게임 입력(D-201). 포커스가 여기 있으면 다음 프레임부터 게임이 키를 받고, 마우스는 이 그림 사각형 기준의 게임 픽셀이다.
+        m_editor->ReportGameView(IsFocused(), imageLeft, imageTop, imageWidth, imageHeight);
 
         DrawStatusOverlay(origin.x, origin.y, hasImage);
     }

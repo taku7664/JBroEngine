@@ -115,8 +115,20 @@ namespace JBro
             return requested;
         }
 
+        // 이 프레임에 이 패널(또는 그 안의 자식 창)이 키보드 포커스를 가졌는가. 에디터가 창을 열 때마다 적는다 -
+        // 그리지 않은 프레임(닫힘·다른 탭에 가림)은 거짓이다. 게임 뷰가 이것으로 게임 입력을 켠다(D-201).
+        bool IsFocused() const
+        {
+            return m_focused;
+        }
+        void SetFocused(bool focused)
+        {
+            m_focused = focused;
+        }
+
     private:
         bool m_open = true;
         bool m_focusRequested = false;
+        bool m_focused = false;
     };
 }

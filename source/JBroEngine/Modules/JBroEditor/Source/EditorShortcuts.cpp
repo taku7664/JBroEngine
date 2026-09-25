@@ -222,9 +222,16 @@ namespace JBro::EditorShortcuts
         //
         // 저장은 예외다 - 글자를 치는 중에도 Ctrl+S 는 저장이어야 한다.
         const bool typing = ImGui::GetIO().WantTextInput;
+        // **게임이 키를 받는 동안은 재생 제어만 남긴다**(D-201). 게임의 Delete 가 선택한 오브젝트를 지우고 Ctrl+Z 가
+        // 편집을 되돌리면 안 된다. 기존 엔진은 둘 다 받게 두었다.
+        const bool gameInput = editor.IsGameReceivingInput();
         for (const EditorShortcutInfo& info : Table)
         {
             if (typing && info.id != EditorShortcut::SaveCanvas)
+            {
+                continue;
+            }
+            if (gameInput && info.id != EditorShortcut::TogglePlay && info.id != EditorShortcut::TogglePause)
             {
                 continue;
             }

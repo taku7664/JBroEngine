@@ -572,7 +572,9 @@ namespace JBro
             {
                 if (m_inputOwnedByHost)
                 {
-                    m_input->BeginFrame({});
+                    m_input->BeginFrame({m_hostInput.Data(), static_cast<std::uint32_t>(m_hostInput.Size())}, m_hostInputMapping);
+                    // 비워도 용량은 남는다. 두 번째 프레임부터는 할당하지 않는다(§9).
+                    m_hostInput.Clear();
                 }
                 else
                 {
@@ -758,6 +760,16 @@ namespace JBro
     bool EngineInstance::DidGameSubmitLastFrame() const
     {
         return m_gameSubmittedLastFrame;
+    }
+
+    void EngineInstance::SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping)
+    {
+        m_hostInputMapping = mapping;
+        if (events.data == nullptr || events.size == 0)
+        {
+            return;
+        }
+        m_hostInput.Append(events.data, events.size);
     }
 
     void EngineInstance::SetInputOwnedByHost(bool owned)

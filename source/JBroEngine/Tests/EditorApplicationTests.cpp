@@ -39,6 +39,8 @@
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include <JBro/InputTypes/ServiceContext.h>
+
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -3207,6 +3209,102 @@ namespace
         editor.Shutdown();
     }
 
+
+    // **게임 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-201, 기존 `SetViewportActive`).
+    // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 게임 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
+    // 게임이 키를 받는 동안 에디터 단축키는 재생 제어만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
+    void TestOnlyTheFocusedGameViewGivesTheGameItsKeys()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; game input in the editor not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GameInputProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* subject = canvas->CreateObject("Subject");
+        editor.SetSelectedObject(subject);
+        JBro::EditorPanel* game = editor.FindPanel("Game");
+        JBro::EditorPanel* inspector = editor.FindPanel("Inspector");
+        Check(game != nullptr && inspector != nullptr, "the game view and the inspector are default panels");
+
+        const auto keyboard = []() -> const JBro::KeyboardState&
+        {
+            return JBro::GetInputServices().Input.Keyboard();
+        };
+        const auto post = [hwnd](UINT message, WPARAM key)
+        {
+            const LPARAM up = message == WM_KEYUP ? static_cast<LPARAM>(0xC0000001u) : 0;
+            PostMessageW(hwnd, message, key, up);
+        };
+
+        // 재생 전에는 게임 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
+        game->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        post(WM_KEYDOWN, 'W');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(false == editor.IsGameReceivingInput(), "a stopped game receives nothing");
+        Check(false == keyboard().IsDown(JBro::Key::W), "a stopped game does not see the key");
+        post(WM_KEYUP, 'W');
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        Check(editor.StartSimulation(), "the simulation must start");
+        game->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the playing editor must settle");
+        }
+        Check(game->IsFocused(), "the game view must hold the focus it asked for");
+        post(WM_KEYDOWN, 'W');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(editor.IsGameReceivingInput(), "a playing game with the game view focused receives input");
+        Check(keyboard().IsDown(JBro::Key::W), "and it sees the key being held");
+
+        // 게임이 받는 동안 Delete 는 게임의 것이다.
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        post(WM_KEYDOWN, VK_DELETE);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        post(WM_KEYUP, VK_DELETE);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore,
+            "the editor's delete shortcut must not run while the game has the keys");
+
+        // 인스펙터로 옮기면 누르고 있던 W 는 떼어지고, 거기서 친 키는 게임에 가지 않는다.
+        inspector->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after moving the focus");
+        }
+        Check(false == editor.IsGameReceivingInput(), "leaving the game view stops the game input");
+        Check(false == keyboard().IsDown(JBro::Key::W), "and the held key is released for the game");
+        Check(false == keyboard().IsPressed(JBro::Key::W),
+            "and what the editor handed over is not folded again on later frames");
+        post(WM_KEYDOWN, 'A');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(false == keyboard().IsDown(JBro::Key::A), "a key typed into another panel does not reach the game");
+        post(WM_KEYUP, 'A');
+        post(WM_KEYUP, 'W');
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
 
     // 아래(프로젝트 파일 테스트 옆)에 있다.
     bool WriteTextFile(const JBro::String& path, const char* text);
@@ -9282,6 +9380,7 @@ int RunEditorApplicationTests()
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
+    TestOnlyTheFocusedGameViewGivesTheGameItsKeys();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
