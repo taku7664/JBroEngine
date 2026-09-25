@@ -14,6 +14,12 @@ namespace JBro
     // 어느 스레드에서 불려도 되는 함수여야 한다(호스트는 `IPlatform::OpenFileStream` 으로 잇는다).
     using AudioStreamOpenCallback = bool (*)(void* user, const char* utf8Path, AudioFileDecoder& decoder);
 
+    // 버스 사슬에 붙는 사용자 처리기다(D-206). **오디오 스레드에서 불린다** - 할당·잠금·파일 IO·로그를 하지 않고 곧 돌아와야
+    // 한다. `frames` 는 인터리브 f32 이고 제자리에서 고친다. 스크립트 DLL 에는 열지 않는다(핫 리로드가 코드를 내리는 동안 오디오
+    // 스레드가 부를 수 있다) - 엔진·호스트 코드가 쓰는 확장점이다.
+    using AudioBusProcessCallback = void (*)(void* user, float* frames, std::uint32_t frameCount, std::uint32_t channels,
+        std::uint32_t sampleRate);
+
     struct AudioMixerDesc
     {
         // 출력 형식이다. 장치가 이 형식으로 당겨 간다(`Render`).
@@ -183,6 +189,9 @@ namespace JBro
         // 더킹(D-205): `trigger` 버스에 소리가 있는 동안 이 버스를 `amount`(0..1) 만큼 줄인다. 대사가 나오면 배경음이 물러선다.
         // 20 ms 에 걸쳐 줄고 `releaseSeconds` 에 걸쳐 돌아온다. `trigger` 가 `AudioNoBus` 거나 `amount` 가 0 이면 끈다.
         void SetBusDucking(AudioBusId bus, AudioBusId trigger, float amount, float releaseSeconds);
+        // 버스 사슬의 끝(잔향 뒤, 음량 앞)에 사용자 처리기를 건다(D-206). null 이면 뗀다. **돌아온 뒤에는 옛 처리기가 다시 불리지
+        // 않는다** - 그 코드와 `user` 를 곧 내려도 된다. 오디오 스레드가 옛 것을 부르는 중이면 그 한 번이 끝날 때까지 기다린다.
+        void SetBusProcessor(AudioBusId bus, AudioBusProcessCallback callback, void* user);
         AudioBusId GetBusDuckTrigger(AudioBusId bus) const;
         float GetBusDuckAmount(AudioBusId bus) const;
 

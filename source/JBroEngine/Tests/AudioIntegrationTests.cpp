@@ -19,6 +19,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <thread>
 #include <filesystem>
@@ -345,6 +346,18 @@ namespace
     // 그래야 믹서를 내려도 된다(D-201 의 종료 순서). 장치가 없는 기계(원격 세션)에서는 건너뛴다.
     void TestTheDevicePullsTheMixerAndStopsWhenAsked()
     {
+        // 실제 스피커를 여닫으면 무음이어도 "딱" 소리가 난다 - 여러 세션이 시험을 거듭 돌리는 기계에서 거슬린다.
+        // 그래서 `JBRO_AUDIO_DEVICE_TEST=1` 일 때만 돈다(장치 쪽을 고친 뒤에 켜고 돌린다).
+        char* enabled = nullptr;
+        std::size_t enabledLength = 0;
+        const bool wanted = _dupenv_s(&enabled, &enabledLength, "JBRO_AUDIO_DEVICE_TEST") == 0 && enabled != nullptr
+            && enabled[0] == '1';
+        std::free(enabled);
+        if (false == wanted)
+        {
+            std::cout << "  [skip] real audio device (set JBRO_AUDIO_DEVICE_TEST=1 to open the speakers)" << std::endl;
+            return;
+        }
         WindowsPlatform platform;
         JMemoryContext memory;
         Check(platform.Initialize(memory), "the platform must initialize");
@@ -384,6 +397,10 @@ namespace
         chosen = nullptr;
         named.deviceName = "JBro no such device";
         Check(platform.CreateAudioOutput(named).Get() == nullptr, "a missing device name does not open");
+        // 장치 알림(D-206): 처음 물으면 감시를 켜고 거짓이다. 플랫폼을 내리면 감시 스레드가 멈춘다(멈추지 않으면 여기서 걸린다).
+        Check(false == platform.TakeAudioDevicesChanged(), "the first question starts the device watch");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        platform.TakeAudioDevicesChanged();
         Check(pulled > 0, "the device pulls frames from the mixer");
         output->Stop();
         const std::uint64_t afterStop = mixer.GetStats().renderedFrames;
