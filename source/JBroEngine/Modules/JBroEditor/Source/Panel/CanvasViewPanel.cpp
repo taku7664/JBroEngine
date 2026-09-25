@@ -564,14 +564,42 @@ namespace JBro
         }
         // 월드 캐시가 아직 안 섰으면 로컬을 그대로 쓴다. 부모가 있으면 어긋나지만,
         // 짐작으로 행렬을 쌓는 것보다 낫다 - 한 프레임 뒤에 제자리로 온다.
-        const Vec2 center = transform->worldValid ? transform->worldPosition : transform->position;
-        const Vec2 scale = transform->worldValid ? transform->worldScale : transform->scale;
+        const Matrix3x2 world = transform->worldValid
+            ? transform->world
+            : MakeTransformMatrix2D(transform->position, transform->rotation, transform->scale);
+        const Vec2 center{ world.m31, world.m32 };
 
-        float halfWidth = EmptyObjectHalfSize;
-        float halfHeight = EmptyObjectHalfSize;
-        float offsetX = 0.0f;
-        float offsetY = 0.0f;
-        bool hasSprite = false;
+        // 오브젝트 로컬(유닛)의 사각형을 월드로 옮겨 감싼다. **회전도 따른다** - 예전에는 크기만 곱해, 돌린 스프라이트와
+        // 글자의 모서리를 눌러도 잡히지 않았다(text-plan §7). 결과는 돌린 사각형을 감싸는 축 정렬 사각형이다.
+        bool hasBox = false;
+        const auto enclose = [&](float localMinX, float localMinY, float localMaxX, float localMaxY) {
+            const float xs[2] = { localMinX, localMaxX };
+            const float ys[2] = { localMinY, localMaxY };
+            for (const float x : xs)
+            {
+                for (const float y : ys)
+                {
+                    const float wx = x * world.m11 + y * world.m21 + world.m31;
+                    const float wy = x * world.m12 + y * world.m22 + world.m32;
+                    if (false == hasBox)
+                    {
+                        minX = wx;
+                        maxX = wx;
+                        minY = wy;
+                        maxY = wy;
+                        hasBox = true;
+                    }
+                    else
+                    {
+                        minX = std::min(minX, wx);
+                        maxX = std::max(maxX, wx);
+                        minY = std::min(minY, wy);
+                        maxY = std::max(maxY, wy);
+                    }
+                }
+            }
+        };
+
         if (Component::SpriteRenderer2D* sprite =
                 canvas->FindComponentRaw<Component::SpriteRenderer2D>(&mutableObject))
         {
@@ -606,78 +634,47 @@ namespace JBro
                     pivotY = frame.pivotY;
                 }
             }
-            halfWidth = std::fabs(widthUnits * scale.x) * 0.5f;
-            halfHeight = std::fabs(heightUnits * scale.y) * 0.5f;
-            offsetX = (0.5f - pivotX) * widthUnits * scale.x;
-            offsetY = (0.5f - pivotY) * heightUnits * scale.y;
-            hasSprite = true;
+            if (std::fabs(widthUnits) > 0.001f && std::fabs(heightUnits) > 0.001f)
+            {
+                enclose(-pivotX * widthUnits, -pivotY * heightUnits,
+                    (1.0f - pivotX) * widthUnits, (1.0f - pivotY) * heightUnits);
+            }
         }
-        if (halfWidth < 0.001f)
-        {
-            halfWidth = EmptyObjectHalfSize;
-        }
-        if (halfHeight < 0.001f)
-        {
-            halfHeight = EmptyObjectHalfSize;
-        }
-        minX = center.x + offsetX - halfWidth;
-        maxX = center.x + offsetX + halfWidth;
-        minY = center.y + offsetY - halfHeight;
-        maxY = center.y + offsetY + halfHeight;
 
         // **텍스트는 그린 블록의 사각형이다**(text-plan §4.6). 크기는 레이아웃이 정하므로 컴포넌트 필드로는 알 수 없고,
         // 마지막으로 레이아웃한 시스템에게 묻는다. 여러 개가 붙었거나 스프라이트와 함께면 모두를 감싼다 - 기존 엔진은
         // 스프라이트가 있으면 텍스트를 보지 않아 스프라이트 밖으로 나온 글자를 눌러도 잡히지 않았다.
-        // 폰트가 없어 레이아웃이 없는 텍스트는 빈 오브젝트의 작은 상자로 남는다.
-        System::Text2DSystem* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
-        if (texts == nullptr)
+        // 폰트가 없어 레이아웃이 없는 텍스트와 빈 글자는 빈 오브젝트의 작은 상자로 남는다.
+        if (System::Text2DSystem* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>())
         {
-            return true;
+            canvas->FindComponentsRaw<Component::Text2D>(&mutableObject, m_textScratch);
+            for (Component::Text2D* text : m_textScratch)
+            {
+                float localMinX = 0.0f;
+                float localMinY = 0.0f;
+                float localMaxX = 0.0f;
+                float localMaxY = 0.0f;
+                if (false == texts->GetLocalBounds(text->GetInstanceId(), localMinX, localMinY, localMaxX, localMaxY))
+                {
+                    continue;
+                }
+                if (localMaxX - localMinX < 0.001f || localMaxY - localMinY < 0.001f)
+                {
+                    continue;
+                }
+                enclose(localMinX, localMinY, localMaxX, localMaxY);
+            }
+            m_textScratch.Clear();
         }
-        canvas->FindComponentsRaw<Component::Text2D>(&mutableObject, m_textScratch);
-        bool hasText = false;
-        for (Component::Text2D* text : m_textScratch)
+
+        // 그릴 것이 없으면(빈 오브젝트, 폰트 없는 텍스트) 월드 원점 둘레의 작은 상자다. 크기·회전과 무관하게 같은 크기로 잡힌다.
+        if (false == hasBox || maxX - minX < 0.001f || maxY - minY < 0.001f)
         {
-            float localMinX = 0.0f;
-            float localMinY = 0.0f;
-            float localMaxX = 0.0f;
-            float localMaxY = 0.0f;
-            if (false == texts->GetLocalBounds(text->GetInstanceId(), localMinX, localMinY, localMaxX, localMaxY))
-            {
-                continue;
-            }
-            // 빈 글자는 폭이 0 인 블록이다. 누를 자리가 없어지지 않게 기본 상자로 둔다.
-            if (localMaxX - localMinX < 0.001f || localMaxY - localMinY < 0.001f)
-            {
-                continue;
-            }
-            // 크기가 음수면 모서리가 뒤집힌다. 둘 다 곱한 뒤 작은 쪽을 min 으로 둔다.
-            const float x0 = center.x + localMinX * scale.x;
-            const float x1 = center.x + localMaxX * scale.x;
-            const float y0 = center.y + localMinY * scale.y;
-            const float y1 = center.y + localMaxY * scale.y;
-            const float textMinX = std::min(x0, x1);
-            const float textMaxX = std::max(x0, x1);
-            const float textMinY = std::min(y0, y1);
-            const float textMaxY = std::max(y0, y1);
-            if (false == hasSprite && false == hasText)
-            {
-                // 스프라이트가 없으면 빈 오브젝트의 기본 상자를 버리고 글자 블록만 쓴다.
-                minX = textMinX;
-                maxX = textMaxX;
-                minY = textMinY;
-                maxY = textMaxY;
-            }
-            else
-            {
-                minX = std::min(minX, textMinX);
-                maxX = std::max(maxX, textMaxX);
-                minY = std::min(minY, textMinY);
-                maxY = std::max(maxY, textMaxY);
-            }
-            hasText = true;
+            minX = center.x - EmptyObjectHalfSize;
+            maxX = center.x + EmptyObjectHalfSize;
+            minY = center.y - EmptyObjectHalfSize;
+            maxY = center.y + EmptyObjectHalfSize;
         }
-        m_textScratch.Clear();
         return true;
     }
 

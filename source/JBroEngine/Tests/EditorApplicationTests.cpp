@@ -7480,6 +7480,21 @@ namespace
         ClickAt(editor, hwnd, atOrigin);
         Check(editor.GetSelectedObject() == object, "an empty text can still be picked at its origin");
         JBro::TextStore::Get().Assign(label->text, "AB", 2);
+
+        // **돌린 텍스트는 돌린 블록으로 잡힌다.** 90 도 돌리면 블록이 원점 왼쪽 위로 선다(로컬 x 가 월드 y, 로컬 y 가 월드 -x).
+        // 돌리기 전의 사각형은 원점 오른쪽에만 있으므로, 왼쪽 위를 눌러 잡히면 회전을 따른 것이다.
+        transform->rotation = 1.5707963f;
+        editor.ClearSelection();
+        for (int frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the turned text");
+        }
+        Spot turned;
+        turned.x = static_cast<int>(originX - 1.5f * pixelsPerUnit);
+        turned.y = static_cast<int>(originY - 1.8f * pixelsPerUnit);
+        ClickAt(editor, hwnd, turned);
+        Check(editor.GetSelectedObject() == object, "a turned text is picked where its turned block is");
+        transform->rotation = 0.0f;
         transform->scale = JBro::Vec2{1.0f, 1.0f};
 
         // ── 여러 줄 글자 칸 ──────────────────────────────────────────────
