@@ -3633,6 +3633,121 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **프로젝트 설정의 입력 갈래가 그려지고 저장된다**(D-210). 액션마다 접는 마디를 열어 바인딩 줄까지 그리고, 저장하면
+    // 고친 바인딩이 기존 엔진 모양으로 파일에 간다. 표를 마디 안에서 닫지 않으면 ImGui 의 ID 쌓기가 어긋나 단언이 터진다.
+    void TestTheInputSettingsDrawAndSave()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroInputSettingsProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        const JBro::String projectPath = TempPath("JBroInputSettingsProbe\\Input.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "InputLayers:\n"
+            "  - UI\n"
+            "  - Game\n"
+            "InputActions:\n"
+            "  - Name: Move\n"
+            "    Type: Vector2\n"
+            "    Bindings:\n"
+            "      - Source: Key\n"
+            "        Code: W\n"
+            "        Composite: Up\n"
+            "      - Source: GamepadStick\n"
+            "        Code: Left\n"
+            "  - Name: Jump\n"
+            "    Type: Bool\n"
+            "    Bindings:\n"
+            "      - Source: GamepadButton\n"
+            "        Code: South\n"
+            "        GamepadIndex: 1\n"
+            "Build:\n"
+            "  ProductName: InputSettingsProbe\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the input settings not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.GetProjectFile().inputActions.Size() == 2 && editor.GetProjectFile().inputLayers.Size() == 2,
+            "the project reads its input settings");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::EditorPanel* settings = editor.FindPanel("ProjectSettings");
+        Check(settings != nullptr, "the settings panel exists");
+        settings->SetOpen(true);
+        settings->RequestFocus();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the settings open");
+        }
+        JBro::String label = settings->GetDisplayTitle();
+        label += "###ProjectSettings";
+        ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
+        Check(window != nullptr, "the project settings must have a window");
+        // 액션마다 마디를 연다. Id 는 창 → 액션 번호 → `###action`(이름을 고쳐도 같은 마디다).
+        for (int action = 0; action < 2; ++action)
+        {
+            const ImGuiID seed = ImHashData(&action, sizeof(action), window->ID);
+            window->StateStorage.SetInt(LabelId(seed, "###action"), 1);
+        }
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the open input folds");
+        }
+        // 입력 갈래는 창의 아래쪽이다. 끝까지 내려서 찍는다.
+        ImGui::SetScrollY(window, window->ScrollMax.y);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the scrolled settings");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "input_project_settings");
+        }
+
+        // 고쳐서 저장하면 파일이 기존 엔진 모양으로 바뀐다.
+        JBro::ProjectFile edited = editor.GetProjectFile();
+        edited.inputActions[1].bindings[0].gamepad = -1;
+        JBro::ProjectInputBinding space;
+        space.code = static_cast<std::uint16_t>(JBro::Key::Space);
+        edited.inputActions[1].bindings.Add(space);
+        Check(editor.SaveProjectSettings(edited, error), "saving the input settings must go through");
+        JBro::String text;
+        {
+            std::FILE* file = nullptr;
+            Check(fopen_s(&file, projectPath.c_str(), "rb") == 0 && file != nullptr, "the project file must be readable");
+            char buffer[4096] = {};
+            const std::size_t read = std::fread(buffer, 1, sizeof(buffer) - 1, file);
+            std::fclose(file);
+            text.assign(buffer, read);
+        }
+        Check(text.find("  - Name: Jump\n    Type: Bool\n    Bindings:\n      - Source: GamepadButton\n        Code: South\n"
+                        "      - Source: Key\n        Code: Space\n") != JBro::String::npos,
+            "the edited bindings reach the file, and a pad index of -1 is not written");
+        Check(text.find("InputLayers:\n  - UI\n  - Game\n") != JBro::String::npos, "the layer order stays");
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the saved settings");
+        }
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // **프로젝트 설정의 오디오 마디가 그려진다**(D-202·D-203). 버스마다 접는 "이펙트"·"라우팅" 마디를 열고, 통계 창의
     // 버스 미터를 함께 그린다. 표를 마디 안에서 닫지 않으면 ImGui 의 ID 쌓기가 어긋나 단언이 터진다 - 이 시험이 그것을 잡는다.
     void TestTheAudioSettingsAndMetersDraw()
@@ -9676,6 +9791,7 @@ int RunEditorApplicationTests()
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAudioSettingsAndMetersDraw();
+    TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();

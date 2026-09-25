@@ -3,6 +3,7 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Core/Log.h>
+#include <JBro/InputTypes/InputState.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -78,6 +79,315 @@ namespace JBro
         request.deliver = [](void* user, const String& path) { *static_cast<String*>(user) = path; };
         request.user = &value;
         m_editor->RequestBrowsePath(request);
+    }
+
+    namespace
+    {
+        // 입력 설정의 고르기 목록이다(D-210). 파일에 적히는 글자와 같다.
+        constexpr const char* InputActionTypeChoices[] = {"Bool", "Float", "Vector2"};
+        constexpr const char* InputBindingSourceChoices[] = {"Key", "MouseButton", "GamepadButton", "GamepadAxis", "GamepadStick"};
+        constexpr const char* InputCompositeChoices[] = {"None", "Up", "Down", "Left", "Right"};
+        constexpr const char* InputStickChoices[] = {"Left", "Right"};
+        constexpr const char* DefaultInputLayers[] = {"Modal", "UI", "Game", "World", "Debug"};
+
+        bool IsGamepadSource(InputBindingSource source)
+        {
+            return source == InputBindingSource::GamepadButton || source == InputBindingSource::GamepadAxis
+                || source == InputBindingSource::GamepadStick;
+        }
+    }
+
+    void ProjectSettingsPanel::FillInputCodeChoices(InputBindingSource source)
+    {
+        m_inputCodeChoices.Clear();
+        switch (source)
+        {
+        case InputBindingSource::Key:
+            // `Unknown` 은 고를 것이 아니다.
+            for (std::size_t index = 1; index < KeyCount; ++index)
+            {
+                m_inputCodeChoices.Add(GetKeyName(static_cast<Key>(index)));
+            }
+            break;
+        case InputBindingSource::MouseButton:
+            for (std::size_t index = 0; index < MouseButtonCount; ++index)
+            {
+                m_inputCodeChoices.Add(GetMouseButtonName(static_cast<MouseButton>(index)));
+            }
+            break;
+        case InputBindingSource::GamepadButton:
+            for (std::size_t index = 0; index < GamepadButtonCount; ++index)
+            {
+                m_inputCodeChoices.Add(GetGamepadButtonName(static_cast<GamepadButton>(index)));
+            }
+            break;
+        case InputBindingSource::GamepadAxis:
+            for (std::size_t index = 0; index < GamepadAxisCount; ++index)
+            {
+                m_inputCodeChoices.Add(GetGamepadAxisName(static_cast<GamepadAxis>(index)));
+            }
+            break;
+        case InputBindingSource::GamepadStick:
+            for (const char* stick : InputStickChoices)
+            {
+                m_inputCodeChoices.Add(stick);
+            }
+            break;
+        }
+    }
+
+    void ProjectSettingsPanel::DrawInputSettings()
+    {
+        Widget::SectionHeader(
+            Loc::TextOr(LocKeys::ProjectSettingsInput, "Input")).SpacingBefore().Draw();
+
+        // ── 레이어 순서 ──
+        Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsInputLayersHelp,
+            "Layers higher in the list get input first. When one blocks, the layers below get nothing"));
+        if (m_draft.inputLayers.IsEmpty())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsInputDefaultLayers,
+                "Using the default order (Modal, UI, Game, World, Debug)"));
+        }
+        {
+            std::size_t removeAt = static_cast<std::size_t>(-1);
+            std::size_t moveUp = static_cast<std::size_t>(-1);
+            for (std::size_t index = 0; index < m_draft.inputLayers.Size(); ++index)
+            {
+                String& layer = m_draft.inputLayers[index];
+                ImGui::PushID(static_cast<int>(index));
+                bool duplicate = false;
+                for (std::size_t other = 0; other < index; ++other)
+                {
+                    duplicate = duplicate || m_draft.inputLayers[other] == layer;
+                }
+                // 표는 ID 를 되돌리기 전에 닫혀야 한다 - 그래서 제 괄호 안에 둔다.
+                {
+                    Widget::FormLayout layout("##layer");
+                    // 라벨 열은 순서 번호다. 이름은 값 열에 둔다 - 라벨 열은 좁아서 이름이 보이지 않는다.
+                    char order[16] = {};
+                    std::snprintf(order, sizeof(order), "%zu", index + 1);
+                    layout.Row(
+                        [&] { Widget::Text(order); },
+                        [&] {
+                            Widget::TextField("##name", layer).Width(ImGui::GetContentRegionAvail().x * 0.5f).Draw();
+                            if (duplicate)
+                            {
+                                Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsInputDuplicate,
+                                    "This name is already used"));
+                            }
+                            ImGui::SameLine();
+                            {
+                                Widget::DisableScope first(index == 0);
+                                if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputMoveUp, "Move Up")))
+                                {
+                                    moveUp = index;
+                                }
+                            }
+                            ImGui::SameLine();
+                            if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsInputRemove, "Remove"),
+                                    Widget::Severity::Error))
+                            {
+                                removeAt = index;
+                            }
+                        });
+                }
+                ImGui::PopID();
+            }
+            if (moveUp < m_draft.inputLayers.Size() && moveUp > 0)
+            {
+                String above = m_draft.inputLayers[moveUp - 1];
+                m_draft.inputLayers[moveUp - 1] = m_draft.inputLayers[moveUp];
+                m_draft.inputLayers[moveUp] = above;
+            }
+            if (removeAt < m_draft.inputLayers.Size())
+            {
+                m_draft.inputLayers.RemoveAt(removeAt);
+            }
+        }
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddLayer, "Add Layer")))
+        {
+            // 기본 순서를 쓰고 있었으면 그것을 먼저 옮겨 적는다. 새 레이어만 남기면 기본 레이어가 모두 맨 아래로 간다.
+            if (m_draft.inputLayers.IsEmpty())
+            {
+                for (const char* layer : DefaultInputLayers)
+                {
+                    m_draft.inputLayers.Add(String(layer));
+                }
+            }
+            String name;
+            for (int suffix = 1;; ++suffix)
+            {
+                char text[24] = {};
+                std::snprintf(text, sizeof(text), "Layer %d", suffix);
+                name = text;
+                bool taken = false;
+                for (const String& layer : m_draft.inputLayers)
+                {
+                    taken = taken || layer == name;
+                }
+                if (false == taken)
+                {
+                    break;
+                }
+            }
+            m_draft.inputLayers.Add(name);
+        }
+
+        // ── 액션 ──
+        Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsInputActionsHelp,
+            "Scripts read input by action name instead of by key. Each action can bind several keys, buttons and sticks"));
+        if (m_draft.inputActions.IsEmpty())
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsInputNoActions, "No actions"));
+        }
+        bool tooMany = m_draft.inputActions.Size() > MaxInputActions;
+        std::size_t removeAction = static_cast<std::size_t>(-1);
+        for (std::size_t index = 0; index < m_draft.inputActions.Size(); ++index)
+        {
+            ProjectInputAction& action = m_draft.inputActions[index];
+            tooMany = tooMany || action.bindings.Size() > MaxInputBindingsPerAction;
+            ImGui::PushID(static_cast<int>(index));
+            bool duplicate = false;
+            for (std::size_t other = 0; other < index; ++other)
+            {
+                duplicate = duplicate || m_draft.inputActions[other].name == action.name;
+            }
+            // 마디 제목은 액션 이름이다. `###` 뒤는 자리 번호라 이름을 고쳐도 마디가 닫히지 않는다.
+            char title[96] = {};
+            std::snprintf(title, sizeof(title), "%s###action", action.name.empty() ? "?" : action.name.c_str());
+            if (Widget::FoldNode(title))
+            {
+                {
+                    Widget::FormLayout layout("##action");
+                    layout.Row([] { Widget::Text("Name"); },
+                        [&] {
+                            Widget::TextField("##name", action.name).Draw();
+                            if (duplicate)
+                            {
+                                Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsInputDuplicate,
+                                    "This name is already used"));
+                            }
+                        });
+                    layout.Row([] { Widget::Text("Type"); },
+                        [&] {
+                            int current = static_cast<int>(action.type);
+                            if (Widget::FilterCombo("##type", InputActionTypeChoices, current).ShowFilter(false).Draw())
+                            {
+                                action.type = static_cast<InputActionType>(current);
+                            }
+                        });
+                }
+                std::size_t removeBinding = static_cast<std::size_t>(-1);
+                for (std::size_t at = 0; at < action.bindings.Size(); ++at)
+                {
+                    ProjectInputBinding& binding = action.bindings[at];
+                    ImGui::PushID(static_cast<int>(at));
+                    {
+                        Widget::FormLayout layout("##binding");
+                        layout.Row([] { Widget::Text("Source"); },
+                            [&] {
+                                int current = static_cast<int>(binding.source);
+                                if (Widget::FilterCombo("##source", InputBindingSourceChoices, current).ShowFilter(false).Draw())
+                                {
+                                    // 원천이 바뀌면 앞의 값은 다른 목록의 번호다. 첫 항목으로 돌린다.
+                                    binding.source = static_cast<InputBindingSource>(current);
+                                    binding.code = binding.source == InputBindingSource::Key
+                                        ? static_cast<std::uint16_t>(Key::Space) : 0;
+                                }
+                            });
+                        layout.Row([] { Widget::Text("Code"); },
+                            [&] {
+                                FillInputCodeChoices(binding.source);
+                                // 키 목록은 `Unknown` 을 빼고 시작하므로 번호가 하나 밀린다.
+                                const int offset = binding.source == InputBindingSource::Key ? 1 : 0;
+                                int current = static_cast<int>(binding.code) - offset;
+                                if (Widget::FilterCombo("##code", {m_inputCodeChoices.Data(), m_inputCodeChoices.Size()}, current)
+                                        .ShowFilter(binding.source == InputBindingSource::Key).Draw())
+                                {
+                                    binding.code = static_cast<std::uint16_t>(current + offset);
+                                }
+                            });
+                        if (IsGamepadSource(binding.source))
+                        {
+                            layout.Row([] { Widget::Text("GamepadIndex"); },
+                                [&] {
+                                    Widget::DragInt("##pad").Range(-1, 3).Draw(binding.gamepad);
+                                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsInputAnyGamepad,
+                                        "-1 means any connected gamepad"));
+                                });
+                        }
+                        if (action.type == InputActionType::Vector2 && binding.source != InputBindingSource::GamepadStick)
+                        {
+                            layout.Row([] { Widget::Text("Composite"); },
+                                [&] {
+                                    int current = static_cast<int>(binding.composite);
+                                    if (Widget::FilterCombo("##composite", InputCompositeChoices, current).ShowFilter(false).Draw())
+                                    {
+                                        binding.composite = static_cast<InputComposite>(current);
+                                    }
+                                });
+                        }
+                    }
+                    if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsInputRemoveBinding, "Remove Binding"),
+                            Widget::Severity::Error))
+                    {
+                        removeBinding = at;
+                    }
+                    ImGui::PopID();
+                }
+                if (removeBinding < action.bindings.Size())
+                {
+                    action.bindings.RemoveAt(removeBinding);
+                }
+                if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddBinding, "Add Binding")))
+                {
+                    ProjectInputBinding binding;
+                    binding.code = static_cast<std::uint16_t>(Key::Space);
+                    action.bindings.Add(binding);
+                }
+                ImGui::SameLine();
+                if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsInputRemoveAction, "Remove Action"),
+                        Widget::Severity::Error))
+                {
+                    removeAction = index;
+                }
+                Widget::TreePop();
+            }
+            ImGui::PopID();
+        }
+        if (removeAction < m_draft.inputActions.Size())
+        {
+            m_draft.inputActions.RemoveAt(removeAction);
+        }
+        if (tooMany)
+        {
+            Widget::ValidationMessage(Widget::Severity::Warning,
+                Loc::TextOr(LocKeys::ProjectSettingsInputTooMany,
+                    "The engine uses up to 64 actions and 8 bindings per action. The rest stay only in the file")).Draw();
+        }
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddAction, "Add Action")))
+        {
+            String name;
+            for (int suffix = 1;; ++suffix)
+            {
+                char text[24] = {};
+                std::snprintf(text, sizeof(text), "Action%d", suffix);
+                name = text;
+                bool taken = false;
+                for (const ProjectInputAction& existing : m_draft.inputActions)
+                {
+                    taken = taken || existing.name == name;
+                }
+                if (false == taken)
+                {
+                    break;
+                }
+            }
+            ProjectInputAction action;
+            action.name = name;
+            m_draft.inputActions.Add(action);
+        }
     }
 
     void ProjectSettingsPanel::OnDraw()
@@ -474,6 +784,8 @@ namespace JBro
             }
             m_draft.audioBuses.Add(ProjectAudioBus{name, 1.0f});
         }
+
+        DrawInputSettings();
 
         Widget::SectionHeader(
             Loc::TextOr(LocKeys::ProjectSettingsBuild, "Build")).SpacingBefore().Draw();

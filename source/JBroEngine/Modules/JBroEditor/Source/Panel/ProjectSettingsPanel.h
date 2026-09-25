@@ -36,6 +36,11 @@ namespace JBro
         void DrawPathValue(const char* id, String& value, const char* filterName = nullptr,
             const char* filterPattern = nullptr, bool assetRelative = false);
 
+        // 입력 갈래(D-210): 레이어 순서와 액션·바인딩을 고친다.
+        void DrawInputSettings();
+        // 바인딩 원천에 맞는 이름 목록을 채운다(키면 `Unknown` 을 뺀다).
+        void FillInputCodeChoices(InputBindingSource source);
+
         EditorApplication* m_editor = nullptr;
         // 편집본이다. 저장을 누를 때까지 파일에 가지 않는다.
         ProjectFile m_draft;
@@ -51,6 +56,8 @@ namespace JBro
         bool m_messageIsError = false;
         // 버스 고르기 목록의 이름들이다. 그릴 때마다 다시 채우되 자리는 재사용한다.
         Array<const char*> m_busChoices;
+        // 바인딩 `Code` 고르기 목록이다. 그릴 때마다 다시 채우되 자리는 재사용한다.
+        Array<const char*> m_inputCodeChoices;
         // 출력 장치 목록(D-203). 창을 열 때와 "새로 고침" 에서만 읽는다 - 읽는 데 몇 ms 걸린다.
         static constexpr std::uint32_t MaxAudioDevices = 32;
         AudioDeviceInfo m_audioDevices[MaxAudioDevices];
