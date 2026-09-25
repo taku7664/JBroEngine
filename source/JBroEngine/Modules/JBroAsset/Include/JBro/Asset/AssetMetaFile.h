@@ -44,6 +44,9 @@ namespace JBro
         // `Audio` 일 때만 뜻이 있다(`Audio.ImportOptions`, D-197).
         bool hasAudioOptions = false;
         AudioImportOptions audioOptions;
+        // `Font` 일 때만 뜻이 있다(`Font.ImportOptions`, D-200).
+        bool hasFontOptions = false;
+        FontImportOptions fontOptions;
     };
 
     struct AssetMetaError

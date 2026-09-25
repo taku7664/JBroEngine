@@ -11,6 +11,7 @@
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
+#include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include "Rendering/RenderBridge2D.h"
@@ -103,6 +104,8 @@ namespace JBro
         }
         m_scriptSystems = {};
         m_scriptSystems.Physics2D = physics;
+        // 텍스트 시스템은 늘 선다(CreateDefaultSystems). 없으면 서비스가 아무것도 하지 않을 뿐이다.
+        m_scriptSystems.Text2D = m_canvas->GetSystems().FindSystem<System::Text2DSystem>();
         m_scriptServices = {};
         BindFramework2DSystemContext(m_scriptSystems);
         BindFramework2DServiceContext(m_scriptServices);
@@ -370,6 +373,11 @@ namespace JBro
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();
         sprites.SetRenderWorld(&m_renderWorld);
         sprites.SetSpriteLibrary(&m_spriteLibrary);
+        // 글자마다 스프라이트 아이템이다(D-200). 아틀라스와 페이지 텍스처는 이 시스템이 든다 - 캔버스가 시스템을 내릴 때
+        // (렌더러보다 먼저) 풀린다.
+        System::Text2DSystem& texts = systems.AddSystem<System::Text2DSystem>();
+        texts.SetRenderWorld(&m_renderWorld);
+        texts.SetResources(m_context.assets, m_context.renderer);
         // 수신은 가장 앞(50), 송신은 가장 뒤(500)다. 한 시스템이면 물리보다 앞이면서 뒤일 수 없다(network-plan §2.6).
         if (m_context.network != nullptr)
         {

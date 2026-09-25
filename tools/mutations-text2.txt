@@ -1,0 +1,27 @@
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:known-glyph-rerasterizes	        if (const AtlasGlyph* found = m_glyphs.Find(key))\n        {\n            out = *found;\n            return AtlasError::None;\n        }	        if (false)\n        {\n            return AtlasError::None;\n        }
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:new-cell-not-dirty	        target.dirty = true;	        (void)target;
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:no-gap-between-cells	                last.cursorX += width + Gap;	                last.cursorX += width;
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:every-glyph-opens-a-page	            if (last.cursorY + height + Gap <= m_pageSize)	            if (false)
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:coverage-not-white	                destination[column * 4 + 0] = std::byte{ 255 };	                destination[column * 4 + 0] = std::byte{ 0 };
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:clear-keeps-glyphs	        m_pages.Clear();\n        m_glyphs.Clear();	        m_pages.Clear();
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:reload-keeps-old-atlas	            ReleasePages(entry);\n            entry.atlas.Clear();	            ReleasePages(entry);
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:dirty-never-cleared	                entry.atlas.ClearPageDirty(page);	                (void)page;
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:update-registers-anew	                    written = m_renderer->UpdateTexture(texture, pixels);	                    texture = m_renderer->RegisterTexture(Extent2D{pageSize, pageSize}, pixels);\n                    written = texture.generation != 0;
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:shutdown-leaks-pages	                    m_renderer->UnregisterTexture(entry.pageTextures[page]);	                    (void)page;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:relayout-every-frame	            if (stale)	            if (true)
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:revision-ignored	                || entry.textRevision != store.GetRevision(text.text)	                || false
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:options-ignored	                || entry.optionsKey != MakeOptionsKey(text);	                || false;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:font-reload-ignored	                || entry.fontGeneration != font.dataGeneration	                || false
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:units-not-divided	            local.m31 = quad.left / ppu;	            local.m31 = quad.left;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:colour-dropped	            item.tint = text.color;	            (void)item;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:cache-never-dropped	            m_entries.Remove(id);	            (void)id;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:clip-not-applied	        const bool clip = text.overflow == Component::TextOverflow::Clip && options.boxWidth > 0.0f && options.boxHeight > 0.0f;	        const bool clip = false;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:colour-change-relayouts	        Mix(key, Bits(text.letterSpacing));	        Mix(key, Bits(text.letterSpacing));\n        Mix(key, Bits(text.color.R));
+Modules\JBroRuntime\Source\TextStore.cpp	codec:backslash-not-escaped	                case '\\': escaped += "\\\\"; changed = true; break;	                case '\x03': break;
+Modules\JBroRuntime\Source\TextStore.cpp	codec:bracket-not-escaped	                escaped.insert(escaped.begin(), '\\');	                (void)0;
+Modules\JBroRuntime\Source\TextStore.cpp	codec:alias-shares-a-slot	                        target = store.Create(copy.data(), copy.size());\n                        return;	                        store.Assign(target, copy.data(), copy.size());\n                        return;
+Modules\JBroRuntime\Source\TextStore.cpp	store:destroy-keeps-generation	        ++slot->generation;\n        if (slot->generation == 0)	        if (slot->generation == 0)
+Modules\JBroFramework2D\Source\Text2D.cpp	component:detach-leaks-its-slot	        TextStore::Get().Destroy(text);	        (void)text;
+Modules\JBroAsset\Source\Asset.cpp	asset:font-default-filter-kept	            read.options.filter = m_defaultTextureFilter;	            (void)read;
+Modules\JBroAsset\Source\Asset.cpp	asset:font-reload-same-generation	            fresh.dataGeneration = font->data.dataGeneration + 1;	            fresh.dataGeneration = font->data.dataGeneration;
+Modules\JBroText\Source\TextLayout.cpp	layout:clip-drops-overhanging-line	                && static_cast<float>(keptLines) * lineHeight < options.boxHeight * (1.0f - 1.0e-5f))	                && ascent + static_cast<float>(keptLines) * lineHeight + descent <= options.boxHeight)

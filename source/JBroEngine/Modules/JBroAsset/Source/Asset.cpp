@@ -63,6 +63,7 @@ namespace JBro
             NotifyAudioRelease(index);
         }
         m_audio = {};
+        m_fonts = {};
         m_textures = {};
         m_sprites = {};
         m_loaded.Clear();
@@ -304,6 +305,40 @@ namespace JBro
         return true;
     }
 
+    bool AssetSystem::ReadFont(const AssetRecord& record, FontData& data)
+    {
+        AssetMetaFile meta;
+        if (false == ReadMeta(record, meta))
+        {
+            return false;
+        }
+        FontData read;
+        read.options = meta.hasFontOptions ? meta.fontOptions : FontImportOptions{};
+        // 텍스처와 같은 규칙으로 여기서 정해 둔다(D-119). 쓰는 쪽은 `Default`·0 이하를 보지 않는다.
+        if (read.options.filter == TextureFilter::Default)
+        {
+            read.options.filter = m_defaultTextureFilter;
+        }
+        if (false == (read.options.pixelsPerUnit > 0.0f))
+        {
+            read.options.pixelsPerUnit = DefaultPixelsPerUnit;
+        }
+        if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), read.bytes))
+        {
+            return false;
+        }
+        // 바이트가 폰트인지는 여기서 보지 않는다 - 에셋 모듈은 텍스트 커널을 모른다. 여는 것은 텍스트 시스템이고,
+        // 열지 못하면 그쪽이 경고하고 그리지 않는다.
+        data = std::move(read);
+        return true;
+    }
+
+    const FontData* AssetSystem::GetFont(AssetHandle handle) const
+    {
+        const Slot<FontData>* slot = FindSlot(m_fonts, handle, AssetType::Font);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     void AssetSystem::NotifyAudioRelease(std::uint32_t slotIndex)
     {
         if (m_audioRelease == nullptr || slotIndex >= m_audio.slots.Size())
@@ -394,6 +429,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::Font:
+                if (Slot<FontData>* slot = FindSlot(m_fonts, handle, AssetType::Font))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -445,6 +487,16 @@ namespace JBro
             handle = Occupy(m_audio, AssetType::Audio, id, std::move(data));
             break;
         }
+        case AssetType::Font:
+        {
+            FontData data;
+            if (false == ReadFont(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_fonts, AssetType::Font, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -480,6 +532,14 @@ namespace JBro
             {
                 --audio->referenceCount;
             }
+            return;
+        }
+        if (Slot<FontData>* font = FindSlot(m_fonts, handle, AssetType::Font))
+        {
+            if (font->referenceCount != 0)
+            {
+                --font->referenceCount;
+            }
         }
     }
 
@@ -493,7 +553,8 @@ namespace JBro
     {
         return FindSlot(m_textures, handle, AssetType::Texture) != nullptr
             || FindSlot(m_sprites, handle, AssetType::Sprite) != nullptr
-            || FindSlot(m_audio, handle, AssetType::Audio) != nullptr;
+            || FindSlot(m_audio, handle, AssetType::Audio) != nullptr
+            || FindSlot(m_fonts, handle, AssetType::Font) != nullptr;
     }
 
     std::uint32_t AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -509,6 +570,10 @@ namespace JBro
         if (const Slot<AudioData>* audio = FindSlot(m_audio, handle, AssetType::Audio))
         {
             return audio->referenceCount;
+        }
+        if (const Slot<FontData>* font = FindSlot(m_fonts, handle, AssetType::Font))
+        {
+            return font->referenceCount;
         }
         return 0;
     }
@@ -584,6 +649,18 @@ namespace JBro
             audio->data = std::move(fresh);
             return true;
         }
+        if (Slot<FontData>* font = FindSlot(m_fonts, *loaded, AssetType::Font))
+        {
+            FontData fresh;
+            if (false == ReadFont(*record, fresh))
+            {
+                return false;
+            }
+            // 옛 바이트는 여기서 풀린다. 텍스트 시스템은 옛 바이트를 가리키는 face 를 들지 않는다 - 자기 사본을 연다(FontFace::Load).
+            fresh.dataGeneration = font->data.dataGeneration + 1;
+            font->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -637,6 +714,15 @@ namespace JBro
             {
                 NotifyAudioRelease(index);
                 Vacate(m_audio, index);
+                ++freed;
+            }
+        }
+        for (std::uint32_t index = 0; index < m_fonts.slots.Size(); ++index)
+        {
+            Slot<FontData>& slot = m_fonts.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_fonts, index);
                 ++freed;
             }
         }

@@ -326,15 +326,24 @@ namespace
         const FontFace* faces[] = { &face };
         TextLayout layout;
         LayoutOptions options = Unscaled();
-        options.boxHeight = 1448.0f + 100.0f;
+        // 줄 높이 1448. 줄의 위쪽이 상자 안에 있으면 남는다(걸친 조각은 그리는 쪽이 자른다).
+        options.boxHeight = 1448.0f - 100.0f;
 
         options.overflow = Overflow::Clip;
         Check(layout.Build(Utf8("A\nB\nC"), faces, options) == LayoutError::None, "clip lays out");
-        Check(LineCounts(layout, { 1 }), "clip drops the lines below the box");
+        Check(LineCounts(layout, { 1 }), "clip drops the lines that start below the box");
+
+        options.boxHeight = 1448.0f + 100.0f;
+        Check(layout.Build(Utf8("A\nB\nC"), faces, options) == LayoutError::None, "a clip that cuts the second line lays out");
+        Check(LineCounts(layout, { 1, 1 }), "a line that starts inside the box is kept even if it overhangs");
 
         options.boxHeight = 2.0f * 1448.0f;
         Check(layout.Build(Utf8("A\nB\nC"), faces, options) == LayoutError::None, "a taller clip lays out");
-        Check(LineCounts(layout, { 1, 1 }), "a line that exactly fits is kept");
+        Check(LineCounts(layout, { 1, 1 }), "a line that starts exactly at the box bottom is dropped");
+
+        options.boxHeight = 10.0f;
+        Check(layout.Build(Utf8("A\nB"), faces, options) == LayoutError::None, "a box smaller than one line lays out");
+        Check(LineCounts(layout, { 1 }), "the first line is always kept so its visible part can show");
 
         options.overflow = Overflow::Wrap;
         Check(layout.Build(Utf8("A\nB\nC"), faces, options) == LayoutError::None, "wrap with a box height lays out");

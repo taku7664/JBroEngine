@@ -63,6 +63,7 @@ int RunAudioMixerTests();
 int RunAudioIntegrationTests();
 int RunTextLayoutTests();
 int RunGlyphAtlasTests();
+int RunTextRenderTests();
 
 int main()
 {
@@ -126,6 +127,10 @@ int main()
             return 1;
         }
         if (RunGlyphAtlasTests() != 0)
+        {
+            return 1;
+        }
+        if (RunTextRenderTests() != 0)
         {
             return 1;
         }

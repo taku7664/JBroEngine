@@ -132,6 +132,9 @@
     <ProjectReference Include="$(JBroModulesDir)JBroAudio\JBroAudio.vcxproj">
       <Project>{1a000019-0000-4000-8000-0000000a0d19}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroText\JBroText.vcxproj">
+      <Project>{1a000030-0000-4000-8000-000000007e47}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

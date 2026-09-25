@@ -6,6 +6,7 @@
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 
 namespace JBro::Component
@@ -25,6 +26,8 @@ namespace JBro::Component
             all = RegisterComponentType<Camera2D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<SpriteRenderer2D>(ComponentCategory::Rendering) && all;
+            // 기존 엔진 표와 같다: Rendering, 여럿 붙는다(D-200).
+            all = RegisterComponentType<Text2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody2D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider2D>(ComponentCategory::Physics) && all;

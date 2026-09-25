@@ -16,7 +16,8 @@
 // 글자가 바뀐 텍스트를 매 프레임 다시 레이아웃해도 힙을 타지 않게 하려는 것이다(text-plan §1.2 의 3 번).
 namespace JBro::Text
 {
-    // 상자를 넘는 줄을 어떻게 하나. Wrap 과 Clip 은 boxWidth 에서 줄을 바꾸고, Clip 은 boxHeight 밖의 줄을 버린다.
+    // 상자를 넘는 줄을 어떻게 하나. Wrap 과 Clip 은 boxWidth 에서 줄을 바꾸고, Clip 은 위쪽이 boxHeight 밖에 있는 줄을 버린다
+    // (걸친 줄은 남는다 - 글리프를 상자에 맞게 자르는 것은 그리는 쪽이다).
     // Overflow 는 명시적 개행에서만 줄을 바꾼다.
     enum class Overflow : std::uint8_t
     {

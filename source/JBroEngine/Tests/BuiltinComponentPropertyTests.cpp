@@ -3,6 +3,7 @@
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Types/NameTable.h>
@@ -52,6 +53,7 @@ namespace
         Check(Table("Component::Transform2D").count == 8, "Transform2D declares eight fields");
         Check(Table("Component::Camera2D").count == 6, "Camera2D declares six fields");
         Check(Table("Component::SpriteRenderer2D").count == 13, "SpriteRenderer2D declares thirteen fields");
+        Check(Table("Component::Text2D").count == 14, "Text2D declares fourteen fields");
         Check(Table("Component::Rigidbody2D").count == 7, "Rigidbody2D declares seven fields");
         Check(Table("Component::Collider2D").count == 5, "Collider2D declares five fields");
 

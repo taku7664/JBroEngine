@@ -106,6 +106,16 @@ namespace JBro
         AudioImportMode mode = AudioImportMode::Decompressed;
     };
 
+    // `.jmeta` 의 `Font.ImportOptions` 블록이다(D-200, text-plan §4.1). 글자 크기는 컴포넌트의 몫이고(`Text2D::fontSize`,
+    // 글자 픽셀), 여기에는 그 픽셀을 유닛으로 옮기는 비율과 아틀라스를 읽는 샘플러만 있다. 텍스처와 같은 규칙이다(D-119):
+    // `pixelsPerUnit` 이 0 이하면 기본 100, `filter` 가 `Default` 면 프로젝트의 `TextureFilter`.
+    // 렌더 모드(`Bitmap`·`Sdf`)는 SDF 가 서는 4 단계에서 온다 - 쓰이지 않는 옵션을 먼저 두지 않는다.
+    struct FontImportOptions
+    {
+        float         pixelsPerUnit = DefaultPixelsPerUnit;
+        TextureFilter filter = TextureFilter::Default;
+    };
+
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.
     struct SpriteFrame
     {

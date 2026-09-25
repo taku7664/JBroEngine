@@ -390,13 +390,14 @@ namespace JBro::Text
             blockTop = ascent;
         }
 
-        // Clip 은 상자 아래로 넘는 줄(내림까지)을 통째로 버린다. 글리프를 반만 자르는 것은 아틀라스와 함께 2 단계다.
+        // Clip 은 **위쪽이 상자 밖에 있는** 줄을 통째로 버린다. 걸쳐 있는 줄은 남기고, 상자 밖으로 나간 글리프 조각은
+        // 그리는 쪽(Text2DSystem)이 사각형과 UV 를 줄여 잘라 낸다 - 상자보다 큰 글자 한 줄도 가려진 채 보여야 한다.
         std::size_t keptLines = m_lines.Size();
         if (options.overflow == Overflow::Clip && options.boxHeight > 0.0f)
         {
             keptLines = 0;
             while (keptLines < m_lines.Size()
-                && ascent + static_cast<float>(keptLines) * lineHeight + descent <= options.boxHeight * (1.0f + 1.0e-5f))
+                && static_cast<float>(keptLines) * lineHeight < options.boxHeight * (1.0f - 1.0e-5f))
             {
                 ++keptLines;
             }
