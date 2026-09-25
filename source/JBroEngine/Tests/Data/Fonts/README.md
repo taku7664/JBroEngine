@@ -17,6 +17,14 @@ pyftsubset NotoSansKR-Regular.otf --unicodes="U+0020-007E" --text-file=hangul.tx
 
 `hangul.txt` 의 글자: `가나다라마바사아자차카타파하안녕하세요한글세계텍스트줄바꿈어절음절`.
 
+`NotoSansKR-Latin.otf` 는 폴백 시험(`Tests/TextRenderTests.cpp`, text-plan §5 의 3 단계)이 쓰는 **한글이 없는** 폰트다. 위 서브셋에서
+ASCII 만 다시 남겼다(15,396 바이트, 같은 fontTools). `Embed.ps1` 이 `Tests/TestFontNotoSansKRLatin.generated.h` 로 넣는다.
+
+```
+pyftsubset NotoSansKR-Subset.otf --unicodes="U+0020-007E" --layout-features='kern' \
+  --name-IDs='*' --name-legacy --notdef-outline --output-file=NotoSansKR-Latin.otf
+```
+
 OFL 은 수정본이 원래 이름의 예약 이름(Reserved Font Name)을 쓰지 못하게 한다. Noto Sans CJK 의 예약 이름은 `Source` 이고
 이 파일의 이름(`Noto Sans KR`)에는 들어 있지 않다.
 

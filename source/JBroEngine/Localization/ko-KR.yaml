@@ -131,6 +131,7 @@ Entries:
   assets.not_watching: 에셋 폴더 감시가 꺼져 있어 밖에서 바꾼 파일이 반영되지 않습니다
   inspector.texture_import_options: 텍스처 임포트 옵션
   inspector.audio_import_options: "오디오 임포트 옵션"
+  inspector.font_import_options: "폰트 임포트 옵션"
   inspector.audio_format: "형식"
   inspector.audio_length: "길이"
   inspector.audio_preview: "미리 듣기"
@@ -196,6 +197,8 @@ Entries:
   project_settings.language: 언어
   project_settings.no_languages: 언어 파일을 찾지 못했습니다
   project_settings.build: 빌드
+  project_settings.text: "텍스트"
+  project_settings.fonts_help: "첫 폰트로 fontId 가 비어 있는 텍스트를 그립니다. 폰트에 없는 글자는 이 목록에서 순서대로 찾습니다."
   project_settings.save: 저장
   project_settings.revert: 되돌리기
   project_settings.saved: 저장했습니다
@@ -282,4 +285,5 @@ Entries:
   sprite_viewer.pick_hint: 시트에서 칸을 누르면 그 프레임이 스프라이트에 들어갑니다
   inspector.pick_frame: 프레임 고르기
   inspector.pick_frame_no_sprite: 스프라이트를 먼저 지정하세요
+  inspector.text_no_font: "쓸 수 있는 폰트가 없어 이 텍스트는 그려지지 않습니다. fontId 를 지정하거나 프로젝트 설정에서 폰트를 추가하세요."
   hierarchy.paste_as_child: 자식으로 붙여넣기

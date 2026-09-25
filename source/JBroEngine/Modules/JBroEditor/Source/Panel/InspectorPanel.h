@@ -68,6 +68,7 @@ namespace JBro
             // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다.
             bool spriteBlock = false;
             bool audioBlock = false;
+            bool fontBlock = false;
         };
 
         struct Context
@@ -132,6 +133,8 @@ namespace JBro
         // 오디오 버스 필드(`JBro.AudioBusName`, D-197). 프로젝트의 버스 목록을 고르는 드롭다운이다 - 이름을 손으로 치면
         // 틀린 이름이 조용히 Master 로 떨어진다.
         void DrawAudioBusField(const TypeDescriptor& type, void* address, Context& context);
+        // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
+        void DrawTextBody(const TypeDescriptor& type, void* address, bool editable, Context& context);
         // 오디오 에셋의 형식·길이·파형·미리 듣기(D-197, 기존 `EditorAudioPreview`).
         void DrawAudioPreview(const AssetMetaFile& meta);
         // `AssetId` 필드. 레지스트리의 같은 타입 에셋을 고르는 드롭다운이다(D-116).
@@ -192,6 +195,10 @@ namespace JBro
         const GameObject* m_namedObject = nullptr;
         // 지난 프레임에 이름 칸이 글자를 받고 있었는가. 그렇지 않으면 칸의 글자를 다시 든다.
         bool m_nameEditing = false;
+        // 치고 있는 텍스트 칸의 ImGui Id 와 그 칸의 글자다. 0 이면 아무도 치고 있지 않다. 치는 칸만 이 글자를 쓰고
+        // 나머지 칸은 매 프레임 저장소에서 읽는다 - 텍스트가 둘이면 한쪽이 다른 쪽의 치던 글자를 덮지 않게.
+        unsigned int m_textEditingId = 0;
+        String m_textDraft;
 
         // ── 오디오 미리 듣기(D-197) ──
         // 보고 있는 오디오 에셋과 그 요약이다. 에셋이 바뀌거나 자료가 다시 읽히면(판번호) 다시 잰다 - 파형은 한 번만 푼다.

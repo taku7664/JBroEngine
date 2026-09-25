@@ -265,6 +265,7 @@ namespace JBro::LocKeys
     inline constexpr const char* SpriteViewerPickHint = "sprite_viewer.pick_hint";
     inline constexpr const char* InspectorPickFrame = "inspector.pick_frame";
     inline constexpr const char* InspectorPickFrameNoSprite = "inspector.pick_frame_no_sprite";
+    inline constexpr const char* InspectorTextNoFont = "inspector.text_no_font";
     inline constexpr const char* AssetsIconView = "assets.icon_view";
     inline constexpr const char* AssetsListView = "assets.list_view";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";
@@ -275,6 +276,7 @@ namespace JBro::LocKeys
     inline constexpr const char* DialogBrowseFile = "dialog.browse_file";
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
     inline constexpr const char* InspectorAudioImportOptions = "inspector.audio_import_options";
+    inline constexpr const char* InspectorFontImportOptions = "inspector.font_import_options";
     inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
     inline constexpr const char* InspectorAudioLength = "inspector.audio_length";
     inline constexpr const char* InspectorAudioPreview = "inspector.audio_preview";
@@ -328,6 +330,8 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsLanguage = "project_settings.language";
     inline constexpr const char* ProjectSettingsNoLanguages = "project_settings.no_languages";
     inline constexpr const char* ProjectSettingsBuild = "project_settings.build";
+    inline constexpr const char* ProjectSettingsText = "project_settings.text";
+    inline constexpr const char* ProjectSettingsFontsHelp = "project_settings.fonts_help";
     inline constexpr const char* ProjectSettingsSave = "project_settings.save";
     inline constexpr const char* ProjectSettingsRevert = "project_settings.revert";
     inline constexpr const char* ProjectSettingsSaved = "project_settings.saved";

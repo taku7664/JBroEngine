@@ -131,6 +131,7 @@ Entries:
   assets.not_watching: the asset folder is not being watched, so files changed outside will not show up
   inspector.texture_import_options: Texture Import Options
   inspector.audio_import_options: "Audio Import Options"
+  inspector.font_import_options: "Font Import Options"
   inspector.audio_format: "Format"
   inspector.audio_length: "Length"
   inspector.audio_preview: "Preview"
@@ -196,6 +197,8 @@ Entries:
   project_settings.language: Language
   project_settings.no_languages: no language files were found
   project_settings.build: Build
+  project_settings.text: "Text"
+  project_settings.fonts_help: "The first font draws texts with no fontId. Letters a font lacks are looked up in this list, in order."
   project_settings.save: Save
   project_settings.revert: Revert
   project_settings.saved: saved
@@ -282,4 +285,5 @@ Entries:
   sprite_viewer.pick_hint: click a cell on the sheet to use that frame
   inspector.pick_frame: Pick Frame
   inspector.pick_frame_no_sprite: set a sprite first
+  inspector.text_no_font: "No usable font, so this text is not drawn. Set fontId or add a font in Project Settings."
   hierarchy.paste_as_child: Paste As Child

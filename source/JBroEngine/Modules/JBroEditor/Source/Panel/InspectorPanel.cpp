@@ -39,6 +39,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/NameTable.h>
 
 #include <imgui.h>
@@ -773,6 +774,43 @@ namespace JBro
         }
     }
 
+    void InspectorPanel::DrawTextBody(const TypeDescriptor& type, void* address, bool editable, Context& context)
+    {
+        TextId& id = *static_cast<TextId*>(address);
+        // **치는 중이 아니면 늘 저장소의 글자를 든다**(이름 칸과 같다). 그래야 되돌리기·스크립트가 바꾼 글자가 바로 보인다.
+        const ImGuiID widgetId = ImGui::GetID("##value");
+        const bool editing = m_textEditingId == widgetId;
+        String shown;
+        if (false == editing)
+        {
+            const ArrayView<const char> text = TextStore::Get().GetText(id);
+            shown.assign(text.Data(), text.Size());
+        }
+        String& draft = editing ? m_textDraft : shown;
+        const bool finished = Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw();
+        const bool active = ImGui::IsItemActive();
+        if (finished && editable)
+        {
+            // 편집 전 값은 코덱 글자로 뜬다(길이 제한 없는 길). 새 글자를 저장소에 쓰고 나면 `CommitEdit` 가
+            // 옛 글자로 되돌려 놓고 고른 것 모두에 커맨드 하나를 만든다 - 다른 필드와 같은 길이다.
+            String before;
+            if (SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before))
+            {
+                TextStore::Get().Assign(id, draft.c_str(), draft.size());
+                CommitEdit(type, address, before, context);
+            }
+        }
+        if (active && false == editing)
+        {
+            m_textDraft = shown;
+            m_textEditingId = widgetId;
+        }
+        else if (false == active && editing)
+        {
+            m_textEditingId = 0;
+        }
+    }
+
     bool InspectorPanel::DrawLeaf(
         const TypeDescriptor& type,
         void* address,
@@ -933,11 +971,12 @@ namespace JBro
         const bool image = AssetTypeRules::IsImageType(meta.type);
         int slot = 0;
         const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock,
-                                     bool audioBlock = false) {
+                                     bool audioBlock = false, bool fontBlock = false) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
             scope.spriteBlock = spriteBlock;
             scope.audioBlock = audioBlock;
+            scope.fontBlock = fontBlock;
             if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
@@ -960,6 +999,12 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorAudioImportOptions, "Audio Import Options"),
                 TypeDescriptorOf<AudioImportOptions>::Get(), &scratch.audioOptions, false, true);
         }
+        // 폰트의 PPU·필터(D-200). 고치면 제자리 재로드로 글자가 새 크기로 다시 뜬다.
+        if (meta.type == AssetType::Font)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorFontImportOptions, "Font Import Options"),
+                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);
+        }
     }
 
     void InspectorPanel::CommitAssetEdit(Context& context)
@@ -980,6 +1025,10 @@ namespace JBro
         else if (context.asset->audioBlock)
         {
             scratch.hasAudioOptions = true;
+        }
+        else if (context.asset->fontBlock)
+        {
+            scratch.hasFontOptions = true;
         }
         else
         {
@@ -1589,6 +1638,14 @@ namespace JBro
             && IsAssetIdName(label))
         {
             DrawAssetField(label, type, address, context);
+            return;
+        }
+
+        // 텍스트의 글자는 줄바꿈을 그대로 치는 여러 줄 칸이다. 한 줄 칸은 줄바꿈을 이스케이프 글자로 보여 주고
+        // 512 바이트에서 끊겼다.
+        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.TextId"))
+        {
+            DrawTextBody(type, address, editable, context);
             return;
         }
 

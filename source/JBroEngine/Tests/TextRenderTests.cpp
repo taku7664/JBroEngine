@@ -15,11 +15,13 @@
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Reflection/ReflectedYaml.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Text/GlyphAtlas.h>
 #include <JBro/Text/TextLayout.h>
 
 #include "TestFontNotoSansKR.generated.h"
+#include "TestFontNotoSansKRLatin.generated.h"
 
 #include <cmath>
 #include <cstring>
@@ -122,13 +124,15 @@ namespace
         }
         Check(copy->text.index != text->text.index, "the reopened text has its own slot");
 
-        // 스냅숏 길(파일을 거치지 않고 글자로 떴다 다시 쓰기)도 같은 글자를 준다.
+        // 스냅숏 길(파일을 거치지 않고 글자로 떴다 다시 쓰기)도 같은 글자를 준다. 에디터 커맨드가 쓰는 그 함수를 지난다 -
+        // 처음 판은 코덱을 손으로 불러 `required - 1` 을 넘겼고, 그래서 그 함수가 끝에 NUL 을 붙이는 것을 못 봤다(3 단계에서 드러났다).
         const ValueCodec& codec = GetTextIdCodec();
-        char buffer[512];
-        std::size_t required = 0;
-        Check(codec.ToText(&text->text, buffer, sizeof(buffer), required), "the codec writes the text");
+        String snapshotText;
+        Check(ReflectedValueToText(codec, &text->text, snapshotText), "the codec writes the text");
+        Check(snapshotText.empty() || snapshotText.back() != '\0', "the snapshot text carries no terminator");
         TextId snapshot;
-        Check(codec.FromText(&snapshot, buffer, required - 1) && TextIs(snapshot, sample), "the snapshot path round-trips");
+        Check(codec.FromText(&snapshot, snapshotText.c_str(), snapshotText.size()) && TextIs(snapshot, sample),
+            "the snapshot path round-trips");
         TextStore::Get().Destroy(snapshot);
         canvas.DestroyObject(object);
         canvas.FlushPendingDestroy();
@@ -198,6 +202,8 @@ namespace
         AssetSystem assets;
         fs::path root;
         AssetId fontId;
+        // 한글이 없는 라틴 서브셋이다. 폴백 시험이 쓴다(3 단계).
+        AssetId latinId;
         String metaPath;
 
         void Open(float pixelsPerUnit)
@@ -205,6 +211,7 @@ namespace
             root = fs::temp_directory_path() / L"JBroTextProbe·글자";
             fs::remove_all(root);
             WriteBytes(root / "Fonts" / "sans.otf", TestFontNotoSansKR, sizeof(TestFontNotoSansKR));
+            WriteBytes(root / "Fonts" / "latin.otf", TestFontNotoSansKRLatin, sizeof(TestFontNotoSansKRLatin));
             Check(platform.Initialize(memory), "the platform initializes");
             AssetScanOptions options;
             options.createMissingMeta = true;
@@ -213,13 +220,23 @@ namespace
             const AssetRecord* record = registry.FindByPath("Fonts/sans.otf");
             Check(record != nullptr && record->type == AssetType::Font, "an .otf registers as a Font");
             fontId = record->id;
+            const AssetRecord* latin = registry.FindByPath("Fonts/latin.otf");
+            Check(latin != nullptr && latin->type == AssetType::Font, "the latin subset registers as a Font");
+            latinId = latin->id;
             metaPath = Utf8(root / "Fonts" / "sans.otf.jmeta");
             WriteOptions(pixelsPerUnit, TextureFilter::Default);
+            // 라틴 폰트도 같은 PPU 다. 폴백 글자는 기본 폰트(라틴)의 PPU 로 그려지므로 둘이 다르면 칸이 어긋난다.
+            WriteOptionsAt(Utf8(root / "Fonts" / "latin.otf.jmeta"), pixelsPerUnit, TextureFilter::Default);
             Check(assets.Initialize(memory), "the asset system initializes");
             assets.Bind(platform, registry, Utf8(root).c_str());
         }
 
         void WriteOptions(float pixelsPerUnit, TextureFilter filter)
+        {
+            WriteOptionsAt(metaPath, pixelsPerUnit, filter);
+        }
+
+        void WriteOptionsAt(const String& metaPath, float pixelsPerUnit, TextureFilter filter)
         {
             AssetMetaFile meta;
             AssetMetaError error;
@@ -556,6 +573,100 @@ namespace
         gpu.Close();
         project.Close();
     }
+
+    // **프로젝트 폰트**(D-200 (6), text-plan §5 의 3 단계). `fontId` 가 빈 텍스트는 프로젝트의 첫 폰트로 그리고, 폰트에 없는 글자는
+    // 목록에서 찾아 그 폰트의 아틀라스로 그린다. 목록을 바꾸면 다음 프레임에 다시 레이아웃되고, 같은 목록을 다시 주면 그대로다.
+    void TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; project fonts not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontSize = 40.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "A", 1);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+            Check(texts != nullptr, "the framework runs a text system");
+
+            // 1. 폰트 아이디도 프로젝트 폰트도 없으면 그리지 않는다.
+            gpu.Paint(framework);
+            Check(texts->IsMissingFont(label->GetInstanceId()), "a text with no font and no project font is missing one");
+            Check(FindDark(gpu).count == 0, "and nothing is drawn");
+
+            // 2. 프로젝트 폰트를 주면 그 첫 폰트로 그린다. 커널로 잰 A 의 칸 안이다.
+            const AssetId sansOnly[] = { project.fontId };
+            project.assets.SetProjectFonts(sansOnly);
+            gpu.Paint(framework);
+            Check(false == texts->IsMissingFont(label->GetInstanceId()), "the project's first font draws a text with no fontId");
+            const ScreenRect expectedA = ExpectedGlyph("A", 40);
+            const DarkBox a = FindDark(gpu);
+            Check(a.count > 40 && static_cast<float>(a.minX) >= expectedA.left - 1.0f
+                    && static_cast<float>(a.maxX) <= expectedA.right + 1.0f
+                    && static_cast<float>(a.minY) >= expectedA.top - 1.0f
+                    && static_cast<float>(a.maxY) <= expectedA.bottom + 1.0f,
+                "the A lands in its cell");
+            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            project.assets.SetProjectFonts(sansOnly);
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() == relayouts, "setting the same list again lays nothing out");
+
+            // 3. 한글이 없는 라틴 폰트를 고르면 `한` 은 프로젝트 폰트(폴백)에서 온다 - 한글 폰트로 잰 칸 안에 그려진다.
+            label->fontId = project.latinId;
+            TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
+            framework.BindCanvasAssets();
+            Check(label->font.generation != 0, "the latin font resolves");
+            gpu.Paint(framework);
+            const ScreenRect expectedHan = ExpectedGlyph("\xED\x95\x9C", 40);
+            const DarkBox han = FindDark(gpu);
+            Check(han.count > 60 && static_cast<float>(han.minX) >= expectedHan.left - 1.0f
+                    && static_cast<float>(han.maxX) <= expectedHan.right + 1.0f
+                    && static_cast<float>(han.minY) >= expectedHan.top - 1.0f
+                    && static_cast<float>(han.maxY) <= expectedHan.bottom + 1.0f,
+                "the missing letter is filled in from the project font, inside its cell");
+
+            // 4. 목록을 비우면 다음 프레임에 다시 레이아웃되고, `한` 은 라틴 폰트의 .notdef(네모) 로 바뀐다.
+            project.assets.SetProjectFonts({});
+            gpu.Paint(framework);
+            Check(false == texts->IsMissingFont(label->GetInstanceId()), "the latin font still draws");
+            const DarkBox notdef = FindDark(gpu);
+            std::cout << "  [measure] fallback han " << han.count << " px, latin notdef " << notdef.count << " px" << std::endl;
+            Check(notdef.count > 0 && notdef.count != han.count, "without the fallback the letter becomes the notdef box");
+
+            framework.Shutdown();
+        }
+        Check(gpu.renderer.GetTextureCount() == 0, "shutting the framework down returns every atlas page");
+        Check(project.assets.GetReferenceCount(project.assets.Find(project.fontId)) == 0,
+            "and the text system let go of the project fonts it loaded");
+        gpu.Close();
+        project.Close();
+    }
 }
 
 int RunTextRenderTests()
@@ -567,6 +678,7 @@ int RunTextRenderTests()
         TestCopiesGetTheirOwnSlot();
         TestFontAssetsLoadAndReload();
         TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
+        TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
     }
     catch (const std::exception&)
     {

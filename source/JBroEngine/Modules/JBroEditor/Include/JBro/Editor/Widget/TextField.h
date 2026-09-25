@@ -18,6 +18,8 @@ namespace JBro::Widget
 
         TextField& Hint(const char* text);
         TextField& MaxLength(std::size_t length);
+        // 여러 줄 칸이다. `MaxLength` 를 주지 않으면 길이에 끝이 없고, 높이는 글자 줄 수를 따라 `lines` 부터 늘어난다.
+        // Enter 는 줄바꿈이라 `CommitOnEnter` 대신 `CommitOnFinish` 로 확정한다.
         TextField& Multiline(bool multiline = true, float lines = 4.5f);
         // 참이면 Enter 를 눌러야 값이 반영된다. 거짓이면 글자마다 반영한다.
         TextField& CommitOnEnter(bool commit = true);
@@ -35,6 +37,8 @@ namespace JBro::Widget
         bool operator()() const;
 
     private:
+        bool DrawGrowable() const;
+
         const char* m_id = nullptr;
         String& m_text;
         const char* m_hint = nullptr;

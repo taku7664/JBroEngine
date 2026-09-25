@@ -47,6 +47,9 @@ namespace JBro::System
 
         // 마지막으로 레이아웃한 블록 사각형이다(유닛, 오브젝트 로컬). 에디터의 선택과 외곽선이 쓴다. 아직 없으면 거짓이다.
         bool GetLocalBounds(InstanceId text, float& minX, float& minY, float& maxX, float& maxY) const;
+        // 쓸 수 있는 폰트가 없어 그리지 못하는 텍스트인가. 에디터 인스펙터가 경고로 보인다 - 그리는 쪽과 같은 판단을
+        // 따로 흉내 내지 않고 여기서 묻는다. 아직 한 번도 돌지 않은 텍스트는 거짓이다.
+        bool IsMissingFont(InstanceId text) const;
 
         const TextLibrary& GetLibrary() const;
         // 지금까지 다시 레이아웃한 횟수다. 테스트가 "바뀌지 않은 텍스트는 다시 레이아웃하지 않는다" 를 잰다.
@@ -68,15 +71,21 @@ namespace JBro::System
             float         height = 0.0f;
             float         uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
             std::uint16_t page = 0;
+            std::uint8_t  face = 0; // `Entry::fonts` 안의 번호. 폴백 face 의 글리프는 그 폰트의 아틀라스에 있다
         };
+
+        // 한 텍스트가 쓰는 face 의 최대 수다: 자기 폰트 하나와 프로젝트 폴백들.
+        static constexpr std::uint32_t MaxFaces = 8;
 
         struct Entry
         {
             // 이 캐시를 만든 입력이다. 하나라도 다르면 다시 레이아웃한다.
             TextId               text;
             std::uint32_t        textRevision = 0;
-            AssetHandle          font;
-            std::uint32_t        fontGeneration = 0;
+            // 앞이 기본 폰트, 뒤가 폴백이다. 기본 폰트는 `fontId` 의 것이거나, 비었으면 프로젝트의 첫 폰트다.
+            AssetHandle          fonts[MaxFaces];
+            std::uint32_t        fontGenerations[MaxFaces] = {};
+            std::uint32_t        fontCount = 0;
             std::uint64_t        optionsKey = 0;
             Text::TextLayout     layout;
             Array<GlyphQuad>     quads;
@@ -89,7 +98,10 @@ namespace JBro::System
         };
 
         static std::uint64_t MakeOptionsKey(const Component::Text2D& text);
-        void Relayout(const Component::Text2D& text, Entry& entry, const FontView& font);
+        // 이 텍스트가 쓸 face 들을 모은다. 기본 폰트가 없으면 거짓이다.
+        bool GatherFonts(const Component::Text2D& text, AssetHandle* handles, FontView* views, std::uint32_t& count);
+        void Relayout(const Component::Text2D& text, Entry& entry, const AssetHandle* handles, const FontView* views,
+            std::uint32_t count);
         void Submit(Canvas& canvas, const Component::Text2D& text, const Entry& entry);
         void DropUnseen();
 

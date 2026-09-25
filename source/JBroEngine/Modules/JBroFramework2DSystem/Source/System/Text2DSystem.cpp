@@ -109,6 +109,12 @@ namespace JBro::System
         return true;
     }
 
+    bool Text2DSystem::IsMissingFont(InstanceId text) const
+    {
+        const Entry* entry = m_entries.Find(text);
+        return entry != nullptr && entry->warnedMissingFont;
+    }
+
     const TextLibrary& Text2DSystem::GetLibrary() const
     {
         return m_library;
@@ -139,8 +145,45 @@ namespace JBro::System
         return key;
     }
 
-    void Text2DSystem::Relayout(const Component::Text2D& text, Entry& entry, const FontView& font)
+    bool Text2DSystem::GatherFonts(
+        const Component::Text2D& text, AssetHandle* handles, FontView* views, std::uint32_t& count)
     {
+        // **`fontId` 가 비면 프로젝트의 첫 폰트다**(D-200 (6)). 아이디를 적었는데 그 폰트가 없으면 대신 기본 폰트로 그리지 않는다 -
+        // 고른 폰트가 깨졌다는 것이 보여야 한다(경고가 뜬다).
+        count = 0;
+        const ArrayView<const AssetHandle> project = m_library.GetProjectFonts();
+        AssetHandle primary = text.font;
+        if (text.fontId.IsNull())
+        {
+            primary = project.Size() > 0 ? project[0] : AssetHandle{};
+        }
+        if (false == m_library.Acquire(primary, views[0]))
+        {
+            return false;
+        }
+        handles[0] = primary;
+        count = 1;
+        // 나머지 프로젝트 폰트가 폴백이다. 기본 폰트와 같은 것은 건너뛰고, 열리지 않는 것은 빼고 간다.
+        for (std::size_t index = 0; index < project.Size() && count < MaxFaces; ++index)
+        {
+            const AssetHandle fallback = project[index];
+            if (fallback.index == primary.index && fallback.generation == primary.generation)
+            {
+                continue;
+            }
+            if (m_library.Acquire(fallback, views[count]))
+            {
+                handles[count] = fallback;
+                ++count;
+            }
+        }
+        return true;
+    }
+
+    void Text2DSystem::Relayout(const Component::Text2D& text, Entry& entry, const AssetHandle* handles,
+        const FontView* views, std::uint32_t count)
+    {
+        const FontView& font = views[0];
         ++m_relayouts;
         const std::uint32_t pixelSize = PixelSizeOf(text.fontSize);
         Text::LayoutOptions options;
@@ -156,16 +199,25 @@ namespace JBro::System
 
         entry.text = text.text;
         entry.textRevision = TextStore::Get().GetRevision(text.text);
-        entry.font = text.font;
-        entry.fontGeneration = font.dataGeneration;
+        entry.fontCount = count;
+        for (std::uint32_t face = 0; face < count; ++face)
+        {
+            entry.fonts[face] = handles[face];
+            entry.fontGenerations[face] = views[face].dataGeneration;
+        }
         entry.optionsKey = MakeOptionsKey(text);
         entry.pixelsPerUnit = font.pixelsPerUnit;
         entry.filter = font.filter;
         entry.quads.Clear();
         entry.hasBounds = false;
 
-        const Text::FontFace* faces[] = { font.face };
-        if (entry.layout.Build(TextStore::Get().GetText(text.text), faces, options) != Text::LayoutError::None)
+        const Text::FontFace* faces[MaxFaces] = {};
+        for (std::uint32_t face = 0; face < count; ++face)
+        {
+            faces[face] = views[face].face;
+        }
+        if (entry.layout.Build(TextStore::Get().GetText(text.text), ArrayView<const Text::FontFace* const>(faces, count),
+                options) != Text::LayoutError::None)
         {
             return;
         }
@@ -176,11 +228,14 @@ namespace JBro::System
         const float clipRight = entry.layout.GetMaxX();
         const float clipBottom = entry.layout.GetMinY();
         const float clipTop = entry.layout.GetMaxY();
-        const float pageSize = static_cast<float>(font.atlas->GetPageSize());
         for (const Text::PositionedGlyph& glyph : entry.layout.GetGlyphs())
         {
+            // 글리프는 그것을 고른 face 의 아틀라스에 든다. 폴백 폰트의 글자는 그 폰트의 페이지로 그린다.
+            const FontView& glyphFont = views[glyph.face < count ? glyph.face : 0];
+            const float pageSize = static_cast<float>(glyphFont.atlas->GetPageSize());
             Text::AtlasGlyph cell;
-            if (font.atlas->Ensure(*font.face, pixelSize, glyph.glyph, cell) != Text::AtlasError::None || cell.empty)
+            if (glyphFont.atlas->Ensure(*glyphFont.face, pixelSize, glyph.glyph, cell) != Text::AtlasError::None
+                || cell.empty)
             {
                 continue;
             }
@@ -229,6 +284,7 @@ namespace JBro::System
             quad.uvRect[2] = u1 - u0;
             quad.uvRect[3] = v1 - v0;
             quad.page = cell.page;
+            quad.face = static_cast<std::uint8_t>(glyph.face < count ? glyph.face : 0);
             entry.quads.Add(quad);
         }
 
@@ -256,7 +312,7 @@ namespace JBro::System
         const float ppu = entry.pixelsPerUnit;
         for (const GlyphQuad& quad : entry.quads)
         {
-            const AssetHandle page = m_library.GetPageTexture(entry.font, quad.page);
+            const AssetHandle page = m_library.GetPageTexture(entry.fonts[quad.face], quad.page);
             if (page.generation == 0)
             {
                 // 페이지가 아직 올라가지 않았다(렌더러가 거절했다). 흰 사각형을 그리지 않는다.
@@ -310,6 +366,7 @@ namespace JBro::System
         }
         ++m_frame;
         const TextStore& store = TextStore::Get();
+        m_library.SyncProjectFonts();
 
         // 1. 바뀐 것만 다시 레이아웃한다. 여기서 아틀라스에 새 글리프가 들어간다.
         canvas.ForEach<Component::Text2D>([&](Component::Text2D& text)
@@ -324,31 +381,38 @@ namespace JBro::System
             }
             Entry& entry = m_entries.FindOrAdd(text.GetInstanceId());
             entry.lastSeenFrame = m_frame;
-            FontView font;
-            if (false == m_library.Acquire(text.font, font))
+            AssetHandle handles[MaxFaces];
+            FontView views[MaxFaces];
+            std::uint32_t count = 0;
+            if (false == GatherFonts(text, handles, views, count))
             {
                 if (false == entry.warnedMissingFont)
                 {
-                    Log::Write(LogLevel::Warning, "text", "a Text2D has no usable font and is not drawn - set its fontId");
+                    Log::Write(LogLevel::Warning, "text",
+                        "a Text2D has no usable font and is not drawn - set its fontId or add a project font");
                     entry.warnedMissingFont = true;
                 }
-                // 폰트가 돌아오면 핸들이 달라 다시 레이아웃된다.
-                entry.font = {};
+                // 폰트가 돌아오면 face 수가 달라 다시 레이아웃된다.
+                entry.fontCount = 0;
                 entry.quads.Clear();
                 entry.hasBounds = false;
                 return;
             }
             entry.warnedMissingFont = false;
-            const bool stale = entry.text.index != text.text.index
+            bool stale = entry.text.index != text.text.index
                 || entry.text.generation != text.text.generation
                 || entry.textRevision != store.GetRevision(text.text)
-                || entry.font.index != text.font.index
-                || entry.font.generation != text.font.generation
-                || entry.fontGeneration != font.dataGeneration
+                || entry.fontCount != count
                 || entry.optionsKey != MakeOptionsKey(text);
+            for (std::uint32_t face = 0; false == stale && face < count; ++face)
+            {
+                stale = entry.fonts[face].index != handles[face].index
+                    || entry.fonts[face].generation != handles[face].generation
+                    || entry.fontGenerations[face] != views[face].dataGeneration;
+            }
             if (stale)
             {
-                Relayout(text, entry, font);
+                Relayout(text, entry, handles, views, count);
             }
         });
 
@@ -363,7 +427,7 @@ namespace JBro::System
                 return;
             }
             const Entry* entry = m_entries.Find(text.GetInstanceId());
-            if (entry != nullptr && entry->font.generation != 0)
+            if (entry != nullptr && entry->fontCount != 0)
             {
                 Submit(canvas, text, *entry);
             }

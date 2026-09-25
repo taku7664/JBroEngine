@@ -6,6 +6,7 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/ArrayView.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Table.h>
 
@@ -89,6 +90,12 @@ namespace JBro
         // 적용되므로 프로젝트를 열 때(`Bind` 전에) 정한다. `Default` 를 주면 `Nearest` 로 본다.
         void SetDefaultTextureFilter(TextureFilter filter);
         TextureFilter GetDefaultTextureFilter() const;
+
+        // 프로젝트의 폰트 목록이다(`Fonts`, D-200 (6)). 아이디만 든다 - 로드는 쓰는 쪽(텍스트 시스템)이 하고 핸들도 그쪽이 든다.
+        // 목록이 바뀌면 판번호가 오른다. 쓰는 쪽은 판번호가 다를 때만 다시 로드한다.
+        void SetProjectFonts(ArrayView<const AssetId> fonts);
+        ArrayView<const AssetId> GetProjectFonts() const;
+        std::uint32_t GetProjectFontsRevision() const;
 
         // 잇긴 에셋 폴더(UTF-8 절대경로)와 레지스트리의 레코드가 가리키는 메타 경로다. 에디터가 메타를 고쳐 쓸 때 쓴다(D-120).
         const String& GetAssetRoot() const;
@@ -177,6 +184,8 @@ namespace JBro
 
         IPlatform* m_platform = nullptr;
         TextureFilter m_defaultTextureFilter = TextureFilter::Nearest;
+        Array<AssetId> m_projectFonts;
+        std::uint32_t m_projectFontsRevision = 0;
         const AssetRegistry* m_registry = nullptr;
         String m_assetRoot;
         Pool<TextureData> m_textures;

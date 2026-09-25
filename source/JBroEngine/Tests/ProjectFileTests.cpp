@@ -565,6 +565,68 @@ namespace
 
     // **새 프로젝트를 세운다**(D-160, 기존 `CProjectManager::CreateProject`). 폴더·프로젝트 파일·에셋 폴더가
     // 서고 그대로 열린다. 이미 있는 폴더 위에는 세우지 않고, 파일 이름이 될 수 없는 이름은 거절한다.
+    // **프로젝트 폰트 목록**(D-200 (6), text-plan §5 의 3 단계). 순서가 있는 아이디의 시퀀스이고, 설정 창의 빈 줄(고르지 않은
+    // 폰트)은 적지 않으며, 아이디가 아닌 항목은 파일 오류다.
+    void TestTheProjectFontList()
+    {
+        const char* text =
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "Fonts:\n"
+            "  - 0123456789abcdef0123456789abcdef\n"
+            "  - fedcba9876543210fedcba9876543210\n"
+            "SomeFutureKey: keep me\n";
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error), "the font list parses");
+        JBro::AssetId first;
+        JBro::AssetId second;
+        Check(JBro::Uuid::Parse("0123456789abcdef0123456789abcdef", 32, first)
+                && JBro::Uuid::Parse("fedcba9876543210fedcba9876543210", 32, second),
+            "the probe ids parse");
+        Check(project.fonts.Size() == 2 && project.fonts[0] == first && project.fonts[1] == second,
+            "both fonts are read in their order");
+
+        // 순서를 바꾸고 빈 줄을 하나 끼운다. 빈 줄은 적히지 않는다.
+        project.fonts.Clear();
+        project.fonts.Add(second);
+        project.fonts.Add(JBro::AssetId{});
+        project.fonts.Add(first);
+        JBro::String written;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error), "the list rewrites");
+        Check(written.find("SomeFutureKey: keep me") != JBro::String::npos, "the key after the list stays");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error), "the rewritten text parses");
+        Check(reread.fonts.Size() == 2 && reread.fonts[0] == second && reread.fonts[1] == first,
+            "the new order comes back and the unset row is left out");
+
+        // 비우면 `[]` 다.
+        project.fonts.Clear();
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error), "an empty list rewrites");
+        Check(written.find("Fonts: []") != JBro::String::npos, "an empty list is an empty sequence");
+        JBro::ProjectFile emptied;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), emptied, error) && emptied.fonts.IsEmpty(),
+            "and reads back empty");
+
+        // 키가 없던 파일에는 폰트가 있을 때만 붙는다.
+        const char* bare = "EngineVersion: 1.0.0\nFramework: 2D\n";
+        JBro::ProjectFile none;
+        Check(JBro::ParseProjectFile(bare, std::strlen(bare), none, error), "the bare file parses");
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error)
+                && written.find("Fonts") == JBro::String::npos,
+            "a file with no fonts does not grow a Fonts key");
+        none.fonts.Add(first);
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error)
+                && written.find("Fonts:\n  - 0123456789abcdef0123456789abcdef\n") != JBro::String::npos,
+            "a font added to a bare file is appended");
+
+        // 아이디가 아닌 항목은 거절한다. 조용히 건너뛰면 기본 폰트가 소리 없이 바뀐다.
+        const char* broken = "EngineVersion: 1.0.0\nFramework: 2D\nFonts:\n  - sans.otf\n";
+        JBro::ProjectFile refused;
+        Check(false == JBro::ParseProjectFile(broken, std::strlen(broken), refused, error),
+            "a font entry that is not an asset id is refused");
+    }
+
     void TestCreatesANewProject()
     {
         namespace fs = std::filesystem;
@@ -644,6 +706,7 @@ int RunProjectFileTests()
     TestDefaultsSurviveAnEmptyProject();
     TestRewritingKeepsWhatItDoesNotKnow();
     TestRewritingTheIgnorePatterns();
+    TestTheProjectFontList();
     TestSavingTwiceDoesNotGrowTheFile();
     TestSavingCollapsesKeysThatWereWrittenTwice();
     TestCreatesANewProject();

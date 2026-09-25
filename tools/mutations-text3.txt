@@ -1,0 +1,27 @@
+Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:text-bounds-ignored	if (false == texts->GetLocalBounds(text->GetInstanceId(), localMinX, localMinY, localMaxX, localMaxY))	if (true)
+Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:scale-not-applied	const float x0 = center.x + localMinX * scale.x;\n            const float x1 = center.x + localMaxX * scale.x;	const float x0 = center.x + localMinX;\n            const float x1 = center.x + localMaxX;
+Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:empty-block-kept	if (localMaxX - localMinX < 0.001f || localMaxY - localMinY < 0.001f)	if (false)
+Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:default-box-kept	if (false == hasSprite && false == hasText)	if (false)
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:textid-one-line	SameName(type.typeName, "JBro.TextId")	SameName(type.typeName, "JBro.TextIdNot")
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:text-not-written	                TextStore::Get().Assign(id, draft.c_str(), draft.size());	                (void)draft;
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:draft-not-kept	            m_textDraft = shown;\n            m_textEditingId = widgetId;	            (void)shown;
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:font-block-missing	                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);	                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, false);
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:font-options-not-marked	            scratch.hasFontOptions = true;	            (void)scratch;
+Modules\JBroEditor\Source\Widget\TextField.cpp	field:multiline-commits-per-key	        if (m_commitOnFinish)\n        {\n            return ImGui::IsItemDeactivatedAfterEdit();\n        }\n        return changed;\n    }\n\n    bool TextField::operator()() const	        return changed;\n    }\n\n    bool TextField::operator()() const
+Modules\JBroEditor\Source\Widget\TextField.cpp	field:multiline-fixed-buffer	if (m_multiline && m_maxLength == 0)	if (false)
+Modules\JBroEditor\Source\Panel\InspectorFieldExtras.cpp	extras:no-font-warning-row	"fontId", &DrawTextFontWarning}	"fontIdNot", &DrawTextFontWarning}
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:missing-font-never-reported	return entry != nullptr && entry->warnedMissingFont;	return false;
+Modules\JBroCore\Source\Reflection\ReflectedYaml.cpp	yaml:terminator-kept	            text.assign(stack, required);\n            dropTerminator();	            text.assign(stack, required);
+Modules\JBroHost\Source\ProjectFile.cpp	project:fonts-block-not-read	                    currentSequence = &fontTexts;	                    currentSequence = nullptr;
+Modules\JBroHost\Source\ProjectFile.cpp	project:unset-font-written	                if (font.IsNull())\n                {\n                    continue;\n                }\n                char text[Uuid::TextCapacity] = {};	                char text[Uuid::TextCapacity] = {};
+Modules\JBroHost\Source\ProjectFile.cpp	project:bad-font-id-accepted	if (false == Uuid::Parse(fontText.c_str(), fontText.size(), font) || font.IsNull())	if (false)
+Modules\JBroAsset\Source\Asset.cpp	assets:same-list-bumps-revision	        if (same)\n        {\n            return;\n        }\n        m_projectFonts.Clear();	        m_projectFonts.Clear();
+Modules\JBroHost\Source\EngineInstance.cpp	engine:settings-fonts-not-applied	            m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));\n        }	        }
+Modules\JBroHost\Source\EngineInstance.cpp	engine:open-fonts-not-applied	        m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));\n        m_assets->Bind(	        m_assets->Bind(
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:list-change-ignored	if (m_projectFontsSynced && revision == m_projectFontsRevision)	if (m_projectFontsSynced)
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:project-fonts-leak	    void TextLibrary::Shutdown()\n    {\n        ReleaseProjectFonts();	    void TextLibrary::Shutdown()\n    {
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:empty-font-id-not-defaulted	primary = project.Size() > 0 ? project[0] : AssetHandle{};	primary = AssetHandle{};
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:no-fallbacks	for (std::size_t index = 0; index < project.Size() && count < MaxFaces; ++index)	for (std::size_t index = 0; false; ++index)
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:fallback-glyph-in-primary-atlas	const FontView& glyphFont = views[glyph.face < count ? glyph.face : 0];	const FontView& glyphFont = views[0];
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:fallback-page-from-primary	m_library.GetPageTexture(entry.fonts[quad.face], quad.page);	m_library.GetPageTexture(entry.fonts[0], quad.page);
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:face-change-not-stale	for (std::uint32_t face = 0; false == stale && face < count; ++face)	for (std::uint32_t face = 0; false; ++face)

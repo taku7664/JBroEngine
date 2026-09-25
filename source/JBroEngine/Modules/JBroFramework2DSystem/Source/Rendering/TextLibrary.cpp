@@ -20,6 +20,7 @@ namespace JBro
 
     void TextLibrary::Shutdown()
     {
+        ReleaseProjectFonts();
         for (std::size_t index = 0; index < m_fonts.Size(); ++index)
         {
             if (m_fonts[index])
@@ -31,6 +32,67 @@ namespace JBro
         m_assets = nullptr;
         m_renderer = nullptr;
         m_uploadCount = 0;
+    }
+
+    void TextLibrary::ReleaseProjectFonts()
+    {
+        if (m_assets != nullptr)
+        {
+            for (const AssetHandle& font : m_projectFonts)
+            {
+                m_assets->Release(font);
+            }
+        }
+        m_projectFonts.Clear();
+        m_projectFontsSynced = false;
+    }
+
+    void TextLibrary::SyncProjectFonts()
+    {
+        if (m_assets == nullptr)
+        {
+            return;
+        }
+        const std::uint32_t revision = m_assets->GetProjectFontsRevision();
+        if (m_projectFontsSynced && revision == m_projectFontsRevision)
+        {
+            return;
+        }
+        ReleaseProjectFonts();
+        const ArrayView<const AssetId> ids = m_assets->GetProjectFonts();
+        for (std::size_t index = 0; index < ids.Size(); ++index)
+        {
+            // 고르지 않은 줄이다. 경고할 일이 아니다.
+            if (ids[index].IsNull())
+            {
+                continue;
+            }
+            const AssetHandle font = m_assets->Load(ids[index]);
+            if (font.generation == 0)
+            {
+                Log::Write(LogLevel::Warning, "text", "a project font could not be loaded and is skipped");
+                continue;
+            }
+            // 같은 폰트를 두 번 적었으면 한 번만 든다 - 폴백을 두 번 찾아볼 까닭이 없다.
+            bool duplicate = false;
+            for (const AssetHandle& held : m_projectFonts)
+            {
+                duplicate = duplicate || (held.index == font.index && held.generation == font.generation);
+            }
+            if (duplicate)
+            {
+                m_assets->Release(font);
+                continue;
+            }
+            m_projectFonts.Add(font);
+        }
+        m_projectFontsSynced = true;
+        m_projectFontsRevision = revision;
+    }
+
+    ArrayView<const AssetHandle> TextLibrary::GetProjectFonts() const
+    {
+        return ArrayView<const AssetHandle>(m_projectFonts.Data(), m_projectFonts.Size());
     }
 
     void TextLibrary::ReleasePages(FontEntry& entry)
