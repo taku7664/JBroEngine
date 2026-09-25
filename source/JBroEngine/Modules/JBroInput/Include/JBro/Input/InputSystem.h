@@ -5,6 +5,7 @@
 #include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/InputTypes/System/IInputSystem.h>
 #include <JBro/Platform/Input.h>
+#include <JBro/Platform/Platform.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Types/Table.h>
@@ -60,6 +61,22 @@ namespace JBro::System
         void SetActionMap(const InputActionMap& actions);
         const InputActionMap& GetActionMap() const;
 
+        // ── 게임패드 (D-210) ──
+        // 날 상태 네 자리를 이번 프레임으로 접는다: 둥근 데드존과 트리거 문턱, 누름·뗌 수(지난 폴링과 견준다), 빠진 패드는
+        // 눌린 것을 모두 뗀다. `BeginFrame` 뒤에 부른다. 폴링이라 두 폴링 사이의 눌렀다 떼기는 보이지 않는다(XInput 의 한계).
+        void FoldGamepads(const GamepadRawState (&raw)[MaxGamepads]);
+        // 플랫폼에서 읽어 접고 진동을 적용한다. 빈 자리는 `GamepadRecheckFrames` 프레임마다만 묻는다 - 빈 자리를 묻는 것이
+        // 비싸다. 창이 포커스를 잃었으면 읽지 않고 `ReleaseGamepads` 한다.
+        void PollGamepads(IPlatform& platform, float deltaTime);
+        // 게임이 게임패드를 받지 않는다(포커스 잃음, 에디터의 게임 뷰 밖, 내려감): 눌린 것을 떼고 축을 0 으로, 모터를 멈춘다.
+        void ReleaseGamepads(IPlatform& platform);
+        // 이번 프레임에 모터에 건 값이다(시험이 본다).
+        float GetAppliedVibration(std::uint32_t slot, bool high) const;
+        static constexpr std::uint32_t GamepadRecheckFrames = 120;
+
+        void SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) noexcept override;
+        void SetGamepadDeadzones(float stick, float trigger) noexcept override;
+
     private:
         void Fold(const InputEvent& event, const InputSurfaceMapping& mapping);
         void ReleaseAll();
@@ -69,6 +86,22 @@ namespace JBro::System
         // 체인을 따라 내려가는 뷰다. `m_residual` 과 따로 두어, 체인이 도는 동안의 폴링이 반쯤 소비된 것을 보지 않게 한다.
         InputView m_dispatch;
         InputActionMap m_actions;
+        // 창이 포커스를 가졌는가. 게임패드는 이벤트가 아니라서 포커스를 따로 기억한다.
+        bool m_focused = true;
+        float m_stickDeadzone = 0.24f;
+        float m_triggerThreshold = 0.12f;
+        std::uint32_t m_gamepadRecheck[MaxGamepads] = {};
+        struct Vibration
+        {
+            float low = 0.0f;
+            float high = 0.0f;
+            // 0 보다 크면 남은 초다. 0 이하이면 멈추라고 할 때까지 돈다.
+            float remaining = 0.0f;
+            bool timed = false;
+            float appliedLow = 0.0f;
+            float appliedHigh = 0.0f;
+        };
+        Vibration m_vibration[MaxGamepads];
         Array<NameId> m_layers;
         Table<NameId, std::uint8_t> m_warnedLayers;
         std::uint64_t m_layerRevision = 1;

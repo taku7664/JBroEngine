@@ -17,5 +17,14 @@ namespace JBro::Service
         const InputView& GetView() const;
         const KeyboardState& Keyboard() const;
         const MouseState& Mouse() const;
+        // 게임패드 자리(0..3)다. 막혔거나 연결되어 있지 않으면 빈 패드다.
+        const GamepadState& Gamepad(std::uint32_t slot) const;
+
+        // 두 모터(낮은 쪽이 왼쪽 큰 모터)를 0..1 로 돌린다. `seconds` 가 0 보다 크면 그만큼 뒤에 멈추고, 0 이면 멈출 때까지 돈다.
+        // 창이 포커스를 잃거나 패드가 빠지면 멈춘다(기존 엔진처럼 알트탭한 뒤에도 울리지 않는다).
+        void SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds = 0.0f) const;
+        void StopGamepadVibration(std::uint32_t slot) const;
+        // 스틱의 둥근 데드존(기본 0.24)과 트리거의 문턱(기본 0.12)이다. 모든 패드에 같이 걸린다.
+        void SetGamepadDeadzones(float stick, float trigger) const;
     };
 }

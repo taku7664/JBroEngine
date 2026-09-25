@@ -58,6 +58,7 @@ int RunInputTests();
 int RunInputSystemTests();
 int RunInputChainTests();
 int RunInputActionTests();
+int RunInputGamepadTests();
 int RunContextBoundaryTests();
 int RunScriptApiPreludeTests();
 int RunPublicHeaderCompositionTests();
@@ -143,6 +144,10 @@ int main()
             return 1;
         }
         if (RunInputActionTests() != 0)
+        {
+            return 1;
+        }
+        if (RunInputGamepadTests() != 0)
         {
             return 1;
         }

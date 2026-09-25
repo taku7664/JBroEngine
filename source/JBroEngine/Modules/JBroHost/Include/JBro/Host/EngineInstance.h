@@ -130,6 +130,9 @@ namespace JBro
         // 에디터는 재생 중이고 게임 뷰가 포커스를 가졌을 때만 부르고, 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
         // 한 틱에 여러 번 부르면 이어 붙는다. `mapping` 은 마지막 것을 쓴다.
         void SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping);
+        // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-210). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
+        // 꺼지면 다음 틱에 눌린 패드 버튼을 떼고 모터를 멈춘다.
+        void SetHostGameInputActive(bool active);
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         bool DidGameSubmitLastFrame() const;
@@ -251,6 +254,7 @@ namespace JBro
         EditorViewDesc m_editorView;
         bool m_hasEditorView = false;
         bool m_inputOwnedByHost = false;
+        bool m_hostGameInputActive = false;
         Array<InputEvent> m_hostInput;
         InputSurfaceMapping m_hostInputMapping;
         bool m_gameSubmittedLastFrame = false;

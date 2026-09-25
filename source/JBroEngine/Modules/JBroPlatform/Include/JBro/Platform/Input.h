@@ -44,6 +44,17 @@ namespace JBro
 
     static_assert(sizeof(InputEvent) == 20, "InputEvent crosses the game DLL boundary");
 
+    // 게임패드 한 자리의 날 상태다(D-210). 게임패드는 이벤트가 아니라 **폴링**이다 - XInput 이 그렇다. 데드존·누름 세기는
+    // 플랫폼이 하지 않는다(`System::InputSystem` 이 한다). 그래서 플랫폼마다 같은 규칙으로 접힌다.
+    struct GamepadRawState
+    {
+        bool connected = false;
+        // `GamepadButton` 차례의 비트다(1 << South ...).
+        std::uint16_t buttons = 0;
+        // `GamepadAxis` 차례다. 스틱은 -1..1(위가 +), 트리거는 0..1 - 아직 데드존 전이다.
+        float axes[static_cast<std::size_t>(GamepadAxis::Count)] = {};
+    };
+
     // 창 클라이언트 좌표를 게임 화면 픽셀로 옮기는 값이다. 게임 화면 픽셀 = (클라이언트 - origin) * scale.
     // 게임 호스트는 창 전체가 게임 화면이라 기본값(그대로)이다. 에디터는 게임 뷰의 사각형과 렌더 타깃 크기에서 만든다.
     struct InputSurfaceMapping

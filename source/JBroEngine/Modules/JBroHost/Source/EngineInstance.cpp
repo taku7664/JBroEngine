@@ -695,6 +695,15 @@ namespace JBro
                 {
                     m_input->BeginFrame(m_platform->GetInputEvents());
                 }
+                // 게임패드는 폴링이다(D-210). 게임이 입력을 받는 동안만 읽고, 아니면 눌린 것을 떼고 모터를 멈춘다.
+                if (false == m_inputOwnedByHost || m_hostGameInputActive)
+                {
+                    m_input->PollGamepads(*m_platform, deltaTime);
+                }
+                else
+                {
+                    m_input->ReleaseGamepads(*m_platform);
+                }
             }
         }
         if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
@@ -1130,6 +1139,11 @@ namespace JBro
         m_hostInput.Append(events.data, events.size);
     }
 
+    void EngineInstance::SetHostGameInputActive(bool active)
+    {
+        m_hostGameInputActive = active;
+    }
+
     void EngineInstance::SetInputOwnedByHost(bool owned)
     {
         m_inputOwnedByHost = owned;
@@ -1237,6 +1251,11 @@ namespace JBro
         // 입력은 프로젝트(스크립트 DLL) 뒤에 내린다. DLL 이 그 주소를 들고 있었다.
         if (m_input)
         {
+            // 내리기 전에 모터를 멈춘다. 진동을 건 채 끝나면 패드가 계속 운다.
+            if (m_platform != nullptr)
+            {
+                m_input->ReleaseGamepads(*m_platform);
+            }
             BindInputSystemContext({});
             BindInputServiceContext({});
             m_frameworkContext.input = nullptr;

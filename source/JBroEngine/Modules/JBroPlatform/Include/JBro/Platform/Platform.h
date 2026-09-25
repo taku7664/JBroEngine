@@ -357,5 +357,22 @@ namespace JBro
         {
             return false;
         }
+
+        // ── 게임패드 (D-210) ────────────────────────────────────────────────────────────────────
+        // 자리(0..3) 하나의 지금 상태다. 연결되어 있지 않으면 비우고 거짓이다. 빈 자리를 묻는 것이 비싸므로(XInput 은 수 ms)
+        // 부르는 쪽이 빈 자리는 가끔만 묻는다. 기본은 "이 플랫폼에는 없다" 다.
+        virtual bool PollGamepad(std::uint32_t slot, GamepadRawState& state)
+        {
+            (void)slot;
+            state = {};
+            return false;
+        }
+        // 두 모터의 세기(0..1)다. 낮은 쪽이 왼쪽(큰 모터)이다. 없는 자리면 아무 일도 하지 않는다.
+        virtual void SetGamepadVibration(std::uint32_t slot, float low, float high)
+        {
+            (void)slot;
+            (void)low;
+            (void)high;
+        }
     };
 }

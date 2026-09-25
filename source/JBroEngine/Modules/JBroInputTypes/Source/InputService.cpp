@@ -24,4 +24,30 @@ namespace JBro::Service
     {
         return GetView().Mouse();
     }
+
+    const GamepadState& InputService::Gamepad(std::uint32_t slot) const
+    {
+        return GetView().Gamepad(slot);
+    }
+
+    void InputService::SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) const
+    {
+        if (System::IInputSystem* input = GetInputSystems().Input)
+        {
+            input->SetGamepadVibration(slot, low, high, seconds);
+        }
+    }
+
+    void InputService::StopGamepadVibration(std::uint32_t slot) const
+    {
+        SetGamepadVibration(slot, 0.0f, 0.0f, 0.0f);
+    }
+
+    void InputService::SetGamepadDeadzones(float stick, float trigger) const
+    {
+        if (System::IInputSystem* input = GetInputSystems().Input)
+        {
+            input->SetGamepadDeadzones(stick, trigger);
+        }
+    }
 }

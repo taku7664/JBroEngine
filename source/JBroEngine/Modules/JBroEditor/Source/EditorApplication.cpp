@@ -3128,6 +3128,7 @@ namespace JBro
             m_engine->SubmitHostInput({&lost, 1}, m_gameViewMapping);
         }
         m_gameReceivingInput = gameInput;
+        m_engine->SetHostGameInputActive(gameInput);
         // 이번 프레임의 게임 뷰가 다시 알린다. 알리지 않으면(닫힘·가림) 다음 프레임은 게임 입력이 없다.
         m_gameViewReported = false;
         m_gameViewFocused = false;

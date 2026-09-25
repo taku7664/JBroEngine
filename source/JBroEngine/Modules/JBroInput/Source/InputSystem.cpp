@@ -2,6 +2,8 @@
 
 #include <JBro/Core/Log.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 
 namespace JBro::System
@@ -88,6 +90,14 @@ namespace JBro::System
         m_frame.mouse.deltaY = 0.0f;
         m_frame.mouse.wheelX = 0.0f;
         m_frame.mouse.wheelY = 0.0f;
+        for (GamepadState& pad : m_frame.gamepads)
+        {
+            for (ButtonState& button : pad.buttons)
+            {
+                button.pressCount = 0;
+                button.releaseCount = 0;
+            }
+        }
 
         if (events.data == nullptr)
         {
@@ -280,11 +290,192 @@ namespace JBro::System
 
         case InputEventKind::FocusLost:
             ReleaseAll();
+            m_focused = false;
             break;
 
         case InputEventKind::FocusGained:
+            m_focused = true;
             break;
         }
+    }
+
+    namespace
+    {
+        // 둥근 데드존이다(기존 엔진과 같다): 길이가 데드존 안이면 0, 밖이면 데드존..1 을 0..1 로 편다. 방향은 그대로다.
+        void ApplyStickDeadzone(float rawX, float rawY, float deadzone, float& x, float& y)
+        {
+            const float length = std::sqrt(rawX * rawX + rawY * rawY);
+            if (length <= deadzone || length <= 0.0f)
+            {
+                x = 0.0f;
+                y = 0.0f;
+                return;
+            }
+            const float clamped = length > 1.0f ? 1.0f : length;
+            const float scale = ((clamped - deadzone) / (1.0f - deadzone)) / length;
+            x = rawX * scale;
+            y = rawY * scale;
+        }
+
+        float ApplyTriggerThreshold(float raw, float threshold)
+        {
+            if (raw <= threshold)
+            {
+                return 0.0f;
+            }
+            const float value = (raw - threshold) / (1.0f - threshold);
+            return value > 1.0f ? 1.0f : value;
+        }
+    }
+
+    void InputSystem::FoldGamepads(const GamepadRawState (&raw)[MaxGamepads])
+    {
+        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        {
+            GamepadState& pad = m_frame.gamepads[slot];
+            const GamepadRawState& source = raw[slot];
+            if (false == source.connected)
+            {
+                // 빠진 패드는 눌린 것을 뗀 것으로 접는다(키보드의 포커스 잃음과 같다). 모터도 멈춘다.
+                for (ButtonState& button : pad.buttons)
+                {
+                    Release(button);
+                }
+                for (float& axis : pad.axes)
+                {
+                    axis = 0.0f;
+                }
+                pad.connected = false;
+                m_vibration[slot].low = 0.0f;
+                m_vibration[slot].high = 0.0f;
+                m_vibration[slot].timed = false;
+                continue;
+            }
+            pad.connected = true;
+            for (std::size_t index = 0; index < GamepadButtonCount; ++index)
+            {
+                const bool down = (source.buttons & (1u << index)) != 0;
+                if (down)
+                {
+                    Press(pad.buttons[index]);
+                }
+                else
+                {
+                    Release(pad.buttons[index]);
+                }
+            }
+            const auto axis = [&source](GamepadAxis which)
+            {
+                return source.axes[static_cast<std::size_t>(which)];
+            };
+            ApplyStickDeadzone(axis(GamepadAxis::LeftX), axis(GamepadAxis::LeftY), m_stickDeadzone,
+                pad.axes[static_cast<std::size_t>(GamepadAxis::LeftX)], pad.axes[static_cast<std::size_t>(GamepadAxis::LeftY)]);
+            ApplyStickDeadzone(axis(GamepadAxis::RightX), axis(GamepadAxis::RightY), m_stickDeadzone,
+                pad.axes[static_cast<std::size_t>(GamepadAxis::RightX)], pad.axes[static_cast<std::size_t>(GamepadAxis::RightY)]);
+            pad.axes[static_cast<std::size_t>(GamepadAxis::LeftTrigger)] =
+                ApplyTriggerThreshold(axis(GamepadAxis::LeftTrigger), m_triggerThreshold);
+            pad.axes[static_cast<std::size_t>(GamepadAxis::RightTrigger)] =
+                ApplyTriggerThreshold(axis(GamepadAxis::RightTrigger), m_triggerThreshold);
+        }
+    }
+
+    void InputSystem::PollGamepads(IPlatform& platform, float deltaTime)
+    {
+        if (false == m_focused)
+        {
+            ReleaseGamepads(platform);
+            return;
+        }
+        GamepadRawState raw[MaxGamepads];
+        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        {
+            // 빈 자리는 가끔만 묻는다. 꽂으면 길어야 그만큼 뒤에 보인다(60 fps 에서 2 초).
+            if (false == m_frame.gamepads[slot].connected && m_gamepadRecheck[slot] > 0)
+            {
+                --m_gamepadRecheck[slot];
+                continue;
+            }
+            if (false == platform.PollGamepad(slot, raw[slot]))
+            {
+                raw[slot] = {};
+                m_gamepadRecheck[slot] = GamepadRecheckFrames;
+            }
+        }
+        FoldGamepads(raw);
+
+        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        {
+            Vibration& vibration = m_vibration[slot];
+            if (vibration.timed)
+            {
+                vibration.remaining -= deltaTime;
+                if (vibration.remaining <= 0.0f)
+                {
+                    vibration.low = 0.0f;
+                    vibration.high = 0.0f;
+                    vibration.timed = false;
+                }
+            }
+            // 바뀔 때만 건다. 매 프레임 거는 것은 XInput 에 헛일이다.
+            if (m_frame.gamepads[slot].connected
+                && (vibration.low != vibration.appliedLow || vibration.high != vibration.appliedHigh))
+            {
+                platform.SetGamepadVibration(slot, vibration.low, vibration.high);
+                vibration.appliedLow = vibration.low;
+                vibration.appliedHigh = vibration.high;
+            }
+            else if (false == m_frame.gamepads[slot].connected)
+            {
+                vibration.appliedLow = 0.0f;
+                vibration.appliedHigh = 0.0f;
+            }
+        }
+    }
+
+    void InputSystem::ReleaseGamepads(IPlatform& platform)
+    {
+        GamepadRawState none[MaxGamepads];
+        FoldGamepads(none);
+        for (std::uint32_t slot = 0; slot < MaxGamepads; ++slot)
+        {
+            Vibration& vibration = m_vibration[slot];
+            // 포커스를 잃으면 폴링을 멈춘다 - 모터는 직접 멈춰야 한다(알트탭한 뒤에도 울리던 것을 기존 엔진이 고쳤다).
+            if (vibration.appliedLow != 0.0f || vibration.appliedHigh != 0.0f)
+            {
+                platform.SetGamepadVibration(slot, 0.0f, 0.0f);
+            }
+            vibration = {};
+            // 돌아오면 곧바로 다시 묻는다.
+            m_gamepadRecheck[slot] = 0;
+        }
+    }
+
+    float InputSystem::GetAppliedVibration(std::uint32_t slot, bool high) const
+    {
+        if (slot >= MaxGamepads)
+        {
+            return 0.0f;
+        }
+        return high ? m_vibration[slot].appliedHigh : m_vibration[slot].appliedLow;
+    }
+
+    void InputSystem::SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) noexcept
+    {
+        if (slot >= MaxGamepads)
+        {
+            return;
+        }
+        Vibration& vibration = m_vibration[slot];
+        vibration.low = std::clamp(low, 0.0f, 1.0f);
+        vibration.high = std::clamp(high, 0.0f, 1.0f);
+        vibration.timed = seconds > 0.0f;
+        vibration.remaining = seconds;
+    }
+
+    void InputSystem::SetGamepadDeadzones(float stick, float trigger) noexcept
+    {
+        m_stickDeadzone = std::clamp(stick, 0.0f, 0.95f);
+        m_triggerThreshold = std::clamp(trigger, 0.0f, 0.95f);
     }
 
     void InputSystem::ReleaseAll()
