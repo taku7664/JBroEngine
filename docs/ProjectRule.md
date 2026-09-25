@@ -53,7 +53,7 @@
   재질의 자료 모델은 `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }` 이고 빌트인 셰이더도 Shader 에셋이다. (D-111)
 - 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
 - 2D 스프라이트 정렬은 아이템이 아니라 `(키, 인덱스)` 를 옮긴다. 키는 레이어 순서가 최상위이고,
-  그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `sourceId` 로, 그것도 같으면 제출 번호로 안정화한다(한 텍스트의 글자들, D-214). (MUST)
+  그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `sourceId` 로, 그것도 같으면 제출 번호로 안정화한다(한 텍스트의 글자들, D-215). (MUST)
   그리는 순서는 `GetSprite(drawIndex)` 로, 제출된 순서는 `GetSubmittedSprites()` 로 읽는다.
 - 2D 스프라이트 패킷(`SpriteSubmit`)과 GPU 인스턴스의 변환은 `Matrix4x4`가 아니라 **아핀 6개 + 깊이 1개**를
   담는 `SpriteTransform2D { float linear[4]; float translation[2]; float depth; }`(28B)로 전달한다. (MUST)
@@ -61,9 +61,11 @@
   패킷 필드는 D-32 ABI이므로 이후 변경은 Decisions를 거친다. (D-54)
 - 스프라이트 패킷은 렌더러가 발급한 텍스처 핸들과 UV 사각형(uMin, vMin, uScale, vScale)을 든다. GPU 인스턴스는 40B 다
   (변환 28B + 틴트 `UByte4Norm` 4B + UV `UShort4Norm` 8B, D-114). SDF 텍스트(`shading = SdfText`)는 제 파이프라인과 52B 인스턴스
-  (외곽선 색 4B + 문턱 8B 를 더한 것) 버퍼로 그리고, 제출 패킷(84B)의 SDF 필드는 정규화 정수다 - 패킷을 키우면 스프라이트 제출이 느려진다(D-214).
+  (외곽선 색 4B + 문턱 8B 를 더한 것) 버퍼로 그리고, 제출 패킷(84B)의 SDF 필드는 정규화 정수다 - 패킷을 키우면 스프라이트 제출이 느려진다(D-215).
   렌더러는 제출 순서를 바꾸지 않고 텍스처·샘플러가 같은 이웃만 드로우 하나로 묶는다. GPU 텍스처는 에셋이 아니라
   프레임워크의 `SpriteLibrary` 가 들고, 렌더러 프레임 밖(렌더 추출)에서만 올린다. (MUST) (D-113)
+- 텍스처의 사각형 쓰기(`IRHIDevice::WriteTextureRegion`)는 선택 계약이다. 구현하지 않은 백엔드는 `false` 를 반환하고, 부르는 쪽은 텍스처 전체
+  쓰기로 되돌아간다 - 사각형 쓰기가 없어도 그림은 같아야 한다. 텍스처 밖으로 나가는 사각형과 한 행보다 짧은 행 간격은 거절한다. (MUST) (D-216)
 - 스프라이트의 화면 크기와 피벗은 에셋이 정한다: 칸 픽셀 / 에셋 `pixelsPerUnit`, 칸의 피벗. `SpriteRenderer2D` 의
   `sizeMode`·`pivotMode` 가 각각 `Custom` 이거나 스프라이트가 풀리지 않았을 때만 컴포넌트의 `size`·`pivot` 이다.
   (MUST) (D-119·D-124)
@@ -178,13 +180,13 @@
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
-  | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현) |
+  | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216) |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
-  | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype)·`TextLayout`(UTF-8·커닝·줄바꿈·정렬). `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200) |
+  | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
   | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
 
   > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고

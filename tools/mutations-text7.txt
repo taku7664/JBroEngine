@@ -1,0 +1,23 @@
+Modules\JBroText\Source\GlyphAtlas.cpp	region:rect-not-grown	target.dirtyMaxX = std::max(target.dirtyMaxX, x + width);	target.dirtyMaxX = target.dirtyMaxX;
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	region:data-at-page-origin	region.data = source.Data() + static_cast<std::size_t>(y) * rowPitch + static_cast<std::size_t>(x) * 4;	region.data = source.Data();
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	region:bytes-counted-as-page	m_uploadedBytes += static_cast<std::uint64_t>(width) * height * 4;	m_uploadedBytes += source.Size();
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	region:never-tried	if (width > 0 && height > 0)\n                    {\n                        JArrayView	if (false)\n                    {\n                        JArrayView
+Modules\JBroGraphics\Source\Renderer.cpp	region:bounds-unchecked	\n            || x + width > resource->extent.width || y + height > resource->extent.height)	)
+Modules\JBroD3D11RHI\Source\D3D11Resources.cpp	region:d3d11-offset-ignored	box.left = x;	box.left = 0;
+Modules\JBroD3D12RHI\Source\D3D12Resources.cpp	region:d3d12-offset-ignored	m_commandList->CopyTextureRegion(&destination, x, y, 0, &source, nullptr);	m_commandList->CopyTextureRegion(&destination, 0, y, 0, &source, nullptr);
+Modules\JBroVulkanRHI\Source\VulkanResources.cpp	region:vulkan-offset-ignored	region.imageOffset = {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), 0};	region.imageOffset = {0, static_cast<std::int32_t>(y), 0};
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	drop:not-counted	++m_droppedGlyphsThisFrame;	;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	drop:not-reset	m_droppedGlyphsThisFrame = 0;	;
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	prewarm:stale-result-accepted	if (false == completed || result.atlasGeneration != entry.atlasGeneration || result.dataGeneration != entry.dataGeneration)	if (false == completed)
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	prewarm:wait-skipped	while (entry.prewarmTasksPending > 0 && m_tasks != nullptr)	while (false)
+Modules\JBroText\Source\FontFace.cpp	mark:anchor-sign	dx = baseX - markX;	dx = baseX + markX;
+Modules\JBroText\Source\FontFace.cpp	mark:extension-not-unwrapped	subtable += extensionOffset;	subtable += 0;
+Modules\JBroText\Source\FontFace.cpp	mark:no-lookup	return VisitSubtables(gpos, 4,	return VisitSubtables(gpos, 7,
+Modules\JBroText\Source\TextLayout.cpp	mark:treated-as-letter	if (IsCombiningMark(value) && m_items.Size() > 0	if (false && m_items.Size() > 0
+Modules\JBroText\Source\TextLayout.cpp	mark:moves-pen	item.x = m_items[item.markBase].x + item.markX;\n                ++index;	item.x = m_items[item.markBase].x + item.markX;\n                penX += 100.0f;\n                ++index;
+Modules\JBroText\Source\TextLayout.cpp	mark:no-y-offset	glyph.y = item.markY;	glyph.y = 0.0f;
+Modules\JBroText\Source\TextLayout.cpp	mark:baseline-overwrites	glyph.y += line.baseline;	glyph.y = line.baseline;
+Modules\JBroText\Source\TextLayout.cpp	mark:kerns-with-mark	? m_items[m_items[index - 1].markBase]\n                    : m_items[index - 1];	? m_items[index - 1]\n                    : m_items[index - 1];
+Modules\JBroText\Source\TextLayout.cpp	mark:fallback-at-origin	item.markX = base.advance;	item.markX = 0.0f;
+Modules\JBroText\Source\TextLayout.cpp	mark:stacks-on-mark	? m_items.Last().markBase	? static_cast<std::uint32_t>(m_items.Size() - 1)
+Modules\JBroText\Source\TextLayout.cpp	mark:unscaled-anchor	item.markX = static_cast<float>(dx) * scale;	item.markX = static_cast<float>(dx);

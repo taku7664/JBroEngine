@@ -1,0 +1,6 @@
+Modules\JBroText\Source\GlyphAtlas.cpp	region:rect-not-grown	target.dirtyMaxX = std::max(target.dirtyMaxX, x + width);	target.dirtyMaxX = target.dirtyMaxX;
+Modules\JBroD3D11RHI\Source\D3D11Resources.cpp	region:d3d11-bounds-unchecked	if (pixelSize == 0 || x + width > levelWidth || y + height > levelHeight || rowPitch < rowBytes	if (pixelSize == 0 || rowPitch < rowBytes
+Modules\JBroD3D12RHI\Source\D3D12Resources.cpp	region:d3d12-bounds-unchecked	if (static_cast<UINT64>(x) + width > resourceDesc.Width || static_cast<UINT64>(y) + height > resourceDesc.Height)	if (false)
+Modules\JBroVulkanRHI\Source\VulkanResources.cpp	region:vulkan-bounds-unchecked	if (rowBytes == 0 || x + width > levelWidth || y + height > levelHeight || rowPitch < rowBytes	if (rowBytes == 0 || rowPitch < rowBytes
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	prewarm:no-wait-and-stale-accepted	if (false == completed || result.atlasGeneration != entry.atlasGeneration || result.dataGeneration != entry.dataGeneration)	if (false == completed)
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	prewarm:no-wait-and-stale-accepted	while (entry.prewarmTasksPending > 0 && m_tasks != nullptr)	while (false)
