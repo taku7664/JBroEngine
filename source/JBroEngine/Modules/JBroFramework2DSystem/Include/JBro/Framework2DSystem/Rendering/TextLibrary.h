@@ -113,6 +113,9 @@ namespace JBro
             std::uint32_t         prewarmed = 0;
             std::uint32_t         atlasGeneration = 0;
             std::uint32_t         pageLimit = 0;     // 0 이면 라이브러리 한도다. 되풀이해 넘치면 두 배씩 오른다
+            // 미리 채우기가 끝났을 때의 페이지 수다. 한도는 이 위에 더해 센다 - 기본 SDF(48, 퍼짐 8)의 KS X 1001 벌은 그것만으로
+            // 9 페이지라, 한도 8 을 그대로 쓰면 첫 프레임에 비우고 다시 뜬 뒤 한도를 올렸다(원본 Noto Sans KR 실측).
+            std::uint32_t         prewarmPages = 0;
             std::uint64_t         lastTrimFrame = 0; // 0 이면 비운 적이 없다
             std::uint32_t         prewarmTasksPending = 0; // 워커에서 도는 미리 뜨기 태스크 수
             FontPrewarm           prewarm = FontPrewarm::None;

@@ -347,6 +347,7 @@ namespace JBro
     void TextLibrary::Prewarm(FontEntry& entry, std::uint32_t slot)
     {
         entry.prewarmed = 0;
+        entry.prewarmPages = 0;
         if (entry.prewarm == FontPrewarm::None)
         {
             return;
@@ -358,6 +359,7 @@ namespace JBro
         if (m_tasks == nullptr || false == m_tasks->IsInitialized())
         {
             entry.prewarmed = entry.atlas.Prewarm(entry.face, set, pixelSize, spread);
+            entry.prewarmPages = entry.atlas.GetPageCount();
             Log::Write(LogLevel::Info, "text", "a font prewarmed %u glyphs on %u atlas pages", entry.prewarmed,
                 entry.atlas.GetPageCount());
             return;
@@ -389,6 +391,7 @@ namespace JBro
         if (m_tasks->Submit(std::move(group)) == InvalidTaskGroupId)
         {
             entry.prewarmed = entry.atlas.Prewarm(entry.face, set, pixelSize, spread);
+            entry.prewarmPages = entry.atlas.GetPageCount();
             return;
         }
         entry.prewarmTasksPending += tasks;
@@ -421,6 +424,7 @@ namespace JBro
         }
         if (entry.prewarmTasksPending == 0)
         {
+            entry.prewarmPages = entry.atlas.GetPageCount();
             Log::Write(LogLevel::Info, "text", "a font prewarmed %u glyphs on workers, on %u atlas pages", entry.prewarmed,
                 entry.atlas.GetPageCount());
         }
@@ -456,7 +460,8 @@ namespace JBro
             }
             FontEntry& entry = *m_fonts[index];
             const std::uint32_t limit = entry.pageLimit > m_pageLimit ? entry.pageLimit : m_pageLimit;
-            if (entry.atlas.GetPageCount() <= limit)
+            // 미리 채운 페이지는 한도에 넣지 않는다. 워커가 아직 채우는 중이면 페이지가 느는 중이므로 비우지 않는다.
+            if (entry.prewarmTasksPending > 0 || entry.atlas.GetPageCount() <= limit + entry.prewarmPages)
             {
                 continue;
             }

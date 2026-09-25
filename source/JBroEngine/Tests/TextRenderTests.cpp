@@ -716,6 +716,24 @@ namespace
             TextStore::Get().Assign(label->text, "\xEA\xB8\x80\xEC\x9E\x90 ABC", 10);
             gpu.Paint(framework);
             Check(texts->GetLibrary().GetUploadCount() == uploads, "new letters that were prewarmed upload nothing");
+
+            // 미리 채운 페이지는 퇴출 한도에 들지 않는다. 200 px 로 미리 채우면 한 장을 넘는데, 한도를 1 로 줘도 비우지 않는다.
+            // (원본 Noto Sans KR 의 기본 SDF 벌은 9 페이지라 기본 한도 8 에서 첫 프레임에 비워졌다.)
+            {
+                AssetMetaFile meta;
+                AssetMetaError error;
+                Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads again");
+                meta.fontOptions.prewarmSize = 200;
+                Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves a large prewarm");
+            }
+            texts->SetAtlasPageLimit(1);
+            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            Check(project.assets.ReloadInPlace(project.fontId), "the font reloads with the large prewarm");
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2, "a 200 px prewarm fills more than one page");
+            Check(texts->GetLibrary().GetTrimCount() == trims && texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29,
+                "and the prewarmed pages are not counted against the page limit");
             framework.Shutdown();
         }
         gpu.Close();
