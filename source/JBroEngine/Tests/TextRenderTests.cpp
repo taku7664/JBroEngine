@@ -712,6 +712,43 @@ namespace
                     && whiteAt(huge.maxX, huge.maxY),
                 "and the glyph's quad is not filled into a box - the corners of the outline's bounds stay white");
             Check(huge.black > near.black, "the cut outline is still wider than a 3 px one");
+            // 자르는 자리는 퍼짐의 한 칸 안쪽이다(48 px 거리장, 퍼짐 8 이면 7 칸 = 40 px 글자에서 5.83 px). 셰이더도 문턱을 0 위로 막지만,
+            // 그것만으로는 외곽선이 퍼짐 끝까지 가서 가장자리가 흐리다.
+            label->outlineWidth = 7.0f * 40.0f / 48.0f;
+            gpu.Paint(framework);
+            const ColourCount atLimit = CountColours(gpu);
+            Check(atLimit.black == huge.black && atLimit.touched == huge.touched,
+                "the widest outline is exactly the one at a field pixel inside the spread");
+
+            // 폭은 글자 픽셀이다. 96 px 글자(거리장 한 칸이 글자 2 px)에 6 px 외곽선을 주고 카메라를 두 배로 빼면 화면에서 3 px 띠다.
+            // 거리장 픽셀로 셌다면 12 px 이라 화면에서 6 px 이다.
+            label->fontSize = 96.0f;
+            label->outlineWidth = 6.0f;
+            camera->orthographicSize = 2.0f;
+            gpu.Paint(framework);
+            std::uint32_t band = 0;
+            {
+                // 가운데 줄을 왼쪽부터 훑어 첫 빨강(왼쪽 기둥)까지의 검은 픽셀을 센다.
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const auto* pixel = reinterpret_cast<const unsigned char*>(
+                        gpu.image.Data() + static_cast<std::size_t>(32) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                    const bool black = pixel[2] < 70 && pixel[1] < 70 && pixel[0] < 70;
+                    const bool red = pixel[2] > 200 && pixel[1] < 70;
+                    if (red)
+                    {
+                        break;
+                    }
+                    if (black)
+                    {
+                        ++band;
+                    }
+                }
+            }
+            std::cout << "  [measure] 6 px outline on a 96 px H seen at half size: " << band << " screen px" << std::endl;
+            Check(band >= 2 && band <= 4, "the outline width counts glyph pixels, not distance-field pixels");
+            label->fontSize = 40.0f;
+            camera->orthographicSize = 1.0f;
 
             // 3. 카메라를 두 배로 빼면 글자가 절반이 되고, 외곽선과 채우기의 비는 그대로다.
             label->outlineWidth = 3.0f;
@@ -768,6 +805,10 @@ namespace
             float maxY = 0.0f;
             Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the H has a block");
             const float width40 = maxX - minX;
+            // 반올림한 픽셀이 같아도(40.2 → 40) 다시 레이아웃한다.
+            label->fontSize = 40.2f;
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() == relayouts + 1, "a fraction of a pixel is a new size for an SDF text");
             label->fontSize = 40.7f;
             gpu.Paint(framework);
             label->fontSize = 57.3f;
@@ -776,7 +817,7 @@ namespace
             Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY)
                     && std::fabs((maxX - minX) / width40 - 57.3f / 40.0f) < 0.001f,
                 "an SDF text is laid out at its exact size, not rounded to a pixel");
-            Check(texts->GetRelayoutCount() == relayouts + 2, "each new size lays the text out again");
+            Check(texts->GetRelayoutCount() == relayouts + 3, "each new size lays the text out again");
             Check(texts->GetLibrary().GetUploadCount() == uploads, "but a new size is not a new glyph, so nothing uploads");
             Check(CountColours(gpu).red > near.red, "and the bigger H is drawn bigger");
 
