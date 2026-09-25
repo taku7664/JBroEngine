@@ -171,7 +171,24 @@ namespace JBro
             {"ReverbRoom", &AudioBusEffects::reverbRoom},
             {"ReverbDamping", &AudioBusEffects::reverbDamping},
             {"ReverbMix", &AudioBusEffects::reverbMix},
-            {"Dry", &AudioBusEffects::dry}};
+            {"Dry", &AudioBusEffects::dry},
+            {"EqLowHz", &AudioBusEffects::eqLowHz},
+            {"EqLowGain", &AudioBusEffects::eqLowGain},
+            {"EqMidHz", &AudioBusEffects::eqMidHz},
+            {"EqMidGain", &AudioBusEffects::eqMidGain},
+            {"EqHighHz", &AudioBusEffects::eqHighHz},
+            {"EqHighGain", &AudioBusEffects::eqHighGain},
+            {"Distortion", &AudioBusEffects::distortion},
+            {"DistortionMix", &AudioBusEffects::distortionMix},
+            {"ChorusMix", &AudioBusEffects::chorusMix},
+            {"ChorusRate", &AudioBusEffects::chorusRate},
+            {"ChorusDepth", &AudioBusEffects::chorusDepth},
+            {"PitchShift", &AudioBusEffects::pitchShift},
+            {"CompRatio", &AudioBusEffects::compRatio},
+            {"CompThreshold", &AudioBusEffects::compThreshold},
+            {"CompAttack", &AudioBusEffects::compAttack},
+            {"CompRelease", &AudioBusEffects::compRelease},
+            {"CompMakeup", &AudioBusEffects::compMakeup}};
 
         float* AudioBusEffectField(AudioBusEffects& effects, const String& key)
         {
