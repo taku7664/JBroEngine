@@ -158,6 +158,12 @@ namespace JBro
                 return false;
             }
             entry.failedGeneration = 0;
+            // 미리 뜨기(text-plan §3.6). 폰트를 열 때 한 번이다 - 그 뒤의 글이 런타임 래스터화 없이 그려진다. 올리기는 다음 업로드가 한다.
+            entry.prewarm = data->options.prewarm;
+            entry.prewarmSize = data->options.prewarmSize;
+            entry.pageLimit = 0;
+            entry.lastTrimFrame = 0;
+            Prewarm(entry);
         }
         view.face = &entry.face;
         view.atlas = &entry.atlas;
@@ -167,6 +173,7 @@ namespace JBro
         view.renderMode = entry.renderMode;
         view.sdfSize = entry.sdfSize;
         view.sdfSpread = entry.sdfSpread;
+        view.atlasGeneration = entry.atlasGeneration;
         return true;
     }
 
@@ -237,6 +244,74 @@ namespace JBro
             return {};
         }
         return entry.pageTextures[page];
+    }
+
+    void TextLibrary::Prewarm(FontEntry& entry)
+    {
+        entry.prewarmed = 0;
+        if (entry.prewarm == FontPrewarm::None)
+        {
+            return;
+        }
+        const Text::PrewarmSet set = entry.prewarm == FontPrewarm::Ksx1001 ? Text::PrewarmSet::Ksx1001 : Text::PrewarmSet::Ascii;
+        const bool sdf = entry.renderMode == FontRenderMode::Sdf;
+        entry.prewarmed = entry.atlas.Prewarm(entry.face, set, sdf ? entry.sdfSize : entry.prewarmSize, sdf ? entry.sdfSpread : 0);
+        Log::Write(LogLevel::Info, "text", "a font prewarmed %u glyphs on %u atlas pages", entry.prewarmed,
+            entry.atlas.GetPageCount());
+    }
+
+    void TextLibrary::TrimAtlases(std::uint64_t frame)
+    {
+        for (std::size_t index = 0; index < m_fonts.Size(); ++index)
+        {
+            if (false == static_cast<bool>(m_fonts[index]))
+            {
+                continue;
+            }
+            FontEntry& entry = *m_fonts[index];
+            const std::uint32_t limit = entry.pageLimit > m_pageLimit ? entry.pageLimit : m_pageLimit;
+            if (entry.atlas.GetPageCount() <= limit)
+            {
+                continue;
+            }
+            if (entry.lastTrimFrame != 0 && frame - entry.lastTrimFrame < ThrashFrames)
+            {
+                // 방금 비웠는데 또 찼다. 보이는 글자만으로 한도를 넘으므로 비우면 매 프레임 다시 뜬다 - 한도를 올린다.
+                entry.pageLimit = limit * 2;
+                Log::Write(LogLevel::Warning, "text", "a font needs more than %u atlas pages for the text on screen; the limit is now %u",
+                    limit, entry.pageLimit);
+                continue;
+            }
+            ReleasePages(entry);
+            entry.atlas.Clear();
+            ++entry.atlasGeneration;
+            entry.lastTrimFrame = frame;
+            ++m_trimCount;
+            Prewarm(entry);
+            Log::Write(LogLevel::Info, "text", "a font atlas passed %u pages and was emptied; the text on screen draws its glyphs again",
+                limit);
+        }
+    }
+
+    void TextLibrary::SetPageLimit(std::uint32_t pages)
+    {
+        m_pageLimit = pages > 0 ? pages : 1;
+    }
+
+    std::uint32_t TextLibrary::GetTrimCount() const
+    {
+        return m_trimCount;
+    }
+
+    std::uint32_t TextLibrary::GetPrewarmedGlyphCount(AssetHandle font) const
+    {
+        const std::uint32_t slot = font.index & SlotMask;
+        if (slot >= m_fonts.Size() || false == static_cast<bool>(m_fonts[slot]))
+        {
+            return 0;
+        }
+        const FontEntry& entry = *m_fonts[slot];
+        return entry.asset.index == font.index && entry.asset.generation == font.generation ? entry.prewarmed : 0;
     }
 
     std::uint64_t TextLibrary::GetUploadCount() const

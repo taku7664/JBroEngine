@@ -32,6 +32,8 @@ namespace JBro
         FontRenderMode        renderMode = FontRenderMode::Bitmap;
         std::uint32_t         sdfSize = 48;
         std::uint32_t         sdfSpread = 8;
+        // 아틀라스를 비울 때마다 오른다(퇴출, `TrimAtlases`). 이 값이 바뀐 폰트의 텍스트는 다시 레이아웃한다 - 옛 칸이 없다.
+        std::uint32_t         atlasGeneration = 0;
     };
 
     class TextLibrary final
@@ -51,6 +53,15 @@ namespace JBro
         // 로드한 프로젝트 폰트다. 순서는 목록 그대로이고, 로드하지 못한 것은 빠진다.
         ArrayView<const AssetHandle> GetProjectFonts() const;
 
+        // **글리프 퇴출**(text-plan §7). 폰트 하나의 아틀라스가 한도(페이지 수)를 넘으면 통째로 비운다 - 칸은 옮기지 않으므로 오래 안 쓴
+        // 칸만 골라 뺄 수 없고, 비운 뒤 이번 프레임에 보이는 텍스트가 필요한 글자만 다시 뜬다. 비운 지 `ThrashFrames` 안에 또 넘치면
+        // 보이는 글자만으로도 한도를 넘는 것이므로 비우지 않고 그 폰트의 한도를 두 배로 올린다(경고). 프레임 처음, 레이아웃 전에 부른다.
+        void TrimAtlases(std::uint64_t frame);
+        void SetPageLimit(std::uint32_t pages);
+        std::uint32_t GetTrimCount() const;
+        static constexpr std::uint32_t DefaultPageLimit = 8;
+        static constexpr std::uint64_t ThrashFrames = 60;
+
         // 더러운 아틀라스 페이지를 올린다. 새 페이지는 등록하고 있던 페이지는 같은 핸들에 다시 쓴다. 올린 페이지 수다.
         std::uint32_t UploadDirtyPages();
 
@@ -60,6 +71,8 @@ namespace JBro
         // 지금까지 올린 페이지 수(등록과 다시 쓰기를 모두 센다)와 살아 있는 페이지 텍스처 수다. 테스트가 "새 글자가 없는 프레임에는
         // 올리지 않는다" 를 이것으로 잰다 - 렌더러에는 올린 횟수를 세는 자리가 없다.
         std::uint64_t GetUploadCount() const;
+        // 이 폰트를 (다시) 열 때 미리 뜬 칸 수다. 연 적이 없으면 0 이다.
+        std::uint32_t GetPrewarmedGlyphCount(AssetHandle font) const;
         std::uint32_t GetPageTextureCount() const;
 
     private:
@@ -76,11 +89,19 @@ namespace JBro
             FontRenderMode        renderMode = FontRenderMode::Bitmap;
             std::uint32_t         sdfSize = 48;
             std::uint32_t         sdfSpread = 8;
+            // 폰트를 열 때 미리 뜬 칸 수다. 테스트와 로그가 쓴다.
+            std::uint32_t         prewarmed = 0;
+            std::uint32_t         atlasGeneration = 0;
+            std::uint32_t         pageLimit = 0;     // 0 이면 라이브러리 한도다. 되풀이해 넘치면 두 배씩 오른다
+            std::uint64_t         lastTrimFrame = 0; // 0 이면 비운 적이 없다
+            FontPrewarm           prewarm = FontPrewarm::None;
+            std::uint32_t         prewarmSize = 32;
         };
 
         void ReleasePages(FontEntry& entry);
 
         void ReleaseProjectFonts();
+        void Prewarm(FontEntry& entry);
 
         AssetSystem* m_assets = nullptr;
         Renderer*    m_renderer = nullptr;
@@ -91,5 +112,7 @@ namespace JBro
         // 폰트 에셋의 슬롯 번호로 찍는다. 원소가 옮겨 다니지 않게 따로 잡는다(FontView 가 face·atlas 를 가리킨다).
         Array<OwnerPtr<FontEntry>> m_fonts;
         std::uint64_t m_uploadCount = 0;
+        std::uint32_t m_pageLimit = DefaultPageLimit;
+        std::uint32_t m_trimCount = 0;
     };
 }

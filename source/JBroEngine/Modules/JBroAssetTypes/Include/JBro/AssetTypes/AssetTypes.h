@@ -123,6 +123,14 @@ namespace JBro
         Sdf
     };
 
+    // 폰트를 열 때 미리 뜰 글자다(text-plan §3.6). `Ksx1001` 은 ASCII 와 완성형 한글 2,350 자다.
+    enum class FontPrewarm : std::uint8_t
+    {
+        None,
+        Ascii,
+        Ksx1001
+    };
+
     struct FontImportOptions
     {
         float          pixelsPerUnit = DefaultPixelsPerUnit;
@@ -132,6 +140,9 @@ namespace JBro
         // 로드가 8~256, 1~32 로 자른다.
         std::uint32_t  sdfSize = 48;
         std::uint32_t  sdfSpread = 8;
+        FontPrewarm    prewarm = FontPrewarm::None;
+        // `Bitmap` 을 미리 뜰 em 픽셀 크기다. 비트맵은 크기마다 따로 뜨므로 이 크기의 글자만 미리 선다. `Sdf` 는 `sdfSize` 로 뜬다.
+        std::uint32_t  prewarmSize = 32;
     };
 
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.

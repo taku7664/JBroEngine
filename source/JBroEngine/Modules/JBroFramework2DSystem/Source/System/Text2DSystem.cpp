@@ -109,10 +109,21 @@ namespace JBro::System
         return true;
     }
 
+    float Text2DSystem::GetLaidOutFontSize(InstanceId text) const
+    {
+        const Entry* entry = m_entries.Find(text);
+        return entry != nullptr && entry->hasBounds ? entry->fittedSize : 0.0f;
+    }
+
     bool Text2DSystem::IsMissingFont(InstanceId text) const
     {
         const Entry* entry = m_entries.Find(text);
         return entry != nullptr && entry->warnedMissingFont;
+    }
+
+    void Text2DSystem::SetAtlasPageLimit(std::uint32_t pages)
+    {
+        m_library.SetPageLimit(pages);
     }
 
     const TextLibrary& Text2DSystem::GetLibrary() const
@@ -143,6 +154,9 @@ namespace JBro::System
         Mix(key, static_cast<std::uint64_t>(text.alignY));
         Mix(key, Bits(text.lineSpacing));
         Mix(key, Bits(text.letterSpacing));
+        Mix(key, text.autoSize ? 1u : 0u);
+        Mix(key, Bits(text.minFontSize));
+        Mix(key, Bits(text.maxFontSize));
         return key;
     }
 
@@ -186,15 +200,15 @@ namespace JBro::System
     {
         const FontView& font = views[0];
         ++m_relayouts;
-        const std::uint32_t pixelSize = PixelSizeOf(text.fontSize);
         // **SDF 는 크기를 반올림하지 않는다**(4 단계). 거리장 한 벌을 키우고 줄이므로 크기가 조금씩 바뀌는 연출(트윈)에 새 글리프가
         // 생기지 않는다 - 비트맵은 정수 크기마다 새로 떠 아틀라스가 크기 수만큼 자랐다(text-plan §7).
         const bool sdf = font.renderMode == FontRenderMode::Sdf;
-        const float layoutSize = sdf
-            ? std::clamp(std::isfinite(text.fontSize) ? text.fontSize : 1.0f, 1.0f, static_cast<float>(Text::GlyphAtlas::MaxPixelSize))
-            : static_cast<float>(pixelSize);
-        // 거리장 칸 하나가 글자 픽셀 몇 개인가. 비트맵은 1 이다.
-        const float cellScale = sdf ? layoutSize / static_cast<float>(font.sdfSize) : 1.0f;
+        const float maxSize = static_cast<float>(Text::GlyphAtlas::MaxPixelSize);
+        const auto sizeOf = [&](float requested) {
+            return sdf ? std::clamp(std::isfinite(requested) ? requested : 1.0f, 1.0f, maxSize)
+                       : static_cast<float>(PixelSizeOf(requested));
+        };
+        float layoutSize = sizeOf(text.fontSize);
         Text::LayoutOptions options;
         options.fontSize = layoutSize;
         options.boxWidth = std::max(0.0f, text.boxSize.x);
@@ -213,11 +227,11 @@ namespace JBro::System
         {
             entry.fonts[face] = handles[face];
             entry.fontGenerations[face] = views[face].dataGeneration;
+            entry.atlasGenerations[face] = views[face].atlasGeneration;
         }
         entry.optionsKey = MakeOptionsKey(text);
         entry.pixelsPerUnit = font.pixelsPerUnit;
         entry.sdf = sdf;
-        entry.sdfPerTextPixel = sdf ? static_cast<float>(font.sdfSize) / layoutSize : 1.0f;
         entry.sdfSpread = font.sdfSpread;
         entry.filter = font.filter;
         entry.quads.Clear();
@@ -228,11 +242,31 @@ namespace JBro::System
         {
             faces[face] = views[face].face;
         }
-        if (entry.layout.Build(TextStore::Get().GetText(text.text), ArrayView<const Text::FontFace* const>(faces, count),
-                options) != Text::LayoutError::None)
+        const ArrayView<const Text::FontFace* const> faceView(faces, count);
+        const ArrayView<const char> utf8 = TextStore::Get().GetText(text.text);
+        // 자동 크기는 상자가 있을 때만 뜻이 있다. 크기를 먼저 찾고, 그 크기로 레이아웃이 남는다.
+        const bool fitToBox = text.autoSize && (options.boxWidth > 0.0f || options.boxHeight > 0.0f);
+        Text::LayoutError built = Text::LayoutError::None;
+        if (fitToBox)
+        {
+            float chosen = layoutSize;
+            built = entry.layout.BuildToFit(utf8, faceView, options, sizeOf(std::min(text.minFontSize, text.maxFontSize)),
+                sizeOf(std::max(text.minFontSize, text.maxFontSize)), sdf ? 0.0f : 1.0f, chosen);
+            layoutSize = chosen;
+        }
+        else
+        {
+            built = entry.layout.Build(utf8, faceView, options);
+        }
+        entry.fittedSize = layoutSize;
+        entry.sdfPerTextPixel = sdf ? static_cast<float>(font.sdfSize) / layoutSize : 1.0f;
+        if (built != Text::LayoutError::None)
         {
             return;
         }
+        const std::uint32_t pixelSize = PixelSizeOf(layoutSize);
+        // 거리장 칸 하나가 글자 픽셀 몇 개인가. 비트맵은 1 이다.
+        const float cellScale = sdf ? layoutSize / static_cast<float>(font.sdfSize) : 1.0f;
 
         // Clip 은 상자 밖으로 나간 글리프를 잘라 낸다 - 레이아웃은 줄만 버렸고, 여기서 반쯤 걸친 글리프의 사각형과 UV 를 줄인다.
         const bool clip = text.overflow == Component::TextOverflow::Clip && options.boxWidth > 0.0f && options.boxHeight > 0.0f;
@@ -402,6 +436,8 @@ namespace JBro::System
         ++m_frame;
         const TextStore& store = TextStore::Get();
         m_library.SyncProjectFonts();
+        // 레이아웃 전에 넘친 아틀라스를 비운다. 비운 폰트의 텍스트는 아래에서 아틀라스 세대가 달라 다시 레이아웃된다.
+        m_library.TrimAtlases(m_frame);
 
         // 1. 바뀐 것만 다시 레이아웃한다. 여기서 아틀라스에 새 글리프가 들어간다.
         canvas.ForEach<Component::Text2D>([&](Component::Text2D& text)
@@ -443,7 +479,8 @@ namespace JBro::System
             {
                 stale = entry.fonts[face].index != handles[face].index
                     || entry.fonts[face].generation != handles[face].generation
-                    || entry.fontGenerations[face] != views[face].dataGeneration;
+                    || entry.fontGenerations[face] != views[face].dataGeneration
+                    || entry.atlasGenerations[face] != views[face].atlasGeneration;
             }
             if (stale)
             {

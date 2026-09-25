@@ -535,7 +535,22 @@ namespace
                 "and none outside the box around the origin");
             Check(clipped.maxY >= 50, "the cut runs along the box's bottom edge");
             label->overflow = Component::TextOverflow::Wrap;
+
+            // 4-3. 자동 크기: 16 x 40 상자에 A 한 글자가 들어가는 가장 큰 정수 크기로 그린다. 줄 높이가 1.448 em 이라 높이로는 27 px 까지,
+            // A 의 폭(0.608 em)으로는 26 px 까지다. 상자 없이는 뜻이 없어 켜도 그대로다.
+            label->autoSize = true;
+            label->minFontSize = 8.0f;
+            label->maxFontSize = 200.0f;
+            gpu.Paint(framework);
+            const float fitted = texts->GetLaidOutFontSize(label->GetInstanceId());
+            std::cout << "  [measure] auto size in a 16 x 40 box: " << fitted << " px" << std::endl;
+            Check(fitted == std::floor(fitted) && fitted * 0.608f <= 16.0f + 0.01f && (fitted + 1.0f) * 0.608f > 16.0f,
+                "auto size picks the largest whole size whose A fits the box width");
+            Check(FindDark(gpu).count > 0 && FindDark(gpu).count < dark.count, "and draws the smaller A");
             label->boxSize = {0.0f, 0.0f};
+            gpu.Paint(framework);
+            Check(texts->GetLaidOutFontSize(label->GetInstanceId()) == 40.0f, "without a box auto size falls back to fontSize");
+            label->autoSize = false;
             gpu.Paint(framework);
             Check(FindDark(gpu).count == dark.count, "unclipped again it is whole");
 
@@ -558,6 +573,34 @@ namespace
             gpu.Paint(framework);
             Check(texts->GetCachedTextCount() == 1, "a destroyed text leaves the cache");
 
+            // 5-1. 퇴출: 한도를 한 장으로 줄이면 다음 프레임에 두 장짜리 아틀라스를 비우고, 남은 A 만 다시 떠 한 장이 된다.
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2, "the crowd's pages are still there");
+            texts->SetAtlasPageLimit(1);
+            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetTrimCount() == trims + 1, "an atlas past its limit is emptied");
+            Check(texts->GetLibrary().GetPageTextureCount() == 1, "and the text on screen fills one page again");
+            Check(FindDark(gpu).count == dark.count, "the A draws the same after being drawn again");
+            // 5-2. 보이는 글자만으로 한도를 넘으면(곧바로 또 넘치면) 비우지 않고 그 폰트의 한도를 올린다 - 매 프레임 다시 뜨지 않는다.
+            GameObject* again = canvas->CreateObject("crowd again");
+            auto* againTransform = canvas->AttachComponent<Component::Transform2D>(again);
+            againTransform->position = {100.0f, 100.0f};
+            auto* crowdAgain = canvas->AttachComponent<Component::Text2D>(again);
+            crowdAgain->fontId = project.fontId;
+            crowdAgain->fontSize = 300.0f;
+            TextStore::Get().Assign(crowdAgain->text, many, std::strlen(many));
+            framework.BindCanvasAssets();
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            const std::uint64_t relayoutsAfterThrash = texts->GetRelayoutCount();
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetTrimCount() == trims + 1, "an atlas that refills at once is not emptied again");
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2 && texts->GetRelayoutCount() == relayoutsAfterThrash,
+                "its limit rose instead, so the text is not drawn again every frame");
+            canvas->DestroyObject(again);
+            texts->SetAtlasPageLimit(TextLibrary::DefaultPageLimit);
+            gpu.Paint(framework);
+
             // 6. 폰트가 다시 로드되면(PPU 32 → 64) 글자가 다시 레이아웃되고 절반 크기로 그려진다.
             project.WriteOptions(64.0f, TextureFilter::Default);
             Check(project.assets.ReloadInPlace(project.fontId), "the font reloads in place");
@@ -576,6 +619,64 @@ namespace
 
     // **프로젝트 폰트**(D-200 (6), text-plan §5 의 3 단계). `fontId` 가 빈 텍스트는 프로젝트의 첫 폰트로 그리고, 폰트에 없는 글자는
     // 목록에서 찾아 그 폰트의 아틀라스로 그린다. 목록을 바꾸면 다음 프레임에 다시 레이아웃되고, 같은 목록을 다시 주면 그대로다.
+    // **미리 뜬 폰트는 새 글자에도 올리지 않는다**(text-plan §3.6). 완성형 벌을 켠 폰트는 열 때 글자를 모두 떠 두고, 첫 프레임에 페이지를
+    // 한 번 올린다. 그 뒤 다른 음절로 바꿔도 레이아웃만 하고 올리지 않는다.
+    void TestPrewarmedFontsUploadOnce()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads");
+            meta.hasFontOptions = true;
+            meta.fontOptions.prewarm = FontPrewarm::Ksx1001;
+            meta.fontOptions.prewarmSize = 40;
+            Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves with a prewarm set");
+        }
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; prewarm not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29, "opening the font prewarmed its glyphs");
+            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            Check(uploads == 1, "the prewarmed page goes up once, with the first frame");
+            TextStore::Get().Assign(label->text, "\xEA\xB8\x80\xEC\x9E\x90 ABC", 10);
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == uploads, "new letters that were prewarmed upload nothing");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     struct ColourCount
     {
         std::uint32_t red = 0;
@@ -936,6 +1037,7 @@ int RunTextRenderTests()
         TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
         TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
         TestSdfTextKeepsItsOutlineInProportion();
+        TestPrewarmedFontsUploadOnce();
     }
     catch (const std::exception&)
     {

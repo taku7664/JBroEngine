@@ -84,5 +84,10 @@ namespace JBro::Component
         // 굵게 주면 퍼짐까지로 자른다 - 넘으면 글자마다 네모가 칠해지던 기존 엔진의 결함(text-plan §1.2 의 7 번)을 막는다.
         JBRO_FIELD(Color, outlineColor) = { 0.0f, 0.0f, 0.0f, 1.0f };
         JBRO_FIELD(float, outlineWidth, Range(0, 64)) = 0.0f;
+        // **자동 크기**다. 켜면 `fontSize` 대신 [min, max] 에서 상자(`boxSize`)에 들어가는 가장 큰 크기를 쓴다 - 상자가 없으면 뜻이 없다.
+        // 비트맵은 정수 크기, SDF 는 0.25 픽셀까지 맞춘다.
+        JBRO_FIELD(bool, autoSize) = false;
+        JBRO_FIELD(float, minFontSize, Range(1, 512)) = 8.0f;
+        JBRO_FIELD(float, maxFontSize, Range(1, 512)) = 72.0f;
     };
 }

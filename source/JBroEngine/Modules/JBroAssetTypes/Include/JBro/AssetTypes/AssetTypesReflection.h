@@ -52,6 +52,11 @@ namespace JBro
         { FontRenderMode::Bitmap, "Bitmap" },
         { FontRenderMode::Sdf,    "Sdf" });
 
+    JBRO_DEFINE_ENUM_TYPE(FontPrewarm, "JBro.FontPrewarm",
+        { FontPrewarm::None,    "None" },
+        { FontPrewarm::Ascii,   "Ascii" },
+        { FontPrewarm::Ksx1001, "Ksx1001" });
+
     // `.jmeta` 의 `Texture.ImportOptions` 가 이 표로 읽히고 쓰인다.
     template <>
     struct TypeDescriptorOf<TextureImportOptions>
@@ -105,8 +110,10 @@ namespace JBro
                 MakeFieldEntry<&FontImportOptions::renderMode>(),
                 MakeFieldEntry<&FontImportOptions::sdfSize>(Attribute::Range(8, 256)),
                 MakeFieldEntry<&FontImportOptions::sdfSpread>(Attribute::Range(1, 32)),
+                MakeFieldEntry<&FontImportOptions::prewarm>(),
+                MakeFieldEntry<&FontImportOptions::prewarmSize>(Attribute::Range(1, 512)),
             };
-            static const StaticPropertyTable<5> fields { entries };
+            static const StaticPropertyTable<7> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<FontImportOptions>("JBro.FontImportOptions", fields.Get());
             return descriptor;

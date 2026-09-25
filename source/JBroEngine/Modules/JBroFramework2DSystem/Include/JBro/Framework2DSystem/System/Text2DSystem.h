@@ -50,8 +50,12 @@ namespace JBro::System
         // 쓸 수 있는 폰트가 없어 그리지 못하는 텍스트인가. 에디터 인스펙터가 경고로 보인다 - 그리는 쪽과 같은 판단을
         // 따로 흉내 내지 않고 여기서 묻는다. 아직 한 번도 돌지 않은 텍스트는 거짓이다.
         bool IsMissingFont(InstanceId text) const;
+        // 마지막으로 레이아웃한 글자 크기(em 픽셀)다. 자동 크기면 찾은 크기다. 레이아웃이 없으면 0 이다.
+        float GetLaidOutFontSize(InstanceId text) const;
 
         const TextLibrary& GetLibrary() const;
+        // 퇴출 한도(폰트 하나의 아틀라스 페이지 수)다. 테스트가 작게 줄여 퇴출을 부른다.
+        void SetAtlasPageLimit(std::uint32_t pages);
         // 지금까지 다시 레이아웃한 횟수다. 테스트가 "바뀌지 않은 텍스트는 다시 레이아웃하지 않는다" 를 잰다.
         std::uint64_t GetRelayoutCount() const;
         // 캐시에 들어 있는 텍스트 수다.
@@ -85,6 +89,7 @@ namespace JBro::System
             // 앞이 기본 폰트, 뒤가 폴백이다. 기본 폰트는 `fontId` 의 것이거나, 비었으면 프로젝트의 첫 폰트다.
             AssetHandle          fonts[MaxFaces];
             std::uint32_t        fontGenerations[MaxFaces] = {};
+            std::uint32_t        atlasGenerations[MaxFaces] = {};
             std::uint32_t        fontCount = 0;
             std::uint64_t        optionsKey = 0;
             Text::TextLayout     layout;
@@ -94,6 +99,7 @@ namespace JBro::System
             float                bounds[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // 유닛
             // SDF 글자면 참이다. 외곽선 폭(글자 픽셀)을 거리값으로 바꾸는 데 쓰는 비(거리장 픽셀 / 글자 픽셀)와 퍼짐이다.
             bool                 sdf = false;
+            float                fittedSize = 0.0f;
             float                sdfPerTextPixel = 1.0f;
             std::uint32_t        sdfSpread = 8;
             bool                 hasBounds = false;
