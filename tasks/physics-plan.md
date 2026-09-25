@@ -237,7 +237,7 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      되쓰기가 찌그러짐을 무시한다. (4) 부모에 Transform 이 있는데 꺼져 있으면 그 아래 콜라이더는 물리에서 빠진다(ProjectRule 의
      규칙대로다. 옛 질의 코드는 그런 부모를 루트로 보았다). (5) 실제 에디터에서 재생해 본 확인은 아직 없다.
 5. ~~**에디터.** 인스펙터의 `points` 편집(커맨드), 캔버스 뷰의 폴리곤과 조각 그리기, 거절된 폴리곤 표시, 포인트 끌기 도구~~
-   → 2026-09-26 · `56441d2`·`9f29699` · `JBroEditor/Source/Panel/CanvasViewPanel.cpp`(`DrawColliders`·`DrawPolygonEditor`·
+   → 2026-09-26 · `1d66967`·`e018275` · `JBroEditor/Source/Panel/CanvasViewPanel.cpp`(`DrawColliders`·`DrawPolygonEditor`·
    `DrawVertexMenu`), `JBro/Editor/Gizmo/PolygonEditModel.h`.
    - 기존 화면(`Application/Editor/Main/CanvasView/CanvasViewTool.cpp:662~990`): 인스펙터에서 `PolygonCollider2D` 탭을 연 채
      고르면 파란 외곽선과 버텍스 손잡이, 끌기(놓을 때 `CModifyPolygonVerticesCommand` 하나), 변 클릭으로 삽입, 버텍스 우클릭 메뉴의
