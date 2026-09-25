@@ -1,6 +1,8 @@
 ﻿#include "CanvasViewPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Gizmo.h>
+#include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Host/ProjectFile.h>
@@ -24,6 +26,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <utility>
 
 namespace JBro
@@ -202,6 +205,8 @@ namespace JBro
         const Extent2D drawn = m_editor->GetCanvasViewExtent();
         rect.drawWidth = drawn.width != 0 ? static_cast<float>(drawn.width) : available.x;
         rect.drawHeight = drawn.height != 0 ? static_cast<float>(drawn.height) : available.y;
+        m_lastRect = rect;
+        m_hasLastRect = false == Is3D();
 
         ImDrawList* draw = ImGui::GetWindowDrawList();
         const TextureHandle texture = m_editor->GetCanvasViewTexture();
@@ -252,6 +257,7 @@ namespace JBro
             {
                 DrawColliders(rect);
             }
+            DrawPolygonEditor(rect);
             DrawSelectionOutlines(rect);
             DrawOverlay(rect);
         }
@@ -347,6 +353,14 @@ namespace JBro
             }
             Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewUnitTooltip,
                 "read the ruler in world units or in pixels"));
+            // 보기 단추가 아니라 **고치는 도구**다. 무리를 가르고 맨 끝에 둔다 - 앞의 단추들 자리를 밀지 않는다.
+            Widget::ToolBarSeparator();
+            if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewEditCollider, "Edit Collider")))
+            {
+                m_editCollider = false == m_editCollider;
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewEditColliderTooltip,
+                "edit the selected object's polygon collider"));
         }
     }
 
@@ -638,17 +652,15 @@ namespace JBro
         // 트리거는 **막는 것이 아니라 알리는 것**이라 색을 달리한다. 같은 색으로 두면
         // 왜 통과하는지 화면에서 알 수 없다.
         const ImU32 trigger = IM_COL32(255, 210, 90, 179);
+        // 물리가 받지 않는 외곽선(자기 교차·넓이 없음)이다. 그려 두지 않으면 왜 부딪히지 않는지 모른다.
+        const ImU32 rejected = IM_COL32(255, 80, 80, 230);
+        // 오목한 폴리곤을 물리가 나눈 볼록 조각. 고른 것만 옅게 그린다 - 조각 사이 이음매가 어디인지 보인다.
+        const ImU32 pieceColor = IM_COL32(80, 180, 255, 80);
 
         canvas->ForEachObject([&](GameObject& object)
         {
             // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
             if (object.IsEditorHidden())
-            {
-                return;
-            }
-            Component::Collider2D* collider =
-                canvas->FindComponentRaw<Component::Collider2D>(&object);
-            if (collider == nullptr || false == collider->IsEnabled())
             {
                 return;
             }
@@ -658,63 +670,447 @@ namespace JBro
             {
                 return;
             }
-            const Vec2 center =
-                transform->worldValid ? transform->worldPosition : transform->position;
-            const Vec2 scale = transform->worldValid ? transform->worldScale : transform->scale;
-            const float angle =
-                transform->worldValid ? transform->worldRotation : transform->rotation;
-            const float cosine = std::cos(angle);
-            const float sine = std::sin(angle);
-            // 콜라이더의 `offset` 은 오브젝트의 로컬 좌표다. 돌고 커진 뒤에 얹힌다.
-            const float offsetX = collider->offset.x * scale.x;
-            const float offsetY = collider->offset.y * scale.y;
-            const Vec2 origin{
-                center.x + offsetX * cosine - offsetY * sine,
-                center.y + offsetX * sine + offsetY * cosine};
-
-            const bool isSelected = m_editor->IsSelected(&object);
-            const ImU32 color = collider->isTrigger
-                ? trigger
-                : (isSelected ? selected : normal);
-            const float thickness = isSelected ? 2.0f : 1.0f;
-
-            if (collider->shape == Component::ColliderShape2D::Circle)
+            // 콜라이더는 한 오브젝트에 여럿 붙는다(`Multiple`). 물리가 모두 쓰므로 모두 그린다.
+            canvas->FindComponentsRaw<Component::Collider2D>(&object, m_colliderScratch);
+            if (m_colliderScratch.IsEmpty())
             {
-                // 원은 한 축으로만 커져도 원으로 남는다(물리가 그렇게 다룬다).
-                // 그러니 **더 큰 쪽**으로 잰다 - 작은 쪽으로 재면 그림보다 작은 원이 되어
-                // 실제로 부딪히는 자리를 가린다.
-                const float scaleX = std::fabs(scale.x);
-                const float scaleY = std::fabs(scale.y);
-                const float radius = collider->radius * (scaleX > scaleY ? scaleX : scaleY);
-                float screenX = 0.0f;
-                float screenY = 0.0f;
-                float edgeX = 0.0f;
-                float edgeY = 0.0f;
-                WorldToScreen(rect, origin.x, origin.y, screenX, screenY);
-                WorldToScreen(rect, origin.x + radius, origin.y, edgeX, edgeY);
-                draw->AddCircle(ImVec2(screenX, screenY), edgeX - screenX, color, 48, thickness);
                 return;
             }
+            PolygonPose pose;
+            pose.center = transform->worldValid ? transform->worldPosition : transform->position;
+            pose.scale = transform->worldValid ? transform->worldScale : transform->scale;
+            const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
+            pose.cosine = std::cos(angle);
+            pose.sine = std::sin(angle);
+            const bool isSelected = m_editor->IsSelected(&object);
+            const float thickness = isSelected ? 2.0f : 1.0f;
 
-            // 상자는 **돌면 기울어진다.** 외접 사각형으로 그리면 돌려 놓은 오브젝트의
-            // 충돌 칸이 실제보다 커 보인다.
-            const float halfWidth = collider->size.x * std::fabs(scale.x) * 0.5f;
-            const float halfHeight = collider->size.y * std::fabs(scale.y) * 0.5f;
-            const float cornerX[4] = {-halfWidth, halfWidth, halfWidth, -halfWidth};
-            const float cornerY[4] = {-halfHeight, -halfHeight, halfHeight, halfHeight};
-            ImVec2 points[4];
-            for (int index = 0; index < 4; ++index)
+            for (Component::Collider2D* collider : m_colliderScratch)
             {
-                const float worldX = origin.x + cornerX[index] * cosine - cornerY[index] * sine;
-                const float worldY = origin.y + cornerX[index] * sine + cornerY[index] * cosine;
-                float screenX = 0.0f;
-                float screenY = 0.0f;
-                WorldToScreen(rect, worldX, worldY, screenX, screenY);
-                points[index] = ImVec2(screenX, screenY);
+                if (collider == nullptr || false == collider->IsEnabled())
+                {
+                    continue;
+                }
+                const ImU32 color = collider->isTrigger
+                    ? trigger
+                    : (isSelected ? selected : normal);
+
+                if (collider->shape == Component::ColliderShape2D::Circle)
+                {
+                    // 원은 한 축으로만 커져도 원으로 남는다(물리가 그렇게 다룬다).
+                    // 그러니 **더 큰 쪽**으로 잰다 - 작은 쪽으로 재면 그림보다 작은 원이 되어
+                    // 실제로 부딪히는 자리를 가린다.
+                    const float scaleX = std::fabs(pose.scale.x);
+                    const float scaleY = std::fabs(pose.scale.y);
+                    const float radius = collider->radius * (scaleX > scaleY ? scaleX : scaleY);
+                    const Vec2 middle = LocalToScreen(rect, pose, collider->offset, {});
+                    float edgeX = 0.0f;
+                    float edgeY = 0.0f;
+                    float centerX = 0.0f;
+                    float centerY = 0.0f;
+                    ScreenToWorld(rect, middle.x, middle.y, centerX, centerY);
+                    WorldToScreen(rect, centerX + radius, centerY, edgeX, edgeY);
+                    draw->AddCircle(ImVec2(middle.x, middle.y), edgeX - middle.x, color, 48, thickness);
+                    continue;
+                }
+
+                // 상자는 **돌면 기울어진다.** 외접 사각형으로 그리면 돌려 놓은 오브젝트의 충돌 칸이 실제보다
+                // 커 보인다. 폴리곤은 꼭짓점을 그대로 그리고, 꼭짓점이 없으면 물리처럼 `size` 상자다.
+                if (collider->shape == Component::ColliderShape2D::Polygon)
+                {
+                    PolygonEditModel::SeedPoints(*collider, m_outlineScratch);
+                }
+                else
+                {
+                    Component::Collider2D box = *collider;
+                    box.points.Clear();
+                    PolygonEditModel::SeedPoints(box, m_outlineScratch);
+                }
+                m_screenScratch.Clear();
+                for (const Vec2& point : m_outlineScratch)
+                {
+                    m_screenScratch.Add(LocalToScreen(rect, pose, collider->offset, point));
+                }
+                ImU32 outlineColor = color;
+                if (collider->shape == Component::ColliderShape2D::Polygon)
+                {
+                    const PieceCache& pieces = PiecesFor(*collider, pose.scale);
+                    if (pieces.error != Physics2D::PolygonError::None)
+                    {
+                        outlineColor = rejected;
+                    }
+                    else if (isSelected && pieces.pieces.Size() > 1)
+                    {
+                        for (const Physics2D::ConvexPolygon& convex : pieces.pieces)
+                        {
+                            ImVec2 corners[Physics2D::MaxPolygonVertices];
+                            for (std::uint32_t k = 0; k < convex.count; ++k)
+                            {
+                                // 조각은 크기와 offset 을 이미 곱한 바디 로컬이다. 돌리고 옮기기만 한다.
+                                const Vec2 local = convex.points[k];
+                                const float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
+                                const float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
+                                float screenX = 0.0f;
+                                float screenY = 0.0f;
+                                WorldToScreen(rect, worldX, worldY, screenX, screenY);
+                                corners[k] = ImVec2(screenX, screenY);
+                            }
+                            draw->AddPolyline(corners, static_cast<int>(convex.count), pieceColor,
+                                ImDrawFlags_Closed, 1.0f);
+                        }
+                    }
+                }
+                // 변마다 선 하나다. 꼭짓점 수에 상한을 두지 않는다 - 편집으로 얼마든지 는다.
+                const std::size_t count = m_screenScratch.Size();
+                for (std::size_t index = 0; count >= 2 && index < count; ++index)
+                {
+                    const Vec2 a = m_screenScratch[index];
+                    const Vec2 b = m_screenScratch[(index + 1) % count];
+                    draw->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), outlineColor, thickness);
+                }
             }
-            draw->AddPolyline(points, 4, color, ImDrawFlags_Closed, thickness);
         });
     }
+
+    Vec2 CanvasViewPanel::LocalToScreen(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 local) const
+    {
+        // 콜라이더의 점은 오브젝트 로컬이다. offset 을 더하고, 커지고, 돌고, 옮겨진다(물리와 같은 순서).
+        const float x = (local.x + offset.x) * pose.scale.x;
+        const float y = (local.y + offset.y) * pose.scale.y;
+        const float worldX = pose.center.x + x * pose.cosine - y * pose.sine;
+        const float worldY = pose.center.y + x * pose.sine + y * pose.cosine;
+        Vec2 screen;
+        WorldToScreen(rect, worldX, worldY, screen.x, screen.y);
+        return screen;
+    }
+
+    Vec2 CanvasViewPanel::ScreenToLocal(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 screen) const
+    {
+        float worldX = 0.0f;
+        float worldY = 0.0f;
+        ScreenToWorld(rect, screen.x, screen.y, worldX, worldY);
+        const float dx = worldX - pose.center.x;
+        const float dy = worldY - pose.center.y;
+        const float x = dx * pose.cosine + dy * pose.sine;
+        const float y = -dx * pose.sine + dy * pose.cosine;
+        // 크기가 0 인 축은 되돌릴 수 없다. 그 축은 움직이지 않은 것으로 둔다.
+        const float localX = pose.scale.x != 0.0f ? x / pose.scale.x : 0.0f;
+        const float localY = pose.scale.y != 0.0f ? y / pose.scale.y : 0.0f;
+        return { localX - offset.x, localY - offset.y };
+    }
+
+    bool CanvasViewPanel::ProjectWorldToScreen(float worldX, float worldY, float& screenX, float& screenY) const
+    {
+        if (false == m_hasLastRect)
+        {
+            return false;
+        }
+        WorldToScreen(m_lastRect, worldX, worldY, screenX, screenY);
+        return true;
+    }
+
+    const CanvasViewPanel::PieceCache& CanvasViewPanel::PiecesFor(const Component::Collider2D& collider, Vec2 scale)
+    {
+        // 지문: 꼭짓점·offset·크기·size. 물리의 어댑터와 같은 판단을 하되 그 코드를 끌어오지 않는다 - 에디터는
+        // 시스템이 돌지 않는 편집 중에도 그린다.
+        std::uint64_t signature = 14695981039346656037ull;
+        const auto mix = [&signature](float value)
+        {
+            const float normalized = value == 0.0f ? 0.0f : value;
+            std::uint32_t bits = 0;
+            std::memcpy(&bits, &normalized, sizeof(bits));
+            signature ^= bits;
+            signature *= 1099511628211ull;
+        };
+        mix(static_cast<float>(collider.points.Size()));
+        for (const Vec2& point : collider.points)
+        {
+            mix(point.x);
+            mix(point.y);
+        }
+        mix(collider.offset.x);
+        mix(collider.offset.y);
+        mix(collider.size.x);
+        mix(collider.size.y);
+        mix(scale.x);
+        mix(scale.y);
+
+        const InstanceId id = collider.GetInstanceId();
+        PieceCache* cache = m_pieceCache.Find(id);
+        if (cache == nullptr)
+        {
+            m_pieceCache.TryAdd(id, PieceCache{});
+            cache = m_pieceCache.Find(id);
+            cache->signature = signature + 1;
+        }
+        if (cache->signature != signature)
+        {
+            cache->signature = signature;
+            PolygonEditModel::SeedPoints(collider, m_outlineScratch);
+            for (Vec2& point : m_outlineScratch)
+            {
+                point = { (point.x + collider.offset.x) * scale.x, (point.y + collider.offset.y) * scale.y };
+            }
+            cache->error = Physics2D::DecomposePolygon(m_outlineScratch.View(), cache->pieces);
+        }
+        return *cache;
+    }
+
+    bool CanvasViewPanel::FindPolygonTarget(PolygonTarget& target)
+    {
+        target = {};
+        Canvas* canvas = m_editor->GetCanvas();
+        GameObject* object = m_editor->GetSelectedObject();
+        if (false == m_editCollider || canvas == nullptr || object == nullptr || object->IsEditorHidden())
+        {
+            return false;
+        }
+        Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(object);
+        if (transform == nullptr)
+        {
+            return false;
+        }
+        // 한 오브젝트에 폴리곤이 여럿이면 첫째다(기존 엔진은 한 오브젝트에 폴리곤 하나였다).
+        canvas->FindComponentsRaw<Component::Collider2D>(object, m_colliderScratch);
+        for (Component::Collider2D* collider : m_colliderScratch)
+        {
+            if (collider != nullptr && collider->IsEnabled()
+                && collider->shape == Component::ColliderShape2D::Polygon)
+            {
+                target.collider = collider;
+                break;
+            }
+        }
+        if (target.collider == nullptr
+            || false == MakeComponentAddress(m_editor->GetObjectIds(), *object, *target.collider, target.address))
+        {
+            target.collider = nullptr;
+            return false;
+        }
+        target.object = object;
+        target.pose.center = transform->worldValid ? transform->worldPosition : transform->position;
+        target.pose.scale = transform->worldValid ? transform->worldScale : transform->scale;
+        const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
+        target.pose.cosine = std::cos(angle);
+        target.pose.sine = std::sin(angle);
+        return true;
+    }
+
+    void CanvasViewPanel::CommitPoints(const ComponentAddress& address, const String& before, const Array<Vec2>& after)
+    {
+        ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), address);
+        SetPropertyCommand::Path path;
+        if (component == nullptr || false == SetPropertyCommand::MakeFieldPath(address.typeId, "points", path))
+        {
+            return;
+        }
+        // 새 값을 글자로 뜬다: 한 번 써서 읽고, 쓰기 전 값으로 되돌린다. 쓰는 것은 커맨드의 몫이다(§11.3).
+        Component::Collider2D* collider = static_cast<Component::Collider2D*>(component);
+        collider->points = after;
+        String text;
+        const bool read = SetPropertyCommand::ReadValue(*component, address.typeId, path, text);
+        SetPropertyCommand::ApplyValue(*component, address.typeId, path, before);
+        if (false == read || text == before)
+        {
+            return;
+        }
+        m_editor->GetCommands().Execute(
+            MakeOwnerPtr<SetPropertyCommand>(m_editor->GetObjectIds(), address, path, before, text));
+    }
+
+    void CanvasViewPanel::DrawPolygonEditor(const ViewRect& rect)
+    {
+        const ImGuiIO& io = ImGui::GetIO();
+        PolygonTarget target;
+        const bool hasTarget = FindPolygonTarget(target);
+        if (m_vertexDragging && (false == hasTarget || false == target.address.Equals(m_dragAddress)))
+        {
+            // 끌던 콜라이더가 사라졌거나 다른 것을 골랐다. 남은 것이 있으면 끌기 전 값으로 되돌린다.
+            if (ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), m_dragAddress))
+            {
+                SetPropertyCommand::Path path;
+                if (SetPropertyCommand::MakeFieldPath(m_dragAddress.typeId, "points", path))
+                {
+                    SetPropertyCommand::ApplyValue(*component, m_dragAddress.typeId, path, m_dragBefore);
+                }
+            }
+            m_vertexDragging = false;
+        }
+        if (false == hasTarget)
+        {
+            m_polygonHover = {};
+            return;
+        }
+        Component::Collider2D& collider = *target.collider;
+        const Vec2 mouse{ io.MousePos.x, io.MousePos.y };
+
+        if (m_vertexDragging)
+        {
+            // 끄는 동안은 콜라이더에 바로 쓴다(미리 보기) - 물리 그림과 조각도 따라온다. 놓을 때 되돌리고 커맨드로 쓴다.
+            if (m_dragVertex < m_dragPoints.Size())
+            {
+                m_dragPoints[m_dragVertex] = ScreenToLocal(rect, target.pose, collider.offset, mouse);
+            }
+            collider.points = m_dragPoints;
+            char id[32];
+            std::snprintf(id, sizeof(id), "##vertex_%u", m_dragVertex);
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                Widget::OverlayHandle(id, true, true, false);
+            }
+            else
+            {
+                Widget::OverlayHandle(id, false, false, false);
+                m_vertexDragging = false;
+                const Array<Vec2> after = m_dragPoints;
+                CommitPoints(m_dragAddress, m_dragBefore, after);
+            }
+        }
+
+        PolygonEditModel::SeedPoints(collider, m_outlineScratch);
+        m_screenScratch.Clear();
+        for (const Vec2& point : m_outlineScratch)
+        {
+            m_screenScratch.Add(LocalToScreen(rect, target.pose, collider.offset, point));
+        }
+
+        m_polygonHover = {};
+        if (false == m_vertexDragging && PointerInView(rect) && false == ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            m_polygonHover = PolygonEditModel::Pick(m_screenScratch.View(), mouse);
+        }
+        if (false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        {
+            m_vertexPressed = false;
+        }
+
+        if (m_polygonHover.kind == PolygonEditModel::HitKind::Vertex)
+        {
+            char id[32];
+            std::snprintf(id, sizeof(id), "##vertex_%u", m_polygonHover.index);
+            const bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            Widget::OverlayHandle(id, true, pressed, pressed);
+            if (pressed)
+            {
+                SetPropertyCommand::Path path;
+                if (SetPropertyCommand::MakeFieldPath(target.address.typeId, "points", path)
+                    && SetPropertyCommand::ReadValue(collider, target.address.typeId, path, m_dragBefore))
+                {
+                    m_dragPoints = m_outlineScratch;
+                    m_dragVertex = m_polygonHover.index;
+                    m_dragAddress = target.address;
+                    m_vertexDragging = true;
+                    m_vertexPressed = true;
+                }
+            }
+        }
+        else if (m_polygonHover.kind == PolygonEditModel::HitKind::Edge)
+        {
+            const bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            Widget::OverlayHandle("##edge_insert", true, false, pressed);
+            if (pressed)
+            {
+                // 변을 누르면 그 자리에 버텍스가 생긴다. 커맨드 하나다.
+                SetPropertyCommand::Path path;
+                String before;
+                if (SetPropertyCommand::MakeFieldPath(target.address.typeId, "points", path)
+                    && SetPropertyCommand::ReadValue(collider, target.address.typeId, path, before))
+                {
+                    Array<Vec2> after = m_outlineScratch;
+                    PolygonEditModel::InsertOnEdge(after, m_polygonHover.index,
+                        ScreenToLocal(rect, target.pose, collider.offset, m_polygonHover.point));
+                    CommitPoints(target.address, before, after);
+                }
+                m_vertexPressed = true;
+            }
+        }
+
+        // 그리기: 편집 중인 외곽선은 파랗고 굵게, 버텍스마다 점, 가리킨 것은 희게, 변 위에는 더하기 점.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 edgeColor = IM_COL32(80, 180, 255, 235);
+        const ImU32 handleColor = IM_COL32(80, 180, 255, 235);
+        const ImU32 hotColor = IM_COL32(255, 255, 255, 255);
+        const ImU32 insertColor = IM_COL32(140, 230, 100, 230);
+        const ImU32 shadow = IM_COL32(0, 0, 0, 120);
+        constexpr float HandleRadius = 3.5f;
+        const std::size_t count = m_screenScratch.Size();
+        for (std::size_t index = 0; count >= 2 && index < count; ++index)
+        {
+            const Vec2 a = m_screenScratch[index];
+            const Vec2 b = m_screenScratch[(index + 1) % count];
+            draw->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), edgeColor, 2.0f);
+        }
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            const Vec2 p = m_screenScratch[index];
+            const bool hot = (m_vertexDragging && index == m_dragVertex)
+                || (m_polygonHover.kind == PolygonEditModel::HitKind::Vertex && index == m_polygonHover.index);
+            draw->AddCircleFilled(ImVec2(p.x + 1.0f, p.y + 1.0f), HandleRadius, shadow);
+            draw->AddCircleFilled(ImVec2(p.x, p.y), HandleRadius, hot ? hotColor : handleColor);
+        }
+        if (m_polygonHover.kind == PolygonEditModel::HitKind::Edge)
+        {
+            const Vec2 p = m_polygonHover.point;
+            draw->AddCircleFilled(ImVec2(p.x + 1.0f, p.y + 1.0f), HandleRadius, shadow);
+            draw->AddCircleFilled(ImVec2(p.x, p.y), HandleRadius, insertColor);
+        }
+    }
+
+    bool CanvasViewPanel::DrawVertexMenu(const ViewRect& rect)
+    {
+        // 버텍스 위에서 우클릭하면 그 버텍스의 메뉴다. 캔버스의 오브젝트 메뉴 대신 연다.
+        if (PointerInView(rect) && ImGui::IsMouseReleased(ImGuiMouseButton_Right) && false == m_panMoved)
+        {
+            PolygonTarget target;
+            if (FindPolygonTarget(target))
+            {
+                PolygonEditModel::SeedPoints(*target.collider, m_outlineScratch);
+                m_screenScratch.Clear();
+                for (const Vec2& point : m_outlineScratch)
+                {
+                    m_screenScratch.Add(LocalToScreen(rect, target.pose, target.collider->offset, point));
+                }
+                const ImGuiIO& io = ImGui::GetIO();
+                const PolygonEditModel::Hit hit =
+                    PolygonEditModel::Pick(m_screenScratch.View(), { io.MousePos.x, io.MousePos.y });
+                if (hit.kind == PolygonEditModel::HitKind::Vertex)
+                {
+                    m_menuAddress = target.address;
+                    m_menuVertex = hit.index;
+                    Widget::OpenContextMenu("##ColliderVertexMenu");
+                }
+            }
+        }
+        if (false == Widget::BeginOpenedContextMenu("##ColliderVertexMenu"))
+        {
+            return false;
+        }
+        ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), m_menuAddress);
+        Component::Collider2D* collider = static_cast<Component::Collider2D*>(component);
+        if (collider != nullptr)
+        {
+            PolygonEditModel::SeedPoints(*collider, m_outlineScratch);
+            const bool removable = m_outlineScratch.Size() > PolygonEditModel::MinVertexCount;
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewPointDelete, "Delete Point"), nullptr, removable,
+                    Loc::TextOr(LocKeys::CanvasViewPointDeleteMin, "a polygon needs at least three points")))
+            {
+                SetPropertyCommand::Path path;
+                String before;
+                if (SetPropertyCommand::MakeFieldPath(m_menuAddress.typeId, "points", path)
+                    && SetPropertyCommand::ReadValue(*collider, m_menuAddress.typeId, path, before))
+                {
+                    Array<Vec2> after = m_outlineScratch;
+                    if (PolygonEditModel::RemoveVertex(after, m_menuVertex))
+                    {
+                        CommitPoints(m_menuAddress, before, after);
+                    }
+                }
+            }
+        }
+        Widget::EndContextMenu();
+        return true;
+    }
+
 
     void CanvasViewPanel::DrawSelectionOutlines(const ViewRect& rect)
     {
@@ -995,7 +1391,13 @@ namespace JBro
             m_doubleClick = true;
         }
         if (false == pointerHere || m_gizmoState.dragging || m_editing.IsActive()
-            || m_boxSelecting)
+            || m_boxSelecting || m_vertexDragging || m_vertexPressed)
+        {
+            m_vertexPressed = m_vertexPressed && ImGui::IsMouseDown(ImGuiMouseButton_Left);
+            return;
+        }
+        // 버텍스 손잡이나 변 위에서 누른 것은 고르기가 아니다 - 누른 순간 이미 끌기나 버텍스 더하기가 되었다.
+        if (m_polygonHover.kind != PolygonEditModel::HitKind::None)
         {
             return;
         }
@@ -1062,7 +1464,7 @@ namespace JBro
     {
         // 기즈모를 잡고 있으면 상자를 시작하지 않는다. 손잡이를 끄는 것이 곧 상자가 되면
         // 옮길 때마다 선택이 통째로 바뀐다.
-        if (m_gizmoState.dragging || m_editing.IsActive() || m_panning)
+        if (m_gizmoState.dragging || m_editing.IsActive() || m_panning || m_vertexDragging || m_vertexPressed)
         {
             m_boxSelecting = false;
             return;
@@ -1185,6 +1587,10 @@ namespace JBro
             return;
         }
         if (m_editor->GetCanvas() == nullptr)
+        {
+            return;
+        }
+        if (DrawVertexMenu(rect))
         {
             return;
         }
@@ -1582,6 +1988,18 @@ namespace JBro
 
     void CanvasViewPanel::DrawGizmo(const ViewRect& rect)
     {
+        // 콜라이더를 고치는 동안은 기즈모가 없다 - 버텍스 손잡이와 겹친다.
+        PolygonTarget polygon;
+        if (false == Is3D() && FindPolygonTarget(polygon))
+        {
+            if (m_gizmoState.dragging || m_editing.IsActive())
+            {
+                m_editing.Cancel(*m_editor);
+                m_gizmoState.dragging = false;
+            }
+            m_gizmoState.hovered = GizmoAxis::None;
+            return;
+        }
         GameObject* selected = m_editor->GetSelectedObject();
         GizmoSubject subject;
         const bool hasSubject = selected != nullptr

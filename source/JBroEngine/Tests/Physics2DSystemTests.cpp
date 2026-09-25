@@ -369,6 +369,23 @@ namespace
         Check(Near(scene.TransformOf(box)->position.y, -2.5f, 2.0f * Slop), "and ends on the ground's new place");
     }
 
+    // **포인트가 없는 폴리곤은 `size` 상자로 부딪힌다.** 캔버스 뷰가 그 상자를 그리고 편집의 출발점으로 주므로,
+    // 모양을 Polygon 으로 막 바꾼 콜라이더가 보이는 것과 다르게(아예 없는 것처럼) 굴면 안 된다.
+    void TestAnEmptyPolygonCollidesAsItsSizeBox()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0, 3 });
+        Collider2D* shape = scene.canvas.AttachComponent<Collider2D>(box);
+        shape->shape = ColliderShape2D::Polygon;
+        shape->size = { 2, 2 };
+        scene.Dynamic(box);
+        scene.Run(2.0f);
+        Check(scene.physics.GetShapeCount() == 2, "the empty polygon still makes a shape");
+        Check(Near(scene.TransformOf(box)->position.y, 1.0f, 2.0f * Slop), "and rests one unit up, on its 2x2 box");
+    }
+
     // **트랜스폼의 크기는 도형에 곱해진다.** 두 배로 키운 상자는 두 배 큰 자리에서 멈춘다.
     void TestScaleGrowsTheShape()
     {
@@ -415,6 +432,7 @@ int RunPhysics2DSystemTests()
     TestRestartingDoesNotReplayOldContacts();
     TestQueriesSeePolygonsAndRotatedBoxes();
     TestAStaticBodyFollowsItsTransform();
+    TestAnEmptyPolygonCollidesAsItsSizeBox();
     TestScaleGrowsTheShape();
     TestAnOffCenterBodyTurnsAboutItsCenterOfMass();
     std::cout << "Physics2D system tests passed.\n";

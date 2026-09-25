@@ -111,6 +111,15 @@ namespace JBro::System
         void BakeOutline(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
         {
             outline.Clear();
+            // 꼭짓점이 없는 폴리곤은 `size` 상자다. 모양을 Polygon 으로 막 바꾼 콜라이더가 아무것에도 부딪히지 않으면
+            // 캔버스 뷰가 그 상자를 그려 편집의 출발점으로 주는 것(기존 엔진의 절차적 빌드)과 어긋난다.
+            if (collider.points.IsEmpty())
+            {
+                Vec2 corners[4];
+                BakeBox(collider, scale, corners);
+                outline.Append(corners, 4);
+                return;
+            }
             for (const Vec2& point : collider.points)
             {
                 outline.Add(Bake(point, collider.offset, scale));

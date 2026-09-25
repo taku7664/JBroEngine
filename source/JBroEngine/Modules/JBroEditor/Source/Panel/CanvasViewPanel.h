@@ -1,7 +1,13 @@
 ﻿#pragma once
 
+#include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
+#include <JBro/Editor/Gizmo/PolygonEditModel.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
+#include <JBro/Physics2D/Geometry.h>
+#include <JBro/Types/String.h>
+#include <JBro/Types/Table.h>
 #include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/RHI/RHI.h>
 
@@ -39,6 +45,9 @@ namespace JBro
         float GetCameraY() const { return m_centerY; }
         float GetCameraSize() const { return m_orthographicSize; }
 
+        // 월드 한 점이 마지막으로 그린 화면(2D)의 어디에 놓였는가. 그린 적이 없거나 3D 면 거짓이다.
+        bool ProjectWorldToScreen(float worldX, float worldY, float& screenX, float& screenY) const;
+
     private:
         // 그림이 붙은 화면 사각형과 그때의 카메라다. 겹쳐 그리는 것들이 전부 이것을 쓴다.
         struct ViewRect
@@ -72,6 +81,43 @@ namespace JBro
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);
+
+        // ── 폴리곤 콜라이더 편집(physics-plan §4 의 5, 기존 `CCanvasViewTool` 의 버텍스 편집) ─────────
+        //
+        // **도구 막대의 "콜라이더 편집" 을 켜고 폴리곤 콜라이더가 있는 오브젝트를 고르면** 버텍스 손잡이가 선다.
+        // 기존 엔진은 인스펙터에서 그 컴포넌트의 탭을 연 것으로 켰는데, 이 인스펙터에는 그런 자리가 없다.
+        // 켜진 동안은 기즈모를 그리지 않는다 - 손잡이가 오브젝트 한가운데의 기즈모와 겹치면 어느 쪽을 잡는지 모른다.
+        // 끌기는 놓을 때 커맨드 하나(`points` 전체의 앞뒤 글자)이고, 변 누르기와 지우기도 하나씩이다.
+        struct PolygonPose
+        {
+            Vec2  center;
+            float cosine = 1.0f;
+            float sine = 0.0f;
+            Vec2  scale{1.0f, 1.0f};
+        };
+        struct PolygonTarget
+        {
+            GameObject*            object = nullptr;
+            Component::Collider2D* collider = nullptr;
+            ComponentAddress       address;
+            PolygonPose            pose;
+        };
+        bool FindPolygonTarget(PolygonTarget& target);
+        void DrawPolygonEditor(const ViewRect& rect);
+        // 버텍스를 우클릭했으면 그 메뉴를 열고 참이다. 캔버스 메뉴 대신이다.
+        bool DrawVertexMenu(const ViewRect& rect);
+        Vec2 LocalToScreen(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 local) const;
+        Vec2 ScreenToLocal(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 screen) const;
+        // `points` 를 `after` 로 바꾸는 커맨드 하나를 올린다. 쓰기 전 값으로 되돌려 둔 뒤 커맨드가 쓴다.
+        void CommitPoints(const ComponentAddress& address, const String& before, const Array<Vec2>& after);
+        // 폴리곤의 볼록 조각. 꼭짓점과 크기가 바뀔 때만 다시 나눈다 - 그리기는 매 프레임이다.
+        struct PieceCache
+        {
+            std::uint64_t                   signature = 0;
+            Physics2D::PolygonError         error = Physics2D::PolygonError::None;
+            Array<Physics2D::ConvexPolygon> pieces;
+        };
+        const PieceCache& PiecesFor(const Component::Collider2D& collider, Vec2 scale);
         void DrawGizmo(const ViewRect& rect);
         // 화면과 월드를 잇는 카메라를 만든다. 2D 는 우리가 아는 직교 행렬로, 3D 는
         // **렌더러가 이번 프레임에 실제로 쓴 편집 카메라**로 만든다(D-140) - 여기서 같은
@@ -119,6 +165,27 @@ namespace JBro
             float& minX, float& minY, float& maxX, float& maxY) const;
 
         EditorApplication* m_editor = nullptr;
+
+        // 마지막으로 그린 화면이다. 겹쳐 그리는 도구와 테스트가 같은 변환을 쓴다.
+        ViewRect m_lastRect;
+        bool m_hasLastRect = false;
+
+        // 폴리곤 콜라이더 편집.
+        bool m_editCollider = false;
+        PolygonEditModel::Hit m_polygonHover;
+        bool m_vertexDragging = false;
+        bool m_vertexPressed = false;
+        std::uint32_t m_dragVertex = 0;
+        ComponentAddress m_dragAddress;
+        String m_dragBefore;
+        Array<Vec2> m_dragPoints;
+        ComponentAddress m_menuAddress;
+        std::uint32_t m_menuVertex = 0;
+        // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
+        Array<Component::Collider2D*> m_colliderScratch;
+        Array<Vec2> m_screenScratch;
+        Array<Vec2> m_outlineScratch;
+        Table<InstanceId, PieceCache> m_pieceCache;
 
         float m_centerX = 0.0f;
         float m_centerY = 0.0f;

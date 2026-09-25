@@ -145,6 +145,9 @@ namespace JBro
         void GetSessionCamera(float& centerX, float& centerY, float& size) const;
         // 지금 캔버스 뷰가 보고 있는 자리다. 패널이 없으면 `size` 가 0 이다.
         void GetCanvasViewCamera(float& centerX, float& centerY, float& size);
+        // 월드 한 점이 **마지막으로 그린** 캔버스 뷰(2D)의 어느 화면 점에 놓였는가. 그린 적이 없으면 거짓이다.
+        // 그림 위에 겹쳐 그리는 도구와 그것을 마우스로 몰아 보는 테스트가 같은 변환을 쓰게 한다.
+        bool CanvasViewWorldToScreen(float worldX, float worldY, float& screenX, float& screenY);
         // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지
         // 않았으면 빈 글자다. ImGui 의 형식을 그대로 쓰므로 우리가 파싱할 일은 없다.
         String GetLayoutFilePath() const;
