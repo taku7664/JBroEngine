@@ -74,6 +74,8 @@ namespace JBro
         // 지금까지 올린 페이지 수(등록과 다시 쓰기를 모두 센다)와 살아 있는 페이지 텍스처 수다. 테스트가 "새 글자가 없는 프레임에는
         // 올리지 않는다" 를 이것으로 잰다 - 렌더러에는 올린 횟수를 세는 자리가 없다.
         std::uint64_t GetUploadCount() const;
+        // 지금까지 GPU 로 보낸 아틀라스 바이트다. 새 칸만 올리는지 테스트가 이것으로 잰다.
+        std::uint64_t GetUploadedBytes() const;
         // 이 폰트를 (다시) 열 때 미리 뜬 칸 수다. 연 적이 없으면 0 이다. 워커에서 뜨는 중이면 지금까지 들어간 수다.
         std::uint32_t GetPrewarmedGlyphCount(AssetHandle font) const;
         // 워커에서 미리 뜨는 태스크가 남아 있는가.
@@ -134,6 +136,7 @@ namespace JBro
         // 폰트 에셋의 슬롯 번호로 찍는다. 원소가 옮겨 다니지 않게 따로 잡는다(FontView 가 face·atlas 를 가리킨다).
         Array<OwnerPtr<FontEntry>> m_fonts;
         std::uint64_t m_uploadCount = 0;
+        std::uint64_t m_uploadedBytes = 0;
         std::uint32_t m_pageLimit = DefaultPageLimit;
         std::uint32_t m_trimCount = 0;
     };

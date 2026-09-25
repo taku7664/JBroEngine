@@ -446,6 +446,30 @@ namespace JBro
             TextureHandle texture,
             std::uint32_t mipLevel,
             JArrayView<std::byte> data) = 0;
+        // 텍스처 한 면의 **사각형 하나**만 올린다(글리프 아틀라스의 새 칸, text-plan §3.6). data 는 사각형 왼쪽 위 텍셀부터이고
+        // 행 간격은 rowPitch 바이트다 - 큰 CPU 페이지의 한 조각을 옮겨 담지 않고 그대로 넘길 수 있다. 사각형이 텍스처 밖으로 나가면
+        // 거절한다. `WriteTexture` 처럼 GPU 를 기다리고 프레임 안에서는 거절한다. 구현하지 않은 백엔드는 거짓이고, 부르는 쪽은 그때
+        // 전체를 올린다.
+        virtual bool WriteTextureRegion(
+            TextureHandle texture,
+            std::uint32_t mipLevel,
+            std::uint32_t x,
+            std::uint32_t y,
+            std::uint32_t width,
+            std::uint32_t height,
+            JArrayView<std::byte> data,
+            std::uint32_t rowPitch)
+        {
+            (void)texture;
+            (void)mipLevel;
+            (void)x;
+            (void)y;
+            (void)width;
+            (void)height;
+            (void)data;
+            (void)rowPitch;
+            return false;
+        }
         virtual SamplerHandle CreateSampler(const SamplerDesc& desc) = 0;
         virtual void DestroySampler(SamplerHandle sampler) = 0;
         virtual GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) = 0;

@@ -298,6 +298,61 @@ namespace
             }));
         }
 
+        // 1c. 글리프 아틀라스 한 장(1024² RGBA8, 4 MB)을 프레임마다 다시 올린다. 텍스트가 새 글자를 만난 프레임에 도는 길이다(text-plan §3.6).
+        // 올리기는 프레임 밖이다. 스프라이트 6 만 개를 그리는 프레임 사이에 끼워 GPU 가 바쁠 때의 값을 잰다.
+        {
+            JBro::Array<std::byte> page;
+            page.Resize(static_cast<std::size_t>(1024) * 1024 * 4);
+            const JBro::AssetHandle atlas = renderer.RegisterTexture({1024, 1024}, {page.Data(), static_cast<std::uint32_t>(page.Size())});
+            JBro::Array<JBro::SpriteSubmit> sprites;
+            BuildSprites(sprites, 60000);
+            const JBro::CameraParams camera = OrthoCamera();
+            using Clock = std::chrono::steady_clock;
+            // 한 번은 페이지 전체, 한 번은 새 칸 크기(64 x 64)의 사각형만 올린다.
+            const std::size_t cornerOffset = (static_cast<std::size_t>(512) * 1024 + 512) * 4;
+            for (int mode = 0; mode < 2; ++mode)
+            {
+            double upload = 0.0;
+            double worst = 0.0;
+            for (int frame = 0; frame < WarmupFrames + MeasuredFrames; ++frame)
+            {
+                const auto start = Clock::now();
+                const bool sent = mode == 0
+                    ? renderer.UpdateTexture(atlas, {page.Data(), static_cast<std::uint32_t>(page.Size())})
+                    : renderer.UpdateTextureRegion(atlas, 512, 512, 64, 64,
+                          {page.Data() + cornerOffset, static_cast<std::uint32_t>(page.Size() - cornerOffset)}, 1024 * 4);
+                if (false == sent)
+                {
+                    break;
+                }
+                const double milliseconds = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
+                if (frame >= WarmupFrames)
+                {
+                    upload += milliseconds;
+                    worst = milliseconds > worst ? milliseconds : worst;
+                }
+                JBro::FrameTarget frameTarget;
+                frameTarget.texture = bench.target;
+                frameTarget.extent = {TargetWidth, TargetHeight};
+                if (renderer.BeginFrame(frameTarget) != JBro::FrameStatus::Ready || false == renderer.BeginView(camera))
+                {
+                    break;
+                }
+                for (std::uint32_t offset = 0; offset < sprites.Size(); offset += 64)
+                {
+                    const std::uint32_t count = static_cast<std::uint32_t>((std::min)(static_cast<std::size_t>(64), sprites.Size() - offset));
+                    renderer.SubmitSprites({sprites.Data() + offset, count});
+                }
+                renderer.EndView();
+                renderer.EndFrame();
+            }
+            std::printf("  %-7s %-46s avg %7.3f ms  max %7.3f ms\n", name,
+                mode == 0 ? "atlas page upload 1024x1024 RGBA8" : "atlas region upload 64x64 of the page", upload / MeasuredFrames,
+                worst);
+            }
+            renderer.UnregisterTexture(atlas);
+        }
+
         // 1b. 같은 60000 개에 텍스처 둘을 100 개마다 번갈아 - 묶음 600 개. 텍스처 바인딩과 묶기의 값이다(D-113).
         {
             const std::byte texels[16] = {

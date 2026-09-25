@@ -1181,6 +1181,32 @@ namespace JBro::Internal
         std::uint32_t mipLevel,
         JArrayView<std::byte> data)
     {
+        // 한 면 전체가 사각형 하나다. 부르는 쪽은 행 패딩 없이 빽빽한 것을 준다 - 그것이 실제 크기와 맞아야 한다(모자란 것을 받아
+        // 올리면 나머지가 쓰레기로 채워진다).
+        if (texture.index < TextureResourceBase || texture.index - TextureResourceBase >= MaxTextures || m_device == nullptr)
+        {
+            return false;
+        }
+        const D3D12TextureState& state = m_textures[texture.index - TextureResourceBase];
+        if (false == state.occupied || state.generation != texture.generation)
+        {
+            return false;
+        }
+        const D3D12_RESOURCE_DESC resourceDesc = state.resource->GetDesc();
+        UINT rowCount = 0;
+        UINT64 rowSizeInBytes = 0;
+        m_device->GetCopyableFootprints(&resourceDesc, 0, 1, 0, nullptr, &rowCount, &rowSizeInBytes, nullptr);
+        if (rowCount == 0 || data.size != static_cast<std::size_t>(rowSizeInBytes) * rowCount)
+        {
+            return false;
+        }
+        return WriteTextureRegion(texture, mipLevel, 0, 0, static_cast<std::uint32_t>(resourceDesc.Width), resourceDesc.Height,
+            data, static_cast<std::uint32_t>(rowSizeInBytes));
+    }
+
+    bool D3D12Device::WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
+        std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch)
+    {
         if (m_device == nullptr || m_status == FrameStatus::DeviceLost)
         {
             return false;
@@ -1191,7 +1217,7 @@ namespace JBro::Internal
         {
             return false;
         }
-        if (data.data == nullptr || data.size == 0 || mipLevel != 0)
+        if (data.data == nullptr || data.size == 0 || mipLevel != 0 || width == 0 || height == 0)
         {
             // 밉 하나짜리만 올린다. 밉 체인이 필요해지면 그때 연다.
             return false;
@@ -1212,19 +1238,28 @@ namespace JBro::Internal
         }
 
         const D3D12_RESOURCE_DESC resourceDesc = state.resource->GetDesc();
+        if (static_cast<UINT64>(x) + width > resourceDesc.Width || static_cast<UINT64>(y) + height > resourceDesc.Height)
+        {
+            return false;
+        }
+        // 사각형 크기의 텍스처인 것처럼 발자국을 잰다. 업로드 버퍼는 그 사각형만큼이다.
+        D3D12_RESOURCE_DESC regionDesc = resourceDesc;
+        regionDesc.Width = width;
+        regionDesc.Height = height;
+        regionDesc.DepthOrArraySize = 1;
+        regionDesc.MipLevels = 1;
         D3D12_PLACED_SUBRESOURCE_FOOTPRINT footprint = {};
         UINT rowCount = 0;
         UINT64 rowSizeInBytes = 0;
         UINT64 uploadSize = 0;
         m_device->GetCopyableFootprints(
-            &resourceDesc, 0, 1, 0, &footprint, &rowCount, &rowSizeInBytes, &uploadSize);
+            &regionDesc, 0, 1, 0, &footprint, &rowCount, &rowSizeInBytes, &uploadSize);
         if (uploadSize == 0 || rowCount == 0)
         {
             return false;
         }
-        // 부르는 쪽은 행 패딩 없이 빽빽한 것을 준다. 그것이 실제 크기와 맞아야 한다 —
-        // 모자란 것을 받아 올리면 나머지가 쓰레기로 채워진다.
-        if (data.size != static_cast<std::size_t>(rowSizeInBytes) * rowCount)
+        // 행 간격이 한 행보다 짧거나 마지막 행이 모자라면 나머지가 쓰레기로 채워진다.
+        if (rowPitch < rowSizeInBytes || data.size < static_cast<std::size_t>(rowPitch) * (rowCount - 1) + rowSizeInBytes)
         {
             return false;
         }
@@ -1264,7 +1299,7 @@ namespace JBro::Internal
         {
             std::memcpy(
                 mapped + footprint.Offset + static_cast<std::size_t>(row) * footprint.Footprint.RowPitch,
-                data.data + static_cast<std::size_t>(row) * rowSizeInBytes,
+                data.data + static_cast<std::size_t>(row) * rowPitch,
                 static_cast<std::size_t>(rowSizeInBytes));
         }
         upload->Unmap(0, nullptr);
@@ -1311,7 +1346,7 @@ namespace JBro::Internal
         source.pResource = upload.Get();
         source.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
         source.PlacedFootprint = footprint;
-        m_commandList->CopyTextureRegion(&destination, 0, 0, 0, &source, nullptr);
+        m_commandList->CopyTextureRegion(&destination, x, y, 0, &source, nullptr);
 
         // 올린 다음에는 셰이더가 읽을 상태로 돌려 둔다. 여기서 하지 않으면
         // 처음 그리는 쪽이 상태를 기억하고 있어야 한다.

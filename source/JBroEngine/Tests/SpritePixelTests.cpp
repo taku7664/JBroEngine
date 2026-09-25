@@ -734,6 +734,96 @@ namespace
     }
 }
 
+namespace
+{
+    // **텍스처의 사각형 하나만 올린다**(text-plan §3.6, 글리프 아틀라스의 새 칸). 4 x 4 검은 텍스처의 오른쪽 위 2 x 2 에, 8 텍셀 폭
+    // 버퍼(행 간격 32 바이트)의 한 조각을 올린다. 그 사분면만 빨갛고 나머지는 검은 채다. 텍스처 밖으로 나가는 사각형은 거절한다.
+    template <typename TModule>
+    void TestATextureRegionUpdatesOnlyItsRectangle()
+    {
+        JBro::WindowsPlatform platform;
+        TModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the region test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no device for this API; texture regions not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro region probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.api = rhi.GetApi();
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 8;
+        config.presentMode = JBro::PresentMode::Immediate;
+        config.validation = true;
+        Check(renderer.Initialize(rhi, config), "the region renderer must initialize");
+
+        std::byte black[4 * 4 * 4] = {};
+        for (int texel = 0; texel < 16; ++texel)
+        {
+            black[texel * 4 + 3] = std::byte{255};
+        }
+        const JBro::AssetHandle texture = renderer.RegisterTexture({4, 4}, {black, sizeof(black)});
+        Check(texture.generation != 0, "a 4x4 texture registers");
+        // 8 x 2 텍셀 버퍼의 앞 두 칸이 빨강이다. 행 간격은 8 텍셀(32 바이트)이다.
+        std::byte strip[8 * 2 * 4] = {};
+        for (int row = 0; row < 2; ++row)
+        {
+            for (int column = 0; column < 2; ++column)
+            {
+                std::byte* texel = strip + (row * 8 + column) * 4;
+                texel[0] = std::byte{255};
+                texel[3] = std::byte{255};
+            }
+        }
+        Check(renderer.UpdateTextureRegion(texture, 2, 0, 2, 2, {strip, sizeof(strip)}, 32), "a 2x2 region goes up");
+        Check(false == renderer.UpdateTextureRegion(texture, 3, 0, 2, 2, {strip, sizeof(strip)}, 32),
+            "a region past the texture is refused");
+        Check(false == renderer.UpdateTextureRegion(texture, 0, 0, 2, 2, {strip, sizeof(strip)}, 4),
+            "a row pitch shorter than a row is refused");
+
+        JBro::CameraParams camera;
+        camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}};
+        camera.clearColor[3] = 1.0f;
+        camera.viewport.width = 64.0f;
+        camera.viewport.height = 64.0f;
+        JBro::SpriteSubmit sprite;
+        sprite.world.linear[0] = 2.0f;
+        sprite.world.linear[3] = 2.0f;
+        sprite.texture = texture;
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready && renderer.BeginView(camera) && renderer.SubmitSprite(sprite)
+                && renderer.EndView() && renderer.EndFrame() == JBro::FrameStatus::Ready,
+            "the textured frame presents");
+        JBro::Array<std::byte> image;
+        image.Resize(64 * 64 * 4);
+        JBro::TextureReadback readback;
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the back buffer reads back");
+        const Pixel topRight = ReadPixel(image, readback.rowPitch, 48, 16);
+        const Pixel topLeft = ReadPixel(image, readback.rowPitch, 16, 16);
+        const Pixel bottomRight = ReadPixel(image, readback.rowPitch, 48, 48);
+        Check(Near(topRight.r, 1.0f) && Near(topRight.g, 0.0f), "the uploaded quadrant is red");
+        Check(Near(topLeft.r, 0.0f) && Near(bottomRight.r, 0.0f), "and the rest of the texture kept its black");
+        Check(renderer.GetDevice()->GetValidationErrorCount() == 0, "the debug layer accepted the region upload");
+
+        renderer.UnregisterTexture(texture);
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
+}
+
 int RunSpritePixelTests()
 {
     TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D12RHIModule>();
@@ -751,6 +841,9 @@ int RunSpritePixelTests()
     TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D12RHIModule>();
     TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D11RHIModule>();
     TestSdfTextDrawsFillAndOutlineInOnePass<JBro::VulkanRHIModule>();
+    TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D12RHIModule>();
+    TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D11RHIModule>();
+    TestATextureRegionUpdatesOnlyItsRectangle<JBro::VulkanRHIModule>();
     std::cout << "Sprite pixel tests passed.\n";
     return 0;
 }

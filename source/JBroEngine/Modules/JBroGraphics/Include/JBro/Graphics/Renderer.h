@@ -198,6 +198,10 @@ namespace JBro
         AssetHandle RegisterTexture(const Extent2D& extent, JArrayView<std::byte> rgba8);
         // 같은 크기의 새 픽셀로 갈아 끼운다(에셋의 in-place 재로드). 크기가 다르면 거짓이다 - 새로 등록한다.
         bool UpdateTexture(AssetHandle texture, JArrayView<std::byte> rgba8);
+        // 사각형 하나만 갈아 끼운다(글리프 아틀라스의 새 칸). rgba8 은 사각형 왼쪽 위 텍셀부터이고 행 간격은 rowPitch 바이트다.
+        // 백엔드가 못 하면 거짓이다 - 부르는 쪽은 `UpdateTexture` 로 전체를 올린다.
+        bool UpdateTextureRegion(AssetHandle texture, std::uint32_t x, std::uint32_t y, std::uint32_t width, std::uint32_t height,
+            JArrayView<std::byte> rgba8, std::uint32_t rowPitch);
         void UnregisterTexture(AssetHandle texture);
         std::uint32_t GetTextureCount() const;
         bool EndView();

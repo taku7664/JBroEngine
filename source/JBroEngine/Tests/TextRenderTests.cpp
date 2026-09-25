@@ -476,6 +476,7 @@ namespace
                 && minY < 0.0f && maxY > 0.0f, "the centred text reports a block around its origin");
             Check(texts->GetLibrary().GetPageTextureCount() == 1, "one atlas page is on the GPU");
             const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            const std::uint64_t uploadedBefore = texts->GetLibrary().GetUploadedBytes();
             const std::uint64_t relayouts = texts->GetRelayoutCount();
             const std::uint32_t registered = gpu.renderer.GetTextureCount();
 
@@ -496,6 +497,9 @@ namespace
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() == relayouts + 1, "the changed text is laid out once");
             Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "a new glyph uploads its page once");
+            // 올린 것은 V 의 칸을 감싼 사각형이지 페이지 전체(4 MB)가 아니다.
+            Check(texts->GetLibrary().GetUploadedBytes() - uploadedBefore < 64 * 64 * 4,
+                "and only the rectangle around the new cell goes up");
             const DarkBox vee = FindDark(gpu);
             Check(vee.count > 20 && (vee.minX != dark.minX || vee.minY != dark.minY || vee.count != dark.count), "the V replaces the A");
             Check(service.SetText(ref, "A"), "back to A");

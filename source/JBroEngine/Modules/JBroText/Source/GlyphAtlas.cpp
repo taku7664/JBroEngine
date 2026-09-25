@@ -84,6 +84,20 @@ namespace JBro::Text
                 destination[column * 4 + 3] = static_cast<std::byte>(source[column]);
             }
         }
+        if (false == target.dirty)
+        {
+            target.dirtyMinX = x;
+            target.dirtyMinY = y;
+            target.dirtyMaxX = x + width;
+            target.dirtyMaxY = y + height;
+        }
+        else
+        {
+            target.dirtyMinX = std::min(target.dirtyMinX, x);
+            target.dirtyMinY = std::min(target.dirtyMinY, y);
+            target.dirtyMaxX = std::max(target.dirtyMaxX, x + width);
+            target.dirtyMaxY = std::max(target.dirtyMaxY, y + height);
+        }
         target.dirty = true;
 
         AtlasGlyph entry;
@@ -303,7 +317,29 @@ namespace JBro::Text
         if (page < m_pages.Size())
         {
             m_pages[page].dirty = false;
+            m_pages[page].dirtyMinX = 0;
+            m_pages[page].dirtyMinY = 0;
+            m_pages[page].dirtyMaxX = 0;
+            m_pages[page].dirtyMaxY = 0;
         }
+    }
+
+    void GlyphAtlas::GetPageDirtyRect(std::uint32_t page, std::uint32_t& x, std::uint32_t& y, std::uint32_t& width,
+        std::uint32_t& height) const
+    {
+        x = 0;
+        y = 0;
+        width = 0;
+        height = 0;
+        if (page >= m_pages.Size() || false == m_pages[page].dirty)
+        {
+            return;
+        }
+        const Page& target = m_pages[page];
+        x = target.dirtyMinX;
+        y = target.dirtyMinY;
+        width = target.dirtyMaxX - target.dirtyMinX;
+        height = target.dirtyMaxY - target.dirtyMinY;
     }
 
     std::uint32_t GlyphAtlas::GetGlyphCount() const

@@ -458,6 +458,72 @@ namespace JBro::Internal
         return ok;
     }
 
+    bool VulkanDevice::WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
+        std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch)
+    {
+        if (m_status != FrameStatus::Ready || m_frameActive || false == texture.IsValid()
+            || texture.index < TextureResourceBase || texture.index - TextureResourceBase >= MaxTextures
+            || data.data == nullptr || width == 0 || height == 0)
+        {
+            return false;
+        }
+        VulkanTextureState& state = m_textures[texture.index - TextureResourceBase];
+        if (false == state.occupied || state.generation != texture.generation || mipLevel >= state.desc.mipLevels
+            || state.desc.format == TextureFormat::D32Float)
+        {
+            return false;
+        }
+        std::uint32_t levelWidth = state.desc.extent.width >> mipLevel;
+        std::uint32_t levelHeight = state.desc.extent.height >> mipLevel;
+        levelWidth = levelWidth == 0 ? 1 : levelWidth;
+        levelHeight = levelHeight == 0 ? 1 : levelHeight;
+        const std::size_t rowBytes = static_cast<std::size_t>(width) * VulkanPixelSize(state.desc.format);
+        if (rowBytes == 0 || x + width > levelWidth || y + height > levelHeight || rowPitch < rowBytes
+            || data.size < static_cast<std::size_t>(rowPitch) * (height - 1) + rowBytes)
+        {
+            return false;
+        }
+        // 행을 빽빽하게 모아 스테이징에 둔다(행 간격이 큰 페이지의 한 조각이어도).
+        const std::size_t required = rowBytes * height;
+        VkBuffer staging = VK_NULL_HANDLE;
+        VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+        void* mapped = nullptr;
+        if (false == CreateStagingBuffer(required, staging, stagingMemory, mapped))
+        {
+            return false;
+        }
+        for (std::uint32_t row = 0; row < height; ++row)
+        {
+            std::memcpy(static_cast<std::byte*>(mapped) + static_cast<std::size_t>(row) * rowBytes,
+                data.data + static_cast<std::size_t>(row) * rowPitch, rowBytes);
+        }
+        bool ok = BeginOneShot();
+        if (ok)
+        {
+            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT, state.layout,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+            VkBufferImageCopy region = {};
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = mipLevel;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = {static_cast<std::int32_t>(x), static_cast<std::int32_t>(y), 0};
+            region.imageExtent = {width, height, 1};
+            vk.vkCmdCopyBufferToImage(m_oneShotCommands, staging, state.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                1, &region);
+            const VkImageLayout after = HasTextureUsage(state.desc.usage, TextureUsage::Sampled)
+                ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                : VK_IMAGE_LAYOUT_GENERAL;
+            TransitionImage(m_oneShotCommands, state.image, VK_IMAGE_ASPECT_COLOR_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, after);
+            state.layout = after;
+            ok = EndOneShot();
+        }
+        vk.vkUnmapMemory(m_device, stagingMemory);
+        vk.vkDestroyBuffer(m_device, staging, nullptr);
+        vk.vkFreeMemory(m_device, stagingMemory, nullptr);
+        return ok;
+    }
+
     bool VulkanDevice::ResolveAttachment(TextureHandle texture, AttachmentView& view)
     {
         view = {};

@@ -398,6 +398,18 @@ namespace JBro
         return m_device->WriteTexture(resource->texture, 0, rgba8);
     }
 
+    bool Renderer::UpdateTextureRegion(AssetHandle texture, std::uint32_t x, std::uint32_t y, std::uint32_t width,
+        std::uint32_t height, JArrayView<std::byte> rgba8, std::uint32_t rowPitch)
+    {
+        const TextureResource* resource = FindTexture(texture);
+        if (resource == nullptr || m_frameActive || rgba8.data == nullptr || width == 0 || height == 0
+            || x + width > resource->extent.width || y + height > resource->extent.height)
+        {
+            return false;
+        }
+        return m_device->WriteTextureRegion(resource->texture, 0, x, y, width, height, rgba8, rowPitch);
+    }
+
     void Renderer::UnregisterTexture(AssetHandle texture)
     {
         if (m_device == nullptr || m_frameActive || texture.index >= m_textureResources.Size())

@@ -85,6 +85,8 @@ namespace JBro::Text
         // 한 페이지의 픽셀이다(RGBA8, 행마다 pageSize * 4 바이트, 위에서 아래로).
         ArrayView<const std::byte> GetPagePixels(std::uint32_t page) const;
         bool IsPageDirty(std::uint32_t page) const;
+        // 더러운 페이지에서 새 칸들을 감싸는 사각형이다(픽셀). 올리는 쪽은 이 사각형만 올린다. 깨끗하면 크기가 0 이다.
+        void GetPageDirtyRect(std::uint32_t page, std::uint32_t& x, std::uint32_t& y, std::uint32_t& width, std::uint32_t& height) const;
         void ClearPageDirty(std::uint32_t page);
 
         std::uint32_t GetGlyphCount() const;
@@ -99,6 +101,11 @@ namespace JBro::Text
             std::uint32_t    cursorY = 1;
             std::uint32_t    shelfHeight = 0;
             bool             dirty = false;
+            // 새 칸들을 감싸는 사각형이다. 더러움을 지우면 비운다.
+            std::uint32_t    dirtyMinX = 0;
+            std::uint32_t    dirtyMinY = 0;
+            std::uint32_t    dirtyMaxX = 0;
+            std::uint32_t    dirtyMaxY = 0;
         };
 
         static std::uint64_t Key(std::uint32_t pixelSize, GlyphIndex glyph);

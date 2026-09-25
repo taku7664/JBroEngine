@@ -285,12 +285,36 @@ namespace JBro
                 bool written = false;
                 if (texture.generation != 0)
                 {
-                    written = m_renderer->UpdateTexture(texture, pixels);
+                    // **새 칸들을 감싸는 사각형만 올린다**(text-plan §3.6). 페이지 전체(4 MB)를 올리면 새 글자가 나온 프레임마다
+                    // 1.4~1.8 ms 가 들었다(D3D12·Vulkan, 벤치마크). 백엔드가 사각형을 못 올리면 전체를 올린다.
+                    std::uint32_t x = 0;
+                    std::uint32_t y = 0;
+                    std::uint32_t width = 0;
+                    std::uint32_t height = 0;
+                    entry.atlas.GetPageDirtyRect(page, x, y, width, height);
+                    const std::uint32_t rowPitch = pageSize * 4;
+                    if (width > 0 && height > 0)
+                    {
+                        JArrayView<std::byte> region;
+                        region.data = source.Data() + static_cast<std::size_t>(y) * rowPitch + static_cast<std::size_t>(x) * 4;
+                        region.size = static_cast<std::uint32_t>(source.Size() - (static_cast<std::size_t>(y) * rowPitch + static_cast<std::size_t>(x) * 4));
+                        written = m_renderer->UpdateTextureRegion(texture, x, y, width, height, region, rowPitch);
+                        if (written)
+                        {
+                            m_uploadedBytes += static_cast<std::uint64_t>(width) * height * 4;
+                        }
+                    }
+                    if (false == written)
+                    {
+                        written = m_renderer->UpdateTexture(texture, pixels);
+                        m_uploadedBytes += written ? source.Size() : 0;
+                    }
                 }
                 else
                 {
                     texture = m_renderer->RegisterTexture(Extent2D{pageSize, pageSize}, pixels);
                     written = texture.generation != 0;
+                    m_uploadedBytes += written ? source.Size() : 0;
                 }
                 if (false == written)
                 {
@@ -474,6 +498,11 @@ namespace JBro
         }
         const FontEntry& entry = *m_fonts[slot];
         return entry.asset.index == font.index && entry.asset.generation == font.generation ? entry.prewarmed : 0;
+    }
+
+    std::uint64_t TextLibrary::GetUploadedBytes() const
+    {
+        return m_uploadedBytes;
     }
 
     std::uint64_t TextLibrary::GetUploadCount() const
