@@ -12,9 +12,8 @@
 
 ## 오디오 (audio-plan §3-3, D-197)
 
-- `[진행 예정]` **`Component::AudioListener2D` 와 `System::Audio2DSystem`.** 공용 `AudioSource`(JBroAudioTypes)와 오너의
-  `Transform2D` 월드 `(x, y, 0)` 로 믹서 명령을 쓴다. 플레이 중에만 돈다. 상태 기계(끄고 켜기·클립 교체·떼기·플레이 중지)와
-  완료 조건은 계획서 §2.7·§3-3. 공용 1·2 단계(믹서·출력·에셋)가 먼저다.
+- `[완료]` **`Component::AudioListener2D` 와 `System::Audio2DSystem`**(D-201). 리스너가 없으면 게임 카메라 자리에서 듣고, 가까운
+  소리가 한쪽 귀로 꺾이지 않게 `panDistance` 깊이를 둔다. 실측과 테스트는 계획서 §3-3.
 
 ## 에셋 4 단계 - 에디터 (asset-plan §3-4)
 

@@ -12,6 +12,12 @@
 namespace JBro
 {
     class NetworkHost;
+    class AudioMixer;
+    namespace System
+    {
+        // 오디오의 것들(D-197). 이 헤더를 쓰는 에디터가 오디오 헤더를 보지 않게 이름만 안다. 정의는 EngineInstance.cpp 가 본다.
+        class AudioSystem;
+    }
 
     namespace Network
     {
@@ -40,6 +46,14 @@ namespace JBro
         // 트랜스포트 버퍼와 복제가 서고, `Disconnect` 가 그것을 돌려준다. 그래서 기본값이 참이다 - 스크립트가 켤 대상은
         // 늘 있어야 하기 때문이다.
         bool networkEnabled = true;
+        // 거짓이면 오디오를 세우지 않는다. 소스 컴포넌트는 읽히지만 소리가 나지 않고 스크립트의 오디오 서비스는 조용히
+        // 아무 일도 하지 않는다(D-197).
+        bool audioEnabled = true;
+        // 참이면 플랫폼의 출력 장치를 연다. **게임 호스트와 에디터만 참이다** - 테스트는 장치 없이 믹서만 세운다.
+        // 장치를 열지 못해도(스피커 없음) 엔진은 소리 없이 선다.
+        bool audioDeviceEnabled = false;
+        // 동시에 울리는 보이스 수다(D-197, 기존 엔진과 같은 64). 다 차면 우선순위가 낮은 것부터 훔친다.
+        std::uint32_t audioMaxVoices = 64;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -146,6 +160,12 @@ namespace JBro
         Renderer* GetRenderer();
         // 호스트가 소유하는 네트워크(D-122). 끈 호스트는 null 이다. 캔버스보다 오래 산다.
         NetworkHost* GetNetwork();
+        // 프로젝트 수명의 오디오 시스템(D-197). 프로젝트가 없거나 오디오를 끈 호스트는 null 이다.
+        System::AudioSystem* GetAudio();
+        // 프로세스 수명의 믹서다. 오디오를 끈 호스트는 null 이다.
+        AudioMixer* GetAudioMixer();
+        // 출력 장치다. 장치를 열지 않았거나 못 열었으면 null 이다.
+        const IAudioOutput* GetAudioOutput() const;
         // 대화상자의 주인 창으로 쓴다. 창이 없으면 값이 0 이다.
         WindowHandle GetMainWindow() const
         {
@@ -170,6 +190,8 @@ namespace JBro
         bool TickFrame(float deltaTime);
         void ReleaseProject();
         void ReleaseResources();
+        // 프로젝트의 버스 목록을 오디오 시스템에 건다.
+        void ApplyAudioBuses();
 
         IPlatform* m_platform = nullptr;
         IFramework* m_framework = nullptr;
@@ -182,6 +204,11 @@ namespace JBro
         OwnerPtr<Network::ISocketProvider> m_socketProvider;
         OwnerPtr<Network::SteadyClock> m_networkClock;
         OwnerPtr<NetworkHost> m_network;
+        // 오디오(D-197). 출력 장치와 믹서는 프로세스 수명, 오디오 시스템은 프로젝트 수명이다. 내릴 때는 장치를 먼저
+        // 멈춘다 - 멈춘 뒤에는 오디오 스레드가 믹서를 부르지 않는다.
+        OwnerPtr<IAudioOutput> m_audioOutput;
+        OwnerPtr<AudioMixer> m_audioMixer;
+        OwnerPtr<System::AudioSystem> m_audio;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.

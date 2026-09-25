@@ -199,6 +199,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ComponentCategoryTransform = "component_category.Transform";
     inline constexpr const char* ComponentCategoryRendering = "component_category.Rendering";
     inline constexpr const char* ComponentCategoryPhysics = "component_category.Physics";
+    inline constexpr const char* ComponentCategoryAudio = "component_category.Audio";
     inline constexpr const char* ComponentCategoryDefault = "component_category.Components";
 
     // ── 에셋 칸 ──────────────────────────────────────────────────────────
@@ -273,6 +274,23 @@ namespace JBro::LocKeys
     inline constexpr const char* DialogBrowseFolder = "dialog.browse_folder";
     inline constexpr const char* DialogBrowseFile = "dialog.browse_file";
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
+    inline constexpr const char* InspectorAudioImportOptions = "inspector.audio_import_options";
+    inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
+    inline constexpr const char* InspectorAudioLength = "inspector.audio_length";
+    inline constexpr const char* InspectorAudioPreview = "inspector.audio_preview";
+    inline constexpr const char* InspectorAudioPlay = "inspector.audio_play";
+    inline constexpr const char* InspectorAudioStop = "inspector.audio_stop";
+    inline constexpr const char* InspectorAudioLoop = "inspector.audio_loop";
+    inline constexpr const char* InspectorAudioSeekHint = "inspector.audio_seek_hint";
+    inline constexpr const char* InspectorAudioOff = "inspector.audio_off";
+    inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
+    inline constexpr const char* InspectorAudioBusMissing = "inspector.audio_bus_missing";
+    inline constexpr const char* ProjectSettingsAudio = "project_settings.audio";
+    inline constexpr const char* ProjectSettingsAudioAddBus = "project_settings.audio_add_bus";
+    inline constexpr const char* ProjectSettingsAudioRemoveBus = "project_settings.audio_remove_bus";
+    inline constexpr const char* ProjectSettingsAudioBusesHelp = "project_settings.audio_buses_help";
+    inline constexpr const char* ProjectSettingsAudioNoBuses = "project_settings.audio_no_buses";
+    inline constexpr const char* ProjectSettingsAudioDuplicate = "project_settings.audio_duplicate";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";
 

@@ -37,6 +37,8 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Audio/AudioSystem.h>
+#include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -3328,6 +3330,203 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+
+    // **오디오 에셋의 미리 듣기와 소스의 버스 칸**(D-197, 기존 `EditorAudioPreview`·`ImAudioBusField`). 에셋을 고르면
+    // 인스펙터에 형식·파형·재생 단추가 서고 누르면 미리 듣기 버스로 운다. 다른 것을 고르면 멈춘다. 소스의 `clipId` 는
+    // 오디오 에셋 목록이고, `bus` 는 프로젝트의 버스 목록이다 - 둘 다 이름을 치고 Enter 로 고르며 커맨드 하나다.
+    void TestTheInspectorPreviewsAudioAndPicksABus()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAudioInspectorProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "sound", ignored);
+        {
+            // 0.5 초 16 비트 스테레오 440 Hz.
+            constexpr std::uint32_t rate = 48000;
+            constexpr std::uint32_t frames = rate / 2;
+            std::vector<std::uint8_t> wav(44 + frames * 4);
+            auto put32 = [&](std::size_t at, std::uint32_t value) { std::memcpy(wav.data() + at, &value, 4); };
+            auto put16 = [&](std::size_t at, std::uint16_t value) { std::memcpy(wav.data() + at, &value, 2); };
+            std::memcpy(wav.data(), "RIFF", 4);
+            put32(4, 36 + frames * 4);
+            std::memcpy(wav.data() + 8, "WAVEfmt ", 8);
+            put32(16, 16);
+            put16(20, 1);
+            put16(22, 2);
+            put32(24, rate);
+            put32(28, rate * 4);
+            put16(32, 4);
+            put16(34, 16);
+            std::memcpy(wav.data() + 36, "data", 4);
+            put32(40, frames * 4);
+            for (std::uint32_t frame = 0; frame < frames; ++frame)
+            {
+                const std::int16_t sample = static_cast<std::int16_t>(
+                    16000.0 * std::sin(2.0 * 3.14159265358979 * 440.0 * frame / rate));
+                std::memcpy(wav.data() + 44 + frame * 4, &sample, 2);
+                std::memcpy(wav.data() + 44 + frame * 4 + 2, &sample, 2);
+            }
+            std::ofstream file(root / "Assets" / "sound" / "blip.wav", std::ios::binary);
+            file.write(reinterpret_cast<const char*>(wav.data()), static_cast<std::streamsize>(wav.size()));
+        }
+        const JBro::String projectPath = TempPath("JBroAudioInspectorProbe\\Audio.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ResolutionWidth: 640\n"
+            "ResolutionHeight: 480\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "AudioBuses:\n"
+            "  - Name: Music\n"
+            "    Volume: 0.5\n"
+            "  - Name: SFX\n"
+            "    Volume: 1\n"
+            "Build:\n"
+            "  ProductName: AudioProbe\n"
+            "  StartupCanvas: Scenes/Opening.jcanvas\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the audio inspector not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        Check(editor.GetAudio() != nullptr, "the editor has an audio system even without a device");
+
+        // 재생 단추는 값 칸의 **왼쪽 끝**에 선다. 공용 훑기(칸 65% 자리)는 짧은 단추를 비껴가므로 몇 자리를 훑는다.
+        const auto findButton = [&](ImGuiID target, Spot& found) {
+            ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
+            Check(window != nullptr, "the inspector must have a window");
+            const int bottom = static_cast<int>(window->Pos.y + window->Size.y);
+            for (const float fraction : {0.40f, 0.45f, 0.50f, 0.55f})
+            {
+                const int x = static_cast<int>(window->Pos.x + window->Size.x * fraction);
+                for (int y = static_cast<int>(window->Pos.y); y < bottom; y += 4)
+                {
+                    PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+                    Check(editor.Tick(Frame), "the editor must tick while looking");
+                    if (ImGui::GetCurrentContext()->HoveredId == target)
+                    {
+                        found.x = x;
+                        found.y = y;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+        const JBro::AssetRecord* blip = editor.GetAssetRegistry().FindByPath("sound/blip.wav");
+        Check(blip != nullptr && blip->type == JBro::AssetType::Audio, "the wav is registered as audio");
+
+        // ── 미리 듣기 ──
+        editor.SetSelectedAsset(blip->id);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the audio asset");
+        }
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        // 단추의 글자가 곧 Id 다. 앞선 테스트가 한국어 표를 읽었을 수 있으므로 번역된 글자로 잰다.
+        const char* playLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorAudioPlay, "Play");
+        const char* stopLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorAudioStop, "Stop");
+        const ImGuiID playButton = LabelId(LabelId(inspector->ID, "##audioPreview"), playLabel);
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "audio_inspector");
+        }
+        Spot spot;
+        Check(findButton(playButton, spot), "the audio inspector shows a Play button");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.GetAudio()->IsPreviewPlaying(), "pressing Play starts the preview");
+        const ImGuiID stopButton = LabelId(LabelId(inspector->ID, "##audioPreview"), stopLabel);
+        Check(findButton(stopButton, spot), "while it plays the button says Stop");
+        ClickAt(editor, hwnd, spot);
+        Check(false == editor.GetAudio()->IsPreviewPlaying(), "pressing Stop stops it");
+        Check(findButton(playButton, spot), "and it says Play again");
+        ClickAt(editor, hwnd, spot);
+        Check(editor.GetAudio()->IsPreviewPlaying(), "playing again");
+
+        // ── 소스: 다른 것을 고르면 미리 듣기가 멈춘다 ──
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Speaker");
+        canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        auto* source = canvas->AttachComponent<JBro::Component::AudioSource>(object);
+        Check(source != nullptr, "the speaker must have an audio source");
+        editor.SetSelectedObject(object);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the speaker");
+        }
+        Check(false == editor.GetAudio()->IsPreviewPlaying(), "selecting something else stops the preview");
+
+        const JBro::PropertyTable* table = JBro::PropertyRegistry::Lookup(
+            JBro::NameTable::Get().Intern("Component::AudioSource"));
+        Check(table != nullptr, "the audio source registered its properties");
+
+        // `clipId` 칸은 오디오 에셋 목록이다(별명 "clip" → Audio).
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(*table, "clipId"), "##value"), spot),
+            "the clipId row must be in the inspector");
+        std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, spot);
+        Check(editor.Tick(Frame), "the popup must appear");
+        Check(editor.Tick(Frame), "and its search box must take focus");
+        for (const char* at = "blip"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.Tick(Frame), "and once more so the rebind after the command has run");
+        Check(source->clipId == blip->id, "typing the clip name and Enter writes the clip id");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
+        Check(source->clip.generation != 0, "and the clip handle is resolved");
+
+        // `bus` 칸은 프로젝트의 버스 목록이다.
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(*table, "bus"), "##value"), spot),
+            "the bus row must be in the inspector");
+        undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, spot);
+        Check(editor.Tick(Frame), "the bus popup must appear");
+        Check(editor.Tick(Frame), "and its search box must take focus");
+        for (const char* at = "Music"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(source->bus == JBro::AudioBusName::FromText("Music"), "choosing Music writes the bus by name");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "through one command");
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "audio_source_inspector");
+        }
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(editor.Tick(Frame), "the editor must tick after undo");
+        Check(source->bus.IsMaster(), "undo puts the source back on Master");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
 
     // **에셋 브라우저에서 고르면 인스펙터가 임포트 옵션을 보이고, 고치면 메타가 커맨드로 다시 쓰인다**(D-120).
     // 폴더 안의 그림 줄을 눌러 고르고, 인스펙터의 `pixelsPerUnit` 을 끌어 메타 파일에 옵션 블록이 생기는지, 스프라이트
@@ -9283,6 +9482,7 @@ int RunEditorApplicationTests()
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
     TestTheAssetFieldPicksARegisteredSprite();
+    TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();

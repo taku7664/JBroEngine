@@ -252,6 +252,8 @@ int main(int argumentCount, char** arguments)
     config.windowWidth = 1280;
     config.windowHeight = 720;
     config.windowVisible = true;
+    // 미리 듣기와 플레이의 소리를 낸다(D-197).
+    config.audioDevice = true;
     config.localizationDirectory = localizationDirectory.c_str();
     config.iconFontPath = iconFontPath.c_str();
     if (false == editor.Initialize(config))

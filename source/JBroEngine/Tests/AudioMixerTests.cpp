@@ -372,6 +372,26 @@ namespace
         mixer.Shutdown();
     }
 
+    void TestSeekWhilePlaying()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 2.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+        AudioPlayDesc play;
+        play.clip = clip;
+        AudioVoiceHandle voice = mixer.Play(play);
+        Render(mixer, 4800);
+        mixer.Seek(voice, 1.5);
+        Render(mixer, 4800);
+        const double at = mixer.GetPlaybackSeconds(voice);
+        Check(at > 1.5 && at < 1.7, "seeking while playing moves the cursor");
+        mixer.Seek(voice, 100.0);
+        Render(mixer, 480);
+        Check(mixer.GetPlaybackSeconds(voice) < 2.01, "a seek past the end clamps to the clip");
+        mixer.Shutdown();
+    }
+
     void TestStealing()
     {
         AudioMixer mixer;
@@ -545,6 +565,7 @@ int RunAudioMixerTests()
         TestDelayAndFade();
         TestSpatialization();
         TestEncodedClip();
+        TestSeekWhilePlaying();
         TestStealing();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();

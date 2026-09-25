@@ -29,5 +29,7 @@ namespace JBro
         bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;
         // Emscripten 빌드에서만 provider 를 돌려준다(WebSocket + RTCPeerConnection). 그 밖에서는 null 이다.
         OwnerPtr<Network::ISocketProvider> CreateSocketProvider() override;
+        // Emscripten 빌드에서만 장치를 돌려준다(miniaudio 의 Web Audio). 브라우저는 사용자 입력 전에는 소리를 막는다.
+        OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc) override;
     };
 }

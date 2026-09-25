@@ -20,6 +20,12 @@
 
 namespace JBro
 {
+    namespace System
+    {
+        // `JBroAudio` 의 것이다. 이 헤더를 쓰는 쪽이 오디오 헤더를 보지 않게 이름만 안다.
+        class AudioSystem;
+    }
+
     class Canvas;
     class EditorThumbnails;
     // 단축키 표(`EditorShortcuts.h`)는 ImGui 를 끌어온다. 이 헤더는 에디터 호스트처럼 ImGui 를
@@ -75,6 +81,8 @@ namespace JBro
         std::uint32_t windowHeight = 720;
         bool windowVisible = true;
         bool enableValidation = false;
+        // 참이면 오디오 출력 장치를 연다(D-197). 실제 에디터만 참이다 - 테스트는 장치 없이 믹서만 세운다.
+        bool audioDevice = false;
         // 화면 글자를 어디서 읽을지(ProjectRule §11.2). 못 읽어도 에디터는 뜬다 -
         // 그때는 코드에 있는 영어 원문이 나온다. 글자 파일 하나 때문에 아무것도
         // 못 보는 것이 더 나쁘다.
@@ -182,6 +190,9 @@ namespace JBro
         const AssetRegistry& GetAssetRegistry() const;
         // 열린 프로젝트의 에셋 시스템이다. 프로젝트가 없으면 nullptr 다.
         AssetSystem* GetAssetSystem();
+        // 열린 프로젝트의 오디오 시스템이다(D-197). 프로젝트가 없거나 오디오를 끈 엔진이면 nullptr 다.
+        // 인스펙터의 미리 듣기가 이것을 쓴다.
+        System::AudioSystem* GetAudio();
         // 열린 프로젝트의 에셋 폴더가 감시되고 있는가. 거짓이면 밖에서 바꾼 파일이 반영되지 않는다.
         bool IsWatchingAssets() const;
 

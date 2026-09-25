@@ -24,6 +24,12 @@
 #include <JBro/Editor/Widget/EnumCombo.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/AssetField.h>
+#include <JBro/Editor/Widget/Waveform.h>
+#include <JBro/Asset/Asset.h>
+#include <JBro/Asset/AudioDecoder.h>
+#include <JBro/Audio/AudioSystem.h>
+#include <JBro/AudioTypes/AudioBusName.h>
+#include <JBro/Host/ProjectFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/EditorPaths.h>
@@ -85,6 +91,11 @@ namespace JBro
                 return AssetType::Unknown;
             }
             std::memcpy(buffer, name, length);
+            // 소리는 흔히 "클립" 이라 부른다(`AudioSource::clipId`). 타입 이름과 다른 유일한 별명이다.
+            if (length == 4 && std::memcmp(buffer, "clip", 4) == 0)
+            {
+                return AssetType::Audio;
+            }
             if (buffer[0] >= 'a' && buffer[0] <= 'z')
             {
                 buffer[0] = static_cast<char>(buffer[0] - 'a' + 'A');
@@ -134,6 +145,16 @@ namespace JBro
         {
             return;
         }
+        // 지난 프레임에 미리 듣기 칸을 그리지 않았으면(다른 것을 골랐다) 미리 듣기를 멈춘다.
+        if (false == m_audioDrawn)
+        {
+            if (System::AudioSystem* audio = m_editor->GetAudio(); audio != nullptr && audio->IsPreviewPlaying())
+            {
+                audio->StopPreview();
+            }
+            m_audioAsset = {};
+        }
+        m_audioDrawn = false;
         GameObject* object = m_editor->GetSelectedObject();
         if (object == nullptr)
         {
@@ -548,6 +569,186 @@ namespace JBro
         return *choices;
     }
 
+    void InspectorPanel::DrawAudioBusField(const TypeDescriptor& type, void* address, Context& context)
+    {
+        AudioBusName& bus = *static_cast<AudioBusName*>(address);
+        const ProjectFile& project = m_editor->GetProjectFile();
+        m_busNames.Clear();
+        m_busEnabled.Clear();
+        m_busNames.Add(String(AudioMasterBusName));
+        m_busEnabled.Add(true);
+        int current = bus.IsMaster() ? 0 : -1;
+        for (std::size_t index = 0; index < project.audioBuses.Size(); ++index)
+        {
+            const String& name = project.audioBuses[index].name;
+            if (name.empty() || name == AudioMasterBusName)
+            {
+                continue;
+            }
+            if (current < 0 && MakeNameId(name.c_str()) == bus.id)
+            {
+                current = static_cast<int>(m_busNames.Size());
+            }
+            m_busNames.Add(name);
+            m_busEnabled.Add(true);
+        }
+        // 목록에 없는 이름은 지우지 않고 보여 준다 - 그 자리에서 왜 Master 로 울리는지 알 수 있게. 고를 수는 없다.
+        const bool missing = current < 0;
+        if (missing)
+        {
+            const char* text = NameTable::Get().Resolve(bus.id);
+            current = static_cast<int>(m_busNames.Size());
+            m_busNames.Add(String(text[0] != '\0' ? text : "?"));
+            m_busEnabled.Add(false);
+        }
+        m_busNamePointers.Clear();
+        for (std::size_t index = 0; index < m_busNames.Size(); ++index)
+        {
+            m_busNamePointers.Add(m_busNames[index].c_str());
+        }
+        String before;
+        const bool snapped = ToText(type, address, before);
+        int chosen = current;
+        const bool changed = Widget::FilterCombo("##value",
+            ArrayView<const char* const>(m_busNamePointers.Data(), m_busNamePointers.Size()), chosen)
+            .ItemEnabled(ArrayView<const bool>(m_busEnabled.Data(), m_busEnabled.Size()))
+            .ShowFilter(true)
+            .Draw();
+        if (missing)
+        {
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::InspectorAudioBusMissing,
+                "Not one of the project's audio buses - it plays on Master"));
+        }
+        if (changed && snapped && chosen >= 0 && static_cast<std::size_t>(chosen) < m_busNames.Size())
+        {
+            bus = chosen == 0 ? AudioBusName{} : AudioBusName::FromText(m_busNames[static_cast<std::size_t>(chosen)].c_str());
+            CommitEdit(type, address, before, context);
+        }
+    }
+
+    void InspectorPanel::DrawAudioPreview(const AssetMetaFile& meta)
+    {
+        m_audioDrawn = true;
+        AssetSystem* assets = m_editor->GetAssetSystem();
+        System::AudioSystem* audio = m_editor->GetAudio();
+        if (assets == nullptr)
+        {
+            return;
+        }
+        // 에셋이나 자료의 판이 바뀌었으면 다시 잰다. 싣기는 이때 한 번이고(동기), 파형도 이때 푼다.
+        const AssetHandle loaded = assets->Find(meta.id);
+        const AudioData* current = assets->GetAudio(loaded);
+        const std::uint32_t generation = current != nullptr ? current->dataGeneration : 0;
+        if (false == (m_audioAsset == meta.id) || (current != nullptr && generation != m_audioGeneration))
+        {
+            if (audio != nullptr && false == (m_audioAsset == meta.id))
+            {
+                audio->StopPreview();
+            }
+            m_audioAsset = meta.id;
+            m_audioPeaks.Clear();
+            m_audioReadable = false;
+            const AssetHandle held = assets->Load(meta.id);
+            if (const AudioData* data = assets->GetAudio(held))
+            {
+                m_audioReadable = true;
+                m_audioGeneration = data->dataGeneration;
+                m_audioSampleRate = data->sampleRate;
+                m_audioChannels = data->channels;
+                m_audioSeconds = data->sampleRate > 0 ? static_cast<double>(data->frameCount) / data->sampleRate : 0.0;
+                constexpr std::uint32_t Buckets = 512;
+                if (false == data->pcm.IsEmpty())
+                {
+                    ComputeAudioPeaks(data->pcm.Data(), data->frameCount, data->channels, Buckets, m_audioPeaks);
+                }
+                else
+                {
+                    JArrayView<std::byte> bytes;
+                    bytes.data = data->encoded.Data();
+                    bytes.size = static_cast<std::uint32_t>(data->encoded.Size());
+                    ComputeAudioPeaks(bytes, Buckets, m_audioPeaks);
+                }
+            }
+            // 붙잡지 않는다. 참조 수 0 이어도 `CollectUnused` 까지 살고, 내려가면 해제 알림이 미리 듣기를 멈춘다.
+            assets->Release(held);
+        }
+        if (false == m_audioReadable)
+        {
+            Widget::ValidationMessage(Widget::Severity::Warning,
+                Loc::TextOr(LocKeys::InspectorAudioUnreadable, "This audio file could not be read")).Draw();
+            return;
+        }
+
+        const AssetHandle handle = assets->Find(meta.id);
+        const bool playingThis = audio != nullptr && audio->IsPreviewPlaying()
+            && audio->GetPreviewClip().index == handle.index && audio->GetPreviewClip().generation == handle.generation;
+        const auto play = [&](double from) {
+            if (audio == nullptr)
+            {
+                return;
+            }
+            const AssetHandle held = assets->Load(meta.id);
+            if (audio->PlayPreview(held, m_audioLoop) && from > 0.0)
+            {
+                audio->SeekPreview(from);
+            }
+            assets->Release(held);
+        };
+        {
+            Widget::FormLayout layout("##audioInfo");
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioFormat, "Format")),
+                [&]() { Widget::TextF("%u Hz, %u ch", m_audioSampleRate, m_audioChannels); });
+            layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioLength, "Length")),
+                [&]() {
+                    const int minutes = static_cast<int>(m_audioSeconds / 60.0);
+                    Widget::TextF("%d:%05.2f", minutes, m_audioSeconds - minutes * 60.0);
+                });
+        }
+        const double position = playingThis ? audio->GetPreviewTime() : 0.0;
+        const float progress = playingThis && m_audioSeconds > 0.0 ? static_cast<float>(position / m_audioSeconds) : -1.0f;
+        float seek = 0.0f;
+        if (Widget::Waveform("##waveform", ArrayView<const float>(m_audioPeaks.Data(), m_audioPeaks.Size()), progress,
+                56.0f, seek))
+        {
+            // 누른 자리부터 듣는다. 이미 울리고 있으면 그 자리로 옮기기만 한다.
+            if (playingThis)
+            {
+                audio->SeekPreview(seek * m_audioSeconds);
+            }
+            else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+            {
+                play(seek * m_audioSeconds);
+            }
+        }
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::InspectorAudioSeekHint, "Click to play from there"));
+        if (audio == nullptr)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::InspectorAudioOff, "Audio is off in this editor"));
+            return;
+        }
+        // 라벨은 왼쪽 칸이 그린다(§11.2). 위젯에는 `##이름` 만 넘긴다.
+        Widget::FormLayout layout("##audioPreview");
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioPreview, "Preview")),
+            [&]() {
+                if (playingThis)
+                {
+                    if (Widget::Button(Loc::TextOr(LocKeys::InspectorAudioStop, "Stop")))
+                    {
+                        audio->StopPreview();
+                    }
+                    ImGui::SameLine();
+                    const int minutes = static_cast<int>(position / 60.0);
+                    Widget::TextF("%d:%05.2f", minutes, position - minutes * 60.0);
+                }
+                else if (Widget::Button(Loc::TextOr(LocKeys::InspectorAudioPlay, "Play")))
+                {
+                    play(0.0);
+                }
+            });
+        layout.Row(Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorAudioLoop, "Loop")),
+            [&]() { Widget::Checkbox("##loop", m_audioLoop); });
+    }
+
     void InspectorPanel::DrawAssetField(
         const char* fieldName, const TypeDescriptor& type, void* address, Context& context)
     {
@@ -713,6 +914,11 @@ namespace JBro
         }
         // **그림은 뷰어에서 크게 본다**(D-173, 기존 `뷰어에서 열기`). 에셋 브라우저에서 두 번
         // 누르는 길만 있어서, 인스펙터에서 옵션을 고치다 칸을 확인하려면 브라우저로 건너가야 했다.
+        if (meta.type == AssetType::Audio)
+        {
+            DrawAudioPreview(meta);
+            ImGui::Spacing();
+        }
         if (AssetTypeRules::IsImageType(meta.type))
         {
             if (Widget::Button(Loc::TextOr(LocKeys::InspectorOpenInViewer, "Open in Viewer")))
@@ -736,10 +942,12 @@ namespace JBro
 
         const bool image = AssetTypeRules::IsImageType(meta.type);
         int slot = 0;
-        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock) {
+        const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock,
+                                     bool audioBlock = false) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
             scope.spriteBlock = spriteBlock;
+            scope.audioBlock = audioBlock;
             if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
@@ -757,6 +965,11 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorSpriteImportOptions, "Sprite Import Options"),
                 TypeDescriptorOf<SpriteImportOptions>::Get(), &scratch.spriteOptions, true);
         }
+        if (meta.type == AssetType::Audio)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorAudioImportOptions, "Audio Import Options"),
+                TypeDescriptorOf<AudioImportOptions>::Get(), &scratch.audioOptions, false, true);
+        }
     }
 
     void InspectorPanel::CommitAssetEdit(Context& context)
@@ -773,6 +986,10 @@ namespace JBro
         if (context.asset->spriteBlock)
         {
             scratch.hasSpriteOptions = true;
+        }
+        else if (context.asset->audioBlock)
+        {
+            scratch.hasAudioOptions = true;
         }
         else
         {
@@ -1370,6 +1587,12 @@ namespace JBro
             return;
         }
 
+        // 오디오 버스는 프로젝트 목록의 드롭다운이다(D-197).
+        if (context.element == nullptr && SameName(type.typeName, "JBro.AudioBusName"))
+        {
+            DrawAudioBusField(type, address, context);
+            return;
+        }
         // **`AssetId` 는 드롭다운이다**(D-116). 원소 안의 아이디는 아직 글자 칸이다 - 목록 원소
         // 편집은 값을 글자로 모아 커맨드를 만드는 길이라(D-89) 이 칸이 그 길을 타려면 따로 봐야 한다.
         if (context.element == nullptr && SameName(type.typeName, "JBro.Uuid")

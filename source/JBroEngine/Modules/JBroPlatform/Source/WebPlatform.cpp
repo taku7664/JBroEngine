@@ -2,6 +2,9 @@
 
 #include <JBro/Network/Socket.h>
 #if defined(__EMSCRIPTEN__)
+#include "MiniaudioAudioOutput.h"
+#endif
+#if defined(__EMSCRIPTEN__)
 #include <JBro/Network/Web/WebSocketProvider.h>
 #endif
 
@@ -98,6 +101,17 @@ namespace JBro
     bool WebPlatform::EnumerateDirectory(const char*, DirectoryVisitor, void*)
     {
         return false;
+    }
+
+    OwnerPtr<IAudioOutput> WebPlatform::CreateAudioOutput(const AudioOutputDesc& desc)
+    {
+#if defined(__EMSCRIPTEN__)
+        return Internal::CreateMiniaudioOutput(desc);
+#else
+        // 이 저장소의 Windows 빌드에서 이 플랫폼은 미리보기다. 장치도 없다.
+        (void)desc;
+        return nullptr;
+#endif
     }
 
     OwnerPtr<Network::ISocketProvider> WebPlatform::CreateSocketProvider()

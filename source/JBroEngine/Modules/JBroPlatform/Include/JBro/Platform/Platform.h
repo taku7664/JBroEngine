@@ -78,6 +78,35 @@ namespace JBro
         Overflow
     };
 
+    // ── 오디오 출력 (D-197·D-198) ─────────────────────────────────────────────────────────────
+    // 장치가 **당겨 가는** 모양이다. 오디오 스레드가 이 함수를 불러 인터리브 f32 `frameCount` 프레임을 채우게 한다.
+    // 함수 포인터와 사용자 자료만 건너간다(POD). 믹서는 이 모양을 알지 않는다 - 호스트가 둘을 잇는다.
+    using AudioRenderCallback = void (*)(void* user, float* output, std::uint32_t frameCount);
+
+    struct AudioOutputDesc
+    {
+        std::uint32_t sampleRate = 48000;
+        std::uint32_t channels = 2;
+        // 한 번에 당기는 프레임 수다. 0 이면 장치의 기본(보통 10 ms 안팎)이다. 작을수록 지연이 줄고 끊길 위험이 는다.
+        std::uint32_t periodFrames = 0;
+    };
+
+    // 출력 장치 하나다. 만든 쪽(호스트)이 소유한다. **메인 스레드에서 만들고 멈추고 없앤다.** 콜백은 장치의 스레드에서
+    // 돈다. `Stop` 이 돌아오면 콜백은 다시 불리지 않는다 - 그 뒤에 믹서를 내려도 된다.
+    class IAudioOutput
+    {
+    public:
+        virtual ~IAudioOutput() = default;
+        virtual bool Start(AudioRenderCallback callback, void* user) = 0;
+        virtual void Stop() = 0;
+        virtual bool IsRunning() const = 0;
+        // 장치가 실제로 받아들인 형식이다. 요청과 다를 수 있다 - 믹서는 이 값으로 만든다.
+        virtual std::uint32_t GetSampleRate() const = 0;
+        virtual std::uint32_t GetChannels() const = 0;
+        // 사람이 읽는 장치 이름(UTF-8). 로그와 에디터가 쓴다.
+        virtual const char* GetDeviceName() const = 0;
+    };
+
     // 워커에서 메인 스레드로 값으로 건너가는 POD 다. 할당도 참조도 들지 않는다 - `SafePtr` 는 메인 스레드 전용이다.
     struct FileEvent
     {
@@ -251,6 +280,16 @@ namespace JBro
         // 수명은 호스트가 든다.
         virtual OwnerPtr<Network::ISocketProvider> CreateSocketProvider()
         {
+            return nullptr;
+        }
+
+        // ── 오디오 (D-197) ──────────────────────────────────────────────────────────────────────
+        // **오디오는 장치를 직접 열지 않고 이것을 거친다.** 소켓과 같은 규약이다 - 기본은 "이 플랫폼에는 없다"(null)이고
+        // 장치가 있는 플랫폼만 덮어쓴다. 장치를 열지 못해도(스피커 없음·원격 세션) null 이다. 그때 엔진은 소리 없이 같은
+        // API 로 돈다.
+        virtual OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc)
+        {
+            (void)desc;
             return nullptr;
         }
     };

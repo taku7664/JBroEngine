@@ -45,6 +45,8 @@ namespace JBro
         std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity) override;
         // `WindowsSockets.cpp` 의 것이다.
         OwnerPtr<Network::ISocketProvider> CreateSocketProvider() override;
+        // `WindowsAudio.cpp` 의 것이다. miniaudio 의 WASAPI 장치다(D-197).
+        OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc) override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);

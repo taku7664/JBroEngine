@@ -1,5 +1,8 @@
 ﻿#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 
+#include <JBro/AudioTypes/BuiltinAudioComponents.h>
+#include <JBro/Framework2D/Component/AudioListener2D.h>
+
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -22,6 +25,9 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<SpriteRenderer2D>() && all;
             all = RegisterBuiltinProperties<Rigidbody2D>()      && all;
             all = RegisterBuiltinProperties<Collider2D>()       && all;
+            all = RegisterBuiltinProperties<AudioListener2D>()  && all;
+            // 소스는 차원과 무관한 모듈의 것이다(D-197). 두 프레임워크가 함께 부르고 한 번만 등록된다.
+            all = RegisterBuiltinAudioComponentProperties()    && all;
             return all;
         }();
         return registered;

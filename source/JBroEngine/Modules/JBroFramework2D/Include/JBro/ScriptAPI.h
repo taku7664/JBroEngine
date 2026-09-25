@@ -15,7 +15,11 @@
 #include <JBro/Script/Macros.h>
 // 네트워크 값 서비스(D-122). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.
 #include <JBro/Network/ServiceContext.h>
+// 오디오 값 서비스와 소스(D-197). 차원과 무관하므로 두 프렐류드가 같은 줄을 공유한다.
+#include <JBro/AudioTypes/Component/AudioSource.h>
+#include <JBro/AudioTypes/ServiceContext.h>
 
+#include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>

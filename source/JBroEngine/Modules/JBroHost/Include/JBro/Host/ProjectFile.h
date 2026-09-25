@@ -59,6 +59,15 @@ namespace JBro
         String        scriptOutputLibraryPath = "GameScript.dll";
     };
 
+    // 오디오 버스 하나다(D-197). 키는 기존 엔진과 같다 - `AudioBuses` 아래 `- Name:`·`Volume:` 의 맵 시퀀스다.
+    // Master 는 예약 이름이라 목록에 적지 않는다(적히면 그 음량이 Master 에 걸린다).
+    struct ProjectAudioBus
+    {
+        String name;
+        // 시작 음량이다(0..1). 스크립트가 바꾸면 그쪽이 이긴다.
+        float volume = 1.0f;
+    };
+
     struct ProjectFile
     {
         std::uint32_t version = 1;
@@ -94,6 +103,8 @@ namespace JBro
         String        assetDirectory = "Contents/Assets";
         // 스캔과 파일 감시가 건너뛸 이름 패턴이다(`AssetIgnorePatterns`, `*`·`?`). 숨김 폴더는 패턴과 무관하게 건너뛴다.
         Array<String> assetIgnorePatterns;
+        // 새 프로젝트는 흔한 둘(`Music`·`SFX`)로 시작한다. 파일에 키가 없으면 빈 목록이다(Master 하나).
+        Array<ProjectAudioBus> audioBuses;
         ProjectBuildSettings build;
     };
 

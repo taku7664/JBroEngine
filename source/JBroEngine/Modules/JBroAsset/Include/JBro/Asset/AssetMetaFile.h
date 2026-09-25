@@ -41,6 +41,9 @@ namespace JBro
         TextureImportOptions textureOptions;
         bool hasSpriteOptions = false;
         SpriteImportOptions spriteOptions;
+        // `Audio` 일 때만 뜻이 있다(`Audio.ImportOptions`, D-197).
+        bool hasAudioOptions = false;
+        AudioImportOptions audioOptions;
     };
 
     struct AssetMetaError

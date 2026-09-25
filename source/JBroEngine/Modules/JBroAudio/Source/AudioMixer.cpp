@@ -1034,6 +1034,27 @@ namespace JBro
         return seconds;
     }
 
+    void AudioMixer::Seek(AudioVoiceHandle handle, double seconds)
+    {
+        State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
+        if (voice == nullptr || false == std::isfinite(seconds))
+        {
+            return;
+        }
+        const State::Clip* clip = m_state->ResolveClip(voice->clip);
+        if (clip == nullptr || clip->desc.sampleRate == 0)
+        {
+            return;
+        }
+        double frame = seconds < 0.0 ? 0.0 : seconds * static_cast<double>(clip->desc.sampleRate);
+        if (clip->desc.frameCount > 0 && frame >= static_cast<double>(clip->desc.frameCount))
+        {
+            frame = static_cast<double>(clip->desc.frameCount - 1);
+        }
+        // 데이터 소스의 프레임 단위다(클립 자신의 샘플 레이트). 재생 중에도 목표만 적는다(miniaudio `seekTarget`).
+        ma_sound_seek_to_pcm_frame(&voice->sound, static_cast<ma_uint64>(frame));
+    }
+
     void AudioMixer::SetVolume(AudioVoiceHandle handle, float volume)
     {
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;

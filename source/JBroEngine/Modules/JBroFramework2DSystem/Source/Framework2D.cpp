@@ -10,6 +10,7 @@
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
+#include <JBro/Framework2DSystem/System/Audio2DSystem.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include "Rendering/RenderBridge2D.h"
@@ -192,6 +193,16 @@ namespace JBro
         {
             send->SetEnabled(m_simulationEnabled);
         }
+        // 소리도 게임이 움직일 때만 난다. 멈추면 보이스를 멈추고 소스를 처음으로 되돌린다 - 다시 켜면 `playOnStart` 가
+        // 한 번 다시 울린다(기존 엔진의 시뮬레이션 중지 정책).
+        if (System::Audio2DSystem* audio = systems.FindSystem<System::Audio2DSystem>())
+        {
+            if (false == m_simulationEnabled)
+            {
+                audio->ReleaseAllSources(*m_canvas);
+            }
+            audio->SetEnabled(m_simulationEnabled);
+        }
     }
 
     RenderResult Framework2D::Render()
@@ -364,6 +375,11 @@ namespace JBro
         {
             systems.AddSystem<System::NetworkReceiveSystem>(*m_context.network);
             systems.AddSystem<System::NetworkSendSystem>(*m_context.network);
+        }
+        // 오디오가 있으면 소스·리스너 시스템을 세운다(D-197). 없으면(끈 호스트) 소스는 읽히기만 한다.
+        if (m_context.audio != nullptr)
+        {
+            systems.AddSystem<System::Audio2DSystem>(*m_context.audio);
         }
         // 시스템이 막 섰다. 지금 정해져 있는 값을 그대로 적용한다 - 프로젝트를 열기 전에
         // 꺼 두었으면 첫 프레임부터 꺼져 있어야 한다.

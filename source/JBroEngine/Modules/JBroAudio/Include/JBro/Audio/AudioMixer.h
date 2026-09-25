@@ -145,6 +145,8 @@ namespace JBro
         bool IsAlive(AudioVoiceHandle voice) const;
         bool IsPaused(AudioVoiceHandle voice) const;
         double GetPlaybackSeconds(AudioVoiceHandle voice) const;
+        // 재생 위치를 옮긴다(초). miniaudio 가 목표만 원자로 적고 오디오 스레드가 옮긴다 - 재생 중에 불러도 된다.
+        void Seek(AudioVoiceHandle voice, double seconds);
 
         // 재생 중에 바꿀 수 있는 값들이다(miniaudio 의 원자 변수).
         void SetVolume(AudioVoiceHandle voice, float volume);

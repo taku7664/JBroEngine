@@ -24,6 +24,8 @@ namespace JBro
         bool BindScriptContexts() noexcept override;
         void UnbindScriptContexts() noexcept override;
         void Update(float deltaTime) override;
+        // 3D 에 스크립트·물리 시스템은 아직 없다. 지금 세우는 것은 소리뿐이다(D-197).
+        void SetSimulationEnabled(bool enabled) override;
         RenderResult Render() override;
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         void Shutdown() override;
@@ -45,6 +47,7 @@ namespace JBro
         MeshLibrary m_meshes;
         double m_fixedAccumulator = 0.0;
         bool m_initialized = false;
+        bool m_simulationEnabled = true;
     };
 
     IFramework* CreateFramework3D();
