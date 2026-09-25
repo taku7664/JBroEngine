@@ -11,6 +11,7 @@
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=FrameworkSystem
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=GameObject
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Audio
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Task
 //
 // 마지막 것만 C1083 이 아니라 #error 다. GameObject.h 는 스크립트 DLL 이 링크하는 모듈에
 // 있어 경로로는 막을 수 없고, 프렐류드를 거쳤는지로 막는다(§9.5).
@@ -32,6 +33,11 @@
 #if defined(JBRO_TIER_PROBE_AUDIO)
 // 오디오 믹서는 Tier E 다(D-197). 스크립트는 값 서비스만 본다.
 #include <JBro/Audio/AudioMixer.h>
+#endif
+
+#if defined(JBRO_TIER_PROBE_TASK)
+// 태스크 관리자는 Tier E 다(D-209). 워커가 SafePtr 를 못 만지는 계약을 스크립트에 넘기지 않는다.
+#include <JBro/Task/TaskManager.h>
 #endif
 
 #if defined(JBRO_TIER_PROBE_GAME_OBJECT)

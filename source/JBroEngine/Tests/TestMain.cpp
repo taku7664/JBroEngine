@@ -68,6 +68,7 @@ int RunAudioIntegrationTests();
 int RunTextLayoutTests();
 int RunGlyphAtlasTests();
 int RunTextRenderTests();
+int RunTaskManagerTests();
 
 int main()
 {
@@ -151,6 +152,11 @@ int main()
             return 1;
         }
         if (RunTextRenderTests() != 0)
+        {
+            return 1;
+        }
+        // 태스크 관리자는 몇 초 안에 끝난다(D-209).
+        if (RunTaskManagerTests() != 0)
         {
             return 1;
         }

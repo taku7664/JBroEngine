@@ -95,7 +95,7 @@
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest), `Fonts`(폰트 에셋 아이디의 순서 있는 시퀀스 - 첫 폰트가 `fontId` 가 빈 텍스트의 기본이고 목록 전체가
   폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
-  PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-212)
+  PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-213)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
   프로젝트 파일 쓰기는 원문의 줄을 타고 가며 아는 키의 값만 갈아 끼우는데, 그 길에서 같은 줄을
   두 번 세면 저장할 때마다 파일이 불어난다. 값이 비어 있어도 아는 키는 **적은 것**으로 세고,
@@ -184,6 +184,7 @@
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype)·`TextLayout`(UTF-8·커닝·줄바꿈·정렬). `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200) |
+  | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
 
   > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고
   > 셋 다 스크립트 DLL 이 링크하기 때문이다. 스크립트가 그 선언을 받지 않는 것은 프렐류드가
@@ -300,6 +301,12 @@
   에셋은 `AssetHandle`, 캔버스는 스크립트에 노출하지 않으므로 `RefCategory::Asset`·`Canvas`는 두지 않는다. (D-53)
   이 둘 외에 타입별 핸들을 추가하지 않는다. 두 크기(16B·24B)는 영구 고정이다. (D-44)
 - `GameObjectHandle`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
+- **워커 스레드의 일은 `JBroTask` 의 `TaskManager` 에 태스크로 등록한다.** 모듈마다 `std::thread` 를 새로 들지 않는다. 예외는 실시간 마감이
+  있는 오디오 스트리머·장치 스레드와 OS 대기에서 막히는 파일 감시다. (SHOULD) (D-209)
+  - `Task::Run` 은 워커에서 돈다. 그 안에서 `SafePtr`·`OwnerPtr`·`Ref<T>`·`GameObjectHandle` 을 만들거나 복사하거나 파괴하지 않는다. 값과 raw
+    포인터만 쓰고, 대상의 수명은 등록한 쪽이 태스크가 끝날 때까지 보장한다. 풀에 넣는 것 같은 마무리는 메인 스레드의 `OnFinished` 가 한다. (MUST)
+  - 태스크를 넘기는 모양은 가상 함수다(`Task::Run`·`OnFinished`). `std::function` 본문을 받지 않는다 - 캡처한 `SafePtr` 가 워커에서 소멸할 수 있다. (MUST) (D-212)
+  - 묶음은 다 채운 뒤 통째로 제출한다. 완료는 제출한 뒤에만 판정하고, 콜백은 `EngineInstance::Tick` 첫머리의 `Update` 에서 메인 스레드로 온다. (MUST) (D-212)
 - **`GetComponent<T>()` 는 원시 포인터가 아니라 `Ref<T>` 를 반환한다.** (MUST)
   원시 포인터는 저장할 수 없어 매 프레임 다시 찾아야 하고, 그 조회가 선형 탐색이다.
   `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.

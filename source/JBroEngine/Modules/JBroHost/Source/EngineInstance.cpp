@@ -173,6 +173,12 @@ namespace JBro
                     m_audioRetrySeconds = 2.0f;
                 }
             }
+            m_tasks = MakeOwnerPtr<TaskManager>();
+            if (false == m_tasks->Initialize(config.tasks))
+            {
+                ReleaseResources();
+                return false;
+            }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
@@ -658,6 +664,12 @@ namespace JBro
         // 프레임의 구간을 나눠 잰다(D-138). 꺼져 있으면 이 줄들은 값이 없는 호출이다.
         Profiler::BeginFrame();
         const ProfileScope frameScope("Frame");
+        // 끝난 태스크의 마무리를 부른다(D-209). 프레임 첫머리라 콜백이 넣은 결과를 이번 프레임의 갱신이 본다.
+        if (m_tasks)
+        {
+            const ProfileScope scope("Tasks");
+            m_tasks->Update();
+        }
         {
             const ProfileScope scope("Platform");
             // **꺼내 가는 쪽이 없으면 여기서 비운다**(D-177). 호스트(에디터)가 자기 UI 에
@@ -1141,6 +1153,12 @@ namespace JBro
     {
         m_state = State::Stopping;
         m_exitRequested = true;
+        // 태스크를 먼저 내린다. 돌고 있는 것을 기다리고 남은 콜백을 부르는데, 그 콜백이 프로젝트의 것을 만질 수 있다.
+        if (m_tasks)
+        {
+            m_tasks->Shutdown();
+            m_tasks.Reset();
+        }
         ReleaseProject();
         // 네트워크는 프로젝트 뒤, 플랫폼 앞에 내린다 - 소켓은 플랫폼의 것이다.
         if (m_network)
@@ -1222,6 +1240,11 @@ namespace JBro
     AudioMixer* EngineInstance::GetAudioMixer()
     {
         return m_audioMixer.Get();
+    }
+
+    TaskManager* EngineInstance::GetTaskManager()
+    {
+        return m_tasks.Get();
     }
 
     const IAudioOutput* EngineInstance::GetAudioOutput() const

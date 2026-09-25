@@ -1,0 +1,27 @@
+Modules\JBroTask\Source\TaskManager.cpp	seq:no-chaining	task.m_next = sequential && i + 1 < count ? submitted.m_tasks[i + 1].Get() : nullptr;	task.m_next = nullptr;
+Modules\JBroTask\Source\TaskManager.cpp	seq:runs-as-parallel	const bool sequential = submitted.m_order == TaskGroupOrder::Sequential;	const bool sequential = false;
+Modules\JBroTask\Source\TaskManager.cpp	callback:also-on-worker	            m_finished.Add(&task);\n	            task.OnFinished(task.GetResult());\n            m_finished.Add(&task);\n
+Modules\JBroTask\Source\TaskManager.cpp	group:finishes-early	if (group.m_finishedTasks == group.GetTaskCount())	if (group.m_finishedTasks == 1)
+Modules\JBroTask\Source\TaskManager.cpp	progress:unreported-not-counted	task.m_succeededSubTasks.fetch_add(num - reported, std::memory_order_release);	(void)0;
+Modules\JBroTask\Source\TaskManager.cpp	cancel:pending-still-runs	if (false == task.IsCancelRequested())\n        {\n            task.m_state.store(TaskState::Running	if (true)\n        {\n            task.m_state.store(TaskState::Running
+Modules\JBroTask\Source\TaskManager.cpp	cancel:running-ends-completed	if (task.IsCancelRequested() && reported < num)	if (false)
+Modules\JBroTask\Source\TaskManager.cpp	shutdown:no-drain	        RunOnMainThread(true);\n        DrainFinished();\n	        RunOnMainThread(true);\n
+Modules\JBroTask\Source\TaskManager.cpp	shutdown:no-cancel	                group->RequestCancel();\n	                (void)0;\n
+Modules\JBroTask\Source\TaskManager.cpp	budget:ignored	if (false == unlimited && elapsed.count() >= m_desc.mainThreadBudgetMs)	if (false)
+Modules\JBroTask\Source\TaskManager.cpp	exception:reason-lost	message = exception.what();	message = "";
+Modules\JBroTask\Source\TaskManager.cpp	exception:not-failed	                finalState = TaskState::Failed;\n            }\n            else	                finalState = TaskState::Completed;\n            }\n            else
+Modules\JBroTask\Source\TaskManager.cpp	trim:never	finished > m_desc.keptFinishedGroups;	finished > 1000;
+Modules\JBroTask\Source\TaskManager.cpp	worker:unnamed	(void)SetThreadDescription(GetCurrentThread(), name);	(void)name;
+Modules\JBroTask\Source\TaskManager.cpp	empty-group:never-finishes	            ++m_emptyGroupsPending;\n	            (void)0;\n
+Modules\JBroTask\Source\TaskManager.cpp	empty-group:finishes-in-submit	            ++m_emptyGroupsPending;\n            return id;	            FinishGroup(submitted);\n            return id;
+Modules\JBroTask\Source\TaskManager.cpp	main:update-skips-tasks	        if (false == m_useWorkers)\n        {\n            RunOnMainThread(false);\n        }\n	        (void)0;\n
+Modules\JBroTask\Source\TaskManager.cpp	wait:allowed-in-callback	        if (false == m_initialized || m_inCallback)\n        {\n            return false;\n        }\n        for (;;)	        if (false == m_initialized)\n        {\n            return false;\n        }\n        for (;;)
+Modules\JBroTask\Source\TaskManager.cpp	init:double-allowed	        if (m_initialized)\n        {\n            return false;\n        }\n        m_desc = desc;	        m_desc = desc;
+Modules\JBroTask\Source\Task.cpp	claim:no-limit	while (reported < m_numSubTasks)	while (true)
+Modules\JBroTask\Source\Task.cpp	fail:counted-as-success	m_failedSubTasks.fetch_add(1, std::memory_order_release);	m_succeededSubTasks.fetch_add(1, std::memory_order_release);
+Modules\JBroTask\Source\Task.cpp	fail:reason-dropped	failure.reason = reason != nullptr ? reason : "";	failure.reason = "";
+Modules\JBroTask\Source\TaskGroup.cpp	add:after-submit	if (m_submitted || task.Get() == nullptr)	if (task.Get() == nullptr)
+Modules\JBroTask\Source\TaskGroup.cpp	state:failed-reads-canceled	            if (state == TaskState::Failed)\n	            if (false)\n
+Modules\JBroTask\Source\TaskGroup.cpp	state:running-reads-pending	                if (task->GetState() != TaskState::Pending)\n	                if (false)\n
+Modules\JBroHost\Source\EngineInstance.cpp	engine:no-update	            m_tasks->Update();\n	            (void)0;\n
+Modules\JBroHost\Source\EngineInstance.cpp	engine:config-ignored	if (false == m_tasks->Initialize(config.tasks))	if (false == m_tasks->Initialize({}))
