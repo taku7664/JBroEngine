@@ -145,6 +145,8 @@
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry` |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
+  | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-201) |
+  | Tier E | `JBroInput` | `System::InputSystem` - 플랫폼 이벤트를 프레임 상태로 접고 레이어 체인의 소비를 나른다 (D-201) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현) |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
@@ -442,6 +444,22 @@
 - Time, Input 같은 핵심 서비스의 수명은 엔진이 소유한다. (MUST)
 - 서비스 접근을 위해 매 호출마다 delta time이나 서비스 참조를 전달하는 구조를 기본 방식으로 삼지 않는다. (MUST)
 - `Time`, `Input`처럼 소유권과 분리된 전역 접근 지점을 제공할 수 있다. 이 접근 지점이 서비스 수명을 소유해서는 안 된다. (MAY)
+
+### 7.1 게임 입력
+
+- **게임 입력은 플랫폼 이벤트(D-62)를 프레임마다 한 번 접은 상태다.** 키 상태를 폴링(`GetAsyncKeyState` 따위)하지 않는다. (MUST) (D-201)
+  폴링은 한 프레임 안에 눌렀다 뗀 키를 잃는다. 키·버튼마다 지금 눌림과 이번 프레임의 눌림 수·뗌 수를 두고, 자동 반복은 누름이 아니며,
+  `FocusLost` 는 눌린 것을 모두 뗀 것으로 접는다. 접는 것은 `System::InputSystem`(Tier E `JBroInput`)이고 `EngineInstance` 가 소유한다.
+  키 이름(`Key`·`MouseButton`·`KeyModifiers`)은 `JBroCore` 의 `<JBro/Core/InputKeys.h>` 에 한 번 둔다. 상태·뷰·핸들러·서비스는 Tier S `JBroInputTypes` 다.
+- **입력 블로킹은 레이어 체인 하나로 한다.** 스크립트는 `InputHandler<"레이어", Order>` 를 상속해 `OnInput(InputView&)` 을 쓰고, `InputResult::Block` 을
+  돌려주면 아래 핸들러와 폴링이 모두 막힌다. `InputView::Consume(InputDevice)` 는 그 장치만 아래에 빈 장치로 보인다. (MUST) (D-201)
+  체인 순서는 (프로젝트 레이어 순서, `Order` 큰 것 먼저, 실행 순서)이고 없는 레이어는 맨 아래에서 받는다.
+- **입력을 읽는 뒷문을 두지 않는다.** 스크립트의 폴링(`Service::InputService`)은 체인이 막고 남은 것만 본다. 엔진 시스템이 입력을 써야 하면
+  (뒤에 올 UI 버튼 따위) 같은 체인에 레이어와 순서를 가진 핸들러로 선다 - 프레임 상태를 직접 읽지 않는다. (MUST) (D-201)
+  기존 엔진의 `GetDeviceContext()` 가 그 뒷문이었고, 모달 아래의 버튼이 눌렸다.
+- **핸들러는 따로 등록하지 않는다.** 스크립트 타입에서 `if constexpr` 로 만든 썽크를 `ScriptTypeInfo`·컴포넌트 버킷이 들고, `ScriptSystem` 이 실행
+  순서 목록과 함께 체인을 세운다. 날 핸들러 포인터를 등록·해제하는 목록을 만들지 않는다. (MUST) (D-201)
+- 체인은 시작 훅을 받은 켜진 스크립트만, 그 프레임의 `OnFixedUpdate`·`OnUpdate` 보다 먼저 부른다. 부르는 자리는 프레임워크의 고정 스텝 앞이다. (MUST) (D-201)
 
 ## 8. 오브젝트-컴포넌트 모델
 

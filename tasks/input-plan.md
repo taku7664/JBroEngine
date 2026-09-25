@@ -257,10 +257,21 @@ P5 의 해법이다. 날 포인터 등록·해제를 없앤다.
    라이브러리이고 스크립트 DLL 도 링크한다.
    테스트: 호스트 안의 서비스가 이번 프레임을 보고 묶이지 않으면 빈 입력(`InputSystemTests`), **실제 호스트가 실제 스크립트 DLL 을 실은 채**
    창에 `WM_KEYDOWN` 을 넣고 틱하면 DLL 안의 서비스가 눌림을 보고 `WM_KEYUP` 뒤에는 뗌을 본다(`ScriptDLLLoaderTests`). `Debug`·`Debug_Game2D`·
-   `Debug_Game3D` 빌드 경고 0, 전체 스위트 통과. 뮤테이션은 3 단계와 함께 잰다(DLL 테스트까지 스위트가 몇 분 걸린다).
-3. **핸들러 체인과 블로킹.** `InputHandler<Layer, Order>`, `ScriptTypeInfo` 썽크, `ScriptSystem` 이 체인을 세움, `Block`·`Consume`.
-   완료: `Block` 이 아래와 `OnUpdate` 폴링을 막음, 마우스 소비가 키보드를 남김, 순서(레이어·Order·실행 순서), 꺼진 스크립트는
-   부르지 않음, 디스패치 중 생성은 다음 프레임부터, 모르는 레이어는 맨 아래 + 한 번 경고. 뮤테이션으로 각 조건을 깨 본다.
+   `Debug_Game3D` 빌드 경고 0, 전체 스위트 통과. 뮤테이션 3/4 잡힘(블록을 안 냄·접지 않음·호스트 사본을 묶지 않음 - 마지막 것은 처음에
+   재지 않아 테스트를 더해 잡았다). 서비스 블록을 안 내는 변이는 **동치**다: `InputServiceContext` 안의 `InputService` 는 멤버가 없는 값이라
+   묶든 안 묶든 DLL 사본의 내용이 같다(상태는 시스템 블록이 나른다). 서비스에 상태가 생기면 이 판단은 다시 한다.
+3. `[완료]` **핸들러 체인과 블로킹**(`dfa9e14`). `InputHandler<Layer, Order>`(C++20 문자열 템플릿 인자, 레이어 `NameId` 는 컴파일 타임)와
+   `IInputHandler::OnInput(InputView&)`·`InputResult`. 썽크는 `MakeScriptInputBinding<T>` 하나가 만들고 `ScriptTypeInfo::input`(이름으로 붙인 것)과
+   컴포넌트 버킷(정적으로 붙인 것)이 든다 - `Runtime` 은 `IInputHandler` 를 전방 선언만 한다. `Canvas::FindScriptInputBinding` 이 둘 중 맞는 쪽을
+   찾고 `ScriptSystem::Rebuild` 가 체인을 세운다. `InputSystem` 은 `BeginDispatch`·`Deliver`·`EndDispatch` 로 소비를 나르고, 핸들러가 가져간 장치는
+   **그 핸들러가 돌아온 뒤에** 아래에 걸린다(가져간 핸들러 자신은 끝까지 읽는다). 레이어 순서 기본값은 Modal·UI·Game·World·Debug 이고
+   `SetLayerOrder` 로 바꾼다(프로젝트 파일에서 읽는 것은 5 단계). `Framework2D::Update` 가 고정 스텝 앞에서 `DispatchInput` 을 부른다.
+   테스트(`InputChainTests`): 순서(레이어·Order·실행 순서, 없는 레이어는 맨 아래), 없는 레이어 경고는 체인을 다시 세워도 한 번, 시작 전 스크립트는
+   다음 프레임부터, `Block` 이 아래 핸들러와 폴링을 막고 풀면 돌아옴, 마우스만 소비하면 키보드는 남음, 꺼진 핸들러와 위에서 그 프레임에 끈 핸들러는
+   안 부름, 레이어 순서를 바꾸면 다시 줄 섬, 이름으로 붙인 스크립트도 핸들러, 체인이 돌지 않은 프레임은 막히지 않음, 200 프레임 디스패치의 CRT
+   할당 0, 프레임워크가 고정 스텝 앞에서 돌려 `OnFixedUpdate` 의 폴링도 막힘. 뮤테이션 21/21 잡힘(첫 판에 `체인이 돌지 않은 프레임이 지난 블록을
+   유지` 가 살아 테스트를 더해 잡았다). 핸들러 안의 파괴를 큐로 보내는 `IterationGuard` 는 재지 않았다 - 없애면 죽은 객체를 부르는 UB 라 테스트가
+   확정적으로 울지 않는다. `OnUpdate` 와 같은 가드이고 같은 줄을 쓴다.
 4. **에디터.** 재생 중 + 게임 뷰 포커스일 때만 넘김, 떠날 때 `FocusLost`, 게임 뷰 사각형 매핑.
    완료: 실제 `JBroEditorHost` 에서 게임 뷰를 눌러 키를 치면 움직이고, 인스펙터에 글자를 치는 동안은 움직이지 않는다.
 5. **액션과 프로젝트 설정.** `.jproject` 두 블록, 평가, 설정 화면(커맨드).
