@@ -3,6 +3,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/NameTable.h>
 
 #include <cstdint>
@@ -89,6 +90,7 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
         JBro::Internal::InstanceRegistry::Bind(nullptr);
         JBro::ScriptRegistry::Bind(nullptr);
         JBro::NameTable::Bind(nullptr);
+        JBro::TextStore::Bind(nullptr);
         JBro::BindSystemContext({});
         JBro::BindServiceContext({});
         g_loaded = false;
@@ -165,6 +167,27 @@ extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetLocalRegistry
 extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetNameTable() noexcept
 {
     return reinterpret_cast<std::uintptr_t>(&JBro::NameTable::Get());
+}
+
+// 글자 저장소도 같다(D-211). 붙지 않았다면 DLL 사본의 빈 저장소가 나온다.
+extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetTextStore() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&JBro::TextStore::Get());
+}
+
+// 호스트가 만든 글자를 **DLL 쪽 코덱으로** 읽는다. 스크립트 타입의 `TextId` 필드가 파일에 적힐 때 지나는 길이다.
+extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_WriteText(
+    std::uint32_t index, std::uint32_t generation, char* buffer, std::uint32_t capacity) noexcept
+{
+    JBro::TextId id;
+    id.index = index;
+    id.generation = generation;
+    std::size_t required = 0;
+    if (false == JBro::GetTextIdCodec().ToText(&id, buffer, capacity, required))
+    {
+        return 0;
+    }
+    return static_cast<std::uint32_t>(required);
 }
 
 // 호스트가 이미 보관한 원문을 DLL 안에서 되찾을 수 있는지 직접 본다.

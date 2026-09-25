@@ -605,6 +605,20 @@ namespace
         Check(fromDll != nullptr && std::strcmp(fromDll, "host side name") == 0,
             "a script DLL must read back a name the host interned");
 
+        // 글자 저장소도 붙는다(D-211). DLL 쪽 코덱이 호스트가 쓴 글자를 읽어야 스크립트 타입의 `TextId` 필드가 파일에 남는다.
+        using WriteText = std::uint32_t (*)(std::uint32_t, std::uint32_t, char*, std::uint32_t) noexcept;
+        const auto getTextStore = reinterpret_cast<ReadAddress>(loader.GetSymbol("JBroScriptProbe_GetTextStore"));
+        const auto writeText = reinterpret_cast<WriteText>(loader.GetSymbol("JBroScriptProbe_WriteText"));
+        Check(getTextStore != nullptr && writeText != nullptr, "the real script probe must expose its text store view");
+        Check(getTextStore() == reinterpret_cast<std::uintptr_t>(&JBro::TextStore::Local()),
+            "a loaded script DLL must keep text in the host text store");
+        const JBro::TextId hostText = JBro::TextStore::Local().Create("from the host", 13);
+        char written[64] = {};
+        Check(writeText(hostText.index, hostText.generation, written, sizeof(written)) != 0
+                && std::strcmp(written, "from the host") == 0,
+            "the script DLL's codec reads the text the host wrote");
+        JBro::TextStore::Local().Destroy(hostText);
+
         // H5 의 알맹이다. 타입은 DLL 안에만 있고 호스트는 정의를 보지 못하는데,
         // 이름 하나로 만들어 붙일 수 있어야 한다.
         const auto getScriptRegistry = reinterpret_cast<ReadAddress>(
