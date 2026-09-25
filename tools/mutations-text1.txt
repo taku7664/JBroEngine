@@ -1,0 +1,17 @@
+Modules\JBroText\Source\TextLayout.cpp	layout:kerning-not-applied	                    x += static_cast<float>(face.GetKerning(previous.glyph, item.glyph)) * Scale(face, options.fontSize);	                    (void)face;
+Modules\JBroText\Source\FontFace.cpp	face:kerning-reads-nothing	        return stbtt_GetGlyphKernAdvance(Info(m_info), static_cast<int>(left), static_cast<int>(right));	        return 0;
+Modules\JBroText\Source\TextLayout.cpp	wrap:no-break-after-space	                    && (previous.kind == ItemKind::Space || previous.breaksAnywhere || item.breaksAnywhere);	                    && (previous.breaksAnywhere || item.breaksAnywhere);
+Modules\JBroText\Source\TextLayout.cpp	wrap:character-mode-ignored	                && (options.wrapMode == WrapMode::Character || IsBreakAnywhereScript(value));	                && IsBreakAnywhereScript(value);
+Modules\JBroText\Source\TextLayout.cpp	wrap:breaks-at-the-overflowing-glyph	                const std::size_t breakAt = lastOpportunity > lineStart ? lastOpportunity : index;	                const std::size_t breakAt = index;
+Modules\JBroText\Source\TextLayout.cpp	wrap:spaces-become-glyphs	                if (item.kind != ItemKind::Visible)\n                {\n                    continue;\n                }\n                PositionedGlyph glyph;	                if (item.kind == ItemKind::Newline)\n                {\n                    continue;\n                }\n                PositionedGlyph glyph;
+Modules\JBroText\Source\TextLayout.cpp	decode:crlf-is-two-breaks	                if (cursor < length && text[cursor] ==	                if (false && text[cursor] ==
+Modules\JBroText\Source\TextLayout.cpp	decode:trail-jamo-not-composed	                value += m_codepoints[index + 1].value - TrailBase;\n                ++index;	                (void)index;
+Modules\JBroText\Source\TextLayout.cpp	decode:truncated-is-one-per-byte	                    cursor += index;\n                    return ReplacementCharacter;	                    cursor += 1;\n                    return ReplacementCharacter;
+Modules\JBroText\Source\TextLayout.cpp	decode:overlong-accepted	            if (value < minimum || value > 0x10FFFF	            if (value > 0x10FFFF
+Modules\JBroText\Source\TextLayout.cpp	layout:letter-spacing-ignored	            penX = x + item.advance + options.letterSpacing;	            penX = x + item.advance;
+Modules\JBroText\Source\TextLayout.cpp	align:center-lines-not-shifted	                shift += (blockWidth - line.width) * 0.5f;	                shift += 0.0f;
+Modules\JBroText\Source\TextLayout.cpp	align:baseline-is-top	            blockTop = ascent;	            blockTop = 0.0f;
+Modules\JBroText\Source\TextLayout.cpp	clip:never-drops-lines	        if (options.overflow == Overflow::Clip && options.boxHeight > 0.0f)	        if (false)
+Modules\JBroText\Source\TextLayout.cpp	layout:line-height-drops-descent	        const float lineHeight = static_cast<float>(metrics.ascent - metrics.descent + metrics.lineGap)	        const float lineHeight = static_cast<float>(metrics.ascent + metrics.lineGap)
+Modules\JBroText\Source\TextLayout.cpp	layout:rebuild-reallocates	        m_glyphs.Clear();	        m_glyphs = Array<PositionedGlyph>();
+Modules\JBroText\Source\FontFace.cpp	face:move-leaves-source-loaded	        other.m_loaded = false;	        (void)other;

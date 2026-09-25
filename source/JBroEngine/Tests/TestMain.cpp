@@ -60,6 +60,7 @@ int RunScriptCompilerParserTests();
 int RunScriptCompilerCommandLineTests();
 int RunRendererBenchmark();
 int RunAudioMixerTests();
+int RunTextLayoutTests();
 
 int main()
 {
@@ -110,6 +111,11 @@ int main()
         }
         // 오디오 믹서는 장치 없이 몇 초 안에 끝난다(audio-plan §3-1).
         if (RunAudioMixerTests() != 0)
+        {
+            return 1;
+        }
+        // 텍스트 커널은 그래픽도 파일도 쓰지 않는다(text-plan §5 의 1 단계). 앞에 두어 뮤테이션이 빨리 끝나게 한다.
+        if (RunTextLayoutTests() != 0)
         {
             return 1;
         }
