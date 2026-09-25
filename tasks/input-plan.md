@@ -96,7 +96,8 @@
 ### 3.1 모듈 `[제안]`
 
 ```
-JBroInputTypes (Tier S)  Key·MouseButton·KeyModifiers(JBroPlatform 에서 옮김), 장치 스냅숏(KeyboardState·MouseState),
+JBroCore (Tier S)        Key·MouseButton·KeyModifiers(JBroPlatform 에서 옮김, <JBro/Core/InputKeys.h>) - 1 단계에서 고친 자리, 아래 참고
+JBroInputTypes (Tier S)  장치 스냅숏(KeyboardState·MouseState),
                          InputView(핸들러가 받는 것), InputHandler<Layer, Order>, InputResult, InputActionId,
                          Service::InputService. 헤더 위주, 서비스 .cpp 하나
 JBroInput (Tier E)       System::InputSystem - 이벤트 → 프레임 상태, 액션 평가, 핸들러 체인과 소비 마스크
@@ -107,8 +108,10 @@ JBroHost                 EngineInstance 가 InputSystem 을 소유하고(Project
 
 - 이름은 `JBroAssetTypes`↔`JBroAsset`, `JBroAudioTypes`↔`JBroAudio` 의 관례를 따른다.
 - 입력은 차원과 무관하다. 2D 프레임워크에 두면 3D 가 같은 것을 또 만든다.
-- `Key` 를 `JBroCore` 에 두는 길도 있다("차원과 무관한 공개 값 타입은 JBroCore 에 한 번"). 그러나 장치 스냅숏·핸들러·서비스가
-  같이 가야 하므로 한 모듈에 모으는 편이 의존이 짧다. `JBroCore` 는 값 타입·컨테이너만 갖는다는 표(§3)와도 맞다.
+- `[완료]` **키 이름은 `JBroCore` 에 둔다**(1 단계에서 고침). 처음에는 장치 상태와 한 모듈에 모으려 했으나, 플랫폼 헤더(`Input.h`)가
+  키 이름을 include 해야 하므로 `JBroInputTypes` 에 두면 플랫폼을 보는 14 개 프로젝트(Asset·RHI 셋·Graphics·Host·Editor·호스트 둘·
+  프레임워크 시스템 둘·테스트)가 모두 새 include 경로를 받아야 했다. 키 이름은 차원과 무관한 값 타입이라 "JBroCore 에 한 번" 규칙(§4)에
+  그대로 맞고, 그러면 include 경로를 하나도 바꾸지 않는다. 장치 상태·뷰·핸들러·서비스는 그대로 `JBroInputTypes` 다.
 
 ### 3.2 받는 방식: 이벤트에서 프레임 상태를 만든다 `[제안]`
 

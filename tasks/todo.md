@@ -2699,7 +2699,8 @@ EditorApplication::Tick
   결함(계획서 §1.3: `GetAsyncKeyState` 폴링이 한 프레임 안의 눌렀다 떼기를 잃음, 전부 아니면 없음인 막기, 엔진 단계의 `GetDeviceContext()`
   뒷문, 액션의 `strcmp` 조회, 흩어진 날 포인터 등록·해제)을 고친다. 정한 것: (1) 새 Tier S 모듈 `JBroInputTypes`(키 이름·장치 상태·`InputView`·
   `InputHandler`·`Service::InputService`)와 Tier E 모듈 `JBroInput`(`System::InputSystem`). `Key`·`MouseButton`·`KeyModifiers` 는 `JBroPlatform` 에서
-  옮기고 플랫폼은 include 만 한다. `EngineInstance` 가 `InputSystem` 을 소유하고 컨텍스트 블록은 네트워크처럼 호스트가 낸다(D-122 와 같은 모양).
+  **`JBroCore`(`<JBro/Core/InputKeys.h>`)로** 옮기고 플랫폼은 include 만 한다 - 계획서는 `JBroInputTypes` 로 옮긴다고 적었으나, 그러면 플랫폼 헤더를
+  보는 14 개 프로젝트가 모두 새 include 경로를 받아야 한다. 키 이름은 차원과 무관한 값 타입이라 `JBroCore` 에 한 번 두는 규칙(§4)에도 맞는다(1 단계에서 고침). `EngineInstance` 가 `InputSystem` 을 소유하고 컨텍스트 블록은 네트워크처럼 호스트가 낸다(D-122 와 같은 모양).
   (2) 키·버튼마다 지금 눌림과 이번 프레임의 눌림 수·뗌 수를 둔다 - 한 프레임 안에 눌렀다 떼면 `IsPressed`·`IsReleased` 가 둘 다 참이다.
   자동 반복은 눌림이 아니고, `FocusLost` 는 눌린 것을 모두 뗀 것으로 접는다. (3) `OnInput(InputView&)` 이 `InputResult::Block` 을 돌려주면 아래
   핸들러와 폴링이 모두 막힌다. `InputView::Consume(InputDevice)` 는 그 장치만 아래에 빈 장치로 보인다. 키 단위 소비는 뒤로 미룬다.
