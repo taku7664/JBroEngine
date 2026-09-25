@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/InputTypes/InputAction.h>
 #include <JBro/InputTypes/InputState.h>
 
 #include <cstdint>
@@ -16,6 +17,8 @@ namespace JBro
     {
         Keyboard,
         Mouse,
+        // 네 자리 전부다. 자리 하나만 가져가는 소비는 두지 않는다.
+        Gamepad,
 
         Count
     };
@@ -59,6 +62,25 @@ namespace JBro
             return m_frame->mouse;
         }
 
+        // 게임패드 자리(0..3)다. 범위 밖이면 빈 패드다.
+        const GamepadState& Gamepad(std::uint32_t index) const
+        {
+            if (m_frame == nullptr || index >= MaxGamepads || IsConsumed(InputDevice::Gamepad))
+            {
+                return EmptyGamepadState;
+            }
+            return m_frame->gamepads[index];
+        }
+
+        // 이름 붙인 입력이다(D-210). 소비된 장치의 바인딩은 빠진다 - 위에서 마우스를 가져갔으면 마우스로 묶은 액션도 아래에서는 0 이다.
+        // 프로젝트에 없는 이름이면 0 이고 한 번 경고가 남는다.
+        InputActionValue Action(InputActionId action) const;
+        bool IsActionDown(InputActionId action) const;
+        bool IsActionPressed(InputActionId action) const;
+        bool IsActionReleased(InputActionId action) const;
+        float GetActionFloat(InputActionId action) const;
+        InputVector2 GetActionVector(InputActionId action) const;
+
         // 이 장치를 아래 핸들러와 폴링에게 빈 장치로 보이게 한다. 이 핸들러 자신은 계속 읽을 수 있다 -
         // 소비는 아래로 내려가는 것이지 지금 읽는 것을 지우는 일이 아니다.
         void Consume(InputDevice device)
@@ -97,6 +119,8 @@ namespace JBro
         }
 
         const InputFrame* m_frame = nullptr;
+        // 호스트의 액션 표다. 없으면 모든 액션이 0 이다.
+        InputActionMap* m_actions = nullptr;
         // 위에서 가져간 것. 이 핸들러가 읽을 때 빈 장치로 보인다.
         std::uint32_t m_consumed = 0;
         // 이 핸들러가 이번에 가져간 것. 핸들러가 돌아온 뒤 `m_consumed` 에 합쳐진다.

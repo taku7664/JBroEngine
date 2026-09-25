@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/AudioTypes/AudioTypes.h>
+#include <JBro/InputTypes/InputAction.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
@@ -81,6 +82,24 @@ namespace JBro
         float duckRelease = 0.3f;
     };
 
+    // 입력 바인딩 하나다(D-210). 키는 기존 엔진과 같다 - `Source:`·`Code:`·`GamepadIndex:`(-1 이면 적지 않는다)·
+    // `Composite:`(None 이면 적지 않는다). `Code` 는 원천에 따른 열거자 이름이다(스틱은 `Left`·`Right`).
+    struct ProjectInputBinding
+    {
+        InputBindingSource source = InputBindingSource::Key;
+        std::uint16_t code = 0;
+        int gamepad = -1;
+        InputComposite composite = InputComposite::None;
+    };
+
+    // 입력 액션 하나다(D-210). `InputActions` 아래 `- Name:`·`Type:`·`Bindings:` 의 맵 시퀀스다.
+    struct ProjectInputAction
+    {
+        String name;
+        InputActionType type = InputActionType::Bool;
+        Array<ProjectInputBinding> bindings;
+    };
+
     struct ProjectFile
     {
         std::uint32_t version = 1;
@@ -123,6 +142,11 @@ namespace JBro
         String        audioOutputDevice;
         // 창이 포커스를 잃으면 소리를 끈다(`AudioMuteWhenUnfocused`). 스크립트가 옵션 화면에서 바꿀 수 있다.
         bool          audioMuteWhenUnfocused = false;
+        // 입력 레이어 순서다(`InputLayers`, D-210). 위가 먼저 받는다. 비어 있으면 엔진 기본(Modal·UI·Game·World·Debug)이고
+        // 파일에 적지 않는다 - 손대지 않은 파일은 저장해도 바이트 하나 바뀌지 않는다.
+        Array<String> inputLayers;
+        // 입력 액션이다(`InputActions`). 비어 있으면 적지 않는다. 엔진이 담는 것은 앞의 64 개, 액션마다 바인딩 8 개다.
+        Array<ProjectInputAction> inputActions;
         ProjectBuildSettings build;
     };
 

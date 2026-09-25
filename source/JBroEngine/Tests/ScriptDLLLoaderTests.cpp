@@ -816,6 +816,23 @@ namespace
         Check(engine.Tick(0.016f), "the host must keep ticking");
         Check(false == isKeyDown(space), "and releasing it must reach the DLL too");
 
+        // 프로젝트의 입력 액션이 곧바로 걸린다(D-210). 설정 창이 저장하면 부르는 길(`SetProjectFile`)이다.
+        JBro::ProjectFile inputProject = engine.GetProjectFile();
+        JBro::ProjectInputAction jumpAction;
+        jumpAction.name = "Jump";
+        JBro::ProjectInputBinding jumpKey;
+        jumpKey.code = static_cast<std::uint16_t>(JBro::Key::Space);
+        jumpAction.bindings.Add(jumpKey);
+        inputProject.inputActions.Add(jumpAction);
+        engine.SetProjectFile(inputProject);
+        const JBro::InputActionId jump = JBro::MakeNameId("Jump");
+        PostMessageW(window, WM_KEYDOWN, VK_SPACE, 0);
+        Check(engine.Tick(0.016f), "the host must tick with the new actions");
+        Check(JBro::GetInputServices().Input.GetView().IsActionPressed(jump),
+            "a key bound in the project presses its action through the service");
+        PostMessageW(window, WM_KEYUP, VK_SPACE, static_cast<LPARAM>(0xC0000001u));
+        Check(engine.Tick(0.016f), "the host must keep ticking");
+
         engine.CloseProject();
         Check(framework.unbindCount == 1, "closing must unbind the contexts once");
         Check(false == engine.GetScriptModule().IsLoaded(),

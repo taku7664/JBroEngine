@@ -134,15 +134,70 @@ namespace JBro
         }
     };
 
+    inline constexpr std::size_t GamepadButtonCount = static_cast<std::size_t>(GamepadButton::Count);
+    inline constexpr std::size_t GamepadAxisCount = static_cast<std::size_t>(GamepadAxis::Count);
+    // 게임패드 자리 수다. XInput 의 네 자리와 같고, 자리 번호가 곧 플레이어 번호다.
+    inline constexpr std::size_t MaxGamepads = 4;
+
+    struct GamepadState
+    {
+        bool connected = false;
+        ButtonState buttons[GamepadButtonCount] = {};
+        // 데드존을 지난 값이다. 스틱은 -1..1(위가 +), 트리거는 0..1.
+        float axes[GamepadAxisCount] = {};
+
+        bool IsDown(GamepadButton button) const
+        {
+            const std::size_t index = static_cast<std::size_t>(button);
+            if (index >= GamepadButtonCount)
+            {
+                return false;
+            }
+            return buttons[index].down;
+        }
+
+        bool IsPressed(GamepadButton button) const
+        {
+            const std::size_t index = static_cast<std::size_t>(button);
+            if (index >= GamepadButtonCount)
+            {
+                return false;
+            }
+            return buttons[index].pressCount > 0;
+        }
+
+        bool IsReleased(GamepadButton button) const
+        {
+            const std::size_t index = static_cast<std::size_t>(button);
+            if (index >= GamepadButtonCount)
+            {
+                return false;
+            }
+            return buttons[index].releaseCount > 0;
+        }
+
+        float GetAxis(GamepadAxis axis) const
+        {
+            const std::size_t index = static_cast<std::size_t>(axis);
+            if (index >= GamepadAxisCount)
+            {
+                return 0.0f;
+            }
+            return axes[index];
+        }
+    };
+
     struct InputFrame
     {
         KeyboardState keyboard;
         MouseState mouse;
+        GamepadState gamepads[MaxGamepads];
     };
 
     // 막힌 장치를 읽으면 이것이 나온다. 읽는 쪽이 갈래 없이 같은 멤버를 부를 수 있게 한다.
     inline constexpr KeyboardState EmptyKeyboardState{};
     inline constexpr MouseState EmptyMouseState{};
+    inline constexpr GamepadState EmptyGamepadState{};
 
     static_assert(std::is_trivially_copyable_v<InputFrame>, "InputFrame crosses the game DLL boundary");
     static_assert(std::is_standard_layout_v<InputFrame>, "InputFrame crosses the game DLL boundary");

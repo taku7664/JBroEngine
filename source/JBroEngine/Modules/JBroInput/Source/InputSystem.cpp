@@ -60,6 +60,8 @@ namespace JBro::System
     {
         m_residual.m_frame = &m_frame;
         m_dispatch.m_frame = &m_frame;
+        m_residual.m_actions = &m_actions;
+        m_dispatch.m_actions = &m_actions;
         m_systemContext.Input = this;
         SetLayerOrder({});
     }
@@ -173,6 +175,17 @@ namespace JBro::System
                 text != nullptr ? text : "?");
         }
         return static_cast<std::uint32_t>(m_layers.Size());
+    }
+
+    void InputSystem::SetActionMap(const InputActionMap& actions)
+    {
+        m_actions = actions;
+        m_actions.warnedCount = 0;
+    }
+
+    const InputActionMap& InputSystem::GetActionMap() const
+    {
+        return m_actions;
     }
 
     std::uint64_t InputSystem::GetLayerRevision() const

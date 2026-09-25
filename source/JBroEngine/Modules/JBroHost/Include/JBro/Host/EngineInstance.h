@@ -210,6 +210,8 @@ namespace JBro
         void ReleaseResources();
         // 프로젝트의 버스 목록·장치·포커스 정책을 오디오 시스템에 건다.
         void ApplyAudioBuses();
+        // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-210).
+        void ApplyInputSettings();
         // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
         bool OpenAudioOutput();
         // 프레임마다: 장치가 사라졌으면 닫고 다시 연다(D-203). 창 포커스를 오디오 시스템에 알린다.

@@ -56,6 +56,10 @@ namespace JBro::System
         // 레이어 순서가 바뀔 때마다 오른다. 체인을 들고 있는 쪽이 이 값으로 다시 줄 세울지 안다.
         std::uint64_t GetLayerRevision() const;
 
+        // 프로젝트의 액션 표다(D-210). 표를 복사해 두고, 체인과 폴링의 뷰가 이것을 읽는다. 없는 이름의 경고 기억도 여기서 지운다.
+        void SetActionMap(const InputActionMap& actions);
+        const InputActionMap& GetActionMap() const;
+
     private:
         void Fold(const InputEvent& event, const InputSurfaceMapping& mapping);
         void ReleaseAll();
@@ -64,6 +68,7 @@ namespace JBro::System
         InputView m_residual;
         // 체인을 따라 내려가는 뷰다. `m_residual` 과 따로 두어, 체인이 도는 동안의 폴링이 반쯤 소비된 것을 보지 않게 한다.
         InputView m_dispatch;
+        InputActionMap m_actions;
         Array<NameId> m_layers;
         Table<NameId, std::uint8_t> m_warnedLayers;
         std::uint64_t m_layerRevision = 1;

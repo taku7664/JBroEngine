@@ -146,4 +146,51 @@ namespace JBro
 
         Count
     };
+
+    // 게임패드 버튼이다. 이름은 자리로 부른다(Xbox A = PlayStation X = `South`). 기존 엔진 `EGamepadButton` 과 이름이 같다 -
+    // `.jproject` 의 바인딩이 이 글자로 적혀 있다.
+    enum class GamepadButton : std::uint8_t
+    {
+        South,
+        East,
+        West,
+        North,
+        LeftShoulder,
+        RightShoulder,
+        Start,
+        Select,
+        DPadUp,
+        DPadDown,
+        DPadLeft,
+        DPadRight,
+        LeftThumb,
+        RightThumb,
+
+        Count
+    };
+
+    // 게임패드 축이다. 스틱은 -1..1(위가 +), 트리거는 0..1 이다.
+    enum class GamepadAxis : std::uint8_t
+    {
+        LeftX,
+        LeftY,
+        RightX,
+        RightY,
+        LeftTrigger,
+        RightTrigger,
+
+        Count
+    };
+
+    // 이름과 값을 잇는다(D-210). 프로젝트 파일의 입력 바인딩과 에디터의 목록이 쓴다. 매 프레임 경로에서는 부르지 않는다.
+    // 이름은 열거자 이름 그대로이고, 읽을 때는 기존 엔진의 옛 이름(`Num0`·`LeftCtrl`·`Equals`·`Grave`·`Numpad0` 따위)도 받는다.
+    // 모르는 값이면 이름은 빈 글자, 찾기는 거짓이다.
+    const char* GetKeyName(Key key);
+    bool FindKeyByName(const char* name, Key& key);
+    const char* GetMouseButtonName(MouseButton button);
+    bool FindMouseButtonByName(const char* name, MouseButton& button);
+    const char* GetGamepadButtonName(GamepadButton button);
+    bool FindGamepadButtonByName(const char* name, GamepadButton& button);
+    const char* GetGamepadAxisName(GamepadAxis axis);
+    bool FindGamepadAxisByName(const char* name, GamepadAxis& axis);
 }

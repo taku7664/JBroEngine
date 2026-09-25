@@ -240,6 +240,7 @@ namespace JBro
         }
         m_project = project;
         ApplyAudioBuses();
+        ApplyInputSettings();
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
@@ -881,6 +882,62 @@ namespace JBro
         }
         // 오디오 버스도 지금 적용한다(D-197). 설정 창에서 버스를 더하면 곧바로 고를 수 있어야 한다.
         ApplyAudioBuses();
+        // 입력도 같다(D-210). 설정 창에서 저장한 바인딩으로 곧바로 움직인다.
+        ApplyInputSettings();
+    }
+
+    void EngineInstance::ApplyInputSettings()
+    {
+        if (m_input.Get() == nullptr)
+        {
+            return;
+        }
+        // 레이어는 이름의 해시로 가른다. 핸들러의 `InputHandler<"UI", 10>` 도 같은 해시를 컴파일 시간에 만든다.
+        Array<NameId> layers;
+        layers.Reserve(m_project.inputLayers.Size());
+        for (const String& layer : m_project.inputLayers)
+        {
+            layers.Add(NameTable::Get().Intern(layer.c_str()));
+        }
+        m_input->SetLayerOrder({layers.Data(), static_cast<std::uint32_t>(layers.Size())});
+
+        // 액션 표는 고정 크기다. 넘치는 액션과 바인딩은 버리고 한 번 말한다 - 파일은 그대로 두어 되살릴 수 있다.
+        InputActionMap map;
+        bool truncated = false;
+        for (const ProjectInputAction& action : m_project.inputActions)
+        {
+            if (map.count >= MaxInputActions)
+            {
+                truncated = true;
+                break;
+            }
+            InputActionDesc& desc = map.actions[map.count];
+            // 이름표에 넣어 두어야 없는 액션을 물었을 때의 경고가 이름으로 말한다.
+            desc.name = NameTable::Get().Intern(action.name.c_str());
+            desc.type = action.type;
+            desc.bindingCount = 0;
+            for (const ProjectInputBinding& binding : action.bindings)
+            {
+                if (desc.bindingCount >= MaxInputBindingsPerAction)
+                {
+                    truncated = true;
+                    break;
+                }
+                InputBinding& target = desc.bindings[desc.bindingCount];
+                target.source = binding.source;
+                target.code = binding.code;
+                target.gamepad = static_cast<std::int8_t>(binding.gamepad);
+                target.composite = binding.composite;
+                ++desc.bindingCount;
+            }
+            ++map.count;
+        }
+        if (truncated)
+        {
+            Log::Write(LogLevel::Warning, "input", "the project has more than %u input actions or %u bindings in one action; the rest is ignored",
+                MaxInputActions, MaxInputBindingsPerAction);
+        }
+        m_input->SetActionMap(map);
     }
 
     void EngineInstance::ApplyAudioBuses()
