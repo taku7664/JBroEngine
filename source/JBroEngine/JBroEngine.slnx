@@ -15,6 +15,12 @@
       <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
       <BuildType Solution="Release_Game3D|x64" Project="Release" />
     </Project>
+    <Project Path="ThirdParty/miniaudio/miniaudio.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
   </Folder>
   <Folder Name="/Modules/">
     <Project Path="Modules/JBroCore/JBroCore.vcxproj">
@@ -178,6 +184,18 @@
       <BuildType Solution="Release_Game3D|x64" Project="Release" />
     </Project>
     <Project Path="Modules/JBroNetworkSystem/JBroNetworkSystem.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroAudioTypes/JBroAudioTypes.vcxproj">
+      <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game2D|x64" Project="Release" />
+      <BuildType Solution="Debug_Game3D|x64" Project="Debug" />
+      <BuildType Solution="Release_Game3D|x64" Project="Release" />
+    </Project>
+    <Project Path="Modules/JBroAudio/JBroAudio.vcxproj">
       <BuildType Solution="Debug_Game2D|x64" Project="Debug" />
       <BuildType Solution="Release_Game2D|x64" Project="Release" />
       <BuildType Solution="Debug_Game3D|x64" Project="Debug" />

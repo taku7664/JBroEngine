@@ -59,6 +59,7 @@ int RunScriptCompilerLexerTests();
 int RunScriptCompilerParserTests();
 int RunScriptCompilerCommandLineTests();
 int RunRendererBenchmark();
+int RunAudioMixerTests();
 
 int main()
 {
@@ -104,6 +105,11 @@ int main()
             return 1;
         }
         if (RunScriptCompilerCommandLineTests() != 0)
+        {
+            return 1;
+        }
+        // 오디오 믹서는 장치 없이 몇 초 안에 끝난다(audio-plan §3-1).
+        if (RunAudioMixerTests() != 0)
         {
             return 1;
         }

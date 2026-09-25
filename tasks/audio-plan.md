@@ -266,7 +266,21 @@ Component::AudioListener2D   (JBroFramework2D)
 
 각 단계는 구현 → 그 단계의 검증 → diff 검토 → 커밋이다. 검증이 실패하면 다음 단계로 가지 않는다.
 
-1. `[대기]` **믹서 뼈대와 오프라인 렌더.** miniaudio(+ stb_vorbis) 서드파티 빌드 단위, `JBroAudioTypes`·`JBroAudio` 모듈,
+1. `[완료]` (2026-09-25) **믹서 뼈대와 오프라인 렌더.** 실측과 결과:
+   - `ThirdParty/miniaudio`(v0.11.25, 자기 vcxproj, 구현 번역 단위 `miniaudio.cpp` 하나 + stb_vorbis v1.22). 설정 매크로는
+     `JBro.Common.props` 의 `JBroMiniaudioDefines` 한 곳이다 - `ma_engine` 의 모양이 매크로에 따라 달라지므로 구현과 쓰는 쪽이 같은 값을
+     봐야 한다(`MA_NO_RESOURCE_MANAGER`·`MA_NO_ENCODING`·`MA_NO_GENERATION`, 백엔드는 WASAPI·Web Audio·null 만).
+   - `AudioMixer`(`JBroAudio`): 보이스 풀·버스 그룹(0 Master, 1 EditorPreview, 2.. 프로젝트)·클립 등록·우선순위 → 들리는 크기 →
+     나이 순의 결정적 훔치기·페이드·예약 시작·리스너. 공개 헤더는 miniaudio 를 보지 않는다(상태는 `OwnerPtr<State>`).
+   - **고정 할당기**: miniaudio 의 할당을 2 의 거듭제곱 칸 빈 목록으로 받고, 초기화 때 보이스 수 × {모노·스테레오} × {공간화 켬·끔}
+     으로 소리를 만들었다 지워 예열한다. 300 프레임(재생·위치·멈춤·버스·피치 섞음) 동안 **CRT 할당 0 회, 할당기 증가 0 회**.
+   - 렌더 스레드가 계속 당기는 동안 클립을 200 번 등록·재생·해제·메모리 반납해도 풀린 메모리(디버그 힙 0xDD)가 나오지 않는다.
+     ASan 대신 이것으로 봤다 - 이 저장소에 ASan 구성이 없다. **`UnregisterClip` 의 최악 멈춤은 21 µs**(보이스 하나, Debug).
+   - 피치 1 에서 0.2 초 동안 영점 교차 175, 피치 2 에서 352.
+   - 뮤테이션 넷(예열 제거·재생 중 버스 변경 무효·해제가 보이스를 남김·훔치기가 가장 새것)이 모두 해당 테스트에서 죽는다.
+   - 음성 테스트: `msbuild JBroEngine.slnx /p:JBroTierProbe=Audio` 가 `JBro/Audio/AudioMixer.h` 에서 C1083 이다.
+   - 남긴 것: Vorbis 스트리밍 시작은 stb_vorbis 가 CRT 에서 할당한다(miniaudio 가 할당기를 넘기지 않음, `miniaudio.h:65636`).
+   원래의 완료 조건: miniaudio(+ stb_vorbis) 서드파티 빌드 단위, `JBroAudioTypes`·`JBroAudio` 모듈,
    `AudioMixer`(내부 `ma_engine` noDevice·보이스 풀·버스 그룹·고정 할당기)·`Render`. 장치 없음.
    완료 조건: 사인파 클립 PCM 을 등록해 `Render` 로 당긴 결과가 기대값과 같다(볼륨·버스 볼륨·음소거·재생 중 버스 변경·피치 2 배에서
    주파수·루프 경계·끝남·훔치기 순서). `Play`·`Stop`·`Render` 가 도는 정상 프레임에서 힙 할당 0 회(카운팅 할당기, §9) - 고정 할당기

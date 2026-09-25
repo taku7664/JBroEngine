@@ -78,3 +78,14 @@ PNG·JPEG·BMP·TGA 만 남긴다(`STBI_ONLY_*`). 파일은 열지 않는다(`ST
 
 `JBroVulkanRHI` 의 API 헤더다(D-108). `vulkan-1.dll` 은 실행 시간에 열므로 SDK 의 가져오기 라이브러리는
 필요 없고, 헤더만 여기서 읽는다 - 그래서 클론이 Vulkan SDK 없이 빌드된다. 자세한 것은 폴더의 README 에.
+
+### miniaudio — v0.11.25, MIT-0 / 퍼블릭 도메인
+
+오디오다(D-197·D-198). **자기 빌드 단위가 있다**(`miniaudio/miniaudio.vcxproj`) - 구현 번역 단위 `miniaudio.cpp` 하나를
+`JBroAudio`(믹서의 `ma_engine`)·`JBroAsset`(디코더)·`JBroPlatform`(출력 장치 `ma_device`) 셋이 함께 링크하므로, 구현이 모듈마다
+있으면 중복 정의다. 설정 매크로는 `JBro.Common.props` 의 `JBroMiniaudioDefines` 한 곳이고 이 셋과 구현이 같은 값을 받는다 -
+`ma_engine` 같은 구조체의 모양이 매크로에 따라 달라진다. 리소스 매니저는 끈다(파일을 스스로 열고 작업 스레드를 띄운다).
+기존 엔진(`Engine/ThirdParty/miniaudio`)에서 같은 판을 가져왔다. 고친 것은 없다.
+
+OGG(Vorbis)는 miniaudio 가 내장하지 않아 `stb/stb_vorbis.c`(v1.22)를 구현 번역 단위가 먼저 include 한다. miniaudio 가 그 디코더에
+할당기를 넘기지 않으므로 Vorbis 스트리밍을 시작하면 CRT 에서 할당한다(audio-plan §3-1).

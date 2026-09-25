@@ -12,6 +12,13 @@
     <JBroThirdPartyDir>$(JBroRoot)ThirdParty\</JBroThirdPartyDir>
     <!-- 네트워크는 별도 프로젝트다(D-122). 엔진이 그것을 참조하고, 그것은 엔진의 Core·Runtime 만 참조한다. -->
     <JBroNetworkDir>$(JBroRoot)..\JBroNetwork\JBroNetwork\</JBroNetworkDir>
+    <!--
+      miniaudio 의 설정 매크로(D-198). **구현 번역 단위(ThirdParty/miniaudio/miniaudio.cpp)와 헤더를 보는 모든 모듈이
+      같은 값을 받아야 한다** - ma_engine 같은 구조체의 모양이 이 매크로에 따라 달라진다. 그래서 여기 한 곳에 둔다.
+      리소스 매니저는 파일을 스스로 열고 작업 스레드를 띄우므로 끈다(ProjectRule §2). 백엔드는 쓰는 것만 남긴다 -
+      Windows 는 WASAPI, 웹은 Web Audio, 장치 없는 자리(테스트)는 null.
+    -->
+    <JBroMiniaudioDefines>MA_NO_RESOURCE_MANAGER;MA_NO_ENCODING;MA_NO_GENERATION;MA_ENABLE_ONLY_SPECIFIC_BACKENDS;MA_ENABLE_WASAPI;MA_ENABLE_WEBAUDIO;MA_ENABLE_NULL</JBroMiniaudioDefines>
   </PropertyGroup>
 
   <PropertyGroup Label="JBroScriptTarget">
