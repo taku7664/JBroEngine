@@ -23,7 +23,13 @@ namespace JBro
         MouseButtonUp,
         MouseWheel,
         FocusGained,
-        FocusLost
+        FocusLost,
+        // 손가락·펜(D-210). 포인터 번호는 `codePoint` 에, 자리는 `x`·`y`(클라이언트 픽셀)에 온다. 마우스는 여기로 오지 않는다.
+        TouchBegan,
+        TouchMoved,
+        TouchEnded,
+        // 시스템이 가져갔다(제스처·붙잡음 잃음). 뗀 것과 같이 다루되 "탭" 으로 치면 안 된다.
+        TouchCancelled
     };
 
     struct InputEvent
@@ -38,7 +44,7 @@ namespace JBro
         // 나머지 종류에서는 0 이다.
         float x = 0.0f;
         float y = 0.0f;
-        // Text 의 유니코드 코드포인트다. 나머지 종류에서는 0 이다.
+        // Text 의 유니코드 코드포인트, 터치의 포인터 번호다. 나머지 종류에서는 0 이다.
         std::uint32_t codePoint = 0;
     };
 

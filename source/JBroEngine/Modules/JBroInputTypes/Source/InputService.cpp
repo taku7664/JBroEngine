@@ -43,6 +43,19 @@ namespace JBro::Service
         SetGamepadVibration(slot, 0.0f, 0.0f, 0.0f);
     }
 
+    const TouchState& InputService::Touch() const
+    {
+        return GetView().Touch();
+    }
+
+    void InputService::InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) const
+    {
+        if (System::IInputSystem* input = GetInputSystems().Input)
+        {
+            input->InjectTouch(id, x, y, phase);
+        }
+    }
+
     void InputService::SetGamepadDeadzones(float stick, float trigger) const
     {
         if (System::IInputSystem* input = GetInputSystems().Input)

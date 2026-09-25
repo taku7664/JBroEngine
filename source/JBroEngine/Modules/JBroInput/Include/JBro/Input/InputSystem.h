@@ -76,10 +76,13 @@ namespace JBro::System
 
         void SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) noexcept override;
         void SetGamepadDeadzones(float stick, float trigger) noexcept override;
+        void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept override;
 
     private:
         void Fold(const InputEvent& event, const InputSurfaceMapping& mapping);
         void ReleaseAll();
+        // 손가락 하나를 접는다. `x`·`y` 는 이미 게임 화면 픽셀이다.
+        void FoldTouch(std::uint32_t id, float x, float y, TouchPhase phase);
 
         InputFrame m_frame;
         InputView m_residual;
@@ -102,6 +105,17 @@ namespace JBro::System
             float appliedHigh = 0.0f;
         };
         Vibration m_vibration[MaxGamepads];
+        // 스크립트가 만든 손가락이다. 다음 `BeginFrame` 이 플랫폼의 이벤트 뒤에 접는다.
+        struct InjectedTouch
+        {
+            std::uint32_t id = 0;
+            float x = 0.0f;
+            float y = 0.0f;
+            TouchPhase phase = TouchPhase::Began;
+        };
+        static constexpr std::uint32_t MaxInjectedTouches = 16;
+        InjectedTouch m_injected[MaxInjectedTouches];
+        std::uint32_t m_injectedCount = 0;
         Array<NameId> m_layers;
         Table<NameId, std::uint8_t> m_warnedLayers;
         std::uint64_t m_layerRevision = 1;

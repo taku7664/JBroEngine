@@ -187,17 +187,66 @@ namespace JBro
         }
     };
 
+    // 손가락 하나의 이번 프레임이다(D-210). 기존 엔진과 같이 **뗀 프레임에도 한 번 나온다** - 뗀 자리가 사라지면 "누른 곳에서 뗐나"
+    // 를 잴 수 없어 탭이 클릭이 되지 못한다. 다음 프레임에는 없다.
+    enum class TouchPhase : std::uint8_t
+    {
+        Began,
+        Moved,
+        // 닿아 있고 이번 프레임에 움직이지 않았다.
+        Stationary,
+        Ended,
+        // 시스템이 가져갔다. 탭으로 치지 않는다.
+        Cancelled
+    };
+
+    struct TouchPoint
+    {
+        // 플랫폼이 준 포인터 번호다. 손가락이 닿아 있는 동안 같다.
+        std::uint32_t id = 0;
+        // 게임 화면 픽셀이다(마우스와 같은 매핑).
+        float x = 0.0f;
+        float y = 0.0f;
+        TouchPhase phase = TouchPhase::Ended;
+
+        bool IsActive() const
+        {
+            return phase == TouchPhase::Began || phase == TouchPhase::Moved || phase == TouchPhase::Stationary;
+        }
+    };
+
+    inline constexpr std::uint32_t MaxTouches = 10;
+
+    struct TouchState
+    {
+        std::uint32_t count = 0;
+        TouchPoint points[MaxTouches] = {};
+
+        // 범위를 벗어나면 뗀 빈 점이다.
+        const TouchPoint& Get(std::uint32_t index) const
+        {
+            static constexpr TouchPoint none{};
+            if (index >= count || index >= MaxTouches)
+            {
+                return none;
+            }
+            return points[index];
+        }
+    };
+
     struct InputFrame
     {
         KeyboardState keyboard;
         MouseState mouse;
         GamepadState gamepads[MaxGamepads];
+        TouchState touch;
     };
 
     // 막힌 장치를 읽으면 이것이 나온다. 읽는 쪽이 갈래 없이 같은 멤버를 부를 수 있게 한다.
     inline constexpr KeyboardState EmptyKeyboardState{};
     inline constexpr MouseState EmptyMouseState{};
     inline constexpr GamepadState EmptyGamepadState{};
+    inline constexpr TouchState EmptyTouchState{};
 
     static_assert(std::is_trivially_copyable_v<InputFrame>, "InputFrame crosses the game DLL boundary");
     static_assert(std::is_standard_layout_v<InputFrame>, "InputFrame crosses the game DLL boundary");

@@ -19,6 +19,9 @@ namespace JBro::System
         virtual void SetGamepadVibration(std::uint32_t slot, float low, float high, float seconds) noexcept = 0;
         // 스틱의 둥근 데드존과 트리거의 문턱(0..0.95). 모든 패드에 같이 걸린다.
         virtual void SetGamepadDeadzones(float stick, float trigger) noexcept = 0;
+        // 손가락을 스스로 만든다(D-210, 기존 엔진 `InjectTouch`). 화면 위 가상 조이스틱이나 자동 검사가 쓴다. 다음 프레임에 플랫폼의
+        // 터치와 같은 길로 접힌다. 자리는 게임 화면 픽셀이다. 한 프레임에 16 개까지이고 넘치면 버린다.
+        virtual void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept = 0;
 
     protected:
         ~IInputSystem() = default;

@@ -26,5 +26,9 @@ namespace JBro::Service
         void StopGamepadVibration(std::uint32_t slot) const;
         // 스틱의 둥근 데드존(기본 0.24)과 트리거의 문턱(기본 0.12)이다. 모든 패드에 같이 걸린다.
         void SetGamepadDeadzones(float stick, float trigger) const;
+
+        const TouchState& Touch() const;
+        // 손가락을 스스로 만든다(가상 조이스틱·자동 검사). 다음 프레임에 보인다. `Stationary` 는 받지 않는다.
+        void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) const;
     };
 }

@@ -90,6 +90,25 @@ namespace JBro::System
         m_frame.mouse.deltaY = 0.0f;
         m_frame.mouse.wheelX = 0.0f;
         m_frame.mouse.wheelY = 0.0f;
+        // 지난 프레임에 뗀 손가락은 한 번 나왔으니 지운다. 남은 손가락은 움직이기 전까지 가만히 있다.
+        {
+            TouchState& touch = m_frame.touch;
+            std::uint32_t kept = 0;
+            for (std::uint32_t index = 0; index < touch.count; ++index)
+            {
+                if (touch.points[index].IsActive())
+                {
+                    touch.points[kept] = touch.points[index];
+                    touch.points[kept].phase = TouchPhase::Stationary;
+                    ++kept;
+                }
+            }
+            for (std::uint32_t index = kept; index < MaxTouches; ++index)
+            {
+                touch.points[index] = {};
+            }
+            touch.count = kept;
+        }
         for (GamepadState& pad : m_frame.gamepads)
         {
             for (ButtonState& button : pad.buttons)
@@ -99,14 +118,20 @@ namespace JBro::System
             }
         }
 
-        if (events.data == nullptr)
+        if (events.data != nullptr)
         {
-            return;
+            for (std::uint32_t index = 0; index < events.size; ++index)
+            {
+                Fold(events.data[index], mapping);
+            }
         }
-        for (std::uint32_t index = 0; index < events.size; ++index)
+        // 스크립트가 만든 손가락은 플랫폼의 것 뒤에 접는다. 자리는 이미 게임 화면 픽셀이다.
+        for (std::uint32_t index = 0; index < m_injectedCount; ++index)
         {
-            Fold(events.data[index], mapping);
+            const InjectedTouch& injected = m_injected[index];
+            FoldTouch(injected.id, injected.x, injected.y, injected.phase);
         }
+        m_injectedCount = 0;
     }
 
     const InputFrame& InputSystem::GetFrame() const
@@ -296,6 +321,21 @@ namespace JBro::System
         case InputEventKind::FocusGained:
             m_focused = true;
             break;
+
+        case InputEventKind::TouchBegan:
+        case InputEventKind::TouchMoved:
+        case InputEventKind::TouchEnded:
+        case InputEventKind::TouchCancelled:
+        {
+            const TouchPhase phase = event.kind == InputEventKind::TouchBegan ? TouchPhase::Began
+                : event.kind == InputEventKind::TouchMoved ? TouchPhase::Moved
+                : event.kind == InputEventKind::TouchEnded ? TouchPhase::Ended : TouchPhase::Cancelled;
+            // 자리 없는 떼기(NaN)는 그대로 넘긴다. 매핑해도 NaN 이고, 접는 쪽이 마지막 자리를 남긴다.
+            const float x = (event.x - mapping.originX) * mapping.scaleX;
+            const float y = (event.y - mapping.originY) * mapping.scaleY;
+            FoldTouch(event.codePoint, x, y, phase);
+            break;
+        }
         }
     }
 
@@ -478,8 +518,89 @@ namespace JBro::System
         m_triggerThreshold = std::clamp(trigger, 0.0f, 0.95f);
     }
 
+    void InputSystem::FoldTouch(std::uint32_t id, float x, float y, TouchPhase phase)
+    {
+        TouchState& touch = m_frame.touch;
+        TouchPoint* point = nullptr;
+        for (std::uint32_t index = 0; index < touch.count; ++index)
+        {
+            if (touch.points[index].id == id && touch.points[index].IsActive())
+            {
+                point = &touch.points[index];
+                break;
+            }
+        }
+        if (phase == TouchPhase::Began)
+        {
+            if (point == nullptr)
+            {
+                // 열 개를 넘는 손가락은 버린다.
+                if (touch.count >= MaxTouches)
+                {
+                    return;
+                }
+                point = &touch.points[touch.count];
+                ++touch.count;
+            }
+            point->id = id;
+            point->x = x;
+            point->y = y;
+            point->phase = TouchPhase::Began;
+            return;
+        }
+        if (point == nullptr)
+        {
+            // 누름을 못 본 손가락의 이동·뗌이다(창 밖에서 닿았다). 보지 못한 손가락은 만들지 않는다.
+            return;
+        }
+        if (phase == TouchPhase::Moved)
+        {
+            point->x = x;
+            point->y = y;
+            // 이번 프레임에 닿은 것이면 닿음이 먼저다.
+            if (point->phase != TouchPhase::Began)
+            {
+                point->phase = TouchPhase::Moved;
+            }
+            return;
+        }
+        if (phase == TouchPhase::Ended)
+        {
+            // 떼기의 자리가 없는 플랫폼(정보를 못 얻은 Windows 떼기)은 NaN 을 준다. 그때는 마지막 자리를 남긴다.
+            if (false == std::isnan(x) && false == std::isnan(y))
+            {
+                point->x = x;
+                point->y = y;
+            }
+            point->phase = TouchPhase::Ended;
+            return;
+        }
+        if (phase == TouchPhase::Cancelled)
+        {
+            point->phase = TouchPhase::Cancelled;
+        }
+    }
+
+    void InputSystem::InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept
+    {
+        if (phase == TouchPhase::Stationary || m_injectedCount >= MaxInjectedTouches)
+        {
+            return;
+        }
+        m_injected[m_injectedCount] = {id, x, y, phase};
+        ++m_injectedCount;
+    }
+
     void InputSystem::ReleaseAll()
     {
+        // 창이 포커스를 잃으면 닿아 있던 손가락은 시스템이 가져간 것이다.
+        for (std::uint32_t index = 0; index < m_frame.touch.count; ++index)
+        {
+            if (m_frame.touch.points[index].IsActive())
+            {
+                m_frame.touch.points[index].phase = TouchPhase::Cancelled;
+            }
+        }
         // **조용히 지우지 않고 뗀 것으로 접는다.** 창이 포커스를 잃으면 뗌 이벤트가 오지 않는다.
         // 지우기만 하면 "떼면 멈춘다" 를 기다리는 스크립트가 영영 멈추지 못한다.
         for (ButtonState& key : m_frame.keyboard.keys)

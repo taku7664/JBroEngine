@@ -19,6 +19,7 @@ namespace JBro
         Mouse,
         // 네 자리 전부다. 자리 하나만 가져가는 소비는 두지 않는다.
         Gamepad,
+        Touch,
 
         Count
     };
@@ -70,6 +71,15 @@ namespace JBro
                 return EmptyGamepadState;
             }
             return m_frame->gamepads[index];
+        }
+
+        const TouchState& Touch() const
+        {
+            if (m_frame == nullptr || IsConsumed(InputDevice::Touch))
+            {
+                return EmptyTouchState;
+            }
+            return m_frame->touch;
         }
 
         // 이름 붙인 입력이다(D-210). 소비된 장치의 바인딩은 빠진다 - 위에서 마우스를 가져갔으면 마우스로 묶은 액션도 아래에서는 0 이다.
