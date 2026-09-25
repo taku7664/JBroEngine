@@ -170,7 +170,7 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-210) |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
