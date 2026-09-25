@@ -232,8 +232,8 @@ namespace
         input.GetResidualView().Action(MakeNameId("Teleport"));
         Check(CountWarnings("\"Teleport\"") == 1, "and it is reported once, by name");
 
-        // 표를 다시 넣으면 다시 말한다 - 고친 프로젝트에서 또 틀리면 알아야 한다.
-        input.SetActionMap(InputActionMap{});
+        // 표를 다시 넣으면 다시 말한다 - 고친 프로젝트에서 또 틀리면 알아야 한다. 경고를 기억한 표를 그대로 되넣어도 그렇다.
+        input.SetActionMap(input.GetActionMap());
         input.GetResidualView().Action(MakeNameId("Teleport"));
         Check(CountWarnings("\"Teleport\"") == 2, "a new action map forgets what it warned about");
     }

@@ -409,11 +409,7 @@ namespace JBro
                 {
                     ++entry;
                 }
-                // `Bindings:` 보다 얕은 줄이면 바인딩 목록이 끝났다.
-                if (indent <= inputActionIndent + 2 && false == (opens && indent > inputActionIndent))
-                {
-                    inInputBindings = false;
-                }
+                // `Bindings:` 와 같은 깊이의 줄은 바인딩이 아니다 - 아래에서 들여쓰기로 가른다. 새 액션(`- Name:`)이 목록을 닫는다.
                 if (opens && indent == inputActionIndent)
                 {
                     parsed.inputActions.Emplace();
