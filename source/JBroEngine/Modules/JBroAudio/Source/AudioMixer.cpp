@@ -279,6 +279,54 @@ namespace JBro
                 a2 = (1.0f - alpha) / a0;
             }
 
+            void SetNormalized(float nb0, float nb1, float nb2, float na0, float na1, float na2)
+            {
+                b0 = nb0 / na0;
+                b1 = nb1 / na0;
+                b2 = nb2 / na0;
+                a1 = na1 / na0;
+                a2 = na2 / na0;
+            }
+
+            // RBJ 쿡북의 선반(기울기 1)이다. `high` 면 높은 선반이다(D-210).
+            void ConfigureShelf(bool high, float frequency, float gainDb, float sampleRate)
+            {
+                const float nyquist = sampleRate * 0.5f;
+                frequency = frequency < 10.0f ? 10.0f : (frequency > nyquist * 0.95f ? nyquist * 0.95f : frequency);
+                const float amplitude = std::pow(10.0f, gainDb / 40.0f);
+                const float omega = Tau * frequency / sampleRate;
+                const float cosine = std::cos(omega);
+                const float alpha = std::sin(omega) * 0.5f * 1.41421356f;
+                const float root = 2.0f * std::sqrt(amplitude) * alpha;
+                const float up = amplitude + 1.0f;
+                const float down = amplitude - 1.0f;
+                if (high)
+                {
+                    SetNormalized(amplitude * (up + down * cosine + root), -2.0f * amplitude * (down + up * cosine),
+                        amplitude * (up + down * cosine - root), up - down * cosine + root, 2.0f * (down - up * cosine),
+                        up - down * cosine - root);
+                }
+                else
+                {
+                    SetNormalized(amplitude * (up - down * cosine + root), 2.0f * amplitude * (down - up * cosine),
+                        amplitude * (up - down * cosine - root), up + down * cosine + root, -2.0f * (down + up * cosine),
+                        up + down * cosine - root);
+                }
+            }
+
+            // RBJ 쿡북의 봉우리(Q 1)다.
+            void ConfigurePeak(float frequency, float gainDb, float sampleRate)
+            {
+                const float nyquist = sampleRate * 0.5f;
+                frequency = frequency < 10.0f ? 10.0f : (frequency > nyquist * 0.95f ? nyquist * 0.95f : frequency);
+                const float amplitude = std::pow(10.0f, gainDb / 40.0f);
+                const float omega = Tau * frequency / sampleRate;
+                const float cosine = std::cos(omega);
+                const float alpha = std::sin(omega) * 0.5f;
+                SetNormalized(1.0f + alpha * amplitude, -2.0f * cosine, 1.0f - alpha * amplitude, 1.0f + alpha / amplitude,
+                    -2.0f * cosine, 1.0f - alpha / amplitude);
+            }
+
             float Process(std::uint32_t channel, float input)
             {
                 const float output = b0 * input + z1[channel];
@@ -393,13 +441,90 @@ namespace JBro
             std::atomic<float*> echoBuffer{nullptr};
             std::atomic<Reverb*> reverb{nullptr};
             std::uint32_t echoCapacity = 0;
+            // D-210 의 칸들. 뜻은 `AudioBusEffects` 의 같은 이름이다.
+            std::atomic<float> eqLowHz{200.0f};
+            std::atomic<float> eqLowGain{0.0f};
+            std::atomic<float> eqMidHz{1000.0f};
+            std::atomic<float> eqMidGain{0.0f};
+            std::atomic<float> eqHighHz{5000.0f};
+            std::atomic<float> eqHighGain{0.0f};
+            std::atomic<float> distortion{0.0f};
+            std::atomic<float> distortionMix{1.0f};
+            std::atomic<float> chorusMix{0.0f};
+            std::atomic<float> chorusRate{0.8f};
+            std::atomic<float> chorusDepth{3.0f};
+            std::atomic<float> pitchShift{0.0f};
+            std::atomic<float> compRatio{1.0f};
+            std::atomic<float> compThreshold{-18.0f};
+            std::atomic<float> compAttack{0.01f};
+            std::atomic<float> compRelease{0.15f};
+            std::atomic<float> compMakeup{0.0f};
+            std::atomic<float> compReduction{0.0f};
+            // 코러스·피치 시프트의 지연선이다. 메아리처럼 처음 켤 때 메인 스레드가 잡는다.
+            std::atomic<float*> chorusBuffer{nullptr};
+            std::uint32_t chorusCapacity = 0;
+            std::atomic<float*> pitchBuffer{nullptr};
+            std::uint32_t pitchCapacity = 0;
             // 아래는 오디오 스레드만 만진다.
             float appliedLowPass = -1.0f;
             float appliedHighPass = -1.0f;
             Biquad lowFilter;
             Biquad highFilter;
             std::uint32_t echoWrite = 0;
+            float appliedEq[6] = {-1.0f, -1.0f, -1.0f, -1.0f, -1.0f, -1.0f};
+            Biquad eqLow;
+            Biquad eqMid;
+            Biquad eqHigh;
+            std::uint32_t chorusWrite = 0;
+            float chorusPhase = 0.0f;
+            std::uint32_t pitchWrite = 0;
+            float pitchPhase = 0.0f;
+            float compEnvelope = 0.0f;
         };
+
+        static constexpr float ChorusSeconds = 0.05f;
+        static constexpr float PitchWindowSeconds = 0.05f;
+
+        // 지연선을 뒤로 `delay` 프레임(소수) 읽는다. 두 샘플 사이는 곧게 잇는다.
+        float ReadDelay(const float* line, std::uint32_t capacity, std::uint32_t channels, std::uint32_t channel,
+            std::uint32_t write, float delay)
+        {
+            float position = static_cast<float>(write) - delay;
+            while (position < 0.0f)
+            {
+                position += static_cast<float>(capacity);
+            }
+            const std::uint32_t first = static_cast<std::uint32_t>(position) % capacity;
+            const std::uint32_t second = (first + 1) % capacity;
+            const float fraction = position - std::floor(position);
+            return line[first * channels + channel] * (1.0f - fraction) + line[second * channels + channel] * fraction;
+        }
+
+        void RunEqBand(Biquad& filter, float& appliedHz, float& appliedGain, float hz, float gain, int kind, float rate,
+            float* out, std::size_t samples, std::uint32_t channels)
+        {
+            if (gain == 0.0f)
+            {
+                return;
+            }
+            if (hz != appliedHz || gain != appliedGain)
+            {
+                if (kind == 1)
+                {
+                    filter.ConfigurePeak(hz, gain, rate);
+                }
+                else
+                {
+                    filter.ConfigureShelf(kind == 2, hz, gain, rate);
+                }
+                appliedHz = hz;
+                appliedGain = gain;
+            }
+            for (std::size_t index = 0; index < samples; ++index)
+            {
+                out[index] = filter.Process(static_cast<std::uint32_t>(index % channels) & 1u, out[index]);
+            }
+        }
 
         static constexpr float MaxEchoSeconds = 2.0f;
 
@@ -463,6 +588,95 @@ namespace JBro
                 }
             }
 
+            // 3 대역 EQ(D-210). 대역마다 이득이 0 이면 건너뛴다.
+            RunEqBand(self.eqLow, self.appliedEq[0], self.appliedEq[1], self.eqLowHz.load(std::memory_order_relaxed),
+                Clamped(self.eqLowGain.load(std::memory_order_relaxed), -24.0f, 24.0f), 0, rate, out, samples, channels);
+            RunEqBand(self.eqMid, self.appliedEq[2], self.appliedEq[3], self.eqMidHz.load(std::memory_order_relaxed),
+                Clamped(self.eqMidGain.load(std::memory_order_relaxed), -24.0f, 24.0f), 1, rate, out, samples, channels);
+            RunEqBand(self.eqHigh, self.appliedEq[4], self.appliedEq[5], self.eqHighHz.load(std::memory_order_relaxed),
+                Clamped(self.eqHighGain.load(std::memory_order_relaxed), -24.0f, 24.0f), 2, rate, out, samples, channels);
+
+            // 디스토션: tanh 로 둥글게 자른다. 가득 찬 소리는 가득 찬 채로 두도록 tanh(이득) 으로 나눈다.
+            const float drive = Clamped(self.distortion.load(std::memory_order_relaxed), 0.0f, 1.0f);
+            if (drive > 0.0f)
+            {
+                const float mix = Clamped(self.distortionMix.load(std::memory_order_relaxed), 0.0f, 1.0f);
+                const float pre = 1.0f + drive * 24.0f;
+                const float normalize = 1.0f / std::tanh(pre);
+                for (std::size_t index = 0; index < samples; ++index)
+                {
+                    const float shaped = std::tanh(pre * out[index]) * normalize;
+                    out[index] += (shaped - out[index]) * mix;
+                }
+            }
+
+            // 코러스: 12 ms 에서 깊이만큼 흔들리는 지연을 섞는다. 오른쪽은 흔들림을 1/4 주기 늦춰 넓게 들린다.
+            const float chorusMix = Clamped(self.chorusMix.load(std::memory_order_relaxed), 0.0f, 1.0f);
+            float* chorus = self.chorusBuffer.load(std::memory_order_acquire);
+            if (chorusMix > 0.0f && chorus != nullptr && self.chorusCapacity > 2)
+            {
+                const float step = Clamped(self.chorusRate.load(std::memory_order_relaxed), 0.05f, 10.0f) / rate;
+                const float depth = Clamped(self.chorusDepth.load(std::memory_order_relaxed), 0.0f, 8.0f) * 0.001f * rate;
+                const float base = 0.012f * rate;
+                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                {
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        chorus[self.chorusWrite * channels + channel] = out[frame * channels + channel];
+                    }
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        const float lfo = std::sin(Tau * (self.chorusPhase + (channel == 1 ? 0.25f : 0.0f)));
+                        const float delayed = ReadDelay(chorus, self.chorusCapacity, channels, channel, self.chorusWrite,
+                            base + depth * (0.5f + 0.5f * lfo));
+                        float& sample = out[frame * channels + channel];
+                        sample = sample * (1.0f - 0.5f * chorusMix) + delayed * 0.5f * chorusMix;
+                    }
+                    self.chorusWrite = (self.chorusWrite + 1) % self.chorusCapacity;
+                    self.chorusPhase += step;
+                    if (self.chorusPhase >= 1.0f)
+                    {
+                        self.chorusPhase -= 1.0f;
+                    }
+                }
+            }
+
+            // 피치 시프트: 50 ms 창의 두 탭이 지연을 줄이거나 늘리며 읽고, 삼각 창으로 번갈아 섞는다. 빠르기는 그대로다.
+            const float semitones = Clamped(self.pitchShift.load(std::memory_order_relaxed), -12.0f, 12.0f);
+            float* pitch = self.pitchBuffer.load(std::memory_order_acquire);
+            if (semitones != 0.0f && pitch != nullptr && self.pitchCapacity > 2)
+            {
+                const float window = PitchWindowSeconds * rate;
+                const float step = (1.0f - std::pow(2.0f, semitones / 12.0f)) / window;
+                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                {
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        pitch[self.pitchWrite * channels + channel] = out[frame * channels + channel];
+                    }
+                    const float first = self.pitchPhase;
+                    const float second = first + 0.5f >= 1.0f ? first - 0.5f : first + 0.5f;
+                    const float firstGain = 1.0f - std::fabs(2.0f * first - 1.0f);
+                    const float secondGain = 1.0f - std::fabs(2.0f * second - 1.0f);
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        const float a = ReadDelay(pitch, self.pitchCapacity, channels, channel, self.pitchWrite, 1.0f + first * window);
+                        const float b = ReadDelay(pitch, self.pitchCapacity, channels, channel, self.pitchWrite, 1.0f + second * window);
+                        out[frame * channels + channel] = a * firstGain + b * secondGain;
+                    }
+                    self.pitchWrite = (self.pitchWrite + 1) % self.pitchCapacity;
+                    self.pitchPhase += step;
+                    while (self.pitchPhase >= 1.0f)
+                    {
+                        self.pitchPhase -= 1.0f;
+                    }
+                    while (self.pitchPhase < 0.0f)
+                    {
+                        self.pitchPhase += 1.0f;
+                    }
+                }
+            }
+
             // 메아리·잔향·원음 양은 한 프레임씩 함께 돈다: 결과 = 원음 × dry + 메아리 + 잔향. 잔향은 메아리가 섞인 소리를 받는다.
             const float echoMix = self.echoMix.load(std::memory_order_relaxed);
             float* echo = self.echoBuffer.load(std::memory_order_acquire);
@@ -515,6 +729,49 @@ namespace JBro
                         out[frame * channels + channel] = source[channel] * dry + echoed[channel] + wet[channel];
                     }
                 }
+            }
+
+            // 컴프레서(D-210): 채널의 최대 크기를 어택·릴리스로 따라가고 문턱을 넘은 만큼을 비율로 줄인다.
+            const float compRatio = Clamped(self.compRatio.load(std::memory_order_relaxed), 1.0f, 20.0f);
+            if (compRatio > 1.001f)
+            {
+                const float threshold = Clamped(self.compThreshold.load(std::memory_order_relaxed), -60.0f, 0.0f);
+                const float attack = std::exp(-1.0f / (Clamped(self.compAttack.load(std::memory_order_relaxed), 0.0005f, 0.5f) * rate));
+                const float release = std::exp(-1.0f / (Clamped(self.compRelease.load(std::memory_order_relaxed), 0.005f, 2.0f) * rate));
+                const float makeup = std::pow(10.0f, Clamped(self.compMakeup.load(std::memory_order_relaxed), 0.0f, 24.0f) / 20.0f);
+                const float slope = 1.0f - 1.0f / compRatio;
+                float envelope = self.compEnvelope;
+                float deepest = 0.0f;
+                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                {
+                    float level = 0.0f;
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        level = std::fmax(level, std::fabs(out[frame * channels + channel]));
+                    }
+                    envelope = level > envelope ? level + attack * (envelope - level) : level + release * (envelope - level);
+                    float gain = makeup;
+                    if (envelope > 1e-6f)
+                    {
+                        const float over = 20.0f * std::log10(envelope) - threshold;
+                        if (over > 0.0f)
+                        {
+                            const float reduction = over * slope;
+                            deepest = std::fmax(deepest, reduction);
+                            gain *= std::pow(10.0f, -reduction / 20.0f);
+                        }
+                    }
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        out[frame * channels + channel] *= gain;
+                    }
+                }
+                self.compEnvelope = envelope;
+                self.compReduction.store(deepest, std::memory_order_relaxed);
+            }
+            else
+            {
+                self.compReduction.store(0.0f, std::memory_order_relaxed);
             }
 
             self.inProcessor.store(true, std::memory_order_seq_cst);
@@ -908,6 +1165,8 @@ namespace JBro
             bool effectsReady = false;
             OwnerPtr<Array<float>> echoStorage;
             OwnerPtr<Reverb> reverbStorage;
+            OwnerPtr<Array<float>> chorusStorage;
+            OwnerPtr<Array<float>> pitchStorage;
             AudioBusEffects settings;
             bool used = false;
             bool muted = false;
@@ -951,6 +1210,10 @@ namespace JBro
         std::atomic<float> outputGainTarget{1.0f};
         std::atomic<float> outputGainRate{1.0f};
         float outputGainCurrent = 1.0f;
+        // 출력 리미터(D-210). 켬·천장은 메인 스레드가, 지금 이득은 오디오 스레드가 든다.
+        std::atomic<bool> limiterEnabled{true};
+        std::atomic<float> limiterCeiling{0.98f};
+        float limiterGain = 1.0f;
         // 최근 출력(채널 평균)이다. 오디오 스레드가 쓰고 메인 스레드는 복사만 한다.
         float recent[RecentCapacity] = {};
         std::atomic<std::uint32_t> recentWrite{0};
@@ -1446,6 +1709,10 @@ namespace JBro
                 bus.effects.reverb.store(nullptr, std::memory_order_release);
                 bus.echoStorage = nullptr;
                 bus.reverbStorage = nullptr;
+                bus.effects.chorusBuffer.store(nullptr, std::memory_order_release);
+                bus.effects.pitchBuffer.store(nullptr, std::memory_order_release);
+                bus.chorusStorage = nullptr;
+                bus.pitchStorage = nullptr;
                 bus.used = false;
                 bus.solo = false;
                 bus.sendTarget = AudioNoBus;
@@ -1696,15 +1963,38 @@ namespace JBro
             {
                 peak = magnitude;
             }
-            if (sample > 1.0f)
-            {
-                sample = 1.0f;
-            }
-            else if (sample < -1.0f)
-            {
-                sample = -1.0f;
-            }
             output[index] = sample;
+        }
+        // 리미터: 프레임의 가장 큰 채널이 천장을 넘으면 그 순간에 줄이고, 0.1 초에 걸쳐 1 로 되돌린다. 넘는 일이 없으면
+        // 이득은 1 이고 이 고리를 건너뛴다.
+        if (state->limiterEnabled.load(std::memory_order_relaxed) && (peak > state->limiterCeiling.load(std::memory_order_relaxed)
+            || state->limiterGain < 1.0f))
+        {
+            const float ceiling = state->limiterCeiling.load(std::memory_order_relaxed);
+            const float release = 1.0f - std::exp(-1.0f / (0.1f * static_cast<float>(state->desc.sampleRate)));
+            float gain = state->limiterGain;
+            for (std::uint32_t frame = 0; frame < frameCount; ++frame)
+            {
+                float loudest = 0.0f;
+                for (std::uint32_t channel = 0; channel < channels; ++channel)
+                {
+                    loudest = std::fmax(loudest, std::fabs(output[frame * channels + channel]));
+                }
+                const float allowed = loudest > ceiling ? ceiling / loudest : 1.0f;
+                gain = gain + (1.0f - gain) * release;
+                gain = allowed < gain ? allowed : gain;
+                for (std::uint32_t channel = 0; channel < channels; ++channel)
+                {
+                    output[frame * channels + channel] *= gain;
+                }
+            }
+            state->limiterGain = gain;
+        }
+        // 마지막 안전판이다. 리미터를 껐거나 천장이 1 이상이면 여기서 잘린다.
+        for (std::size_t index = 0; index < samples; ++index)
+        {
+            float& sample = output[index];
+            sample = sample > 1.0f ? 1.0f : (sample < -1.0f ? -1.0f : sample);
         }
         // 스펙트럼 창이 읽을 최근 출력이다(채널 평균).
         std::uint32_t write = state->recentWrite.load(std::memory_order_relaxed);
@@ -1964,6 +2254,15 @@ namespace JBro
         node.processor.store(callback, std::memory_order_seq_cst);
     }
 
+    float AudioMixer::GetBusGainReduction(AudioBusId bus) const
+    {
+        if (false == IsInitialized() || false == m_state->IsBusValid(bus))
+        {
+            return 0.0f;
+        }
+        return m_state->buses[bus].effects.compReduction.load(std::memory_order_relaxed);
+    }
+
     AudioBusId AudioMixer::GetBusDuckTrigger(AudioBusId bus) const
     {
         return IsInitialized() && m_state->IsBusValid(bus) ? m_state->buses[bus].duckTrigger : AudioNoBus;
@@ -2019,6 +2318,23 @@ namespace JBro
         safe.reverbDamping = Clamped(effects.reverbDamping, 0.0f, 1.0f);
         safe.reverbMix = Clamped(effects.reverbMix, 0.0f, 1.0f);
         safe.dry = Clamped(effects.dry, 0.0f, 1.0f);
+        safe.eqLowHz = Clamped(effects.eqLowHz, 20.0f, 20000.0f);
+        safe.eqLowGain = Clamped(effects.eqLowGain, -24.0f, 24.0f);
+        safe.eqMidHz = Clamped(effects.eqMidHz, 20.0f, 20000.0f);
+        safe.eqMidGain = Clamped(effects.eqMidGain, -24.0f, 24.0f);
+        safe.eqHighHz = Clamped(effects.eqHighHz, 20.0f, 20000.0f);
+        safe.eqHighGain = Clamped(effects.eqHighGain, -24.0f, 24.0f);
+        safe.distortion = Clamped(effects.distortion, 0.0f, 1.0f);
+        safe.distortionMix = Clamped(effects.distortionMix, 0.0f, 1.0f);
+        safe.chorusMix = Clamped(effects.chorusMix, 0.0f, 1.0f);
+        safe.chorusRate = Clamped(effects.chorusRate, 0.05f, 10.0f);
+        safe.chorusDepth = Clamped(effects.chorusDepth, 0.0f, 8.0f);
+        safe.pitchShift = Clamped(effects.pitchShift, -12.0f, 12.0f);
+        safe.compRatio = Clamped(effects.compRatio, 1.0f, 20.0f);
+        safe.compThreshold = Clamped(effects.compThreshold, -60.0f, 0.0f);
+        safe.compAttack = Clamped(effects.compAttack, 0.0005f, 0.5f);
+        safe.compRelease = Clamped(effects.compRelease, 0.005f, 2.0f);
+        safe.compMakeup = Clamped(effects.compMakeup, 0.0f, 24.0f);
         target.settings = safe;
         BusEffectNode& node = target.effects;
         // 버퍼는 처음 켤 때 한 번 잡는다(메인 스레드). 포인터는 다 채운 뒤에 원자로 넘긴다.
@@ -2039,6 +2355,42 @@ namespace JBro
             target.reverbStorage->Prepare(node.sampleRate);
             node.reverb.store(target.reverbStorage.Get(), std::memory_order_release);
         }
+        const auto prepareLine = [&node](OwnerPtr<Array<float>>& storage, std::uint32_t& capacity, float seconds) {
+            storage = MakeOwnerPtr<Array<float>>();
+            capacity = static_cast<std::uint32_t>(seconds * static_cast<float>(node.sampleRate)) + 2;
+            storage->Resize(static_cast<std::size_t>(capacity) * node.channels);
+            for (float& sample : *storage)
+            {
+                sample = 0.0f;
+            }
+        };
+        if (safe.chorusMix > 0.0f && target.chorusStorage.Get() == nullptr)
+        {
+            prepareLine(target.chorusStorage, node.chorusCapacity, ChorusSeconds);
+            node.chorusBuffer.store(target.chorusStorage->Data(), std::memory_order_release);
+        }
+        if (safe.pitchShift != 0.0f && target.pitchStorage.Get() == nullptr)
+        {
+            prepareLine(target.pitchStorage, node.pitchCapacity, PitchWindowSeconds * 2.0f);
+            node.pitchBuffer.store(target.pitchStorage->Data(), std::memory_order_release);
+        }
+        node.eqLowHz.store(safe.eqLowHz, std::memory_order_relaxed);
+        node.eqLowGain.store(safe.eqLowGain, std::memory_order_relaxed);
+        node.eqMidHz.store(safe.eqMidHz, std::memory_order_relaxed);
+        node.eqMidGain.store(safe.eqMidGain, std::memory_order_relaxed);
+        node.eqHighHz.store(safe.eqHighHz, std::memory_order_relaxed);
+        node.eqHighGain.store(safe.eqHighGain, std::memory_order_relaxed);
+        node.distortion.store(safe.distortion, std::memory_order_relaxed);
+        node.distortionMix.store(safe.distortionMix, std::memory_order_relaxed);
+        node.chorusMix.store(safe.chorusMix, std::memory_order_relaxed);
+        node.chorusRate.store(safe.chorusRate, std::memory_order_relaxed);
+        node.chorusDepth.store(safe.chorusDepth, std::memory_order_relaxed);
+        node.pitchShift.store(safe.pitchShift, std::memory_order_relaxed);
+        node.compRatio.store(safe.compRatio, std::memory_order_relaxed);
+        node.compThreshold.store(safe.compThreshold, std::memory_order_relaxed);
+        node.compAttack.store(safe.compAttack, std::memory_order_relaxed);
+        node.compRelease.store(safe.compRelease, std::memory_order_relaxed);
+        node.compMakeup.store(safe.compMakeup, std::memory_order_relaxed);
         node.lowPass.store(safe.lowPassHz, std::memory_order_relaxed);
         node.highPass.store(safe.highPassHz, std::memory_order_relaxed);
         node.echoDelay.store(safe.echoDelay, std::memory_order_relaxed);
@@ -2588,6 +2940,20 @@ namespace JBro
         // 0 에서 1 까지(가장 먼 거리)를 `seconds` 에 걷는 속도다. 지금 값은 오디오 스레드만 알므로 거리로 나누지 않는다.
         state.outputGainRate.store(1.0f / (frames > 1.0f ? frames : 1.0f), std::memory_order_relaxed);
         state.outputGainTarget.store(target, std::memory_order_relaxed);
+    }
+
+    void AudioMixer::SetOutputLimiter(bool enabled, float ceiling)
+    {
+        if (IsInitialized())
+        {
+            m_state->limiterCeiling.store(Clamped(ceiling, 0.1f, 1.0f), std::memory_order_relaxed);
+            m_state->limiterEnabled.store(enabled, std::memory_order_relaxed);
+        }
+    }
+
+    bool AudioMixer::IsOutputLimiterEnabled() const
+    {
+        return IsInitialized() && m_state->limiterEnabled.load(std::memory_order_relaxed);
     }
 
     float AudioMixer::GetOutputGain() const

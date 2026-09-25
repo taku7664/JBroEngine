@@ -1,6 +1,9 @@
 ﻿#include "ProjectSettingsPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Editor/Widget/AssetField.h>
+#include <JBro/Editor/Widget/List.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Core/Log.h>
 #include <JBro/InputTypes/InputState.h>
@@ -45,6 +48,34 @@ namespace JBro
         // 늘 보는 창이 아니다. 창 메뉴에서 열어 본다.
         SetOpen(false);
         return true;
+    }
+
+    void ProjectSettingsPanel::RefreshFontChoices()
+    {
+        const AssetRegistry& registry = m_editor->GetAssetRegistry();
+        if (m_fontChoicesBuilt && m_fontChoicesRevision == registry.GetRevision())
+        {
+            return;
+        }
+        m_fontChoicesBuilt = true;
+        m_fontChoicesRevision = registry.GetRevision();
+        m_fontNames.Clear();
+        m_fontIds.Clear();
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const AssetRecord& record = registry.GetRecord(index);
+            if (record.type == AssetType::Font)
+            {
+                m_fontNames.Add(record.relativePath);
+                m_fontIds.Add(record.id);
+            }
+        }
+        // 이름을 다 모은 뒤에 가리킨다. 모으는 중에 배열이 자라면 앞의 포인터가 무효가 된다.
+        m_fontNamePointers.Clear();
+        for (std::size_t index = 0; index < m_fontNames.Size(); ++index)
+        {
+            m_fontNamePointers.Add(m_fontNames[index].c_str());
+        }
     }
 
     void ProjectSettingsPanel::Reload()
@@ -633,28 +664,47 @@ namespace JBro
                     // 표는 마디를 닫기 전에 끝나야 한다 - 그래서 제 괄호 안에 둔다.
                     {
                         Widget::FormLayout effects("##effects");
+                        // 사슬의 차례대로 늘어놓는다(D-210). 켜는 칸에는 무엇이 끄는 값인지 알린다.
+                        const char* zeroOff = Loc::TextOr(LocKeys::ProjectSettingsAudioEffectOff, "0 turns it off");
+                        const char* oneOff = Loc::TextOr(LocKeys::ProjectSettingsAudioEffectRatioOff, "1 turns it off");
                         const auto slider = [&](const char* name, const char* id, float& value, float low, float high,
-                                                bool turnsOff) {
+                                                const char* offHint) {
                             effects.Row([name] { Widget::Text(name); },
-                                [&value, id, low, high, turnsOff] {
+                                [&value, id, low, high, offHint] {
                                     Widget::SliderFloat(id, value, low, high);
-                                    if (turnsOff)
+                                    if (offHint != nullptr)
                                     {
-                                        Widget::HoveredTooltip(
-                                            Loc::TextOr(LocKeys::ProjectSettingsAudioEffectOff, "0 turns it off"));
+                                        Widget::HoveredTooltip(offHint);
                                     }
                                 });
                         };
                         AudioBusEffects& chain = bus.effects;
-                        slider("LowPass", "##lowPass", chain.lowPassHz, 0.0f, 20000.0f, true);
-                        slider("HighPass", "##highPass", chain.highPassHz, 0.0f, 5000.0f, true);
-                        slider("EchoMix", "##echoMix", chain.echoMix, 0.0f, 1.0f, true);
-                        slider("EchoDelay", "##echoDelay", chain.echoDelay, 0.01f, 2.0f, false);
-                        slider("EchoFeedback", "##echoFeedback", chain.echoFeedback, 0.0f, 0.95f, false);
-                        slider("ReverbMix", "##reverbMix", chain.reverbMix, 0.0f, 1.0f, true);
-                        slider("ReverbRoom", "##reverbRoom", chain.reverbRoom, 0.0f, 1.0f, false);
-                        slider("ReverbDamping", "##reverbDamping", chain.reverbDamping, 0.0f, 1.0f, false);
-                        slider("Dry", "##dry", chain.dry, 0.0f, 1.0f, false);
+                        slider("HighPass", "##highPass", chain.highPassHz, 0.0f, 5000.0f, zeroOff);
+                        slider("LowPass", "##lowPass", chain.lowPassHz, 0.0f, 20000.0f, zeroOff);
+                        slider("EqLowGain", "##eqLowGain", chain.eqLowGain, -24.0f, 24.0f, zeroOff);
+                        slider("EqLowHz", "##eqLowHz", chain.eqLowHz, 20.0f, 1000.0f, nullptr);
+                        slider("EqMidGain", "##eqMidGain", chain.eqMidGain, -24.0f, 24.0f, zeroOff);
+                        slider("EqMidHz", "##eqMidHz", chain.eqMidHz, 100.0f, 8000.0f, nullptr);
+                        slider("EqHighGain", "##eqHighGain", chain.eqHighGain, -24.0f, 24.0f, zeroOff);
+                        slider("EqHighHz", "##eqHighHz", chain.eqHighHz, 1000.0f, 16000.0f, nullptr);
+                        slider("Distortion", "##distortion", chain.distortion, 0.0f, 1.0f, zeroOff);
+                        slider("DistortionMix", "##distortionMix", chain.distortionMix, 0.0f, 1.0f, nullptr);
+                        slider("ChorusMix", "##chorusMix", chain.chorusMix, 0.0f, 1.0f, zeroOff);
+                        slider("ChorusRate", "##chorusRate", chain.chorusRate, 0.05f, 10.0f, nullptr);
+                        slider("ChorusDepth", "##chorusDepth", chain.chorusDepth, 0.0f, 8.0f, nullptr);
+                        slider("PitchShift", "##pitchShift", chain.pitchShift, -12.0f, 12.0f, zeroOff);
+                        slider("EchoMix", "##echoMix", chain.echoMix, 0.0f, 1.0f, zeroOff);
+                        slider("EchoDelay", "##echoDelay", chain.echoDelay, 0.01f, 2.0f, nullptr);
+                        slider("EchoFeedback", "##echoFeedback", chain.echoFeedback, 0.0f, 0.95f, nullptr);
+                        slider("ReverbMix", "##reverbMix", chain.reverbMix, 0.0f, 1.0f, zeroOff);
+                        slider("ReverbRoom", "##reverbRoom", chain.reverbRoom, 0.0f, 1.0f, nullptr);
+                        slider("ReverbDamping", "##reverbDamping", chain.reverbDamping, 0.0f, 1.0f, nullptr);
+                        slider("Dry", "##dry", chain.dry, 0.0f, 1.0f, nullptr);
+                        slider("CompRatio", "##compRatio", chain.compRatio, 1.0f, 20.0f, oneOff);
+                        slider("CompThreshold", "##compThreshold", chain.compThreshold, -60.0f, 0.0f, nullptr);
+                        slider("CompAttack", "##compAttack", chain.compAttack, 0.0005f, 0.5f, nullptr);
+                        slider("CompRelease", "##compRelease", chain.compRelease, 0.005f, 2.0f, nullptr);
+                        slider("CompMakeup", "##compMakeup", chain.compMakeup, 0.0f, 24.0f, nullptr);
                     }
                     Widget::TreePop();
                 }
@@ -785,6 +835,25 @@ namespace JBro
             m_draft.audioBuses.Add(ProjectAudioBus{name, 1.0f});
         }
 
+        // **프로젝트 폰트**(D-200 (6), 기존 설정 창의 Fonts 갈래). 순서가 있는 목록 하나다: 첫 폰트가 `fontId` 가 빈 텍스트를
+        // 그리고, 목록 전체가 폰트에 없는 글자를 차례로 찾아보는 폴백이다. 기존은 기본 패밀리와 폴백 목록이 따로였다.
+        Widget::SectionHeader(
+            Loc::TextOr(LocKeys::ProjectSettingsText, "Text")).SpacingBefore().Draw();
+        Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsFontsHelp,
+            "The first font draws texts with no fontId. Letters a font lacks are looked up in this list, in order."));
+        // 순서가 뜻을 가지므로 공용 목록 위젯이다(끌어서 순서 바꾸기·번호·지우기·항목 추가). 창이 좁게 도킹되어도(실측 202 px)
+        // 칸 하나가 한 줄을 다 쓴다 - 처음 판은 줄마다 "위로"·"삭제" 단추를 붙여 폰트 칸이 보이지 않을 만큼 줄었다.
+        // 새 줄은 빈 아이디로 시작하고, 고르지 않은 줄은 저장할 때 빠진다.
+        RefreshFontChoices();
+        Widget::List("##fonts", m_draft.fonts,
+            [&](AssetId& font, int) {
+                Widget::AssetField("##font",
+                    ArrayView<const char* const>(m_fontNamePointers.Data(), m_fontNamePointers.Size()),
+                    ArrayView<const AssetId>(m_fontIds.Data(), m_fontIds.Size()), font)
+                    .AllowClear(false)
+                    .Draw();
+            },
+            AssetId{}, Widget::ListFlagsShowIndex);
         DrawInputSettings();
 
         Widget::SectionHeader(

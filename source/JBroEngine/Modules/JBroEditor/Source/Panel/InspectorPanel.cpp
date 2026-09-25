@@ -39,6 +39,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/NameTable.h>
 
 #include <imgui.h>
@@ -773,6 +774,28 @@ namespace JBro
         }
     }
 
+    void InspectorPanel::DrawTextBody(const TypeDescriptor& type, void* address, bool editable, Context& context)
+    {
+        TextId& id = *static_cast<TextId*>(address);
+        // **매 프레임 저장소의 글자를 넘긴다.** 치는 동안에는 ImGui 가 제 버퍼를 들고 넘긴 글자를 보지 않고, 편집이 끝나는
+        // 프레임에 친 글자를 돌려준다. 그래서 되돌리기·스크립트가 바꾼 글자는 치지 않을 때 바로 보인다. (처음 판은 이름 칸처럼
+        // 치는 칸의 글자를 따로 들었는데, 그 상태를 지우는 뮤테이션이 모든 검사를 지나 - 같은 동작이라 - 뺐다.)
+        const ArrayView<const char> stored = TextStore::Get().GetText(id);
+        String draft(stored.Data(), stored.Size());
+        const bool finished = Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw();
+        if (finished && editable)
+        {
+            // 편집 전 값은 코덱 글자로 뜬다(길이 제한 없는 길). 새 글자를 저장소에 쓰고 나면 `CommitEdit` 가
+            // 옛 글자로 되돌려 놓고 고른 것 모두에 커맨드 하나를 만든다 - 다른 필드와 같은 길이다.
+            String before;
+            if (SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before))
+            {
+                TextStore::Get().Assign(id, draft.c_str(), draft.size());
+                CommitEdit(type, address, before, context);
+            }
+        }
+    }
+
     bool InspectorPanel::DrawLeaf(
         const TypeDescriptor& type,
         void* address,
@@ -933,11 +956,12 @@ namespace JBro
         const bool image = AssetTypeRules::IsImageType(meta.type);
         int slot = 0;
         const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock,
-                                     bool audioBlock = false) {
+                                     bool audioBlock = false, bool fontBlock = false) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
             scope.spriteBlock = spriteBlock;
             scope.audioBlock = audioBlock;
+            scope.fontBlock = fontBlock;
             if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
@@ -960,6 +984,12 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorAudioImportOptions, "Audio Import Options"),
                 TypeDescriptorOf<AudioImportOptions>::Get(), &scratch.audioOptions, false, true);
         }
+        // 폰트의 PPU·필터(D-200). 고치면 제자리 재로드로 글자가 새 크기로 다시 뜬다.
+        if (meta.type == AssetType::Font)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorFontImportOptions, "Font Import Options"),
+                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);
+        }
     }
 
     void InspectorPanel::CommitAssetEdit(Context& context)
@@ -980,6 +1010,10 @@ namespace JBro
         else if (context.asset->audioBlock)
         {
             scratch.hasAudioOptions = true;
+        }
+        else if (context.asset->fontBlock)
+        {
+            scratch.hasFontOptions = true;
         }
         else
         {
@@ -1589,6 +1623,14 @@ namespace JBro
             && IsAssetIdName(label))
         {
             DrawAssetField(label, type, address, context);
+            return;
+        }
+
+        // 텍스트의 글자는 줄바꿈을 그대로 치는 여러 줄 칸이다. 한 줄 칸은 줄바꿈을 이스케이프 글자로 보여 주고
+        // 512 바이트에서 끊겼다.
+        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.TextId"))
+        {
+            DrawTextBody(type, address, editable, context);
             return;
         }
 

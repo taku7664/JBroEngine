@@ -6,6 +6,7 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/ArrayView.h>
 #include <JBro/Types/String.h>
 #include <JBro/Types/Table.h>
 
@@ -58,6 +59,16 @@ namespace JBro
     // 그 클립의 보이스를 멈추고 등록을 내린다. 그 뒤에 자료가 풀린다 - 오디오 스레드가 풀린 메모리를 읽지 않게 하는 순서다.
     using AudioReleaseCallback = void (*)(void* user, AssetHandle handle);
 
+    // 로드된 폰트다(D-200). **파일 바이트 그대로다** - 글리프는 텍스트 시스템의 아틀라스가 필요할 때 뜬다(text-plan §4.4).
+    // `options.filter` 는 로드 때 정해져 `Default` 가 오지 않는다(텍스처와 같은 규칙, D-119). `options.pixelsPerUnit` 도
+    // 0 이하가 오지 않는다. `dataGeneration` 은 in-place 재로드마다 오른다 - 아틀라스는 그것을 보고 옛 글리프를 버린다.
+    struct FontData
+    {
+        FontImportOptions options;
+        Array<std::byte> bytes;
+        std::uint32_t dataGeneration = 1;
+    };
+
     // 프로젝트 수명 동안 에셋 로드와 캐시를 소유한다(D-50·D-111). 사용자 호출 표면은 값형 Service::AssetService 다.
     //
     // **타입별 풀과 index+generation 핸들이다.** `IAsset` 가상 기반이 없다. 핸들의 `index` 상위 4 비트가 타입이고
@@ -80,6 +91,12 @@ namespace JBro
         void SetDefaultTextureFilter(TextureFilter filter);
         TextureFilter GetDefaultTextureFilter() const;
 
+        // 프로젝트의 폰트 목록이다(`Fonts`, D-200 (6)). 아이디만 든다 - 로드는 쓰는 쪽(텍스트 시스템)이 하고 핸들도 그쪽이 든다.
+        // 목록이 바뀌면 판번호가 오른다. 쓰는 쪽은 판번호가 다를 때만 다시 로드한다.
+        void SetProjectFonts(ArrayView<const AssetId> fonts);
+        ArrayView<const AssetId> GetProjectFonts() const;
+        std::uint32_t GetProjectFontsRevision() const;
+
         // 잇긴 에셋 폴더(UTF-8 절대경로)와 레지스트리의 레코드가 가리키는 메타 경로다. 에디터가 메타를 고쳐 쓸 때 쓴다(D-120).
         const String& GetAssetRoot() const;
         String GetMetaPath(const AssetRecord& record) const;
@@ -97,6 +114,7 @@ namespace JBro
         const TextureData* GetTexture(AssetHandle handle) const;
         const SpriteData* GetSprite(AssetHandle handle) const;
         const AudioData* GetAudio(AssetHandle handle) const;
+        const FontData* GetFont(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
@@ -152,6 +170,7 @@ namespace JBro
         bool ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options);
         bool ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options);
         bool ReadAudio(const AssetRecord& record, AudioData& data);
+        bool ReadFont(const AssetRecord& record, FontData& data);
         void NotifyAudioRelease(std::uint32_t slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
@@ -165,11 +184,14 @@ namespace JBro
 
         IPlatform* m_platform = nullptr;
         TextureFilter m_defaultTextureFilter = TextureFilter::Nearest;
+        Array<AssetId> m_projectFonts;
+        std::uint32_t m_projectFontsRevision = 0;
         const AssetRegistry* m_registry = nullptr;
         String m_assetRoot;
         Pool<TextureData> m_textures;
         Pool<SpriteData> m_sprites;
         Pool<AudioData> m_audio;
+        Pool<FontData> m_fonts;
         AudioReleaseCallback m_audioRelease = nullptr;
         void* m_audioReleaseUser = nullptr;
         Table<AssetId, AssetHandle> m_loaded;

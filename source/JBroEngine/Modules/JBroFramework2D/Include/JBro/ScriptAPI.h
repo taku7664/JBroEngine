@@ -26,6 +26,7 @@
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Layer2D.h>
 #include <JBro/Framework2D/Math2D.h>

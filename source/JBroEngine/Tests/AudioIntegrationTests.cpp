@@ -186,6 +186,21 @@ namespace
                 && reread.audioBuses.Last().effects.lowPassHz == 800.0f && reread.audioBuses.Last().effects.echoMix == 0.0f,
             "and they read back");
 
+        // 새 이펙트 칸(D-210)도 기본값과 다른 것만 적히고 되읽힌다.
+        project.audioBuses.Last().effects.eqLowGain = 6.0f;
+        project.audioBuses.Last().effects.compRatio = 4.0f;
+        project.audioBuses.Last().effects.pitchShift = -3.0f;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error)
+                && written.find("    EqLowGain: 6\n") != String::npos && written.find("    CompRatio: 4\n") != String::npos
+                && written.find("    PitchShift: -3\n") != String::npos && written.find("EqMidHz") == String::npos,
+            "the new effect fields are written only when they differ from the defaults");
+        Check(ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.audioBuses.Last().effects.eqLowGain == 6.0f
+                && reread.audioBuses.Last().effects.compRatio == 4.0f && reread.audioBuses.Last().effects.pitchShift == -3.0f,
+            "and they read back");
+        project.audioBuses.Last().effects = AudioBusEffects{};
+        project.audioBuses.Last().effects.reverbMix = 0.4f;
+        project.audioBuses.Last().effects.lowPassHz = 800.0f;
+
         // 부모·센드·원음 양(D-203)도 쓸 때만 적히고 되읽힌다.
         project.audioBuses.Add(ProjectAudioBus{String("Steps"), 0.5f});
         project.audioBuses.Last().parent = "Cave";

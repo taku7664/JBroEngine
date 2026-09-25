@@ -319,11 +319,21 @@ namespace JBro
         {
             return false;
         }
+        // `required` 를 버퍼 크기(끝의 NUL 포함)로 세는 코덱과 글자 수로 세는 코덱이 둘 다 있다(`String`·`TextId` 는 앞,
+        // 수·enum·Uuid 는 뒤). 앞의 것을 그대로 담으면 글자 끝에 NUL 이 하나 붙는다 - `c_str()` 로 쓰는 파일에는
+        // 보이지 않지만, 이 글자를 길이째로 `FromText` 에 돌려주는 커맨드에서는 값의 일부가 된다. 끝의 NUL 하나를 뗀다.
+        const auto dropTerminator = [&text]() {
+            if (false == text.empty() && text.back() == '\0')
+            {
+                text.pop_back();
+            }
+        };
         char stack[128];
         std::size_t required = 0;
         if (codec.ToText(value, stack, sizeof(stack), required))
         {
             text.assign(stack, required);
+            dropTerminator();
             return true;
         }
         if (required == 0 || required > (1u << 20))
@@ -336,6 +346,7 @@ namespace JBro
         {
             return false;
         }
+        dropTerminator();
         return true;
     }
 

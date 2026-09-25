@@ -24,6 +24,9 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Runtime/TextStore.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -45,6 +48,8 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
+
+#include "TestFontNotoSansKR.generated.h"
 
 #include <windows.h>
 
@@ -7533,6 +7538,481 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **텍스트 3 단계(에디터)**(text-plan §5 의 3). 실제 에디터 창에서:
+    // 폰트가 없으면 인스펙터에 경고 줄이 서고, 폰트를 주면 사라진다. 캔버스 뷰에서 글자 위를 누르면 그 오브젝트가
+    // 골라진다(빈 오브젝트의 작은 상자 밖이어도). 인스펙터의 여러 줄 칸에 친 글자(줄바꿈 포함)는 편집이 끝날 때
+    // 커맨드 하나이고 되돌리면 옛 글자다. 폰트 에셋의 임포트 옵션을 끌면 커맨드 하나로 메타에 적히고 글자가 새 PPU 로 다시 선다.
+    void TestTheEditorEditsPicksAndWarnsAboutText()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroTextEditorProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "Fonts", ignored);
+        {
+            std::ofstream font(root / "Assets" / "Fonts" / "sans.otf", std::ios::binary);
+            font.write(reinterpret_cast<const char*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR));
+        }
+        const JBro::String projectPath = TempPath("JBroTextEditorProbe\\Text.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the text editor not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the text probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        const JBro::AssetRecord* fontRecord = editor.GetAssetRegistry().FindByPath("Fonts/sans.otf");
+        Check(fontRecord != nullptr && fontRecord->type == JBro::AssetType::Font, "the scan registers the font");
+        const JBro::AssetId fontAsset = fontRecord->id;
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Label");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        auto* label = canvas->AttachComponent<JBro::Component::Text2D>(object);
+        Check(transform != nullptr && label != nullptr, "the label needs a transform and a text");
+        // 기본 PPU 100 에 100 px 이면 em 하나가 1 유닛이다. 글자 블록은 원점에서 오른쪽 위로 뻗는다(Left·Baseline).
+        label->fontSize = 100.0f;
+        JBro::TextStore::Get().Assign(label->text, "AB", 2);
+        editor.SetSelectedObject(object);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        JBro::System::Text2DSystem* texts = canvas->GetSystems().FindSystem<JBro::System::Text2DSystem>();
+        Check(texts != nullptr, "a 2D canvas runs the text system in the editor");
+
+        // ── 폰트 없음 경고 ────────────────────────────────────────────────
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        Check(texts->IsMissingFont(label->GetInstanceId()), "a text with no font is reported as missing one");
+        const float withWarning = inspector->ContentSize.y;
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "text_no_font");
+        }
+
+        label->fontId = fontAsset;
+        Check(editor.RescanAssets(), "the rescan resolves the font handle");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the font");
+        }
+        Check(label->font.generation != 0, "the font id resolves to a handle");
+        Check(false == texts->IsMissingFont(label->GetInstanceId()), "and the text is no longer missing a font");
+        const float withoutWarning = inspector->ContentSize.y;
+        std::cout << "  [measure] inspector height with the warning " << withWarning << ", without " << withoutWarning
+                  << std::endl;
+        Check(withWarning > withoutWarning + 4.0f, "the warning line is gone once the font is there");
+
+        // ── 캔버스 뷰에서 고르기 ─────────────────────────────────────────
+        float minX = 0.0f;
+        float minY = 0.0f;
+        float maxX = 0.0f;
+        float maxY = 0.0f;
+        Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the text has a block");
+        std::cout << "  [measure] text block " << minX << ".." << maxX << " x " << minY << ".." << maxY << std::endl;
+        // 오브젝트를 두 배로 키워 고른다. 블록은 오브젝트 로컬이라 캔버스 뷰가 크기를 곱해야 그림과 맞는다.
+        constexpr float Scale = 2.0f;
+        transform->scale = JBro::Vec2{Scale, Scale};
+        // 블록의 오른쪽 가까이다. 크기를 곱하지 않은 블록이라면 그 밖이다.
+        const float pickX = (minX + (maxX - minX) * 0.8f) * Scale;
+        const float pickY = (minY + maxY) * 0.5f * Scale;
+        // 빈 오브젝트의 기본 상자(반폭 0.25) 밖이어야 이 검사가 텍스트의 사각형을 잰다.
+        Check(pickX > 0.3f, "the middle of the text is outside the empty-object box");
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        editor.ClearSelection();
+        Check(editor.Tick(Frame), "the editor must tick after clearing");
+        Check(editor.Tick(Frame), "and once more so the world scale is current");
+        // 월드 원점은 **그린 화면(텍스처)의 한가운데**다(D-150). 툴바 아래에서 그림이 시작하는 줄을 먼저 찾는다.
+        const ImGuiID canvasId = LabelId(view->ID, "##canvas");
+        const int probeX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
+        int top = -1;
+        for (int y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y + view->Size.y); ++y)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(probeX, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking for the picture");
+            if (ImGui::GetHoveredID() == canvasId)
+            {
+                top = y;
+                break;
+            }
+        }
+        Check(top >= 0, "the picture must be under the tool bar");
+        const JBro::Extent2D drawn = editor.GetCanvasViewExtent();
+        const float originX = view->ContentRegionRect.Min.x + static_cast<float>(drawn.width) * 0.5f;
+        const float originY = static_cast<float>(top) + static_cast<float>(drawn.height) * 0.5f;
+        const float pixelsPerUnit = static_cast<float>(drawn.height) * 0.5f / 5.0f;
+        Spot onText;
+        onText.x = static_cast<int>(originX + pickX * pixelsPerUnit);
+        onText.y = static_cast<int>(originY - pickY * pixelsPerUnit);
+        ClickAt(editor, hwnd, onText);
+        Check(editor.GetSelectedObject() == object, "clicking the letters picks the text object");
+        // 다음 누름이 두 번 누르기(들어가기)로 읽히지 않게 시간을 둔다.
+        for (int frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+        }
+        // 아래쪽이다. 고른 오브젝트의 기즈모 손잡이는 오른쪽·위로 뻗어, 옆을 누르면 손잡이를 잡는다.
+        Spot belowText;
+        belowText.x = onText.x;
+        belowText.y = static_cast<int>(originY - (minY * Scale - 0.5f) * pixelsPerUnit);
+        ClickAt(editor, hwnd, belowText);
+        Check(editor.GetSelectedObject() == nullptr, "and half a unit below the block picks nothing");
+        for (int frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+        }
+        // 원점 바로 왼쪽은 빈 오브젝트라면 잡히는 기본 상자 안이지만, 글자 블록은 원점에서 오른쪽으로 뻗는다(Left 정렬).
+        // 텍스트가 있으면 그 작은 상자 대신 블록을 쓴다.
+        Spot leftOfBlock;
+        leftOfBlock.x = static_cast<int>(originX - 0.15f * pixelsPerUnit);
+        leftOfBlock.y = static_cast<int>(originY - 0.1f * pixelsPerUnit);
+        ClickAt(editor, hwnd, leftOfBlock);
+        Check(editor.GetSelectedObject() == nullptr, "just left of the block is not the text, even inside the empty-object box");
+        for (int frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+        }
+        // 빈 글자는 폭이 0 인 블록이다. 그때는 빈 오브젝트의 상자로 남아 원점을 누르면 잡힌다.
+        JBro::TextStore::Get().Assign(label->text, "", 0);
+        Check(editor.Tick(Frame), "the editor must lay the empty text out");
+        Spot atOrigin;
+        atOrigin.x = static_cast<int>(originX + 0.1f * pixelsPerUnit);
+        atOrigin.y = static_cast<int>(originY - 0.1f * pixelsPerUnit);
+        ClickAt(editor, hwnd, atOrigin);
+        Check(editor.GetSelectedObject() == object, "an empty text can still be picked at its origin");
+        JBro::TextStore::Get().Assign(label->text, "AB", 2);
+        transform->scale = JBro::Vec2{1.0f, 1.0f};
+
+        // ── 여러 줄 글자 칸 ──────────────────────────────────────────────
+        editor.SetSelectedObject(object);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the label");
+        }
+        const JBro::PropertyTable* table =
+            JBro::PropertyRegistry::Lookup(JBro::NameTable::Get().Intern("Component::Text2D"));
+        Check(table != nullptr, "Text2D has a property table");
+        const ImGuiID textField = InspectorFieldId(1, FieldIndexOf(*table, "text"), "##value");
+        Spot textSpot;
+        Check(FindInspectorItem(editor, hwnd, textField, textSpot), "the text row must be in the inspector");
+        const ImGuiID header = LabelId(inspector->ID, "##object");
+        const ImGuiID nameId = LabelId(header, "##name");
+        Spot nameField;
+        Check(FindItemAnywhereInWindow(editor, hwnd, inspector, nameId, nameField), "the name field is there too");
+
+        const auto textNow = [&]() {
+            const JBro::ArrayView<const char> text = JBro::TextStore::Get().GetText(label->text);
+            return std::string(text.Data(), text.Size());
+        };
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, textSpot);
+        for (int frame = 0; frame < 6 && ImGui::GetActiveID() != textField; ++frame)
+        {
+            Check(editor.Tick(Frame), "the text field must take focus");
+        }
+        Check(ImGui::GetActiveID() == textField, "clicking the text field makes it take the keys");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>('C'), 0);
+        Check(editor.Tick(Frame), "the editor must tick while typing");
+        // 여러 줄 칸에서 Enter 는 확정이 아니라 줄바꿈이다.
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>('D'), 0);
+        Check(editor.Tick(Frame), "the editor must tick while typing");
+        Check(ImGui::GetActiveID() == textField, "Enter keeps the multi-line field open");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore, "nothing is recorded while typing");
+        Check(textNow() == "AB", "and the text is untouched until the edit ends");
+        // 다른 칸을 누르면 편집이 끝난다.
+        ClickAt(editor, hwnd, nameField);
+        Check(editor.Tick(Frame), "the editor must tick after leaving the field");
+        std::cout << "  [measure] typed text '" << textNow() << "'" << std::endl;
+        Check(textNow() == "ABC\nD", "leaving the field writes the typed lines");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "and the whole edit is one command");
+        Check(editor.GetCommands().Undo(), "the text edit must undo");
+        Check(textNow() == "AB", "undo brings the old text back");
+        Check(editor.GetCommands().Redo(), "and redo the new one");
+        Check(textNow() == "ABC\nD", "redo writes the lines again");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after redo");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "text_inspector");
+        }
+        float twoLineMinY = 0.0f;
+        Check(texts->GetLocalBounds(label->GetInstanceId(), minX, twoLineMinY, maxX, maxY), "the text has a block");
+        Check(twoLineMinY < minY - 0.5f, "the second line grows the block downwards");
+
+        // **1024 바이트보다 긴 글자도 잘리지 않는다.** 글자 칸의 고정 버퍼는 1024 바이트라, 그 길로 그리면 친 글자와 함께
+        // 1023 바이트로 잘린 글자가 저장된다.
+        const std::string longText(1500, 'a');
+        JBro::TextStore::Get().Assign(label->text, longText.c_str(), longText.size());
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must show the long text");
+        }
+        Check(FindInspectorItem(editor, hwnd, textField, textSpot), "the text row is still in the inspector");
+        ClickAt(editor, hwnd, textSpot);
+        for (int frame = 0; frame < 6 && ImGui::GetActiveID() != textField; ++frame)
+        {
+            Check(editor.Tick(Frame), "the text field must take focus again");
+        }
+        Check(ImGui::GetActiveID() == textField, "the long text field takes the keys");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_END, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>('b'), 0);
+        Check(editor.Tick(Frame), "the editor must tick while typing");
+        ClickAt(editor, hwnd, nameField);
+        Check(editor.Tick(Frame), "the editor must tick after leaving the field");
+        std::cout << "  [measure] long text came back with " << textNow().size() << " bytes" << std::endl;
+        Check(textNow() == longText + "b", "a 1500-byte text is edited whole, not cut at the field's buffer");
+
+        // ── 폰트 임포트 옵션 ─────────────────────────────────────────────
+        // 지금 글자(긴 줄)의 블록을 다시 잰다. 앞에서 잰 값은 짧은 글자의 것이다.
+        Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the long text has a block");
+        const float boundsBefore = maxX;
+        editor.SetSelectedAsset(fontAsset);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the font asset");
+        }
+        Check(editor.GetSelectedAssetMeta() != nullptr && editor.GetSelectedAssetMeta()->type == JBro::AssetType::Font,
+            "the font asset is selected");
+        const JBro::TypeDescriptor& fontOptions = JBro::TypeDescriptorOf<JBro::FontImportOptions>::Get();
+        Check(fontOptions.fields != nullptr, "font import options have a property table");
+        const ImGuiID ppuField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"),
+            static_cast<int>(FieldIndexOf(*fontOptions.fields, "pixelsPerUnit"))), "##value");
+        Spot ppuSpot;
+        Check(FindInspectorItem(editor, hwnd, ppuField, ppuSpot), "the font's pixels-per-unit row must be in the inspector");
+        const std::size_t undoOptions = editor.GetCommands().GetUndoCount();
+        // 끌기 한 픽셀이 0.01 이다. 멀리 끌어야 글자 폭이 반올림보다 크게 달라진다.
+        DragFrom(editor, hwnd, ppuSpot, ppuSpot.x + 400);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the drag");
+        }
+        Check(editor.GetCommands().GetUndoCount() == undoOptions + 1, "one drag is one command");
+        const JBro::AssetMetaFile* meta = editor.GetSelectedAssetMeta();
+        Check(meta != nullptr && meta->hasFontOptions && meta->fontOptions.pixelsPerUnit != 100.0f,
+            "the font meta now carries its options block with the dragged value");
+        const JBro::FontData* fontData = editor.GetAssetSystem()->GetFont(label->font);
+        Check(fontData != nullptr && fontData->options.pixelsPerUnit == meta->fontOptions.pixelsPerUnit,
+            "and the loaded font was reloaded in place with it");
+        std::cout << "  [measure] font pixels-per-unit dragged to " << meta->fontOptions.pixelsPerUnit << std::endl;
+        Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY)
+                && std::fabs(maxX * meta->fontOptions.pixelsPerUnit - boundsBefore * 100.0f) < 1.0f
+                && std::fabs(maxX - boundsBefore) > boundsBefore * 0.01f,
+            "the text is laid out again at the new pixels-per-unit");
+        Check(editor.GetCommands().Undo(), "the options edit must undo");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the undo");
+        }
+        Check(editor.GetAssetSystem()->GetFont(label->font)->options.pixelsPerUnit == 100.0f,
+            "undo puts the font's pixels-per-unit back");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
+    // 창을 굴려 가며 찾는다. 설정 창은 한 화면보다 길어 아래쪽 단추는 굴려야 보인다.
+    bool FindItemScrolling(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window, ImGuiID target, int x,
+        Spot& spot)
+    {
+        Check(window != nullptr, "the window this test looks in must exist");
+        const float step = window->Size.y * 0.6f;
+        for (float scroll = 0.0f; scroll <= window->ScrollMax.y + step; scroll += step)
+        {
+            ImGui::SetScrollY(window, scroll);
+            Check(editor.Tick(Frame), "the editor must tick after scrolling");
+            Check(editor.Tick(Frame), "and once more so the scroll lands");
+            if (FindItemInWindow(editor, hwnd, window, target, x, spot))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // **설정 창의 프로젝트 폰트 목록**(D-200 (6), text-plan §5 의 3 단계). "폰트 추가" 를 누르고 칸에서 폰트를 골라 저장하면
+    // 프로젝트 파일에 `Fonts` 가 적히고, `fontId` 가 빈 텍스트가 곧바로 그 폰트로 그려진다(프로젝트를 다시 열지 않는다).
+    void TestTheProjectSettingsListTheFontsTextsFallBackOn()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroProjectFontProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets" / "Fonts", ignored);
+        {
+            std::ofstream font(root / "Assets" / "Fonts" / "sans.otf", std::ios::binary);
+            font.write(reinterpret_cast<const char*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR));
+        }
+        const JBro::String projectPath = TempPath("JBroProjectFontProbe\\Fonts.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the project font list not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the font probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        const JBro::AssetRecord* fontRecord = editor.GetAssetRegistry().FindByPath("Fonts/sans.otf");
+        Check(fontRecord != nullptr, "the scan registers the font");
+        const JBro::AssetId fontAsset = fontRecord->id;
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* object = canvas->CreateObject("Caption");
+        canvas->AttachComponent<JBro::Component::Transform2D>(object);
+        auto* caption = canvas->AttachComponent<JBro::Component::Text2D>(object);
+        JBro::TextStore::Get().Assign(caption->text, "A", 1);
+        JBro::EditorPanel* settings = editor.FindPanel("ProjectSettings");
+        Check(settings != nullptr, "the settings panel exists");
+        settings->SetOpen(true);
+        settings->RequestFocus();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the settings open");
+        }
+        JBro::System::Text2DSystem* texts = canvas->GetSystems().FindSystem<JBro::System::Text2DSystem>();
+        Check(texts != nullptr && texts->IsMissingFont(caption->GetInstanceId()),
+            "with no fontId and no project font the caption is missing a font");
+
+        JBro::String label = settings->GetDisplayTitle();
+        label += "###ProjectSettings";
+        ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
+        Check(window != nullptr, "the project settings must have a window");
+        const int buttonX = static_cast<int>(window->ContentRegionRect.Min.x + 12.0f);
+
+        // 폰트 목록은 공용 목록 위젯이라 제 자식 창(`##list_body`) 안에 선다. 줄의 Id 는 그 창 → 줄 번호 → `##font` 다.
+        ImGuiWindow* list = FindChildWindow(window, "##list_body");
+        Check(list != nullptr, "the font list has its own body");
+        Spot add;
+        Check(FindItemScrolling(editor, hwnd, window,
+                LabelId(list->ID, JBro::Loc::TextOr(JBro::LocKeys::ListAddElement, "Add element")),
+                static_cast<int>(list->Pos.x + 30.0f), add),
+            "the font list shows its add row");
+        ClickAt(editor, hwnd, add);
+        Check(editor.Tick(Frame), "the new row must appear");
+
+        const ImGuiID row = LabelId(PushedId(list->ID, 0), "##font");
+        Spot field;
+        // 칸은 값 열의 왼쪽에 서고 오른쪽에 단추 둘이 붙는다. 창 폭에 따라 자리가 달라 몇 x 를 본다.
+        bool foundField = false;
+        for (float fraction = 0.35f; fraction < 0.8f && false == foundField; fraction += 0.15f)
+        {
+            foundField = FindItemScrolling(editor, hwnd, window, row,
+                static_cast<int>(window->Pos.x + window->Size.x * fraction), field);
+        }
+        std::cout << "  [measure] settings window " << window->Size.x << " x " << window->Size.y << std::endl;
+        Check(foundField, "the added row has a font field");
+        ClickAt(editor, hwnd, field);
+        Check(editor.Tick(Frame), "the popup must appear");
+        Check(editor.Tick(Frame), "and its search box must take focus");
+        for (const char* at = "sans"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.GetProjectFile().fonts.IsEmpty(), "nothing reaches the project before Save");
+
+        Spot save;
+        Check(FindItemScrolling(editor, hwnd, window,
+                LabelId(window->ID, JBro::Loc::TextOr(JBro::LocKeys::ProjectSettingsSave, "Save")), buttonX, save),
+            "the settings show a Save button");
+        ClickAt(editor, hwnd, save);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after saving");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "project_fonts");
+        }
+        const JBro::ProjectFile& saved = editor.GetProjectFile();
+        Check(saved.fonts.Size() == 1 && saved.fonts[0] == fontAsset, "Save puts the picked font in the project");
+        {
+            std::ifstream in(projectPath.c_str(), std::ios::binary);
+            const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+            char id[JBro::Uuid::TextCapacity] = {};
+            fontAsset.ToText(id, sizeof(id));
+            Check(text.find(std::string("Fonts:\n  - ") + id) != std::string::npos, "and in the project file");
+        }
+        Check(false == texts->IsMissingFont(caption->GetInstanceId()),
+            "and the caption with no fontId now draws with it, without reopening the project");
+        float minX = 0.0f;
+        float minY = 0.0f;
+        float maxX = 0.0f;
+        float maxY = 0.0f;
+        Check(texts->GetLocalBounds(caption->GetInstanceId(), minX, minY, maxX, maxY) && maxX > minX,
+            "the caption has a laid-out block");
+
+        // 다시 열어도 같다 - 이번에는 파일에서 읽은 목록이 프로젝트를 열 때 에셋 시스템에 간다.
+        editor.CloseProject();
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the project reopens");
+        Check(editor.GetProjectFile().fonts.Size() == 1, "and reads its font list back");
+        JBro::Canvas* reopened = editor.GetCanvas();
+        JBro::GameObject* again = reopened->CreateObject("Caption");
+        reopened->AttachComponent<JBro::Component::Transform2D>(again);
+        auto* second = reopened->AttachComponent<JBro::Component::Text2D>(again);
+        JBro::TextStore::Get().Assign(second->text, "A", 1);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the reopened project");
+        }
+        JBro::System::Text2DSystem* reopenedTexts = reopened->GetSystems().FindSystem<JBro::System::Text2DSystem>();
+        Check(reopenedTexts != nullptr && false == reopenedTexts->IsMissingFont(second->GetInstanceId()),
+            "a text with no fontId draws with the project font right after opening");
+
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // **창을 닫는 것만으로도 보던 자리가 남는다**(D-188). 세션을 적는 길은
     // `프로젝트 저장` 과 `CloseProject` 뿐이었는데, 창을 닫는 길은 그 둘을 지나지
     // 않았다 - 카메라를 옮기고 캔버스만 저장한 뒤 닫으면 보던 자리가 사라졌다.
@@ -9807,6 +10287,8 @@ int RunEditorApplicationTests()
     TestCreatedObjectsCarryTheFrameworkTransform();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
+    TestTheEditorEditsPicksAndWarnsAboutText();
+    TestTheProjectSettingsListTheFontsTextsFallBackOn();
     TestTheEditorSessionSurvivesReopening();
     TestClosingTheEditorRemembersWhereYouWere();
     TestTheStatsPanelShowsWhatTheCanvasHolds();

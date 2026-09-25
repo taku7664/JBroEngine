@@ -7,6 +7,7 @@
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/RHI/RHI.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Types/LinearAllocator.h>
 
 namespace JBro
@@ -61,6 +62,8 @@ namespace JBro
         bool audioDeviceEnabled = false;
         // 동시에 울리는 보이스 수다(D-197, 기존 엔진과 같은 64). 다 차면 우선순위가 낮은 것부터 훔친다.
         std::uint32_t audioMaxVoices = 64;
+        // 태스크 관리자의 설정이다(D-209). 워커 수가 0 이면 코어 수에서 정한다.
+        TaskManagerDesc tasks;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -178,6 +181,9 @@ namespace JBro
         System::AudioSystem* GetAudio();
         // 프로세스 수명의 믹서다. 오디오를 끈 호스트는 null 이다.
         AudioMixer* GetAudioMixer();
+        // 프로세스 수명의 태스크 관리자다(D-209). 초기화 전이거나 내린 뒤에는 null 이다. 끝난 태스크의 콜백은
+        // `Tick` 의 첫머리에서 불린다.
+        TaskManager* GetTaskManager();
         // 출력 장치다. 장치를 열지 않았거나 못 열었으면 null 이다.
         const IAudioOutput* GetAudioOutput() const;
         // 출력 장치 목록(D-203)이다. 몇 ms 걸리므로 목록을 여는 순간에만 부른다.
@@ -236,6 +242,9 @@ namespace JBro
         OwnerPtr<IAudioOutput> m_audioOutput;
         OwnerPtr<AudioMixer> m_audioMixer;
         OwnerPtr<System::AudioSystem> m_audio;
+        // 태스크 관리자(D-209). 프로세스 수명이고, 내릴 때는 프로젝트보다 먼저 내린다 - 남은 콜백이 프로젝트의 것을
+        // 만질 수 있다.
+        OwnerPtr<TaskManager> m_tasks;
         // 장치를 열어야 하는 호스트인가(`audioDeviceEnabled`). 사라진 장치를 다시 열지를 이것이 정한다.
         bool m_audioDeviceWanted = false;
         String m_audioDevicePreference;

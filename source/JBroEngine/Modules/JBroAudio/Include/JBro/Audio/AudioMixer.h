@@ -192,6 +192,8 @@ namespace JBro
         // 버스 사슬의 끝(잔향 뒤, 음량 앞)에 사용자 처리기를 건다(D-206). null 이면 뗀다. **돌아온 뒤에는 옛 처리기가 다시 불리지
         // 않는다** - 그 코드와 `user` 를 곧 내려도 된다. 오디오 스레드가 옛 것을 부르는 중이면 그 한 번이 끝날 때까지 기다린다.
         void SetBusProcessor(AudioBusId bus, AudioBusProcessCallback callback, void* user);
+        // 버스 컴프레서가 지난 블록에서 줄인 가장 큰 양(dB, 0 이상)이다(D-210). 미터가 읽는다.
+        float GetBusGainReduction(AudioBusId bus) const;
         AudioBusId GetBusDuckTrigger(AudioBusId bus) const;
         float GetBusDuckAmount(AudioBusId bus) const;
 
@@ -230,6 +232,10 @@ namespace JBro
         // 때 줄이는 정책이 이것을 쓴다 - 게임이 정한 Master 음량과 따로 논다.
         void SetOutputGain(float gain, float seconds);
         float GetOutputGain() const;
+        // 출력 리미터(D-210, 기본 켬). 여러 버스가 겹쳐 `ceiling` 을 넘으면 그 순간에 줄이고 0.1 초에 걸쳐 되돌린다 - 잘라 내어
+        // 찌그러지는 것보다 낫다. 끄면 1 에서 잘라 낸다. `Stats::lastPeak` 는 리미터 앞의 값이라 넘친 것이 보인다.
+        void SetOutputLimiter(bool enabled, float ceiling = 0.98f);
+        bool IsOutputLimiterEnabled() const;
 
         // 장치로 나간 마지막 `count` 샘플(채널 평균, 최대 `RecentCapacity`)을 옛것부터 복사하고 복사한 수를 돌려준다.
         // 오디오 스레드가 쓰는 도중에 읽으므로 한두 샘플이 어긋날 수 있다 - 화면에 그리는 데만 쓴다.

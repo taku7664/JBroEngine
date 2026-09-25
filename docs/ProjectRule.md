@@ -93,11 +93,13 @@
   오디오 버스는 기존 엔진과 같은 키 `AudioBuses`(`- Name:`·`Volume:` 의 맵 시퀀스)다. 부동소수는 값을 지키는 가장 짧은 글자로
   적는다 - `%.9g` 는 사람이 적은 `0.8` 을 `0.800000012` 로 바꿔 고친 것 없는 저장이 파일을 바꾼다(D-189·D-197).
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
-  (Nearest|Linear, 기본 Nearest) 다. `PixelsPerUnit` 은 프로젝트에 없다 - PPU 는 스프라이트 에셋의 것이다. (D-111·D-119)
+  (Nearest|Linear, 기본 Nearest), `Fonts`(폰트 에셋 아이디의 순서 있는 시퀀스 - 첫 폰트가 `fontId` 가 빈 텍스트의 기본이고 목록 전체가
+  폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
+  PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-213)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
   프로젝트 파일 쓰기는 원문의 줄을 타고 가며 아는 키의 값만 갈아 끼우는데, 그 길에서 같은 줄을
   두 번 세면 저장할 때마다 파일이 불어난다. 값이 비어 있어도 아는 키는 **적은 것**으로 세고,
-  파일 끝 줄바꿈 다음 자리는 줄로 세지 않는다. 시퀀스(`AssetIgnorePatterns`)는 머리줄에서 새로 적고
+  파일 끝 줄바꿈 다음 자리는 줄로 세지 않는다. 시퀀스(`AssetIgnorePatterns`·`AudioBuses`·`Fonts`)는 머리줄에서 새로 적고
   원문의 항목 줄들을 건너뛴다 - 값이 여러 줄이라 한 줄 바꿔치기로는 다룰 수 없다.
   이미 겹쳐 적힌 키를 만나면 **그 줄을 지운다** - 매핑에 같은 키가 두 번 있을 수 없으니 지우는 것이
   고치는 것이고, 그래야 낡은 파일이 저장 한 번에 낫는다. 모르는 키와 주석은 그대로 지나간다.
@@ -132,7 +134,8 @@
   - 오디오 에셋은 CPU 자료만 든다(`AudioData`: 전체 PCM 또는 압축 바이트). 믹서는 그것을 **빌려** 재생하므로, `AssetSystem` 은
     오디오 자료를 풀거나 바꾸기 **직전에** `AudioReleaseCallback` 으로 알리고 받는 쪽은 그 클립의 보이스를 멈추고 등록을 내린다.
   - 임포트 옵션(`Audio.ImportOptions`)은 파일의 속성(지금은 `mode`)만 든다. 재생 파라미터는 컴포넌트가 유일한 원천이다.
-  - 이펙트는 **버스마다 고정 사슬**(고역 차단 → 저역 차단 → 메아리 → 잔향)이다(D-202). 값은 원자 변수로 건너가고 필터 계수는
+  - 이펙트는 **버스마다 고정 사슬**(고역 차단 → 저역 차단 → EQ → 디스토션 → 코러스 → 피치 시프트 → 메아리 → 잔향 → 원음 양 →
+    컴프레서, D-202·D-210)이다. 출력은 리미터(기본 켬)를 거친 뒤 1 에서 잘린다. 값은 원자 변수로 건너가고 필터 계수는
     오디오 스레드가 짓는다. 메아리·잔향 버퍼는 처음 켤 때 메인 스레드가 잡는다 - 오디오 스레드는 할당하지 않는다.
   - 버스의 부모는 목록의 앞 버스만이고, 센드는 되돌아오는 길을 만들면 거절한다(D-203). 솔로는 저장하지 않는다.
   - 버스 음량·음소거·솔로는 이펙트 노드 끝의 램프로 건다(D-205). 그룹 음량을 곧바로 바꾸지 않는다 - 딸깍 소리가 난다.
@@ -169,7 +172,7 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry` |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
@@ -182,6 +185,8 @@
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
+  | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype)·`TextLayout`(UTF-8·커닝·줄바꿈·정렬). `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200) |
+  | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
 
   > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고
   > 셋 다 스크립트 DLL 이 링크하기 때문이다. 스크립트가 그 선언을 받지 않는 것은 프렐류드가
@@ -298,6 +303,12 @@
   에셋은 `AssetHandle`, 캔버스는 스크립트에 노출하지 않으므로 `RefCategory::Asset`·`Canvas`는 두지 않는다. (D-53)
   이 둘 외에 타입별 핸들을 추가하지 않는다. 두 크기(16B·24B)는 영구 고정이다. (D-44)
 - `GameObjectHandle`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
+- **워커 스레드의 일은 `JBroTask` 의 `TaskManager` 에 태스크로 등록한다.** 모듈마다 `std::thread` 를 새로 들지 않는다. 예외는 실시간 마감이
+  있는 오디오 스트리머·장치 스레드와 OS 대기에서 막히는 파일 감시다. (SHOULD) (D-209)
+  - `Task::Run` 은 워커에서 돈다. 그 안에서 `SafePtr`·`OwnerPtr`·`Ref<T>`·`GameObjectHandle` 을 만들거나 복사하거나 파괴하지 않는다. 값과 raw
+    포인터만 쓰고, 대상의 수명은 등록한 쪽이 태스크가 끝날 때까지 보장한다. 풀에 넣는 것 같은 마무리는 메인 스레드의 `OnFinished` 가 한다. (MUST)
+  - 태스크를 넘기는 모양은 가상 함수다(`Task::Run`·`OnFinished`). `std::function` 본문을 받지 않는다 - 캡처한 `SafePtr` 가 워커에서 소멸할 수 있다. (MUST) (D-212)
+  - 묶음은 다 채운 뒤 통째로 제출한다. 완료는 제출한 뒤에만 판정하고, 콜백은 `EngineInstance::Tick` 첫머리의 `Update` 에서 메인 스레드로 온다. (MUST) (D-212)
 - **`GetComponent<T>()` 는 원시 포인터가 아니라 `Ref<T>` 를 반환한다.** (MUST)
   원시 포인터는 저장할 수 없어 매 프레임 다시 찾아야 하고, 그 조회가 선형 탐색이다.
   `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.

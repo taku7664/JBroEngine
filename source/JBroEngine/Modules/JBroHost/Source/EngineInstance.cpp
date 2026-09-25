@@ -181,6 +181,12 @@ namespace JBro
                     m_audioRetrySeconds = 2.0f;
                 }
             }
+            m_tasks = MakeOwnerPtr<TaskManager>();
+            if (false == m_tasks->Initialize(config.tasks))
+            {
+                ReleaseResources();
+                return false;
+            }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
@@ -252,6 +258,7 @@ namespace JBro
         m_assetQuietFrames = 0;
         // 프로젝트 기본 샘플러는 로드 때 적용되므로 잇기 전에 정한다(D-117).
         m_assets->SetDefaultTextureFilter(project.textureFilter);
+        m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));
         m_assets->Bind(*m_platform, m_assetRegistry, m_assetRoot.c_str());
         if (m_watchAssetDirectory && false == m_platform->WatchDirectory(m_assetRoot.c_str()))
         {
@@ -671,6 +678,12 @@ namespace JBro
         // 프레임의 구간을 나눠 잰다(D-138). 꺼져 있으면 이 줄들은 값이 없는 호출이다.
         Profiler::BeginFrame();
         const ProfileScope frameScope("Frame");
+        // 끝난 태스크의 마무리를 부른다(D-209). 프레임 첫머리라 콜백이 넣은 결과를 이번 프레임의 갱신이 본다.
+        if (m_tasks)
+        {
+            const ProfileScope scope("Tasks");
+            m_tasks->Update();
+        }
         {
             const ProfileScope scope("Platform");
             // **꺼내 가는 쪽이 없으면 여기서 비운다**(D-177). 호스트(에디터)가 자기 UI 에
@@ -888,6 +901,8 @@ namespace JBro
         if (m_assets.Get() != nullptr)
         {
             m_assets->SetDefaultTextureFilter(project.textureFilter);
+            // 프로젝트 폰트는 지금 적용된다 - 텍스트 시스템이 다음 프레임에 판번호를 보고 다시 로드한다.
+            m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));
         }
         // 오디오 버스도 지금 적용한다(D-197). 설정 창에서 버스를 더하면 곧바로 고를 수 있어야 한다.
         ApplyAudioBuses();
@@ -1247,6 +1262,12 @@ namespace JBro
     {
         m_state = State::Stopping;
         m_exitRequested = true;
+        // 태스크를 먼저 내린다. 돌고 있는 것을 기다리고 남은 콜백을 부르는데, 그 콜백이 프로젝트의 것을 만질 수 있다.
+        if (m_tasks)
+        {
+            m_tasks->Shutdown();
+            m_tasks.Reset();
+        }
         ReleaseProject();
         // 입력은 프로젝트(스크립트 DLL) 뒤에 내린다. DLL 이 그 주소를 들고 있었다.
         if (m_input)
@@ -1341,6 +1362,11 @@ namespace JBro
     AudioMixer* EngineInstance::GetAudioMixer()
     {
         return m_audioMixer.Get();
+    }
+
+    TaskManager* EngineInstance::GetTaskManager()
+    {
+        return m_tasks.Get();
     }
 
     const IAudioOutput* EngineInstance::GetAudioOutput() const

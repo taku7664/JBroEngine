@@ -74,6 +74,12 @@ PNG·JPEG·BMP·TGA 만 남긴다(`STBI_ONLY_*`). 파일은 열지 않는다(`ST
 에디터의 임포트 경로에서만 돈다. 기존 엔진(`Engine/ThirdParty/stb`)에서 같은 판을 가져왔다. 헤더 하나라 빌드 단위는
 따로 없다(Vulkan-Headers 와 같다).
 
+`stb_truetype.h` v1.26 은 텍스트 커널 `JBroText` 의 폰트 읽기다(D-200). `github.com/nothings/stb` 의 master 에서 2026-09-25 에
+받았다. `FontFace.cpp` 한 곳에서만 구현을 켠다(`STB_TRUETYPE_IMPLEMENTATION`). ImGui 에도 같은 판의 사본(`imgui/imstb_truetype.h`)이
+있지만 ImGui 가 고친 것이고 `stbtt_` 이름이 겹치지 않게 `static` 으로 묶여 있어 가져다 쓰지 않는다. TTF·OTF(CFF)·`kern` 표·GPOS
+쌍 조정(조회 형식 2, 부표 형식 1·2)을 읽는다. GPOS 확장 조회(형식 9)와 결합 문자 위치(mark), 합자(GSUB), 힌팅은 없다 - text-plan §3.4.
+고친 것은 없다.
+
 ### Vulkan-Headers — SDK 1.4.350.0, Apache-2.0
 
 `JBroVulkanRHI` 의 API 헤더다(D-108). `vulkan-1.dll` 은 실행 시간에 열므로 SDK 의 가져오기 라이브러리는

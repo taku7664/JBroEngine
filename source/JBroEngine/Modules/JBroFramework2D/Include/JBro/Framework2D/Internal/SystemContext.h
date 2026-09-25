@@ -1,13 +1,15 @@
 ﻿#pragma once
 
 #include <JBro/Framework2D/System/IPhysics2DSystem.h>
+#include <JBro/Framework2D/System/IText2DSystem.h>
 
 #include <cstdint>
 #include <type_traits>
 
 namespace JBro
 {
-    inline constexpr std::uint32_t Framework2DSystemContextAbiVersion = 1;
+    // 2: 텍스트 시스템이 붙었다(D-200).
+    inline constexpr std::uint32_t Framework2DSystemContextAbiVersion = 2;
 
     // 차원별 시스템 인터페이스 묶음. 공통 SystemContext 는 Framework 타입을 알지 않으므로
     // 이 블록이 D-37 확장 Context 로 전달된다. 사용자에게 공개하지 않기 위해 Internal 경계에 둔다.
@@ -16,6 +18,7 @@ namespace JBro
     {
         std::uint32_t AbiVersion = Framework2DSystemContextAbiVersion;
         System::IPhysics2DSystem* Physics2D = nullptr;
+        System::IText2DSystem*    Text2D = nullptr;
     };
 
     static_assert(std::is_standard_layout_v<Framework2DSystemContext>);

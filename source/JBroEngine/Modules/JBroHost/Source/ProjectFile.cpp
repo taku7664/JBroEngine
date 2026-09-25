@@ -171,7 +171,24 @@ namespace JBro
             {"ReverbRoom", &AudioBusEffects::reverbRoom},
             {"ReverbDamping", &AudioBusEffects::reverbDamping},
             {"ReverbMix", &AudioBusEffects::reverbMix},
-            {"Dry", &AudioBusEffects::dry}};
+            {"Dry", &AudioBusEffects::dry},
+            {"EqLowHz", &AudioBusEffects::eqLowHz},
+            {"EqLowGain", &AudioBusEffects::eqLowGain},
+            {"EqMidHz", &AudioBusEffects::eqMidHz},
+            {"EqMidGain", &AudioBusEffects::eqMidGain},
+            {"EqHighHz", &AudioBusEffects::eqHighHz},
+            {"EqHighGain", &AudioBusEffects::eqHighGain},
+            {"Distortion", &AudioBusEffects::distortion},
+            {"DistortionMix", &AudioBusEffects::distortionMix},
+            {"ChorusMix", &AudioBusEffects::chorusMix},
+            {"ChorusRate", &AudioBusEffects::chorusRate},
+            {"ChorusDepth", &AudioBusEffects::chorusDepth},
+            {"PitchShift", &AudioBusEffects::pitchShift},
+            {"CompRatio", &AudioBusEffects::compRatio},
+            {"CompThreshold", &AudioBusEffects::compThreshold},
+            {"CompAttack", &AudioBusEffects::compAttack},
+            {"CompRelease", &AudioBusEffects::compRelease},
+            {"CompMakeup", &AudioBusEffects::compMakeup}};
 
         float* AudioBusEffectField(AudioBusEffects& effects, const String& key)
         {
@@ -333,6 +350,9 @@ namespace JBro
         std::size_t    skipDeeperThan = NotSkipping;
         // `AudioBuses:` 아래에 있는가. 맵의 시퀀스라 스칼라 시퀀스(`currentSequence`)와 따로 읽는다.
         bool           inAudioBuses = false;
+        // `Fonts:` 의 항목은 글자로 모았다가 끝에서 아이디로 읽는다. 읽지 못하는 아이디는 파일 오류다.
+        Array<String>  fontTexts;
+        std::size_t    fontsLine = 0;
         // `InputActions:` 아래에 있는가(D-214). 액션 항목의 들여쓰기와 `Bindings:` 아래에 있는지를 함께 든다.
         bool           inInputActions = false;
         bool           inInputBindings = false;
@@ -701,6 +721,12 @@ namespace JBro
                     parsed.audioBuses.Clear();
                     inAudioBuses = true;
                 }
+                else if (indent == 0 && key == "Fonts")
+                {
+                    fontTexts.Clear();
+                    fontsLine = lineNumber;
+                    currentSequence = &fontTexts;
+                }
                 else if (indent == 0 && key == "InputLayers")
                 {
                     parsed.inputLayers.Clear();
@@ -805,6 +831,11 @@ namespace JBro
                 parsed.audioBuses.Clear();
                 recognized = value == "[]";
             }
+            else if (key == "Fonts")
+            {
+                fontTexts.Clear();
+                recognized = value == "[]";
+            }
             // 최상위의 나머지 키도 아직 쓰지 않는다.
 
             if (false == recognized)
@@ -818,6 +849,16 @@ namespace JBro
             }
         }
 
+        parsed.fonts.Clear();
+        for (const String& fontText : fontTexts)
+        {
+            AssetId font;
+            if (false == Uuid::Parse(fontText.c_str(), fontText.size(), font) || font.IsNull())
+            {
+                return Fail(error, fontsLine, "Fonts must list font asset ids");
+            }
+            parsed.fonts.Add(font);
+        }
         if (parsed.version == 0)
         {
             return Fail(error, 0, "project version must not be zero");
@@ -1236,6 +1277,47 @@ namespace JBro
             }
         }
 
+        bool HasListedFont(const ProjectFile& project)
+        {
+            for (const AssetId& font : project.fonts)
+            {
+                if (false == font.IsNull())
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // `Fonts` 를 적는다. 비어 있으면 `[]` 다(`AssetIgnorePatterns` 와 같은 까닭).
+        void AppendFonts(String& result, const ProjectFile& project)
+        {
+            // 고르지 않은 줄(빈 아이디, 설정 창의 "폰트 추가" 직후)은 적지 않는다. 읽을 때 빈 아이디는 오류다.
+            std::size_t listed = 0;
+            for (const AssetId& font : project.fonts)
+            {
+                listed += font.IsNull() ? 0 : 1;
+            }
+            if (listed == 0)
+            {
+                result.append("Fonts: []\n", 10);
+                return;
+            }
+            result.append("Fonts:\n", 7);
+            for (const AssetId& font : project.fonts)
+            {
+                if (font.IsNull())
+                {
+                    continue;
+                }
+                char text[Uuid::TextCapacity] = {};
+                font.ToText(text, sizeof(text));
+                result.append("  - ", 4);
+                result.append(text, Uuid::TextLength);
+                result.append("\n", 1);
+            }
+        }
+
         void AppendIgnorePatterns(String& result, const ProjectFile& project)
         {
             if (project.assetIgnorePatterns.IsEmpty())
@@ -1290,6 +1372,7 @@ namespace JBro
         bool skippingSequence = false;
         bool sawIgnorePatterns = false;
         bool sawAudioBuses = false;
+        bool sawFonts = false;
         bool sawInputLayers = false;
         bool sawInputActions = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
@@ -1376,6 +1459,17 @@ namespace JBro
                 {
                     AppendAudioBuses(result, project);
                     sawAudioBuses = true;
+                }
+                skippingSequence = false == hasValue;
+                replaced = true;
+            }
+            else if (pair && indent == 0 && key == "Fonts")
+            {
+                dropped = sawFonts;
+                if (false == dropped)
+                {
+                    AppendFonts(result, project);
+                    sawFonts = true;
                 }
                 skippingSequence = false == hasValue;
                 replaced = true;
@@ -1503,6 +1597,11 @@ namespace JBro
         if (false == sawAudioBuses && false == project.audioBuses.IsEmpty())
         {
             AppendAudioBuses(result, project);
+        }
+        // 폰트도 같다. 적힌 적 없고 비어 있으면 적지 않는다.
+        if (false == sawFonts && HasListedFont(project))
+        {
+            AppendFonts(result, project);
         }
         // 입력도 같다(D-214): 적힌 적 없고 비어 있으면 적지 않는다.
         if (false == sawInputLayers && false == project.inputLayers.IsEmpty())

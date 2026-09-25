@@ -130,6 +130,12 @@ namespace JBro
             {
                 return false;
             }
+            const std::uint32_t font = document.Find(root, "Font");
+            if (false == ReadOptions(document, font, TypeDescriptorOf<FontImportOptions>::Get(),
+                    &parsed.fontOptions, parsed.hasFontOptions, error))
+            {
+                return false;
+            }
 
             result = parsed;
             return true;
@@ -189,6 +195,16 @@ namespace JBro
             writer.BeginMap("Audio");
             if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<AudioImportOptions>::Get(),
                     &meta.audioOptions, error))
+            {
+                return false;
+            }
+            writer.EndMap();
+        }
+        if (meta.hasFontOptions && meta.type == AssetType::Font)
+        {
+            writer.BeginMap("Font");
+            if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<FontImportOptions>::Get(),
+                    &meta.fontOptions, error))
             {
                 return false;
             }

@@ -56,6 +56,14 @@ namespace JBro
         bool m_messageIsError = false;
         // 버스 고르기 목록의 이름들이다. 그릴 때마다 다시 채우되 자리는 재사용한다.
         Array<const char*> m_busChoices;
+        // 폰트 칸의 고를 거리(레지스트리의 폰트 에셋)다. 레지스트리의 판번호가 바뀔 때만 다시 모은다 - 인스펙터의
+        // `ChoicesFor` 와 같은 모양이다.
+        void RefreshFontChoices();
+        Array<String> m_fontNames;
+        Array<const char*> m_fontNamePointers;
+        Array<AssetId> m_fontIds;
+        std::uint64_t m_fontChoicesRevision = 0;
+        bool m_fontChoicesBuilt = false;
         // 바인딩 `Code` 고르기 목록이다. 그릴 때마다 다시 채우되 자리는 재사용한다.
         Array<const char*> m_inputCodeChoices;
         // 출력 장치 목록(D-203). 창을 열 때와 "새로 고침" 에서만 읽는다 - 읽는 데 몇 ms 걸린다.

@@ -142,6 +142,10 @@ namespace JBro
         String        audioOutputDevice;
         // 창이 포커스를 잃으면 소리를 끈다(`AudioMuteWhenUnfocused`). 스크립트가 옵션 화면에서 바꿀 수 있다.
         bool          audioMuteWhenUnfocused = false;
+        // 프로젝트의 폰트 목록이다(`Fonts`, 폰트 에셋 아이디의 시퀀스, D-200 (6)). 순서가 있다: 첫 폰트는 `fontId` 가 빈
+        // 텍스트의 기본 폰트이고, 목록 전체가 글자가 없을 때 차례로 찾아보는 폴백이다. 비어 있으면 `fontId` 가 빈 텍스트는
+        // 그리지 않는다.
+        Array<AssetId> fonts;
         // 입력 레이어 순서다(`InputLayers`, D-214). 위가 먼저 받는다. 비어 있으면 엔진 기본(Modal·UI·Game·World·Debug)이고
         // 파일에 적지 않는다 - 손대지 않은 파일은 저장해도 바이트 하나 바뀌지 않는다.
         Array<String> inputLayers;
@@ -186,8 +190,8 @@ namespace JBro
     // 에셋 메타에서 같은 자리를 이미 한 번 겪었다(D-123·D-124).
     //
     // 아는 키가 원문에 없으면 **맨 뒤에 더한다**. `Build:` 아래의 키는 그 블록 끝에 더하고,
-    // 블록 자체가 없으면 블록째 더한다. 시퀀스 키(`AssetIgnorePatterns`·`BuildCanvases`)는
-    // 손대지 않는다 - 값이 여러 줄이라 한 줄 바꿔치기로는 다룰 수 없다.
+    // 블록 자체가 없으면 블록째 더한다. 시퀀스 키 가운데 `AssetIgnorePatterns`·`AudioBuses`·`Fonts` 는 머리줄에서
+    // 통째로 새로 적고 원문의 항목 줄을 버린다. `BuildCanvases` 는 손대지 않는다.
     bool WriteProjectFileText(
         const ProjectFile& project,
         const char* originalText,

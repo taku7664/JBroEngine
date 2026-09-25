@@ -60,7 +60,8 @@ namespace JBro
         Exponential
     };
 
-    // 버스 하나의 이펙트 사슬이다(D-202). **버스마다 고정된 네 칸**이고 차례는 저역 차단 → 고역 차단 → 메아리 → 잔향이다.
+    // 버스 하나의 이펙트 사슬이다(D-202·D-210). **버스마다 고정된 칸들**이고 차례는 저역 차단 → 고역 차단 → EQ → 디스토션 →
+    // 코러스 → 피치 시프트 → 메아리 → 잔향 → 원음 양 → 컴프레서다. 기본값인 칸은 건너뛴다(비용이 없다).
     // 각 칸은 0 이면 꺼진다(`lowPassHz`·`highPassHz`·`echoMix`·`reverbMix`). 재생 중에 바꿔도 된다 - 값은 원자 변수로
     // 건너가고 오디오 스레드가 처리 앞에 한 번 읽는다. 쓰임: 일시 정지 화면에서 배경음을 먹먹하게(저역 통과), 동굴의 잔향.
     struct AudioBusEffects
@@ -79,6 +80,30 @@ namespace JBro
         float reverbMix = 0.0f;
         // 필터를 거친 원음이 남는 양(0..1)이다. 메아리·잔향은 이것과 무관하게 더해진다. 센드를 받아 잔향만 내는 버스는 0 이다.
         float dry = 1.0f;
+
+        // ── D-210 에서 더한 칸들. 모두 기본값이면 꺼져 있다 ──
+        // 3 대역 EQ(dB, -24..24, 0 이면 그 대역은 끔). 낮은 선반·가운데 봉우리·높은 선반이고 주파수는 Hz 다.
+        float eqLowHz = 200.0f;
+        float eqLowGain = 0.0f;
+        float eqMidHz = 1000.0f;
+        float eqMidGain = 0.0f;
+        float eqHighHz = 5000.0f;
+        float eqHighGain = 0.0f;
+        // 디스토션: 세기(0..1, 0 이면 끔)와 섞는 양(0..1). 무전기·확성기·거친 기타.
+        float distortion = 0.0f;
+        float distortionMix = 1.0f;
+        // 코러스: 섞는 양(0..1, 0 이면 끔)·흔드는 빠르기(Hz)·깊이(ms, 0..8). 소리를 두껍게, 물속처럼.
+        float chorusMix = 0.0f;
+        float chorusRate = 0.8f;
+        float chorusDepth = 3.0f;
+        // 피치 시프트(반음, -12..12, 0 이면 끔). 빠르기는 그대로 두고 음높이만 옮긴다 - 괴물 목소리·다람쥐 목소리.
+        float pitchShift = 0.0f;
+        // 컴프레서: 비율(1 이면 끔, 1..20)·문턱(dB)·어택과 릴리스(초)·메이크업 게인(dB). 폭발음과 대사의 크기 차를 줄인다.
+        float compRatio = 1.0f;
+        float compThreshold = -18.0f;
+        float compAttack = 0.01f;
+        float compRelease = 0.15f;
+        float compMakeup = 0.0f;
 
         bool operator==(const AudioBusEffects& other) const = default;
     };

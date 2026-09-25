@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <ProjectGuid>{1a000030-0000-4000-8000-000000007e47}</ProjectGuid>
+    <RootNamespace>JBroText</RootNamespace>
+    <ProjectName>JBroText</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
+  <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <!--
+    텍스트 커널이다(D-200). Tier E 이고 캔버스·컴포넌트·렌더러를 모른다. JBroCore 만 본다 - 좌표는 float 이라
+    Math2D 도 필요 없다. 3D 텍스트가 오면 같은 커널을 쓴다. stb_truetype 은 이 모듈만 보고(FontFace.cpp 에서 구현),
+    공개 헤더에는 나오지 않는다.
+  -->
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroCore\Include;$(JBroThirdPartyDir)stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClInclude Include="Include\**\*.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
+      <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
