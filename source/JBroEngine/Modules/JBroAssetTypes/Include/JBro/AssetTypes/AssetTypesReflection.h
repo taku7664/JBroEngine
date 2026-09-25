@@ -65,6 +65,27 @@ namespace JBro
         }
     };
 
+    JBRO_DEFINE_ENUM_TYPE(AudioImportMode, "JBro.AudioImportMode",
+        { AudioImportMode::Decompressed, "Decompressed" },
+        { AudioImportMode::Streaming,    "Streaming" });
+
+    // `.jmeta` 의 `Audio.ImportOptions` 가 이 표로 읽히고 쓰인다(D-197).
+    template <>
+    struct TypeDescriptorOf<AudioImportOptions>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&AudioImportOptions::mode>(),
+            };
+            static const StaticPropertyTable<1> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<AudioImportOptions>("JBro.AudioImportOptions", fields.Get());
+            return descriptor;
+        }
+    };
+
     // ⚠ **이것은 저장되는 값이 아니다.** `AssetTypes.h` 가 스스로 "이번 실행에서의 위치"
     // 라고 적어 둔 대로, index/generation 은 다음 실행에서 다른 것을 가리킨다.
     //

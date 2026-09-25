@@ -8,6 +8,11 @@ namespace JBro
 {
     class AssetSystem;
     class NetworkHost;
+    namespace System
+    {
+        // 오디오 시스템은 `JBroAudio` 의 것이다. 이 헤더를 쓰는 모듈이 오디오 헤더를 보지 않게 이름만 안다.
+        class AudioSystem;
+    }
     class Renderer;
 
     // Render()의 세 가지 결말이다. "제출할 것이 없다"는 상태이지 실패가 아니다(D-49).
@@ -64,6 +69,9 @@ namespace JBro
         // 호스트가 소유하는 네트워크(D-122). 있으면 프레임워크가 캔버스를 묶고 복제 풀과 수신·송신 시스템을 세운다.
         // 없으면(테스트의 가짜, 네트워크를 끈 호스트) 아무것도 세우지 않는다.
         NetworkHost* network = nullptr;
+        // 호스트가 소유하는 오디오 시스템(D-197). 있으면 프레임워크가 소스·리스너 시스템을 세운다. 없으면(오디오를 끈
+        // 호스트) 세우지 않는다 - 소스 컴포넌트는 그대로 읽히고 저장된다.
+        System::AudioSystem* audio = nullptr;
     };
 
     class IFramework

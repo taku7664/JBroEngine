@@ -26,7 +26,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <!-- miniaudio 는 이 모듈의 .cpp 만 본다. 공개 헤더가 miniaudio 를 끌고 오지 않는다(D-198). -->
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroThirdPartyDir)miniaudio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroThirdPartyDir)miniaudio;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>$(JBroMiniaudioDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -47,6 +47,18 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
       <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAsset\JBroAsset.vcxproj">
+      <Project>{1a000002-0000-4000-8000-0000000a5537}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAssetTypes\JBroAssetTypes.vcxproj">
+      <Project>{1a000012-0000-4000-8000-0000000a5570}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
+      <Project>{1a000006-0000-4000-8000-000000027417}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>

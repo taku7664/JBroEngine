@@ -16,6 +16,8 @@
 
 #include <imgui.h>
 
+#include <cstdio>
+
 namespace JBro
 {
     namespace
@@ -226,6 +228,74 @@ namespace JBro
                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsIgnorePatterns,
                         "one pattern a line; the scan and the watcher skip what matches"));
                 });
+        }
+
+        // **오디오 버스**(D-197, 기존 설정 창의 오디오 갈래). 이름과 시작 음량이다. Master 는 늘 있으므로 목록에 없다.
+        Widget::SectionHeader(
+            Loc::TextOr(LocKeys::ProjectSettingsAudio, "Audio")).SpacingBefore().Draw();
+        Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsAudioBusesHelp,
+            "Master is always there and every bus plays under it."));
+        {
+            Widget::FormLayout layout("##audio");
+            std::size_t removeAt = static_cast<std::size_t>(-1);
+            if (m_draft.audioBuses.IsEmpty())
+            {
+                Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsAudioNoBuses, "Only Master - every sound plays there"));
+            }
+            for (std::size_t index = 0; index < m_draft.audioBuses.Size(); ++index)
+            {
+                ProjectAudioBus& bus = m_draft.audioBuses[index];
+                ImGui::PushID(static_cast<int>(index));
+                bool duplicate = bus.name == "Master";
+                for (std::size_t other = 0; other < index; ++other)
+                {
+                    duplicate = duplicate || m_draft.audioBuses[other].name == bus.name;
+                }
+                layout.Row(
+                    [&] {
+                        Widget::TextField("##name", bus.name).Draw();
+                        if (duplicate)
+                        {
+                            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioDuplicate,
+                                "This name is already used"));
+                        }
+                    },
+                    [&] {
+                        Widget::SliderFloat("##volume", bus.volume, 0.0f, 1.0f);
+                        ImGui::SameLine();
+                        if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsAudioRemoveBus, "Remove"),
+                                Widget::Severity::Error))
+                        {
+                            removeAt = index;
+                        }
+                    });
+                ImGui::PopID();
+            }
+            if (removeAt < m_draft.audioBuses.Size())
+            {
+                m_draft.audioBuses.RemoveAt(removeAt);
+            }
+        }
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsAudioAddBus, "Add Bus")))
+        {
+            // 겹치지 않는 이름으로 시작한다. 바로 고쳐 쓰면 된다.
+            String name;
+            for (int suffix = 1;; ++suffix)
+            {
+                char text[24] = {};
+                std::snprintf(text, sizeof(text), "Bus %d", suffix);
+                name = text;
+                bool taken = false;
+                for (std::size_t index = 0; index < m_draft.audioBuses.Size(); ++index)
+                {
+                    taken = taken || m_draft.audioBuses[index].name == name;
+                }
+                if (false == taken)
+                {
+                    break;
+                }
+            }
+            m_draft.audioBuses.Add(ProjectAudioBus{name, 1.0f});
         }
 
         Widget::SectionHeader(

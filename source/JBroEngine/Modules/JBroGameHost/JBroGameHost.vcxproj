@@ -123,6 +123,15 @@
     <ProjectReference Include="$(JBroModulesDir)JBroNetworkSystem\JBroNetworkSystem.vcxproj">
       <Project>{1a000017-0000-4000-8000-0000000ae75c}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
+      <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAudioTypes\JBroAudioTypes.vcxproj">
+      <Project>{1a000018-0000-4000-8000-0000000a0d17}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAudio\JBroAudio.vcxproj">
+      <Project>{1a000019-0000-4000-8000-0000000a0d19}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -67,6 +67,7 @@ namespace JBro
             AssetMetaFile* scratch = nullptr;
             // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다.
             bool spriteBlock = false;
+            bool audioBlock = false;
         };
 
         struct Context
@@ -128,6 +129,11 @@ namespace JBro
         // 고른 에셋의 임포트 옵션(D-120). 오브젝트가 골라져 있지 않을 때만 온다.
         void DrawAsset(const AssetMetaFile& meta);
         void CommitAssetEdit(Context& context);
+        // 오디오 버스 필드(`JBro.AudioBusName`, D-197). 프로젝트의 버스 목록을 고르는 드롭다운이다 - 이름을 손으로 치면
+        // 틀린 이름이 조용히 Master 로 떨어진다.
+        void DrawAudioBusField(const TypeDescriptor& type, void* address, Context& context);
+        // 오디오 에셋의 형식·길이·파형·미리 듣기(D-197, 기존 `EditorAudioPreview`).
+        void DrawAudioPreview(const AssetMetaFile& meta);
         // `AssetId` 필드. 레지스트리의 같은 타입 에셋을 고르는 드롭다운이다(D-116).
         void DrawAssetField(
             const char* fieldName,
@@ -186,5 +192,23 @@ namespace JBro
         const GameObject* m_namedObject = nullptr;
         // 지난 프레임에 이름 칸이 글자를 받고 있었는가. 그렇지 않으면 칸의 글자를 다시 든다.
         bool m_nameEditing = false;
+
+        // ── 오디오 미리 듣기(D-197) ──
+        // 보고 있는 오디오 에셋과 그 요약이다. 에셋이 바뀌거나 자료가 다시 읽히면(판번호) 다시 잰다 - 파형은 한 번만 푼다.
+        AssetId m_audioAsset;
+        std::uint32_t m_audioGeneration = 0;
+        bool m_audioReadable = false;
+        std::uint32_t m_audioSampleRate = 0;
+        std::uint32_t m_audioChannels = 0;
+        double m_audioSeconds = 0.0;
+        Array<float> m_audioPeaks;
+        bool m_audioLoop = false;
+        // 이번 프레임에 미리 듣기 칸을 그렸는가. 다른 것을 고르면 다음 프레임에 미리 듣기를 멈춘다 - 반복 재생이
+        // 에셋을 떠난 뒤에도 끝없이 울리지 않게.
+        bool m_audioDrawn = false;
+        // 버스 칸의 항목(첫째가 Master)이다. 프레임마다 프로젝트 목록에서 짓는다 - 설정 창에서 더한 버스가 곧바로 보인다.
+        Array<String> m_busNames;
+        Array<const char*> m_busNamePointers;
+        Array<bool> m_busEnabled;
     };
 }

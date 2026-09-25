@@ -188,6 +188,8 @@ namespace JBro
         Array<String>* currentSequence = nullptr;
         constexpr std::size_t NotSkipping = static_cast<std::size_t>(-1);
         std::size_t    skipDeeperThan = NotSkipping;
+        // `AudioBuses:` 아래에 있는가. 맵의 시퀀스라 스칼라 시퀀스(`currentSequence`)와 따로 읽는다.
+        bool           inAudioBuses = false;
 
         std::size_t lineNumber = 0;
         std::size_t cursor = 0;
@@ -245,6 +247,63 @@ namespace JBro
             {
                 currentMap.clear();
                 currentSequence = nullptr;
+                inAudioBuses = false;
+            }
+
+            // 오디오 버스(D-197): `- Name: X` 가 항목을 열고 그 아래 `Volume: v` 가 붙는다.
+            if (inAudioBuses)
+            {
+                const bool opens = content[0] == '-' && (content[1] == ' ' || content[1] == '\0');
+                const char* entry = opens ? content + 1 : content;
+                while (entry < contentEnd && *entry == ' ')
+                {
+                    ++entry;
+                }
+                if (opens)
+                {
+                    parsed.audioBuses.Emplace();
+                    if (entry >= contentEnd)
+                    {
+                        if (atEnd)
+                        {
+                            break;
+                        }
+                        continue;
+                    }
+                }
+                else if (parsed.audioBuses.IsEmpty())
+                {
+                    return Fail(error, lineNumber, "an audio bus field has no `- Name:` above it");
+                }
+                const char* busColon = std::strchr(entry, ':');
+                if (busColon == nullptr)
+                {
+                    return Fail(error, lineNumber, "an audio bus is `Name:` and `Volume:`");
+                }
+                const String busKey = Trim(entry, busColon);
+                String busValue = Trim(busColon + 1, contentEnd);
+                if (false == Unquote(busValue))
+                {
+                    return Fail(error, lineNumber, "unterminated quoted string");
+                }
+                ProjectAudioBus& bus = parsed.audioBuses.Last();
+                if (busKey == "Name")
+                {
+                    bus.name = busValue;
+                }
+                else if (busKey == "Volume")
+                {
+                    if (false == ParseFloat(busValue, bus.volume))
+                    {
+                        return Fail(error, lineNumber, "an audio bus Volume must be a number");
+                    }
+                }
+                // 모르는 필드는 두고 지나간다(뒤의 판이 더할 수 있다).
+                if (atEnd)
+                {
+                    break;
+                }
+                continue;
             }
 
             // 시퀀스 항목. 모르는 키 아래의 것은 위에서 이미 걸러졌다.
@@ -331,6 +390,11 @@ namespace JBro
                     parsed.assetIgnorePatterns.Clear();
                     currentSequence = &parsed.assetIgnorePatterns;
                 }
+                else if (indent == 0 && key == "AudioBuses")
+                {
+                    parsed.audioBuses.Clear();
+                    inAudioBuses = true;
+                }
                 else
                 {
                     // 이 엔진이 읽지 않는 블록이다. 더 깊은 줄을 전부 건너뛴다.
@@ -405,6 +469,12 @@ namespace JBro
                 }
             }
             else if (key == "AssetDirectory") { parsed.assetDirectory = value; }
+            else if (key == "AudioBuses")
+            {
+                // 같은 줄에 값이 있는 것은 빈 목록(`[]`)뿐이다.
+                parsed.audioBuses.Clear();
+                recognized = value == "[]";
+            }
             // 최상위의 나머지 키도 아직 쓰지 않는다.
 
             if (false == recognized)
@@ -620,6 +690,69 @@ namespace JBro
             return false;
         }
 
+        // 값을 지키는 가장 짧은 글자다. `%.9g` 로 적으면 사람이 적은 `0.8` 이 `0.800000012` 가 되어, 고친 것이 없는
+        // 저장이 파일을 바꾼다(D-189). 6 자리부터 늘려 가며 도로 읽어 같은 값이 되는 첫 것을 쓴다.
+        String FormatShortFloat(float value)
+        {
+            char buffer[32] = {};
+            for (int digits = 6; digits <= 9; ++digits)
+            {
+                std::snprintf(buffer, sizeof(buffer), "%.*g", digits, static_cast<double>(value));
+                if (static_cast<float>(std::strtod(buffer, nullptr)) == value)
+                {
+                    break;
+                }
+            }
+            return String(buffer);
+        }
+
+        // 따옴표 없이 적어도 되는 이름인가. 기존 엔진의 파일은 따옴표 없이 적혀 있다.
+        bool IsPlainName(const String& name)
+        {
+            if (name.empty() || name[0] == ' ' || name[name.size() - 1] == ' ')
+            {
+                return false;
+            }
+            for (const char character : name)
+            {
+                if (std::strchr(":#'\"[]{},&*!|>%@`", character) != nullptr)
+                {
+                    return false;
+                }
+            }
+            return name[0] != '-' && name[0] != '?';
+        }
+
+        // `AudioBuses` 를 적는다(D-197). 비어 있으면 `[]` 다.
+        void AppendAudioBuses(String& result, const ProjectFile& project)
+        {
+            if (project.audioBuses.IsEmpty())
+            {
+                result.append("AudioBuses: []\n", 15);
+                return;
+            }
+            result.append("AudioBuses:\n", 12);
+            for (std::size_t index = 0; index < project.audioBuses.Size(); ++index)
+            {
+                const ProjectAudioBus& bus = project.audioBuses[index];
+                result.append("  - Name: ", 10);
+                if (IsPlainName(bus.name))
+                {
+                    result.append(bus.name.c_str(), bus.name.size());
+                }
+                else
+                {
+                    result.append("\"", 1);
+                    result.append(bus.name.c_str(), bus.name.size());
+                    result.append("\"", 1);
+                }
+                result.append("\n    Volume: ", 13);
+                const String volume = FormatShortFloat(bus.volume);
+                result.append(volume.c_str(), volume.size());
+                result.append("\n", 1);
+            }
+        }
+
         void AppendIgnorePatterns(String& result, const ProjectFile& project)
         {
             if (project.assetIgnorePatterns.IsEmpty())
@@ -673,6 +806,7 @@ namespace JBro
         // 바꿔치기로는 다룰 수 없다 - 머리줄을 새로 적고 원문의 항목 줄들은 건너뛴다.
         bool skippingSequence = false;
         bool sawIgnorePatterns = false;
+        bool sawAudioBuses = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
         std::size_t buildEnd = String::npos;
 
@@ -728,7 +862,19 @@ namespace JBro
             String value;
             bool replaced = false;
             bool dropped = false;
-            if (pair && indent == 0 && key == "AssetIgnorePatterns")
+            if (pair && indent == 0 && key == "AudioBuses")
+            {
+                // 시퀀스라 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다(`AssetIgnorePatterns` 와 같다).
+                dropped = sawAudioBuses;
+                if (false == dropped)
+                {
+                    AppendAudioBuses(result, project);
+                    sawAudioBuses = true;
+                }
+                skippingSequence = false == hasValue;
+                replaced = true;
+            }
+            else if (pair && indent == 0 && key == "AssetIgnorePatterns")
             {
                 // 두 번째부터는 지운다. 시퀀스를 한 번 적었으면 그것이 전부다.
                 dropped = sawIgnorePatterns;
@@ -846,6 +992,13 @@ namespace JBro
             }
         }
 
+        // 적힌 적 없는 버스는 **맨 뒤에** 붙인다. 새 파일은 첫 줄이 `Version` 이어야 한다 - 앞에 두면 새 프로젝트 파일이
+        // 버스 목록으로 시작한다. 비어 있으면 적지 않는다.
+        if (false == sawAudioBuses && false == project.audioBuses.IsEmpty())
+        {
+            AppendAudioBuses(result, project);
+        }
+
         // **쓴 것을 도로 읽어 본다.** 읽히지 않는 글자를 파일에 남기면 그 프로젝트는
         // 다음에 열리지 않는다 - 값 안의 따옴표나 콜론 하나가 그렇게 만든다.
         ProjectFile roundTrip;
@@ -947,6 +1100,9 @@ namespace JBro
         project.engineVersion = engineVersion;
         project.framework = framework;
         project.build.productName = projectName;
+        // 새 프로젝트는 흔한 둘로 시작한다. 옵션 화면의 "배경음·효과음" 이 곧바로 버스 이름에 닿는다.
+        project.audioBuses.Add(ProjectAudioBus{String("Music"), 1.0f});
+        project.audioBuses.Add(ProjectAudioBus{String("SFX"), 1.0f});
         String assets = root;
         assets.append("/", 1);
         assets.append(project.assetDirectory.c_str(), project.assetDirectory.size());

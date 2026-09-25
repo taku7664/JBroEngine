@@ -39,6 +39,7 @@ namespace JBro
         inline constexpr const char* Transform = "Transform";
         inline constexpr const char* Rendering = "Rendering";
         inline constexpr const char* Physics = "Physics";
+        inline constexpr const char* Audio = "Audio";
         // 갈래를 대지 않은 타입이 묶이는 자리다.
         inline constexpr const char* Default = "Components";
     }

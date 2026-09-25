@@ -123,12 +123,30 @@ Entries:
   component_category.Transform: Transform
   component_category.Rendering: Rendering
   component_category.Physics: Physics
+  component_category.Audio: Audio
   component_category.Components: Components
   asset.none: (None)
   asset.missing: (Missing asset)
   assets.empty: the asset folder has no files
   assets.not_watching: the asset folder is not being watched, so files changed outside will not show up
   inspector.texture_import_options: Texture Import Options
+  inspector.audio_import_options: "Audio Import Options"
+  inspector.audio_format: "Format"
+  inspector.audio_length: "Length"
+  inspector.audio_preview: "Preview"
+  inspector.audio_play: "Play"
+  inspector.audio_stop: "Stop"
+  inspector.audio_loop: "Loop"
+  inspector.audio_seek_hint: "Click to play from there"
+  inspector.audio_off: "Audio is off in this editor"
+  inspector.audio_unreadable: "This audio file could not be read"
+  inspector.audio_bus_missing: "Not one of the project's audio buses - it plays on Master"
+  project_settings.audio: "Audio"
+  project_settings.audio_add_bus: "Add Bus"
+  project_settings.audio_remove_bus: "Remove"
+  project_settings.audio_buses_help: "Master is always there and every bus plays under it. A component or script names a bus to use it."
+  project_settings.audio_no_buses: "Only Master - every sound plays there"
+  project_settings.audio_duplicate: "This name is already used"
   inspector.sprite_import_options: Sprite Import Options
   common.ok: OK
   log.clear: Clear

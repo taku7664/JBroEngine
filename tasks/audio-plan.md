@@ -287,17 +287,63 @@ Component::AudioListener2D   (JBroFramework2D)
    블록 크기는 여기서 잰다. 다른 스레드가 `Render` 를 계속 당기는 동안 `UnregisterClip` 을 거듭해도 해제된 메모리를 읽지 않는다
    (ASan). `ma_sound_uninit` 이 메인 스레드를 멈추는 시간을 재서 적는다. 스크립트 타깃이 `JBroAudio` 를 include 하면 컴파일 실패
    (음성 테스트). miniaudio 헤더가 `JBroAudio` 공개 헤더로 새어 나가지 않는다.
-2. `[대기]` **출력과 에셋.** `IAudioOutput`·`IPlatform::CreateAudioOutput`(Windows `ma_device`), `Asset::AudioAsset` 로더(두 모드),
+2. `[완료]` (2026-09-25) **출력과 에셋.** 결과:
+   - `IAudioOutput`·`AudioOutputDesc`·`AudioRenderCallback`(함수 포인터 + 사용자 자료)이 `Platform.h` 에 있고, Windows 는
+     `WindowsAudio.cpp` → `Internal::CreateMiniaudioOutput`(`ma_device`, WASAPI) 이다. 웹은 Emscripten 빌드에서만 같은 것을 준다.
+     장치를 못 열면 null 과 경고 한 줄이고 엔진은 소리 없이 돈다.
+   - `EngineConfig::audioEnabled`(기본 참, 믹서)·`audioDeviceEnabled`(기본 거짓, 게임 호스트와 에디터만 참)·`audioMaxVoices`(64).
+     `EngineInstance` 가 장치를 먼저 열어 그 형식으로 믹서를 만들고, 내릴 때 **장치 정지 → 믹서** 순서다.
+   - `AudioData`(CPU 자료)와 `AssetSystem::GetAudio`. Decompressed 는 f32 PCM 전체, Streaming 은 파일 바이트 + 길이 탐침
+     (`AudioDecoder.h` 의 `ProbeAudio`·`DecodeAudio`·`ComputeAudioPeaks`). 파일은 `IPlatform::ReadWholeFile` 로만 읽는다.
+   - **해제 알림**: `SetAudioReleaseListener` 가 in-place 재로드·`CollectUnused`·`Unbind` 에서 자료를 풀기 **직전에** 부른다.
+     재로드는 새 자료를 다 읽은 뒤에 알린다 - 읽기가 실패하면 재생 중인 소리를 끊지 않는다.
+   - 임포트 옵션 `Audio.ImportOptions.mode` 는 `JBroAssetTypes` 의 `AudioImportOptions`(리플렉션)이고 메타 파일이 왕복한다.
+   - 사람 확인(실제 스피커)은 5 단계의 에디터 확인과 함께 한다.
+   원래의 계획: `IAudioOutput`·`IPlatform::CreateAudioOutput`(Windows `ma_device`), `Asset::AudioAsset` 로더(두 모드),
    `EngineInstance` 소유와 종료 순서.
    완료 조건: WAV·MP3·FLAC·OGG 각각 두 모드로 디코드한 앞부분이 참조값과 같다(오프라인). 한글·공백 경로. 초기화/종료 100 회 반복과
    재생 중 종료에서 크래시·잔존 스레드 없음. 실제 게임 호스트에서 들린다(사람 확인).
-3. `[대기]` **2D 컴포넌트와 시스템.** `AudioSource`·`AudioListener2D`·`Audio2DSystem`, `.jproject` `AudioBuses` 읽고 쓰기, 캔버스 직렬화,
+3. `[완료]` (2026-09-25) **2D 컴포넌트와 시스템**(3D 리스너와 시스템도 같이 섰다). 결과:
+   - `Component::AudioSource`(JBroAudioTypes, 차원 무관)·`AudioListener2D`(`panDistance`)·`AudioListener3D`, `System::Audio2DSystem`·
+     `Audio3DSystem`(실행 순서 450). 상태 기계는 차원 무관한 `System::AudioSystem::UpdateSource` 한 곳이다.
+   - 리스너가 없으면 게임 카메라(`primary` 먼저) 자리에서 듣는다. 여럿이면 첫 것 + 경고 한 번.
+   - 2D 의 가까운 소리가 한쪽 귀로 꺾이는 문제: 소스를 리스너 앞 `panDistance` 깊이에 두고 최소·최대 거리를 같은 깊이만큼 넓힌다
+     (pan 은 miniaudio 에서 원자가 아니라 재생 중에 쓸 수 없다). 0.5 단위 옆 소리도 양쪽에서 들린다(테스트).
+   - 도플러: 위치 차 / 프레임 시간으로 소스·리스너 속도를 잰다(`doppler > 0` 인 소스만).
+   - 버스는 `AudioBusName { NameId }` 이고 파일과 인스펙터에는 이름 글자다(코덱). 재생 중 버스를 바꾸면 곧바로 옮긴다.
+     목록에 없는 이름은 Master + 경고 한 번.
+   - `.jproject` `AudioBuses` 읽고 쓰기. 부동소수는 **가장 짧게 왕복하는 글자**로 적는다 - `%.9g` 면 `0.8` 이 `0.800000012` 가
+     되어 버스 블록이 저장만으로 바뀐다(D-189, 뮤테이션으로 확인). 새 프로젝트는 `Music`·`SFX` 로 시작한다.
+     설정을 저장하면(`SetProjectFile`) 곧바로 믹서 버스를 다시 세운다.
+   - 게임을 멈추면(`SetSimulationEnabled(false)`) 소스를 전부 풀어 처음으로 되돌리고, 다시 켜면 `playOnStart` 가 한 번 운다.
+     오브젝트를 지우면 `AudioSource::OnDetached` 가 제 보이스를 멈춘다.
+   - 8 소스(공간화·도플러·두 버스 섞음) 120 프레임에 **CRT 할당 0 회**.
+   - 뮤테이션 여섯(재로드 알림 빠짐·playOnStart 재사용·정지 때 소스 남김·떼기에 보이스 남김·9 자리 부동소수·깊이 0)이 모두
+     해당 테스트에서 죽는다.
+   원래의 계획: `AudioSource`·`AudioListener2D`·`Audio2DSystem`, `.jproject` `AudioBuses` 읽고 쓰기, 캔버스 직렬화,
    해석 패스.
    완료 조건: non-loop `playOnStart` 정확히 1 회, 루프는 멈출 때까지, 끄고 켜기·클립 교체·떼기·플레이 중지 정책(§2.7), 여러 소스가
    독립, 리스너 거리에 따른 감쇠가 오프라인 렌더에서 보인다. 프로젝트 파일 거듭 저장 바이트 비교(D-189). 정상 프레임 할당 0 회.
-4. `[대기]` **스크립트 서비스.** `Service::AudioService`, 확장 블록, 프렐류드·`JBro.Script.props`.
+4. `[완료]` (2026-09-25) **스크립트 서비스.** 결과: `Service::AudioService`(PlayOneShot·PlayOneShotAt·Play/Stop/Pause/Resume·
+   IsPlaying·GetTime·버스 볼륨/음소거·StopAll). 버스를 글자로 주면 해시만 계산한다(할당 없음). `AudioServiceContext`·
+   `AudioSystemContext` 는 D-37 확장 블록이고 **호스트가** 낸다(네트워크와 같다). 두 프렐류드가 `AudioSource` 와 서비스를 보인다.
+   `JBroScriptIncludes` 에 `JBroAudioTypes` 가 들었고 스크립트 프로브가 그 라이브러리를 링크한다. 미리 듣기는 `StopAll` 의 대상이
+   아니다.
+   원래의 계획: `Service::AudioService`, 확장 블록, 프렐류드·`JBro.Script.props`.
    완료 조건: 스크립트에서 `PlayOneShot`·버스 볼륨이 믹서에 닿는다. 핫 리로드 뒤 재바인딩. 음성 테스트.
-5. `[대기]` **에디터.** 인스펙터(버스는 프로젝트 목록 콤보), 오디오 임포트 옵션, 미리 듣기(EditorPreview 버스, 파형), 프로젝트 설정의
+5. `[완료]` (2026-09-25) **에디터.** 결과:
+   - 인스펙터: `clipId` 는 오디오 에셋 드롭다운(`clip` → Audio 별명), `bus` 는 프로젝트 버스 드롭다운(`JBro.AudioBusName`)이다.
+     목록에 없는 이름은 지우지 않고 회색 항목으로 남기며 "Master 로 재생됩니다" 를 알린다. 둘 다 이름을 치고 Enter 로 고르고 커맨드
+     하나다(테스트가 실제 인스펙터를 눌러 잰다).
+   - 오디오 에셋: 형식(Hz·채널)·길이, 파형(`Widget::Waveform`, 512 칸, 누르면 그 자리부터 듣기), 재생/정지, 반복 재생, 임포트 옵션
+     블록(`Audio.ImportOptions`). 미리 듣기는 믹서의 EditorPreview 버스이고 게임의 `StopAll` 이 건드리지 않는다. 다른 것을 고르면
+     다음 프레임에 멈춘다. 에셋을 붙잡지 않는다 - 내려가면 해제 알림이 미리 듣기를 끊는다.
+   - `AudioMixer::Seek`(miniaudio 의 원자 `seekTarget`)와 `AudioSystem::SeekPreview`.
+   - 프로젝트 설정: 오디오 갈래(버스 이름·음량 슬라이더·삭제·버스 추가, 겹친 이름과 `Master` 알림). 저장하면 곧바로 믹서 버스가 다시 선다.
+   - 실제 에디터: `EditorApplicationConfig::audioDevice` 를 에디터 호스트만 켠다.
+   - 옮기지 않은 것: 기존의 스펙트럼 시각화(`ImSpectrumVisualizer`)와 믹서 창(버스 미터). 미터 자리는 `AudioMixer::Stats::lastPeak`
+     (Master 만)다 `[열림]`. 오디오 임포터 창은 두지 않는다 - 스프라이트처럼 가져오기 뒤 인스펙터에서 옵션을 고친다.
+   원래의 계획: 인스펙터(버스는 프로젝트 목록 콤보), 오디오 임포트 옵션, 미리 듣기(EditorPreview 버스, 파형), 프로젝트 설정의
    버스 목록 편집(커맨드). 기존 `ImAudioBusField`·`ImAudioVisualizer`·`EditorAudioPreview`·`AudioImporterWindow` 를 먼저 읽고 옮긴다
    (§11.0). 화면 글자는 로컬라이징 키(§11.2).
    완료 조건: 실제 `JBroEditorHost` 에서 조작해 본다(검증 규약). 편집은 커맨드이고 되돌린다.

@@ -88,6 +88,8 @@
   프레임이 열려 있는 동안 호출하면 실패해야 하고, 구현하지 않은 백엔드는 `false`를 반환한다.
 - 프로젝트 파일은 `.jproject`(YAML)이며 키 이름은 기존 엔진과 같다. (MUST)
   두 번째 형식을 만들지 않는다. 읽지 못하는 구조는 추측하지 않고 줄 번호와 함께 거절한다.
+  오디오 버스는 기존 엔진과 같은 키 `AudioBuses`(`- Name:`·`Volume:` 의 맵 시퀀스)다. 부동소수는 값을 지키는 가장 짧은 글자로
+  적는다 - `%.9g` 는 사람이 적은 `0.8` 을 `0.800000012` 로 바꿔 고친 것 없는 저장이 파일을 바꾼다(D-189·D-197).
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest) 다. `PixelsPerUnit` 은 프로젝트에 없다 - PPU 는 스프라이트 에셋의 것이다. (D-111·D-119)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
@@ -115,6 +117,19 @@
   `Canvas`는 Tier E라 스크립트 타깃이 보지 못하므로, 기존 엔진처럼 캔버스를 넘겨받을 수 없다.
 - `IFramework::Render()`는 `RenderResult { Submitted, NothingToSubmit, Failed }`를 반환하며 호스트는 `Failed`만
   치명 오류로 본다. 렌더 시스템이 없는 Framework는 `NothingToSubmit`을 반환한다. (MUST) (D-49)
+- **오디오는 장치를 직접 열지 않고 `IPlatform::CreateAudioOutput` 을 거친다**(소켓과 같은 규약, 기본 null). 장치가 없으면
+  엔진은 소리 없이 같은 API 로 돈다. 믹싱은 `JBroAudio` 의 `AudioMixer` 가 하고 miniaudio `ma_engine` 은 그 private 이다 -
+  miniaudio 헤더는 `.cpp` 만 본다. miniaudio 설정 매크로는 `JBro.Common.props` 의 `JBroMiniaudioDefines` 한 곳이고 구현 번역
+  단위(`ThirdParty/miniaudio/miniaudio.cpp`)와 그 헤더를 보는 모든 모듈이 같은 값을 받는다. (MUST) (D-197·D-198)
+  - 보이스·버스·클립은 믹서가 소유하고 밖에는 index+generation 핸들만 나간다. 호출자가 쥐는 오디오 객체를 만들지 않는다.
+  - 믹서 API 는 **메인 스레드 전용**이다. 오디오 스레드가 부르는 것은 `Render` 하나다.
+  - **재생 중에는 miniaudio 가 원자 변수로 든 값만 쓴다**(볼륨·피치·루프·위치·속도·시작/정지). 거리·감쇠·rolloff·도플러 계수는
+    보이스가 멈춰 있을 때(`AudioPlayDesc`)만 쓴다 - 그 값은 평범한 float 라 재생 중에 쓰면 오디오 스레드와 경쟁한다.
+  - miniaudio 의 할당은 믹서의 고정 할당기로 받고 초기화 때 보이스 수만큼 예열한다. 정상 오디오 프레임은 힙을 건드리지 않는다
+    (측정으로 고정한다). 예외는 Vorbis 스트리밍 시작 하나다(stb_vorbis 가 CRT 에서 할당한다).
+  - 오디오 에셋은 CPU 자료만 든다(`AudioData`: 전체 PCM 또는 압축 바이트). 믹서는 그것을 **빌려** 재생하므로, `AssetSystem` 은
+    오디오 자료를 풀거나 바꾸기 **직전에** `AudioReleaseCallback` 으로 알리고 받는 쪽은 그 클립의 보이스를 멈추고 등록을 내린다.
+  - 임포트 옵션(`Audio.ImportOptions`)은 파일의 속성(지금은 `mode`)만 든다. 재생 파라미터는 컴포넌트가 유일한 원천이다.
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)
 
 ## 3. 모듈 경계와 링크
@@ -145,12 +160,14 @@
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry` |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
+  | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현) |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
+  | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype)·`TextLayout`(UTF-8·커닝·줄바꿈·정렬). `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200) |
 
   > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고

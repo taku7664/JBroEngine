@@ -201,6 +201,7 @@ namespace JBro
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
             engineConfig.watchAssetDirectory = true;
+            engineConfig.audioDeviceEnabled = config.audioDevice;
             engineConfig.window.title = {"JBro Editor", 11};
             engineConfig.window.width = config.windowWidth;
             engineConfig.window.height = config.windowHeight;
@@ -1033,6 +1034,11 @@ namespace JBro
     AssetSystem* EditorApplication::GetAssetSystem()
     {
         return m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
+    }
+
+    System::AudioSystem* EditorApplication::GetAudio()
+    {
+        return m_engine.Get() != nullptr ? m_engine->GetAudio() : nullptr;
     }
 
     bool EditorApplication::IsWatchingAssets() const

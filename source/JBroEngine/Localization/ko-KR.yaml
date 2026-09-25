@@ -123,12 +123,30 @@ Entries:
   component_category.Transform: 트랜스폼
   component_category.Rendering: 렌더링
   component_category.Physics: 물리
+  component_category.Audio: 오디오
   component_category.Components: 컴포넌트
   asset.none: (없음)
   asset.missing: (없는 에셋)
   assets.empty: 에셋 폴더에 파일이 없습니다
   assets.not_watching: 에셋 폴더 감시가 꺼져 있어 밖에서 바꾼 파일이 반영되지 않습니다
   inspector.texture_import_options: 텍스처 임포트 옵션
+  inspector.audio_import_options: "오디오 임포트 옵션"
+  inspector.audio_format: "형식"
+  inspector.audio_length: "길이"
+  inspector.audio_preview: "미리 듣기"
+  inspector.audio_play: "재생"
+  inspector.audio_stop: "정지"
+  inspector.audio_loop: "반복 재생"
+  inspector.audio_seek_hint: "누르면 그 위치부터 재생합니다"
+  inspector.audio_off: "이 에디터에서는 오디오가 꺼져 있습니다"
+  inspector.audio_unreadable: "오디오 파일을 읽을 수 없습니다"
+  inspector.audio_bus_missing: "프로젝트 오디오 버스에 없는 이름입니다. Master 로 재생됩니다"
+  project_settings.audio: "오디오"
+  project_settings.audio_add_bus: "버스 추가"
+  project_settings.audio_remove_bus: "삭제"
+  project_settings.audio_buses_help: "Master 는 항상 있으며 모든 버스는 Master 아래에서 재생됩니다. 컴포넌트나 스크립트가 버스 이름으로 고릅니다."
+  project_settings.audio_no_buses: "Master 만 있습니다. 모든 소리가 Master 로 재생됩니다"
+  project_settings.audio_duplicate: "이미 쓰고 있는 이름입니다"
   inspector.sprite_import_options: 스프라이트 임포트 옵션
   common.ok: 확인
   log.clear: 지우기

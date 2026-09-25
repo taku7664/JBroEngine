@@ -38,6 +38,24 @@ namespace JBro
         Array<SpriteFrame> frames;
     };
 
+    // 로드된 오디오다(D-197). **CPU 자료만이다** - 재생은 엔진의 믹서가 한다. `Decompressed` 면 `pcm` 이 f32 인터리브
+    // 전체이고, `Streaming` 이면 `encoded` 가 파일 바이트 그대로다(믹서가 보이스마다 풀어 재생한다). 형식은 파일 그대로다.
+    // `dataGeneration` 은 in-place 재로드마다 오른다.
+    struct AudioData
+    {
+        AudioImportOptions options;
+        std::uint32_t sampleRate = 0;
+        std::uint32_t channels = 0;
+        std::uint64_t frameCount = 0;
+        Array<float> pcm;
+        Array<std::byte> encoded;
+        std::uint32_t dataGeneration = 1;
+    };
+
+    // 오디오 자료가 풀리거나 바뀌기 **직전에** 불린다. 믹서가 그 자료를 빌려 재생하고 있을 수 있으므로, 받는 쪽은 여기서
+    // 그 클립의 보이스를 멈추고 등록을 내린다. 그 뒤에 자료가 풀린다 - 오디오 스레드가 풀린 메모리를 읽지 않게 하는 순서다.
+    using AudioReleaseCallback = void (*)(void* user, AssetHandle handle);
+
     // 프로젝트 수명 동안 에셋 로드와 캐시를 소유한다(D-50·D-111). 사용자 호출 표면은 값형 Service::AssetService 다.
     //
     // **타입별 풀과 index+generation 핸들이다.** `IAsset` 가상 기반이 없다. 핸들의 `index` 상위 4 비트가 타입이고
@@ -76,6 +94,9 @@ namespace JBro
 
         const TextureData* GetTexture(AssetHandle handle) const;
         const SpriteData* GetSprite(AssetHandle handle) const;
+        const AudioData* GetAudio(AssetHandle handle) const;
+        // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
+        void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
 
         // 디스크의 최신 상태로 자료만 바꾼다. 핸들과 세대는 그대로다(asset-plan §2.7). 로드돼 있지 않으면 false.
         bool ReloadInPlace(AssetId id);
@@ -126,6 +147,8 @@ namespace JBro
         bool ReadTexture(const AssetRecord& record, TextureData& data);
         bool ReadSpriteOptions(const AssetRecord& record, SpriteImportOptions& options);
         bool ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options);
+        bool ReadAudio(const AssetRecord& record, AudioData& data);
+        void NotifyAudioRelease(std::uint32_t slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
         // 새 옵션으로 시작한다.
@@ -142,6 +165,9 @@ namespace JBro
         String m_assetRoot;
         Pool<TextureData> m_textures;
         Pool<SpriteData> m_sprites;
+        Pool<AudioData> m_audio;
+        AudioReleaseCallback m_audioRelease = nullptr;
+        void* m_audioReleaseUser = nullptr;
         Table<AssetId, AssetHandle> m_loaded;
     };
 }
