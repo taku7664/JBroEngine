@@ -4,17 +4,21 @@
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
 > `[제안]` 은 **사용자 확인 전**이다. 2026-09-25 에 §0 의 방향(직접 믹서·공용 소스와 차원별 리스너·새 Tier S 모듈)이
 > 확인돼 D-197 이 됐다. 같은 날 남은 셋(임포트 옵션은 `Mode` 만, 모듈 이름은 관례대로, 보이스 64)도 정해졌고
-> 기존 자료의 이식은 하지 않기로 했다(이 엔진으로 만든 콘텐츠가 없다). 아직 코드는 없다.
+> 기존 자료의 이식은 하지 않기로 했다(이 엔진으로 만든 콘텐츠가 없다). 같은 날 devil 검증 세 회차(§1.5)에서 "직접 믹서" 의
+> 근거 넷 중 셋이 틀린 것으로 드러나, 믹서는 **`ma_engine` 을 안에 둔 `AudioMixer`** 로 바뀌었다(D-198 이 D-197 (1)·(3) 을 고침).
+> 아직 코드는 없다.
 
-## 0. 확정된 방향 (2026-09-25, D-197)
+## 0. 확정된 방향 (2026-09-25, D-197·D-198)
 
-1. **믹싱은 우리 코드가 한다.** miniaudio 의 `ma_engine`·노드 그래프를 쓰지 않는다. 디코더·리샘플러·spatializer·필터 같은
-   **부품만** miniaudio 에서 가져다 쓴다(§2.3). 기존 엔진이 겪은 수명·경쟁·재배선 문제(§1.3)는 `ma_engine` 이 객체와 스레드를
-   쥔 데서 나왔다.
+1. **믹싱은 `JBroAudio` 안의 `ma_engine` 이 한다. `ma_engine` 은 `AudioMixer` 밖으로 나가지 않는다.** 리소스 매니저는 끄고
+   (`MA_NO_RESOURCE_MANAGER`), 장치는 열지 않으며(`noDevice`), 데이터 소스는 우리가 넘긴다(§2.3). 페이드·예약 재생·도플러·원뿔
+   감쇠를 miniaudio 에서 그대로 얻는다. 기존 엔진이 겪은 수명 문제는 `ma_engine` 이 아니라 **래퍼가 `OwnerPtr<IAudioPlayer>` 를
+   호출자에게 넘긴 설계**에서 나왔다(§1.3·§1.5). (D-198, D-197 의 "직접 믹서" 를 고침)
 2. **보이스와 버스는 믹서가 소유하고, 밖으로는 번호(index+generation 핸들)만 나간다.** 호출자가 쥐는 `OwnerPtr<IAudioPlayer>` 는
    없다. 죽은 핸들은 무시된다(§2.4).
-3. **스레드 사이에는 POD 명령만 오간다.** 메인 → 오디오는 명령 링, 오디오 → 메인은 상태 링이다. 오디오 스레드는 할당·잠금·
-   파일 I/O·엔진 객체 접근을 하지 않는다(§2.5).
+3. **믹서 API 는 메인 스레드 전용이고, 오디오 스레드는 `ma_engine_read_pcm_frames` 하나만 부른다.** 재생 중 바꾸는 값(볼륨·피치·
+   위치·방향·속도·시작/정지)은 miniaudio 가 원자 변수로 들고 있어 메인 스레드가 바로 쓴다. 원자가 아닌 값(거리·감쇠·원뿔)은
+   보이스가 멈춰 있을 때만 쓴다(§2.5). 명령 링은 두지 않는다. (D-198, D-197 의 "POD 명령 링" 을 고침)
 4. **재생 컴포넌트는 차원과 무관한 `Component::AudioSource` 하나이고, 리스너는 차원별(`Component::AudioListener2D`, 뒤에
    `AudioListener3D`)이다.** 소스의 자료(클립·버스·볼륨·피치·루프·거리)에는 차원 의미가 없고, 리스너는 방향의 뜻이 차원마다
    다르다(§2.7).
@@ -57,9 +61,9 @@ Compressor·Limiter 는 Reverb 로 떨어졌다.
 
 | 겪은 것 | 원인 | 새 설계에서 |
 |---|---|---|
-| 종료 크래시, 자식 객체 UAF (단계 1·2, `45d10ca6`·`1fc0e0b9`) | Player·Effect·Bus 가 디바이스의 `ma_engine` 과 노드 그래프를 빌리는데 수명은 호출자가 쥠. 고친 방법이 "디바이스가 자식을 추적하는 공유 상태 + 역순 무효화" 라 복잡했다 | 객체를 넘기지 않는다. 핸들만 나가므로 추적할 자식이 없다 (§2.4) |
-| Freeverb 파라미터 데이터 레이스 (단계 5 "대기") | 게임 스레드가 쓰고 오디오 콜백이 동기화 없이 읽음 | 파라미터는 명령으로만 바뀐다 (§2.5) |
-| 버스를 바꾸면 보이스를 다시 만들어야 함 | `ma_sound` 는 초기화 뒤 출력 그룹을 못 바꾼다 | 버스는 보이스의 번호 필드 하나다. 명령 하나로 바뀐다 |
+| 종료 크래시, 자식 객체 UAF (단계 1·2, `45d10ca6`·`1fc0e0b9`) | Player·Effect·Bus 가 디바이스의 `ma_engine` 과 노드 그래프를 빌리는데 수명은 호출자가 쥠. 고친 방법이 "디바이스가 자식을 추적하는 공유 상태 + 역순 무효화" 라 복잡했다 | 객체를 넘기지 않는다. 핸들만 나가고, 보이스·버스·클립의 파괴 순서는 믹서 한 곳이 정한다 (§2.4) |
+| Freeverb 파라미터 데이터 레이스 (단계 5 "대기") | 게임 스레드가 쓰고 오디오 콜백이 동기화 없이 읽음. 사용자 노드의 파라미터가 평범한 `float` 였다 | 사용자 이펙트 노드의 파라미터는 원자 변수다 (§2.5, 6 단계) |
+| 버스를 바꾸면 보이스를 다시 만들어야 한다고 봄 | 기존 주석은 "`ma_sound` 는 출력 그룹을 못 바꾼다" 고 했으나 **틀렸다**: `ma_node_attach_output_bus` 는 재생 중에도 스레드 안전하다 (§1.5) | 버스 변경은 `ma_node_attach_output_bus` 한 번이다 |
 | 에디터 미리 듣기가 디바이스를 하나 더 만듦 | 종료 경로가 둘이 되어 크래시가 났던 자리(단계 1) | 장치는 프로세스에 하나. 미리 듣기는 같은 믹서의 전용 버스 (§2.9) |
 | non-loop `PlayOnStart` 가 끝난 뒤 다시 만들어져 반복 재생 (단계 3) | 재생 상태를 시스템의 해시맵에 따로 두고, 끝남과 로드 실패를 구분하지 않음 | 상태는 컴포넌트의 시스템 전용 필드. 끝남·실패가 다른 값 (§2.7) |
 | 매 프레임 할당·조회 (단계 6 "대기") | `unordered_map`·`seen` 집합·매 프레임 효과 `LoadAsset`·`map<string,float>` | 고정 풀·컴포넌트 순회·종류별 POD 파라미터 |
@@ -72,6 +76,29 @@ Compressor·Limiter 는 Reverb 로 떨어졌다.
 PlayOneShot·페이드·크로스페이드, 스크립트 재생 API, 믹서 창·스냅숏·덕킹, 사용자 감쇠 곡선·도플러, 동시 재생 상한과 보이스
 훔치기(`MaxPolyphony` 는 필드만 있었다), 오디오 프로파일러, 장치 선택·핫 언플러그, Web autoplay unlock, 오프라인 렌더 골든 테스트.
 
+### 1.5 devil 검증 (2026-09-25, 세 회차)
+
+근거는 기존 엔진에 있는 miniaudio v0.11.25 원문(`Engine/ThirdParty/miniaudio/miniaudio.h`)이다. 줄 번호는 그 파일 기준이다.
+
+1. **"직접 믹서여야 한다" - needs revision (strong).** D-197 이 든 근거 넷 중 셋이 틀렸다.
+   - 오프라인 테스트: `ma_engine` 도 `noDevice` 로 띄워 `ma_engine_read_pcm_frames` 로 당길 수 있다(11305·11346).
+   - 재생 중 버스 변경: `ma_node_attach_output_bus`(10803)는 스핀락과 원자 변수로 스레드 안전하다(10739-10757). 기존 엔진 주석의
+     "못 바꾼다" 를 확인 없이 옮긴 것이었다.
+   - 수명 UAF: 원인은 호출자에게 `OwnerPtr` 를 넘긴 래퍼 설계이지 `ma_engine` 이 아니다. 핸들 계층은 어느 쪽에서도 같다.
+   - 반대로 직접 짜면 페이드(`ma_sound_set_fade_in_milliseconds`, 1446)·예약 재생(`ma_sound_set_start_time_in_pcm_frames`, 389 - 기존의
+     PlayAt)·도플러(1442)·원뿔(1385)을 다시 만들어야 한다. 할당은 `ma_sound_init` 이 할당 콜백을 거친다(77362) - 우리 할당기로 받는다.
+   - 메인 스레드 호출이 안전한가: `ma_node_uninit` 은 **오디오 스레드가 그 노드를 다 읽을 때까지 기다린 뒤 돌아온다**(7.2 절, 2417-2460).
+     그래서 `ma_sound_uninit` 이 돌아오면 PCM 을 바로 풀어도 된다 - D-197 의 퇴역 큐가 필요 없다. 대가는 메인 스레드가 그 노드 하나를
+     처리하는 시간만큼 멈출 수 있다는 것이고, 소리 노드는 그래프의 잎이라 가장 싸다(같은 절). 볼륨·피치는 원자(11178-11179),
+     spatializer 의 위치·방향·속도도 원자다(5266-5268). **거리·감쇠·원뿔·도플러 계수는 평범한 `float` 다(5255-5264)** - 재생 중 쓰면
+     경쟁이다. 그래서 §2.5 의 규칙을 둔다.
+   - 작용한 편향: 기존 주석을 근거로 삼은 anchoring, "기존이 아팠다 → 기존 부품 탓" 이라는 narrative bias.
+   - 결정: `ma_engine` 을 `AudioMixer` 안에 둔다(D-198). 수명 추적은 없어지는 것이 아니라 믹서 한 곳으로 모인다 - 표현도 고쳤다.
+2. **"공용 `AudioSource` 의 자료에는 차원 의미가 없다" - holds (weak).** 지금 필드는 맞다. 3D 의 원뿔(소스 방향)은 2D 에서 뜻이 없어
+   공용에 넣으면 §10.2 와 부딪힌다 → 3D 전용 필드는 공용 소스에 넣지 않는다(§2.7). 도플러는 2D 에서도 뜻이 있다.
+3. **"임포트 옵션은 `Mode` 만" - holds, 표현을 고침 (moderate).** 빼는 다섯 필드는 맞다. 다만 라우드니스 정규화 게인과 루프 시작·끝
+   지점은 재생마다 다른 값이 아니라 **파일의 속성**이라 에셋 몫이다 → 원칙으로 적는다(§2.2).
+
 ## 2. 설계
 
 ### 2.1 계층 (새 엔진)
@@ -81,10 +108,10 @@ ThirdParty/miniaudio     자기 vcxproj(정적 라이브러리, 구현 번역 �
 JBroPlatform             IAudioOutput + IPlatform::CreateAudioOutput()   기본 null. Windows 는 ma_device(WASAPI)
 JBroAudioTypes (Tier S)  Component::AudioSource, Service::AudioService, AudioBusId 같은 값 타입,
                          Internal/ 확장 블록(AudioServiceContext·AudioSystemContext)
-JBroAudio (Tier E)       AudioMixer(보이스 풀·버스·이펙트·명령/상태 링), AudioClip 버퍼 등록과 퇴역, 디코드
+JBroAudio (Tier E)       AudioMixer(안에 ma_engine: 보이스 풀·버스 그룹·리스너·이펙트 노드), 클립 등록, 디코드, 고정 할당기
 JBroAsset                Asset::AudioAsset (CPU 자료만) 로더
 JBroFramework2D (Tier S) Component::AudioListener2D
-JBroFramework2DSystem    System::Audio2DSystem  AudioSource + Transform2D, AudioListener2D 를 읽어 명령을 쓴다
+JBroFramework2DSystem    System::Audio2DSystem  AudioSource + Transform2D, AudioListener2D 를 읽어 믹서를 부른다
 JBroHost                 EngineInstance 가 출력과 믹서를 소유하고 둘을 잇는다. 확장 블록 병합
 JBroEditor               인스펙터·임포트 옵션·미리 듣기·버스 필드·버스 목록(프로젝트 설정)
 ```
@@ -108,9 +135,13 @@ JBroEditor               인스펙터·임포트 옵션·미리 듣기·버스 �
   **옵션에는 디코드 방식(`Mode`: `Decompressed`|`Streaming`)만 둔다**(2026-09-25 확인). 기존의 DefaultVolume·Loop·Is3D·
   Min/MaxDistance·DefaultBus 는 컴포넌트와 같은 이름이 둘에 있어 우선순위가 끝내 정해지지 않았다(기존 단계 4). 재생 파라미터는
   컴포넌트가 유일한 원천이다. 기존 메타를 읽는 호환은 두지 않는다 - 이 엔진으로 만든 오디오 에셋이 없다.
-- **PCM·압축 바이트의 수명**: 에셋이 언로드·재로드돼도 오디오 스레드가 읽고 있을 수 있다. 그래서 로드한 자료는
-  `AudioMixer::RegisterClip` 로 **믹서의 클립 버퍼**로 넘기고, 해제는 `UnregisterClip` 명령 → 오디오 스레드가 그 클립을 쓰는 보이스를
-  멈추고 "놓았다" 를 상태 링에 올림 → 메인 스레드가 프레임 밖에서 메모리를 푸는 순서다(퇴역 큐). 오디오 스레드는 절대 풀지 않는다.
+  **원칙: 에셋은 파일의 속성, 컴포넌트는 인스턴스의 재생 파라미터다**(devil 3 회차, §1.5). 지금 파일의 속성은 `Mode` 하나이고,
+  라우드니스 정규화 게인·루프 시작/끝 지점이 들어온다면 에셋 쪽이다.
+- **PCM·압축 바이트의 수명**: 로드한 자료는 `AudioMixer::RegisterClip` 으로 **믹서의 클립**이 된다(`AudioClipHandle`). 보이스는
+  슬롯마다 자기 데이터 소스(Decompressed 는 공유 PCM 을 가리키는 `ma_audio_buffer_ref`, Streaming 은 압축 바이트 위의 `ma_decoder`)를
+  든다 - 데이터 소스는 커서를 가지므로 보이스끼리 나누지 않는다. `UnregisterClip` 은 그 클립을 쓰는 보이스를 `ma_sound_uninit` 하고
+  나서 메모리를 푼다. `ma_sound_uninit` 은 오디오 스레드가 그 노드를 다 읽을 때까지 기다리므로(§1.5) 그 뒤에 푸는 것이 안전하다.
+  오디오 스레드는 아무것도 풀지 않는다.
   `[가정]` in-place 재로드는 그 클립을 쓰는 보이스를 멈춘다. 핸들은 보존한다(D-111).
 - 이펙트 에셋(`.jfx`)은 6 단계다. 파라미터는 종류별 POD 구조체다(`map<string,float>` 가 아니다).
 
@@ -118,46 +149,56 @@ JBroEditor               인스펙터·임포트 옵션·미리 듣기·버스 �
 
 | 부품 | 쓰임 |
 |---|---|
-| `ma_device` | Windows·Web 출력 (JBroPlatform 안) |
-| `ma_decoder` (+ stb_vorbis) | WAV·MP3·FLAC·OGG 디코드. Decompressed 는 로드 때, Streaming 은 보이스마다 |
-| `ma_linear_resampler` | 클립 샘플 레이트 → 장치 레이트, 그리고 피치. 보이스마다 하나 |
-| `ma_spatializer` / `ma_spatializer_listener` | 감쇠(None·Inverse·Linear·Exponential)·팬. 2D 는 z=0 과 고정 방향으로 같은 부품을 쓴다 |
-| `ma_lpf`·`ma_hpf`·`ma_delay` | 이펙트 (6 단계). Reverb 는 기존 Freeverb 를 옮긴다 |
+| `ma_device` | Windows·Web 출력 (JBroPlatform 안). 콜백이 믹서의 `Render` 를 부른다 |
+| `ma_engine` (`noDevice`) | 노드 그래프·리샘플·공간화·리스너. `Render` 가 `ma_engine_read_pcm_frames` 를 부른다 |
+| `ma_sound` (`ma_sound_init_ex`, 데이터 소스 지정) | 보이스. 볼륨·피치·루프·페이드·예약 시작·위치·도플러·원뿔 |
+| `ma_sound_group` | 버스. Master·EditorPreview·프로젝트 버스 |
+| `ma_audio_buffer_ref` / `ma_decoder` (+ stb_vorbis) | 데이터 소스. Decompressed 는 공유 PCM 참조, Streaming 은 메모리 위 디코더 |
+| 사용자 노드 (`ma_node_vtable`) | 이펙트 (6 단계). LPF·HPF·Echo 는 miniaudio DSP 를 감싼 노드, Reverb 는 기존 Freeverb 를 옮긴다 |
 
-`ma_engine`·`ma_sound`·`ma_sound_group`·`ma_node_graph`·`ma_resource_manager` 는 쓰지 않는다. 구현 번역 단위에서 쓰지 않는 것은
-`MA_NO_ENGINE`·`MA_NO_NODE_GRAPH`·`MA_NO_RESOURCE_MANAGER` 로 끈다. 서드파티 규칙대로 고치지 않고 래핑하지 않는다(D-60).
+`ma_resource_manager` 는 쓰지 않고 `MA_NO_RESOURCE_MANAGER` 로 끈다 - 파일을 스스로 열고(§2 위반) 작업 스레드를 띄우기 때문이다.
+`ma_engine_play_sound`(엔진 내부에서 소리를 할당하는 한 번 재생)도 쓰지 않는다. 서드파티 규칙대로 miniaudio 를 고치지 않는다(D-60).
+`ma_engine` 은 `AudioMixer` 의 private 멤버이고 miniaudio 헤더는 `JBroAudio` 의 `.cpp` 만 include 한다 - 공개 헤더가 miniaudio 를
+끌고 오지 않는다. 이것은 D-60 이 막는 "라이브러리 헤더를 감싼 두 번째 표면" 이 아니라 RHI 가 D3D12 를 가리는 것과 같은 엔진 경계다.
 
 ### 2.4 믹서와 핸들
 
 ```
 AudioMixer (프로세스 수명, 초기화 때 전부 할당)
-  voices[MaxVoices]        고정 풀. AudioVoiceHandle { uint32 index; uint32 generation; }  (POD 8B)
-  buses[MaxBuses]          0 = Master, 1 = EditorPreview(에디터만), 나머지 = 프로젝트 목록. AudioBusId = uint8 번호
-  clips                    등록된 클립 버퍼. AudioClipHandle { index; generation; }
-  commandRing (SPSC)       메인 → 오디오
-  statusRing  (SPSC)       오디오 → 메인
-  Render(float* out, frameCount)   출력 콜백이 부른다. 테스트는 직접 부른다
+  engine                   ma_engine (noDevice, 할당 콜백 = 믹서의 고정 할당기)
+  voices[MaxVoices]        고정 풀. 슬롯 = ma_sound + 데이터 소스 자리 + 세대. AudioVoiceHandle { uint32 index; uint32 generation; }  (POD 8B)
+  buses[MaxBuses]          ma_sound_group. 0 = Master, 1 = EditorPreview(에디터만, 엔드포인트에 바로), 나머지 = 프로젝트 목록. AudioBusId = uint8
+  clips                    등록된 클립. AudioClipHandle { index; generation; }
+  Render(float* out, frameCount)   = ma_engine_read_pcm_frames. 출력 콜백이 부르고, 테스트는 직접 부른다
 ```
 
-- `Play(desc) → AudioVoiceHandle` 은 메인 스레드에서 **슬롯을 바로 예약**하고(메인이 쥔 빈 목록) 명령을 쓴다. 그래서 핸들이 즉시
-  돌아오고 같은 프레임에 `SetVolume` 을 이어 쓸 수 있다.
+- `Play(desc) → AudioVoiceHandle` 은 메인 스레드에서 빈 슬롯을 잡고 `ma_sound_init_ex`·값 설정·`ma_sound_start` 를 한 번에 한다.
+  핸들이 즉시 돌아오고 같은 프레임에 `SetVolume` 을 이어 쓸 수 있다. 끝남은 메인 스레드가 `ma_sound_at_end` 를 읽어 안다(원자).
+  끝난 보이스의 슬롯은 믹서의 프레임 시작 처리(`Update`)가 거둔다.
 - 슬롯이 없으면 **보이스 훔치기**: 우선순위가 낮은 것 → 들리는 크기가 작은 것 → 오래된 것. 결정적이어야 한다(테스트).
   MaxVoices 기본값은 **64** 다(기존 `AudioDeviceDesc::MaxPolyphony` 와 같다, 2026-09-25 확인). 고정 풀이라 믹서 초기화 때 정하고,
   바꿀 자리는 `EngineConfig` 다 `[가정]`.
 - 버스는 우선 Master 아래 한 층이다(기존과 같다). 볼륨·음소거. 중첩·솔로·센드는 `[열림]`.
-- 명령이 링을 넘치면 그 프레임의 나머지 명령은 버리고 경고를 한 번 남긴다 `[가정]`. 링 크기는 프레임당 명령 수의 측정으로 정한다.
-- **miniaudio 부품의 `_init` 은 할당 콜백을 받는다**(`ma_spatializer_init`·`ma_linear_resampler_init`·`ma_decoder_init_memory`,
-  기존 엔진 `miniaudio.h:5281,5372`). 보이스 슬롯의 리샘플러·spatializer 는 믹서 초기화 때 슬롯마다 만들어 두고 재생 때는 리셋만 한다.
-  스트리밍 디코더는 재생할 때 메인 스레드에서 열어야 하는데 그대로 두면 정상 프레임에 할당이 생긴다(§9) → 슬롯마다 고정 아레나를
-  할당 콜백으로 넘긴다 `[가정]`. 1 단계에서 디코더 하나가 실제로 얼마를 잡는지 재서 정한다.
+- **할당**: `ma_sound_init_ex` 는 엔진 노드의 힙을 할당 콜백으로 잡고(기존 엔진 `miniaudio.h:77362`), `ma_decoder_init_memory` 도
+  그렇다. 그대로 두면 정상 프레임의 `Play` 가 힙을 건드린다(§9 위반). → 엔진과 디코더에 **믹서의 고정 할당기**(보이스 슬롯마다
+  미리 잡은 블록)를 할당 콜백으로 넘긴다. 블록 크기는 1 단계에서 `ma_engine_node_get_heap_size`·디코더 실측으로 정하고, 넘치면
+  `Play` 가 실패하고 경고를 남긴다(조용히 힙으로 떨어지지 않는다). 정상 프레임 할당 0 회를 카운팅 할당기로 단언한다.
+- 버스 변경은 `ma_node_attach_output_bus` 로 재생 중에 한다(§1.5). 보이스를 다시 만들지 않는다.
 
 ### 2.5 스레드
 
-- 오디오 스레드가 하는 일은 `Render` 하나다: 명령 적용 → 보이스마다 디코드/리샘플/공간화/볼륨 → 버스 합산 → Master → 클리핑 방지.
-  **할당·잠금·파일 I/O·로그 문자열·엔진 객체 접근이 없다.** 로그가 필요하면 상태 링에 코드를 올린다.
-- 메인 스레드 쪽 믹서 API 는 메인 스레드 전용이다(`SafePtr` 와 같은 규약). 워커가 명령을 쓰지 않는다 - 링이 SPSC 라서다.
-- 상태 링: 끝남(핸들), 클립 놓음, 위치(요청한 보이스만), 버스 피크(에디터 미터). 메인이 프레임 시작에 비운다.
-- Web 은 콜백이 메인 스레드에서 돌 수 있다. SPSC 는 그래도 맞다 `[가정]`.
+- 오디오 스레드가 하는 일은 `Render`(`ma_engine_read_pcm_frames`) 하나다. miniaudio 는 이 경로를 잠금 없이 돈다(7.2 절).
+  우리 코드가 오디오 스레드에서 도는 것은 6 단계의 사용자 이펙트 노드뿐이고, 거기서도 **할당·잠금·파일 I/O·로그·엔진 객체 접근이 없다.**
+- 믹서 API 는 메인 스레드 전용이다(`SafePtr` 와 같은 규약). 워커가 부르지 않는다.
+- **재생 중 쓰는 값은 miniaudio 가 원자로 든 것만이다**: 볼륨·피치(`miniaudio.h:11178-11179`), 위치·방향·속도(5266-5268),
+  시작·정지·페이드. **거리·감쇠 모델·rolloff·원뿔·도플러 계수는 평범한 `float` 라(5255-5264) 보이스가 멈춰 있을 때만 쓴다** -
+  `Play` 안에서 `ma_sound_start` 전에 쓰고, 재생 중에 컴포넌트 값이 바뀌면 다음 재생부터 적용한다. 믹서 API 가 이것을 타입으로
+  나눈다: 재생 중 바꿀 수 있는 것은 `Set*` 이고, 나머지는 `AudioPlayDesc` 에만 있다.
+- 사용자 이펙트 노드의 파라미터는 원자 변수이고 오디오 스레드가 처리 앞에 한 번 읽는다(기존 Freeverb 경쟁의 해법, 6 단계).
+  miniaudio 필터의 `reinit` 은 스레드 안전하지 않으므로 노드 안에서 파라미터가 바뀐 것을 보고 오디오 스레드가 한다 `[가정]`.
+- `ma_sound_uninit` 은 오디오 스레드가 그 노드를 다 읽기를 기다린다(§1.5) - 메인 스레드가 잠깐 멈출 수 있다. 소리 노드는 그래프의
+  잎이라 가장 싸다. 1 단계에서 그 시간을 잰다.
+- Web 은 콜백이 메인 스레드에서 돌 수 있다. 그때는 기다림이 생기지 않는다 `[가정]`.
 
 ### 2.6 버스와 프로젝트 파일
 
@@ -185,12 +226,15 @@ Component::AudioListener2D   (JBroFramework2D)
 ```
 
 - `Audio2DSystem` 은 **플레이 중에만 돈다**(기존과 같다). 매 프레임: 첫 활성 리스너(`IsActiveComponent`)의 월드 위치를 믹서에 쓰고,
-  `ForEach<AudioSource>` 로 소스를 돌며 상태 기계를 진행하고, 바뀐 값만 명령으로 쓴다(마지막으로 보낸 값 캐시).
+  `ForEach<AudioSource>` 로 소스를 돌며 상태 기계를 진행하고, 바뀐 값만 믹서에 쓴다(마지막으로 쓴 값 캐시). 재생 중에는 원자 값만
+  쓴다 - 거리·감쇠가 바뀌면 다음 재생부터다(§2.5).
   위치는 오너의 `Transform2D` 월드에서 `(x, y, 0)` 이다. 리스너가 여럿이면 첫 번째를 쓰고 경고를 한 번 남긴다.
 - 상태 기계는 기존 단계 3 의 정책을 잇는다: 끄면 보이스를 즉시 멈추고 켜면 한 번 다시 무장, 클립이 바뀌면 교체, 컴포넌트가
   떼이면 그 보이스만 멈춤, 플레이 중지는 전부 멈춤. 자연 종료(`Finished`)와 로드 실패(`LoadFailed`)는 다른 값이라
   non-loop `playOnStart` 가 반복되지 않는다.
 - 3D 는 `AudioListener3D` 와 `Audio3DSystem` 을 같은 모양으로 둔다(방향은 `Transform3D` 에서). D-116 에 따라 2D 뒤다.
+- **3D 에서만 뜻이 있는 소스 필드(원뿔 감쇠 - 소스의 방향이 필요하다)는 공용 `AudioSource` 에 넣지 않는다.** 3D 쪽 별도 컴포넌트로
+  둔다(§10.2, devil 2 회차 §1.5). 도플러는 2D 에서도 뜻이 있으므로 공용에 둘 수 있다.
 - 새 컴포넌트는 2D·3D 양쪽 내장 컴포넌트 등록과 리플렉션(`JBRO_FIELD`), 캔버스 직렬화, 인스펙터에 올린다.
 - 기존 캔버스 파일의 `AudioPlayer`·`AudioListener` 는 새 컴포넌트로 옮겨 읽지 않는다(2026-09-25 확인) - 이 엔진으로 만든 캔버스에
   오디오가 없다. `CanvasFile.h:13` 이 지금처럼 모르는 타입으로 버린다.
@@ -222,11 +266,13 @@ Component::AudioListener2D   (JBroFramework2D)
 
 각 단계는 구현 → 그 단계의 검증 → diff 검토 → 커밋이다. 검증이 실패하면 다음 단계로 가지 않는다.
 
-1. `[대기]` **믹서 뼈대와 오프라인 렌더.** miniaudio(+ stb_vorbis) 서드파티 빌드 단위, `JBroAudioTypes`·`JBroAudio` 모듈, 보이스 풀·
-   버스·명령/상태 링·`Render`. 장치 없음.
-   완료 조건: 사인파 클립 PCM 을 등록해 `Render` 로 당긴 결과가 기대값과 같다(볼륨·버스 볼륨·음소거·피치 2 배에서 주파수·루프 경계·
-   끝남 통지·훔치기 순서). 정상 `Render` 와 정상 프레임의 명령 쓰기에서 할당 0 회(카운팅 할당기, §9). 스크립트 타깃이 `JBroAudio` 를
-   include 하면 컴파일 실패(음성 테스트). 클립 퇴역 중에 보이스가 읽어도 해제가 오디오 스레드 확인 뒤에만 일어난다.
+1. `[대기]` **믹서 뼈대와 오프라인 렌더.** miniaudio(+ stb_vorbis) 서드파티 빌드 단위, `JBroAudioTypes`·`JBroAudio` 모듈,
+   `AudioMixer`(내부 `ma_engine` noDevice·보이스 풀·버스 그룹·고정 할당기)·`Render`. 장치 없음.
+   완료 조건: 사인파 클립 PCM 을 등록해 `Render` 로 당긴 결과가 기대값과 같다(볼륨·버스 볼륨·음소거·재생 중 버스 변경·피치 2 배에서
+   주파수·루프 경계·끝남·훔치기 순서). `Play`·`Stop`·`Render` 가 도는 정상 프레임에서 힙 할당 0 회(카운팅 할당기, §9) - 고정 할당기
+   블록 크기는 여기서 잰다. 다른 스레드가 `Render` 를 계속 당기는 동안 `UnregisterClip` 을 거듭해도 해제된 메모리를 읽지 않는다
+   (ASan). `ma_sound_uninit` 이 메인 스레드를 멈추는 시간을 재서 적는다. 스크립트 타깃이 `JBroAudio` 를 include 하면 컴파일 실패
+   (음성 테스트). miniaudio 헤더가 `JBroAudio` 공개 헤더로 새어 나가지 않는다.
 2. `[대기]` **출력과 에셋.** `IAudioOutput`·`IPlatform::CreateAudioOutput`(Windows `ma_device`), `Asset::AudioAsset` 로더(두 모드),
    `EngineInstance` 소유와 종료 순서.
    완료 조건: WAV·MP3·FLAC·OGG 각각 두 모드로 디코드한 앞부분이 참조값과 같다(오프라인). 한글·공백 경로. 초기화/종료 100 회 반복과
@@ -236,7 +282,7 @@ Component::AudioListener2D   (JBroFramework2D)
    완료 조건: non-loop `playOnStart` 정확히 1 회, 루프는 멈출 때까지, 끄고 켜기·클립 교체·떼기·플레이 중지 정책(§2.7), 여러 소스가
    독립, 리스너 거리에 따른 감쇠가 오프라인 렌더에서 보인다. 프로젝트 파일 거듭 저장 바이트 비교(D-189). 정상 프레임 할당 0 회.
 4. `[대기]` **스크립트 서비스.** `Service::AudioService`, 확장 블록, 프렐류드·`JBro.Script.props`.
-   완료 조건: 스크립트에서 `PlayOneShot`·버스 볼륨이 믹서 명령으로 닿는다. 핫 리로드 뒤 재바인딩. 음성 테스트.
+   완료 조건: 스크립트에서 `PlayOneShot`·버스 볼륨이 믹서에 닿는다. 핫 리로드 뒤 재바인딩. 음성 테스트.
 5. `[대기]` **에디터.** 인스펙터(버스는 프로젝트 목록 콤보), 오디오 임포트 옵션, 미리 듣기(EditorPreview 버스, 파형), 프로젝트 설정의
    버스 목록 편집(커맨드). 기존 `ImAudioBusField`·`ImAudioVisualizer`·`EditorAudioPreview`·`AudioImporterWindow` 를 먼저 읽고 옮긴다
    (§11.0). 화면 글자는 로컬라이징 키(§11.2).
@@ -250,16 +296,20 @@ Component::AudioListener2D   (JBroFramework2D)
 - **§5 ServiceContext 에 하드웨어 금지**: 기존 `Script.Audio` 는 위반이었다 → 값 서비스와 확장 블록(§2.8).
 - **§9 매 프레임 할당·문자열 비교 금지**: 기존 시스템의 해시맵·`seen` 집합·문자열 버스 비교 → 고정 풀과 `NameId`(§2.4·§2.6).
 - **§10.4 컴포넌트 공개 필드의 String 금지**: 버스 이름 → `NameId`.
-- **§6 SafePtr 는 메인 스레드 전용**: 오디오 스레드는 `SafePtr` 도 에셋도 보지 않는다. 클립 버퍼는 믹서가 들고 퇴역 큐로 푼다(§2.2).
+- **§6 SafePtr 는 메인 스레드 전용**: 오디오 스레드는 `SafePtr` 도 에셋도 보지 않는다. 클립은 믹서가 들고, 그 클립의 보이스를 `ma_sound_uninit`(오디오 스레드를 기다림)한 뒤에 푼다(§2.2).
+- **D-60 서드파티를 감싸지 않는다**: `ma_engine` 은 `AudioMixer` 의 private 이고 miniaudio 헤더는 `.cpp` 만 본다. 라이브러리
+  헤더를 감싼 두 번째 표면이 아니라 엔진 경계다(§2.3).
 - **ThirdParty README "각 라이브러리는 자기 빌드 단위"**: miniaudio 는 자기 vcxproj 이고 JBroPlatform·JBroAudio 둘이 링크한다.
   구현 번역 단위가 하나라 중복 정의가 없다.
 
 ## 5. 열린 것과 가정 모음
 
-- 2026-09-25 에 정해진 것: 임포트 옵션은 `Mode` 만(§2.2), 모듈 이름은 `JBroAudioTypes`·`JBroAudio`(§2.1), MaxVoices 64(§2.4),
-  기존 캔버스·메타의 이식은 하지 않음(§2.2·§2.7).
+- 2026-09-25 에 정해진 것: 임포트 옵션은 파일의 속성만(지금은 `Mode`, §2.2), 모듈 이름은 `JBroAudioTypes`·`JBroAudio`(§2.1),
+  MaxVoices 64(§2.4), 기존 캔버스·메타의 이식은 하지 않음(§2.2·§2.7), 믹서는 내부 `ma_engine`(D-198, §1.5), 3D 전용 소스 필드는
+  공용 소스 밖(§2.7).
 - `[열림]` 버스 중첩·솔로·센드(§2.4), 디스크 스트리밍(§2.2), Web autoplay unlock·장치 선택·핫 언플러그·포커스 잃었을 때 정책(기존 백로그).
-- `[가정]` 재로드는 쓰는 보이스를 멈춘다(§2.2), 명령 넘침은 버리고 경고(§2.4), 스트리밍 디코더는 슬롯별 고정 아레나(§2.4), Web 콜백과 SPSC(§2.5), `audioEnabled`·MaxVoices 설정 자리(§2.9·§2.4),
-  미리 듣기는 Master 음소거와 무관(§2.9).
+- `[가정]` 재로드는 쓰는 보이스를 멈춘다(§2.2), 엔진·디코더 할당은 슬롯별 고정 블록이고 넘치면 `Play` 실패(§2.4), 필터 `reinit` 은
+  노드 안에서 오디오 스레드가(§2.5), Web 콜백(§2.5), `audioEnabled`·MaxVoices 설정 자리(§2.9·§2.4), 미리 듣기는 Master 음소거와
+  무관(§2.9).
 - 기존 백로그(PlayOneShot 반환 핸들, 페이드, PlayAt·마커, 믹서 창·스냅숏·덕킹, 감쇠 곡선·도플러·occlusion, 라우드니스·트림,
   프로파일러)는 6 단계 뒤에 사용자 우선순위를 받아 단계로 올린다.

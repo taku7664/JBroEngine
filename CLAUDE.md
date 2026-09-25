@@ -87,8 +87,8 @@
   `source/JBroNetwork/`(자기 `.slnx`, 엔진의 Core·Runtime 만 참조)에 있고, 엔진 쪽 어댑터는 `Modules/JBroNetworkSystem`(`NetworkHost`·
   `CanvasPoolAdapter`·수신/송신 시스템)이다. 소켓은 `IPlatform::CreateSocketProvider` 로만 온다. 기존 엔진의 WS + Reliable UDP
   하이브리드 분석이 §1, 설계(소켓 주입·꺼내 가기 큐·풀 스냅숏 델타 복제·WebRTC 웹 호스트)가 §2, 단계와 완료 조건·실측이 §3 에 있다
-- [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197). **아직 코드는 없다.** 직접 믹서(`AudioMixer`)에 miniaudio 는 부품만,
-  보이스·버스는 핸들로만 나가고 스레드 사이에는 POD 명령 링이다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
+- [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198). **아직 코드는 없다.** `ma_engine` 을 안에 둔 `AudioMixer`,
+  보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건이 §3 에 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고

@@ -2691,8 +2691,25 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-198. 오디오 믹서는 `ma_engine` 을 `AudioMixer` 안에 두고, 믹서 API 는 메인 스레드에서 miniaudio 를 바로 부른다.**
+  (2026-09-25, [audio-plan.md](./audio-plan.md) §1.5) Updates: D-197 (1)·(3). D-197 을 devil 로 세 번 검증한 결과다(사용자 요청).
+  D-197 이 "직접 믹서" 의 근거로 든 넷 중 셋이 miniaudio 원문(v0.11.25)에서 틀린 것으로 드러났다: `ma_engine` 도 `noDevice` +
+  `ma_engine_read_pcm_frames` 로 오프라인 테스트가 되고, `ma_node_attach_output_bus` 는 재생 중에도 스레드 안전해서 버스를 바꿀 수
+  있으며(기존 엔진 주석 "못 바꾼다" 를 확인 없이 옮겼다), 기존 UAF 의 원인은 `ma_engine` 이 아니라 호출자에게 `OwnerPtr` 를 넘긴 래퍼
+  설계였다. 직접 짜면 페이드·예약 재생·도플러·원뿔을 다시 만들어야 한다. 그리고 `ma_node_uninit` 은 오디오 스레드가 그 노드를 다
+  읽을 때까지 기다린 뒤 돌아오고(7.2 절), 볼륨·피치·위치·방향·속도는 원자 변수다. 정한 것: (1) `ma_engine`(noDevice, 리소스 매니저
+  끔)은 `AudioMixer` 의 private 이고 miniaudio 헤더는 `JBroAudio` 의 `.cpp` 만 본다 - D-60 의 "감싼 두 번째 표면" 이 아니라 RHI 와 같은
+  엔진 경계다. 핸들·보이스 풀·`IPlatform` 출력(콜백이 `ma_engine_read_pcm_frames`)은 D-197 그대로다. (2) 명령·상태 링과 퇴역 큐는
+  두지 않는다. 믹서 API 는 메인 스레드 전용이고 miniaudio 를 바로 부른다. 클립은 그 클립의 보이스를 `ma_sound_uninit` 한 뒤 바로 푼다.
+  (3) **재생 중에는 원자 값만 쓴다.** 거리·감쇠·rolloff·원뿔·도플러 계수는 평범한 `float` 라 보이스가 멈춰 있을 때(`Play` 의
+  `ma_sound_start` 전)만 쓰고, 믹서 API 가 `Set*` 과 `AudioPlayDesc` 로 나눠 타입으로 막는다. (4) `ma_sound_init_ex`·디코더의 할당은
+  믹서의 고정 할당기로 받는다 - 넘치면 `Play` 가 실패한다. (5) 같은 검증의 2·3 회차: 3D 에서만 뜻이 있는 소스 필드(원뿔)는 공용
+  `AudioSource` 에 넣지 않고, 임포트 옵션은 "`Mode` 하나" 가 아니라 "파일의 속성만"(정규화 게인·루프 지점은 에셋 몫)으로 적는다.
+  기각: 직접 믹서 유지(근거가 무너졌고 기능을 다시 만든다).
+
 - **D-197. 오디오는 믹서를 직접 쓰고 miniaudio 는 부품만 가져다 쓴다. 보이스·버스는 번호로만 나가고, 스레드 사이에는 POD 명령만
   오간다. 소스는 차원 무관 `AudioSource`, 리스너는 차원별이다.** (2026-09-25, [audio-plan.md](./audio-plan.md))
+  **(1)·(3) 은 D-198 이 고쳤다** - 믹서는 내부 `ma_engine` 이고 명령 링은 없다.
   지금 엔진에는 오디오가 없다(`AssetType::Audio` 와 확장자 매핑만 있다). 기존 엔진은 `ma_engine` 래퍼 `IAudioDevice` 가
   `OwnerPtr<IAudioPlayer/Bus/Effect>` 를 호출자에게 넘기는 구조였고, 그 때문에 종료 크래시·자식 UAF(단계 1·2 에서 "디바이스가
   자식을 추적" 으로 고침), Freeverb 파라미터 경쟁(미해결), 재생 중 버스 변경 불가, 미리 듣기용 두 번째 장치를 겪었다. 소리가 난
