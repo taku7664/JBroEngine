@@ -97,7 +97,8 @@
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
   캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다
 - [tasks/text-plan.md](./tasks/text-plan.md) — 2D 텍스트 계획(D-200). 1 단계(커널 `Modules/JBroText`: stb_truetype 의 `FontFace`, UTF-8·커닝·줄바꿈·정렬의
-  `TextLayout`)가 섰고 다음은 2 단계(아틀라스와 비트맵 렌더)다. 기존 엔진 `Text2D` 를 깨트려 본 결과
+  `TextLayout`)와 2 단계(`GlyphAtlas`·`Font` 에셋·`TextStore`(JBroRuntime, 프로세스에 하나, D-203)·`Text2D`·`Text2DSystem`·`Text2DService`)가
+  섰고 다음은 3 단계(에디터)다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
