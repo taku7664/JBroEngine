@@ -90,8 +90,8 @@
 - [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198). **아직 코드는 없다.** `ma_engine` 을 안에 둔 `AudioMixer`,
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건이 §3 에 있다
-- [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-201). 1~3 단계(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
-  `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
+- [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-201). 1~4 단계(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
+  `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 게임 뷰 포커스 게이트)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
   전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(에디터·액션·게임패드)이 §4 에 있다
 - [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199). 결정은 섰고 코드는 1 단계부터 진행한다.
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
