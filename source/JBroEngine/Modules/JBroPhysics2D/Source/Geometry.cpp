@@ -1,33 +1,17 @@
 ﻿#include <JBro/Physics2D/Geometry.h>
 
+#include "VectorMath.h"
+
 #include <algorithm>
 #include <cmath>
 
 namespace JBro::Physics2D
 {
+    using namespace Internal;
+
     namespace
     {
         constexpr float Pi = 3.14159265358979323846f;
-
-        Vec2 Subtract(Vec2 a, Vec2 b)
-        {
-            return { a.x - b.x, a.y - b.y };
-        }
-
-        float Cross(Vec2 a, Vec2 b)
-        {
-            return a.x * b.y - a.y * b.x;
-        }
-
-        float Dot(Vec2 a, Vec2 b)
-        {
-            return a.x * b.x + a.y * b.y;
-        }
-
-        float LengthSquared(Vec2 a)
-        {
-            return a.x * a.x + a.y * a.y;
-        }
 
         // b 가 a 와 c 를 잇는 직선에서 LinearSlop 안쪽이면 일직선이다. a 와 c 가 같은 점이면
         // b 는 되돌아가는 가시이고 넓이가 없으므로 역시 뺄 점이다.
@@ -289,21 +273,11 @@ namespace JBro::Physics2D
     PolygonError CleanPolygon(ArrayView<const Vec2> points, Array<Vec2>& out)
     {
         out.Clear();
-        for (const Vec2& point : points)
-        {
-            if (false == out.IsEmpty()
-                && LengthSquared(Subtract(point, out.Last())) <= LinearSlop * LinearSlop)
-            {
-                continue;
-            }
-            out.Add(point);
-        }
-        while (out.Size() > 1
-            && LengthSquared(Subtract(out.Last(), out.First())) <= LinearSlop * LinearSlop)
-        {
-            out.RemoveAt(out.Size() - 1);
-        }
+        out.Append(points.Data(), points.Size());
 
+        // 거의 같은 점도 여기서 빠진다. b 가 a 에 LinearSlop 안으로 붙어 있으면 a 와 c 를 잇는 직선에서도 그만큼
+        // 안쪽이기 때문이다. 고리를 돌며 보므로 끝점과 첫 점이 같은 경우도 같다. (따로 두었던 중복 제거 단계는
+        // 뮤테이션으로 지워도 결과가 같아 뺐다, physics-plan §4 의 1 단계.)
         // 하나를 빼면 이웃이 새로 일직선이 될 수 있으므로 더 뺄 것이 없을 때까지 돈다.
         bool removed = true;
         while (removed && out.Size() >= 3)
