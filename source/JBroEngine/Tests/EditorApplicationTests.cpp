@@ -7726,6 +7726,12 @@ namespace
 
         Check(hoveredAt(at(2.0f, -2.0f)) != LabelId(view->ID, "##vertex_1"),
             "with collider editing off there is no point handle");
+        // 기즈모의 x 손잡이는 오브젝트 가운데에서 오른쪽으로 뻗는다(70 픽셀). 그 위에 먼저 있는지 본다 -
+        // 켠 뒤에 "없다" 를 재려면 끄고서는 "있다" 가 참이어야 한다. 가운데만 재면 손잡이가 늘 비켜 있어 헛검사였다.
+        Spot onAxis = at(0.0f, 0.0f);
+        onAxis.x += 35;
+        Check(hoveredAt(onAxis) == LabelId(view->ID, "##gizmo_x"),
+            "with editing off the gizmo's x handle is there, right of the middle");
 
         const char* editLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditCollider, "Edit Collider");
         Spot toggle;
@@ -7735,7 +7741,7 @@ namespace
         Check(editor.Tick(Frame), "the editor must settle with editing on");
         Check(hoveredAt(at(2.0f, -2.0f)) == LabelId(view->ID, "##vertex_1"),
             "with editing on the corner is a point handle");
-        Check(hoveredAt(at(0.0f, 0.0f)) != LabelId(view->ID, "##gizmo_x"),
+        Check(hoveredAt(onAxis) != LabelId(view->ID, "##gizmo_x"),
             "and the gizmo steps aside while the collider is edited");
 
         // 끌기: 놓을 때 되돌리기 하나.
