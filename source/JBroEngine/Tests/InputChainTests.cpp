@@ -355,6 +355,30 @@ namespace
         Check(static_cast<NamedProbe*>(attached)->sawW, "and it reads the input");
     }
 
+    // 체인이 돌지 않은 프레임(멈춤, 스크립트가 없는 프레임워크)의 폴링은 이번 프레임 전체를 본다.
+    // 지난 프레임의 블로킹이 남으면 아무도 막지 않았는데 입력이 사라진다.
+    void TestAFrameWithoutTheChainIsNotBlocked()
+    {
+        struct Blocker final : IInputHandler
+        {
+            InputResult OnInput(InputView&) override
+            {
+                return InputResult::Block;
+            }
+        };
+        System::InputSystem input;
+        Blocker blocker;
+        input.BeginFrame(HeldWAndMouse);
+        input.BeginDispatch();
+        Check(input.Deliver(blocker), "a blocking handler stops the chain");
+        input.EndDispatch();
+        Check(false == input.GetResidualView().Keyboard().IsDown(Key::W), "the block reaches the polling");
+
+        input.BeginFrame({});
+        Check(input.GetResidualView().Keyboard().IsDown(Key::W),
+            "a frame without a chain must not keep the last frame's block");
+    }
+
     // 매 프레임 도는 자리다. 체인을 도는 것이 힙을 건드리지 않는다(§9).
     void TestDispatchDoesNotAllocate()
     {
@@ -432,6 +456,7 @@ int RunInputChainTests()
     TestDisabledHandlersAreSkipped();
     TestChangingTheLayerOrderResortsTheChain();
     TestNamedScriptsJoinTheChainThroughTheirTypeInfo();
+    TestAFrameWithoutTheChainIsNotBlocked();
     TestDispatchDoesNotAllocate();
     TestTheFrameworkDispatchesBeforeTheFixedSteps();
     Log::SetEchoToConsole(echo);
