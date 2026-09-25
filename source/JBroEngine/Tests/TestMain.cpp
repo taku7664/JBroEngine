@@ -52,6 +52,7 @@ int RunEditorWidgetTests();
 int RunGizmoModelTests();
 int RunInputTests();
 int RunInputSystemTests();
+int RunInputChainTests();
 int RunContextBoundaryTests();
 int RunScriptApiPreludeTests();
 int RunPublicHeaderCompositionTests();
@@ -112,6 +113,10 @@ int main()
         // 오디오 믹서는 장치 없이 몇 초 안에 끝난다(audio-plan §3-1).
         // 입력 상태 접기는 창 하나만 쓰고 1 초 안에 끝난다(D-201). 앞에 두어 뮤테이션이 빨리 돈다.
         if (RunInputSystemTests() != 0)
+        {
+            return 1;
+        }
+        if (RunInputChainTests() != 0)
         {
             return 1;
         }

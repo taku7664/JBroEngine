@@ -138,6 +138,10 @@ namespace JBro
         // 결과는 정렬되지 않은 채로 나온다. 실행 순서를 세우는 것은 부르는 쪽의 일이다.
         void CollectScripts(Array<GameScriptBase*>& results);
 
+        // 이 스크립트의 타입이 입력 핸들러이면 그 썽크를 준다(D-201). 정적으로 붙인 것은 컴포넌트 풀이, 이름으로
+        // 붙인 것(DLL)은 스크립트 풀의 타입 표가 안다. 체인을 세울 때(콜드 경로)만 부른다.
+        ScriptInputBinding FindScriptInputBinding(const GameScriptBase& script) const;
+
         // 스크립트 실행 목록이 언제 헌 것이 되는지를 알리는 표다(D-45).
         //
         // 목록은 **더티 플래그로 지연 재구축한다**. 값이 바뀌었을 때만 다시 세우면 되고,
@@ -188,6 +192,8 @@ namespace JBro
             virtual void AppendScripts(Array<GameScriptBase*>& results) = 0;
             // 파괴할 때 실행 목록을 헌 것으로 표시할지 가른다. 타입은 컴파일 타임에 안다.
             virtual bool HoldsScripts() const = 0;
+            // 이 풀의 타입이 입력 핸들러인 스크립트이면 그 썽크다(D-201). 아니면 비어 있다.
+            virtual ScriptInputBinding GetInputBinding() const = 0;
             // 풀의 쓰임새. 통계가 이것만 묻는다.
             virtual std::size_t GetLiveCount() const = 0;
             virtual std::size_t GetCapacity() const = 0;
@@ -224,6 +230,18 @@ namespace JBro
             bool HoldsScripts() const override
             {
                 return std::is_base_of_v<GameScriptBase, T>;
+            }
+
+            ScriptInputBinding GetInputBinding() const override
+            {
+                if constexpr (std::is_base_of_v<GameScriptBase, T>)
+                {
+                    return MakeScriptInputBinding<T>();
+                }
+                else
+                {
+                    return {};
+                }
             }
 
             std::size_t GetLiveCount() const override

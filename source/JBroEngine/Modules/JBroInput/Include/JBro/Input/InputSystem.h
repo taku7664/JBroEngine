@@ -1,9 +1,13 @@
 ﻿#pragma once
 
+#include <JBro/InputTypes/InputHandler.h>
 #include <JBro/InputTypes/Internal/SystemContext.h>
 #include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/InputTypes/System/IInputSystem.h>
 #include <JBro/Platform/Input.h>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/NameTable.h>
+#include <JBro/Types/Table.h>
 
 #include <cstdint>
 
@@ -49,12 +53,33 @@ namespace JBro::System
         const InputSystemContext& GetSystemContext() const;
         const InputServiceContext& GetServiceContext() const;
 
+        // 레이어 체인이다(D-201). 누구를 어떤 차례로 부를지는 부르는 쪽(`ScriptSystem`)이 정하고, 여기는 소비를 나른다.
+        //   BeginDispatch() → 켜진 핸들러마다 Deliver() → EndDispatch()
+        // `Deliver` 가 참이면 그 핸들러가 `Block` 한 것이고, 부르는 쪽은 거기서 멈춘다. 멈추지 않아도 아래는 빈 입력만 본다.
+        void BeginDispatch();
+        bool Deliver(IInputHandler& handler);
+        // 체인을 닫는다. 폴링(`Service::InputService`)이 보는 남은 입력이 여기서 정해진다.
+        void EndDispatch();
+
+        // 프로젝트가 정한 레이어 순서다. 앞이 먼저 받는다. 비어 있으면 기본 순서(Modal, UI, Game, World, Debug)다.
+        void SetLayerOrder(JArrayView<NameId> layers);
+        // 레이어의 순위다. 작을수록 먼저다. 없는 레이어는 맨 아래(레이어 수)이고 이름마다 한 번 경고한다 -
+        // `text` 는 그 경고에만 쓴다. 체인을 세울 때(콜드 경로)만 부른다.
+        std::uint32_t GetLayerPriority(NameId layer, const char* text);
+        // 레이어 순서가 바뀔 때마다 오른다. 체인을 들고 있는 쪽이 이 값으로 다시 줄 세울지 안다.
+        std::uint64_t GetLayerRevision() const;
+
     private:
         void Fold(const InputEvent& event, const InputSurfaceMapping& mapping);
         void ReleaseAll();
 
         InputFrame m_frame;
         InputView m_residual;
+        // 체인을 따라 내려가는 뷰다. `m_residual` 과 따로 두어, 체인이 도는 동안의 폴링이 반쯤 소비된 것을 보지 않게 한다.
+        InputView m_dispatch;
+        Array<NameId> m_layers;
+        Table<NameId, std::uint8_t> m_warnedLayers;
+        std::uint64_t m_layerRevision = 1;
         InputSystemContext m_systemContext;
         InputServiceContext m_serviceContext;
     };

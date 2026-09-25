@@ -1,5 +1,7 @@
 ﻿#include <JBro/Input/InputSystem.h>
 
+#include <JBro/Core/Log.h>
+
 #include <cstddef>
 
 namespace JBro::System
@@ -57,7 +59,9 @@ namespace JBro::System
     InputSystem::InputSystem()
     {
         m_residual.m_frame = &m_frame;
+        m_dispatch.m_frame = &m_frame;
         m_systemContext.Input = this;
+        SetLayerOrder({});
     }
 
     void InputSystem::BeginFrame(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping)
@@ -101,6 +105,79 @@ namespace JBro::System
     const InputView& InputSystem::GetResidualView() const noexcept
     {
         return m_residual;
+    }
+
+    void InputSystem::BeginDispatch()
+    {
+        m_dispatch.m_consumed = 0;
+        m_dispatch.m_pendingConsumed = 0;
+    }
+
+    bool InputSystem::Deliver(IInputHandler& handler)
+    {
+        m_dispatch.m_pendingConsumed = 0;
+        const InputResult result = handler.OnInput(m_dispatch);
+        // 이 핸들러가 가져간 것은 돌아온 뒤에야 아래에 걸린다. 핸들러 자신은 끝까지 읽을 수 있어야 한다.
+        m_dispatch.m_consumed |= m_dispatch.m_pendingConsumed;
+        m_dispatch.m_pendingConsumed = 0;
+        if (result == InputResult::Block)
+        {
+            m_dispatch.m_consumed = InputView::AllDevices;
+            return true;
+        }
+        return false;
+    }
+
+    void InputSystem::EndDispatch()
+    {
+        m_residual.m_consumed = m_dispatch.m_consumed;
+        m_residual.m_pendingConsumed = 0;
+    }
+
+    void InputSystem::SetLayerOrder(JArrayView<NameId> layers)
+    {
+        m_layers.Clear();
+        if (layers.data == nullptr || layers.size == 0)
+        {
+            // 기존 엔진의 기본 밴드와 같다. 위가 먼저 받는다.
+            m_layers.Add(MakeNameId("Modal"));
+            m_layers.Add(MakeNameId("UI"));
+            m_layers.Add(MakeNameId("Game"));
+            m_layers.Add(MakeNameId("World"));
+            m_layers.Add(MakeNameId("Debug"));
+        }
+        else
+        {
+            for (std::uint32_t index = 0; index < layers.size; ++index)
+            {
+                m_layers.Add(layers.data[index]);
+            }
+        }
+        m_warnedLayers.Clear();
+        ++m_layerRevision;
+    }
+
+    std::uint32_t InputSystem::GetLayerPriority(NameId layer, const char* text)
+    {
+        for (std::size_t index = 0; index < m_layers.Size(); ++index)
+        {
+            if (m_layers[index] == layer)
+            {
+                return static_cast<std::uint32_t>(index);
+            }
+        }
+        // 없는 레이어는 막지 않는다 - 컴파일은 되고 맨 아래에서 받는다. 대신 한 번은 말한다.
+        if (m_warnedLayers.TryAdd(layer, std::uint8_t{1}))
+        {
+            Log::Write(LogLevel::Warning, "input", "unknown input layer \"%s\"; it receives input after every known layer",
+                text != nullptr ? text : "?");
+        }
+        return static_cast<std::uint32_t>(m_layers.Size());
+    }
+
+    std::uint64_t InputSystem::GetLayerRevision() const
+    {
+        return m_layerRevision;
     }
 
     const InputSystemContext& InputSystem::GetSystemContext() const
