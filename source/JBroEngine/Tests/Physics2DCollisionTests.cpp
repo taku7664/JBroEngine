@@ -357,6 +357,93 @@ namespace
         broadPhase.FindPairs(ArrayView<const Rect>(touching), pairs);
         Check(pairs.Size() == 3, "boxes sharing an edge or a corner pair up");
     }
+
+    // 조각 전부에 쏘아 가장 가까운 것을 고른다. 어댑터의 Raycast 가 하는 일과 같다.
+    bool RaycastPieces(const Array<ConvexPolygon>& pieces, Vec2 origin, Vec2 direction, float maxDistance,
+        float& distance, Vec2& normal)
+    {
+        bool hit = false;
+        for (const ConvexPolygon& piece : pieces)
+        {
+            float candidate = 0.0f;
+            Vec2 candidateNormal;
+            if (JBro::Physics2D::RaycastPolygon(piece, At(0, 0), origin, direction, maxDistance, candidate, candidateNormal)
+                && (false == hit || candidate < distance))
+            {
+                hit = true;
+                distance = candidate;
+                normal = candidateNormal;
+            }
+        }
+        return hit;
+    }
+
+    // **반직선.** 상자의 가까운 면, 돌린 상자, 원, 출발점이 안인 경우, 거리가 모자란 경우.
+    // U 의 홈으로 내리꽂은 반직선은 홈 바닥에 맞는다 - 통짜 외곽선의 볼록 껍질로 재면 홈 입구(y = 3)에서 맞았다고 나온다.
+    void TestRaycasts()
+    {
+        const ConvexPolygon box = MakeBox(1.0f, 1.0f);
+        float distance = 0.0f;
+        Vec2 normal;
+        Check(JBro::Physics2D::RaycastPolygon(box, At(3, 0), { 0, 0 }, { 1, 0 }, 10.0f, distance, normal),
+            "a ray along x hits a box ahead");
+        Check(Near(distance, 2.0f, 1.0e-5f) && NearVector(normal, { -1, 0 }, 1.0e-5f), "on its near face");
+        Check(false == JBro::Physics2D::RaycastPolygon(box, At(3, 0), { 0, 0 }, { 1, 0 }, 1.5f, distance, normal),
+            "a ray that stops short misses");
+        Check(false == JBro::Physics2D::RaycastPolygon(box, At(3, 0), { 0, 0 }, { -1, 0 }, 10.0f, distance, normal),
+            "a ray pointing away misses");
+        Check(false == JBro::Physics2D::RaycastPolygon(box, At(3, 5), { 0, 0 }, { 1, 0 }, 10.0f, distance, normal),
+            "a ray passing beside misses");
+
+        Check(JBro::Physics2D::RaycastPolygon(box, At(3, 0, 0.78539816f), { 0, 0 }, { 1, 0 }, 10.0f, distance, normal),
+            "a ray hits a diamond");
+        Check(Near(distance, 3.0f - std::sqrt(2.0f), 1.0e-4f), "at its near corner");
+
+        Check(JBro::Physics2D::RaycastPolygon(box, At(0, 0), { 0.5f, 0 }, { 1, 0 }, 10.0f, distance, normal),
+            "a ray starting inside reports a hit");
+        Check(distance == 0.0f && NearVector(normal, { -1, 0 }, 0.0f), "at distance zero against its direction");
+
+        const Array<Vec2> u = {
+            { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        const Array<ConvexPolygon> pieces = Decompose(u);
+        Check(RaycastPieces(pieces, { 1.5f, 5.0f }, { 0, -1 }, 10.0f, distance, normal),
+            "a ray dropped into the notch of a U hits something");
+        Check(Near(distance, 4.0f, 1.0e-4f) && NearVector(normal, { 0, 1 }, 1.0e-5f), "the notch floor, not its mouth");
+        Check(RaycastPieces(pieces, { 1.5f, 2.0f }, { 1, 0 }, 10.0f, distance, normal)
+            && Near(distance, 0.5f, 1.0e-4f) && NearVector(normal, { -1, 0 }, 1.0e-5f),
+            "from inside the notch a ray hits the inner wall");
+
+        Circle ball;
+        ball.center = { 0, 1 };
+        ball.radius = 0.5f;
+        Check(JBro::Physics2D::RaycastCircle(ball, At(3, 0), { 0, 1 }, { 1, 0 }, 10.0f, distance, normal),
+            "a ray hits a circle with an offset center");
+        Check(Near(distance, 2.5f, 1.0e-5f) && NearVector(normal, { -1, 0 }, 1.0e-5f), "on its near side");
+        Check(false == JBro::Physics2D::RaycastCircle(ball, At(3, 0), { 0, 0 }, { 1, 0 }, 10.0f, distance, normal),
+            "and misses when the ray passes below it");
+        Check(false == JBro::Physics2D::RaycastCircle(ball, At(3, 0), { 0, 1 }, { 1, 0 }, 2.0f, distance, normal),
+            "or stops short");
+        Check(JBro::Physics2D::RaycastCircle(ball, At(3, 0), { 3, 1 }, { 1, 0 }, 10.0f, distance, normal)
+            && distance == 0.0f, "a ray starting inside a circle reports distance zero");
+    }
+
+    void TestOverlaps()
+    {
+        const ConvexPolygon box = MakeBox(1.0f, 1.0f);
+        Check(JBro::Physics2D::OverlapPolygons(box, At(0, 0), box, At(1.5f, 0)), "overlapping boxes overlap");
+        Check(JBro::Physics2D::OverlapPolygons(box, At(0, 0), box, At(2.0f, 0)), "touching boxes count");
+        Check(false == JBro::Physics2D::OverlapPolygons(box, At(0, 0), box, At(2.1f, 0)), "apart boxes do not");
+        // 축 정렬 상자로는 겹치지만 돌린 상자의 축이 가르는 경우.
+        Check(false == JBro::Physics2D::OverlapPolygons(box, At(0, 0), box, At(2.0f, 2.0f, 0.78539816f)),
+            "a diamond beside a corner is apart even though their bounds overlap");
+
+        Circle ball;
+        ball.radius = 0.5f;
+        Check(JBro::Physics2D::OverlapPolygonAndCircle(box, At(0, 0), ball, At(1.4f, 0)), "a ball against a face");
+        Check(false == JBro::Physics2D::OverlapPolygonAndCircle(box, At(0, 0), ball, At(1.4f, 1.4f)),
+            "a ball near a corner but outside its reach does not overlap");
+        Check(JBro::Physics2D::OverlapPolygonAndCircle(box, At(0, 0), ball, At(0, 0)), "a ball inside does");
+    }
 }
 
 int RunPhysics2DCollisionTests()
@@ -365,6 +452,8 @@ int RunPhysics2DCollisionTests()
     TestSwappingTheShapesFlipsOnlyTheNormal();
     TestACircleInTheInnerCornerOfAnLGetsBothWalls();
     TestCircleAgainstACornerAndFromInside();
+    TestRaycasts();
+    TestOverlaps();
     TestCircles();
     TestSpeculativeContacts();
     TestContactIdsStayWhileTheSameFacesTouch();

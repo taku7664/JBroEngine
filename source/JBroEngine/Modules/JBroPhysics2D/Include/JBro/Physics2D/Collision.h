@@ -70,4 +70,15 @@ namespace JBro::Physics2D
 
     Rect ComputePolygonBounds(const ConvexPolygon& polygon, const Pose& pose);
     Rect ComputeCircleBounds(const Circle& circle, const Pose& pose);
+
+    // 반직선 질의. direction 은 단위 벡터다. 맞으면 origin 에서 표면까지의 거리와 그 자리의 바깥 법선을 준다.
+    // 출발점이 이미 도형 안이면 거리 0, 법선은 -direction 으로 알린다 - 박힌 상태를 감추지 않는다(기존 엔진의 스윕과 같다).
+    bool RaycastPolygon(const ConvexPolygon& polygon, const Pose& pose,
+        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal);
+    bool RaycastCircle(const Circle& circle, const Pose& pose,
+        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal);
+
+    // 겹침 질의. 맞닿기만 해도 겹친 것이다.
+    bool OverlapPolygons(const ConvexPolygon& a, const Pose& poseA, const ConvexPolygon& b, const Pose& poseB);
+    bool OverlapPolygonAndCircle(const ConvexPolygon& a, const Pose& poseA, const Circle& b, const Pose& poseB);
 }

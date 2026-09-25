@@ -78,6 +78,10 @@ namespace JBro::Physics2D
         std::uint64_t userDataA = 0;
         std::uint64_t userDataB = 0;
         bool          isTrigger = false;
+        // 시작 이벤트의 대표 접촉점(월드)과 A→B 법선. 조각 여럿이 닿으면 가장 깊은 곳의 것이다.
+        // 트리거와 끝 이벤트는 0 이다 - 트리거는 매니폴드의 뜻이 없고, 끝은 이미 떨어졌다.
+        Vec2          point;
+        Vec2          normal;
     };
 
     struct WorldSettings
@@ -213,6 +217,9 @@ namespace JBro::Physics2D
             std::uint64_t userDataA = 0;
             std::uint64_t userDataB = 0;
             bool          isTrigger = false;
+            float         depth = 0.0f;
+            Vec2          point;
+            Vec2          normal;
         };
 
         Body*        FindBody(BodyId body);

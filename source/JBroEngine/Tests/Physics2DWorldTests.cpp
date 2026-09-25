@@ -360,6 +360,13 @@ namespace
                     || (event.userDataA == 22 && event.userDataB == 11);
                 Check(matches, "the begin event names both shapes");
                 Check(false == event.isTrigger, "and is not a trigger");
+                // U 가 먼저 만든 도형이라 A 다. 상자는 위에 얹히므로 A→B 법선은 위(+y)이고, 접촉점은 기둥 윗면 y = 3 이다.
+                Check(event.userDataA == 11, "the lower shape index is A");
+                Check(Near(event.normal.x, 0.0f, 1.0e-4f) && Near(event.normal.y, 1.0f, 1.0e-4f),
+                    "the begin normal points from A (the U) to B (the box)");
+                Check(Near(event.point.y, 3.0f, 0.05f)
+                    && ((event.point.x >= 0.0f && event.point.x <= 1.0f) || (event.point.x >= 2.0f && event.point.x <= 3.0f)),
+                    "and the point sits on top of one of the pillars");
             }
             Check(world.GetEndEvents().IsEmpty(), "nothing ends while the box rests");
         }
@@ -404,6 +411,8 @@ namespace
             for (const JBro::Physics2D::ContactEvent& event : world.GetBeginEvents())
             {
                 Check(event.isTrigger, "entering the zone is a trigger event");
+                Check(event.normal.x == 0.0f && event.normal.y == 0.0f && event.point.x == 0.0f && event.point.y == 0.0f,
+                    "and carries no contact point or normal");
                 ++begins;
             }
             ends += static_cast<int>(world.GetEndEvents().Size());

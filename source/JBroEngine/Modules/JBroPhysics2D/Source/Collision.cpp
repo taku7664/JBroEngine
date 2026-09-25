@@ -57,6 +57,8 @@ namespace JBro::Physics2D
             return best;
         }
 
+        constexpr std::uint32_t InvalidEdge = 0xFFFFFFFFu;
+
         struct ClipVertex
         {
             Vec2          point;
@@ -309,6 +311,114 @@ namespace JBro::Physics2D
             bounds.max = { std::fmax(bounds.max.x, point.x), std::fmax(bounds.max.y, point.y) };
         }
         return bounds;
+    }
+
+    bool RaycastPolygon(const ConvexPolygon& polygon, const Pose& pose,
+        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal)
+    {
+        if (polygon.count < 3 || maxDistance < 0.0f)
+        {
+            return false;
+        }
+        const WorldPolygon world = ToWorld(polygon, pose);
+
+        // 변마다 반평면을 자른다(Cyrus-Beck). 들어가는 변 중 가장 늦은 것이 맞은 면이다.
+        float lower = 0.0f;
+        float upper = maxDistance;
+        std::uint32_t entered = InvalidEdge;
+        for (std::uint32_t i = 0; i < world.count; ++i)
+        {
+            const float numerator = Dot(world.normals[i], Subtract(world.points[i], origin));
+            const float denominator = Dot(world.normals[i], direction);
+            if (denominator == 0.0f)
+            {
+                if (numerator < 0.0f)
+                {
+                    return false;
+                }
+                continue;
+            }
+            const float t = numerator / denominator;
+            if (denominator < 0.0f && t > lower)
+            {
+                lower = t;
+                entered = i;
+            }
+            else if (denominator > 0.0f && t < upper)
+            {
+                upper = t;
+            }
+            if (upper < lower)
+            {
+                return false;
+            }
+        }
+
+        if (entered == InvalidEdge)
+        {
+            distance = 0.0f;
+            normal = Scale(direction, -1.0f);
+            return true;
+        }
+        distance = lower;
+        normal = world.normals[entered];
+        return true;
+    }
+
+    bool RaycastCircle(const Circle& circle, const Pose& pose,
+        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal)
+    {
+        if (circle.radius <= 0.0f || maxDistance < 0.0f)
+        {
+            return false;
+        }
+        const Vec2 center = TransformPoint(pose, circle.center);
+        const Vec2 offset = Subtract(origin, center);
+        const float c = Dot(offset, offset) - circle.radius * circle.radius;
+        if (c <= 0.0f)
+        {
+            distance = 0.0f;
+            normal = Scale(direction, -1.0f);
+            return true;
+        }
+        const float b = Dot(offset, direction);
+        const float discriminant = b * b - c;
+        if (b > 0.0f || discriminant < 0.0f)
+        {
+            return false;
+        }
+        const float t = -b - std::sqrt(discriminant);
+        if (t > maxDistance)
+        {
+            return false;
+        }
+        distance = t;
+        const Vec2 hit = Add(origin, Scale(direction, t));
+        normal = Scale(Subtract(hit, center), 1.0f / circle.radius);
+        return true;
+    }
+
+    bool OverlapPolygons(const ConvexPolygon& a, const Pose& poseA, const ConvexPolygon& b, const Pose& poseB)
+    {
+        if (a.count < 3 || b.count < 3)
+        {
+            return false;
+        }
+        const WorldPolygon worldA = ToWorld(a, poseA);
+        const WorldPolygon worldB = ToWorld(b, poseB);
+        std::uint32_t edge = 0;
+        if (FindMaxSeparation(worldA, worldB, edge) > 0.0f)
+        {
+            return false;
+        }
+        return FindMaxSeparation(worldB, worldA, edge) <= 0.0f;
+    }
+
+    bool OverlapPolygonAndCircle(const ConvexPolygon& a, const Pose& poseA, const Circle& b, const Pose& poseB)
+    {
+        // 닿은 것은 표면 사이가 0 이하라는 뜻이다. 미리 만드는 접촉과 같은 판정을 쓰고 거리만 0 으로 본다.
+        const Manifold manifold = CollidePolygonAndCircle(a, poseA, b, poseB);
+        return manifold.count > 0 && manifold.points[0].separation <= 0.0f;
     }
 
     Rect ComputeCircleBounds(const Circle& circle, const Pose& pose)
