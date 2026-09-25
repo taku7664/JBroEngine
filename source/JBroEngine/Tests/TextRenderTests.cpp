@@ -576,6 +576,216 @@ namespace
 
     // **프로젝트 폰트**(D-200 (6), text-plan §5 의 3 단계). `fontId` 가 빈 텍스트는 프로젝트의 첫 폰트로 그리고, 폰트에 없는 글자는
     // 목록에서 찾아 그 폰트의 아틀라스로 그린다. 목록을 바꾸면 다음 프레임에 다시 레이아웃되고, 같은 목록을 다시 주면 그대로다.
+    struct ColourCount
+    {
+        std::uint32_t red = 0;
+        std::uint32_t black = 0;
+        std::uint32_t touched = 0; // 흰색이 아닌 픽셀
+        std::uint32_t minX = 64;
+        std::uint32_t minY = 64;
+        std::uint32_t maxX = 0;
+        std::uint32_t maxY = 0;
+    };
+
+    ColourCount CountColours(const Gpu& gpu)
+    {
+        ColourCount count;
+        for (std::uint32_t y = 0; y < 64; ++y)
+        {
+            for (std::uint32_t x = 0; x < 64; ++x)
+            {
+                const auto* pixel = reinterpret_cast<const unsigned char*>(
+                    gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                const int b = pixel[0];
+                const int g = pixel[1];
+                const int r = pixel[2];
+                if (r > 200 && g < 70 && b < 70)
+                {
+                    ++count.red;
+                }
+                if (r < 70 && g < 70 && b < 70)
+                {
+                    ++count.black;
+                }
+                if (r < 240 || g < 240 || b < 240)
+                {
+                    ++count.touched;
+                    count.minX = std::min(count.minX, x);
+                    count.minY = std::min(count.minY, y);
+                    count.maxX = std::max(count.maxX, x);
+                    count.maxY = std::max(count.maxY, y);
+                }
+            }
+        }
+        return count;
+    }
+
+    // **SDF 와 외곽선**(text-plan §5 의 4 단계 완료 조건). 폰트를 `Sdf` 로 들여와 빨간 `H` 에 검은 외곽선을 준다.
+    // 외곽선 폭을 퍼짐보다 크게 줘도 글자 칸이 네모로 칠해지지 않고(퍼짐까지로 잘린다), 카메라를 두 배로 빼도 외곽선과 글자 굵기의
+    // 비가 같으며(폭이 글자 픽셀이다), 반투명 글자의 채우기 자리가 외곽선과 겹쳐 진해지지 않는다. 크기를 조금씩 바꿔도 새 글리프를
+    // 뜨지 않는다(거리장 한 벌을 키운다).
+    void TestSdfTextKeepsItsOutlineInProportion()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads");
+            meta.hasFontOptions = true;
+            meta.fontOptions.renderMode = FontRenderMode::Sdf;
+            Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves as Sdf");
+            AssetMetaFile reread;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), reread, error)
+                    && reread.fontOptions.renderMode == FontRenderMode::Sdf && reread.fontOptions.sdfSize == 48
+                    && reread.fontOptions.sdfSpread == 8,
+                "the render mode round-trips with the default field size and spread");
+        }
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; sdf text not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {1.0f, 0.0f, 0.0f, 1.0f};
+            label->outlineColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            label->outlineWidth = 3.0f;
+            TextStore::Get().Assign(label->text, "H", 1);
+            framework.BindCanvasAssets();
+            Check(project.assets.GetFont(label->font) != nullptr
+                    && project.assets.GetFont(label->font)->options.filter == TextureFilter::Linear,
+                "an Sdf font always samples Linear");
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+
+            // 1. 외곽선이 서고, 글자는 커널이 잰 칸 가운데에 빨갛게 선다.
+            gpu.Paint(framework);
+            const ColourCount near = CountColours(gpu);
+            std::cout << "  [measure] sdf H: red " << near.red << ", black " << near.black << ", touched " << near.touched
+                      << " in " << (near.maxX - near.minX + 1) << "x" << (near.maxY - near.minY + 1) << std::endl;
+            Check(near.red > 100 && near.black > 60, "a red H with a black outline");
+            const ScreenRect cell = ExpectedGlyph("H", 40);
+            Check(static_cast<float>(near.minX) >= cell.left - 5.0f && static_cast<float>(near.maxX) <= cell.right + 5.0f,
+                "the outlined H stays around its glyph cell");
+
+            // 2. 퍼짐보다 굵은 외곽선(100 px)은 퍼짐까지로 잘린다 - 50 px 과 같은 그림이고, 칸 전체가 칠해지지 않는다.
+            label->outlineWidth = 100.0f;
+            gpu.Paint(framework);
+            const ColourCount huge = CountColours(gpu);
+            label->outlineWidth = 50.0f;
+            gpu.Paint(framework);
+            const ColourCount wide = CountColours(gpu);
+            const std::uint32_t box = (huge.maxX - huge.minX + 1) * (huge.maxY - huge.minY + 1);
+            std::cout << "  [measure] 100 px outline: black " << huge.black << ", touched " << huge.touched << " of a "
+                      << box << " px box" << std::endl;
+            Check(huge.black == wide.black && huge.touched == wide.touched, "an outline past the spread is cut at the spread");
+            // 외곽선은 글자를 둥글게 넓힌 모양이라 그 외접 사각형의 네 모서리는 비어 있다. 칸이 네모로 칠해지면 모서리까지 찬다.
+            const auto whiteAt = [&](std::uint32_t x, std::uint32_t y) {
+                const auto* pixel = reinterpret_cast<const unsigned char*>(
+                    gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                return pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240;
+            };
+            Check(whiteAt(huge.minX, huge.minY) && whiteAt(huge.maxX, huge.minY) && whiteAt(huge.minX, huge.maxY)
+                    && whiteAt(huge.maxX, huge.maxY),
+                "and the glyph's quad is not filled into a box - the corners of the outline's bounds stay white");
+            Check(huge.black > near.black, "the cut outline is still wider than a 3 px one");
+
+            // 3. 카메라를 두 배로 빼면 글자가 절반이 되고, 외곽선과 채우기의 비는 그대로다.
+            label->outlineWidth = 3.0f;
+            camera->orthographicSize = 2.0f;
+            gpu.Paint(framework);
+            const ColourCount far = CountColours(gpu);
+            const float nearRatio = static_cast<float>(near.black) / static_cast<float>(near.red);
+            const float farRatio = static_cast<float>(far.black) / static_cast<float>(far.red);
+            std::cout << "  [measure] outline / fill: near " << nearRatio << ", two times further " << farRatio << std::endl;
+            Check(far.red < near.red / 2 && far.red > near.red / 8, "the H is drawn smaller from further away");
+            Check(std::fabs(farRatio - nearRatio) < nearRatio * 0.3f, "and its outline keeps the same share of it");
+            camera->orthographicSize = 1.0f;
+
+            // 4. 반투명이면 채우기 자리는 흰 바탕 위의 빨강 절반이다. 외곽선이 그 밑에 한 번 더 깔리면 초록·파랑이 반보다 어둡다.
+            gpu.Paint(framework);
+            Array<std::uint32_t> filled;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const auto* pixel = reinterpret_cast<const unsigned char*>(
+                        gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                    if (pixel[2] > 250 && pixel[1] < 5 && pixel[0] < 5)
+                    {
+                        filled.Add(y * 64 + x);
+                    }
+                }
+            }
+            Check(filled.Size() > 20, "the opaque H has solid red pixels");
+            label->color = {1.0f, 0.0f, 0.0f, 0.5f};
+            label->outlineColor = {0.0f, 0.0f, 0.0f, 0.5f};
+            gpu.Paint(framework);
+            std::uint32_t darker = 0;
+            for (const std::uint32_t at : filled)
+            {
+                const auto* pixel = reinterpret_cast<const unsigned char*>(
+                    gpu.image.Data() + static_cast<std::size_t>(at / 64) * gpu.readback.rowPitch + static_cast<std::size_t>(at % 64) * 4);
+                if (pixel[1] < 115 || pixel[2] < 245)
+                {
+                    ++darker;
+                }
+            }
+            Check(darker == 0, "a translucent fill is half red over white everywhere, never darkened by its own outline");
+            label->color = {1.0f, 0.0f, 0.0f, 1.0f};
+            label->outlineColor = {0.0f, 0.0f, 0.0f, 1.0f};
+
+            // 5. 크기를 조금 바꾸면 다시 레이아웃하지만 새 글리프는 없다 - 올릴 것도 없다.
+            gpu.Paint(framework);
+            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the H has a block");
+            const float width40 = maxX - minX;
+            label->fontSize = 40.7f;
+            gpu.Paint(framework);
+            label->fontSize = 57.3f;
+            gpu.Paint(framework);
+            // 소수 크기 그대로 레이아웃한다. 반올림한 57 이면 폭의 비가 57/40 이라 0.5 % 어긋난다.
+            Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY)
+                    && std::fabs((maxX - minX) / width40 - 57.3f / 40.0f) < 0.001f,
+                "an SDF text is laid out at its exact size, not rounded to a pixel");
+            Check(texts->GetRelayoutCount() == relayouts + 2, "each new size lays the text out again");
+            Check(texts->GetLibrary().GetUploadCount() == uploads, "but a new size is not a new glyph, so nothing uploads");
+            Check(CountColours(gpu).red > near.red, "and the bigger H is drawn bigger");
+
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     void TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters()
     {
         FontProject project;
@@ -684,6 +894,7 @@ int RunTextRenderTests()
         TestFontAssetsLoadAndReload();
         TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
         TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
+        TestSdfTextKeepsItsOutlineInProportion();
     }
     catch (const std::exception&)
     {

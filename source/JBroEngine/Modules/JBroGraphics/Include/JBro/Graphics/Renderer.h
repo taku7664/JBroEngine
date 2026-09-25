@@ -102,6 +102,14 @@ namespace JBro
         Linear
     };
 
+    // 스프라이트를 무엇으로 칠하나(text-plan §4.5). `SdfText` 는 텍스처의 알파를 거리장으로 읽고 채우기와 외곽선을 한 번에
+    // 합성한다 - 제 파이프라인과 제 인스턴스 버퍼가 있어 보통 스프라이트의 인스턴스(40 B)는 그대로다.
+    enum class SpriteShading : std::uint8_t
+    {
+        Sprite,
+        SdfText
+    };
+
     // 정렬과 레이어 합성은 프레임워크가 제출 전에 끝낸다.
     // 렌더러는 받은 순서대로 그린다(D-53). 텍스처가 같은 연속 구간이 드로우 하나다(D-113).
     struct SpriteSubmit
@@ -114,6 +122,10 @@ namespace JBro
         // 텍스처의 어느 부분인가: uMin, vMin, uScale, vScale. 기본은 전체다. 시트의 한 칸이 이것으로 온다(D-113).
         float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
         SpriteFilter filter = SpriteFilter::Nearest;
+        SpriteShading shading = SpriteShading::Sprite;
+        // `SdfText` 에서만 읽는다. 외곽선 색과, 외곽선이 끝나는 거리값(0.5 면 외곽선이 없다). 거리값은 부르는 쪽이 한 칸 이상 0 위로 둔다.
+        float outlineColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        float outlineEdge = 0.5f;
     };
 
     struct MeshSubmit
@@ -253,6 +265,8 @@ namespace JBro
             SamplerHandle sampler;
             std::uint32_t firstInstance = 0;
             std::uint32_t instanceCount = 0;
+            // SDF 텍스트 구간이면 참이다. 인스턴스는 텍스트 버퍼의 같은 번호에 있다.
+            bool sdf = false;
         };
 
         // 같은 메시를 그리는 인스턴스들의 연속 구간이다(D-110). 업로드가 뷰 안에서 메시별로 모아 놓으므로
@@ -289,6 +303,23 @@ namespace JBro
             "instance attribute 2 reads the translation and depth from offset 16");
         static_assert(offsetof(GpuSpriteInstance, tint) == 28,
             "instance attribute 3 reads the tint from offset 28");
+
+        // SDF 텍스트의 인스턴스다. `BuiltinSdfText.hlsl` 의 ATTRIBUTE1..6 이 읽는다. 앞 40 바이트는 스프라이트와 같은 자리다.
+        // 제출 번호와 같은 칸에 쓴다(스프라이트 칸과 짝) - 구간이 스프라이트와 텍스트를 섞어도 각자의 버퍼에서 연속이다.
+        struct GpuTextInstance
+        {
+            SpriteTransform2D world;
+            std::uint8_t fill[4] = {255, 255, 255, 255};
+            std::uint16_t uvRect[4] = {0, 0, 65535, 65535};
+            std::uint8_t outline[4] = {0, 0, 0, 0};
+            // x 는 외곽선이 끝나는 거리값이다. 나머지는 비워 둔다 - 정점 형식에 16 비트 둘짜리가 없다.
+            std::uint16_t params[4] = {32768, 0, 0, 0};
+        };
+        static_assert(sizeof(GpuTextInstance) == 52, "text instance stride is part of the shader ABI");
+        static_assert(offsetof(GpuTextInstance, fill) == 28, "text attribute 3 reads the fill colour from offset 28");
+        static_assert(offsetof(GpuTextInstance, uvRect) == 32, "text attribute 4 reads the uv rectangle from offset 32");
+        static_assert(offsetof(GpuTextInstance, outline) == 40, "text attribute 5 reads the outline colour from offset 40");
+        static_assert(offsetof(GpuTextInstance, params) == 44, "text attribute 6 reads the params from offset 44");
 
         // 메시 인스턴스 하나. 월드 4x4(행 넷)와 tint. `BuiltinMesh.hlsl` 의 ATTRIBUTE2..6 이 이것을 읽는다.
         struct GpuMeshInstance
@@ -360,11 +391,18 @@ namespace JBro
         // 인스턴스 배열은 초기화 때 상한 크기로 한 번 잡고 프레임마다 앞에서부터 채운다 - `Resize` 는 매 프레임
         // 값 초기화(memset)를 하고, 그 비용이 자료를 옮기는 것보다 컸다(D-110 리뷰).
         Array<GpuSpriteInstance> m_gpuSpriteInstances;
+        // SDF 텍스트 인스턴스다. 스프라이트 배열과 같은 크기로 한 번 잡고, 이번 프레임에 쓴 번호 구간만 올린다.
+        Array<GpuTextInstance> m_gpuTextInstances;
+        std::size_t m_gpuTextFirst = 0;
+        std::size_t m_gpuTextEnd = 0;
         std::size_t m_gpuSpriteCount = 0;
         std::size_t m_gpuMeshCount = 0;
         BufferHandle m_spriteVertexBuffer;
         BufferHandle m_spriteIndexBuffer;
         BufferHandle m_spriteInstanceBuffers[MaxFrameSlots];
+        BufferHandle m_textInstanceBuffers[MaxFrameSlots];
+        GraphicsPipelineHandle m_sdfTextPipeline;
+        GraphicsPipelineHandle m_sdfTextOverDepthPipeline;
         GraphicsPipelineHandle m_spritePipeline;
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
         // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.

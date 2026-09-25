@@ -21,6 +21,83 @@ namespace JBro::Text
         return (static_cast<std::uint64_t>(pixelSize) << 32) | static_cast<std::uint64_t>(glyph);
     }
 
+    std::uint64_t GlyphAtlas::SdfKey(std::uint32_t pixelSize, std::uint32_t spread, GlyphIndex glyph)
+    {
+        // 맨 위 비트가 SDF 표시이고, 그 아래 8 비트가 퍼짐이다. 비트맵 키는 크기가 512 이하라 이 자리에 닿지 않는다.
+        return (std::uint64_t{ 1 } << 63) | (static_cast<std::uint64_t>(spread & 0xFF) << 48)
+            | (static_cast<std::uint64_t>(pixelSize) << 32) | static_cast<std::uint64_t>(glyph);
+    }
+
+    AtlasError GlyphAtlas::EnsureSdf(const FontFace& face, std::uint32_t pixelSize, std::uint32_t spread, GlyphIndex glyph,
+        AtlasGlyph& out)
+    {
+        if (false == face.IsLoaded())
+        {
+            return AtlasError::FaceNotLoaded;
+        }
+        if (pixelSize == 0 || pixelSize > MaxPixelSize || spread == 0 || spread > MaxSdfSpread)
+        {
+            return AtlasError::InvalidPixelSize;
+        }
+        const std::uint64_t key = SdfKey(pixelSize, spread, glyph);
+        if (const AtlasGlyph* found = m_glyphs.Find(key))
+        {
+            out = *found;
+            return AtlasError::None;
+        }
+        GlyphBitmapBox box;
+        if (false == face.RasterizeGlyphSdf(glyph, static_cast<float>(pixelSize), static_cast<std::int32_t>(spread), box, m_scratch)
+            || box.width <= 0 || box.height <= 0)
+        {
+            AtlasGlyph entry;
+            m_glyphs.FindOrAdd(key) = entry;
+            out = entry;
+            return AtlasError::None;
+        }
+        return Place(key, box, m_scratch.Data(), out);
+    }
+
+    AtlasError GlyphAtlas::Place(std::uint64_t key, const GlyphBitmapBox& box, const std::uint8_t* alpha, AtlasGlyph& out)
+    {
+        const std::uint32_t width = static_cast<std::uint32_t>(box.width);
+        const std::uint32_t height = static_cast<std::uint32_t>(box.height);
+        std::uint32_t page = 0;
+        std::uint32_t x = 0;
+        std::uint32_t y = 0;
+        if (false == Allocate(width, height, page, x, y))
+        {
+            return AtlasError::GlyphTooLarge;
+        }
+        Page& target = m_pages[page];
+        const std::size_t rowBytes = static_cast<std::size_t>(m_pageSize) * 4;
+        for (std::uint32_t row = 0; row < height; ++row)
+        {
+            std::byte* destination = target.pixels.Data() + (static_cast<std::size_t>(y) + row) * rowBytes + static_cast<std::size_t>(x) * 4;
+            const std::uint8_t* source = alpha + static_cast<std::size_t>(row) * width;
+            for (std::uint32_t column = 0; column < width; ++column)
+            {
+                destination[column * 4 + 0] = std::byte{ 255 };
+                destination[column * 4 + 1] = std::byte{ 255 };
+                destination[column * 4 + 2] = std::byte{ 255 };
+                destination[column * 4 + 3] = static_cast<std::byte>(source[column]);
+            }
+        }
+        target.dirty = true;
+
+        AtlasGlyph entry;
+        entry.page = static_cast<std::uint16_t>(page);
+        entry.x = static_cast<std::uint16_t>(x);
+        entry.y = static_cast<std::uint16_t>(y);
+        entry.width = static_cast<std::uint16_t>(width);
+        entry.height = static_cast<std::uint16_t>(height);
+        entry.left = static_cast<std::int16_t>(box.left);
+        entry.top = static_cast<std::int16_t>(box.top);
+        entry.empty = false;
+        m_glyphs.FindOrAdd(key) = entry;
+        out = entry;
+        return AtlasError::None;
+    }
+
     const AtlasGlyph* GlyphAtlas::Find(std::uint32_t pixelSize, GlyphIndex glyph) const
     {
         return m_glyphs.Find(Key(pixelSize, glyph));
@@ -52,47 +129,16 @@ namespace JBro::Text
             out = entry;
             return AtlasError::None;
         }
-        const std::uint32_t width = static_cast<std::uint32_t>(box.width);
-        const std::uint32_t height = static_cast<std::uint32_t>(box.height);
-        std::uint32_t page = 0;
-        std::uint32_t x = 0;
-        std::uint32_t y = 0;
-        if (false == Allocate(width, height, page, x, y))
+        // 칸이 들어갈 자리가 없으면 래스터화하지 않는다(Place 가 거절한다) - 크기만 먼저 본다.
+        if (static_cast<std::uint32_t>(box.width) + 2 * Gap > m_pageSize || static_cast<std::uint32_t>(box.height) + 2 * Gap > m_pageSize)
         {
             return AtlasError::GlyphTooLarge;
         }
-
-        m_scratch.Resize(static_cast<std::size_t>(width) * height);
+        const std::uint32_t width = static_cast<std::uint32_t>(box.width);
+        m_scratch.Resize(static_cast<std::size_t>(width) * static_cast<std::uint32_t>(box.height));
         std::memset(m_scratch.Data(), 0, m_scratch.Size());
         face.RasterizeGlyph(glyph, static_cast<float>(pixelSize), box, m_scratch.Data(), static_cast<std::int32_t>(width));
-
-        Page& target = m_pages[page];
-        const std::size_t rowBytes = static_cast<std::size_t>(m_pageSize) * 4;
-        for (std::uint32_t row = 0; row < height; ++row)
-        {
-            std::byte* destination = target.pixels.Data() + (static_cast<std::size_t>(y) + row) * rowBytes + static_cast<std::size_t>(x) * 4;
-            const std::uint8_t* source = m_scratch.Data() + static_cast<std::size_t>(row) * width;
-            for (std::uint32_t column = 0; column < width; ++column)
-            {
-                destination[column * 4 + 0] = std::byte{ 255 };
-                destination[column * 4 + 1] = std::byte{ 255 };
-                destination[column * 4 + 2] = std::byte{ 255 };
-                destination[column * 4 + 3] = static_cast<std::byte>(source[column]);
-            }
-        }
-        target.dirty = true;
-
-        entry.page = static_cast<std::uint16_t>(page);
-        entry.x = static_cast<std::uint16_t>(x);
-        entry.y = static_cast<std::uint16_t>(y);
-        entry.width = static_cast<std::uint16_t>(width);
-        entry.height = static_cast<std::uint16_t>(height);
-        entry.left = static_cast<std::int16_t>(box.left);
-        entry.top = static_cast<std::int16_t>(box.top);
-        entry.empty = false;
-        m_glyphs.FindOrAdd(key) = entry;
-        out = entry;
-        return AtlasError::None;
+        return Place(key, box, m_scratch.Data(), out);
     }
 
     bool GlyphAtlas::Allocate(std::uint32_t width, std::uint32_t height, std::uint32_t& page, std::uint32_t& x, std::uint32_t& y)

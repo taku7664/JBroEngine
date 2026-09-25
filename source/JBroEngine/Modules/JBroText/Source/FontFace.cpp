@@ -5,8 +5,8 @@
 #include <limits>
 
 // stb_truetype 의 구현은 이 번역 단위 하나에만 켠다(ThirdParty/README). STBTT_STATIC 으로 이름을 이 파일 안에 가둔다 -
-// ImGui 도 같은 라이브러리의 자기 사본을 static 으로 켜므로 링크에서 겹치지 않는다. 래스터라이저와 SDF 는 아직 쓰지 않는다
-// (아틀라스는 2 단계, text-plan §5). 그쪽이 부르는 STBTT_malloc 은 표준 것이다 - 글리프를 처음 뜰 때만 돈다.
+// ImGui 도 같은 라이브러리의 자기 사본을 static 으로 켜므로 링크에서 겹치지 않는다. 래스터라이저(2 단계)와 SDF(4 단계)가 부르는
+// STBTT_malloc 은 표준 것이다 - 글리프를 처음 뜰 때만 돈다(아틀라스가 칸을 기억한다).
 #define STB_TRUETYPE_IMPLEMENTATION
 #define STBTT_STATIC
 #include <stb_truetype.h>
@@ -206,6 +206,44 @@ namespace JBro::Text
         const stbtt_fontinfo* info = Info(m_info);
         const float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
         stbtt_MakeGlyphBitmap(info, coverage, box.width, box.height, stride, scale, scale, static_cast<int>(glyph));
+        return true;
+    }
+
+    bool FontFace::RasterizeGlyphSdf(GlyphIndex glyph, float pixelSize, std::int32_t spread, GlyphBitmapBox& box,
+        Array<std::uint8_t>& distances) const
+    {
+        box = {};
+        if (false == m_loaded || false == (pixelSize > 0.0f) || spread <= 0)
+        {
+            return false;
+        }
+        const stbtt_fontinfo* info = Info(m_info);
+        if (0 != stbtt_IsGlyphEmpty(info, static_cast<int>(glyph)))
+        {
+            return true;
+        }
+        const float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
+        constexpr unsigned char OnEdge = 128;
+        const float perPixel = static_cast<float>(OnEdge) / static_cast<float>(spread);
+        int width = 0;
+        int height = 0;
+        int xoff = 0;
+        int yoff = 0;
+        unsigned char* field = stbtt_GetGlyphSDF(info, scale, static_cast<int>(glyph), spread, OnEdge, perPixel,
+            &width, &height, &xoff, &yoff);
+        if (field == nullptr || width <= 0 || height <= 0)
+        {
+            stbtt_FreeSDF(field, nullptr);
+            return true;
+        }
+        distances.Resize(static_cast<std::size_t>(width) * static_cast<std::size_t>(height));
+        std::memcpy(distances.Data(), field, distances.Size());
+        stbtt_FreeSDF(field, nullptr);
+        // stb 의 오프셋은 y 가 아래쪽이다. 위쪽이 양수인 top 으로 뒤집는다.
+        box.left = xoff;
+        box.top = -yoff;
+        box.width = width;
+        box.height = height;
         return true;
     }
 }

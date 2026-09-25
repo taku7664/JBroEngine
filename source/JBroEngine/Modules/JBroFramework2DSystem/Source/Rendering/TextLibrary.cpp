@@ -148,6 +148,9 @@ namespace JBro
             entry.dataGeneration = data->dataGeneration;
             entry.pixelsPerUnit = data->options.pixelsPerUnit;
             entry.filter = data->options.filter;
+            entry.renderMode = data->options.renderMode;
+            entry.sdfSize = data->options.sdfSize;
+            entry.sdfSpread = data->options.sdfSpread;
             if (false == entry.face.Load(ArrayView<const std::byte>(data->bytes.Data(), data->bytes.Size())))
             {
                 entry.failedGeneration = data->dataGeneration;
@@ -161,6 +164,9 @@ namespace JBro
         view.pixelsPerUnit = entry.pixelsPerUnit;
         view.filter = entry.filter;
         view.dataGeneration = entry.dataGeneration;
+        view.renderMode = entry.renderMode;
+        view.sdfSize = entry.sdfSize;
+        view.sdfSpread = entry.sdfSpread;
         return true;
     }
 

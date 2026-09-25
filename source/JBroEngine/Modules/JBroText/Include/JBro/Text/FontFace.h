@@ -80,6 +80,12 @@ namespace JBro::Text
         // box(MeasureGlyphBitmap 이 잰 것) 크기의 커버리지(한 채널, 0~255)를 coverage 에 그린다. 행 간격은 stride 바이트다.
         // 처음 보는 글리프에서만 부른다 - stb 가 안에서 힙을 쓴다(프레임 규칙은 아틀라스의 캐시가 지킨다).
         bool RasterizeGlyph(GlyphIndex glyph, float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, std::int32_t stride) const;
+        // em 픽셀 크기 pixelSize 로 부호 있는 거리장(SDF)을 그린다(text-plan §3.5). 사방에 spread 픽셀을 둘러 box 가 그만큼 크다.
+        // 값은 외곽선에서 128 이고 바깥으로 1 픽셀마다 128/spread 씩 줄어 spread 픽셀 밖에서 0 이다(안쪽은 같은 비율로 늘어 255 에서 멈춘다).
+        // distances 는 box.width * box.height 로 다시 잡는다. 그릴 것이 없으면(공백) 참이고 box 가 0 이다.
+        // 처음 보는 글리프에서만 부른다 - stb 가 안에서 힙을 쓴다.
+        bool RasterizeGlyphSdf(GlyphIndex glyph, float pixelSize, std::int32_t spread, GlyphBitmapBox& box,
+            Array<std::uint8_t>& distances) const;
 
     private:
         // stbtt_fontinfo 를 담는 자리다. 크기는 FontFace.cpp 가 단언한다. 헤더에 stb 를 들이지 않으려고 불투명하게 둔다.

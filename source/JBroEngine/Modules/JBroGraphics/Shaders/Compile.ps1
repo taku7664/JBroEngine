@@ -40,21 +40,27 @@ $targets = @(
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinSpriteVS'; Header = 'BuiltinSpriteVS.generated.h' },
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpritePS'; Header = 'BuiltinSpritePS.generated.h' },
     @{ File = 'BuiltinMesh.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinMeshVS'; Header = 'BuiltinMeshVS.generated.h' },
-    @{ File = 'BuiltinMesh.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinMeshPS'; Header = 'BuiltinMeshPS.generated.h' }
+    @{ File = 'BuiltinMesh.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinMeshPS'; Header = 'BuiltinMeshPS.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinSdfTextVS'; Header = 'BuiltinSdfTextVS.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextPS'; Header = 'BuiltinSdfTextPS.generated.h' }
 )
 
 $sm5Targets = @(
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroBuiltinSpriteVS_SM5'; Header = 'BuiltinSpriteVS_SM5.generated.h' },
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinSpritePS_SM5'; Header = 'BuiltinSpritePS_SM5.generated.h' },
     @{ File = 'BuiltinMesh.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroBuiltinMeshVS_SM5'; Header = 'BuiltinMeshVS_SM5.generated.h' },
-    @{ File = 'BuiltinMesh.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinMeshPS_SM5'; Header = 'BuiltinMeshPS_SM5.generated.h' }
+    @{ File = 'BuiltinMesh.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinMeshPS_SM5'; Header = 'BuiltinMeshPS_SM5.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroBuiltinSdfTextVS_SM5'; Header = 'BuiltinSdfTextVS_SM5.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinSdfTextPS_SM5'; Header = 'BuiltinSdfTextPS_SM5.generated.h' }
 )
 
 $spirvTargets = @(
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinSpriteVS_SPV'; Header = 'BuiltinSpriteVS_SPV.generated.h' },
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpritePS_SPV'; Header = 'BuiltinSpritePS_SPV.generated.h' },
     @{ File = 'BuiltinMesh.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinMeshVS_SPV'; Header = 'BuiltinMeshVS_SPV.generated.h' },
-    @{ File = 'BuiltinMesh.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinMeshPS_SPV'; Header = 'BuiltinMeshPS_SPV.generated.h' }
+    @{ File = 'BuiltinMesh.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinMeshPS_SPV'; Header = 'BuiltinMeshPS_SPV.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinSdfTextVS_SPV'; Header = 'BuiltinSdfTextVS_SPV.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextPS_SPV'; Header = 'BuiltinSdfTextPS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)

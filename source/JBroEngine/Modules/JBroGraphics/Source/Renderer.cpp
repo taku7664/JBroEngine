@@ -2,6 +2,8 @@
 
 #include "BuiltinMeshPS.generated.h"
 #include "BuiltinMeshVS.generated.h"
+#include "BuiltinSdfTextPS.generated.h"
+#include "BuiltinSdfTextVS.generated.h"
 #include "BuiltinSpritePS.generated.h"
 #include "BuiltinSpriteVS.generated.h"
 
@@ -12,6 +14,8 @@ namespace JBro::Sm5
     using BYTE = unsigned char;
 #include "BuiltinMeshPS_SM5.generated.h"
 #include "BuiltinMeshVS_SM5.generated.h"
+#include "BuiltinSdfTextPS_SM5.generated.h"
+#include "BuiltinSdfTextVS_SM5.generated.h"
 #include "BuiltinSpritePS_SM5.generated.h"
 #include "BuiltinSpriteVS_SM5.generated.h"
 }
@@ -21,6 +25,8 @@ namespace JBro::Spv
 {
 #include "BuiltinMeshPS_SPV.generated.h"
 #include "BuiltinMeshVS_SPV.generated.h"
+#include "BuiltinSdfTextPS_SPV.generated.h"
+#include "BuiltinSdfTextVS_SPV.generated.h"
 #include "BuiltinSpritePS_SPV.generated.h"
 #include "BuiltinSpriteVS_SPV.generated.h"
 }
@@ -115,6 +121,7 @@ namespace JBro
             m_spriteRuns.Reserve(config.maxSpriteSubmissions);
             m_textureResources.Reserve(64);
             m_gpuSpriteInstances.Resize(config.maxSpriteSubmissions);
+            m_gpuTextInstances.Resize(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Resize(config.maxMeshSubmissions);
             // 메시 슬롯 수만큼 필요하다. 등록할 때 함께 자라므로 프레임 안에서는 할당하지 않는다.
             m_meshHistogram.Reserve(64);
@@ -996,30 +1003,48 @@ namespace JBro
                 const JArrayView<std::byte> constants = {
                     reinterpret_cast<const std::byte*>(viewProjection.values),
                     sizeof(viewProjection.values)};
-                const GraphicsPipelineHandle spritePipeline =
-                    view.runCount != 0 ? m_spriteOverDepthPipeline : m_spritePipeline;
-                if (false == m_frame.commands->SetGraphicsPipeline(spritePipeline)
+                // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
+                // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다. 스프라이트만 있는 뷰는 예전처럼 한 번만 묶는다.
+                const bool overDepth = view.runCount != 0;
+                const auto bindShading = [&](bool sdf) {
+                    const GraphicsPipelineHandle pipeline = sdf
+                        ? (overDepth ? m_sdfTextOverDepthPipeline : m_sdfTextPipeline)
+                        : (overDepth ? m_spriteOverDepthPipeline : m_spritePipeline);
+                    return m_frame.commands->SetGraphicsPipeline(pipeline)
+                        && m_frame.commands->SetVertexBuffer(
+                            1,
+                            sdf ? m_textInstanceBuffers[m_frame.slot] : m_spriteInstanceBuffers[m_frame.slot],
+                            sdf ? static_cast<std::uint32_t>(sizeof(GpuTextInstance))
+                                : static_cast<std::uint32_t>(sizeof(GpuSpriteInstance)),
+                            0)
+                        && m_frame.commands->SetGraphicsConstants(constants);
+                };
+                const bool firstSdf = view.spriteRunCount != 0 && m_spriteRuns[view.spriteRunOffset].sdf;
+                if (false == bindShading(firstSdf)
                     || false == m_frame.commands->SetVertexBuffer(
                         0,
                         m_spriteVertexBuffer,
                         sizeof(float) * 2,
                         0)
-                    || false == m_frame.commands->SetVertexBuffer(
-                        1,
-                        m_spriteInstanceBuffers[m_frame.slot],
-                        sizeof(GpuSpriteInstance),
-                        0)
                     || false == m_frame.commands->SetIndexBuffer(
                         m_spriteIndexBuffer,
                         IndexFormat::UInt16,
-                        0)
-                    || false == m_frame.commands->SetGraphicsConstants(constants))
+                        0))
                 {
                     return false;
                 }
+                bool boundSdf = firstSdf;
                 for (std::uint32_t runIndex = 0; runIndex < view.spriteRunCount; ++runIndex)
                 {
                     const SpriteRun& run = m_spriteRuns[view.spriteRunOffset + runIndex];
+                    if (run.sdf != boundSdf)
+                    {
+                        if (false == bindShading(run.sdf))
+                        {
+                            return false;
+                        }
+                        boundSdf = run.sdf;
+                    }
                     if (false == m_frame.commands->SetTexture(0, run.texture)
                         || false == m_frame.commands->SetSampler(0, run.sampler)
                         || false == m_frame.commands->DrawIndexedInstanced(
@@ -1201,7 +1226,51 @@ namespace JBro
         pipelineDesc.depthTest = false;
         pipelineDesc.depthWrite = false;
         m_spriteOverDepthPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
-        return m_spritePipeline.IsValid() && m_spriteOverDepthPipeline.IsValid();
+        if (false == m_spritePipeline.IsValid() || false == m_spriteOverDepthPipeline.IsValid())
+        {
+            return false;
+        }
+
+        // SDF 텍스트(4 단계). 같은 단위 쿼드와 뷰 상수이고, 인스턴스는 외곽선 색과 문턱을 더 든다.
+        if (m_config.maxSpriteSubmissions > (std::numeric_limits<std::uint32_t>::max)() / sizeof(GpuTextInstance))
+        {
+            return false;
+        }
+        BufferDesc textBufferDesc = instanceBufferDesc;
+        textBufferDesc.size = static_cast<std::size_t>(m_config.maxSpriteSubmissions) * sizeof(GpuTextInstance);
+        for (std::uint32_t index = 0; index < m_config.maxFramesInFlight; ++index)
+        {
+            m_textInstanceBuffers[index] = m_device->CreateBuffer(textBufferDesc);
+            if (false == m_textInstanceBuffers[index].IsValid())
+            {
+                return false;
+            }
+        }
+        const VertexAttributeDesc textAttributes[] = {
+            {1, static_cast<std::uint32_t>(offsetof(GpuTextInstance, world) + offsetof(SpriteTransform2D, linear)),
+                VertexFormat::Float4},
+            {2, static_cast<std::uint32_t>(offsetof(GpuTextInstance, world) + offsetof(SpriteTransform2D, translation)),
+                VertexFormat::Float3},
+            {3, static_cast<std::uint32_t>(offsetof(GpuTextInstance, fill)), VertexFormat::UByte4Norm},
+            {4, static_cast<std::uint32_t>(offsetof(GpuTextInstance, uvRect)), VertexFormat::UShort4Norm},
+            {5, static_cast<std::uint32_t>(offsetof(GpuTextInstance, outline)), VertexFormat::UByte4Norm},
+            {6, static_cast<std::uint32_t>(offsetof(GpuTextInstance, params)), VertexFormat::UShort4Norm}};
+        const VertexBufferLayoutDesc textLayouts[] = {
+            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {sizeof(GpuTextInstance), VertexStepMode::Instance, {textAttributes, 6}}};
+        GraphicsPipelineDesc textDesc = pipelineDesc;
+        textDesc.vertexShader = PickShader(m_config.api, JBroBuiltinSdfTextVS, sizeof(JBroBuiltinSdfTextVS),
+            Sm5::JBroBuiltinSdfTextVS_SM5, sizeof(Sm5::JBroBuiltinSdfTextVS_SM5),
+            Spv::JBroBuiltinSdfTextVS_SPV, sizeof(Spv::JBroBuiltinSdfTextVS_SPV));
+        textDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSdfTextPS, sizeof(JBroBuiltinSdfTextPS),
+            Sm5::JBroBuiltinSdfTextPS_SM5, sizeof(Sm5::JBroBuiltinSdfTextPS_SM5),
+            Spv::JBroBuiltinSdfTextPS_SPV, sizeof(Spv::JBroBuiltinSdfTextPS_SPV));
+        textDesc.vertexBuffers = {textLayouts, 2};
+        textDesc.depthFormat = TextureFormat::Unknown;
+        m_sdfTextPipeline = m_device->CreateGraphicsPipeline(textDesc);
+        textDesc.depthFormat = TextureFormat::D32Float;
+        m_sdfTextOverDepthPipeline = m_device->CreateGraphicsPipeline(textDesc);
+        return m_sdfTextPipeline.IsValid() && m_sdfTextOverDepthPipeline.IsValid();
     }
 
     bool Renderer::CreateBuiltinMeshResources()
@@ -1388,6 +1457,22 @@ namespace JBro
             m_device->DestroyGraphicsPipeline(m_spriteOverDepthPipeline);
             m_spriteOverDepthPipeline = {};
         }
+        for (GraphicsPipelineHandle* pipeline : {&m_sdfTextPipeline, &m_sdfTextOverDepthPipeline})
+        {
+            if (pipeline->IsValid())
+            {
+                m_device->DestroyGraphicsPipeline(*pipeline);
+                *pipeline = {};
+            }
+        }
+        for (BufferHandle& buffer : m_textInstanceBuffers)
+        {
+            if (buffer.IsValid())
+            {
+                m_device->DestroyBuffer(buffer);
+                buffer = {};
+            }
+        }
         if (m_whiteTexture.IsValid())
         {
             m_device->DestroyTexture(m_whiteTexture);
@@ -1439,6 +1524,9 @@ namespace JBro
         }
         const SpriteSubmit* source = m_sprites.Data();
         GpuSpriteInstance* destination = m_gpuSpriteInstances.Data();
+        GpuTextInstance* textDestination = m_gpuTextInstances.Data();
+        m_gpuTextFirst = count;
+        m_gpuTextEnd = 0;
 
         // **한 번만 지나간다.** 인스턴스를 옮기는 같은 걸음에서 텍스처·샘플러가 같은 이웃을 묶어 드로우 하나로 낸다(D-113).
         // 60000 개를 두 번 지나가면 패킷 배열(개당 80B, 4.8MB)을 한 번 더 흘리는 값이 0.3ms 였다. 순서는 바꾸지 않는다 -
@@ -1462,17 +1550,36 @@ namespace JBro
             for (std::uint32_t index = view.spriteOffset; index < viewEnd; ++index)
             {
                 const SpriteSubmit& item = source[index];
-                GpuSpriteInstance& instance = destination[index];
-                instance.world = item.world;
-                // 0..1 로 잘라 정규화 정수로 접는다(D-114). 반올림해야 0.5 가 128 로 가서 되읽기가 0.502 다.
-                instance.tint[0] = ToUnorm8(item.tint[0]);
-                instance.tint[1] = ToUnorm8(item.tint[1]);
-                instance.tint[2] = ToUnorm8(item.tint[2]);
-                instance.tint[3] = ToUnorm8(item.tint[3]);
-                instance.uvRect[0] = ToUnorm16(item.uvRect[0]);
-                instance.uvRect[1] = ToUnorm16(item.uvRect[1]);
-                instance.uvRect[2] = ToUnorm16(item.uvRect[2]);
-                instance.uvRect[3] = ToUnorm16(item.uvRect[3]);
+                const bool sdf = item.shading == SpriteShading::SdfText;
+                if (sdf)
+                {
+                    // SDF 텍스트는 제 버퍼의 같은 번호 칸에 쓴다. 올릴 구간을 넓혀 둔다.
+                    GpuTextInstance& text = textDestination[index];
+                    text.world = item.world;
+                    for (int channel = 0; channel < 4; ++channel)
+                    {
+                        text.fill[channel] = ToUnorm8(item.tint[channel]);
+                        text.uvRect[channel] = ToUnorm16(item.uvRect[channel]);
+                        text.outline[channel] = ToUnorm8(item.outlineColor[channel]);
+                    }
+                    text.params[0] = ToUnorm16(item.outlineEdge);
+                    m_gpuTextFirst = index < m_gpuTextFirst ? index : m_gpuTextFirst;
+                    m_gpuTextEnd = index + 1 > m_gpuTextEnd ? index + 1 : m_gpuTextEnd;
+                }
+                else
+                {
+                    GpuSpriteInstance& instance = destination[index];
+                    instance.world = item.world;
+                    // 0..1 로 잘라 정규화 정수로 접는다(D-114). 반올림해야 0.5 가 128 로 가서 되읽기가 0.502 다.
+                    instance.tint[0] = ToUnorm8(item.tint[0]);
+                    instance.tint[1] = ToUnorm8(item.tint[1]);
+                    instance.tint[2] = ToUnorm8(item.tint[2]);
+                    instance.tint[3] = ToUnorm8(item.tint[3]);
+                    instance.uvRect[0] = ToUnorm16(item.uvRect[0]);
+                    instance.uvRect[1] = ToUnorm16(item.uvRect[1]);
+                    instance.uvRect[2] = ToUnorm16(item.uvRect[2]);
+                    instance.uvRect[3] = ToUnorm16(item.uvRect[3]);
+                }
 
                 TextureHandle texture = m_whiteTexture;
                 std::uint64_t textureKey = whiteKey;
@@ -1491,7 +1598,7 @@ namespace JBro
                 }
                 const bool linear = item.filter == SpriteFilter::Linear;
                 const std::uint64_t samplerKey = linear ? linearKey : nearestKey;
-                if (last != nullptr && lastTextureKey == textureKey && lastSamplerKey == samplerKey)
+                if (last != nullptr && lastTextureKey == textureKey && lastSamplerKey == samplerKey && last->sdf == sdf)
                 {
                     ++last->instanceCount;
                     continue;
@@ -1501,6 +1608,7 @@ namespace JBro
                 run.sampler = linear ? m_linearSampler : m_nearestSampler;
                 run.firstInstance = index;
                 run.instanceCount = 1;
+                run.sdf = sdf;
                 last = &m_spriteRuns.Add(run);
                 lastTextureKey = textureKey;
                 lastSamplerKey = samplerKey;
@@ -1514,11 +1622,27 @@ namespace JBro
         }
 
         const std::size_t byteSize = m_gpuSpriteCount * sizeof(GpuSpriteInstance);
-        return m_device->WriteBuffer(
-            m_spriteInstanceBuffers[m_frame.slot],
-            0,
-            {reinterpret_cast<const std::byte*>(m_gpuSpriteInstances.Data()),
-                static_cast<std::uint32_t>(byteSize)});
+        if (false == m_device->WriteBuffer(
+                m_spriteInstanceBuffers[m_frame.slot],
+                0,
+                {reinterpret_cast<const std::byte*>(m_gpuSpriteInstances.Data()),
+                    static_cast<std::uint32_t>(byteSize)}))
+        {
+            return false;
+        }
+        if (m_gpuTextEnd <= m_gpuTextFirst)
+        {
+            return true;
+        }
+        // 텍스트 칸은 이번 프레임에 쓴 번호 구간만 올린다. 스프라이트만 있는 프레임은 한 바이트도 올리지 않는다.
+        const std::size_t textOffset = m_gpuTextFirst * sizeof(GpuTextInstance);
+        const std::size_t textBytes = (m_gpuTextEnd - m_gpuTextFirst) * sizeof(GpuTextInstance);
+        return m_textInstanceBuffers[m_frame.slot].IsValid()
+            && m_device->WriteBuffer(
+                m_textInstanceBuffers[m_frame.slot],
+                textOffset,
+                {reinterpret_cast<const std::byte*>(m_gpuTextInstances.Data() + m_gpuTextFirst),
+                    static_cast<std::uint32_t>(textBytes)});
     }
 
     void Renderer::ResetSubmissionStorage()

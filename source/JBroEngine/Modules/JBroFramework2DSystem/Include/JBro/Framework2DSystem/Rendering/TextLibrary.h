@@ -28,6 +28,10 @@ namespace JBro
         float                 pixelsPerUnit = DefaultPixelsPerUnit;
         TextureFilter         filter = TextureFilter::Nearest; // 이미 정해진 값이다. `Default` 는 오지 않는다
         std::uint32_t         dataGeneration = 0;
+        // 폰트 에셋의 임포트 옵션이다(4 단계). `Sdf` 면 `sdfSize` 한 크기로 거리장을 뜬다.
+        FontRenderMode        renderMode = FontRenderMode::Bitmap;
+        std::uint32_t         sdfSize = 48;
+        std::uint32_t         sdfSpread = 8;
     };
 
     class TextLibrary final
@@ -69,6 +73,9 @@ namespace JBro
             Array<AssetHandle>    pageTextures;
             float                 pixelsPerUnit = DefaultPixelsPerUnit;
             TextureFilter         filter = TextureFilter::Nearest;
+            FontRenderMode        renderMode = FontRenderMode::Bitmap;
+            std::uint32_t         sdfSize = 48;
+            std::uint32_t         sdfSpread = 8;
         };
 
         void ReleasePages(FontEntry& entry);

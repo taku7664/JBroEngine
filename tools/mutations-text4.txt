@@ -1,0 +1,20 @@
+Modules\JBroGraphics\Source\Renderer.cpp	renderer:run-never-sdf	run.sdf = sdf;	run.sdf = false;
+Modules\JBroGraphics\Source\Renderer.cpp	renderer:text-never-uploaded	if (m_gpuTextEnd <= m_gpuTextFirst)	if (true)
+Modules\JBroGraphics\Source\Renderer.cpp	renderer:no-switch-between-runs	if (run.sdf != boundSdf)	if (false)
+Modules\JBroGraphics\Source\Renderer.cpp	renderer:text-upload-from-zero	const std::size_t textOffset = m_gpuTextFirst * sizeof(GpuTextInstance);	const std::size_t textOffset = 0;
+Modules\JBroGraphics\Source\Renderer.cpp	renderer:outline-edge-dropped	text.params[0] = ToUnorm16(item.outlineEdge);	text.params[0] = ToUnorm16(0.5f);
+Modules\JBroGraphics\Source\Renderer.cpp	renderer:outline-colour-dropped	text.outline[channel] = ToUnorm8(item.outlineColor[channel]);	text.outline[channel] = 0;
+Modules\JBroFramework2DSystem\Source\Rendering\RenderBridge2D.cpp	bridge:sdf-not-forwarded	if (source.sdfText)	if (false)
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:outline-not-clamped	const float width = std::min(text.outlineWidth * entry.sdfPerTextPixel, spread - 1.0f);	const float width = text.outlineWidth * entry.sdfPerTextPixel;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:outline-in-field-pixels	text.outlineWidth * entry.sdfPerTextPixel	text.outlineWidth
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:sdf-size-rounded	const float layoutSize = sdf	const float layoutSize = false
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:sdf-cells-not-scaled	const float cellScale = sdf ? layoutSize / static_cast<float>(font.sdfSize) : 1.0f;	const float cellScale = 1.0f;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:sdf-rasterized-as-bitmap	? glyphFont.atlas->EnsureSdf(*glyphFont.face, font.sdfSize, font.sdfSpread, glyph.glyph, cell)	? glyphFont.atlas->Ensure(*glyphFont.face, pixelSize, glyph.glyph, cell)
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:size-key-rounded	std::uint64_t key = Bits(text.fontSize);	std::uint64_t key = PixelSizeOf(text.fontSize);
+Modules\JBroAsset\Source\Asset.cpp	asset:sdf-keeps-nearest	read.options.filter = TextureFilter::Linear;	(void)0;
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:render-mode-dropped	view.renderMode = entry.renderMode;	(void)0;
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:sdf-shares-bitmap-key	const std::uint64_t key = SdfKey(pixelSize, spread, glyph);	const std::uint64_t key = Key(pixelSize, glyph);
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:spread-not-keyed	(static_cast<std::uint64_t>(spread & 0xFF) << 48)	(std::uint64_t{ 0 } << 48)
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:spread-unchecked	spread == 0 || spread > MaxSdfSpread	false
+Modules\JBroText\Source\FontFace.cpp	face:sdf-top-not-flipped	box.top = -yoff;	box.top = yoff;
+Modules\JBroText\Source\FontFace.cpp	face:sdf-edge-scale-wrong	const float perPixel = static_cast<float>(OnEdge) / static_cast<float>(spread);	const float perPixel = static_cast<float>(OnEdge);

@@ -51,6 +51,10 @@ namespace JBro::Text
         // (pixelSize, glyph) 의 칸을 준다. 처음이면 face 로 래스터화해 칸을 잡고 그 페이지를 더럽힌다.
         // pixelSize 는 em 픽셀이다(TextLayout 의 fontSize 와 같은 뜻). face 는 이 아틀라스의 주인 하나만 넘긴다.
         AtlasError Ensure(const FontFace& face, std::uint32_t pixelSize, GlyphIndex glyph, AtlasGlyph& out);
+        // 같은 칸을 SDF 로 준다(`FontFace::RasterizeGlyphSdf`, 4 단계). 픽셀은 `(255, 255, 255, 거리)` 다. 칸의 left·top·크기는
+        // 퍼짐까지 포함한 거리장 상자다. 비트맵 칸과 키가 갈라 한 아틀라스에 섞여도 서로 덮지 않는다.
+        AtlasError EnsureSdf(const FontFace& face, std::uint32_t pixelSize, std::uint32_t spread, GlyphIndex glyph, AtlasGlyph& out);
+        static constexpr std::uint32_t MaxSdfSpread = 64;
 
         // 이미 있는 칸만 찾는다. 래스터화하지 않는다.
         const AtlasGlyph* Find(std::uint32_t pixelSize, GlyphIndex glyph) const;
@@ -77,6 +81,8 @@ namespace JBro::Text
         };
 
         static std::uint64_t Key(std::uint32_t pixelSize, GlyphIndex glyph);
+        static std::uint64_t SdfKey(std::uint32_t pixelSize, std::uint32_t spread, GlyphIndex glyph);
+        AtlasError Place(std::uint64_t key, const GlyphBitmapBox& box, const std::uint8_t* alpha, AtlasGlyph& out);
         bool Allocate(std::uint32_t width, std::uint32_t height, std::uint32_t& page, std::uint32_t& x, std::uint32_t& y);
 
         std::uint32_t                   m_pageSize = DefaultPageSize;

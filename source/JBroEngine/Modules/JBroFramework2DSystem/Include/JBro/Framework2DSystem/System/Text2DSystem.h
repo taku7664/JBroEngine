@@ -92,6 +92,10 @@ namespace JBro::System
             float                pixelsPerUnit = DefaultPixelsPerUnit;
             TextureFilter        filter = TextureFilter::Nearest;
             float                bounds[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // 유닛
+            // SDF 글자면 참이다. 외곽선 폭(글자 픽셀)을 거리값으로 바꾸는 데 쓰는 비(거리장 픽셀 / 글자 픽셀)와 퍼짐이다.
+            bool                 sdf = false;
+            float                sdfPerTextPixel = 1.0f;
+            std::uint32_t        sdfSpread = 8;
             bool                 hasBounds = false;
             bool                 warnedMissingFont = false;
             std::uint64_t        lastSeenFrame = 0;
