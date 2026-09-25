@@ -140,10 +140,11 @@ namespace
             for (std::size_t right = left + 1; right < 8; ++right)
             {
                 const AtlasGlyph* b = atlas.Find(32, face.FindGlyph(syllables[right]));
+                // 이웃 칸 사이에 한 픽셀 틈이 있다. Linear 샘플링이 옆 칸 가장자리를 읽지 않게 하는 틈이다.
                 const bool apart = a->page != b->page
-                    || a->x + a->width <= b->x || b->x + b->width <= a->x
-                    || a->y + a->height <= b->y || b->y + b->height <= a->y;
-                Check(apart, "cells never overlap");
+                    || a->x + a->width + 1 <= b->x || b->x + b->width + 1 <= a->x
+                    || a->y + a->height + 1 <= b->y || b->y + b->height + 1 <= a->y;
+                Check(apart, "cells never overlap and keep a one-pixel gap");
             }
         }
     }
