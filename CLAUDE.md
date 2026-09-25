@@ -90,6 +90,9 @@
 - [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198). **아직 코드는 없다.** `ma_engine` 을 안에 둔 `AudioMixer`,
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건이 §3 에 있다
+- [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획. **아직 코드도 결정도 없다**(§5 의 여섯 가지가 확인 대기).
+  기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
+  캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).

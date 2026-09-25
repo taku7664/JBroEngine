@@ -4,6 +4,13 @@
 > 파이프라인의 것만 적는다. 상태는 `[진행 예정]` `[논의]` `[열림]` 으로 붙인다. `[논의]` 는 사용자와 방향을 정하기
 > 전이고, 정해지면 Decisions 로 옮기고 여기서는 `[진행 예정]` 이 된다.
 
+## 물리 (physics-plan)
+
+- `[논의]` **2D 물리 이식.** 지금 `Physics2DSystem` 은 중력 적분뿐이고 충돌이 없으며, `OnCollisionEnter/Exit` 을 부르는 곳이
+  없다. 기존 엔진 물리를 이어받되 오목 폴리곤 결함(계획서 §1.2 의 여섯 원인)을 고친다. 새 커널 모듈 `JBroPhysics2D`,
+  `Collider2D::points`, 볼록 조각을 자식 도형으로 다루기, 마찰·반발·레이어의 자리, 트리거 훅, 질의 확장의 여섯 가지(§5)가
+  확인 대기다. 확인 뒤 1 단계(커널 뼈대와 기하)부터 한다.
+
 ## 오디오 (audio-plan §3-3, D-197)
 
 - `[진행 예정]` **`Component::AudioListener2D` 와 `System::Audio2DSystem`.** 공용 `AudioSource`(JBroAudioTypes)와 오너의
