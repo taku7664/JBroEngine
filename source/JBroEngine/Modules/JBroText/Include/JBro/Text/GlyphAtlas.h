@@ -40,6 +40,15 @@ namespace JBro::Text
         GlyphTooLarge,    // 한 페이지보다 크다
     };
 
+    // 미리 뜰 글자 벌이다(text-plan §3.6). `Ksx1001` 은 ASCII 와 KS X 1001 의 한글 2,350 자다 - 대부분의 한국어 게임 글이
+    // 런타임 래스터화 없이 그려진다.
+    enum class PrewarmSet : std::uint8_t
+    {
+        None,
+        Ascii,
+        Ksx1001,
+    };
+
     class GlyphAtlas final
     {
     public:
@@ -55,6 +64,11 @@ namespace JBro::Text
         // 퍼짐까지 포함한 거리장 상자다. 비트맵 칸과 키가 갈라 한 아틀라스에 섞여도 서로 덮지 않는다.
         AtlasError EnsureSdf(const FontFace& face, std::uint32_t pixelSize, std::uint32_t spread, GlyphIndex glyph, AtlasGlyph& out);
         static constexpr std::uint32_t MaxSdfSpread = 64;
+
+        // 한 벌의 글자를 한 번에 뜬다. sdfSpread 가 0 이면 pixelSize 의 비트맵, 아니면 그 크기·퍼짐의 거리장이다. 폰트에 없는 글자는
+        // 건너뛴다. 넣은 칸 수(이미 있던 것은 세지 않는다)를 준다. 폰트를 열 때 한 번 부른다 - 글자마다 래스터화하므로 프레임 안에서
+        // 부르지 않는다.
+        std::uint32_t Prewarm(const FontFace& face, PrewarmSet set, std::uint32_t pixelSize, std::uint32_t sdfSpread);
 
         // 이미 있는 칸만 찾는다. 래스터화하지 않는다.
         const AtlasGlyph* Find(std::uint32_t pixelSize, GlyphIndex glyph) const;

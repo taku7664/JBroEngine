@@ -7,7 +7,7 @@ License 1.1 이고 원문이 `OFL.txt` 에 있다. 테스트는 이 파일을 �
 ## 어디서 왔나
 
 - 원본: `github.com/notofonts/noto-cjk` 의 `Sans/SubsetOTF/KR/NotoSansKR-Regular.otf`(판 2.004, 4,644,748 바이트, CFF). 2026-09-25 에 받았다.
-- 서브셋: fontTools 4.66.0 의 `pyftsubset` 으로 ASCII(U+0020~U+007E)와 한글 32 자만 남겼다(19,224 바이트).
+- 서브셋: fontTools 4.66.0 의 `pyftsubset` 으로 ASCII(U+0020~U+007E)와 한글 32 자(겹친 것을 빼면 서로 다른 음절 29 자, 모두 KS X 1001 안)만 남겼다(19,224 바이트).
   `kern` 기능(GPOS 조회 형식 2, 부표 형식 1·2, 값 형식 XAdvance)만 남기고 나머지 조회는 뺐다.
 
 ```

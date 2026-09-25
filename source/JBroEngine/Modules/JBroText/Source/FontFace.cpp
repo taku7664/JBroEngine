@@ -27,6 +27,346 @@ namespace JBro::Text
         {
             return reinterpret_cast<const stbtt_fontinfo*>(storage);
         }
+
+        // ── GPOS 쌍 조정(text-plan §7) ────────────────────────────────────────────────────────────────────────────────
+        // stb 는 확장 조회(형식 9)로 감싼 쌍 조정과, 첫 값 형식이 XAdvance 하나가 아닌 쌍 조정을 건너뛰어 그 폰트의 커닝이 **조용히
+        // 0** 이었다. 큰 폰트는 64 KB 오프셋을 피하려고 확장 조회를 흔히 쓴다. 쌍 조정(형식 2, 부표 형식 1·2)을 여기서 직접 읽는다 -
+        // 값 형식은 어떤 조합이든 XAdvance 자리를 찾아 읽고, 확장 조회는 풀어서 읽는다. 표가 버퍼 밖을 가리키면 그 부표는 없는 것으로 본다.
+        class GposReader
+        {
+        public:
+            GposReader(const unsigned char* data, std::size_t size)
+                : m_data(data)
+                , m_size(size)
+            {
+            }
+
+            bool Read16(std::size_t at, std::uint16_t& value) const
+            {
+                if (at + 2 > m_size)
+                {
+                    return false;
+                }
+                value = static_cast<std::uint16_t>((m_data[at] << 8) | m_data[at + 1]);
+                return true;
+            }
+
+            bool Read32(std::size_t at, std::uint32_t& value) const
+            {
+                std::uint16_t high = 0;
+                std::uint16_t low = 0;
+                if (false == Read16(at, high) || false == Read16(at + 2, low))
+                {
+                    return false;
+                }
+                value = (static_cast<std::uint32_t>(high) << 16) | low;
+                return true;
+            }
+
+            // 커버리지 표 안에서 글리프의 번호다. 없으면 -1.
+            std::int32_t CoverageIndex(std::size_t table, std::uint32_t glyph) const
+            {
+                std::uint16_t format = 0;
+                std::uint16_t count = 0;
+                if (false == Read16(table, format) || false == Read16(table + 2, count))
+                {
+                    return -1;
+                }
+                if (format == 1)
+                {
+                    std::int32_t low = 0;
+                    std::int32_t high = static_cast<std::int32_t>(count) - 1;
+                    while (low <= high)
+                    {
+                        const std::int32_t middle = (low + high) / 2;
+                        std::uint16_t value = 0;
+                        if (false == Read16(table + 4 + static_cast<std::size_t>(middle) * 2, value))
+                        {
+                            return -1;
+                        }
+                        if (value == glyph)
+                        {
+                            return middle;
+                        }
+                        if (value < glyph)
+                        {
+                            low = middle + 1;
+                        }
+                        else
+                        {
+                            high = middle - 1;
+                        }
+                    }
+                    return -1;
+                }
+                if (format == 2)
+                {
+                    std::int32_t low = 0;
+                    std::int32_t high = static_cast<std::int32_t>(count) - 1;
+                    while (low <= high)
+                    {
+                        const std::int32_t middle = (low + high) / 2;
+                        const std::size_t record = table + 4 + static_cast<std::size_t>(middle) * 6;
+                        std::uint16_t start = 0;
+                        std::uint16_t end = 0;
+                        std::uint16_t first = 0;
+                        if (false == Read16(record, start) || false == Read16(record + 2, end) || false == Read16(record + 4, first))
+                        {
+                            return -1;
+                        }
+                        if (glyph < start)
+                        {
+                            high = middle - 1;
+                        }
+                        else if (glyph > end)
+                        {
+                            low = middle + 1;
+                        }
+                        else
+                        {
+                            return static_cast<std::int32_t>(first + (glyph - start));
+                        }
+                    }
+                }
+                return -1;
+            }
+
+            // 글리프의 클래스다. 표에 없으면 0 이다(OpenType 규칙).
+            std::uint32_t ClassOf(std::size_t table, std::uint32_t glyph) const
+            {
+                std::uint16_t format = 0;
+                if (false == Read16(table, format))
+                {
+                    return 0;
+                }
+                if (format == 1)
+                {
+                    std::uint16_t start = 0;
+                    std::uint16_t count = 0;
+                    std::uint16_t value = 0;
+                    if (Read16(table + 2, start) && Read16(table + 4, count) && glyph >= start && glyph < static_cast<std::uint32_t>(start) + count
+                        && Read16(table + 6 + static_cast<std::size_t>(glyph - start) * 2, value))
+                    {
+                        return value;
+                    }
+                    return 0;
+                }
+                if (format == 2)
+                {
+                    std::uint16_t count = 0;
+                    if (false == Read16(table + 2, count))
+                    {
+                        return 0;
+                    }
+                    std::int32_t low = 0;
+                    std::int32_t high = static_cast<std::int32_t>(count) - 1;
+                    while (low <= high)
+                    {
+                        const std::int32_t middle = (low + high) / 2;
+                        const std::size_t record = table + 4 + static_cast<std::size_t>(middle) * 6;
+                        std::uint16_t start = 0;
+                        std::uint16_t end = 0;
+                        std::uint16_t value = 0;
+                        if (false == Read16(record, start) || false == Read16(record + 2, end) || false == Read16(record + 4, value))
+                        {
+                            return 0;
+                        }
+                        if (glyph < start)
+                        {
+                            high = middle - 1;
+                        }
+                        else if (glyph > end)
+                        {
+                            low = middle + 1;
+                        }
+                        else
+                        {
+                            return value;
+                        }
+                    }
+                }
+                return 0;
+            }
+
+            // 값 기록 안의 XAdvance 다. 형식에 XAdvance 가 없으면 0 이다. 앞의 XPlacement·YPlacement 만큼 건너뛴다.
+            std::int32_t XAdvanceOf(std::size_t record, std::uint16_t valueFormat) const
+            {
+                if ((valueFormat & 0x0004) == 0)
+                {
+                    return 0;
+                }
+                const std::size_t skip = ((valueFormat & 0x0001) != 0 ? 2 : 0) + ((valueFormat & 0x0002) != 0 ? 2 : 0);
+                std::uint16_t value = 0;
+                return Read16(record + skip, value) ? static_cast<std::int16_t>(value) : 0;
+            }
+
+            static std::size_t ValueSize(std::uint16_t valueFormat)
+            {
+                std::size_t size = 0;
+                for (std::uint16_t bit = 1; bit != 0 && bit <= 0x0080; bit = static_cast<std::uint16_t>(bit << 1))
+                {
+                    size += (valueFormat & bit) != 0 ? 2 : 0;
+                }
+                return size;
+            }
+
+            // 쌍 조정 부표 하나다. 찾으면 참이고 조정값(폰트 단위)을 준다.
+            bool PairAdjustment(std::size_t subtable, std::uint32_t left, std::uint32_t right, std::int32_t& adjustment) const
+            {
+                std::uint16_t format = 0;
+                std::uint16_t coverage = 0;
+                std::uint16_t valueFormat1 = 0;
+                std::uint16_t valueFormat2 = 0;
+                if (false == Read16(subtable, format) || false == Read16(subtable + 2, coverage)
+                    || false == Read16(subtable + 4, valueFormat1) || false == Read16(subtable + 6, valueFormat2))
+                {
+                    return false;
+                }
+                const std::int32_t covered = CoverageIndex(subtable + coverage, left);
+                if (covered < 0)
+                {
+                    return false;
+                }
+                const std::size_t size1 = ValueSize(valueFormat1);
+                const std::size_t size2 = ValueSize(valueFormat2);
+                if (format == 1)
+                {
+                    std::uint16_t setCount = 0;
+                    std::uint16_t setOffset = 0;
+                    if (false == Read16(subtable + 8, setCount) || covered >= setCount
+                        || false == Read16(subtable + 10 + static_cast<std::size_t>(covered) * 2, setOffset))
+                    {
+                        return false;
+                    }
+                    const std::size_t set = subtable + setOffset;
+                    std::uint16_t pairCount = 0;
+                    if (false == Read16(set, pairCount))
+                    {
+                        return false;
+                    }
+                    const std::size_t recordSize = 2 + size1 + size2;
+                    std::int32_t low = 0;
+                    std::int32_t high = static_cast<std::int32_t>(pairCount) - 1;
+                    while (low <= high)
+                    {
+                        const std::int32_t middle = (low + high) / 2;
+                        const std::size_t record = set + 2 + static_cast<std::size_t>(middle) * recordSize;
+                        std::uint16_t second = 0;
+                        if (false == Read16(record, second))
+                        {
+                            return false;
+                        }
+                        if (second == right)
+                        {
+                            adjustment = XAdvanceOf(record + 2, valueFormat1);
+                            return true;
+                        }
+                        if (second < right)
+                        {
+                            low = middle + 1;
+                        }
+                        else
+                        {
+                            high = middle - 1;
+                        }
+                    }
+                    return false;
+                }
+                if (format == 2)
+                {
+                    std::uint16_t classDef1 = 0;
+                    std::uint16_t classDef2 = 0;
+                    std::uint16_t class1Count = 0;
+                    std::uint16_t class2Count = 0;
+                    if (false == Read16(subtable + 8, classDef1) || false == Read16(subtable + 10, classDef2)
+                        || false == Read16(subtable + 12, class1Count) || false == Read16(subtable + 14, class2Count))
+                    {
+                        return false;
+                    }
+                    const std::uint32_t class1 = ClassOf(subtable + classDef1, left);
+                    const std::uint32_t class2 = ClassOf(subtable + classDef2, right);
+                    if (class1 >= class1Count || class2 >= class2Count)
+                    {
+                        return false;
+                    }
+                    const std::size_t record = subtable + 16
+                        + (static_cast<std::size_t>(class1) * class2Count + class2) * (size1 + size2);
+                    adjustment = XAdvanceOf(record, valueFormat1);
+                    // 클래스 쌍 표는 모든 쌍을 담으므로 0 도 "찾았다" 다. 0 이 아닐 때만 끝낸다 - 다음 조회가 이 쌍을 다룰 수 있다.
+                    return adjustment != 0;
+                }
+                return false;
+            }
+
+            // GPOS 전체에서 첫 번째로 찾은 쌍 조정이다. 없으면 0 이다.
+            std::int32_t Kerning(std::size_t gpos, std::uint32_t left, std::uint32_t right) const
+            {
+                std::uint16_t major = 0;
+                std::uint16_t lookupList = 0;
+                if (false == Read16(gpos, major) || major != 1 || false == Read16(gpos + 8, lookupList))
+                {
+                    return 0;
+                }
+                const std::size_t list = gpos + lookupList;
+                std::uint16_t lookupCount = 0;
+                if (false == Read16(list, lookupCount))
+                {
+                    return 0;
+                }
+                for (std::uint16_t lookupIndex = 0; lookupIndex < lookupCount; ++lookupIndex)
+                {
+                    std::uint16_t lookupOffset = 0;
+                    std::uint16_t type = 0;
+                    std::uint16_t subtableCount = 0;
+                    if (false == Read16(list + 2 + static_cast<std::size_t>(lookupIndex) * 2, lookupOffset))
+                    {
+                        return 0;
+                    }
+                    const std::size_t lookup = list + lookupOffset;
+                    if (false == Read16(lookup, type) || false == Read16(lookup + 4, subtableCount))
+                    {
+                        continue;
+                    }
+                    if (type != 2 && type != 9)
+                    {
+                        continue;
+                    }
+                    for (std::uint16_t subtableIndex = 0; subtableIndex < subtableCount; ++subtableIndex)
+                    {
+                        std::uint16_t subtableOffset = 0;
+                        if (false == Read16(lookup + 6 + static_cast<std::size_t>(subtableIndex) * 2, subtableOffset))
+                        {
+                            break;
+                        }
+                        std::size_t subtable = lookup + subtableOffset;
+                        if (type == 9)
+                        {
+                            // 확장 조회: 형식 1, 속 조회 형식, 32 비트 오프셋.
+                            std::uint16_t extensionFormat = 0;
+                            std::uint16_t extensionType = 0;
+                            std::uint32_t extensionOffset = 0;
+                            if (false == Read16(subtable, extensionFormat) || extensionFormat != 1
+                                || false == Read16(subtable + 2, extensionType) || extensionType != 2
+                                || false == Read32(subtable + 4, extensionOffset))
+                            {
+                                continue;
+                            }
+                            subtable += extensionOffset;
+                        }
+                        std::int32_t adjustment = 0;
+                        if (PairAdjustment(subtable, left, right, adjustment))
+                        {
+                            return adjustment;
+                        }
+                    }
+                }
+                return 0;
+            }
+
+        private:
+            const unsigned char* m_data = nullptr;
+            std::size_t          m_size = 0;
+        };
     }
 
     FontFace::FontFace(FontFace&& other) noexcept
@@ -140,7 +480,18 @@ namespace JBro::Text
         {
             return 0;
         }
-        return stbtt_GetGlyphKernAdvance(Info(m_info), static_cast<int>(left), static_cast<int>(right));
+        const stbtt_fontinfo* info = Info(m_info);
+        // GPOS 가 있으면 우리 읽기(확장 조회·넓은 값 형식까지)다. 없으면 옛 `kern` 표를 stb 가 읽는다 - stb 도 GPOS 가 있으면 `kern` 을 보지 않는다.
+        if (info->gpos != 0)
+        {
+            const GposReader reader(reinterpret_cast<const unsigned char*>(m_bytes.Data()), m_bytes.Size());
+            return reader.Kerning(static_cast<std::size_t>(info->gpos), left, right);
+        }
+        if (info->kern != 0)
+        {
+            return stbtt__GetGlyphKernInfoAdvance(info, static_cast<int>(left), static_cast<int>(right));
+        }
+        return 0;
     }
 
     GlyphBox FontFace::GetGlyphBox(GlyphIndex glyph) const

@@ -104,6 +104,19 @@ namespace JBro::Text
         // 줄 높이는 첫 번째 열린 face 의 치수로 정한다. 실패하면 결과를 비운다.
         LayoutError Build(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces, const LayoutOptions& options);
 
+        // **자동 크기**(text-plan §4.2). [minSize, maxSize] 에서 상자에 들어가는 가장 큰 글자 크기를 찾아 그 크기로 레이아웃해 둔다.
+        // "들어간다" 는 가장 긴 줄이 상자 폭 안이고(폭이 있으면), 줄을 모두 쌓은 높이가 상자 높이 안이며(높이가 있으면), `Word` 에서
+        // 어절을 글자에서 끊지 않았다는 뜻이다. step 이 1 이면 정수 크기만(비트맵), 0 이면 0.25 픽셀까지 좁힌다(SDF). 가장 작은 크기로도
+        // 넘치면 그 크기다. 이진 탐색이라 Build 를 크기 범위의 로그만큼 부르고, 다시 부를 때 안쪽 배열의 용량을 그대로 쓴다.
+        LayoutError BuildToFit(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces, const LayoutOptions& options,
+            float minSize, float maxSize, float step, float& chosenSize);
+
+        // 줄을 나눈 뒤의 내용 크기다(자르기 전). 가장 긴 줄의 폭, 줄 수 x 줄 높이.
+        float GetContentWidth() const;
+        float GetContentHeight() const;
+        // 끊을 자리가 없어 넘친 글자에서 억지로 끊은 횟수다. `Word` 에서 0 이 아니면 어절이 글자에서 갈렸다.
+        std::uint32_t GetForcedBreakCount() const;
+
         ArrayView<const PositionedGlyph> GetGlyphs() const;
         ArrayView<const LineInfo> GetLines() const;
 
@@ -149,6 +162,9 @@ namespace JBro::Text
         Array<Item>            m_items;
         Array<PositionedGlyph> m_glyphs;
         Array<LineInfo>        m_lines;
+        float                  m_contentWidth = 0.0f;
+        float                  m_contentHeight = 0.0f;
+        std::uint32_t          m_forcedBreaks = 0;
         float                  m_minX = 0.0f;
         float                  m_minY = 0.0f;
         float                  m_maxX = 0.0f;

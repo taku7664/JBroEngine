@@ -1,5 +1,7 @@
 ﻿#include <JBro/Text/GlyphAtlas.h>
 
+#include "Ksx1001Hangul.generated.h"
+
 #include <algorithm>
 #include <cstring>
 
@@ -96,6 +98,43 @@ namespace JBro::Text
         m_glyphs.FindOrAdd(key) = entry;
         out = entry;
         return AtlasError::None;
+    }
+
+    std::uint32_t GlyphAtlas::Prewarm(const FontFace& face, PrewarmSet set, std::uint32_t pixelSize, std::uint32_t sdfSpread)
+    {
+        if (set == PrewarmSet::None || false == face.IsLoaded())
+        {
+            return 0;
+        }
+        const std::uint32_t before = GetGlyphCount();
+        const auto warm = [&](char32_t codepoint) {
+            const GlyphIndex glyph = face.FindGlyph(codepoint);
+            if (glyph == MissingGlyph)
+            {
+                return;
+            }
+            AtlasGlyph cell;
+            if (sdfSpread == 0)
+            {
+                Ensure(face, pixelSize, glyph, cell);
+            }
+            else
+            {
+                EnsureSdf(face, pixelSize, sdfSpread, glyph, cell);
+            }
+        };
+        for (char32_t codepoint = 0x20; codepoint <= 0x7E; ++codepoint)
+        {
+            warm(codepoint);
+        }
+        if (set == PrewarmSet::Ksx1001)
+        {
+            for (const std::uint16_t syllable : Detail::Ksx1001Hangul)
+            {
+                warm(static_cast<char32_t>(syllable));
+            }
+        }
+        return GetGlyphCount() - before;
     }
 
     const AtlasGlyph* GlyphAtlas::Find(std::uint32_t pixelSize, GlyphIndex glyph) const

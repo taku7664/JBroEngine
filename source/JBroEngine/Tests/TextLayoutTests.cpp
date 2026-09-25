@@ -2,6 +2,8 @@
 #include <JBro/Text/TextLayout.h>
 
 #include "TestFontNotoSansKR.generated.h"
+#include "TestFontNotoSansKRExtension.generated.h"
+#include "TestFontNotoSansKRXPlacement.generated.h"
 
 #include <cmath>
 #include <cstring>
@@ -162,6 +164,44 @@ namespace
         Check(Near(layout.GetGlyphs()[1].x, (599.0f - 74.0f) * 0.5f), "kerning scales with the font size");
     }
 
+    // **stb 가 건너뛰던 GPOS 모양**(text-plan §7). 같은 서브셋을 확장 조회(형식 9)로 감싼 것과, 쌍 조정의 첫 값 형식을
+    // XPlacement|XAdvance 로 넓힌 것이다(MakeGposVariants.py). stb 는 둘 다 커닝을 0 으로 읽었다. 우리 읽기는 ASCII 의 모든 쌍에서
+    // 원본과 같은 값을 준다.
+    void TestKerningSurvivesGposShapesStbSkipped()
+    {
+        const FontFace original = LoadTestFont();
+        FontFace extension;
+        FontFace widened;
+        Check(extension.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRExtension),
+                  sizeof(TestFontNotoSansKRExtension))),
+            "the extension-lookup font loads");
+        Check(widened.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRXPlacement),
+                  sizeof(TestFontNotoSansKRXPlacement))),
+            "the widened value format font loads");
+        Check(extension.GetKerning(extension.FindGlyph(U'A'), extension.FindGlyph(U'V')) == -15
+                && extension.GetKerning(extension.FindGlyph(U'T'), extension.FindGlyph(U'o')) == -74,
+            "kerning inside extension lookups is read");
+        Check(widened.GetKerning(widened.FindGlyph(U'A'), widened.FindGlyph(U'V')) == -15
+                && widened.GetKerning(widened.FindGlyph(U'T'), widened.FindGlyph(U'o')) == -74,
+            "kerning behind an X placement is read");
+        std::uint32_t kerned = 0;
+        for (char32_t left = 0x21; left <= 0x7E; ++left)
+        {
+            for (char32_t right = 0x21; right <= 0x7E; ++right)
+            {
+                const std::int32_t expected = original.GetKerning(original.FindGlyph(left), original.FindGlyph(right));
+                kerned += expected != 0 ? 1u : 0u;
+                if (extension.GetKerning(extension.FindGlyph(left), extension.FindGlyph(right)) != expected
+                    || widened.GetKerning(widened.FindGlyph(left), widened.FindGlyph(right)) != expected)
+                {
+                    Check(false, "every ASCII pair kerns the same in all three shapes");
+                }
+            }
+        }
+        std::cout << "  [measure] kerned ASCII pairs in the test font: " << kerned << std::endl;
+        Check(kerned > 100, "the comparison covers the font's kerned pairs");
+    }
+
     void TestWordWrap()
     {
         const FontFace face = LoadTestFont();
@@ -207,6 +247,49 @@ namespace
 
     // **탭 멈춤 자리와 금칙**(text-plan §7 의 1 단계 남은 일). 탭은 줄 머리에서 센 다음 멈춤 자리(공백 폭 x tabSize)까지 나아가고,
     // 닫는 괄호로 줄을 시작하거나 여는 괄호로 줄을 끝내지 않는다 - 끊을 다른 자리가 있으면 그리로 옮긴다.
+    // **자동 크기**(text-plan §4.2). 줄 높이는 em 의 1.448 배, `hello` 2.335·`world` 2.696·`hello world` 5.255 em 이다.
+    void TestBuildToFitFindsTheLargestSize()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        LayoutOptions options = Unscaled();
+        options.overflow = Overflow::Wrap;
+        float chosen = 0.0f;
+
+        // 한 줄 높이의 상자: 폭이 정한다(5.255 s ≤ 5255 → 1000).
+        options.boxWidth = 5255.0f;
+        options.boxHeight = 1448.0f;
+        Check(layout.BuildToFit(Utf8("hello world"), faces, options, 10.0f, 4000.0f, 1.0f, chosen) == LayoutError::None,
+            "a one-line box fits");
+        Check(Near(chosen, 1000.0f) && LineCounts(layout, { 10 }), "the one-line box takes the size where the line just fits");
+        // 한 줄 반 높이: 두 줄로 나뉘어 높이가 정한다(2.896 s ≤ 4344 → 1500).
+        options.boxHeight = 4344.0f;
+        Check(layout.BuildToFit(Utf8("hello world"), faces, options, 10.0f, 4000.0f, 1.0f, chosen) == LayoutError::None,
+            "a taller box fits");
+        Check(Near(chosen, 1500.0f) && LineCounts(layout, { 5, 5 }), "the taller box wraps and the height decides");
+        // `Word` 는 어절을 글자에서 끊지 않는 크기를 고른다(2.335 s ≤ 2000 → 856).
+        options.boxWidth = 2000.0f;
+        options.boxHeight = 100000.0f;
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 10.0f, 4000.0f, 1.0f, chosen) == LayoutError::None,
+            "a narrow box fits");
+        Check(Near(chosen, 856.0f) && layout.GetForcedBreakCount() == 0, "a word is not broken to make it fit");
+        // 가장 작은 크기로도 넘치면 그 크기다.
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 3000.0f, 4000.0f, 1.0f, chosen) == LayoutError::None
+                && Near(chosen, 3000.0f),
+            "past the smallest size the text overflows at that size");
+        // step 0 은 0.25 칸까지 좁힌다(SDF).
+        options.boxWidth = 2001.0f;
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 10.0f, 4000.0f, 0.0f, chosen) == LayoutError::None
+                && chosen > 856.0f && chosen <= 857.0f && std::fmod(chosen, 0.25f) == 0.0f,
+            "a continuous fit lands on a quarter pixel");
+        // 다시 맞춰도 할당하지 않는다.
+        const std::size_t capacity = layout.GetReservedCapacity();
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 10.0f, 4000.0f, 0.0f, chosen) == LayoutError::None
+                && layout.GetReservedCapacity() == capacity,
+            "fitting again reuses the storage");
+    }
+
     void TestTabStopsAndLineBreakRules()
     {
         const FontFace face = LoadTestFont();
@@ -444,9 +527,11 @@ int RunTextLayoutTests()
         TestFaceReadsTheFont();
         TestFaceRejectsGarbageAndMoves();
         TestKerningIsAppliedAcrossTheRun();
+        TestKerningSurvivesGposShapesStbSkipped();
         TestWordWrap();
         TestHangulWrapModes();
         TestTabStopsAndLineBreakRules();
+        TestBuildToFitFindsTheLargestSize();
         TestDecoding();
         TestAlignment();
         TestClip();

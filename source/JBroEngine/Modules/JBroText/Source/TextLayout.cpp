@@ -199,6 +199,9 @@ namespace JBro::Text
         m_minY = 0.0f;
         m_maxX = 0.0f;
         m_maxY = 0.0f;
+        m_contentWidth = 0.0f;
+        m_contentHeight = 0.0f;
+        m_forcedBreaks = 0;
     }
 
     LayoutError TextLayout::Build(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces, const LayoutOptions& options)
@@ -377,6 +380,10 @@ namespace JBro::Text
             if (wraps && item.kind == ItemKind::Visible && index > lineStart && x + item.advance > wrapLimit)
             {
                 const std::size_t breakAt = lastOpportunity > lineStart ? lastOpportunity : index;
+                if (breakAt == index && false == item.breaksAnywhere)
+                {
+                    ++m_forcedBreaks;
+                }
                 if (false == finishLine(lineStart, breakAt))
                 {
                     Reset();
@@ -416,6 +423,8 @@ namespace JBro::Text
         }
         const float blockWidth = options.boxWidth > 0.0f ? options.boxWidth : widest;
         const float contentHeight = static_cast<float>(m_lines.Size()) * lineHeight;
+        m_contentWidth = widest;
+        m_contentHeight = contentHeight;
         const float blockHeight = options.boxHeight > 0.0f ? options.boxHeight : contentHeight;
 
         float blockLeft = 0.0f;
@@ -488,6 +497,98 @@ namespace JBro::Text
         m_maxY = blockTop;
         m_minY = blockTop - blockHeight;
         return LayoutError::None;
+    }
+
+    LayoutError TextLayout::BuildToFit(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces,
+        const LayoutOptions& options, float minSize, float maxSize, float step, float& chosenSize)
+    {
+        if (false == std::isfinite(minSize) || false == std::isfinite(maxSize) || false == (minSize > 0.0f))
+        {
+            return LayoutError::InvalidFontSize;
+        }
+        if (maxSize < minSize)
+        {
+            maxSize = minSize;
+        }
+        LayoutOptions trial = options;
+        const auto fits = [&]() {
+            const float widthLimit = options.boxWidth * (1.0f + 1.0e-5f);
+            const float heightLimit = options.boxHeight * (1.0f + 1.0e-5f);
+            if (options.boxWidth > 0.0f && m_contentWidth > widthLimit)
+            {
+                return false;
+            }
+            if (options.boxHeight > 0.0f && m_contentHeight > heightLimit)
+            {
+                return false;
+            }
+            return options.wrapMode != WrapMode::Word || m_forcedBreaks == 0;
+        };
+        const auto buildAt = [&](float size) {
+            trial.fontSize = size;
+            return Build(utf8, faces, trial);
+        };
+        // 크기를 격자로 센다. step 이 1 이면 정수, 0 이면 0.25 픽셀 칸이다. 안쪽 끝은 칸에 맞춰 줄인다.
+        const float cell = step > 0.0f ? step : 0.25f;
+        const std::int64_t low = static_cast<std::int64_t>(std::ceil(minSize / cell));
+        const std::int64_t high = std::max(low, static_cast<std::int64_t>(std::floor(maxSize / cell)));
+        LayoutError error = buildAt(static_cast<float>(high) * cell);
+        if (error != LayoutError::None)
+        {
+            return error;
+        }
+        if (fits())
+        {
+            chosenSize = static_cast<float>(high) * cell;
+            return LayoutError::None;
+        }
+        // [best, bad) 사이를 좁힌다. best 는 들어가는 것이 확인된 가장 큰 칸이다(없으면 low 로 넘친다).
+        std::int64_t best = low;
+        std::int64_t bad = high;
+        bool lowFits = false;
+        error = buildAt(static_cast<float>(low) * cell);
+        if (error != LayoutError::None)
+        {
+            return error;
+        }
+        lowFits = fits();
+        if (lowFits)
+        {
+            while (bad - best > 1)
+            {
+                const std::int64_t middle = best + (bad - best) / 2;
+                error = buildAt(static_cast<float>(middle) * cell);
+                if (error != LayoutError::None)
+                {
+                    return error;
+                }
+                if (fits())
+                {
+                    best = middle;
+                }
+                else
+                {
+                    bad = middle;
+                }
+            }
+        }
+        chosenSize = static_cast<float>(best) * cell;
+        return buildAt(chosenSize);
+    }
+
+    float TextLayout::GetContentWidth() const
+    {
+        return m_contentWidth;
+    }
+
+    float TextLayout::GetContentHeight() const
+    {
+        return m_contentHeight;
+    }
+
+    std::uint32_t TextLayout::GetForcedBreakCount() const
+    {
+        return m_forcedBreaks;
     }
 
     ArrayView<const PositionedGlyph> TextLayout::GetGlyphs() const

@@ -174,6 +174,30 @@ namespace
             "a spread of zero or past the limit is refused");
     }
 
+    // **미리 뜨기**(text-plan §3.6). ASCII 벌은 95 자이고 그중 공백은 칸 없이 기억된다. 완성형 벌은 폰트에 있는 한글만 더한다
+    // (시험 폰트에는 서로 다른 음절 29 자가 있고 모두 완성형이다 - `뷁` 은 폰트에 없다). 미리 뜬 글자는 다시 물어도 새로 뜨지 않는다.
+    void TestPrewarmFillsTheAtlasOnce()
+    {
+        const FontFace face = LoadTestFont();
+        GlyphAtlas ascii;
+        Check(ascii.Prewarm(face, PrewarmSet::Ascii, 32, 0) == 95, "the ASCII set is 95 glyphs");
+        Check(ascii.Find(32, face.FindGlyph(U'A')) != nullptr && ascii.Find(32, face.FindGlyph(U'~')) != nullptr,
+            "A and ~ are in the atlas without being asked for");
+        Check(ascii.Prewarm(face, PrewarmSet::Ascii, 32, 0) == 0, "prewarming twice adds nothing");
+
+        GlyphAtlas korean;
+        const std::uint32_t warmed = korean.Prewarm(face, PrewarmSet::Ksx1001, 48, 8);
+        std::cout << "  [measure] KS X 1001 prewarm of the test font: " << warmed << " SDF glyphs on " << korean.GetPageCount()
+                  << " page(s)" << std::endl;
+        Check(warmed == 95 + 29, "the Korean set adds the font's 29 syllables to ASCII");
+        AtlasGlyph han;
+        korean.ClearPageDirty(0);
+        Check(korean.EnsureSdf(face, 48, 8, face.FindGlyph(U'\uD55C'), han) == AtlasError::None && false == han.empty
+                && false == korean.IsPageDirty(0),
+            "a prewarmed syllable is already there - asking for it draws nothing");
+        Check(korean.Prewarm(face, PrewarmSet::None, 48, 8) == 0, "the empty set does nothing");
+    }
+
     void TestPagesDoNotMoveCells()
     {
         const FontFace face = LoadTestFont();
@@ -233,6 +257,7 @@ int RunGlyphAtlasTests()
         TestBitmapBoxMatchesTheOutline();
         TestEnsureRasterizesOnce();
         TestSdfCellsCarryADistanceField();
+        TestPrewarmFillsTheAtlasOnce();
         TestPagesDoNotMoveCells();
         TestErrors();
     }
