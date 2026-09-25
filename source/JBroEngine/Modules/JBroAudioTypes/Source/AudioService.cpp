@@ -180,6 +180,19 @@ namespace JBro::Service
         }
     }
 
+    void AudioService::FadeBusVolume(const char* bus, float volume, float seconds) const
+    {
+        FadeBusVolume(Named(bus), volume, seconds);
+    }
+
+    void AudioService::FadeBusVolume(AudioBusName bus, float volume, float seconds) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            audio->FadeBusVolume(bus, volume, seconds);
+        }
+    }
+
     std::uint32_t AudioService::GetOutputDeviceCount() const
     {
         System::IAudioSystem* audio = Audio();

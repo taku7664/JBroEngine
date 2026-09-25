@@ -376,6 +376,15 @@ namespace JBro
             std::atomic<float> reverbMix{0.0f};
             std::atomic<float> dry{1.0f};
             std::atomic<float> peak{0.0f};
+            // 버스 음량(D-204). 목표와 프레임당 변화량은 메인 스레드가 쓰고, 지금 값은 오디오 스레드만 만진다.
+            std::atomic<float> gainTarget{1.0f};
+            std::atomic<float> gainRate{1.0f};
+            float gainCurrent = 1.0f;
+            // 더킹. 다른 버스 노드의 봉우리(지난 블록)를 읽는다. 노드는 믹서의 고정 배열에 있어 버스를 내려도 메모리는 산다.
+            std::atomic<const void*> duckSource{nullptr};
+            std::atomic<float> duckAmount{0.0f};
+            std::atomic<float> duckRelease{0.3f};
+            float duckCurrent = 1.0f;
             std::atomic<float*> echoBuffer{nullptr};
             std::atomic<Reverb*> reverb{nullptr};
             std::uint32_t echoCapacity = 0;
@@ -501,6 +510,50 @@ namespace JBro
                         out[frame * channels + channel] = source[channel] * dry + echoed[channel] + wet[channel];
                     }
                 }
+            }
+
+            // 음량과 더킹은 사슬의 끝에서 곱한다 - 음소거하면 메아리·잔향의 꼬리도 함께 멎는다. 둘 다 샘플마다 곧게 옮겨 간다.
+            const float gainTarget = self.gainTarget.load(std::memory_order_relaxed);
+            float duckTarget = 1.0f;
+            const BusEffectNode* duckSource = static_cast<const BusEffectNode*>(self.duckSource.load(std::memory_order_acquire));
+            const float duckAmount = Clamped(self.duckAmount.load(std::memory_order_relaxed), 0.0f, 1.0f);
+            if (duckSource != nullptr && duckAmount > 0.0f && duckSource->peak.load(std::memory_order_relaxed) > 0.01f)
+            {
+                duckTarget = 1.0f - duckAmount;
+            }
+            if (self.gainCurrent != gainTarget || gainTarget != 1.0f || self.duckCurrent != duckTarget || duckTarget != 1.0f)
+            {
+                const float gainRate = self.gainRate.load(std::memory_order_relaxed);
+                const float attack = 1.0f / (0.02f * rate);
+                const float release = 1.0f / (Clamped(self.duckRelease.load(std::memory_order_relaxed), 0.01f, 10.0f) * rate);
+                float gain = self.gainCurrent;
+                float duck = self.duckCurrent;
+                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                {
+                    if (gain < gainTarget)
+                    {
+                        gain = gain + gainRate < gainTarget ? gain + gainRate : gainTarget;
+                    }
+                    else if (gain > gainTarget)
+                    {
+                        gain = gain - gainRate > gainTarget ? gain - gainRate : gainTarget;
+                    }
+                    if (duck > duckTarget)
+                    {
+                        duck = duck - attack > duckTarget ? duck - attack : duckTarget;
+                    }
+                    else if (duck < duckTarget)
+                    {
+                        duck = duck + release < duckTarget ? duck + release : duckTarget;
+                    }
+                    const float scale = gain * duck;
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        out[frame * channels + channel] *= scale;
+                    }
+                }
+                self.gainCurrent = gain;
+                self.duckCurrent = duck;
             }
 
             float peak = 0.0f;
@@ -824,6 +877,8 @@ namespace JBro
             std::uint8_t priority = 0;
             bool looping = false;
             float volume = 1.0f;
+            // 클립의 트림(D-204). 실제로 거는 음량은 `volume * trim` 이다.
+            float trim = 1.0f;
             std::uint64_t startSerial = 0;
             std::uint32_t tag = 0;
             // 보이스마다 하나, 초기화 때 만들어 둔다. 필터를 켠 동안만 소리와 버스 사이에 선다(`filterRouted`).
@@ -851,6 +906,7 @@ namespace JBro
             AudioBusId parent = AudioMasterBus;
             AudioBusId sendTarget = AudioNoBus;
             float sendLevel = 0.0f;
+            AudioBusId duckTrigger = AudioNoBus;
         };
 
         struct Clip
@@ -1117,7 +1173,7 @@ namespace JBro
 
         float Audibility(const Voice& voice) const
         {
-            return voice.volume * buses[voice.bus].effectiveGain;
+            return voice.volume * voice.trim * buses[voice.bus].effectiveGain;
         }
 
         // 보이스를 버스에 잇는다. 필터를 켠 보이스는 소리 → 필터 → 버스, 아니면 소리 → 버스다. 재생 중에도 스레드 안전하다.
@@ -1190,8 +1246,9 @@ namespace JBro
             return false;
         }
 
-        // 음소거·솔로를 반영해 모든 버스의 그룹 음량을 다시 건다. 버스는 열여덟 개뿐이라 매번 전부 센다.
-        void ApplyBusGains()
+        // 음소거·솔로를 반영해 모든 버스의 음량 목표를 다시 건다. 버스는 열여덟 개뿐이라 매번 전부 센다. `fadingBus` 는
+        // `fadeSeconds` 에 걸쳐, 나머지는 10 ms 에 걸쳐 옮긴다(D-204).
+        void ApplyBusGains(AudioBusId fadingBus = AudioNoBus, float fadeSeconds = 0.0f)
         {
             bool audible[AudioMaxBuses] = {};
             bool anySolo = false;
@@ -1260,8 +1317,13 @@ namespace JBro
                 const float gain = target.muted || false == audible[bus] ? 0.0f : target.volume;
                 if (gain != target.effectiveGain)
                 {
+                    const float seconds = bus == fadingBus && fadeSeconds > 0.01f ? fadeSeconds : 0.01f;
+                    float distance = std::fabs(gain - target.effectiveGain);
+                    distance = distance > 0.0f ? distance : 1.0f;
+                    target.effects.gainRate.store(distance / (seconds * static_cast<float>(desc.sampleRate)),
+                        std::memory_order_relaxed);
+                    target.effects.gainTarget.store(gain, std::memory_order_relaxed);
                     target.effectiveGain = gain;
-                    ma_sound_group_set_volume(&target.group, gain);
                 }
             }
         }
@@ -1347,7 +1409,13 @@ namespace JBro
             bus.sendTarget = AudioNoBus;
             bus.sendLevel = 0.0f;
             bus.effects.peak.store(0.0f, std::memory_order_relaxed);
-            ma_sound_group_set_volume(&bus.group, bus.volume);
+            // 음량은 이펙트 노드가 건다(D-204). 아직 오디오 스레드가 이 노드를 읽지 않으므로 지금 값을 곧바로 둔다.
+            bus.effects.gainCurrent = bus.volume;
+            bus.effects.gainTarget.store(bus.volume, std::memory_order_relaxed);
+            bus.effects.duckSource.store(nullptr, std::memory_order_relaxed);
+            bus.effects.duckAmount.store(0.0f, std::memory_order_relaxed);
+            bus.effects.duckCurrent = 1.0f;
+            bus.duckTrigger = AudioNoBus;
             return true;
         }
 
@@ -1369,6 +1437,7 @@ namespace JBro
                 bus.used = false;
                 bus.solo = false;
                 bus.sendTarget = AudioNoBus;
+                bus.duckTrigger = AudioNoBus;
             }
         }
 
@@ -1803,6 +1872,14 @@ namespace JBro
                 state.RouteVoice(voice, AudioMasterBus, voice.filterRouted);
             }
         }
+        for (State::Bus& bus : state.buses)
+        {
+            if (bus.duckTrigger >= AudioFirstProjectBus)
+            {
+                bus.effects.duckSource.store(nullptr, std::memory_order_release);
+                bus.duckTrigger = AudioNoBus;
+            }
+        }
         for (std::uint32_t bus = AudioMaxBuses; bus > AudioFirstProjectBus; --bus)
         {
             state.UninitBus(state.buses[bus - 1]);
@@ -1825,14 +1902,49 @@ namespace JBro
         return IsInitialized() ? m_state->busCount : 0;
     }
 
-    void AudioMixer::SetBusVolume(AudioBusId bus, float volume)
+    void AudioMixer::SetBusVolume(AudioBusId bus, float volume, float fadeSeconds)
     {
         if (false == IsInitialized() || false == m_state->IsBusValid(bus))
         {
             return;
         }
         m_state->buses[bus].volume = Clamp01(volume);
-        m_state->ApplyBusGains();
+        m_state->ApplyBusGains(bus, std::isfinite(fadeSeconds) ? fadeSeconds : 0.0f);
+    }
+
+    void AudioMixer::SetBusDucking(AudioBusId bus, AudioBusId trigger, float amount, float releaseSeconds)
+    {
+        if (false == IsInitialized() || false == m_state->IsBusValid(bus))
+        {
+            return;
+        }
+        State::Bus& target = m_state->buses[bus];
+        const float safeAmount = Clamp01(amount);
+        if (trigger == AudioNoBus || trigger == bus || false == m_state->IsBusValid(trigger) || safeAmount <= 0.0f)
+        {
+            target.effects.duckSource.store(nullptr, std::memory_order_release);
+            target.effects.duckAmount.store(0.0f, std::memory_order_relaxed);
+            target.duckTrigger = AudioNoBus;
+            return;
+        }
+        target.effects.duckAmount.store(safeAmount, std::memory_order_relaxed);
+        target.effects.duckRelease.store(Clamped(releaseSeconds, 0.01f, 10.0f), std::memory_order_relaxed);
+        target.effects.duckSource.store(&m_state->buses[trigger].effects, std::memory_order_release);
+        target.duckTrigger = trigger;
+    }
+
+    AudioBusId AudioMixer::GetBusDuckTrigger(AudioBusId bus) const
+    {
+        return IsInitialized() && m_state->IsBusValid(bus) ? m_state->buses[bus].duckTrigger : AudioNoBus;
+    }
+
+    float AudioMixer::GetBusDuckAmount(AudioBusId bus) const
+    {
+        if (false == IsInitialized() || false == m_state->IsBusValid(bus) || m_state->buses[bus].duckTrigger == AudioNoBus)
+        {
+            return 0.0f;
+        }
+        return m_state->buses[bus].effects.duckAmount.load(std::memory_order_relaxed);
     }
 
     float AudioMixer::GetBusVolume(AudioBusId bus) const
@@ -2147,13 +2259,14 @@ namespace JBro
             state.RouteVoice(voice, bus, true);
         }
         voice.volume = Clamp01(desc.volume);
+        voice.trim = std::isfinite(clip->desc.gain) && clip->desc.gain > 0.0f ? (clip->desc.gain > 4.0f ? 4.0f : clip->desc.gain) : 1.0f;
         voice.looping = desc.loop;
         voice.priority = desc.priority;
         voice.bus = bus;
         voice.clip = desc.clip;
         voice.tag = desc.tag;
         voice.startSerial = ++state.serial;
-        ma_sound_set_volume(&voice.sound, voice.volume);
+        ma_sound_set_volume(&voice.sound, voice.volume * voice.trim);
         ma_sound_set_pitch(&voice.sound, SafePositive(desc.pitch, 1.0f));
         ma_sound_set_looping(&voice.sound, desc.loop ? MA_TRUE : MA_FALSE);
         if (desc.spatial)
@@ -2314,7 +2427,7 @@ namespace JBro
         if (voice != nullptr)
         {
             voice->volume = Clamp01(volume);
-            ma_sound_set_volume(&voice->sound, voice->volume);
+            ma_sound_set_volume(&voice->sound, voice->volume * voice->trim);
         }
     }
 

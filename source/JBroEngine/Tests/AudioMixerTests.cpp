@@ -712,6 +712,93 @@ namespace
         mixer.Shutdown();
     }
 
+    float LargestJump(const Rendered& out)
+    {
+        float largest = 0.0f;
+        for (std::size_t frame = 1; frame < out.samples.Size() / 2; ++frame)
+        {
+            largest = std::fmax(largest, std::fabs(out.samples[frame * 2] - out.samples[(frame - 1) * 2]));
+        }
+        return largest;
+    }
+
+    // 버스 음량 페이드·클릭 없는 음소거·더킹·클립 트림(D-204).
+    void TestBusFadesDuckingAndTrim()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+        const AudioBusId music = mixer.CreateBus(1.0f);
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        play.bus = music;
+        mixer.Play(play);
+        Render(mixer, 4800);
+
+        // 0.1 초 페이드: 중간은 절반쯤이고 끝은 0 이며 뛰지 않는다.
+        mixer.SetBusVolume(music, 0.0f, 0.1f);
+        const Rendered fading = Render(mixer, Rate / 5);
+        const float halfway = fading.Peak(0, 2000, 2800);
+        std::cout << "  bus fade: halfway " << halfway << ", after " << fading.Peak(0, 5200) << '\n';
+        Check(halfway > 0.15f && halfway < 0.35f, "a bus volume fade is halfway at half its time");
+        Check(fading.Peak(0, 5200) < 0.001f, "and silent at its end");
+        // 440 Hz 사인의 한 샘플 차는 최대 약 0.03 이다. 뚝 바뀌면 0.5 가까이 뛴다.
+        Check(LargestJump(fading) < 0.05f, "a bus fade never jumps");
+        Check(mixer.GetBusVolume(music) == 0.0f, "the bus reports the volume it fades to");
+        mixer.SetBusVolume(music, 1.0f);
+        Render(mixer, 4800);
+
+        // 음소거·솔로도 10 ms 에 걸쳐 바뀐다 - 클릭이 없다.
+        mixer.SetBusMuted(music, true);
+        const Rendered muting = Render(mixer, 4800);
+        Check(LargestJump(muting) < 0.05f && muting.Peak(0, 960) < 0.001f, "muting ramps over about 10 ms without a click");
+        mixer.SetBusMuted(music, false);
+        Render(mixer, 4800);
+
+        // 더킹: Voice 에 소리가 있는 동안 Music 이 절반으로 물러서고, 끝나면 돌아온다.
+        const AudioBusId voice = mixer.CreateBus(1.0f);
+        mixer.SetBusDucking(music, voice, 0.5f, 0.1f);
+        Check(mixer.GetBusDuckTrigger(music) == voice && mixer.GetBusDuckAmount(music) == 0.5f, "the bus reports its ducking");
+        const Array<float> line = MakeSine(2, 1000.0f, 0.3f, 0.3f);
+        const AudioClipHandle lineClip = RegisterPcm(mixer, line, 2);
+        AudioPlayDesc speak;
+        speak.clip = lineClip;
+        speak.bus = voice;
+        mixer.Play(speak);
+        Render(mixer, 9600);
+        const float ducked = mixer.GetBusPeak(music);
+        Render(mixer, Rate / 2);
+        mixer.Update();
+        const float recovered = mixer.GetBusPeak(music);
+        std::cout << "  ducking: music under a line " << ducked << ", after it " << recovered << '\n';
+        Check(std::fabs(ducked - 0.25f) < 0.04f, "a ducked bus steps back by its amount while the trigger sounds");
+        Check(std::fabs(recovered - 0.5f) < 0.04f, "and comes back after the trigger stops");
+        mixer.SetBusDucking(music, music, 0.5f, 0.1f);
+        Check(mixer.GetBusDuckTrigger(music) == AudioNoBus, "a bus cannot duck under itself");
+        mixer.SetBusDucking(music, AudioNoBus, 0.0f, 0.0f);
+        Check(mixer.GetBusDuckTrigger(music) == AudioNoBus, "ducking turns off");
+
+        // 트림: 클립의 크기 보정이 보이스 음량에 곱해진다.
+        mixer.StopAll();
+        AudioClipDesc trimmed;
+        trimmed.encoding = AudioClipEncoding::Pcm;
+        trimmed.pcm = sine.Data();
+        trimmed.channels = 2;
+        trimmed.sampleRate = Rate;
+        trimmed.frameCount = sine.Size() / 2;
+        trimmed.gain = 0.5f;
+        AudioPlayDesc quiet;
+        quiet.clip = mixer.RegisterClip(trimmed);
+        quiet.loop = true;
+        const AudioVoiceHandle trimmedVoice = mixer.Play(quiet);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.25f) < 0.03f, "a clip's trim scales its voices");
+        mixer.SetVolume(trimmedVoice, 0.5f);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.125f) < 0.02f, "the trim stays under a changed voice volume");
+        mixer.Shutdown();
+    }
+
     void TestStealing()
     {
         AudioMixer mixer;
@@ -891,6 +978,7 @@ int RunAudioMixerTests()
         TestBusRouting();
         TestVoiceFilter();
         TestOutputGainAndSpectrum();
+        TestBusFadesDuckingAndTrim();
         TestStealing();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();

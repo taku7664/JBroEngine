@@ -342,6 +342,17 @@ namespace JBro
                         return Fail(error, lineNumber, "an audio bus SendLevel must be a number");
                     }
                 }
+                else if (busKey == "DuckBy")
+                {
+                    bus.duckBy = busValue;
+                }
+                else if (busKey == "DuckAmount" || busKey == "DuckRelease")
+                {
+                    if (false == ParseFloat(busValue, busKey == "DuckAmount" ? bus.duckAmount : bus.duckRelease))
+                    {
+                        return Fail(error, lineNumber, "an audio bus DuckAmount and DuckRelease must be numbers");
+                    }
+                }
                 else if (float* effect = AudioBusEffectField(bus.effects, busKey))
                 {
                     if (false == ParseFloat(busValue, *effect))
@@ -838,6 +849,21 @@ namespace JBro
                     const String level = FormatShortFloat(bus.sendLevel);
                     result.append(level.c_str(), level.size());
                     result.append("\n", 1);
+                }
+                if (false == bus.duckBy.empty() && bus.duckAmount > 0.0f)
+                {
+                    appendName("DuckBy", bus.duckBy);
+                    result.append("    DuckAmount: ", 16);
+                    const String amount = FormatShortFloat(bus.duckAmount);
+                    result.append(amount.c_str(), amount.size());
+                    result.append("\n", 1);
+                    if (bus.duckRelease != 0.3f)
+                    {
+                        result.append("    DuckRelease: ", 17);
+                        const String release = FormatShortFloat(bus.duckRelease);
+                        result.append(release.c_str(), release.size());
+                        result.append("\n", 1);
+                    }
                 }
                 // 이펙트는 기본값과 다른 칸만 적는다. 이펙트를 쓰지 않는 파일은 전과 같다.
                 const AudioBusEffects defaults;

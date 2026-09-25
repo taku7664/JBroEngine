@@ -142,6 +142,7 @@ Entries:
   inspector.audio_unreadable: "This audio file could not be read"
   inspector.audio_bus_missing: "Not one of the project's audio buses - it plays on Master"
   project_settings.audio: "Audio"
+  project_settings.audio_duck_help: "While that bus sounds, this one steps back (e.g. music under dialogue)"
   project_settings.audio_default_device: "System default"
   project_settings.audio_device_help: "On a computer without this device the system default is used"
   project_settings.audio_refresh_devices: "Refresh"

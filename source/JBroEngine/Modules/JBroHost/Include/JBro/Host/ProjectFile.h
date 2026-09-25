@@ -75,6 +75,10 @@ namespace JBro
         // 센드(`Send:`·`SendLevel:`)다. 받는 버스 이름과 양(0..1). 비우거나 양이 0 이면 적지 않는다.
         String send;
         float sendLevel = 0.0f;
+        // 더킹(`DuckBy:`·`DuckAmount:`·`DuckRelease:`, D-204). 비우거나 양이 0 이면 적지 않는다.
+        String duckBy;
+        float duckAmount = 0.0f;
+        float duckRelease = 0.3f;
     };
 
     struct ProjectFile

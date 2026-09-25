@@ -202,6 +202,20 @@ namespace
                 && reread.audioBuses.Last().effects.dry == 0.0f,
             "and the routing reads back");
 
+        // 더킹(D-204)도 쓸 때만 적힌다. 기본 풀림 시간(0.3)은 적지 않는다.
+        project.audioBuses.Last().duckBy = "Cave";
+        project.audioBuses.Last().duckAmount = 0.6f;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "ducking writes");
+        Check(written.find("    DuckBy: Cave\n    DuckAmount: 0.6\n") != String::npos
+                && written.find("DuckRelease") == String::npos,
+            "ducking writes its trigger and amount, not the default release");
+        project.audioBuses.Last().duckRelease = 1.5f;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error)
+                && ParseProjectFile(written.c_str(), written.size(), reread, error)
+                && reread.audioBuses.Last().duckBy == "Cave" && reread.audioBuses.Last().duckAmount == 0.6f
+                && reread.audioBuses.Last().duckRelease == 1.5f,
+            "and it reads back");
+
         // 장치 이름과 포커스 정책(D-203)은 최상위 키다. 괄호와 한글이 든 장치 이름도 그대로 되읽힌다.
         project.audioOutputDevice = "스피커(Realtek High Definition Audio)";
         project.audioMuteWhenUnfocused = true;
@@ -418,7 +432,12 @@ namespace
         AssetMetaError metaError;
         Check(LoadAssetMetaFile(fixture.platform, metaPath.c_str(), meta, metaError), "the meta reads");
         meta.audioOptions.mode = AudioImportMode::StreamFromDisk;
+        // 트림(D-204)도 메타에 적힌다 - 에셋 경로로 울릴 때 절반 크기다.
+        meta.audioOptions.gain = 0.5f;
         Check(SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the meta takes the disk mode");
+        AssetMetaFile trimmedMeta;
+        Check(LoadAssetMetaFile(fixture.platform, metaPath.c_str(), trimmedMeta, metaError) && trimmedMeta.audioOptions.gain == 0.5f,
+            "the trim round-trips through the meta");
         const AssetHandle theme = fixture.assets.Load(fixture.longId);
         const AudioData* data = fixture.assets.GetAudio(theme);
         Check(data != nullptr && data->pcm.IsEmpty() && data->encoded.IsEmpty() && false == data->streamPath.empty(),
@@ -495,7 +514,8 @@ namespace
         audio.PlayOneShot(theme, AudioBusName{}, 1.0f, 1.0f);
         Check(mixer.GetStats().activeStreams == 1, "a disk-streamed asset plays through the audio system");
         std::this_thread::sleep_for(std::chrono::milliseconds(30));
-        Check(PacedWindowPeaks(mixer, 2, 4800)[1] > 0.4f, "and it is heard");
+        const float trimmedPeak = PacedWindowPeaks(mixer, 2, 4800)[1];
+        Check(std::fabs(trimmedPeak - 0.25f) < 0.04f, "and it is heard at the asset's trim");
         // 흘려 읽는 중에 내려도 멈추지 않고 끝난다.
         audio.Shutdown();
         mixer.Play(play);
@@ -763,6 +783,21 @@ namespace
         scene.Frame();
         RenderPeaks(mixer, 9600);
         Check(std::fabs(scene.audio.GetBusPeak(stepsName) - open) < 0.03f, "clearing it restores the source");
+
+        // 더킹은 모든 버스가 선 뒤에 잇는다(뒤에 있는 버스여도 된다).
+        AudioBusConfig ducked[2];
+        ducked[0] = {names.Intern("Music"), 1.0f};
+        ducked[0].duckBy = names.Intern("Voice");
+        ducked[0].duckAmount = 0.5f;
+        ducked[1] = {names.Intern("Voice"), 1.0f};
+        scene.audio.ConfigureBuses({ducked, 2});
+        Check(mixer.GetBusDuckTrigger(AudioFirstProjectBus) == AudioFirstProjectBus + 1
+                && mixer.GetBusDuckAmount(AudioFirstProjectBus) == 0.5f,
+            "a bus ducks under a bus named later in the project");
+        // 스크립트의 페이드.
+        GetAudioServices().Audio.FadeBusVolume("Music", 0.25f, 0.5f);
+        Check(mixer.GetBusVolume(AudioFirstProjectBus) == 0.25f, "a script fades a bus by name");
+        scene.audio.ConfigureBuses({buses, 4});
 
         // 솔로는 저장하지 않지만 버스를 다시 세워도 이름으로 남는다.
         scene.audio.SetBusSolo(AudioBusName::FromText("Room"), true);

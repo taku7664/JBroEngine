@@ -29,6 +29,7 @@ namespace JBro::System
         AudioClipDesc DescribeClip(const AudioData& data)
         {
             AudioClipDesc desc;
+            desc.gain = data.options.gain;
             desc.frameCount = data.frameCount;
             desc.sampleRate = data.sampleRate;
             desc.channels = data.channels;
@@ -185,6 +186,26 @@ namespace JBro::System
             {
                 const char* text = NameTable::Get().Resolve(config.name);
                 Log::Write(LogLevel::Warning, "audio", "bus '%s': its send target is missing or would feed back - the send is off",
+                    text[0] != '\0' ? text : "?");
+            }
+        }
+        // 더킹도 모든 버스가 선 뒤에 잇는다(D-204).
+        for (const AudioBusConfig& config : m_busConfigs)
+        {
+            if (config.duckBy == InvalidNameId || config.duckAmount <= 0.0f)
+            {
+                continue;
+            }
+            const AudioBusId* bus = m_buses.Find(config.name);
+            const AudioBusId* trigger = m_buses.Find(config.duckBy);
+            if (bus != nullptr && trigger != nullptr && *bus != *trigger)
+            {
+                m_mixer->SetBusDucking(*bus, *trigger, config.duckAmount, config.duckRelease);
+            }
+            else
+            {
+                const char* text = NameTable::Get().Resolve(config.name);
+                Log::Write(LogLevel::Warning, "audio", "bus '%s': the bus it ducks under is missing - ducking is off",
                     text[0] != '\0' ? text : "?");
             }
         }
@@ -735,6 +756,14 @@ namespace JBro::System
     void AudioSystem::StopAll()
     {
         StopGameSounds();
+    }
+
+    void AudioSystem::FadeBusVolume(AudioBusName bus, float volume, float seconds)
+    {
+        if (m_initialized)
+        {
+            m_mixer->SetBusVolume(ResolveBus(bus), volume, seconds);
+        }
     }
 
     void AudioSystem::SetBusSolo(AudioBusName bus, bool solo)

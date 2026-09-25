@@ -51,6 +51,9 @@ namespace JBro::Service
         AudioBusEffects GetBusEffects(AudioBusName bus) const;
         // 자주 쓰는 하나: 이 위를 깎는다(Hz). 0 이면 끈다. 일시 정지 화면에서 `SetBusLowPass("Music", 800)`.
         void SetBusLowPass(const char* bus, float cutoffHz) const;
+        // 버스 음량을 `seconds` 에 걸쳐 옮긴다(D-204). `FadeBusVolume("Music", 0.2f, 1.5f)` - 스냅숏 대신 이것 몇 줄이다.
+        void FadeBusVolume(const char* bus, float volume, float seconds) const;
+        void FadeBusVolume(AudioBusName bus, float volume, float seconds) const;
         void StopAll() const;
 
         // 옵션 화면의 "출력 장치" 다(D-203). 목록을 열 때 `GetOutputDeviceCount` 를 한 번 부르고(몇 ms 걸린다) 그 뒤

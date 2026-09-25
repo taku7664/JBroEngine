@@ -880,6 +880,12 @@ namespace JBro
                 config.send = NameTable::Get().Intern(bus.send.c_str());
                 config.sendLevel = bus.sendLevel;
             }
+            if (false == bus.duckBy.empty())
+            {
+                config.duckBy = NameTable::Get().Intern(bus.duckBy.c_str());
+                config.duckAmount = bus.duckAmount;
+                config.duckRelease = bus.duckRelease;
+            }
             buses.Add(config);
         }
         m_audio->ConfigureBuses({buses.Data(), static_cast<std::uint32_t>(buses.Size())});

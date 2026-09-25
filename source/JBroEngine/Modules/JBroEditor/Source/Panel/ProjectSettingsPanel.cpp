@@ -408,6 +408,41 @@ namespace JBro
                             });
                         routing.Row([] { Widget::Text("SendLevel"); },
                             [&] { Widget::SliderFloat("##sendLevel", bus.sendLevel, 0.0f, 1.0f); });
+                        // 더킹(D-204): 고른 버스에 소리가 있는 동안 이 버스가 물러선다.
+                        routing.Row([] { Widget::Text("DuckBy"); },
+                            [&] {
+                                m_busChoices.Clear();
+                                m_busChoices.Add(Loc::TextOr(LocKeys::ProjectSettingsAudioNoSend, "None"));
+                                int current = 0;
+                                for (std::size_t other = 0; other < m_draft.audioBuses.Size(); ++other)
+                                {
+                                    if (other == index)
+                                    {
+                                        continue;
+                                    }
+                                    m_busChoices.Add(m_draft.audioBuses[other].name.c_str());
+                                    if (m_draft.audioBuses[other].name == bus.duckBy)
+                                    {
+                                        current = static_cast<int>(m_busChoices.Size()) - 1;
+                                    }
+                                }
+                                if (Widget::FilterCombo("##duckBy", {m_busChoices.Data(), m_busChoices.Size()}, current)
+                                        .ShowFilter(false)
+                                        .Draw())
+                                {
+                                    bus.duckBy = current <= 0 ? String() : String(m_busChoices[static_cast<std::size_t>(current)]);
+                                    if (current > 0 && bus.duckAmount <= 0.0f)
+                                    {
+                                        bus.duckAmount = 0.5f;
+                                    }
+                                }
+                                Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioDuckHelp,
+                                    "While that bus sounds, this one steps back (e.g. music under dialogue)"));
+                            });
+                        routing.Row([] { Widget::Text("DuckAmount"); },
+                            [&] { Widget::SliderFloat("##duckAmount", bus.duckAmount, 0.0f, 1.0f); });
+                        routing.Row([] { Widget::Text("DuckRelease"); },
+                            [&] { Widget::SliderFloat("##duckRelease", bus.duckRelease, 0.01f, 3.0f); });
                     }
                     Widget::TreePop();
                 }
