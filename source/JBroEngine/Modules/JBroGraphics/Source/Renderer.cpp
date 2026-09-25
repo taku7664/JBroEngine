@@ -402,8 +402,8 @@ namespace JBro
         std::uint32_t height, JArrayView<std::byte> rgba8, std::uint32_t rowPitch)
     {
         const TextureResource* resource = FindTexture(texture);
-        if (resource == nullptr || m_frameActive || rgba8.data == nullptr || width == 0 || height == 0
-            || x + width > resource->extent.width || y + height > resource->extent.height)
+        // 텍스처 밖·짧은 행 간격은 백엔드가 거절한다(RHI 계약, D-216) - 여기서 한 번 더 재지 않는다.
+        if (resource == nullptr || m_frameActive || rgba8.data == nullptr || width == 0 || height == 0)
         {
             return false;
         }

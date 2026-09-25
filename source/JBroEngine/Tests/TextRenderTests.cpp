@@ -507,6 +507,17 @@ namespace
             Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "a glyph already in the atlas uploads nothing");
             Check(FindDark(gpu).count == dark.count, "and the A is back pixel for pixel");
             Check(gpu.renderer.GetTextureCount() == registered, "no texture was registered for any of it");
+            // 3-1. 새 글자 둘(T·o)이 한 프레임에 들어오면 올리는 사각형이 두 칸을 다 감싼다. 뒤의 칸(o)만 따로 그려 보면 올린 것이 보인다.
+            Check(service.SetText(ref, "To"), "two new glyphs in one frame");
+            gpu.Paint(framework);
+            const std::uint64_t afterPair = texts->GetLibrary().GetUploadCount();
+            Check(afterPair == uploads + 2, "the pair goes up in one upload");
+            Check(service.SetText(ref, "o"), "the second of the pair alone");
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == afterPair && FindDark(gpu).count > 20,
+                "the second cell of the pair was uploaded with the first");
+            Check(service.SetText(ref, "A"), "back to A once more");
+            gpu.Paint(framework);
 
             // 4. 색만 바꾸면 다시 레이아웃하지 않는다.
             const std::uint64_t beforeColour = texts->GetRelayoutCount();
@@ -787,6 +798,31 @@ namespace
             TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
             gpu.Paint(framework);
             Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "and a prewarmed syllable uploads nothing");
+
+            // 미리 채우기가 도는 중에 폰트가 다른 모드로 다시 열리면 옛 모드의 결과는 새 아틀라스에 들어가지 않는다. 비트맵으로 다시 열어
+            // 워커를 띄운 채 곧바로 SDF 로 되돌린다 - 끝나면 SDF 판의 수(화면의 `한` 을 뺀 것)만 선다. 비트맵 칸(키가 다르다)이 섞이면 는다.
+            const auto reopenAs = [&](FontRenderMode mode) {
+                AssetMetaFile meta;
+                AssetMetaError error;
+                Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads again");
+                meta.fontOptions.renderMode = mode;
+                Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves again");
+                Check(project.assets.ReloadInPlace(project.fontId), "the font reloads in place");
+                gpu.Paint(framework);
+            };
+            reopenAs(FontRenderMode::Bitmap);
+            Check(texts->GetLibrary().IsPrewarming(label->font), "the bitmap prewarm is on the workers");
+            reopenAs(FontRenderMode::Sdf);
+            frames = 0;
+            while (texts->GetLibrary().IsPrewarming(label->font) && frames < 2000)
+            {
+                tasks.Update();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                ++frames;
+            }
+            Check(false == texts->GetLibrary().IsPrewarming(label->font), "the prewarm after the reopen finishes");
+            Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29 - 1,
+                "nothing from the bitmap prewarm reached the reopened atlas");
             framework.Shutdown();
         }
         tasks.Shutdown();
