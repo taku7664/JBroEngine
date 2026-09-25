@@ -120,5 +120,8 @@
   임포트 옵션이 그것을 덮어쓴다. 컴포넌트에는 두지 않는다.
 - `[열림]` 스크립트가 런타임에 `AssetId` 필드를 바꾸는 경우의 프레임 끝 해석(asset-plan §2.6). 지금은 캔버스를 읽은 뒤와
   에디터의 편집 뒤에만 `BindCanvasAssets` 가 돈다.
-- `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·텍스트
-  (FreeType + HarfBuzz)·Shape 렌더러. 렌더 패스 그래프(공용 todo)가 먼저다.
+- `[제안]` **텍스트** - [text-plan.md](./text-plan.md) 초안(2026-09-25, Decision 전). 기존 `Text2D` 의 결함(커닝 미적용·
+  텍스트마다 GPU 버퍼·외곽선 상한)과 D-51(컴포넌트 공개 필드에 `String` 금지)과의 충돌을 정리했다. 비트맵 글자는 렌더 패스
+  그래프 없이 지금의 스프라이트 경로로 선다. 계획서 §6 의 여섯 질문에 답이 나오면 Decision 으로 옮긴다.
+- `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·Shape 렌더러.
+  렌더 패스 그래프(공용 todo)가 먼저다.

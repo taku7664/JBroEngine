@@ -93,6 +93,9 @@
 - [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199). 결정은 섰고 코드는 1 단계부터 진행한다.
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
   캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다
+- [tasks/text-plan.md](./tasks/text-plan.md) — 2D 텍스트 계획. **초안이고 Decision 전이다.** 기존 엔진 `Text2D` 를 깨트려 본 결과
+  (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
+  캔버스를 모르는 커널 `JBroText` 와 글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 확인할 질문이 §6 에 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).
