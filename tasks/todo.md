@@ -2728,7 +2728,7 @@ EditorApplication::Tick
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
 - **D-206. 텍스트 저장소는 캔버스마다가 아니라 프로세스에 하나이고(`JBroRuntime` 의 `TextStore`), `TextId` 는 코덱으로 값처럼 행동한다.**
-  (2026-09-25, text-plan §5 의 2 단계) Updates: D-200 (1) 의 "캔버스마다 하나인 `TextStore` 를 Framework2DSystem 이 든다". 구현에서 두 사실이
+  (2026-09-25, text-plan §5 의 2 단계. 처음 D-203 으로 적었다가 main 의 오디오 D-203 과 겹쳐 D-206 으로 옮겼다 - 커밋 `7d686a8` 의 메시지는 옛 번호다) Updates: D-200 (1) 의 "캔버스마다 하나인 `TextStore` 를 Framework2DSystem 이 든다". 구현에서 두 사실이
   그 자리를 막았다: (1) 리플렉션 코덱(`ValueCodec`)은 값의 주소만 받고 문맥을 받지 않는다 - 캔버스 파일·스냅숏·복사·되돌리기가 모두 이 코덱을
   지나므로 저장소는 전역으로 닿아야 한다. (2) `Canvas::~Canvas` 는 **시스템을 먼저 내리고** 오브젝트를 나중에 부순다 - 시스템이 든 저장소는
   `OnDetached` 때 이미 없다. 그래서 `NameTable`·`ScriptRegistry` 와 같은 `Local`/`Get`/`Bind` 모양의 프로세스 저장소를 Tier S `JBroRuntime` 에 두었다
