@@ -90,6 +90,9 @@
 - [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198). **아직 코드는 없다.** `ma_engine` 을 안에 둔 `AudioMixer`,
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건이 §3 에 있다
+- [tasks/input-plan.md](./tasks/input-plan.md) — 입력 계획. **제안 단계이고 코드는 없다.** 기존 엔진 입력(`GetAsyncKeyState` 폴링·
+  `InputHandler<"UI", 10>` 레이어 블로킹)의 구조와 아팠던 것 P1~P8 이 §1, 새 엔진의 이벤트 입력(D-62)에서 프레임 상태를 만들고
+  반환값 `Block` + 장치 단위 소비로 막는 설계가 §3, 단계가 §4, 확인할 질문이 §5 에 있다
 - [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199). 결정은 섰고 코드는 1 단계부터 진행한다.
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
   캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다
