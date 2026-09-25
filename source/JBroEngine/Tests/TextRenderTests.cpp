@@ -841,6 +841,29 @@ namespace
             Check(false == texts->GetLibrary().IsPrewarming(label->font), "the prewarm after the reopen finishes");
             Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29 - 1,
                 "nothing from the bitmap prewarm reached the reopened atlas");
+
+            // 워커가 여러 장을 채우는 동안에도, 끝난 뒤에도 미리 채운 페이지로는 비우지 않는다. 200 px 거리장은 한 장을 넘고 한도는 1 이다.
+            {
+                AssetMetaFile meta;
+                AssetMetaError error;
+                Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads for large cells");
+                meta.fontOptions.sdfSize = 200;
+                Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves large cells");
+            }
+            texts->SetAtlasPageLimit(1);
+            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            Check(project.assets.ReloadInPlace(project.fontId), "the font reloads with large cells");
+            frames = 0;
+            gpu.Paint(framework);
+            while (texts->GetLibrary().IsPrewarming(label->font) && frames < 2000)
+            {
+                tasks.Update();
+                gpu.Paint(framework);
+                ++frames;
+            }
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2, "the large worker prewarm fills more than one page");
+            Check(texts->GetLibrary().GetTrimCount() == trims, "and neither its growth nor its pages trim the atlas");
             framework.Shutdown();
         }
         tasks.Shutdown();

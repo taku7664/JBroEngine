@@ -1,0 +1,3 @@
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	snap:x-not-rounded	const float originX = text.pixelSnap ? std::round(glyph.x) : glyph.x;	const float originX = glyph.x;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	snap:y-not-rounded	const float originY = text.pixelSnap ? std::round(glyph.y) : glyph.y;	const float originY = glyph.y;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	snap:not-keyed	Mix(key, text.pixelSnap ? 1u : 0u);	;
