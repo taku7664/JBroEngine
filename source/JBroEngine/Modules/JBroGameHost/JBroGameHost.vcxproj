@@ -109,6 +109,9 @@
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2DSystem\JBroFramework2DSystem.vcxproj">
       <Project>{1a000011-0000-4000-8000-0000000f2d5e}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
+      <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(JBroScriptDimension)' == '3D'">
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">

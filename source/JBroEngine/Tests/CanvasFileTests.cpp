@@ -1033,6 +1033,42 @@ namespace
         }
     }
 
+    // **폴리곤 콜라이더의 꼭짓점과 표면·거르기 값이 저장했다 열어도 그대로다**(D-199). 내장 컴포넌트의 첫 배열 필드다.
+    void TestAPolygonColliderMakesTheRoundTrip()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("Cup");
+            canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            auto* collider = canvas.AttachComponent<JBro::Component::Collider2D>(object);
+            collider->shape = JBro::Component::ColliderShape2D::Polygon;
+            collider->points = { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+            collider->friction = 0.25f;
+            collider->restitution = 0.5f;
+            collider->layer = 0x4u;
+            collider->mask = 0xFFFFFFF0u;
+            text = Save(canvas);
+        }
+
+        JBro::Canvas loaded(JBro::CreateDefaultAllocator());
+        LoadOrFail(loaded, text);
+        int found = 0;
+        loaded.ForEach<JBro::Component::Collider2D>([&found](JBro::Component::Collider2D& collider)
+        {
+            ++found;
+            Check(collider.shape == JBro::Component::ColliderShape2D::Polygon, "the shape comes back as a polygon");
+            Check(collider.points.Size() == 8, "with all eight corners of the U");
+            Check(collider.points[4].x == 2.0f && collider.points[4].y == 1.0f, "in their order");
+            Check(collider.friction == 0.25f && collider.restitution == 0.5f, "and the surface values");
+            Check(collider.layer == 0x4u && collider.mask == 0xFFFFFFF0u, "and the collision filter");
+        });
+        Check(found == 1, "exactly one collider comes back");
+    }
+
     void TestA3DSceneMakesTheRoundTripToo()
     {
         JBro::Component::RegisterBuiltinComponentProperties3D();
@@ -1121,6 +1157,7 @@ int RunCanvasFileTests()
     TestLayersComeBackWithoutPilingUp();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
+    TestAPolygonColliderMakesTheRoundTrip();
     TestA3DSceneMakesTheRoundTripToo();
     TestEditorHiddenIsSavedButNotPacked();
     std::cout << "Canvas file tests passed.\n";
