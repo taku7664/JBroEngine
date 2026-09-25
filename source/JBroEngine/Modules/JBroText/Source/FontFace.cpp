@@ -32,6 +32,7 @@ namespace JBro::Text
         // stb 는 확장 조회(형식 9)로 감싼 쌍 조정과, 첫 값 형식이 XAdvance 하나가 아닌 쌍 조정을 건너뛰어 그 폰트의 커닝이 **조용히
         // 0** 이었다. 큰 폰트는 64 KB 오프셋을 피하려고 확장 조회를 흔히 쓴다. 쌍 조정(형식 2, 부표 형식 1·2)을 여기서 직접 읽는다 -
         // 값 형식은 어떤 조합이든 XAdvance 자리를 찾아 읽고, 확장 조회는 풀어서 읽는다. 표가 버퍼 밖을 가리키면 그 부표는 없는 것으로 본다.
+        // 결합 표시의 자리(mark-to-base, 형식 4)도 같은 조회 순회로 읽는다 - stb 는 이 형식을 아예 읽지 않는다.
         class GposReader
         {
         public:
@@ -298,20 +299,86 @@ namespace JBro::Text
                 return false;
             }
 
-            // GPOS 전체에서 첫 번째로 찾은 쌍 조정이다. 없으면 0 이다.
-            std::int32_t Kerning(std::size_t gpos, std::uint32_t left, std::uint32_t right) const
+            // 앵커 표의 (x, y) 다. 형식 1·2·3 모두 앞의 두 값이 좌표다(2 의 윤곽 점, 3 의 장치 표는 쓰지 않는다).
+            bool Anchor(std::size_t table, std::int32_t& x, std::int32_t& y) const
+            {
+                std::uint16_t format = 0;
+                std::uint16_t xValue = 0;
+                std::uint16_t yValue = 0;
+                if (false == Read16(table, format) || format < 1 || format > 3 || false == Read16(table + 2, xValue)
+                    || false == Read16(table + 4, yValue))
+                {
+                    return false;
+                }
+                x = static_cast<std::int16_t>(xValue);
+                y = static_cast<std::int16_t>(yValue);
+                return true;
+            }
+
+            // mark-to-base 부표(형식 4 의 형식 1) 하나다. 찾으면 받침 원점에서 표시 원점까지의 거리(폰트 단위)를 준다.
+            bool MarkToBase(std::size_t subtable, std::uint32_t base, std::uint32_t mark, std::int32_t& dx, std::int32_t& dy) const
+            {
+                std::uint16_t format = 0;
+                std::uint16_t markCoverage = 0;
+                std::uint16_t baseCoverage = 0;
+                std::uint16_t classCount = 0;
+                std::uint16_t markArray = 0;
+                std::uint16_t baseArray = 0;
+                if (false == Read16(subtable, format) || format != 1 || false == Read16(subtable + 2, markCoverage)
+                    || false == Read16(subtable + 4, baseCoverage) || false == Read16(subtable + 6, classCount)
+                    || false == Read16(subtable + 8, markArray) || false == Read16(subtable + 10, baseArray))
+                {
+                    return false;
+                }
+                const std::int32_t markIndex = CoverageIndex(subtable + markCoverage, mark);
+                const std::int32_t baseIndex = CoverageIndex(subtable + baseCoverage, base);
+                if (markIndex < 0 || baseIndex < 0)
+                {
+                    return false;
+                }
+                const std::size_t marks = subtable + markArray;
+                std::uint16_t markClass = 0;
+                std::uint16_t markAnchor = 0;
+                if (false == Read16(marks + 2 + static_cast<std::size_t>(markIndex) * 4, markClass)
+                    || false == Read16(marks + 4 + static_cast<std::size_t>(markIndex) * 4, markAnchor) || markClass >= classCount)
+                {
+                    return false;
+                }
+                const std::size_t bases = subtable + baseArray;
+                std::uint16_t baseAnchor = 0;
+                if (false == Read16(bases + 2 + (static_cast<std::size_t>(baseIndex) * classCount + markClass) * 2, baseAnchor)
+                    || baseAnchor == 0)
+                {
+                    return false;
+                }
+                std::int32_t markX = 0;
+                std::int32_t markY = 0;
+                std::int32_t baseX = 0;
+                std::int32_t baseY = 0;
+                if (false == Anchor(marks + markAnchor, markX, markY) || false == Anchor(bases + baseAnchor, baseX, baseY))
+                {
+                    return false;
+                }
+                dx = baseX - markX;
+                dy = baseY - markY;
+                return true;
+            }
+
+            // 조회 목록을 돌며 형식 wanted 의 부표를 찾는다(확장 조회는 풀어서). visit 가 참을 주면 멈추고 참이다.
+            template <typename TVisit>
+            bool VisitSubtables(std::size_t gpos, std::uint16_t wanted, TVisit&& visit) const
             {
                 std::uint16_t major = 0;
                 std::uint16_t lookupList = 0;
                 if (false == Read16(gpos, major) || major != 1 || false == Read16(gpos + 8, lookupList))
                 {
-                    return 0;
+                    return false;
                 }
                 const std::size_t list = gpos + lookupList;
                 std::uint16_t lookupCount = 0;
                 if (false == Read16(list, lookupCount))
                 {
-                    return 0;
+                    return false;
                 }
                 for (std::uint16_t lookupIndex = 0; lookupIndex < lookupCount; ++lookupIndex)
                 {
@@ -320,14 +387,10 @@ namespace JBro::Text
                     std::uint16_t subtableCount = 0;
                     if (false == Read16(list + 2 + static_cast<std::size_t>(lookupIndex) * 2, lookupOffset))
                     {
-                        return 0;
+                        return false;
                     }
                     const std::size_t lookup = list + lookupOffset;
-                    if (false == Read16(lookup, type) || false == Read16(lookup + 4, subtableCount))
-                    {
-                        continue;
-                    }
-                    if (type != 2 && type != 9)
+                    if (false == Read16(lookup, type) || false == Read16(lookup + 4, subtableCount) || (type != wanted && type != 9))
                     {
                         continue;
                     }
@@ -341,26 +404,37 @@ namespace JBro::Text
                         std::size_t subtable = lookup + subtableOffset;
                         if (type == 9)
                         {
-                            // 확장 조회: 형식 1, 속 조회 형식, 32 비트 오프셋.
                             std::uint16_t extensionFormat = 0;
                             std::uint16_t extensionType = 0;
                             std::uint32_t extensionOffset = 0;
                             if (false == Read16(subtable, extensionFormat) || extensionFormat != 1
-                                || false == Read16(subtable + 2, extensionType) || extensionType != 2
+                                || false == Read16(subtable + 2, extensionType) || extensionType != wanted
                                 || false == Read32(subtable + 4, extensionOffset))
                             {
                                 continue;
                             }
                             subtable += extensionOffset;
                         }
-                        std::int32_t adjustment = 0;
-                        if (PairAdjustment(subtable, left, right, adjustment))
+                        if (visit(subtable))
                         {
-                            return adjustment;
+                            return true;
                         }
                     }
                 }
-                return 0;
+                return false;
+            }
+
+            bool MarkAttachment(std::size_t gpos, std::uint32_t base, std::uint32_t mark, std::int32_t& dx, std::int32_t& dy) const
+            {
+                return VisitSubtables(gpos, 4, [&](std::size_t subtable) { return MarkToBase(subtable, base, mark, dx, dy); });
+            }
+
+            // GPOS 전체에서 첫 번째로 찾은 쌍 조정이다. 없으면 0 이다.
+            std::int32_t Kerning(std::size_t gpos, std::uint32_t left, std::uint32_t right) const
+            {
+                std::int32_t adjustment = 0;
+                VisitSubtables(gpos, 2, [&](std::size_t subtable) { return PairAdjustment(subtable, left, right, adjustment); });
+                return adjustment;
             }
 
         private:
@@ -492,6 +566,23 @@ namespace JBro::Text
             return stbtt__GetGlyphKernInfoAdvance(info, static_cast<int>(left), static_cast<int>(right));
         }
         return 0;
+    }
+
+    bool FontFace::GetMarkAttachment(GlyphIndex base, GlyphIndex mark, std::int32_t& dx, std::int32_t& dy) const
+    {
+        dx = 0;
+        dy = 0;
+        if (false == m_loaded)
+        {
+            return false;
+        }
+        const stbtt_fontinfo* info = Info(m_info);
+        if (info->gpos == 0)
+        {
+            return false;
+        }
+        const GposReader reader(reinterpret_cast<const unsigned char*>(m_bytes.Data()), m_bytes.Size());
+        return reader.MarkAttachment(static_cast<std::size_t>(info->gpos), base, mark, dx, dy);
     }
 
     GlyphBox FontFace::GetGlyphBox(GlyphIndex glyph) const

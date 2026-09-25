@@ -150,6 +150,16 @@ namespace JBro::Text
                 || (value >= 0x20000 && value <= 0x2FFFF);  // CJK 확장 B 이후
         }
 
+        // 앞 글자에 붙는 결합 표시다(결합 분음 부호와 그 보충·확장, 기호용 결합 표시, 결합 반쪽 표시).
+        bool IsCombiningMark(char32_t value)
+        {
+            return (value >= 0x0300 && value <= 0x036F)
+                || (value >= 0x1AB0 && value <= 0x1AFF)
+                || (value >= 0x1DC0 && value <= 0x1DFF)
+                || (value >= 0x20D0 && value <= 0x20FF)
+                || (value >= 0xFE20 && value <= 0xFE2F);
+        }
+
         struct FaceChoice
         {
             GlyphIndex    glyph = MissingGlyph;
@@ -276,6 +286,47 @@ namespace JBro::Text
                 m_items.Add(item);
                 continue;
             }
+            // 결합 표시는 바로 앞의 보이는 글자(또는 같은 글자에 먼저 붙은 표시)에 붙는다. 받침이 없으면(줄 머리·공백 뒤) 보통 글자다.
+            if (IsCombiningMark(value) && m_items.Size() > 0
+                && (m_items.Last().kind == ItemKind::Visible || m_items.Last().kind == ItemKind::Mark))
+            {
+                const std::uint32_t baseIndex = m_items.Last().kind == ItemKind::Mark
+                    ? m_items.Last().markBase
+                    : static_cast<std::uint32_t>(m_items.Size() - 1);
+                const Item& base = m_items[baseIndex];
+                item.kind = ItemKind::Mark;
+                item.markBase = baseIndex;
+                item.breaksAnywhere = base.breaksAnywhere;
+                // 앵커는 받침과 같은 폰트 안에만 있으므로, 받침의 폰트에 표시가 있으면 그 폰트로 그린다.
+                const FontFace& baseFace = *faces[base.face];
+                const GlyphIndex sameFace = baseFace.FindGlyph(value);
+                FaceChoice choice;
+                if (sameFace != MissingGlyph)
+                {
+                    choice.glyph = sameFace;
+                    choice.face = base.face;
+                }
+                else
+                {
+                    choice = ChooseFace(faces, primary, value);
+                }
+                item.glyph = choice.glyph;
+                item.face = choice.face;
+                std::int32_t dx = 0;
+                std::int32_t dy = 0;
+                if (choice.face == base.face && baseFace.GetMarkAttachment(base.glyph, choice.glyph, dx, dy))
+                {
+                    const float scale = Scale(baseFace, options.fontSize);
+                    item.markX = static_cast<float>(dx) * scale;
+                    item.markY = static_cast<float>(dy) * scale;
+                }
+                else
+                {
+                    item.markX = base.advance;
+                }
+                m_items.Add(item);
+                continue;
+            }
             item.kind = IsSpace(value) ? ItemKind::Space : ItemKind::Visible;
             // 탭은 공백 글리프로 재고, 줄을 나눌 때 멈춤 자리까지 폭을 늘린다(아래 3.).
             const char32_t lookup = value == 0x09 ? U' ' : value;
@@ -317,12 +368,13 @@ namespace JBro::Text
             for (std::size_t index = begin; index < end; ++index)
             {
                 const Item& item = m_items[index];
-                if (item.kind != ItemKind::Visible)
+                if (item.kind != ItemKind::Visible && item.kind != ItemKind::Mark)
                 {
                     continue;
                 }
                 PositionedGlyph glyph;
                 glyph.x = item.x;
+                glyph.y = item.markY; // 아래 4. 에서 기준선을 더한다
                 glyph.glyph = item.glyph;
                 glyph.face = item.face;
                 glyph.line = static_cast<std::uint16_t>(m_lines.Size());
@@ -356,10 +408,21 @@ namespace JBro::Text
                 continue;
             }
 
+            if (item.kind == ItemKind::Mark)
+            {
+                // 받침은 늘 앞에 있고(같은 줄), 이번 줄 매기기에서 이미 자리를 받았다. 펜은 움직이지 않는다.
+                item.x = m_items[item.markBase].x + item.markX;
+                ++index;
+                continue;
+            }
+
             float x = penX;
             if (index > lineStart)
             {
-                const Item& previous = m_items[index - 1];
+                // 표시 뒤의 글자는 표시가 아니라 그 받침과 짝을 짓는다(커닝·금칙).
+                const Item& previous = m_items[index - 1].kind == ItemKind::Mark
+                    ? m_items[m_items[index - 1].markBase]
+                    : m_items[index - 1];
                 if (previous.face == item.face)
                 {
                     const FontFace& face = *faces[item.face];
@@ -480,7 +543,7 @@ namespace JBro::Text
             {
                 PositionedGlyph& glyph = m_glyphs[line.firstGlyph + glyphIndex];
                 glyph.x += shift;
-                glyph.y = line.baseline;
+                glyph.y += line.baseline;
             }
         }
         if (keptLines < m_lines.Size())

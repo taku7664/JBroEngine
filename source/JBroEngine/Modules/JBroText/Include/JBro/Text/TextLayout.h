@@ -69,6 +69,9 @@ namespace JBro::Text
     };
 
     // 그릴 글리프 하나다. 공백과 개행은 들어오지 않는다. (x, y) 는 기준선 위의 글리프 원점이다.
+    // 결합 표시(U+0300 따위)는 앞 글자에 붙어 제 글리프로 들어온다 - 폰트의 GPOS mark-to-base 앵커가 있으면 그 자리, 없으면 받침의
+    // 전진 폭 끝(폭 없는 표시가 음수 베어링으로 받침 위에 그려지는 폰트의 기본 자리)이다. 표시 위의 표시(mark-to-mark)는 읽지 않아
+    // 같은 받침의 두 표시는 같은 앵커에 겹친다.
     struct PositionedGlyph
     {
         float         x = 0.0f;
@@ -134,6 +137,7 @@ namespace JBro::Text
         enum class ItemKind : std::uint8_t
         {
             Visible,
+            Mark,    // 앞 글자에 붙는 결합 표시다. 폭이 없고, 줄바꿈 기회가 아니며, 넘침을 재지 않는다
             Space,
             Newline,
         };
@@ -154,6 +158,9 @@ namespace JBro::Text
             std::uint32_t offset = 0;
             float         advance = 0.0f;         // 픽셀, 커닝 전
             float         x = 0.0f;               // 줄 안에서 매긴 자리
+            std::uint32_t markBase = 0;           // Mark 이면 붙는 받침 글자의 번호
+            float         markX = 0.0f;           // Mark 이면 받침 원점에서 표시 원점까지(픽셀, y 위쪽)
+            float         markY = 0.0f;
         };
 
         void Reset();

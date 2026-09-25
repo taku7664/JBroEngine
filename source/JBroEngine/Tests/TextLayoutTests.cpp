@@ -4,6 +4,8 @@
 #include "TestFontNotoSansKR.generated.h"
 #include "TestFontNotoSansKRExtension.generated.h"
 #include "TestFontNotoSansKRXPlacement.generated.h"
+#include "TestFontNotoSansKRMarks.generated.h"
+#include "TestFontNotoSansKRMarksExtension.generated.h"
 
 #include <cmath>
 #include <cstring>
@@ -200,6 +202,90 @@ namespace
         }
         std::cout << "  [measure] kerned ASCII pairs in the test font: " << kerned << std::endl;
         Check(kerned > 100, "the comparison covers the font's kerned pairs");
+    }
+
+    // **결합 표시**(text-plan §7). 시험 폰트는 받침 A(폭 608)·e(폭 554)의 앵커가 (폭의 절반, 800), U+0301 의 앵커가 (-200, 600) 이다
+    // (MakeMarkFont.py). 그러면 표시는 받침 원점에서 (폭/2 + 200, 200) 에 붙는다. 표시는 폭이 없어 다음 글자의 자리를 바꾸지 않고,
+    // 앵커가 없는 받침(B)에서는 받침의 전진 폭 끝에 선다. 줄바꿈은 표시 앞에서 일어나지 않는다.
+    void TestCombiningMarksAttachToTheirBase()
+    {
+        FontFace marks;
+        FontFace wrapped;
+        Check(marks.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRMarks),
+                  sizeof(TestFontNotoSansKRMarks))),
+            "the mark font loads");
+        Check(wrapped.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRMarksExtension),
+                  sizeof(TestFontNotoSansKRMarksExtension))),
+            "the extension-wrapped mark font loads");
+        const GlyphIndex acute = marks.FindGlyph(U'\u0301');
+        Check(acute != MissingGlyph && marks.GetAdvance(acute) == 0, "the combining acute is in the font and has no advance");
+        std::int32_t dx = 0;
+        std::int32_t dy = 0;
+        Check(marks.GetMarkAttachment(marks.FindGlyph(U'A'), acute, dx, dy) && dx == 504 && dy == 200,
+            "the acute sits on A at the anchor difference");
+        Check(marks.GetMarkAttachment(marks.FindGlyph(U'e'), acute, dx, dy) && dx == 477 && dy == 200,
+            "and on e at its own anchor");
+        Check(wrapped.GetMarkAttachment(wrapped.FindGlyph(U'A'), wrapped.FindGlyph(U'\u0301'), dx, dy) && dx == 504 && dy == 200,
+            "a mark lookup inside an extension lookup is read");
+        Check(false == marks.GetMarkAttachment(marks.FindGlyph(U'B'), acute, dx, dy) && dx == 0 && dy == 0,
+            "a base without an anchor has no attachment");
+        Check(false == marks.GetMarkAttachment(marks.FindGlyph(U'A'), marks.FindGlyph(U'e'), dx, dy),
+            "a glyph that is not a mark has no attachment");
+
+        const FontFace* faces[] = { &marks };
+        TextLayout layout;
+        const LayoutOptions options = Unscaled();
+        // AV 는 커닝 쌍이다(-15). 표시가 끼어도 V 는 A 와 커닝한다.
+        Check(layout.Build(Utf8("AV"), faces, options) == LayoutError::None, "AV lays out");
+        const float bAfterA = layout.GetGlyphs()[1].x;
+        const float plainWidth = layout.GetLines()[0].width;
+        Check(Near(bAfterA, 608.0f - 15.0f), "the subset keeps the A-V kerning");
+        Check(layout.Build(Utf8("A\xCC\x81" "V"), faces, options) == LayoutError::None, "A + acute + V lays out");
+        Check(layout.GetGlyphs().Size() == 3 && layout.GetGlyphs()[1].glyph == acute, "the mark is its own glyph");
+        const PositionedGlyph& base = layout.GetGlyphs()[0];
+        const PositionedGlyph& mark = layout.GetGlyphs()[1];
+        Check(Near(mark.x - base.x, 504.0f) && Near(mark.y - base.y, 200.0f), "the mark is placed at the anchor");
+        Check(mark.sourceOffset == 1 && layout.GetGlyphs()[2].sourceOffset == 3, "the mark keeps its source bytes");
+        Check(Near(layout.GetGlyphs()[2].x, bAfterA) && Near(layout.GetLines()[0].width, plainWidth),
+            "the mark neither moves the next letter nor widens the line");
+        Check(layout.Build(Utf8("A\xCC\x81\xCC\x81"), faces, options) == LayoutError::None
+                && Near(layout.GetGlyphs()[2].x - layout.GetGlyphs()[0].x, 504.0f)
+                && Near(layout.GetGlyphs()[2].y - layout.GetGlyphs()[0].y, 200.0f),
+            "a second mark takes the base's anchor, not the first mark's");
+
+        // 앵커가 없는 받침에서는 받침의 끝이다. 표시가 둘이면 같은 받침에 붙는다(mark-to-mark 는 읽지 않는다).
+        Check(layout.Build(Utf8("B\xCC\x81\xCC\x81"), faces, options) == LayoutError::None, "B + two acutes lays out");
+        const float bAdvance = static_cast<float>(marks.GetAdvance(marks.FindGlyph(U'B')));
+        Check(layout.GetGlyphs().Size() == 3 && Near(layout.GetGlyphs()[1].x, bAdvance) && Near(layout.GetGlyphs()[1].y, layout.GetGlyphs()[0].y),
+            "without an anchor the mark stands at the end of its base");
+        Check(Near(layout.GetGlyphs()[2].x, bAdvance), "a second mark attaches to the same base");
+
+        // 가운데 정렬로 줄이 옮겨져도 표시는 받침과 같이 옮겨진다.
+        LayoutOptions centered = options;
+        centered.alignX = AlignX::Center;
+        Check(layout.Build(Utf8("A\xCC\x81"), faces, centered) == LayoutError::None, "a centred mark lays out");
+        Check(Near(layout.GetGlyphs()[1].x - layout.GetGlyphs()[0].x, 504.0f), "alignment moves the mark with its base");
+        // 절반 크기에서는 앵커 거리도 절반이다.
+        LayoutOptions half = options;
+        half.fontSize = 500.0f;
+        Check(layout.Build(Utf8("A\xCC\x81"), faces, half) == LayoutError::None
+                && Near(layout.GetGlyphs()[1].x - layout.GetGlyphs()[0].x, 252.0f)
+                && Near(layout.GetGlyphs()[1].y - layout.GetGlyphs()[0].y, 100.0f),
+            "the anchor offset scales with the font size");
+
+        // 글자마다 끊는 모드에서 받침 하나의 폭이면, 줄은 받침 앞에서만 바뀌고 표시는 받침의 줄에 남는다.
+        LayoutOptions narrow = options;
+        narrow.overflow = Overflow::Wrap;
+        narrow.wrapMode = WrapMode::Character;
+        narrow.boxWidth = 560.0f;
+        Check(layout.Build(Utf8("e\xCC\x81" "e\xCC\x81"), faces, narrow) == LayoutError::None, "two marked letters wrap");
+        Check(LineCounts(layout, { 2, 2 }), "a line never starts with a mark");
+        Check(Near(layout.GetGlyphs()[3].x - layout.GetGlyphs()[2].x, 477.0f) && layout.GetGlyphs()[3].line == 1,
+            "the second mark follows its base onto the second line");
+
+        // 받침이 없으면(줄 머리) 보통 글자다.
+        Check(layout.Build(Utf8("\xCC\x81" "A"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 2,
+            "a mark with no base still draws");
     }
 
     void TestWordWrap()
@@ -528,6 +614,7 @@ int RunTextLayoutTests()
         TestFaceRejectsGarbageAndMoves();
         TestKerningIsAppliedAcrossTheRun();
         TestKerningSurvivesGposShapesStbSkipped();
+        TestCombiningMarksAttachToTheirBase();
         TestWordWrap();
         TestHangulWrapModes();
         TestTabStopsAndLineBreakRules();

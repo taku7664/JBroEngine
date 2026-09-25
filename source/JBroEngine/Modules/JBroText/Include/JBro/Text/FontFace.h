@@ -73,6 +73,9 @@ namespace JBro::Text
         std::int32_t GetAdvance(GlyphIndex glyph) const;
         // 두 글리프 사이의 커닝이다. GPOS 쌍 조정을 먼저, 없으면 kern 표를 본다. 대개 음수다.
         std::int32_t GetKerning(GlyphIndex left, GlyphIndex right) const;
+        // 결합 표시를 받침에 붙이는 자리다(GPOS mark-to-base, 확장 조회 포함). 찾으면 받침 원점에서 표시 원점까지의 거리(폰트 단위,
+        // y 위쪽)이고 참이다. 폰트에 그 짝의 앵커가 없으면 거짓이다.
+        bool GetMarkAttachment(GlyphIndex base, GlyphIndex mark, std::int32_t& dx, std::int32_t& dy) const;
         GlyphBox GetGlyphBox(GlyphIndex glyph) const;
 
         // em 픽셀 크기 pixelSize 로 그린 글리프의 비트맵 자리를 잰다. 그릴 것이 없으면 크기가 0 이다.
