@@ -376,14 +376,17 @@ namespace
         options.boxWidth = 3000.0f;
 
         Check(layout.Build(Utf8("hello world hello world 한글 세계"), faces, options) == LayoutError::None, "a long text lays out");
-        const PositionedGlyph* glyphs = layout.GetGlyphs().Data();
-        const LineInfo* lines = layout.GetLines().Data();
+        const std::size_t reserved = layout.GetReservedCapacity();
+        Check(reserved > 0, "a long text reserves storage");
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(layout.Build(Utf8("hello world"), faces, options) == LayoutError::None, "a shorter text lays out");
-            Check(layout.GetGlyphs().Data() == glyphs && layout.GetLines().Data() == lines,
-                "rebuilding a shorter text reuses the same storage");
+            // 새 배열로 갈아 끼웠다면 짧은 글에 맞는 더 작은 용량이 남는다. 주소 비교로는 이것을 잡지 못했다
+            // (풀었다 다시 잡은 블록이 같은 주소로 올 수 있다 - 뮤테이션이 운에 따라 살았다).
+            Check(layout.GetReservedCapacity() == reserved, "rebuilding a shorter text keeps every buffer it had");
         }
+        Check(layout.Build(Utf8("hello world hello world 한글 세계"), faces, options) == LayoutError::None, "the long text lays out again");
+        Check(layout.GetReservedCapacity() == reserved, "the same long text needs no more storage");
     }
 }
 

@@ -4,6 +4,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
 
+#include <cstddef>
 #include <cstdint>
 
 // UTF-8 한 덩어리를 줄로 나누고 글리프마다 자리를 매긴다(D-200, text-plan §3.8·§4.1).
@@ -108,6 +109,10 @@ namespace JBro::Text
         float GetMinY() const;
         float GetMaxX() const;
         float GetMaxY() const;
+
+        // 안쪽 배열 넷(코드포인트·글자·글리프·줄)이 잡아 둔 원소 수의 합이다. 다시 레이아웃해도 이 값이 그대로면
+        // 용량을 다시 썼다는 뜻이다 - 주소 비교는 풀었다 다시 잡은 블록이 같은 주소로 올 수 있어 그 증거가 못 된다.
+        std::size_t GetReservedCapacity() const;
 
     private:
         enum class ItemKind : std::uint8_t

@@ -467,4 +467,9 @@ namespace JBro::Text
     {
         return m_maxY;
     }
+
+    std::size_t TextLayout::GetReservedCapacity() const
+    {
+        return m_codepoints.Capacity() + m_items.Capacity() + m_glyphs.Capacity() + m_lines.Capacity();
+    }
 }

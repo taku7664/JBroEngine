@@ -15,3 +15,4 @@ Modules\JBroText\Source\TextLayout.cpp	clip:never-drops-lines	        if (option
 Modules\JBroText\Source\TextLayout.cpp	layout:line-height-drops-descent	        const float lineHeight = static_cast<float>(metrics.ascent - metrics.descent + metrics.lineGap)	        const float lineHeight = static_cast<float>(metrics.ascent + metrics.lineGap)
 Modules\JBroText\Source\TextLayout.cpp	layout:rebuild-reallocates	        m_glyphs.Clear();	        m_glyphs = Array<PositionedGlyph>();
 Modules\JBroText\Source\FontFace.cpp	face:move-leaves-source-loaded	        other.m_loaded = false;	        (void)other;
+Modules\JBroText\Source\TextLayout.cpp	layout:scratch-reallocates	        m_items.Clear();	        m_items = Array<Item>();
