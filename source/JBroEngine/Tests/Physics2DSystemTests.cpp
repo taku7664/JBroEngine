@@ -10,7 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 
-// 2D 물리 어댑터(`System::Physics2DSystem`) 테스트(D-199·D-203, physics-plan §4 의 4 단계).
+// 2D 물리 어댑터(`System::Physics2DSystem`) 테스트(D-199·D-206, physics-plan §4 의 4 단계).
 // 캔버스를 세우고 컴포넌트만으로 장면을 짠 뒤 시스템을 스텝한다. 커널 자체의 정확성은 Physics2D*Tests 가 잰다 -
 // 여기서 보는 것은 컴포넌트와 커널 사이의 오감(동기화·되쓰기·이벤트 발송·질의)이다.
 namespace

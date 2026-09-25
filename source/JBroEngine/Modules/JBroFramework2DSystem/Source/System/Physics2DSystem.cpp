@@ -819,7 +819,7 @@ namespace JBro::System
                 ComponentBase* component = slot.reference.TryGet();
                 if (state.IsScript(component) && component->IsActiveComponent())
                 {
-                    // 2D 프로젝트의 스크립트는 모두 GameScript2D 다. 등록이 컴파일 시간에 그것을 막는다(D-203).
+                    // 2D 프로젝트의 스크립트는 모두 GameScript2D 다. 등록이 컴파일 시간에 그것을 막는다(D-206).
                     state.hookTargets.Add(static_cast<GameScript2D*>(static_cast<GameScriptBase*>(component)));
                 }
             }

@@ -497,7 +497,7 @@
   보존이 철 지난 월드를 쓴다.
 - `ComponentBase`의 가상 함수 집합은 `~ComponentBase`·`GetTypeId`·`OnAttached`·`OnDetached`·`OnEnabled`·`OnDisabled`다. (MUST)
   스크립트 DLL이 파생하는 타입의 vtable은 ABI이므로 추가는 Decisions와 D-28 재빌드 규약을 거친다.
-- **2D 스크립트는 모두 `GameScript2D` 에서 파생하고, 2D 스크립트 모듈은 `RegisterScriptType2D<T>` 로만 타입을 등록한다.** (MUST) (D-203)
+- **2D 스크립트는 모두 `GameScript2D` 에서 파생하고, 2D 스크립트 모듈은 `RegisterScriptType2D<T>` 로만 타입을 등록한다.** (MUST) (D-206)
   물리 시스템은 오브젝트에 붙은 스크립트를 `GameScript2D` 로 여기고 충돌·트리거 훅을 부른다(프레임 경로에 `dynamic_cast` 금지).
   `RegisterScriptType2D` 는 `GameScriptBase` 에서 바로 파생한 타입을 컴파일 시간에 거절한다(`static_assert`).
   `GameScript2D` 의 가상 함수 표는 `Framework2DServiceContextAbiVersion` 이 대표한다 - 훅을 더하면 그 값을 올린다.

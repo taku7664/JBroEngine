@@ -5,7 +5,7 @@
 > `[제안]` 은 **사용자 확인 전**이다. 2026-09-25 사용자 지시("기존 엔진을 기반으로 Physics 시스템 및 모듈 구현,
 > 오목 폴리곤 버그 유의해서 이식 준비")로 시작했다. 같은 날 §5 의 여섯 가지가 모두 권고대로 확인돼 **D-199** 가 됐다
 > (훅은 "차후 더 늘린다", 질의 확장은 "후순위지만 구현한다"). 같은 날 1~3 단계(커널의 기하·판정·월드와 솔버)가 섰다(§4).
-> 4 단계(어댑터)는 스크립트 훅을 부르는 길을 D-203 으로 정한 뒤 섰다 - 엔진의 `Physics2DSystem` 이 이제 이 커널로 돈다.
+> 4 단계(어댑터)는 스크립트 훅을 부르는 길을 D-206 으로 정한 뒤 섰다 - 엔진의 `Physics2DSystem` 이 이제 이 커널로 돈다.
 > 남은 것은 5 단계(에디터)와 6 단계(질의 확장)다.
 
 ## 0. 한 줄 요약
@@ -214,7 +214,7 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
    - 완료 조건: 캔버스를 세운 통합 테스트에서 스크립트가 `OnCollisionEnter` 를 한 번, 떨어진 뒤 `OnCollisionExit` 를 한 번 받는다.
      오목 도형 두 조각에 동시에 닿아도 Enter 는 한 번이다. 재생을 멈추고 다시 켜도 남은 Exit 가 튀지 않는다.
    - 선 것(네 커밋): (4a) `GameScript2D::OnTriggerEnter/Exit`, 2D 스크립트 등록은 `RegisterScriptType2D<T>` 로만 하고 `GameScriptBase`
-     에서 바로 파생한 타입은 컴파일 시간에 거절(C2338 음성 검사), `Framework2DServiceContextAbiVersion` 2 (D-203).
+     에서 바로 파생한 타입은 컴파일 시간에 거절(C2338 음성 검사), `Framework2DServiceContextAbiVersion` 2 (D-206).
      (4b) `Collider2D` 에 `points`·`friction`·`restitution`·`layer`·`mask` - 내장 컴포넌트의 첫 배열 필드라 속성 테스트의 잎사귀
      걷기가 배열 원소로 내려가게 고쳤고, 캔버스 파일 왕복을 잰다. (4c) 커널의 시작 이벤트가 가장 깊은 접촉점과 A→B 법선을 싣고,
      조각·원 단위 반직선과 겹침 판정을 더했다. (4d) `Physics2DSystem` 이 고정 스텝마다 활성 `Rigidbody2D`·`Collider2D` 를 커널에
@@ -254,7 +254,7 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
 
 ## 6. 열린 것과 가정 모음
 
-- `[완료]` 4 단계의 스크립트 훅 발송 경로 - D-203. 2D 프로젝트의 스크립트는 모두 `GameScript2D` 이고 등록이 그것을 컴파일
+- `[완료]` 4 단계의 스크립트 훅 발송 경로 - D-206. 2D 프로젝트의 스크립트는 모두 `GameScript2D` 이고 등록이 그것을 컴파일
   시간에 막으므로, 물리는 `static_cast` 로 부른다.
 - `[가정]` 귀 자르기가 일직선 점에서 구멍을 만든다(§1.2) - 기존 코드는 돌려 보지 않았다.
 - `[열림]` 부모가 움직이는 동적 바디, 조각 이음매의 유령 충돌, 체인 도형, CCD, 3D 물리.

@@ -24,7 +24,7 @@ namespace
         &T::OnTriggerExit;
     };
 
-    static_assert(HasTriggerHooks<JBro::GameScript2D>, "2D scripts receive trigger hooks (D-203)");
+    static_assert(HasTriggerHooks<JBro::GameScript2D>, "2D scripts receive trigger hooks (D-206)");
     static_assert(false == HasTriggerHooks<JBro::GameScriptBase>, "and the dimension-free base does not");
 
     JBRO_SCRIPT(ScriptProbe) final : public JBro::GameScript2D
