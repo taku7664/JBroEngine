@@ -249,6 +249,38 @@ namespace
         JBro::BindServiceContext(services);
     }
 
+    // **로드 문맥의 필수 포인터**는 하나라도 비면 거절한다. 모듈은 받은 포인터를 모두 제 접근점에 묶으므로, 빈 것을 받아들이면
+    // DLL 이 제 사본(빈 저장소·빈 이름표)을 보고도 성공한 것처럼 돈다. 글자 저장소(ABI 5)도 같다.
+    void TestTheLoadContextNeedsEveryHostTable()
+    {
+        const auto valid = []() {
+            JBro::ScriptModuleLoadContext context;
+            context.Systems = &JBro::GetSystemContext();
+            context.Services = &JBro::GetServiceContext();
+            context.Registry = &JBro::Internal::InstanceRegistry::Local();
+            context.Names = &JBro::NameTable::Local();
+            context.Scripts = &JBro::ScriptRegistry::Local();
+            context.Texts = &JBro::TextStore::Local();
+            return context;
+        };
+        Check(JBro::ValidateScriptModuleLoadContext(valid()), "a context with every host table is valid");
+        JBro::ScriptModuleLoadContext missing = valid();
+        missing.Texts = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the text store is refused");
+        missing = valid();
+        missing.Names = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the name table is refused");
+        missing = valid();
+        missing.Scripts = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the script registry is refused");
+        missing = valid();
+        missing.Registry = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the instance registry is refused");
+        missing = valid();
+        missing.StructSize = 64;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "the ABI 4 size is refused");
+    }
+
     void TestRejectsInvalidModuleAbiBeforeCallingModule()
     {
         EventLog events;
@@ -851,6 +883,7 @@ namespace
 int RunScriptDLLLoaderTests()
 {
     TestRejectsInvalidModuleAbiBeforeCallingModule();
+    TestTheLoadContextNeedsEveryHostTable();
     TestRequiresExactUniqueContextBlocks();
     TestRejectsCommonContextAbiBeforeOpeningDll();
     TestFailedModuleActivationRollsBack();
