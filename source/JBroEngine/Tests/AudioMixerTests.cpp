@@ -888,6 +888,223 @@ namespace
         mixer.Shutdown();
     }
 
+    // 버스 하나에 톤 하나를 걸어 두고 이펙트를 바꿔 가며 잰다(D-210).
+    struct EffectBench
+    {
+        AudioMixer mixer;
+        AudioBusId bus = AudioMasterBus;
+        Array<float> sine;
+        AudioVoiceHandle voice;
+
+        void Open(float frequency, float amplitude)
+        {
+            Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+            bus = mixer.CreateBus(1.0f);
+            sine = MakeSine(2, frequency, amplitude, 1.0f);
+            AudioPlayDesc play;
+            play.clip = RegisterPcm(mixer, sine, 2);
+            play.loop = true;
+            play.bus = bus;
+            voice = mixer.Play(play);
+        }
+
+        // 효과가 자리 잡은 뒤(앞 0.1 초를 버림)의 소리다.
+        Rendered Settle(const AudioBusEffects& effects, std::uint32_t frames = 9600)
+        {
+            mixer.SetBusEffects(bus, effects);
+            Render(mixer, 4800);
+            return Render(mixer, frames);
+        }
+    };
+
+    float Rms(const Rendered& out)
+    {
+        double sum = 0.0;
+        const std::size_t frames = out.samples.Size() / 2;
+        for (std::size_t frame = 0; frame < frames; ++frame)
+        {
+            sum += static_cast<double>(out.samples[frame * 2]) * out.samples[frame * 2];
+        }
+        return static_cast<float>(std::sqrt(sum / static_cast<double>(frames)));
+    }
+
+    void TestEqualizer()
+    {
+        EffectBench low;
+        low.Open(60.0f, 0.1f);
+        AudioBusEffects effects;
+        effects.eqLowGain = 12.0f;
+        const float boosted = low.Settle(effects).Peak(0);
+        EffectBench high;
+        high.Open(12000.0f, 0.4f);
+        AudioBusEffects cut;
+        cut.eqHighGain = -12.0f;
+        const float trimmed = high.Settle(cut).Peak(0);
+        EffectBench mid;
+        mid.Open(1000.0f, 0.2f);
+        AudioBusEffects peakEq;
+        peakEq.eqMidGain = 6.0f;
+        const float lifted = mid.Settle(peakEq).Peak(0);
+        std::cout << "  EQ: 60 Hz under +12 dB low shelf 0.1 -> " << boosted << ", 12 kHz under -12 dB high shelf 0.4 -> "
+                  << trimmed << ", 1 kHz under +6 dB mid 0.2 -> " << lifted << '\n';
+        Check(boosted > 0.33f && boosted < 0.45f, "a +12 dB low shelf lifts a low tone about four times");
+        Check(trimmed > 0.07f && trimmed < 0.13f, "a -12 dB high shelf cuts a high tone to about a quarter");
+        Check(lifted > 0.36f && lifted < 0.44f, "a +6 dB mid peak doubles a tone at its frequency");
+        AudioBusEffects flat;
+        Check(std::fabs(mid.Settle(flat).Peak(0) - 0.2f) < 0.02f, "0 dB bands leave the tone alone");
+    }
+
+    void TestDistortionChorusAndPitch()
+    {
+        // 디스토션: 사인이 네모에 가까워진다 - 봉우리와 실효값의 비(사인은 1.41)가 1 쪽으로 준다.
+        EffectBench drive;
+        drive.Open(440.0f, 0.3f);
+        AudioBusEffects driven;
+        driven.distortion = 1.0f;
+        const Rendered hot = drive.Settle(driven);
+        const float crest = hot.Peak(0) / Rms(hot);
+        std::cout << "  distortion crest factor: " << crest << " (a sine is 1.41)" << '\n';
+        Check(crest < 1.15f, "full distortion squares the sine off");
+
+        // 코러스: 흔들리는 지연과 섞여 크기가 시간에 따라 오르내린다. 끄면 고르다.
+        EffectBench chorus;
+        chorus.Open(440.0f, 0.4f);
+        AudioBusEffects wide;
+        wide.chorusMix = 1.0f;
+        wide.chorusRate = 1.0f;
+        wide.chorusDepth = 3.0f;
+        chorus.mixer.SetBusEffects(chorus.bus, wide);
+        float highest = 0.0f;
+        float lowest = 1.0f;
+        for (int window = 0; window < 15; ++window)
+        {
+            const float peak = Render(chorus.mixer, 4800).Peak(0);
+            highest = std::fmax(highest, peak);
+            lowest = std::fmin(lowest, peak);
+        }
+        std::cout << "  chorus: window peaks swing " << lowest << " .. " << highest << '\n';
+        Check(highest - lowest > 0.05f, "a chorus makes the level swing over time");
+
+        // 피치 시프트: 한 옥타브 올리면 영점 교차가 두 배, 내리면 절반이다(빠르기는 그대로).
+        EffectBench pitch;
+        pitch.Open(440.0f, 0.4f);
+        AudioBusEffects up;
+        up.pitchShift = 12.0f;
+        const std::uint32_t upCrossings = pitch.Settle(up, Rate).ZeroCrossings(0);
+        AudioBusEffects down;
+        down.pitchShift = -12.0f;
+        const std::uint32_t downCrossings = pitch.Settle(down, Rate).ZeroCrossings(0);
+        std::cout << "  pitch shift of a 440 Hz tone: +12 -> " << upCrossings << " crossings/s, -12 -> " << downCrossings
+                  << " (unshifted 880)" << '\n';
+        Check(upCrossings > 1600 && upCrossings < 1950, "+12 semitones doubles the frequency");
+        Check(downCrossings > 380 && downCrossings < 520, "-12 semitones halves it");
+        Check(pitch.mixer.IsAlive(pitch.voice) && std::fabs(pitch.mixer.GetPlaybackSeconds(pitch.voice)) >= 0.0,
+            "shifting pitch does not change how fast the voice plays");
+    }
+
+    void TestCompressorAndLimiter()
+    {
+        // 컴프레서: -6 dB 사인에 문턱 -20 dB·비율 4 → 넘친 14 dB 가 3.5 dB 가 된다(10.5 dB 줄임, 0.15 쯤).
+        EffectBench comp;
+        comp.Open(440.0f, 0.5f);
+        AudioBusEffects squeeze;
+        squeeze.compRatio = 4.0f;
+        squeeze.compThreshold = -20.0f;
+        const float squeezed = comp.Settle(squeeze).Peak(0, 4800);
+        const float reduction = comp.mixer.GetBusGainReduction(comp.bus);
+        std::cout << "  compressor: 0.5 -> " << squeezed << ", gain reduction " << reduction << " dB" << '\n';
+        Check(squeezed > 0.12f && squeezed < 0.19f, "a 4:1 compressor pulls a loud tone down by its ratio");
+        Check(reduction > 9.0f && reduction < 12.0f, "the bus reports how much it compressed");
+        squeeze.compMakeup = 10.0f;
+        Check(comp.Settle(squeeze).Peak(0, 4800) > squeezed * 2.5f, "makeup gain lifts the compressed bus back");
+        Check(comp.Settle(AudioBusEffects{}).Peak(0, 4800) > 0.45f && comp.mixer.GetBusGainReduction(comp.bus) == 0.0f,
+            "ratio 1 turns the compressor off");
+
+        // 리미터: 같은 소리 둘이 겹쳐 1.6 이 되어도 천장 아래로 부드럽게 눌린다. 끄면 1 에서 잘린다.
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> loud = MakeSine(2, 440.0f, 0.8f, 1.0f);
+        AudioPlayDesc play;
+        play.clip = RegisterPcm(mixer, loud, 2);
+        play.loop = true;
+        mixer.Play(play);
+        mixer.Play(play);
+        const Rendered limited = Render(mixer, 9600);
+        std::cout << "  limiter: two 0.8 tones -> peak " << limited.Peak(0, 4800) << ", before the limiter "
+                  << mixer.GetStats().lastPeak << '\n';
+        Check(mixer.IsOutputLimiterEnabled(), "the output limiter is on by default");
+        Check(limited.Peak(0, 4800) <= 0.981f && limited.Peak(0, 4800) > 0.9f, "the limiter holds the sum under its ceiling");
+        Check(mixer.GetStats().lastPeak > 1.5f, "the meter still shows how far the sum went over");
+        mixer.SetOutputLimiter(false);
+        Check(Render(mixer, 9600).Peak(0, 4800) == 1.0f, "with the limiter off the sum is clipped at 1");
+        mixer.Shutdown();
+    }
+
+    // 새 칸을 모두 켜 둔 채 매 프레임 값을 바꿔도 할당이 없고, 다른 스레드가 당기는 동안 거듭 켜고 꺼도 샘플이 찢기지 않는다.
+    void TestExtendedEffectsAreRealtimeSafe()
+    {
+        EffectBench bench;
+        bench.Open(440.0f, 0.3f);
+        AudioBusEffects all;
+        all.eqLowGain = 3.0f;
+        all.eqMidGain = -3.0f;
+        all.eqHighGain = 2.0f;
+        all.distortion = 0.3f;
+        all.chorusMix = 0.5f;
+        all.pitchShift = 5.0f;
+        all.compRatio = 3.0f;
+        bench.mixer.SetBusEffects(bench.bus, all);
+        Array<float> buffer;
+        buffer.Resize(960);
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_crtAllocations = 0;
+        _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountCrtAllocations);
+#endif
+        for (int frame = 0; frame < 200; ++frame)
+        {
+            all.eqMidHz = 500.0f + static_cast<float>(frame * 10);
+            all.pitchShift = static_cast<float>((frame % 24) - 12);
+            all.compThreshold = -30.0f + static_cast<float>(frame % 20);
+            bench.mixer.SetBusEffects(bench.bus, all);
+            bench.mixer.Render(buffer.Data(), 480);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        _CrtSetAllocHook(previous);
+        Check(g_crtAllocations.load() == 0, "frames with every new effect on do not touch the heap");
+#endif
+        std::atomic<bool> running{true};
+        std::atomic<bool> bad{false};
+        std::thread audio([&]
+        {
+            float block[480 * 2];
+            while (running.load(std::memory_order_acquire))
+            {
+                bench.mixer.Render(block, 480);
+                for (float sample : block)
+                {
+                    if (!std::isfinite(sample))
+                    {
+                        bad.store(true, std::memory_order_relaxed);
+                    }
+                }
+            }
+        });
+        for (int round = 0; round < 2000; ++round)
+        {
+            AudioBusEffects changing;
+            changing.eqLowGain = (round % 3) == 0 ? 0.0f : 6.0f;
+            changing.distortion = (round % 4) == 0 ? 0.0f : 0.5f;
+            changing.chorusMix = (round % 5) == 0 ? 0.0f : 0.7f;
+            changing.pitchShift = static_cast<float>((round % 25) - 12);
+            changing.compRatio = (round % 2) == 0 ? 1.0f : 8.0f;
+            bench.mixer.SetBusEffects(bench.bus, changing);
+        }
+        running.store(false, std::memory_order_release);
+        audio.join();
+        Check(false == bad.load(), "changing the new effects while rendering never produces a torn sample");
+        bench.mixer.Shutdown();
+    }
+
     void TestStealing()
     {
         AudioMixer mixer;
@@ -1069,6 +1286,10 @@ int RunAudioMixerTests()
         TestOutputGainAndSpectrum();
         TestBusFadesDuckingAndTrim();
         TestBusProcessor();
+        TestEqualizer();
+        TestDistortionChorusAndPitch();
+        TestCompressorAndLimiter();
+        TestExtendedEffectsAreRealtimeSafe();
         TestStealing();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();

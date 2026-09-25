@@ -286,6 +286,7 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
     inline constexpr const char* InspectorAudioBusMissing = "inspector.audio_bus_missing";
     inline constexpr const char* ProjectSettingsAudio = "project_settings.audio";
+    inline constexpr const char* ProjectSettingsAudioEffectRatioOff = "project_settings.audio_effect_ratio_off";
     inline constexpr const char* ProjectSettingsAudioDuckHelp = "project_settings.audio_duck_help";
     inline constexpr const char* ProjectSettingsAudioDefaultDevice = "project_settings.audio_default_device";
     inline constexpr const char* ProjectSettingsAudioDeviceHelp = "project_settings.audio_device_help";
