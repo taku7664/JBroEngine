@@ -64,6 +64,8 @@ namespace JBro::Text
         AlignY   alignY = AlignY::Baseline;
         float    lineSpacing = 1.0f;   // 줄 높이 배율
         float    letterSpacing = 0.0f; // 글자 사이에 더하는 픽셀
+        // 탭 멈춤 자리의 간격이다(기본 폰트의 공백 폭 몇 개인가). 탭은 줄 머리에서 센 다음 멈춤 자리까지 나아간다. 0 이하면 공백 하나다.
+        float    tabSize = 4.0f;
     };
 
     // 그릴 글리프 하나다. 공백과 개행은 들어오지 않는다. (x, y) 는 기준선 위의 글리프 원점이다.

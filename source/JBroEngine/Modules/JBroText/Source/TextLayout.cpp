@@ -102,6 +102,44 @@ namespace JBro::Text
             return value == 0x20 || value == 0x09 || value == 0x3000;
         }
 
+        // **줄 머리 금칙**: 이 글자로 줄을 시작하지 않는다(닫는 괄호·마침표류·일본어 작은 가나와 장음). 그 앞의 줄바꿈 기회를 버린다.
+        bool IsNoLineStart(char32_t value)
+        {
+            switch (value)
+            {
+            case U')': case U']': case U'}': case U',': case U'.': case U'!': case U'?': case U':': case U';':
+            case U'%': case 0x2019: case 0x201D: case 0x2026: case 0x3001: case 0x3002: case 0x3009: case 0x300B:
+            case 0x300D: case 0x300F: case 0x3011: case 0x3015: case 0x30FC: case 0xFF09: case 0xFF0C: case 0xFF0E:
+            case 0xFF1A: case 0xFF1B: case 0xFF01: case 0xFF1F: case 0xFF5D: case 0xFF3D:
+                return true;
+            default:
+                break;
+            }
+            // 작은 가나(ぁぃぅぇぉっゃゅょゎ, 가타카나 같은 자리)
+            switch (value)
+            {
+            case 0x3041: case 0x3043: case 0x3045: case 0x3047: case 0x3049: case 0x3063: case 0x3083: case 0x3085:
+            case 0x3087: case 0x308E: case 0x30A1: case 0x30A3: case 0x30A5: case 0x30A7: case 0x30A9: case 0x30C3:
+            case 0x30E3: case 0x30E5: case 0x30E7: case 0x30EE:
+                return true;
+            default:
+                return false;
+            }
+        }
+
+        // **줄 꼬리 금칙**: 이 글자로 줄을 끝내지 않는다(여는 괄호·여는 따옴표). 그 뒤의 줄바꿈 기회를 버린다.
+        bool IsNoLineEnd(char32_t value)
+        {
+            switch (value)
+            {
+            case U'(': case U'[': case U'{': case 0x2018: case 0x201C: case 0x3008: case 0x300A: case 0x300C:
+            case 0x300E: case 0x3010: case 0x3014: case 0xFF08: case 0xFF3B: case 0xFF5B:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         // 띄어 쓰지 않는 문자 체계다. Word 모드에서도 이 글자의 앞뒤에서 줄을 바꿀 수 있다.
         bool IsBreakAnywhereScript(char32_t value)
         {
@@ -236,7 +274,7 @@ namespace JBro::Text
                 continue;
             }
             item.kind = IsSpace(value) ? ItemKind::Space : ItemKind::Visible;
-            // 탭은 1 판에서 공백 하나다(탭 멈춤 자리 없음, text-plan §7).
+            // 탭은 공백 글리프로 재고, 줄을 나눌 때 멈춤 자리까지 폭을 늘린다(아래 3.).
             const char32_t lookup = value == 0x09 ? U' ' : value;
             const FaceChoice choice = ChooseFace(faces, primary, lookup);
             item.glyph = choice.glyph;
@@ -257,6 +295,10 @@ namespace JBro::Text
         const float descent = static_cast<float>(-metrics.descent) * primaryScale;
         const float lineHeight = static_cast<float>(metrics.ascent - metrics.descent + metrics.lineGap)
             * primaryScale * std::max(0.0f, options.lineSpacing);
+        // 탭 멈춤 간격(픽셀)이다. 기본 폰트의 공백 폭으로 센다 - 폴백 폰트가 섞여도 멈춤 자리는 한 줄 안에서 같다.
+        const float tabStop = options.tabSize > 0.0f && std::isfinite(options.tabSize)
+            ? static_cast<float>(primaryFace->GetAdvance(primaryFace->FindGlyph(U' '))) * primaryScale * options.tabSize
+            : 0.0f;
 
         // 줄 끝을 매긴다: [begin, end) 의 글자에서 보이는 것만 글리프로 내고, 끝 공백을 뺀 폭을 잰다.
         auto finishLine = [&](std::size_t begin, std::size_t end) -> bool
@@ -320,9 +362,12 @@ namespace JBro::Text
                     const FontFace& face = *faces[item.face];
                     x += static_cast<float>(face.GetKerning(previous.glyph, item.glyph)) * Scale(face, options.fontSize);
                 }
-                // 공백은 줄 끝에 매달리므로 새 줄은 공백이 아닌 글자에서만 시작한다.
+                // 공백은 줄 끝에 매달리므로 새 줄은 공백이 아닌 글자에서만 시작한다. 금칙 글자는 줄 머리·꼬리에 오지 않게 기회를 버린다
+                // (기회가 없는 줄은 여전히 넘친 글자에서 끊는다 - 금칙은 끊을 자리가 있을 때만 지켜진다).
                 const bool opportunity = item.kind == ItemKind::Visible
-                    && (previous.kind == ItemKind::Space || previous.breaksAnywhere || item.breaksAnywhere);
+                    && (previous.kind == ItemKind::Space || previous.breaksAnywhere || item.breaksAnywhere)
+                    && false == IsNoLineStart(item.codepoint)
+                    && false == IsNoLineEnd(previous.codepoint);
                 if (opportunity)
                 {
                     lastOpportunity = index;
@@ -345,6 +390,12 @@ namespace JBro::Text
             }
 
             item.x = x;
+            if (item.codepoint == 0x09 && tabStop > 0.0f)
+            {
+                // 다음 멈춤 자리까지 나아간다. 멈춤 자리에 딱 있으면 그다음 자리다.
+                const float next = (std::floor(x / tabStop + 1.0e-4f) + 1.0f) * tabStop;
+                item.advance = next - x;
+            }
             penX = x + item.advance + options.letterSpacing;
             ++index;
         }

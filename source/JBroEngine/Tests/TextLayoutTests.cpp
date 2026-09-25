@@ -205,6 +205,44 @@ namespace
         Check(LineCounts(layout, { 1, 1 }), "each oversized glyph gets its own line");
     }
 
+    // **탭 멈춤 자리와 금칙**(text-plan §7 의 1 단계 남은 일). 탭은 줄 머리에서 센 다음 멈춤 자리(공백 폭 x tabSize)까지 나아가고,
+    // 닫는 괄호로 줄을 시작하거나 여는 괄호로 줄을 끝내지 않는다 - 끊을 다른 자리가 있으면 그리로 옮긴다.
+    void TestTabStopsAndLineBreakRules()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        LayoutOptions options = Unscaled();
+        // 공백 224 라 멈춤 간격은 896 이다. A = 608.
+        Check(layout.Build(Utf8("A\tB"), faces, options) == LayoutError::None, "a tab lays out");
+        Check(layout.GetGlyphs().Size() == 2 && Near(layout.GetGlyphs()[1].x, 896.0f), "a tab after A goes to the first stop");
+        Check(layout.Build(Utf8("\t\tB"), faces, options) == LayoutError::None, "two tabs lay out");
+        Check(Near(layout.GetGlyphs()[0].x, 1792.0f), "two tabs from the line head reach the second stop");
+        Check(layout.Build(Utf8("AAAA\tB"), faces, options) == LayoutError::None, "a tab past a stop lays out");
+        Check(Near(layout.GetGlyphs()[4].x, 2688.0f), "four As (2432) tab to the third stop");
+        Check(layout.Build(Utf8("A\nA\tB"), faces, options) == LayoutError::None, "a tab on a second line lays out");
+        Check(Near(layout.GetGlyphs()[2].x, 896.0f), "stops count from the head of each line");
+        options.tabSize = 0.0f;
+        Check(layout.Build(Utf8("A\tB"), faces, options) == LayoutError::None, "a zero tab size lays out");
+        Check(Near(layout.GetGlyphs()[1].x, 608.0f + 224.0f), "with no stops a tab is one space");
+
+        // 금칙: 글자 셋이 들어가는 상자에서 넷째가 넘친다.
+        options = Unscaled();
+        options.overflow = Overflow::Wrap;
+        options.wrapMode = WrapMode::Character;
+        options.boxWidth = 608.0f * 3.0f + 10.0f;
+        Check(layout.Build(Utf8("AAA)"), faces, options) == LayoutError::None, "a closing bracket lays out");
+        Check(LineCounts(layout, { 2, 2 }), "a closing bracket does not start a line - the A before it goes down with it");
+        Check(layout.Build(Utf8("AA(A"), faces, options) == LayoutError::None, "an opening bracket lays out");
+        Check(LineCounts(layout, { 2, 2 }), "an opening bracket does not end a line - it goes down to what it opens");
+        Check(layout.Build(Utf8("AAAA"), faces, options) == LayoutError::None, "plain letters lay out");
+        Check(LineCounts(layout, { 3, 1 }), "without the rule the break stays after the third letter");
+        // 끊을 다른 자리가 없으면 금칙을 어기고라도 끊는다(멈추지 않는다).
+        options.boxWidth = 700.0f;
+        Check(layout.Build(Utf8("A)"), faces, options) == LayoutError::None, "a box for one letter lays out");
+        Check(LineCounts(layout, { 1, 1 }), "with no other place the closing bracket still wraps");
+    }
+
     void TestHangulWrapModes()
     {
         const FontFace face = LoadTestFont();
@@ -408,6 +446,7 @@ int RunTextLayoutTests()
         TestKerningIsAppliedAcrossTheRun();
         TestWordWrap();
         TestHangulWrapModes();
+        TestTabStopsAndLineBreakRules();
         TestDecoding();
         TestAlignment();
         TestClip();
