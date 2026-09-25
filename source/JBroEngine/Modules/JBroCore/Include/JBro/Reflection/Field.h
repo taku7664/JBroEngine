@@ -23,18 +23,28 @@ namespace JBro
     // ⚠ 컴파일러 서명 형식에 기대는 코드다. 툴체인을 올리면 깨질 수 있으므로
     // 테스트가 static_assert 로 실제 이름 하나를 붙잡아 둔다.
     // MSVC 14.51 x64 실측: `... __cdecl JBro::Detail::FieldSignature<&Game::Player::Speed>(void)`
+    // clang(Emscripten 웹 빌드, D-206): `... JBro::Detail::FieldSignature() [MemberPointer = &Game::Player::Speed]`
     namespace Detail
     {
         template <auto MemberPointer>
         constexpr std::string_view FieldSignature()
         {
+#if defined(_MSC_VER) && !defined(__clang__)
             return __FUNCSIG__;
+#else
+            return __PRETTY_FUNCTION__;
+#endif
         }
 
-        // 마지막 `>(` 가 템플릿 인자의 끝이고, 그 앞의 마지막 `::` 가 이름의 시작이다.
+        // MSVC: 마지막 `>(` 가 템플릿 인자의 끝이고, 그 앞의 마지막 `::` 가 이름의 시작이다.
+        // clang: 마지막 `]` 가 끝이고, 그 앞의 마지막 `::` 가 이름의 시작이다.
         constexpr std::string_view DeriveFieldName(std::string_view signature)
         {
+#if defined(_MSC_VER) && !defined(__clang__)
             const std::size_t close = signature.rfind(">(");
+#else
+            const std::size_t close = signature.rfind(']');
+#endif
             if (close == std::string_view::npos)
             {
                 return {};

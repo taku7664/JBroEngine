@@ -2750,10 +2750,12 @@ EditorApplication::Tick
   돈다**: 무음이어도 장치를 여닫는 순간 "딱" 소리가 나고, 여러 세션이 시험을 거듭 돌리는 기계에서 사용자가 불편을 말했다.
   장치 쪽을 고친 뒤에 켜고 돌린다. (5) **막는 브라우저**: 입력 전의 `AudioContext` 를 멈춘 채 시작시키고 입력 전의 `resume()` 을
   거절하는 페이지(Chrome 정책의 모양)로 무음 실측했다 - 입력 전 3 초 동안 당긴 프레임 0·"기다림" 참, 누름 한 번에 풀려 당기기 시작.
-  (6) **웹 빌드의 막힘**: `AudioMixer.cpp`·`AudioDecoder.cpp` 는 Emscripten 으로 걸림 없이 컴파일된다. 리플렉션 헤더를 보는
-  파일(`AudioSystem.cpp`·`AudioService.cpp` 등)은 JBroCore 의 `static_assert(sizeof(PropertyInfo) == 48)` 류가 wasm32(4 바이트 포인터)
-  에서 깨진다 - 오디오가 아니라 엔진 전체의 웹 빌드를 막는 리플렉션 ABI 문제다. `[열림]` 그 크기 단언을 포인터 크기에 맞출지
-  (스크립트 DLL 경계의 ABI 결정이라 사용자 확인이 필요하다), 그 뒤의 웹 호스트 빌드.
+  (6) **오디오의 웹 컴파일**: 오디오 파일 전부(`JBroAudio`·`JBroAudioTypes`·`AudioDecoder`·`Audio2DSystem`·`Audio3DSystem`)가
+  Emscripten 으로 컴파일된다. 막던 둘을 고쳤다 - 둘 다 64 비트 MSVC 의 결과는 바뀌지 않는다: (a) 스크립트 DLL 경계 구조체의 크기
+  단언(`PropertyInfo.h`·`ScriptModule.h`)은 64 비트에서 잰 값이라 `sizeof(void*) != 8 ||` 를 앞에 붙였다 - 웹(wasm32)은 포인터가
+  4 바이트이고 DLL 경계가 없다. (b) `JBRO_FIELD` 의 이름 뽑기가 MSVC 의 `__FUNCSIG__` 만 알았다 - clang 은 `__PRETTY_FUNCTION__`
+  (`... [MemberPointer = &T::name]`)의 마지막 `]` 앞에서 자른다. `[열림]` 웹 호스트 전체(렌더러의 웹 백엔드·`WebPlatform` 의 창과 입력)는
+  오디오가 아니라 엔진의 웹 이식이다.
 
 - **D-205. 오디오 8 단계: 버스 음량은 이펙트 노드 끝의 램프다 - 페이드·클릭 없는 음소거·더킹. 클립마다 트림.**
   (2026-09-26, [audio-plan.md](./audio-plan.md) §3-8) Updates: D-197 §5 기존 백로그, D-202(음량은 사슬 앞의 그룹 음량이었다).
