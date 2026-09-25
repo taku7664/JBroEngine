@@ -189,7 +189,7 @@ namespace JBro::System
                     text[0] != '\0' ? text : "?");
             }
         }
-        // 더킹도 모든 버스가 선 뒤에 잇는다(D-204).
+        // 더킹도 모든 버스가 선 뒤에 잇는다(D-205).
         for (const AudioBusConfig& config : m_busConfigs)
         {
             if (config.duckBy == InvalidNameId || config.duckAmount <= 0.0f)

@@ -53,7 +53,7 @@ namespace JBro
         const void* bytes = nullptr;
         std::size_t byteCount = 0;
         const char* path = nullptr;
-        // 파일의 크기 보정(트림, 0..4)이다(D-204). 보이스의 음량에 곱해진다 - 소리마다 다른 녹음 크기를 에셋에서 한 번 맞춘다.
+        // 파일의 크기 보정(트림, 0..4)이다(D-205). 보이스의 음량에 곱해진다 - 소리마다 다른 녹음 크기를 에셋에서 한 번 맞춘다.
         float gain = 1.0f;
     };
 
@@ -158,7 +158,7 @@ namespace JBro
         // 프로젝트 버스를 전부 없앤다. 그 버스의 보이스는 Master 로 옮긴다.
         void DestroyProjectBuses();
         std::uint32_t GetBusCount() const;
-        // 버스 음량이다. `fadeSeconds` 동안 곧게 옮겨 간다(D-204). 0 이어도 10 ms 에 걸쳐 옮긴다 - 음량·음소거·솔로가 바뀌는
+        // 버스 음량이다. `fadeSeconds` 동안 곧게 옮겨 간다(D-205). 0 이어도 10 ms 에 걸쳐 옮긴다 - 음량·음소거·솔로가 바뀌는
         // 순간에 뚝 끊기는 소리(클릭)가 나지 않는다.
         void SetBusVolume(AudioBusId bus, float volume, float fadeSeconds = 0.0f);
         float GetBusVolume(AudioBusId bus) const;
@@ -180,7 +180,7 @@ namespace JBro
         bool IsBusSolo(AudioBusId bus) const;
         // 버스가 마지막으로 낸 블록의 최대 절댓값(음량·이펙트 뒤)이다. 미터가 읽는다.
         float GetBusPeak(AudioBusId bus) const;
-        // 더킹(D-204): `trigger` 버스에 소리가 있는 동안 이 버스를 `amount`(0..1) 만큼 줄인다. 대사가 나오면 배경음이 물러선다.
+        // 더킹(D-205): `trigger` 버스에 소리가 있는 동안 이 버스를 `amount`(0..1) 만큼 줄인다. 대사가 나오면 배경음이 물러선다.
         // 20 ms 에 걸쳐 줄고 `releaseSeconds` 에 걸쳐 돌아온다. `trigger` 가 `AudioNoBus` 거나 `amount` 가 0 이면 끈다.
         void SetBusDucking(AudioBusId bus, AudioBusId trigger, float amount, float releaseSeconds);
         AudioBusId GetBusDuckTrigger(AudioBusId bus) const;

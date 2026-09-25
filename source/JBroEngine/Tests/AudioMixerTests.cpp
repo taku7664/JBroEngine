@@ -722,7 +722,7 @@ namespace
         return largest;
     }
 
-    // 버스 음량 페이드·클릭 없는 음소거·더킹·클립 트림(D-204).
+    // 버스 음량 페이드·클릭 없는 음소거·더킹·클립 트림(D-205).
     void TestBusFadesDuckingAndTrim()
     {
         AudioMixer mixer;

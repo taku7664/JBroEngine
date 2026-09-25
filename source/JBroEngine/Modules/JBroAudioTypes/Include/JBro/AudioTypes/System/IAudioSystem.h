@@ -42,7 +42,7 @@ namespace JBro::System
         // 버스의 이펙트 사슬(D-202). 재생 중에 바꿔도 된다.
         virtual void SetBusEffects(AudioBusName bus, const AudioBusEffects& effects) = 0;
         virtual AudioBusEffects GetBusEffects(AudioBusName bus) const = 0;
-        // 버스 음량을 `seconds` 에 걸쳐 옮긴다(D-204). 일시 정지 화면에서 배경음을 천천히 낮추는 것.
+        // 버스 음량을 `seconds` 에 걸쳐 옮긴다(D-205). 일시 정지 화면에서 배경음을 천천히 낮추는 것.
         virtual void FadeBusVolume(AudioBusName bus, float volume, float seconds) = 0;
         // 게임의 소리를 전부 멈춘다(에디터 미리 듣기는 그대로다).
         virtual void StopAll() = 0;

@@ -408,7 +408,7 @@ namespace JBro
                             });
                         routing.Row([] { Widget::Text("SendLevel"); },
                             [&] { Widget::SliderFloat("##sendLevel", bus.sendLevel, 0.0f, 1.0f); });
-                        // 더킹(D-204): 고른 버스에 소리가 있는 동안 이 버스가 물러선다.
+                        // 더킹(D-205): 고른 버스에 소리가 있는 동안 이 버스가 물러선다.
                         routing.Row([] { Widget::Text("DuckBy"); },
                             [&] {
                                 m_busChoices.Clear();

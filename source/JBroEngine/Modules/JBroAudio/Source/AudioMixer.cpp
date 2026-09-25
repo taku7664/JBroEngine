@@ -376,7 +376,7 @@ namespace JBro
             std::atomic<float> reverbMix{0.0f};
             std::atomic<float> dry{1.0f};
             std::atomic<float> peak{0.0f};
-            // 버스 음량(D-204). 목표와 프레임당 변화량은 메인 스레드가 쓰고, 지금 값은 오디오 스레드만 만진다.
+            // 버스 음량(D-205). 목표와 프레임당 변화량은 메인 스레드가 쓰고, 지금 값은 오디오 스레드만 만진다.
             std::atomic<float> gainTarget{1.0f};
             std::atomic<float> gainRate{1.0f};
             float gainCurrent = 1.0f;
@@ -877,7 +877,7 @@ namespace JBro
             std::uint8_t priority = 0;
             bool looping = false;
             float volume = 1.0f;
-            // 클립의 트림(D-204). 실제로 거는 음량은 `volume * trim` 이다.
+            // 클립의 트림(D-205). 실제로 거는 음량은 `volume * trim` 이다.
             float trim = 1.0f;
             std::uint64_t startSerial = 0;
             std::uint32_t tag = 0;
@@ -1247,7 +1247,7 @@ namespace JBro
         }
 
         // 음소거·솔로를 반영해 모든 버스의 음량 목표를 다시 건다. 버스는 열여덟 개뿐이라 매번 전부 센다. `fadingBus` 는
-        // `fadeSeconds` 에 걸쳐, 나머지는 10 ms 에 걸쳐 옮긴다(D-204).
+        // `fadeSeconds` 에 걸쳐, 나머지는 10 ms 에 걸쳐 옮긴다(D-205).
         void ApplyBusGains(AudioBusId fadingBus = AudioNoBus, float fadeSeconds = 0.0f)
         {
             bool audible[AudioMaxBuses] = {};
@@ -1409,7 +1409,7 @@ namespace JBro
             bus.sendTarget = AudioNoBus;
             bus.sendLevel = 0.0f;
             bus.effects.peak.store(0.0f, std::memory_order_relaxed);
-            // 음량은 이펙트 노드가 건다(D-204). 아직 오디오 스레드가 이 노드를 읽지 않으므로 지금 값을 곧바로 둔다.
+            // 음량은 이펙트 노드가 건다(D-205). 아직 오디오 스레드가 이 노드를 읽지 않으므로 지금 값을 곧바로 둔다.
             bus.effects.gainCurrent = bus.volume;
             bus.effects.gainTarget.store(bus.volume, std::memory_order_relaxed);
             bus.effects.duckSource.store(nullptr, std::memory_order_relaxed);

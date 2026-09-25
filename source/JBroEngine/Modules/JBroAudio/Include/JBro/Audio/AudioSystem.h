@@ -28,7 +28,7 @@ namespace JBro
         // 센드를 받을 버스 이름과 양(0..1)이다. 받는 버스는 목록의 어디에 있어도 된다. 되돌아오는 길이 생기면 끊고 알린다.
         NameId send = InvalidNameId;
         float sendLevel = 0.0f;
-        // 더킹(D-204): 이 버스에 소리가 있는 동안 `duckAmount` 만큼 줄고 `duckRelease` 초에 걸쳐 돌아온다.
+        // 더킹(D-205): 이 버스에 소리가 있는 동안 `duckAmount` 만큼 줄고 `duckRelease` 초에 걸쳐 돌아온다.
         NameId duckBy = InvalidNameId;
         float duckAmount = 0.0f;
         float duckRelease = 0.3f;

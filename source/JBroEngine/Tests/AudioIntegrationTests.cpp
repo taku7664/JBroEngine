@@ -202,7 +202,7 @@ namespace
                 && reread.audioBuses.Last().effects.dry == 0.0f,
             "and the routing reads back");
 
-        // 더킹(D-204)도 쓸 때만 적힌다. 기본 풀림 시간(0.3)은 적지 않는다.
+        // 더킹(D-205)도 쓸 때만 적힌다. 기본 풀림 시간(0.3)은 적지 않는다.
         project.audioBuses.Last().duckBy = "Cave";
         project.audioBuses.Last().duckAmount = 0.6f;
         Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "ducking writes");
@@ -432,7 +432,7 @@ namespace
         AssetMetaError metaError;
         Check(LoadAssetMetaFile(fixture.platform, metaPath.c_str(), meta, metaError), "the meta reads");
         meta.audioOptions.mode = AudioImportMode::StreamFromDisk;
-        // 트림(D-204)도 메타에 적힌다 - 에셋 경로로 울릴 때 절반 크기다.
+        // 트림(D-205)도 메타에 적힌다 - 에셋 경로로 울릴 때 절반 크기다.
         meta.audioOptions.gain = 0.5f;
         Check(SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the meta takes the disk mode");
         AssetMetaFile trimmedMeta;

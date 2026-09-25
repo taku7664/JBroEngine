@@ -107,7 +107,7 @@ namespace JBro
     struct AudioImportOptions
     {
         AudioImportMode mode = AudioImportMode::Decompressed;
-        // 파일의 크기 보정(트림, 0..4, D-204)이다. 녹음마다 다른 크기를 여기서 한 번 맞추면 컴포넌트의 `volume` 은 연출에만 쓴다.
+        // 파일의 크기 보정(트림, 0..4, D-205)이다. 녹음마다 다른 크기를 여기서 한 번 맞추면 컴포넌트의 `volume` 은 연출에만 쓴다.
         float gain = 1.0f;
     };
 
