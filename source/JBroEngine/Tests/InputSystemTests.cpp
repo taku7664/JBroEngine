@@ -1,4 +1,4 @@
-#include <JBro/Input/InputSystem.h>
+﻿#include <JBro/Input/InputSystem.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
@@ -287,6 +287,34 @@ namespace
         platform.Shutdown();
     }
 
+    // 스크립트가 `OnUpdate` 에서 읽는 서비스다. 체인이 돌지 않은 프레임에는 이번 프레임 전체가 보이고,
+    // 호스트가 묶지 않았으면 빈 입력이다(죽은 포인터가 아니다).
+    void TestTheServiceReadsThisFrame()
+    {
+        System::InputSystem input;
+        BindInputSystemContext(input.GetSystemContext());
+        BindInputServiceContext(input.GetServiceContext());
+
+        const InputEvent events[] =
+        {
+            KeyEvent(InputEventKind::KeyDown, Key::W),
+            ButtonEvent(InputEventKind::MouseButtonDown, MouseButton::Left),
+        };
+        input.BeginFrame(View(events));
+        const Service::InputService& service = GetInputServices().Input;
+        Check(service.Keyboard().IsDown(Key::W), "the service sees a held key");
+        Check(service.Keyboard().IsPressed(Key::W), "and its press on this frame");
+        Check(service.Mouse().IsDown(MouseButton::Left), "the service sees a held button");
+        Check(false == service.GetView().IsConsumed(InputDevice::Keyboard),
+            "nothing has taken the keyboard when no chain ran");
+
+        BindInputSystemContext({});
+        BindInputServiceContext({});
+        Check(false == GetInputServices().Input.Keyboard().IsDown(Key::W),
+            "an unbound service reads an empty keyboard");
+        Check(false == GetInputServices().Input.Mouse().hasPosition, "and an empty mouse");
+    }
+
     // 프레임마다 도는 자리다. 이벤트가 있어도 없어도 힙을 건드리지 않는다(§9).
     void TestFoldingDoesNotAllocate()
     {
@@ -324,6 +352,7 @@ int RunInputSystemTests()
     TestTheMouseIsMappedToTheGameSurface();
     TestOutOfRangeNamesAreIgnored();
     TestPlatformEventsFoldIntoState();
+    TestTheServiceReadsThisFrame();
     TestFoldingDoesNotAllocate();
     std::cout << "Input system tests passed.\n";
     return 0;

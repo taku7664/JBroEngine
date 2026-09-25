@@ -1,4 +1,4 @@
-#include <JBro/Input/InputSystem.h>
+﻿#include <JBro/Input/InputSystem.h>
 
 #include <cstddef>
 
@@ -54,8 +54,18 @@ namespace JBro::System
         }
     }
 
+    InputSystem::InputSystem()
+    {
+        m_residual.m_frame = &m_frame;
+        m_systemContext.Input = this;
+    }
+
     void InputSystem::BeginFrame(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping)
     {
+        // 남은 입력은 이번 프레임 전체에서 다시 시작한다. 레이어 체인이 돌면 그 끝에서 다시 정해진다.
+        m_residual.m_consumed = 0;
+        m_residual.m_pendingConsumed = 0;
+
         // 지금 눌림과 위치는 프레임을 넘어 이어진다. 프레임 하나의 것만 비운다.
         for (ButtonState& key : m_frame.keyboard.keys)
         {
@@ -86,6 +96,21 @@ namespace JBro::System
     const InputFrame& InputSystem::GetFrame() const
     {
         return m_frame;
+    }
+
+    const InputView& InputSystem::GetResidualView() const noexcept
+    {
+        return m_residual;
+    }
+
+    const InputSystemContext& InputSystem::GetSystemContext() const
+    {
+        return m_systemContext;
+    }
+
+    const InputServiceContext& InputSystem::GetServiceContext() const
+    {
+        return m_serviceContext;
     }
 
     void InputSystem::Fold(const InputEvent& event, const InputSurfaceMapping& mapping)

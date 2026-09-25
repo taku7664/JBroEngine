@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/Core/InputKeys.h>
 

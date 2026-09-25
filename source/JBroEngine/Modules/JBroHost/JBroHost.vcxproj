@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroCanvas\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -73,6 +73,14 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroCanvas\JBroCanvas.vcxproj">
       <Project>{1a00000f-0000-4000-8000-00000000ca47}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj">
+      <Project>{1a000030-0000-4000-8000-00000001a7e5}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroInput\JBroInput.vcxproj">
+      <Project>{1a000031-0000-4000-8000-00000001a7e0}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>

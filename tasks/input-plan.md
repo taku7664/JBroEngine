@@ -249,8 +249,15 @@ P5 의 해법이다. 날 포인터 등록·해제를 없앤다.
    거르므로 반복 검사가 일하는 곳은 **누름을 못 본 채 반복만 오는 때**(키를 누른 채 창으로 돌아올 때)뿐이었고, 그때 코드는 키를
    떼어진 것으로 두고 있었다. 그런 반복은 눌림으로 두고 누름은 세지 않게 고친 뒤(`03412c7`) 두 변이를 더해 잡았다.
    러너는 `tools/mutate.py` 가 아니라 스크래치의 것을 썼다 - 그쪽은 `taskkill /IM JBroTests.exe` 로 **다른 세션의 테스트까지** 죽인다.
-2. **폴링 서비스와 게임 호스트.** `Service::InputService` 를 `ServiceContext` 에 넣고(ABI 버전 올림) 게임 호스트가 이벤트를 넘긴다.
-   완료: 게임 DLL 의 스크립트가 `OnUpdate` 에서 키를 읽어 오브젝트를 움직이는 호스트 테스트(창에 `PostMessageW`, D-62 방식).
+2. `[완료]` **폴링 서비스와 게임 호스트.** `Service::InputService`(`GetView`·`Keyboard`·`Mouse`)와 `InputServiceContext`·`InputSystemContext`
+   (`IInputSystem` 인터페이스 포인터)를 `JBroInputTypes` 에 두고, 블록은 네트워크처럼 **호스트가** 낸다(`Make/FindInput*ContextBlock`).
+   `JBroRuntime` 의 `ServiceContext` 에 넣지 않았다 - 그러면 Runtime 이 입력 모듈을 알아야 한다. `EngineInstance` 가 `InputSystem` 을 소유하고,
+   `TickFrame` 이 펌프 직후 `BeginFrame` 을 부른다(호스트가 입력을 가져가는 동안은 빈 목록). 호스트 모듈 사본에도 묶어 정적으로 붙인
+   스크립트가 같은 서비스를 읽는다. 두 프렐류드가 `<JBro/InputTypes/ServiceContext.h>` 를 include 한다. `JBroInputTypes` 는 이제 정적
+   라이브러리이고 스크립트 DLL 도 링크한다.
+   테스트: 호스트 안의 서비스가 이번 프레임을 보고 묶이지 않으면 빈 입력(`InputSystemTests`), **실제 호스트가 실제 스크립트 DLL 을 실은 채**
+   창에 `WM_KEYDOWN` 을 넣고 틱하면 DLL 안의 서비스가 눌림을 보고 `WM_KEYUP` 뒤에는 뗌을 본다(`ScriptDLLLoaderTests`). `Debug`·`Debug_Game2D`·
+   `Debug_Game3D` 빌드 경고 0, 전체 스위트 통과. 뮤테이션은 3 단계와 함께 잰다(DLL 테스트까지 스위트가 몇 분 걸린다).
 3. **핸들러 체인과 블로킹.** `InputHandler<Layer, Order>`, `ScriptTypeInfo` 썽크, `ScriptSystem` 이 체인을 세움, `Block`·`Consume`.
    완료: `Block` 이 아래와 `OnUpdate` 폴링을 막음, 마우스 소비가 키보드를 남김, 순서(레이어·Order·실행 순서), 꺼진 스크립트는
    부르지 않음, 디스패치 중 생성은 다음 프레임부터, 모르는 레이어는 맨 아래 + 한 번 경고. 뮤테이션으로 각 조건을 깨 본다.

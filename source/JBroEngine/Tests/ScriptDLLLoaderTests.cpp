@@ -796,6 +796,22 @@ namespace
         Check(engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsLoaded") != nullptr,
             "the loaded module must be queryable through the host");
 
+        // 게임 입력이 DLL 까지 닿는다(D-201). 창에 넣은 키를 엔진이 틱에서 접고, DLL 은 자기 사본의 서비스로
+        // 그것을 읽는다 - 호스트가 입력 블록을 내지 않았거나 DLL 이 묶지 않았으면 여기서 거짓이다.
+        using IsKeyDown = bool (*)(std::uint16_t) noexcept;
+        const auto isKeyDown = reinterpret_cast<IsKeyDown>(
+            engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsKeyDown"));
+        Check(isKeyDown != nullptr, "the probe must export its key query");
+        const auto space = static_cast<std::uint16_t>(JBro::Key::Space);
+        Check(false == isKeyDown(space), "nothing is held before any input arrives");
+        const HWND window = reinterpret_cast<HWND>(engine.GetMainWindow().value);
+        PostMessageW(window, WM_KEYDOWN, VK_SPACE, 0);
+        Check(engine.Tick(0.016f), "the host must tick with the script module loaded");
+        Check(isKeyDown(space), "a key posted to the game window must reach the service inside the script DLL");
+        PostMessageW(window, WM_KEYUP, VK_SPACE, static_cast<LPARAM>(0xC0000001u));
+        Check(engine.Tick(0.016f), "the host must keep ticking");
+        Check(false == isKeyDown(space), "and releasing it must reach the DLL too");
+
         engine.CloseProject();
         Check(framework.unbindCount == 1, "closing must unbind the contexts once");
         Check(false == engine.GetScriptModule().IsLoaded(),

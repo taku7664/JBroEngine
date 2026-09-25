@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <JBro/InputTypes/InputState.h>
 
@@ -33,6 +33,13 @@ namespace JBro
     public:
         InputView(const InputView&) = delete;
         InputView& operator=(const InputView&) = delete;
+
+        // 아무 장치도 없는 뷰다. 입력 시스템이 묶이지 않은 자리(시스템 없는 테스트, 내려가는 중)가 이것을 준다.
+        static const InputView& Empty()
+        {
+            static const InputView empty;
+            return empty;
+        }
 
         const KeyboardState& Keyboard() const
         {

@@ -13,6 +13,12 @@ namespace JBro
 {
     class NetworkHost;
 
+    namespace System
+    {
+        // 게임 입력(D-201). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
+        class InputSystem;
+    }
+
     namespace Network
     {
         // 네트워크 프로젝트의 것들. 이 헤더를 쓰는 에디터가 네트워크 헤더를 보지 않게 이름만 안다. 정의는 EngineInstance.cpp 가 본다.
@@ -182,6 +188,7 @@ namespace JBro
         OwnerPtr<Network::ISocketProvider> m_socketProvider;
         OwnerPtr<Network::SteadyClock> m_networkClock;
         OwnerPtr<NetworkHost> m_network;
+        OwnerPtr<System::InputSystem> m_input;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.

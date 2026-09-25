@@ -1,5 +1,6 @@
 ﻿#include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
+#include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/NameTable.h>
@@ -71,6 +72,15 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
         }
         JBro::BindFramework2DServiceContext(*frameworkServices);
         JBro::BindFramework2DSystemContext(*frameworkSystems);
+        // 입력 블록은 호스트(EngineInstance)가 낸다(D-201). 블록만 손으로 건네는 로더 테스트에는 없으므로 있을 때만 묶는다.
+        if (const JBro::InputServiceContext* inputServices = JBro::FindInputServiceContext(*context))
+        {
+            JBro::BindInputServiceContext(*inputServices);
+        }
+        if (const JBro::InputSystemContext* inputSystems = JBro::FindInputSystemContext(*context))
+        {
+            JBro::BindInputSystemContext(*inputSystems);
+        }
         // 이름으로 만들 수 있게 타입을 호스트 표에 등록한다. 여기서 만들어지는
         // 생성·파괴 함수는 이 DLL 안의 코드이며, 호스트는 그 주소만 부른다.
         if (false == JBro::RegisterScriptType<ProbeRegisteredScript>())
@@ -85,6 +95,8 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
     {
         JBro::BindFramework2DServiceContext({});
         JBro::BindFramework2DSystemContext({});
+        JBro::BindInputServiceContext({});
+        JBro::BindInputSystemContext({});
         JBro::Internal::InstanceRegistry::Bind(nullptr);
         JBro::ScriptRegistry::Bind(nullptr);
         JBro::NameTable::Bind(nullptr);
@@ -175,4 +187,10 @@ extern "C" __declspec(dllexport) const char* JBroScriptProbe_ResolveName(std::ui
 extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRevision() noexcept
 {
     return JBRO_SCRIPT_PROBE_REVISION;
+}
+
+// DLL 안의 스크립트가 서비스로 읽는 키보드다(D-201). 호스트가 접은 이번 프레임의 입력이 이 DLL 사본에 닿는지 본다.
+extern "C" __declspec(dllexport) bool JBroScriptProbe_IsKeyDown(std::uint16_t key) noexcept
+{
+    return JBro::GetInputServices().Input.Keyboard().IsDown(static_cast<JBro::Key>(key));
 }

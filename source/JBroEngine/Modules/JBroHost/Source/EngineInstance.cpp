@@ -2,6 +2,8 @@
 #include <JBro/Core/Profiler.h>
 #include <JBro/Host/EngineInstance.h>
 
+#include <JBro/Input/InputSystem.h>
+#include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Network/Internal/ScriptModuleContext.h>
 #include <JBro/Network/SteadyClock.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
@@ -81,6 +83,12 @@ namespace JBro
                 BindNetworkSystemContext(m_network->GetSystemContext());
                 BindNetworkServiceContext(m_network->GetServiceContext());
             }
+            // 게임 입력(D-201). 네트워크처럼 호스트가 소유하고 두 차원이 같은 것을 쓴다. 이 모듈 사본에도 묶어
+            // 호스트 안에서 붙인 스크립트(정적으로 붙인 것)도 같은 서비스를 읽는다.
+            m_input = MakeOwnerPtr<System::InputSystem>();
+            BindInputSystemContext(m_input->GetSystemContext());
+            BindInputServiceContext(m_input->GetServiceContext());
+            m_frameworkContext.input = m_input.Get();
             m_frameworkContext.network = m_network.Get();
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
@@ -446,8 +454,13 @@ namespace JBro
                         // 프레임워크의 블록 뒤에 호스트의 네트워크 블록을 잇는다(D-122). 네트워크는 호스트 것이고
                         // 두 차원이 같은 것을 쓰므로 프레임워크가 아니라 여기서 낸다.
                         Array<ScriptContextBlock> blocks;
-                        blocks.Reserve(frameworkBlocks.size + 2);
+                        blocks.Reserve(frameworkBlocks.size + 4);
                         blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
+                        if (m_input)
+                        {
+                            blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));
+                            blocks.Add(MakeInputServiceContextBlock(m_input->GetServiceContext()));
+                        }
                         if (m_network)
                         {
                             blocks.Add(MakeNetworkSystemContextBlock(m_network->GetSystemContext()));
@@ -553,6 +566,19 @@ namespace JBro
                 m_platform->ClearInputEvents();
             }
             m_platform->PumpEvents();
+            // 게임 입력을 이번 프레임으로 접는다(D-201). 호스트(에디터)가 이벤트를 자기 UI 에 넣는 동안은 게임이
+            // 그 이벤트를 보지 않는다 - 빈 목록으로라도 불러 지난 프레임의 누름·뗌을 비운다.
+            if (m_input)
+            {
+                if (m_inputOwnedByHost)
+                {
+                    m_input->BeginFrame({});
+                }
+                else
+                {
+                    m_input->BeginFrame(m_platform->GetInputEvents());
+                }
+            }
         }
         if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
         {
@@ -823,6 +849,14 @@ namespace JBro
         m_state = State::Stopping;
         m_exitRequested = true;
         ReleaseProject();
+        // 입력은 프로젝트(스크립트 DLL) 뒤에 내린다. DLL 이 그 주소를 들고 있었다.
+        if (m_input)
+        {
+            BindInputSystemContext({});
+            BindInputServiceContext({});
+            m_frameworkContext.input = nullptr;
+            m_input.Reset();
+        }
         // 네트워크는 프로젝트 뒤, 플랫폼 앞에 내린다 - 소켓은 플랫폼의 것이다.
         if (m_network)
         {
