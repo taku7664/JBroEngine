@@ -239,10 +239,16 @@ P5 의 해법이다. 날 포인터 등록·해제를 없앤다.
 
 각 단계는 테스트가 먼저고 단계마다 커밋한다. 경계 규칙은 음성 테스트로 본다.
 
-1. **모듈과 프레임 상태.** `JBroInputTypes`·`JBroInput` 을 세우고 `Key` 들을 옮긴다(`JBroPlatform` 은 include 만).
-   `InputSystem::BeginFrame` 이 이벤트를 키보드·마우스 상태로 접는다.
-   완료: 한 프레임 안의 눌렀다 떼기가 `IsPressed`·`IsReleased` 둘 다 참, 반복은 눌림이 아님, `FocusLost` 가 눌린 것을 뗌,
-   매핑이 레터박스를 벗김, 프레임 경로 할당 0. 음성: 스크립트 타깃이 `JBroInput` 헤더를 include 하면 컴파일 실패.
+1. `[완료]` **모듈과 프레임 상태**(`3f6468d`·`03412c7`). `JBroInputTypes`(`InputState.h`·`InputView.h`)·`JBroInput`(`System::InputSystem`)을
+   세웠고 키 이름은 `JBroCore` 의 `InputKeys.h` 로 옮겼다(§3.1). `InputSystem::BeginFrame(events, mapping)` 이 이벤트를 접는다.
+   테스트(`InputSystemTests`, 스위트 앞쪽에서 1 초 안에 끝난다): 한 프레임 안의 눌렀다 떼기가 누름과 뗌 둘 다, 누른 채 다음 프레임은
+   눌림만, 반복은 누름이 아님, 누름을 못 본 채 온 반복은 눌림(아래), `FocusLost` 가 눌린 것을 뗌과 위치를 잊음, 돌아온 뒤 첫 위치는
+   이동이 아님, 글자 순서와 32 상한, 레터박스 매핑과 이동·휠 합, 범위 밖 이름 무시, 실제 창에 `PostMessageW` 로 넣은 눌렀다 떼기,
+   200 프레임 접기의 CRT 할당 0. 음성: 스크립트 프로브 `/p:JBroTierProbe=Input` 이 `JBro/Input/InputSystem.h` 에서 C1083 하나로 실패.
+   뮤테이션: 15/15 잡힘. 첫 판 13 개 중 `반복을 누름으로` 하나가 살았다 - 먼저 누름을 받은 뒤의 반복은 `Press` 의 "이미 눌림" 검사가
+   거르므로 반복 검사가 일하는 곳은 **누름을 못 본 채 반복만 오는 때**(키를 누른 채 창으로 돌아올 때)뿐이었고, 그때 코드는 키를
+   떼어진 것으로 두고 있었다. 그런 반복은 눌림으로 두고 누름은 세지 않게 고친 뒤(`03412c7`) 두 변이를 더해 잡았다.
+   러너는 `tools/mutate.py` 가 아니라 스크래치의 것을 썼다 - 그쪽은 `taskkill /IM JBroTests.exe` 로 **다른 세션의 테스트까지** 죽인다.
 2. **폴링 서비스와 게임 호스트.** `Service::InputService` 를 `ServiceContext` 에 넣고(ABI 버전 올림) 게임 호스트가 이벤트를 넘긴다.
    완료: 게임 DLL 의 스크립트가 `OnUpdate` 에서 키를 읽어 오브젝트를 움직이는 호스트 테스트(창에 `PostMessageW`, D-62 방식).
 3. **핸들러 체인과 블로킹.** `InputHandler<Layer, Order>`, `ScriptTypeInfo` 썽크, `ScriptSystem` 이 체인을 세움, `Block`·`Consume`.
