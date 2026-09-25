@@ -938,6 +938,11 @@ namespace JBro
         }
         const bool opened = OpenAudioOutput();
         m_audioRetrySeconds = opened ? 0.0f : 2.0f;
+        // 장치 알림을 켠다(첫 호출은 거짓이다). 고른 장치가 없어 기본으로 열었으면 그 장치가 꽂힐 때 되돌아간다.
+        if (m_platform != nullptr && false == m_audioDevicePreference.empty())
+        {
+            m_platform->TakeAudioDevicesChanged();
+        }
         return opened;
     }
 
@@ -984,6 +989,33 @@ namespace JBro
         }
         if (m_audioOutput.Get() != nullptr)
         {
+            // 고른 장치가 없어 기본으로 떨어져 있으면, 장치가 바뀌었다는 알림이 올 때만 고른 장치를 다시 찾아본다(D-206).
+            // 목록을 매 프레임 읽지 않는다 - 알림은 원자 표지 하나다.
+            if (false == m_audioDevicePreference.empty()
+                && false == (m_audioDevicePreference == m_audioOutput->GetDeviceName())
+                && m_platform->TakeAudioDevicesChanged())
+            {
+                AudioOutputDesc desc;
+                desc.sampleRate = m_audioMixer->GetSampleRate();
+                desc.channels = m_audioMixer->GetChannels();
+                desc.deviceName = m_audioDevicePreference.c_str();
+                OwnerPtr<IAudioOutput> chosen = m_platform->CreateAudioOutput(desc);
+                if (chosen.Get() != nullptr)
+                {
+                    // 두 장치가 한 믹서를 함께 당기면 안 된다 - 옛 것을 멈춘 뒤에 새 것을 켠다.
+                    m_audioOutput->Stop();
+                    m_audioOutput.Reset();
+                    if (chosen->Start(&AudioMixer::RenderCallback, m_audioMixer.Get()))
+                    {
+                        Log::Write(LogLevel::Info, "audio", "back on the chosen audio device: %s", chosen->GetDeviceName());
+                        m_audioOutput = std::move(chosen);
+                    }
+                    else
+                    {
+                        m_audioRetrySeconds = 0.0f;
+                    }
+                }
+            }
             return;
         }
         m_audioRetrySeconds -= std::isfinite(deltaTime) && deltaTime > 0.0f ? deltaTime : 0.0f;

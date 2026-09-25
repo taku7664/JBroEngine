@@ -219,7 +219,10 @@ namespace
         system.FixedUpdate(canvas, 0.5f);
 
         Check(NearlyEqual(body->linearVelocity.y, -4.905f), "gravity must update velocity");
-        Check(NearlyEqual(transform->position.y, -2.4525f), "velocity must update position");
+        // 커널은 고정 스텝을 넷으로 나눠 적분한다(D-199). 서브스텝 h 마다 속도를 먼저 올리고 옮기므로
+        // 위치는 -g·h²·(1 + 2 + 3 + 4) 다. 한 번에 옮기던 옛 값(-2.4525)보다 참값 -g·t²/2 = -1.226 에 가깝다.
+        const float subStep = 0.5f / 4.0f;
+        Check(NearlyEqual(transform->position.y, -9.81f * subStep * subStep * 10.0f), "velocity must update position");
         Check(false == transform->worldValid, "physics movement must invalidate the world transform");
 
         body->SetEnabled(false);

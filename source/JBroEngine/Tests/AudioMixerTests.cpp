@@ -799,6 +799,95 @@ namespace
         mixer.Shutdown();
     }
 
+    // 버스 사용자 처리기(D-206): 사슬에 끼어 소리를 고치고, 떼고 돌아온 뒤에는 오디오 스레드가 다시 부르지 않는다.
+    struct HalfGain
+    {
+        std::atomic<int> calls{0};
+        static void Process(void* user, float* frames, std::uint32_t frameCount, std::uint32_t channels, std::uint32_t)
+        {
+            HalfGain* self = static_cast<HalfGain*>(user);
+            self->calls.fetch_add(1, std::memory_order_relaxed);
+            for (std::uint32_t index = 0; index < frameCount * channels; ++index)
+            {
+                frames[index] *= 0.5f;
+            }
+        }
+    };
+
+    // 처리 한 번이 오래 걸리는 처리기다. 불리는 동안 `active` 가 참이다 - 떼기가 기다리지 않으면 돌아온 뒤에도 참으로 보인다.
+    struct SlowProbe
+    {
+        std::atomic<bool> active{false};
+        std::atomic<int> calls{0};
+        static void Process(void* user, float*, std::uint32_t, std::uint32_t, std::uint32_t)
+        {
+            SlowProbe* self = static_cast<SlowProbe*>(user);
+            self->active.store(true, std::memory_order_seq_cst);
+            self->calls.fetch_add(1, std::memory_order_relaxed);
+            const auto until = std::chrono::steady_clock::now() + std::chrono::microseconds(300);
+            while (std::chrono::steady_clock::now() < until)
+            {
+            }
+            self->active.store(false, std::memory_order_seq_cst);
+        }
+    };
+
+    void TestBusProcessor()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+        const AudioBusId bus = mixer.CreateBus(1.0f);
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        play.bus = bus;
+        mixer.Play(play);
+        HalfGain half;
+        mixer.SetBusProcessor(bus, &HalfGain::Process, &half);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.25f) < 0.03f && half.calls.load() > 0,
+            "a bus processor changes the bus's sound");
+        mixer.SetBusProcessor(bus, nullptr, nullptr);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.5f) < 0.05f, "removing it restores the sound");
+
+        // 다른 스레드가 당기는 동안 걸고 떼기를 거듭한다. 뗀 뒤에 불리면 표지가 잡는다.
+        std::atomic<bool> running{true};
+        std::thread audio([&]
+        {
+            float buffer[480 * 2];
+            while (running.load(std::memory_order_acquire))
+            {
+                mixer.Render(buffer, 480);
+            }
+        });
+        bool calledAfterRemoval = false;
+        int roundsThatRan = 0;
+        for (int round = 0; round < 300; ++round)
+        {
+            SlowProbe local;
+            mixer.SetBusProcessor(bus, &SlowProbe::Process, &local);
+            // 처리기가 한 번은 불리기 시작할 때까지 기다린다 - 그래야 "부르는 중에 떼기" 가 자주 생긴다.
+            const auto limit = std::chrono::steady_clock::now() + std::chrono::milliseconds(20);
+            while (local.calls.load() == 0 && std::chrono::steady_clock::now() < limit)
+            {
+                std::this_thread::yield();
+            }
+            roundsThatRan += local.calls.load() > 0 ? 1 : 0;
+            mixer.SetBusProcessor(bus, nullptr, nullptr);
+            const int after = local.calls.load();
+            calledAfterRemoval = calledAfterRemoval || local.active.load();
+            std::this_thread::sleep_for(std::chrono::microseconds(500));
+            calledAfterRemoval = calledAfterRemoval || local.calls.load() != after;
+        }
+        std::cout << "  bus processor swapped while rendering: " << roundsThatRan << " of 300 rounds ran it" << '\n';
+        Check(roundsThatRan > 200, "the processor ran in most rounds before it was removed");
+        running.store(false, std::memory_order_release);
+        audio.join();
+        Check(false == calledAfterRemoval, "a processor is never called after SetBusProcessor returns");
+        mixer.Shutdown();
+    }
+
     void TestStealing()
     {
         AudioMixer mixer;
@@ -979,6 +1068,7 @@ int RunAudioMixerTests()
         TestVoiceFilter();
         TestOutputGainAndSpectrum();
         TestBusFadesDuckingAndTrim();
+        TestBusProcessor();
         TestStealing();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();

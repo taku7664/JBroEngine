@@ -93,9 +93,10 @@ namespace JBro
     static_assert(std::is_trivially_copyable_v<ScriptModuleLoadContext>);
     static_assert(std::is_standard_layout_v<ScriptModuleApi>);
     static_assert(std::is_trivially_copyable_v<ScriptModuleApi>);
-    static_assert(sizeof(ScriptContextBlock) == 24);
-    static_assert(sizeof(ScriptContextRequirement) == 16);
-    static_assert(sizeof(ScriptModuleLoadContext) == 64);
-    static_assert(sizeof(ScriptModuleApi) == 40);
+    // 크기는 64 비트에서 잰 값이다. 웹(wasm32)은 포인터가 4 바이트이고 스크립트 DLL 경계가 없다(D-206).
+    static_assert(sizeof(void*) != 8 || sizeof(ScriptContextBlock) == 24);
+    static_assert(sizeof(void*) != 8 || sizeof(ScriptContextRequirement) == 16);
+    static_assert(sizeof(void*) != 8 || sizeof(ScriptModuleLoadContext) == 64);
+    static_assert(sizeof(void*) != 8 || sizeof(ScriptModuleApi) == 40);
     static_assert(offsetof(ScriptModuleApi, AbiVersion) == 0);
 }

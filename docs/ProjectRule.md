@@ -136,6 +136,10 @@
     오디오 스레드가 짓는다. 메아리·잔향 버퍼는 처음 켤 때 메인 스레드가 잡는다 - 오디오 스레드는 할당하지 않는다.
   - 버스의 부모는 목록의 앞 버스만이고, 센드는 되돌아오는 길을 만들면 거절한다(D-203). 솔로는 저장하지 않는다.
   - 버스 음량·음소거·솔로는 이펙트 노드 끝의 램프로 건다(D-205). 그룹 음량을 곧바로 바꾸지 않는다 - 딸깍 소리가 난다.
+  - 버스 사용자 처리기는 엔진·호스트 코드만 건다. 스크립트 DLL 에는 열지 않는다(D-206). `SetBusProcessor` 가 돌아오면 옛 처리기는
+    불리지 않는다.
+  - 실제 스피커를 여는 시험은 `JBRO_AUDIO_DEVICE_TEST=1` 일 때만 돈다. 장치 쪽을 고쳤으면 켜고 돌린다(D-206).
+- 스크립트 DLL 경계 구조체의 크기 단언은 64 비트에서 잰 값이고 `sizeof(void*) != 8 ||` 로 건다(D-206). 웹(wasm32)에는 DLL 경계가 없다.
   - 디스크 스트리밍의 파일은 `IPlatform::OpenFileStream` 으로만 열고, 믹서의 스트리머 스레드만 읽는다. 오디오 스레드는 링만 읽는다.
   - 출력 장치는 호스트가 가진다. 사라진 장치는 호스트가 다음 프레임에 다시 열고, 믹서는 그대로 둔다(D-203).
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)
@@ -165,7 +169,7 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-206) |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-210) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
@@ -494,6 +498,10 @@
   보존이 철 지난 월드를 쓴다.
 - `ComponentBase`의 가상 함수 집합은 `~ComponentBase`·`GetTypeId`·`OnAttached`·`OnDetached`·`OnEnabled`·`OnDisabled`다. (MUST)
   스크립트 DLL이 파생하는 타입의 vtable은 ABI이므로 추가는 Decisions와 D-28 재빌드 규약을 거친다.
+- **2D 스크립트는 모두 `GameScript2D` 에서 파생하고, 2D 스크립트 모듈은 `RegisterScriptType2D<T>` 로만 타입을 등록한다.** (MUST) (D-207)
+  물리 시스템은 오브젝트에 붙은 스크립트를 `GameScript2D` 로 여기고 충돌·트리거 훅을 부른다(프레임 경로에 `dynamic_cast` 금지).
+  `RegisterScriptType2D` 는 `GameScriptBase` 에서 바로 파생한 타입을 컴파일 시간에 거절한다(`static_assert`).
+  `GameScript2D` 의 가상 함수 표는 `Framework2DServiceContextAbiVersion` 이 대표한다 - 훅을 더하면 그 값을 올린다.
   형제 컴포넌트 캐시는 `OnAttached`에서 잡고 `InstanceHandle`과 함께 저장해 프레임 시작에 세대 비교로 검증한다. (D-48)
 - `GameObject`는 `m_activeInHierarchy`를 캐시하고 `SetActive`·`SetParent`가 하위 트리에 전파한다.
   `IsActiveInHierarchy()`는 O(1)이다. (MUST) (D-54)

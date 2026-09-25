@@ -55,7 +55,8 @@ namespace
         Check(Table("Component::SpriteRenderer2D").count == 13, "SpriteRenderer2D declares thirteen fields");
         Check(Table("Component::Text2D").count == 14, "Text2D declares fourteen fields");
         Check(Table("Component::Rigidbody2D").count == 7, "Rigidbody2D declares seven fields");
-        Check(Table("Component::Collider2D").count == 5, "Collider2D declares five fields");
+        Check(Table("Component::Collider2D").count == 10,
+            "Collider2D declares ten fields - shape, size and trigger, then points and the surface and filter of D-199");
 
         // 두 번 불러도 된다. 부르는 쪽이 순서를 신경 쓰지 않아도 되게 한다.
         Check(JBro::Component::RegisterBuiltinComponentProperties2D(),
@@ -320,6 +321,16 @@ namespace
             Check(table.properties[i].Address != nullptr && table.properties[i].ConstAddress != nullptr,
                 "every property must be reachable through both accessors");
             Check(type->size > 0, "every type must know its own size");
+
+            // 배열은 원소로 말한다. 원소를 같은 규칙으로 내려간다 - `Collider2D::points` 가 내장 컴포넌트의 첫
+            // 컨테이너 필드다(D-199). 원소가 끝내 코덱에 닿지 않으면 그 배열은 저장할 수 없다.
+            while (type->arrayOps != nullptr)
+            {
+                Check(type->element != nullptr, "an array must name its element type");
+                Check(type->fields == nullptr && type->codec == nullptr,
+                    "an array speaks through its elements, not through fields or a codec of its own");
+                type = type->element;
+            }
 
             // 구조체는 필드로 말하고 잎사귀는 코덱으로 말한다. 둘 다이거나 둘 다 아니면
             // 저장할 때 어느 쪽을 믿을지가 갈린다.

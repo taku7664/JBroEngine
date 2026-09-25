@@ -182,6 +182,12 @@ namespace JBro::Internal
             static void DataCallback(ma_device* device, void* output, const void*, ma_uint32 frameCount)
             {
                 MiniaudioAudioOutput* self = static_cast<MiniaudioAudioOutput*>(device->pUserData);
+                // 장치가 당기기 시작했으면 막혀 있지 않다. 자동 재생을 허락한 브라우저는 `unlocked` 알림을 보내지 않고
+                // 곧바로 당긴다 - 알림만 기다리면 소리가 나는 동안에도 "막힘" 으로 남는다(웹 실측, D-203).
+                if (self->m_waitingForGesture.load(std::memory_order_relaxed))
+                {
+                    self->m_waitingForGesture.store(false, std::memory_order_relaxed);
+                }
                 const AudioRenderCallback callback = self->m_callback.load(std::memory_order_acquire);
                 if (callback == nullptr)
                 {

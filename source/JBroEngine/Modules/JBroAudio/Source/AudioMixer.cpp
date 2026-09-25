@@ -385,6 +385,11 @@ namespace JBro
             std::atomic<float> duckAmount{0.0f};
             std::atomic<float> duckRelease{0.3f};
             float duckCurrent = 1.0f;
+            // 사용자 처리기(D-206). 오디오 스레드는 `inProcessor` 를 먼저 세우고 처리기를 읽는다. 메인 스레드는 처리기를 바꾼
+            // 뒤 `inProcessor` 가 내려갈 때까지 기다린다 - 그래서 돌아온 뒤에는 옛 처리기가 불리지 않는다.
+            std::atomic<AudioBusProcessCallback> processor{nullptr};
+            std::atomic<void*> processorUser{nullptr};
+            std::atomic<bool> inProcessor{false};
             std::atomic<float*> echoBuffer{nullptr};
             std::atomic<Reverb*> reverb{nullptr};
             std::uint32_t echoCapacity = 0;
@@ -511,6 +516,13 @@ namespace JBro
                     }
                 }
             }
+
+            self.inProcessor.store(true, std::memory_order_seq_cst);
+            if (const AudioBusProcessCallback processor = self.processor.load(std::memory_order_seq_cst))
+            {
+                processor(self.processorUser.load(std::memory_order_seq_cst), out, frames, channels, self.sampleRate);
+            }
+            self.inProcessor.store(false, std::memory_order_seq_cst);
 
             // 음량과 더킹은 사슬의 끝에서 곱한다 - 음소거하면 메아리·잔향의 꼬리도 함께 멎는다. 둘 다 샘플마다 곧게 옮겨 간다.
             const float gainTarget = self.gainTarget.load(std::memory_order_relaxed);
@@ -1438,6 +1450,8 @@ namespace JBro
                 bus.solo = false;
                 bus.sendTarget = AudioNoBus;
                 bus.duckTrigger = AudioNoBus;
+                bus.effects.processor.store(nullptr, std::memory_order_seq_cst);
+                bus.effects.processorUser.store(nullptr, std::memory_order_seq_cst);
             }
         }
 
@@ -1931,6 +1945,23 @@ namespace JBro
         target.effects.duckRelease.store(Clamped(releaseSeconds, 0.01f, 10.0f), std::memory_order_relaxed);
         target.effects.duckSource.store(&m_state->buses[trigger].effects, std::memory_order_release);
         target.duckTrigger = trigger;
+    }
+
+    void AudioMixer::SetBusProcessor(AudioBusId bus, AudioBusProcessCallback callback, void* user)
+    {
+        if (false == IsInitialized() || false == m_state->IsBusValid(bus))
+        {
+            return;
+        }
+        BusEffectNode& node = m_state->buses[bus].effects;
+        // 먼저 떼고 기다린 뒤 새 것을 건다 - 옛 처리기가 새 `user` 로 불리는 틈이 없다.
+        node.processor.store(nullptr, std::memory_order_seq_cst);
+        while (node.inProcessor.load(std::memory_order_seq_cst))
+        {
+            std::this_thread::yield();
+        }
+        node.processorUser.store(user, std::memory_order_seq_cst);
+        node.processor.store(callback, std::memory_order_seq_cst);
     }
 
     AudioBusId AudioMixer::GetBusDuckTrigger(AudioBusId bus) const

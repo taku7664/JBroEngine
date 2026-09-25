@@ -7,6 +7,7 @@
 namespace JBro
 {
     struct FileWatcher;
+    class AudioDeviceWatch;
 
     class WindowsPlatform final : public IPlatform
     {
@@ -49,6 +50,7 @@ namespace JBro
         // `WindowsAudio.cpp` 의 것이다. miniaudio 의 WASAPI 장치다(D-197).
         OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc) override;
         std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity) override;
+        bool TakeAudioDevicesChanged() override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);
@@ -65,6 +67,8 @@ namespace JBro
         Array<InputEvent> m_inputEvents;
         // `WindowsFileWatcher.cpp` 의 것이다. 감시하지 않으면 비어 있다.
         OwnerPtr<FileWatcher> m_fileWatcher;
+        // `WindowsAudio.cpp` 의 것이다. 처음 물을 때 켠다.
+        OwnerPtr<AudioDeviceWatch> m_audioWatch;
         std::uint16_t m_pendingHighSurrogate = 0;
         void* m_instance = nullptr;
         std::uint16_t m_windowClassAtom = 0;

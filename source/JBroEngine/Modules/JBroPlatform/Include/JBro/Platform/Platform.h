@@ -351,5 +351,11 @@ namespace JBro
             (void)capacity;
             return 0;
         }
+        // 지난번 물은 뒤로 출력 장치가 꽂히거나 빠지거나 기본이 바뀌었는가(D-206). 참을 돌려주면 표지를 내린다. 처음 부를 때
+        // 감시를 켠다(그 호출은 거짓이다). 호스트가 "고른 장치가 다시 꽂혔나" 를 목록을 매번 읽지 않고 알려고 쓴다.
+        virtual bool TakeAudioDevicesChanged()
+        {
+            return false;
+        }
     };
 }

@@ -410,7 +410,8 @@ namespace
             {
                 return nullptr;
             }
-            if (false == lastRequestedDevice.empty() && lastRequestedDevice != "Speakers" && lastRequestedDevice != "Headphones")
+            if (false == lastRequestedDevice.empty() && lastRequestedDevice != "Speakers" && lastRequestedDevice != "Headphones"
+                && false == (pluggedIn && lastRequestedDevice == "Gone"))
             {
                 return nullptr;
             }
@@ -429,8 +430,17 @@ namespace
             }
             return 2;
         }
+        bool TakeAudioDevicesChanged() override
+        {
+            ++deviceChecks;
+            return std::exchange(devicesChanged, false);
+        }
         int audioOpens = 0;
         int liveOutputs = 0;
+        // "Gone" 장치가 다시 꽂혔는가와 그 알림이다(D-206).
+        bool pluggedIn = false;
+        bool devicesChanged = false;
+        int deviceChecks = 0;
         bool refuseAudio = false;
         JBro::String lastRequestedDevice;
         FakeAudioOutput* lastOutput = nullptr;
@@ -756,8 +766,20 @@ namespace
                 && std::strcmp(engine.GetPreferredAudioOutputDevice(), "Gone") == 0,
             "a device missing on this machine falls back to the default and keeps the choice");
 
-        // 뽑힘: 다음 프레임에 다시 연다.
+        // 고른 장치가 다시 꽂히면(알림) 되돌아간다. 알림이 없으면 장치를 다시 찾지 않는다(D-206).
         int opens = platform.audioOpens;
+        engine.Tick(0.016f);
+        Check(platform.audioOpens == opens, "without a device notification the host does not look for the chosen device");
+        platform.pluggedIn = true;
+        platform.devicesChanged = true;
+        Check(engine.Tick(0.016f) && std::strcmp(engine.GetAudioOutput()->GetDeviceName(), "Gone") == 0,
+            "when the chosen device comes back the host returns to it");
+        Check(platform.liveOutputs == 1, "the default device it had fallen back to is closed");
+        platform.pluggedIn = false;
+        Check(engine.SetAudioOutputDevice("Speakers"), "choosing an existing device again");
+
+        // 뽑힘: 다음 프레임에 다시 연다.
+        opens = platform.audioOpens;
         platform.lastOutput->lost = true;
         Check(engine.Tick(0.016f), "the host keeps running when the device goes");
         Check(engine.GetAudioOutput() != nullptr && false == engine.GetAudioOutput()->IsLost() && platform.audioOpens > opens,

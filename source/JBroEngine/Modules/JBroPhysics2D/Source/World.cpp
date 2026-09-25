@@ -847,11 +847,15 @@ namespace JBro::Physics2D
 
         for (const Contact& contact : m_contacts)
         {
-            float deepest = contact.manifold.points[0].separation;
+            std::uint32_t deepestIndex = 0;
             for (std::uint32_t i = 1; i < contact.manifold.count; ++i)
             {
-                deepest = std::fmin(deepest, contact.manifold.points[i].separation);
+                if (contact.manifold.points[i].separation < contact.manifold.points[deepestIndex].separation)
+                {
+                    deepestIndex = i;
+                }
             }
+            const float deepest = contact.manifold.points[deepestIndex].separation;
             // 트리거는 실제로 겹쳐야, 단단한 접촉은 위치 보정이 남기는 LinearSlop 안이면 닿은 것이다.
             const float limit = contact.isTrigger ? 0.0f : LinearSlop;
             if (deepest >= limit)
@@ -866,6 +870,16 @@ namespace JBro::Physics2D
             pair.userDataA = m_shapes[pair.shapeA].userData;
             pair.userDataB = m_shapes[pair.shapeB].userData;
             pair.isTrigger = contact.isTrigger;
+            pair.depth = deepest;
+            if (false == contact.isTrigger)
+            {
+                pair.point = contact.manifold.points[deepestIndex].point;
+                // 쌍은 도형 번호 순으로 적으므로, 번호가 뒤집혔으면 법선도 뒤집어 A→B 를 지킨다.
+                const bool swapped = pair.shapeA != contact.shapeA;
+                pair.normal = swapped
+                    ? Vec2{ -contact.manifold.normal.x, -contact.manifold.normal.y }
+                    : contact.manifold.normal;
+            }
             m_touching.Add(pair);
         }
 
@@ -892,6 +906,13 @@ namespace JBro::Physics2D
         {
             if (unique > 0 && false == byShapes(m_touching[unique - 1], m_touching[i]))
             {
+                // 같은 쌍의 다른 조각이다. 대표 접촉은 가장 깊은 것으로 남긴다.
+                if (m_touching[i].depth < m_touching[unique - 1].depth)
+                {
+                    m_touching[unique - 1].depth = m_touching[i].depth;
+                    m_touching[unique - 1].point = m_touching[i].point;
+                    m_touching[unique - 1].normal = m_touching[i].normal;
+                }
                 continue;
             }
             m_touching[unique] = m_touching[i];
@@ -907,6 +928,8 @@ namespace JBro::Physics2D
             event.userDataA = pair.userDataA;
             event.userDataB = pair.userDataB;
             event.isTrigger = pair.isTrigger;
+            event.point = pair.point;
+            event.normal = pair.normal;
             return event;
         };
 
@@ -924,7 +947,10 @@ namespace JBro::Physics2D
             }
             else if (i >= m_touching.Size() || byShapes(m_previousTouching[j], m_touching[i]))
             {
-                m_endEvents.Add(toEvent(m_previousTouching[j]));
+                ContactEvent ended = toEvent(m_previousTouching[j]);
+                ended.point = {};
+                ended.normal = {};
+                m_endEvents.Add(ended);
                 ++j;
             }
             else
