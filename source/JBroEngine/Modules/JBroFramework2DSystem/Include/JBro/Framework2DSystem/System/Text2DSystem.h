@@ -38,7 +38,8 @@ namespace JBro::System
 
         void SetRenderWorld(RenderWorld2D* renderWorld);
         // 폰트를 읽을 에셋 시스템과 페이지를 올릴 렌더러다. 둘 중 하나가 없으면 텍스트를 그리지 않는다.
-        void SetResources(AssetSystem* assets, Renderer* renderer);
+        // tasks 가 있으면 폰트의 미리 뜨기가 워커에서 돈다(없어도 된다).
+        void SetResources(AssetSystem* assets, Renderer* renderer, TaskManager* tasks = nullptr);
 
         // IText2DSystem - 스크립트 서비스가 부른다. 호스트의 저장소에 쓴다.
         void SetText(Component::Text2D& text, const char* utf8, std::uint32_t length) override;
@@ -56,6 +57,8 @@ namespace JBro::System
         const TextLibrary& GetLibrary() const;
         // 퇴출 한도(폰트 하나의 아틀라스 페이지 수)다. 테스트가 작게 줄여 퇴출을 부른다.
         void SetAtlasPageLimit(std::uint32_t pages);
+        // 지난 프레임에 스프라이트 제출 상한을 넘어 그리지 못한 글자 수다.
+        std::uint32_t GetDroppedGlyphCount() const;
         // 지금까지 다시 레이아웃한 횟수다. 테스트가 "바뀌지 않은 텍스트는 다시 레이아웃하지 않는다" 를 잰다.
         std::uint64_t GetRelayoutCount() const;
         // 캐시에 들어 있는 텍스트 수다.
@@ -121,5 +124,8 @@ namespace JBro::System
         Array<InstanceId>            m_scratchUnseen;
         std::uint64_t                m_frame = 0;
         std::uint64_t                m_relayouts = 0;
+        std::uint32_t                m_droppedGlyphsThisFrame = 0;
+        std::uint32_t                m_droppedGlyphs = 0;
+        bool                         m_warnedDroppedGlyphs = false;
     };
 }

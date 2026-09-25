@@ -180,6 +180,7 @@ namespace JBro
                 return false;
             }
             m_frameworkContext.renderer = m_renderer.Get();
+            m_frameworkContext.tasks = m_tasks.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
             m_watchAssetDirectory = config.watchAssetDirectory;
@@ -1159,6 +1160,7 @@ namespace JBro
             m_tasks->Shutdown();
             m_tasks.Reset();
         }
+        m_frameworkContext.tasks = nullptr;
         ReleaseProject();
         // 네트워크는 프로젝트 뒤, 플랫폼 앞에 내린다 - 소켓은 플랫폼의 것이다.
         if (m_network)

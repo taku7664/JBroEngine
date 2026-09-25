@@ -8,6 +8,7 @@ namespace JBro
 {
     class AssetSystem;
     class NetworkHost;
+    class TaskManager;
     namespace System
     {
         // 오디오 시스템은 `JBroAudio` 의 것이다. 이 헤더를 쓰는 모듈이 오디오 헤더를 보지 않게 이름만 안다.
@@ -72,6 +73,8 @@ namespace JBro
         // 호스트가 소유하는 오디오 시스템(D-197). 있으면 프레임워크가 소스·리스너 시스템을 세운다. 없으면(오디오를 끈
         // 호스트) 세우지 않는다 - 소스 컴포넌트는 그대로 읽히고 저장된다.
         System::AudioSystem* audio = nullptr;
+        // 호스트가 소유하는 태스크 관리자(D-209). 있으면 폰트의 미리 뜨기가 워커에서 돈다. 없으면(테스트의 가짜) 메인 스레드에서 한 번에 뜬다.
+        TaskManager* tasks = nullptr;
     };
 
     class IFramework

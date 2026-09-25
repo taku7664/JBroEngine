@@ -70,6 +70,13 @@ namespace JBro::Text
         // 부르지 않는다.
         std::uint32_t Prewarm(const FontFace& face, PrewarmSet set, std::uint32_t pixelSize, std::uint32_t sdfSpread);
 
+        // **워커에서 뜬 칸을 넣는다**(비동기 미리 뜨기). box·alpha 는 `FontFace::RasterizeGlyph`·`RasterizeGlyphSdf` 가 준 것이다.
+        // 그 사이 같은 칸이 이미 섰으면(레이아웃이 먼저 뜬 글자) 넣지 않고 거짓이다. 빈 글리프는 box 가 0 이다. 메인 스레드에서 부른다.
+        bool Insert(std::uint32_t pixelSize, std::uint32_t sdfSpread, GlyphIndex glyph, const GlyphBitmapBox& box,
+            const std::uint8_t* alpha);
+        // 벌에 든 글자 가운데 폰트에 있는 것의 글리프 번호를 모은다(중복 없음, 코드포인트 순서).
+        static void CollectPrewarmGlyphs(const FontFace& face, PrewarmSet set, Array<GlyphIndex>& glyphs);
+
         // 이미 있는 칸만 찾는다. 래스터화하지 않는다.
         const AtlasGlyph* Find(std::uint32_t pixelSize, GlyphIndex glyph) const;
 

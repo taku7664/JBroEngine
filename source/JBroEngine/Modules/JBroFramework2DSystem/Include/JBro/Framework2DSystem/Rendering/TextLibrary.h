@@ -13,6 +13,7 @@ namespace JBro
 {
     class AssetSystem;
     class Renderer;
+    class TaskManager;
 
     // 폰트 에셋과 글리프 아틀라스, 그리고 아틀라스 페이지의 GPU 텍스처를 잇는다(D-200, text-plan §4.4). `SpriteLibrary` 와 같은 자리다.
     //
@@ -39,7 +40,9 @@ namespace JBro
     class TextLibrary final
     {
     public:
-        void Initialize(AssetSystem* assets, Renderer* renderer);
+        // tasks 가 있으면 미리 뜨기를 워커에 맡긴다(text-plan §5 의 뒤의 것 - 비동기 래스터화). 뜬 칸은 태스크가 끝나는 프레임에 메인
+        // 스레드에서 아틀라스에 들어간다. 그사이의 텍스트는 제 글자를 그 자리에서 뜬다(같은 칸이 먼저 서면 태스크 쪽을 버린다).
+        void Initialize(AssetSystem* assets, Renderer* renderer, TaskManager* tasks = nullptr);
         void Shutdown();
 
         // 폰트 에셋을 연다. 처음이거나 재로드됐으면 face 를 새로 열고 아틀라스를 비운다. 로드돼 있지 않거나 바이트가 폰트가
@@ -71,8 +74,23 @@ namespace JBro
         // 지금까지 올린 페이지 수(등록과 다시 쓰기를 모두 센다)와 살아 있는 페이지 텍스처 수다. 테스트가 "새 글자가 없는 프레임에는
         // 올리지 않는다" 를 이것으로 잰다 - 렌더러에는 올린 횟수를 세는 자리가 없다.
         std::uint64_t GetUploadCount() const;
-        // 이 폰트를 (다시) 열 때 미리 뜬 칸 수다. 연 적이 없으면 0 이다.
+        // 이 폰트를 (다시) 열 때 미리 뜬 칸 수다. 연 적이 없으면 0 이다. 워커에서 뜨는 중이면 지금까지 들어간 수다.
         std::uint32_t GetPrewarmedGlyphCount(AssetHandle font) const;
+        // 워커에서 미리 뜨는 태스크가 남아 있는가.
+        bool IsPrewarming(AssetHandle font) const;
+        // 미리 뜨는 태스크 하나가 끝났다(메인 스레드, 태스크의 `OnFinished`). stamp 가 지금 폰트와 다르면(재로드·퇴출) 버린다.
+        struct PrewarmResult
+        {
+            std::uint32_t            atlasGeneration = 0;
+            std::uint32_t            dataGeneration = 0;
+            std::uint32_t            pixelSize = 0;
+            std::uint32_t            sdfSpread = 0;
+            Array<Text::GlyphIndex>  glyphs;
+            Array<Text::GlyphBitmapBox> boxes;
+            Array<std::uint32_t>     offsets;
+            Array<std::uint8_t>      pixels;
+        };
+        void FinishPrewarm(std::uint32_t slot, const PrewarmResult& result, bool completed);
         std::uint32_t GetPageTextureCount() const;
 
     private:
@@ -94,6 +112,7 @@ namespace JBro
             std::uint32_t         atlasGeneration = 0;
             std::uint32_t         pageLimit = 0;     // 0 이면 라이브러리 한도다. 되풀이해 넘치면 두 배씩 오른다
             std::uint64_t         lastTrimFrame = 0; // 0 이면 비운 적이 없다
+            std::uint32_t         prewarmTasksPending = 0; // 워커에서 도는 미리 뜨기 태스크 수
             FontPrewarm           prewarm = FontPrewarm::None;
             std::uint32_t         prewarmSize = 32;
         };
@@ -101,10 +120,13 @@ namespace JBro
         void ReleasePages(FontEntry& entry);
 
         void ReleaseProjectFonts();
-        void Prewarm(FontEntry& entry);
+        void Prewarm(FontEntry& entry, std::uint32_t slot);
+        // 이 폰트의 미리 뜨기 태스크가 모두 끝날 때까지 기다린다. face 를 다시 열거나 부수기 전에 부른다.
+        void WaitForPrewarm(FontEntry& entry);
 
         AssetSystem* m_assets = nullptr;
         Renderer*    m_renderer = nullptr;
+        TaskManager* m_tasks = nullptr;
         // 이 라이브러리가 로드해 든 프로젝트 폰트 핸들이다. 놓는 것도 이 라이브러리다.
         Array<AssetHandle> m_projectFonts;
         bool          m_projectFontsSynced = false;

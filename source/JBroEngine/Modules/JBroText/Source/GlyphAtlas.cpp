@@ -137,6 +137,50 @@ namespace JBro::Text
         return GetGlyphCount() - before;
     }
 
+    bool GlyphAtlas::Insert(std::uint32_t pixelSize, std::uint32_t sdfSpread, GlyphIndex glyph, const GlyphBitmapBox& box,
+        const std::uint8_t* alpha)
+    {
+        const std::uint64_t key = sdfSpread == 0 ? Key(pixelSize, glyph) : SdfKey(pixelSize, sdfSpread, glyph);
+        if (m_glyphs.Find(key) != nullptr)
+        {
+            return false;
+        }
+        AtlasGlyph cell;
+        if (box.width <= 0 || box.height <= 0 || alpha == nullptr)
+        {
+            m_glyphs.FindOrAdd(key) = cell;
+            return true;
+        }
+        return Place(key, box, alpha, cell) == AtlasError::None;
+    }
+
+    void GlyphAtlas::CollectPrewarmGlyphs(const FontFace& face, PrewarmSet set, Array<GlyphIndex>& glyphs)
+    {
+        glyphs.Clear();
+        if (set == PrewarmSet::None || false == face.IsLoaded())
+        {
+            return;
+        }
+        const auto collect = [&](char32_t codepoint) {
+            const GlyphIndex glyph = face.FindGlyph(codepoint);
+            if (glyph != MissingGlyph)
+            {
+                glyphs.Add(glyph);
+            }
+        };
+        for (char32_t codepoint = 0x20; codepoint <= 0x7E; ++codepoint)
+        {
+            collect(codepoint);
+        }
+        if (set == PrewarmSet::Ksx1001)
+        {
+            for (const std::uint16_t syllable : Detail::Ksx1001Hangul)
+            {
+                collect(static_cast<char32_t>(syllable));
+            }
+        }
+    }
+
     const AtlasGlyph* GlyphAtlas::Find(std::uint32_t pixelSize, GlyphIndex glyph) const
     {
         return m_glyphs.Find(Key(pixelSize, glyph));

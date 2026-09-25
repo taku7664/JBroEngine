@@ -17,6 +17,7 @@
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Reflection/ReflectedYaml.h>
 #include <JBro/Runtime/TextStore.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Text/GlyphAtlas.h>
 #include <JBro/Text/TextLayout.h>
 
@@ -24,6 +25,8 @@
 #include "TestFontNotoSansKRLatin.generated.h"
 
 #include <cmath>
+#include <chrono>
+#include <thread>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -608,6 +611,26 @@ namespace
             texts->SetAtlasPageLimit(TextLibrary::DefaultPageLimit);
             gpu.Paint(framework);
 
+            // 5-3. 글자도 스프라이트 제출 상한(여기서는 64)을 나눠 쓴다. 넘친 글자 수를 세고 알린다. 줄이면 다시 0 이다.
+            GameObject* longObject = canvas->CreateObject("long");
+            auto* longTransform = canvas->AttachComponent<Component::Transform2D>(longObject);
+            longTransform->position = {100.0f, 100.0f};
+            auto* longText = canvas->AttachComponent<Component::Text2D>(longObject);
+            longText->fontId = project.fontId;
+            const std::string seventy(70, 'A');
+            TextStore::Get().Assign(longText->text, seventy.c_str(), seventy.size());
+            framework.BindCanvasAssets();
+            // 넘친 프레임은 프레임워크가 "다 내지 못했다" 로 알린다. 그 결과를 보고 넘어간다.
+            framework.Update(1.0f / 60.0f);
+            Check(gpu.renderer.BeginFrame() == FrameStatus::Ready, "the frame begins");
+            Check(framework.Render() != RenderResult::Submitted, "a frame that dropped glyphs says so");
+            Check(gpu.renderer.EndFrame() == FrameStatus::Ready, "the frame presents");
+            std::cout << "  [measure] glyphs past the 64 sprite limit: " << texts->GetDroppedGlyphCount() << std::endl;
+            Check(texts->GetDroppedGlyphCount() == 70 + 1 - 64, "glyphs past the sprite submission limit are counted");
+            canvas->DestroyObject(longObject);
+            gpu.Paint(framework);
+            Check(texts->GetDroppedGlyphCount() == 0, "and the count goes back to zero once the text fits");
+
             // 6. 폰트가 다시 로드되면(PPU 32 → 64) 글자가 다시 레이아웃되고 절반 크기로 그려진다.
             project.WriteOptions(64.0f, TextureFilter::Default);
             Check(project.assets.ReloadInPlace(project.fontId), "the font reloads in place");
@@ -680,6 +703,89 @@ namespace
             Check(texts->GetLibrary().GetUploadCount() == uploads, "new letters that were prewarmed upload nothing");
             framework.Shutdown();
         }
+        gpu.Close();
+        project.Close();
+    }
+
+    // **워커에서 미리 뜬다**(text-plan §5 의 뒤의 것 - 비동기 래스터화). 태스크 관리자를 주면 폰트를 여는 프레임은 뜨기를 워커에 맡기고
+    // 돌아온다. 끝난 덩어리는 태스크 관리자의 `Update` 가 메인 스레드에서 아틀라스에 넣고, 다 끝나면 동기로 뜬 것과 같은 수가 선다.
+    // 그사이 화면의 글자는 제 자리에서 뜬 것이 먼저 서고, 태스크 쪽의 같은 칸은 버린다.
+    void TestPrewarmRunsOnWorkers()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads");
+            meta.hasFontOptions = true;
+            meta.fontOptions.prewarm = FontPrewarm::Ksx1001;
+            meta.fontOptions.renderMode = FontRenderMode::Sdf;
+            Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves");
+        }
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; worker prewarm not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        TaskManager tasks;
+        TaskManagerDesc desc;
+        desc.workerCount = 2;
+        Check(tasks.Initialize(desc) && tasks.UsesWorkers(), "a task manager with two workers starts");
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            context.tasks = &tasks;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "A", 1);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+
+            gpu.Paint(framework);
+            Check(FindDark(gpu).count > 40, "the A draws on the first frame, before the prewarm is done");
+            int frames = 0;
+            while (texts->GetLibrary().IsPrewarming(label->font) && frames < 2000)
+            {
+                tasks.Update();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                ++frames;
+            }
+            std::cout << "  [measure] worker prewarm finished after " << frames << " waits, "
+                      << texts->GetLibrary().GetPrewarmedGlyphCount(label->font) << " glyphs placed" << std::endl;
+            Check(false == texts->GetLibrary().IsPrewarming(label->font), "the worker prewarm finishes");
+            // A 는 레이아웃이 먼저 떴으므로 태스크 쪽은 버린다. 나머지 공백을 뺀 ASCII 와 한글이 들어간다.
+            Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29 - 1,
+                "every prewarmed glyph but the one already drawn went in");
+            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "the page with the worker's glyphs goes up once");
+            TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "and a prewarmed syllable uploads nothing");
+            framework.Shutdown();
+        }
+        tasks.Shutdown();
         gpu.Close();
         project.Close();
     }
@@ -1045,6 +1151,7 @@ int RunTextRenderTests()
         TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
         TestSdfTextKeepsItsOutlineInProportion();
         TestPrewarmedFontsUploadOnce();
+        TestPrewarmRunsOnWorkers();
     }
     catch (const std::exception&)
     {

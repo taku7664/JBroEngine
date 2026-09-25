@@ -63,10 +63,10 @@ namespace JBro::System
         m_renderWorld = renderWorld;
     }
 
-    void Text2DSystem::SetResources(AssetSystem* assets, Renderer* renderer)
+    void Text2DSystem::SetResources(AssetSystem* assets, Renderer* renderer, TaskManager* tasks)
     {
         m_entries.Clear();
-        m_library.Initialize(assets, renderer);
+        m_library.Initialize(assets, renderer, tasks);
     }
 
     void Text2DSystem::SetText(Component::Text2D& text, const char* utf8, std::uint32_t length)
@@ -119,6 +119,11 @@ namespace JBro::System
     {
         const Entry* entry = m_entries.Find(text);
         return entry != nullptr && entry->warnedMissingFont;
+    }
+
+    std::uint32_t Text2DSystem::GetDroppedGlyphCount() const
+    {
+        return m_droppedGlyphs;
     }
 
     void Text2DSystem::SetAtlasPageLimit(std::uint32_t pages)
@@ -406,7 +411,10 @@ namespace JBro::System
                 }
                 item.outlineEdge = static_cast<std::uint16_t>(std::lround(std::clamp(outlineEdge, 0.0f, 1.0f) * 65535.0f));
             }
-            m_renderWorld->SubmitSprite(item);
+            if (false == m_renderWorld->SubmitSprite(item))
+            {
+                ++m_droppedGlyphsThisFrame;
+            }
         }
     }
 
@@ -491,7 +499,9 @@ namespace JBro::System
         // 2. 새 글리프가 들어간 페이지만 올린다. 새 글자가 없으면 아무것도 하지 않는다.
         m_library.UploadDirtyPages();
 
-        // 3. 글리프마다 아이템을 낸다.
+        // 3. 글리프마다 아이템을 낸다. 글자도 스프라이트 제출 상한(`RendererConfig::maxSpriteSubmissions`)을 나눠 쓴다(text-plan §3.3) -
+        // 넘친 글자는 그려지지 않으므로 처음 넘친 프레임에 한 번 알린다(스프라이트의 넘침은 렌더러 통계가 센다).
+        m_droppedGlyphsThisFrame = 0;
         canvas.ForEach<Component::Text2D>([&](Component::Text2D& text)
         {
             if (false == text.visible || false == text.IsActiveComponent())
@@ -505,6 +515,18 @@ namespace JBro::System
             }
         });
 
+        m_droppedGlyphs = m_droppedGlyphsThisFrame;
+        if (m_droppedGlyphs != 0 && false == m_warnedDroppedGlyphs)
+        {
+            Log::Write(LogLevel::Warning, "text",
+                "%u glyphs were not drawn this frame - text shares the sprite submission limit; raise maxSpriteSubmissions",
+                m_droppedGlyphs);
+            m_warnedDroppedGlyphs = true;
+        }
+        if (m_droppedGlyphs == 0)
+        {
+            m_warnedDroppedGlyphs = false;
+        }
         DropUnseen();
     }
 
