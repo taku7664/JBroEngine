@@ -48,7 +48,7 @@ namespace JBro
         bool UsesWorkers() const;
         std::uint32_t GetWorkerCount() const;
 
-        // 묶음을 넘겨받아 돌리기 시작한다. 초기화 전이거나 이미 제출한 묶음이면 `InvalidTaskGroupId` 다.
+        // 묶음을 넘겨받아 돌리기 시작한다. 초기화 전이거나 빈 포인터면 `InvalidTaskGroupId` 다.
         // 콜백은 이 호출 안에서 불리지 않는다 - 빈 묶음도 다음 `Update` 에서 끝난다.
         TaskGroupId Submit(OwnerPtr<TaskGroup> group);
 

@@ -477,6 +477,8 @@ namespace
                 Check(task.GetFailedSubTasks() == 1 && task.GetSucceededSubTasks() == 9,
                     "one failure by the tenth step must be counted apart from the nine successes");
                 Check(task.GetState() == TaskState::Running, "a task part way through must read Running");
+                Check(manager.FindGroup(id)->GetState() == TaskState::Running,
+                    "a group whose task has started must read Running");
             }
         }
         Check(PumpUntilFinished(manager, id), "the loader must finish");
@@ -525,6 +527,7 @@ namespace
         const TaskGroupId id = manager.Submit(std::move(group));
         Check(manager.FindGroup(id)->GetTaskAt(0).GetState() == TaskState::Pending,
             "without workers submitting must not run the task in place");
+        Check(manager.FindGroup(id)->GetState() == TaskState::Pending, "a group none of whose tasks started must read Pending");
         manager.Update();
         Check(loads.finished == 1, "one Update must run the task and deliver its callback");
         Check(loads.lastState == TaskState::Failed && loads.lastSucceeded == 38 && loads.lastFailed == 2,

@@ -16,7 +16,6 @@ Modules\JBroTask\Source\TaskManager.cpp	empty-group:never-finishes	            +
 Modules\JBroTask\Source\TaskManager.cpp	empty-group:finishes-in-submit	            ++m_emptyGroupsPending;\n            return id;	            FinishGroup(submitted);\n            return id;
 Modules\JBroTask\Source\TaskManager.cpp	main:update-skips-tasks	        if (false == m_useWorkers)\n        {\n            RunOnMainThread(false);\n        }\n	        (void)0;\n
 Modules\JBroTask\Source\TaskManager.cpp	wait:allowed-in-callback	        if (false == m_initialized || m_inCallback)\n        {\n            return false;\n        }\n        for (;;)	        if (false == m_initialized)\n        {\n            return false;\n        }\n        for (;;)
-Modules\JBroTask\Source\TaskManager.cpp	submit:resubmit-allowed	if (false == m_initialized || group.Get() == nullptr || group->m_submitted)	if (false == m_initialized || group.Get() == nullptr)
 Modules\JBroTask\Source\TaskManager.cpp	init:double-allowed	        if (m_initialized)\n        {\n            return false;\n        }\n        m_desc = desc;	        m_desc = desc;
 Modules\JBroTask\Source\Task.cpp	claim:no-limit	while (reported < m_numSubTasks)	while (true)
 Modules\JBroTask\Source\Task.cpp	fail:counted-as-success	m_failedSubTasks.fetch_add(1, std::memory_order_release);	m_succeededSubTasks.fetch_add(1, std::memory_order_release);

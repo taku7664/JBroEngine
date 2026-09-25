@@ -148,7 +148,8 @@ namespace JBro
 
     TaskGroupId TaskManager::Submit(OwnerPtr<TaskGroup> group)
     {
-        if (false == m_initialized || group.Get() == nullptr || group->m_submitted)
+        // 제출한 묶음을 다시 제출하는 길은 없다 - 소유가 여기로 넘어와 호출자에게는 빈 포인터만 남는다.
+        if (false == m_initialized || group.Get() == nullptr)
         {
             return InvalidTaskGroupId;
         }
