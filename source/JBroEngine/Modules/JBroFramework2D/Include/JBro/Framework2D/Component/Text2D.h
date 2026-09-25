@@ -89,5 +89,9 @@ namespace JBro::Component
         JBRO_FIELD(bool, autoSize) = false;
         JBRO_FIELD(float, minFontSize, Range(1, 512)) = 8.0f;
         JBRO_FIELD(float, maxFontSize, Range(1, 512)) = 72.0f;
+        // **픽셀 맞춤**이다. 켜면 글리프 원점을 글자 픽셀의 정수 자리로 반올림한다 - 가운데 정렬·커닝이 만든 소수 자리 때문에 비트맵
+        // 글자가 텍셀 사이를 샘플해 흐려지는 것을 막는다. 화면 픽셀과 맞으려면 오브젝트 위치·PPU·카메라도 정수 픽셀이어야 한다
+        // (그것은 이 필드가 맞추지 않는다).
+        JBRO_FIELD(bool, pixelSnap) = false;
     };
 }

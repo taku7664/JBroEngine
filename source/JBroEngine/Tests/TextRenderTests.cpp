@@ -830,6 +830,83 @@ namespace
         project.Close();
     }
 
+    // **픽셀 맞춤**(text-plan §4.2 의 `pixelSnap`). 40 px `A` 를 가운데 정렬하면 원점이 (-12.16, -17.44) 같은 소수 자리라, 선형 필터에서
+    // 텍셀 사이를 샘플해 픽셀 값이 번진다. 켜면 원점이 정수 자리로 가서 정수 자리에 둔 `A`(왼쪽·기준선 정렬)와 **픽셀 값의 모음이 같다**
+    // (자리만 옮겨졌다). 끈 판이 다르다는 것도 본다 - 그래야 이 비교가 번짐을 잡는다는 증거다.
+    void TestPixelSnapLandsGlyphsOnWholePixels()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        project.WriteOptions(32.0f, TextureFilter::Linear);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; pixel snapping not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "A", 1);
+            framework.BindCanvasAssets();
+
+            // 픽셀 값(빨강 바이트)의 정렬한 모음이다. 흰 바탕은 빼지 않는다 - 모음의 크기가 늘 같다.
+            const auto values = [&]() {
+                Array<std::uint8_t> sorted;
+                sorted.Resize(64 * 64);
+                for (std::uint32_t y = 0; y < 64; ++y)
+                {
+                    for (std::uint32_t x = 0; x < 64; ++x)
+                    {
+                        sorted[y * 64 + x] = static_cast<std::uint8_t>(std::lround(gpu.Red(x, y) * 255.0f));
+                    }
+                }
+                std::sort(sorted.Data(), sorted.Data() + sorted.Size());
+                return sorted;
+            };
+            const auto same = [](const Array<std::uint8_t>& left, const Array<std::uint8_t>& right) {
+                return left.Size() == right.Size() && std::equal(left.Data(), left.Data() + left.Size(), right.Data());
+            };
+
+            label->alignX = Component::TextAlignX::Left;
+            label->alignY = Component::TextAlignY::Baseline;
+            gpu.Paint(framework);
+            const Array<std::uint8_t> whole = values();
+            Check(FindDark(gpu).count > 40, "the A at a whole-pixel origin draws");
+
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            gpu.Paint(framework);
+            Check(false == same(values(), whole), "a centred A between pixels is resampled");
+
+            label->pixelSnap = true;
+            gpu.Paint(framework);
+            Check(same(values(), whole), "with pixelSnap the centred A has the whole-pixel A's values");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     struct ColourCount
     {
         std::uint32_t red = 0;
@@ -1192,6 +1269,7 @@ int RunTextRenderTests()
         TestSdfTextKeepsItsOutlineInProportion();
         TestPrewarmedFontsUploadOnce();
         TestPrewarmRunsOnWorkers();
+        TestPixelSnapLandsGlyphsOnWholePixels();
     }
     catch (const std::exception&)
     {

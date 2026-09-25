@@ -162,6 +162,7 @@ namespace JBro::System
         Mix(key, text.autoSize ? 1u : 0u);
         Mix(key, Bits(text.minFontSize));
         Mix(key, Bits(text.maxFontSize));
+        Mix(key, text.pixelSnap ? 1u : 0u);
         return key;
     }
 
@@ -294,8 +295,10 @@ namespace JBro::System
                 continue;
             }
             GlyphQuad quad;
-            quad.left = glyph.x + static_cast<float>(cell.left) * cellScale;
-            quad.top = glyph.y + static_cast<float>(cell.top) * cellScale;
+            const float originX = text.pixelSnap ? std::round(glyph.x) : glyph.x;
+            const float originY = text.pixelSnap ? std::round(glyph.y) : glyph.y;
+            quad.left = originX + static_cast<float>(cell.left) * cellScale;
+            quad.top = originY + static_cast<float>(cell.top) * cellScale;
             quad.width = static_cast<float>(cell.width) * cellScale;
             quad.height = static_cast<float>(cell.height) * cellScale;
             float u0 = static_cast<float>(cell.x) / pageSize;
