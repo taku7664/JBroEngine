@@ -148,6 +148,30 @@ namespace JBro::Service
         return audio != nullptr && audio->IsBusMuted(bus);
     }
 
+    void AudioService::SetBusEffects(AudioBusName bus, const AudioBusEffects& effects) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            audio->SetBusEffects(bus, effects);
+        }
+    }
+
+    AudioBusEffects AudioService::GetBusEffects(AudioBusName bus) const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetBusEffects(bus) : AudioBusEffects{};
+    }
+
+    void AudioService::SetBusLowPass(const char* bus, float cutoffHz) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            AudioBusEffects effects = audio->GetBusEffects(Named(bus));
+            effects.lowPassHz = cutoffHz;
+            audio->SetBusEffects(Named(bus), effects);
+        }
+    }
+
     void AudioService::StopAll() const
     {
         if (System::IAudioSystem* audio = Audio())

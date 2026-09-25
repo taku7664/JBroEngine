@@ -22,6 +22,7 @@ namespace JBro
     {
         NameId name = InvalidNameId;
         float volume = 1.0f;
+        AudioBusEffects effects;
     };
 }
 
@@ -101,6 +102,8 @@ namespace JBro::System
         float GetBusVolume(AudioBusName bus) const override;
         void SetBusMuted(AudioBusName bus, bool muted) override;
         bool IsBusMuted(AudioBusName bus) const override;
+        void SetBusEffects(AudioBusName bus, const AudioBusEffects& effects) override;
+        AudioBusEffects GetBusEffects(AudioBusName bus) const override;
         void StopAll() override;
 
     private:

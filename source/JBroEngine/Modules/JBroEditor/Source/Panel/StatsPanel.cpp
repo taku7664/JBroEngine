@@ -6,6 +6,8 @@
 #include <JBro/Types/NameTable.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Audio/AudioMixer.h>
+#include <JBro/Audio/AudioSystem.h>
 
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -84,6 +86,35 @@ namespace JBro
                 stats.droppedViewCount, stats.droppedSpriteCount);
         }
 
+        // **소리가 얼마나 쓰이는지**(D-197, 기존 백로그의 오디오 프로파일러 자리). 보이스가 모자라 훔치거나 거절하면 소리가
+        // 조용히 사라진다 - 그것이 보여야 한다.
+        if (System::AudioSystem* audio = m_editor->GetAudio())
+        {
+            if (const AudioMixer* mixer = audio->GetMixer())
+            {
+                const AudioMixer::Stats sound = mixer->GetStats();
+                ImGui::Separator();
+                if (const char* device = m_editor->GetAudioDeviceName())
+                {
+                    Widget::TextF(Loc::TextOr(LocKeys::StatsAudioDevice, "audio device %s"), device);
+                }
+                else
+                {
+                    Widget::HintTextF("%s", Loc::TextOr(LocKeys::StatsAudioNoDevice,
+                        "no audio device - sounds are mixed but not heard"));
+                }
+                Widget::TextF(Loc::TextOr(LocKeys::StatsAudioVoices, "voices %u / %u, peak %.2f"),
+                    sound.activeVoices, sound.maxVoices, static_cast<double>(sound.lastPeak));
+                if (sound.voicesStolen != 0 || sound.voicesRejected != 0)
+                {
+                    Widget::SeverityTextF(Widget::Severity::Warning,
+                        Loc::TextOr(LocKeys::StatsAudioStolen,
+                            "%llu voice(s) stolen, %llu refused - raise the voice count or lower priorities"),
+                        static_cast<unsigned long long>(sound.voicesStolen),
+                        static_cast<unsigned long long>(sound.voicesRejected));
+                }
+            }
+        }
         // **캔버스가 얼마나 찼는지**(D-145). 기존 엔진의 CPU 프로파일러가 이 숫자들을 냈다.
         // 오브젝트가 몇인지, 고른 것이 몇인지, 되돌릴 것이 남았는지 - 화면에 없으면
         // 캔버스가 무거워진 까닭을 짐작으로 찾게 된다.

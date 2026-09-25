@@ -392,6 +392,150 @@ namespace
         mixer.Shutdown();
     }
 
+    // 이펙트 사슬(D-202): 저역 통과가 고음을, 고역 통과가 저음을 깎고, 메아리가 간격 뒤에 되울리고, 잔향이 소리가 멎은
+    // 뒤에도 꼬리를 남긴다. 켜 둔 채로 도는 정상 프레임은 힙을 건드리지 않는다.
+    void TestBusEffects()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> high = MakeSine(2, 5000.0f, 0.5f, 1.0f);
+        const Array<float> low = MakeSine(2, 100.0f, 0.5f, 1.0f);
+        const AudioClipHandle highClip = RegisterPcm(mixer, high, 2);
+        const AudioClipHandle lowClip = RegisterPcm(mixer, low, 2);
+        const AudioBusId bus = mixer.CreateBus(1.0f);
+
+        AudioPlayDesc play;
+        play.clip = highClip;
+        play.bus = bus;
+        play.loop = true;
+        AudioVoiceHandle voice = mixer.Play(play);
+        const float dry = Render(mixer, 9600).Peak(0, 4800);
+        AudioBusEffects effects;
+        effects.lowPassHz = 300.0f;
+        mixer.SetBusEffects(bus, effects);
+        const float cut = Render(mixer, 9600).Peak(0, 4800);
+        std::cout << "  5 kHz through a 300 Hz low-pass: " << dry << " -> " << cut << '\n';
+        Check(cut < dry * 0.1f, "the low-pass cuts a tone far above it");
+        effects.lowPassHz = 0.0f;
+        mixer.SetBusEffects(bus, effects);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - dry) < 0.05f, "zero turns the low-pass off while playing");
+        mixer.Stop(voice);
+
+        play.clip = lowClip;
+        voice = mixer.Play(play);
+        effects.highPassHz = 3000.0f;
+        mixer.SetBusEffects(bus, effects);
+        Check(Render(mixer, 9600).Peak(0, 4800) < 0.05f, "the high-pass cuts a tone far below it");
+        effects.highPassHz = 0.0f;
+        mixer.SetBusEffects(bus, effects);
+        mixer.Stop(voice);
+
+        // 메아리: 0.05 초 소리 뒤 0.2 초에 되울린다.
+        const Array<float> burst = MakeSine(2, 440.0f, 0.5f, 0.05f);
+        const AudioClipHandle burstClip = RegisterPcm(mixer, burst, 2);
+        play.clip = burstClip;
+        play.loop = false;
+        effects.echoMix = 0.5f;
+        effects.echoDelay = 0.2f;
+        effects.echoFeedback = 0.0f;
+        mixer.SetBusEffects(bus, effects);
+        Render(mixer, 480);
+        mixer.Play(play);
+        const Rendered echoed = Render(mixer, Rate / 2);
+        const float first = echoed.Peak(0, 0, 2400);
+        const float gap = echoed.Peak(0, 3500, 9000);
+        const float repeat = echoed.Peak(0, 9600, 12500);
+        std::cout << "  echo: first " << first << ", gap " << gap << ", repeat " << repeat << '\n';
+        Check(first > 0.4f && gap < 0.01f && repeat > 0.15f, "the echo repeats the burst after its delay");
+        effects.echoMix = 0.0f;
+        mixer.SetBusEffects(bus, effects);
+        Render(mixer, Rate);
+
+        // 잔향: 소리가 멎은 뒤에도 꼬리가 운다. 끄면 꼬리가 없다.
+        mixer.Play(play);
+        const Rendered plain = Render(mixer, Rate / 2);
+        Check(plain.Peak(0, 4800, 24000) < 0.001f, "without reverb nothing sounds after the burst");
+        effects.reverbMix = 0.5f;
+        mixer.SetBusEffects(bus, effects);
+        mixer.Play(play);
+        const Rendered wet = Render(mixer, Rate / 2);
+        std::cout << "  reverb tail after the burst: " << wet.Peak(0, 4800, 24000) << '\n';
+        Check(wet.Peak(0, 4800, 24000) > 0.005f, "with reverb a tail rings after the burst");
+
+        // 켜 둔 채 도는 프레임은 할당이 없다(버퍼는 처음 켤 때 잡았다).
+        effects.lowPassHz = 2000.0f;
+        effects.highPassHz = 80.0f;
+        effects.echoMix = 0.3f;
+        mixer.SetBusEffects(bus, effects);
+        play.loop = true;
+        mixer.Play(play);
+        Array<float> buffer;
+        buffer.Resize(960);
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_crtAllocations = 0;
+        _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountCrtAllocations);
+#endif
+        for (int frame = 0; frame < 200; ++frame)
+        {
+            effects.lowPassHz = 1000.0f + static_cast<float>(frame * 10);
+            mixer.SetBusEffects(bus, effects);
+            mixer.Render(buffer.Data(), 480);
+            mixer.Update();
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        _CrtSetAllocHook(previous);
+        Check(g_crtAllocations.load() == 0, "frames with every effect on do not touch the heap");
+#endif
+        Check(mixer.GetBusEffects(bus).lowPassHz == effects.lowPassHz, "the bus reports the effects it was given");
+        mixer.Shutdown();
+    }
+
+    // 다른 스레드가 당기는 동안 이펙트를 거듭 켜고 끈다. 값이 찢기거나 풀린 버퍼를 읽으면 NaN 이나 큰 값이 나온다.
+    void TestEffectsChangeWhileRendering()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> sine = MakeSine(2, 440.0f, 0.3f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+        const AudioBusId bus = mixer.CreateBus(1.0f);
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.bus = bus;
+        play.loop = true;
+        mixer.Play(play);
+        std::atomic<bool> running{true};
+        std::atomic<bool> bad{false};
+        std::thread audio([&]
+        {
+            float buffer[480 * 2];
+            while (running.load(std::memory_order_acquire))
+            {
+                mixer.Render(buffer, 480);
+                for (float sample : buffer)
+                {
+                    if (!std::isfinite(sample))
+                    {
+                        bad.store(true, std::memory_order_relaxed);
+                    }
+                }
+            }
+        });
+        AudioBusEffects effects;
+        for (int round = 0; round < 2000; ++round)
+        {
+            effects.lowPassHz = (round % 3) == 0 ? 0.0f : 200.0f + static_cast<float>(round % 17) * 500.0f;
+            effects.highPassHz = (round % 5) == 0 ? 0.0f : 50.0f + static_cast<float>(round % 7) * 100.0f;
+            effects.echoMix = (round % 2) == 0 ? 0.0f : 0.4f;
+            effects.echoDelay = 0.01f + static_cast<float>(round % 11) * 0.15f;
+            effects.reverbMix = (round % 4) == 0 ? 0.0f : 0.3f;
+            mixer.SetBusEffects(bus, effects);
+        }
+        running.store(false, std::memory_order_release);
+        audio.join();
+        Check(false == bad.load(), "changing effects while the audio thread renders never produces a torn sample");
+        mixer.Shutdown();
+    }
+
     void TestStealing()
     {
         AudioMixer mixer;
@@ -566,6 +710,8 @@ int RunAudioMixerTests()
         TestSpatialization();
         TestEncodedClip();
         TestSeekWhilePlaying();
+        TestBusEffects();
+        TestEffectsChangeWhileRendering();
         TestStealing();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();

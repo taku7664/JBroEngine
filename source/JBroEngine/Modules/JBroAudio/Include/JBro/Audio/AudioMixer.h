@@ -82,6 +82,7 @@ namespace JBro
         struct Stats
         {
             std::uint32_t activeVoices = 0;
+            std::uint32_t maxVoices = 0;
             std::uint32_t registeredClips = 0;
             // 시작 이후 누계다.
             std::uint64_t voicesStarted = 0;
@@ -91,6 +92,8 @@ namespace JBro
             std::uint64_t allocatorGrowths = 0;
             // 마지막 `Render` 의 최대 절댓값(클리핑 전). 에디터 미터가 읽는다.
             float lastPeak = 0.0f;
+            // 지금까지 당겨 간 프레임 수다. 장치가 실제로 돌고 있는지 소리 없이 알 수 있다.
+            std::uint64_t renderedFrames = 0;
         };
 
         AudioMixer();
@@ -131,6 +134,10 @@ namespace JBro
         float GetBusVolume(AudioBusId bus) const;
         void SetBusMuted(AudioBusId bus, bool muted);
         bool IsBusMuted(AudioBusId bus) const;
+        // 버스의 이펙트 사슬(D-202). 재생 중에 바꿔도 된다 - 값은 원자 변수로 건너간다. 메아리·잔향을 처음 켤 때 그 버퍼를
+        // 여기서(메인 스레드) 한 번 잡는다. 그 뒤로는 켜고 꺼도 할당이 없다.
+        void SetBusEffects(AudioBusId bus, const AudioBusEffects& effects);
+        AudioBusEffects GetBusEffects(AudioBusId bus) const;
 
         // 보이스가 모자라고 훔칠 것도 없으면 빈 핸들이다(`voicesRejected`).
         AudioVoiceHandle Play(const AudioPlayDesc& desc);

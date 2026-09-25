@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/AudioTypes/AudioBusName.h>
+#include <JBro/AudioTypes/AudioTypes.h>
 
 namespace JBro::Component
 {
@@ -36,6 +37,9 @@ namespace JBro::System
         virtual float GetBusVolume(AudioBusName bus) const = 0;
         virtual void SetBusMuted(AudioBusName bus, bool muted) = 0;
         virtual bool IsBusMuted(AudioBusName bus) const = 0;
+        // 버스의 이펙트 사슬(D-202). 재생 중에 바꿔도 된다.
+        virtual void SetBusEffects(AudioBusName bus, const AudioBusEffects& effects) = 0;
+        virtual AudioBusEffects GetBusEffects(AudioBusName bus) const = 0;
         // 게임의 소리를 전부 멈춘다(에디터 미리 듣기는 그대로다).
         virtual void StopAll() = 0;
     };

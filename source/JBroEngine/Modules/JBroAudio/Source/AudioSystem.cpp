@@ -134,6 +134,7 @@ namespace JBro::System
                 if (config.name == master)
                 {
                     m_mixer->SetBusVolume(AudioMasterBus, config.volume);
+                    m_mixer->SetBusEffects(AudioMasterBus, config.effects);
                 }
                 continue;
             }
@@ -143,6 +144,7 @@ namespace JBro::System
                 break;
             }
             m_buses.TryAdd(config.name, bus);
+            m_mixer->SetBusEffects(bus, config.effects);
             m_busConfigs.Add(config);
         }
     }
@@ -654,6 +656,19 @@ namespace JBro::System
     bool AudioSystem::IsBusMuted(AudioBusName bus) const
     {
         return m_initialized && m_mixer->IsBusMuted(ResolveBus(bus));
+    }
+
+    void AudioSystem::SetBusEffects(AudioBusName bus, const AudioBusEffects& effects)
+    {
+        if (m_initialized)
+        {
+            m_mixer->SetBusEffects(ResolveBus(bus), effects);
+        }
+    }
+
+    AudioBusEffects AudioSystem::GetBusEffects(AudioBusName bus) const
+    {
+        return m_initialized ? m_mixer->GetBusEffects(ResolveBus(bus)) : AudioBusEffects{};
     }
 
     void AudioSystem::StopAll()

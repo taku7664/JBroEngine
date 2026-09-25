@@ -193,6 +193,8 @@ namespace JBro
         // 열린 프로젝트의 오디오 시스템이다(D-197). 프로젝트가 없거나 오디오를 끈 엔진이면 nullptr 다.
         // 인스펙터의 미리 듣기가 이것을 쓴다.
         System::AudioSystem* GetAudio();
+        // 소리가 나가는 장치의 이름이다. 장치를 열지 않았거나 못 열었으면 nullptr 이다 - 통계 창이 "소리 없음" 을 알린다.
+        const char* GetAudioDeviceName() const;
         // 열린 프로젝트의 에셋 폴더가 감시되고 있는가. 거짓이면 밖에서 바꾼 파일이 반영되지 않는다.
         bool IsWatchingAssets() const;
 

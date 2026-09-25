@@ -46,6 +46,11 @@ namespace JBro::Service
         void SetBusMuted(const char* bus, bool muted) const;
         void SetBusMuted(AudioBusName bus, bool muted) const;
         bool IsBusMuted(AudioBusName bus) const;
+        // 버스의 이펙트 사슬 전부(D-202). 한 칸만 바꾸려면 읽어서 고쳐 쓴다.
+        void SetBusEffects(AudioBusName bus, const AudioBusEffects& effects) const;
+        AudioBusEffects GetBusEffects(AudioBusName bus) const;
+        // 자주 쓰는 하나: 이 위를 깎는다(Hz). 0 이면 끈다. 일시 정지 화면에서 `SetBusLowPass("Music", 800)`.
+        void SetBusLowPass(const char* bus, float cutoffHz) const;
         void StopAll() const;
     };
 }

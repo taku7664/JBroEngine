@@ -15,12 +15,14 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 - 에디터(`JBroEditorHost`)가 프로젝트(`.jproject`)를 열고, 씬(`.jcanvas`)을 읽고 그리고 저장한다.
   편집은 전부 커맨드라 되돌리기가 된다
 - 렌더러는 프레임 패킷을 모았다가 프레임 끝에 정렬·기록한다. RHI 뒤에 D3D12 가 있다
+- 오디오(`JBroAudio`·`JBroAudioTypes`, miniaudio 위): `AudioSource` 와 2D/3D 리스너, 버스와 버스 이펙트, 스크립트의 `AudioService`,
+  에디터의 미리 듣기·프로젝트 설정·통계. 계획과 실측은 [tasks/audio-plan.md](./tasks/audio-plan.md)
 
 ## 아직 없는 것
 
 - JBroScript 언어와 컴파일러 `jbroc` (렉서·파서와 명령줄 `JBroc` 만 있다. 타입체커·이미터는 아직 없다)
 - 에셋 로드(`AssetSystem::Load` 는 스텁이다). 스프라이트는 아직 텍스처를 받지 못한다
-- 3D 렌더 시스템, 물리 시뮬레이션 본체, 오디오
+- 3D 렌더 시스템, 물리 시뮬레이션 본체
 - Web 빌드(스텁만 있다)
 
 ## 저장소 구성

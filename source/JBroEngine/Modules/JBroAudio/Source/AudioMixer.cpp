@@ -230,6 +230,275 @@ namespace JBro
         }
     }
 
+    namespace
+    {
+        constexpr float Tau = 6.28318530717958647692f;
+
+        // RBJ 쿡북의 2 차 필터다. 계수는 오디오 스레드가 목표가 바뀐 것을 보고 다시 짓는다 - miniaudio 필터의 `reinit` 은
+        // 스레드 안전하지 않다(D-198).
+        struct Biquad
+        {
+            float b0 = 1.0f;
+            float b1 = 0.0f;
+            float b2 = 0.0f;
+            float a1 = 0.0f;
+            float a2 = 0.0f;
+            float z1[2] = {0.0f, 0.0f};
+            float z2[2] = {0.0f, 0.0f};
+
+            void Configure(bool highPass, float cutoff, float sampleRate)
+            {
+                const float nyquist = sampleRate * 0.5f;
+                if (cutoff < 10.0f)
+                {
+                    cutoff = 10.0f;
+                }
+                if (cutoff > nyquist * 0.95f)
+                {
+                    cutoff = nyquist * 0.95f;
+                }
+                const float omega = Tau * cutoff / sampleRate;
+                const float cosine = std::cos(omega);
+                const float alpha = std::sin(omega) / (2.0f * 0.70710678f);
+                const float a0 = 1.0f + alpha;
+                if (highPass)
+                {
+                    b0 = (1.0f + cosine) * 0.5f / a0;
+                    b1 = -(1.0f + cosine) / a0;
+                }
+                else
+                {
+                    b0 = (1.0f - cosine) * 0.5f / a0;
+                    b1 = (1.0f - cosine) / a0;
+                }
+                b2 = b0;
+                a1 = -2.0f * cosine / a0;
+                a2 = (1.0f - alpha) / a0;
+            }
+
+            float Process(std::uint32_t channel, float input)
+            {
+                const float output = b0 * input + z1[channel];
+                z1[channel] = b1 * input - a1 * output + z2[channel];
+                z2[channel] = b2 * input - a2 * output;
+                return output;
+            }
+        };
+
+        // Freeverb(Jezar, 퍼블릭 도메인)의 짜임이다. 기존 엔진의 잔향도 이것이었다. 줄 길이는 44.1 kHz 기준 값을 샘플 레이트로
+        // 늘인다. 오른쪽 채널은 23 샘플 벌린다.
+        struct Reverb
+        {
+            static constexpr int Combs = 8;
+            static constexpr int Allpasses = 4;
+            static constexpr int MaxComb = 3700;
+            static constexpr int MaxAllpass = 1300;
+            float comb[2][Combs][MaxComb] = {};
+            float combStore[2][Combs] = {};
+            int combLength[2][Combs] = {};
+            int combIndex[2][Combs] = {};
+            float allpass[2][Allpasses][MaxAllpass] = {};
+            int allpassLength[2][Allpasses] = {};
+            int allpassIndex[2][Allpasses] = {};
+
+            void Prepare(std::uint32_t sampleRate)
+            {
+                static const int combTuning[Combs] = {1116, 1188, 1277, 1356, 1422, 1491, 1557, 1617};
+                static const int allpassTuning[Allpasses] = {556, 441, 341, 225};
+                const float scale = static_cast<float>(sampleRate) / 44100.0f;
+                for (int channel = 0; channel < 2; ++channel)
+                {
+                    const int spread = channel == 0 ? 0 : 23;
+                    for (int index = 0; index < Combs; ++index)
+                    {
+                        int length = static_cast<int>(static_cast<float>(combTuning[index] + spread) * scale);
+                        combLength[channel][index] = length < MaxComb ? (length > 1 ? length : 1) : MaxComb;
+                    }
+                    for (int index = 0; index < Allpasses; ++index)
+                    {
+                        int length = static_cast<int>(static_cast<float>(allpassTuning[index] + spread) * scale);
+                        allpassLength[channel][index] = length < MaxAllpass ? (length > 1 ? length : 1) : MaxAllpass;
+                    }
+                }
+            }
+
+            float Process(int channel, float input, float feedback, float damping)
+            {
+                float output = 0.0f;
+                const float scaled = input * 0.015f;
+                for (int index = 0; index < Combs; ++index)
+                {
+                    float* line = comb[channel][index];
+                    int& at = combIndex[channel][index];
+                    const float delayed = line[at];
+                    float& store = combStore[channel][index];
+                    store = delayed * (1.0f - damping) + store * damping;
+                    line[at] = scaled + store * feedback;
+                    if (++at >= combLength[channel][index])
+                    {
+                        at = 0;
+                    }
+                    output += delayed;
+                }
+                for (int index = 0; index < Allpasses; ++index)
+                {
+                    float* line = allpass[channel][index];
+                    int& at = allpassIndex[channel][index];
+                    const float delayed = line[at];
+                    line[at] = output + delayed * 0.5f;
+                    output = delayed - output;
+                    if (++at >= allpassLength[channel][index])
+                    {
+                        at = 0;
+                    }
+                }
+                return output;
+            }
+        };
+
+        // 버스의 이펙트 노드다. miniaudio 노드 그래프에서 버스 그룹과 그 부모 사이에 선다. 목표 값은 메인 스레드가 원자로 쓰고,
+        // 오디오 스레드는 처리 앞에 읽어 바뀐 것만 반영한다. 메아리·잔향 버퍼는 메인 스레드가 처음 켤 때 잡아 원자 포인터로 넘긴다.
+        struct BusEffectNode
+        {
+            ma_node_base base;
+            std::uint32_t channels = 2;
+            std::uint32_t sampleRate = 48000;
+            std::atomic<float> lowPass{0.0f};
+            std::atomic<float> highPass{0.0f};
+            std::atomic<float> echoDelay{0.25f};
+            std::atomic<float> echoFeedback{0.35f};
+            std::atomic<float> echoMix{0.0f};
+            std::atomic<float> reverbRoom{0.6f};
+            std::atomic<float> reverbDamping{0.5f};
+            std::atomic<float> reverbMix{0.0f};
+            std::atomic<float*> echoBuffer{nullptr};
+            std::atomic<Reverb*> reverb{nullptr};
+            std::uint32_t echoCapacity = 0;
+            // 아래는 오디오 스레드만 만진다.
+            float appliedLowPass = -1.0f;
+            float appliedHighPass = -1.0f;
+            Biquad lowFilter;
+            Biquad highFilter;
+            std::uint32_t echoWrite = 0;
+        };
+
+        static constexpr float MaxEchoSeconds = 2.0f;
+
+        float Clamped(float value, float low, float high)
+        {
+            if (!(value >= low))
+            {
+                return low;
+            }
+            return value > high ? high : value;
+        }
+
+        void ProcessBusEffects(ma_node* node, const float** framesIn, ma_uint32* frameCountIn, float** framesOut,
+            ma_uint32* frameCountOut)
+        {
+            BusEffectNode& self = *reinterpret_cast<BusEffectNode*>(node);
+            const std::uint32_t frames = *frameCountOut;
+            const std::uint32_t channels = self.channels;
+            float* out = framesOut[0];
+            const std::size_t samples = static_cast<std::size_t>(frames) * channels;
+            // 입력이 없는 프레임도 돈다(`MA_NODE_FLAG_ALLOW_NULL_INPUT`) - 메아리와 잔향의 꼬리가 소리가 멎은 뒤에도 운다.
+            if (framesIn != nullptr && framesIn[0] != nullptr && frameCountIn != nullptr && *frameCountIn > 0)
+            {
+                const std::size_t available = static_cast<std::size_t>(*frameCountIn < frames ? *frameCountIn : frames) * channels;
+                std::memcpy(out, framesIn[0], sizeof(float) * available);
+                if (available < samples)
+                {
+                    std::memset(out + available, 0, sizeof(float) * (samples - available));
+                }
+            }
+            else
+            {
+                std::memset(out, 0, sizeof(float) * samples);
+            }
+            const float rate = static_cast<float>(self.sampleRate);
+
+            const float highPass = self.highPass.load(std::memory_order_relaxed);
+            if (highPass > 0.0f)
+            {
+                if (highPass != self.appliedHighPass)
+                {
+                    self.highFilter.Configure(true, highPass, rate);
+                    self.appliedHighPass = highPass;
+                }
+                for (std::size_t index = 0; index < samples; ++index)
+                {
+                    out[index] = self.highFilter.Process(static_cast<std::uint32_t>(index % channels) & 1u, out[index]);
+                }
+            }
+            const float lowPass = self.lowPass.load(std::memory_order_relaxed);
+            if (lowPass > 0.0f)
+            {
+                if (lowPass != self.appliedLowPass)
+                {
+                    self.lowFilter.Configure(false, lowPass, rate);
+                    self.appliedLowPass = lowPass;
+                }
+                for (std::size_t index = 0; index < samples; ++index)
+                {
+                    out[index] = self.lowFilter.Process(static_cast<std::uint32_t>(index % channels) & 1u, out[index]);
+                }
+            }
+
+            const float echoMix = self.echoMix.load(std::memory_order_relaxed);
+            float* echo = self.echoBuffer.load(std::memory_order_acquire);
+            if (echoMix > 0.0f && echo != nullptr && self.echoCapacity > 1)
+            {
+                const float feedback = Clamped(self.echoFeedback.load(std::memory_order_relaxed), 0.0f, 0.95f);
+                std::uint32_t delay = static_cast<std::uint32_t>(
+                    Clamped(self.echoDelay.load(std::memory_order_relaxed), 0.01f, MaxEchoSeconds) * rate);
+                if (delay >= self.echoCapacity)
+                {
+                    delay = self.echoCapacity - 1;
+                }
+                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                {
+                    const std::uint32_t read = (self.echoWrite + self.echoCapacity - delay) % self.echoCapacity;
+                    for (std::uint32_t channel = 0; channel < channels; ++channel)
+                    {
+                        const float dry = out[frame * channels + channel];
+                        const float delayed = echo[read * channels + channel];
+                        echo[self.echoWrite * channels + channel] = dry + delayed * feedback;
+                        out[frame * channels + channel] = dry + delayed * echoMix;
+                    }
+                    self.echoWrite = (self.echoWrite + 1) % self.echoCapacity;
+                }
+            }
+
+            const float reverbMix = self.reverbMix.load(std::memory_order_relaxed);
+            Reverb* reverb = self.reverb.load(std::memory_order_acquire);
+            if (reverbMix > 0.0f && reverb != nullptr)
+            {
+                const float room = 0.7f + Clamped(self.reverbRoom.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.28f;
+                const float damping = Clamped(self.reverbDamping.load(std::memory_order_relaxed), 0.0f, 1.0f) * 0.4f;
+                for (std::uint32_t frame = 0; frame < frames; ++frame)
+                {
+                    const float left = out[frame * channels];
+                    const float right = channels > 1 ? out[frame * channels + 1] : left;
+                    const float input = (left + right) * 0.5f;
+                    const float wetLeft = reverb->Process(0, input, room, damping);
+                    const float wetRight = reverb->Process(1, input, room, damping);
+                    out[frame * channels] = left + wetLeft * reverbMix * 3.0f;
+                    if (channels > 1)
+                    {
+                        out[frame * channels + 1] = right + wetRight * reverbMix * 3.0f;
+                    }
+                }
+            }
+        }
+
+        ma_node_vtable g_busEffectVtable = {
+            &ProcessBusEffects,
+            nullptr,
+            1,
+            1,
+            MA_NODE_FLAG_CONTINUOUS_PROCESSING | MA_NODE_FLAG_ALLOW_NULL_INPUT};
+    }
+
     struct AudioMixer::State
     {
         enum class VoiceState : std::uint8_t
@@ -260,6 +529,11 @@ namespace JBro
         struct Bus
         {
             ma_sound_group group = {};
+            BusEffectNode effects;
+            bool effectsReady = false;
+            OwnerPtr<Array<float>> echoStorage;
+            OwnerPtr<Reverb> reverbStorage;
+            AudioBusEffects settings;
             bool used = false;
             bool muted = false;
             float volume = 1.0f;
@@ -289,6 +563,7 @@ namespace JBro
         std::uint64_t voicesStolen = 0;
         std::uint64_t voicesRejected = 0;
         std::atomic<float> peak{0.0f};
+        std::atomic<std::uint64_t> renderedFrames{0};
         float masterVolume = 1.0f;
 
         Voice* Resolve(AudioVoiceHandle handle)
@@ -406,6 +681,25 @@ namespace JBro
             {
                 return false;
             }
+            // 이펙트 노드를 그룹과 부모 사이에 끼운다: 그룹 → 이펙트 → 부모(또는 엔드포인트).
+            const ma_uint32 channels = desc.channels;
+            ma_node_config config = ma_node_config_init();
+            config.vtable = &g_busEffectVtable;
+            config.pInputChannels = &channels;
+            config.pOutputChannels = &channels;
+            bus.effects.channels = desc.channels;
+            bus.effects.sampleRate = desc.sampleRate;
+            bus.effectsReady = ma_node_init(ma_engine_get_node_graph(&engine), &config, &callbacks,
+                reinterpret_cast<ma_node*>(&bus.effects)) == MA_SUCCESS;
+            if (bus.effectsReady)
+            {
+                ma_node* target = parent != nullptr ? reinterpret_cast<ma_node*>(parent)
+                                                    : ma_engine_get_endpoint(&engine);
+                ma_node_attach_output_bus(reinterpret_cast<ma_node*>(&bus.effects), 0, target, 0);
+                ma_node_attach_output_bus(reinterpret_cast<ma_node*>(&bus.group), 0,
+                    reinterpret_cast<ma_node*>(&bus.effects), 0);
+            }
+            bus.settings = {};
             bus.used = true;
             bus.muted = false;
             bus.volume = Clamp01(volume);
@@ -418,6 +712,16 @@ namespace JBro
             if (bus.used)
             {
                 ma_sound_group_uninit(&bus.group);
+                if (bus.effectsReady)
+                {
+                    // 오디오 스레드가 이 노드를 다 읽을 때까지 기다린 뒤 돌아온다 - 그 뒤에 버퍼를 푼다.
+                    ma_node_uninit(reinterpret_cast<ma_node*>(&bus.effects), &callbacks);
+                    bus.effectsReady = false;
+                }
+                bus.effects.echoBuffer.store(nullptr, std::memory_order_release);
+                bus.effects.reverb.store(nullptr, std::memory_order_release);
+                bus.echoStorage = nullptr;
+                bus.reverbStorage = nullptr;
                 bus.used = false;
             }
         }
@@ -611,6 +915,7 @@ namespace JBro
             output[index] = sample;
         }
         state->peak.store(peak, std::memory_order_relaxed);
+        state->renderedFrames.fetch_add(frameCount, std::memory_order_relaxed);
     }
 
     void AudioMixer::RenderCallback(void* user, float* output, std::uint32_t frameCount)
@@ -814,6 +1119,61 @@ namespace JBro
     bool AudioMixer::IsBusMuted(AudioBusId bus) const
     {
         return IsInitialized() && m_state->IsBusValid(bus) && m_state->buses[bus].muted;
+    }
+
+    void AudioMixer::SetBusEffects(AudioBusId bus, const AudioBusEffects& effects)
+    {
+        if (false == IsInitialized() || false == m_state->IsBusValid(bus))
+        {
+            return;
+        }
+        State::Bus& target = m_state->buses[bus];
+        AudioBusEffects safe;
+        safe.lowPassHz = std::isfinite(effects.lowPassHz) && effects.lowPassHz > 0.0f ? effects.lowPassHz : 0.0f;
+        safe.highPassHz = std::isfinite(effects.highPassHz) && effects.highPassHz > 0.0f ? effects.highPassHz : 0.0f;
+        safe.echoDelay = Clamped(effects.echoDelay, 0.01f, MaxEchoSeconds);
+        safe.echoFeedback = Clamped(effects.echoFeedback, 0.0f, 0.95f);
+        safe.echoMix = Clamped(effects.echoMix, 0.0f, 1.0f);
+        safe.reverbRoom = Clamped(effects.reverbRoom, 0.0f, 1.0f);
+        safe.reverbDamping = Clamped(effects.reverbDamping, 0.0f, 1.0f);
+        safe.reverbMix = Clamped(effects.reverbMix, 0.0f, 1.0f);
+        target.settings = safe;
+        BusEffectNode& node = target.effects;
+        // 버퍼는 처음 켤 때 한 번 잡는다(메인 스레드). 포인터는 다 채운 뒤에 원자로 넘긴다.
+        if (safe.echoMix > 0.0f && target.echoStorage.Get() == nullptr)
+        {
+            target.echoStorage = MakeOwnerPtr<Array<float>>();
+            node.echoCapacity = static_cast<std::uint32_t>(MaxEchoSeconds * static_cast<float>(node.sampleRate)) + 1;
+            target.echoStorage->Resize(static_cast<std::size_t>(node.echoCapacity) * node.channels);
+            for (float& sample : *target.echoStorage)
+            {
+                sample = 0.0f;
+            }
+            node.echoBuffer.store(target.echoStorage->Data(), std::memory_order_release);
+        }
+        if (safe.reverbMix > 0.0f && target.reverbStorage.Get() == nullptr)
+        {
+            target.reverbStorage = MakeOwnerPtr<Reverb>();
+            target.reverbStorage->Prepare(node.sampleRate);
+            node.reverb.store(target.reverbStorage.Get(), std::memory_order_release);
+        }
+        node.lowPass.store(safe.lowPassHz, std::memory_order_relaxed);
+        node.highPass.store(safe.highPassHz, std::memory_order_relaxed);
+        node.echoDelay.store(safe.echoDelay, std::memory_order_relaxed);
+        node.echoFeedback.store(safe.echoFeedback, std::memory_order_relaxed);
+        node.echoMix.store(safe.echoMix, std::memory_order_relaxed);
+        node.reverbRoom.store(safe.reverbRoom, std::memory_order_relaxed);
+        node.reverbDamping.store(safe.reverbDamping, std::memory_order_relaxed);
+        node.reverbMix.store(safe.reverbMix, std::memory_order_relaxed);
+    }
+
+    AudioBusEffects AudioMixer::GetBusEffects(AudioBusId bus) const
+    {
+        if (false == IsInitialized() || false == m_state->IsBusValid(bus))
+        {
+            return {};
+        }
+        return m_state->buses[bus].settings;
     }
 
     AudioVoiceHandle AudioMixer::Play(const AudioPlayDesc& desc)
@@ -1176,12 +1536,14 @@ namespace JBro
         }
         const State& state = *m_state;
         stats.activeVoices = state.desc.maxVoices - static_cast<std::uint32_t>(state.freeVoices.Size());
+        stats.maxVoices = state.desc.maxVoices;
         stats.registeredClips = static_cast<std::uint32_t>(state.clips.Size() - state.freeClips.Size());
         stats.voicesStarted = state.voicesStarted;
         stats.voicesStolen = state.voicesStolen;
         stats.voicesRejected = state.voicesRejected;
         stats.allocatorGrowths = state.allocator.GetGrowths();
         stats.lastPeak = state.peak.load(std::memory_order_relaxed);
+        stats.renderedFrames = state.renderedFrames.load(std::memory_order_relaxed);
         return stats;
     }
 }

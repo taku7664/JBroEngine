@@ -808,6 +808,7 @@ namespace JBro
             // 인턴해 둔다 - 로그와 에디터가 이름을 되찾는다.
             config.name = NameTable::Get().Intern(bus.name.c_str());
             config.volume = bus.volume;
+            config.effects = bus.effects;
             buses.Add(config);
         }
         m_audio->ConfigureBuses({buses.Data(), static_cast<std::uint32_t>(buses.Size())});

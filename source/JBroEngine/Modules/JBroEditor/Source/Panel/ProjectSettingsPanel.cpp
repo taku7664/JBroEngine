@@ -230,13 +230,13 @@ namespace JBro
                 });
         }
 
-        // **오디오 버스**(D-197, 기존 설정 창의 오디오 갈래). 이름과 시작 음량이다. Master 는 늘 있으므로 목록에 없다.
+        // **오디오 버스**(D-197, 기존 설정 창의 오디오 갈래). 이름·시작 음량·이펙트 사슬(D-202)이다. Master 는 늘 있으므로
+        // 목록에 없다. 버스마다 제 표를 연다 - 접는 이펙트 마디가 표 사이에 서야 해서다.
         Widget::SectionHeader(
             Loc::TextOr(LocKeys::ProjectSettingsAudio, "Audio")).SpacingBefore().Draw();
         Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsAudioBusesHelp,
             "Master is always there and every bus plays under it."));
         {
-            Widget::FormLayout layout("##audio");
             std::size_t removeAt = static_cast<std::size_t>(-1);
             if (m_draft.audioBuses.IsEmpty())
             {
@@ -251,24 +251,54 @@ namespace JBro
                 {
                     duplicate = duplicate || m_draft.audioBuses[other].name == bus.name;
                 }
-                layout.Row(
-                    [&] {
-                        Widget::TextField("##name", bus.name).Draw();
-                        if (duplicate)
-                        {
-                            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioDuplicate,
-                                "This name is already used"));
-                        }
-                    },
-                    [&] {
-                        Widget::SliderFloat("##volume", bus.volume, 0.0f, 1.0f);
-                        ImGui::SameLine();
-                        if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsAudioRemoveBus, "Remove"),
-                                Widget::Severity::Error))
-                        {
-                            removeAt = index;
-                        }
-                    });
+                {
+                    Widget::FormLayout layout("##bus");
+                    layout.Row(
+                        [&] {
+                            Widget::TextField("##name", bus.name).Draw();
+                            if (duplicate)
+                            {
+                                Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioDuplicate,
+                                    "This name is already used"));
+                            }
+                        },
+                        [&] {
+                            Widget::SliderFloat("##volume", bus.volume, 0.0f, 1.0f);
+                            ImGui::SameLine();
+                            if (Widget::ActionButton(Loc::TextOr(LocKeys::ProjectSettingsAudioRemoveBus, "Remove"),
+                                    Widget::Severity::Error))
+                            {
+                                removeAt = index;
+                            }
+                        });
+                }
+                // 값 하나가 한 줄이다. 켜는 칸(0 이면 꺼짐)을 먼저 두고 세부를 뒤에 둔다.
+                if (Widget::FoldNode(Loc::TextOr(LocKeys::ProjectSettingsAudioEffects, "Effects")))
+                {
+                    Widget::FormLayout effects("##effects");
+                    const auto slider = [&](const char* name, const char* id, float& value, float low, float high,
+                                            bool turnsOff) {
+                        effects.Row([name] { Widget::Text(name); },
+                            [&value, id, low, high, turnsOff] {
+                                Widget::SliderFloat(id, value, low, high);
+                                if (turnsOff)
+                                {
+                                    Widget::HoveredTooltip(
+                                        Loc::TextOr(LocKeys::ProjectSettingsAudioEffectOff, "0 turns it off"));
+                                }
+                            });
+                    };
+                    AudioBusEffects& chain = bus.effects;
+                    slider("LowPass", "##lowPass", chain.lowPassHz, 0.0f, 20000.0f, true);
+                    slider("HighPass", "##highPass", chain.highPassHz, 0.0f, 5000.0f, true);
+                    slider("EchoMix", "##echoMix", chain.echoMix, 0.0f, 1.0f, true);
+                    slider("EchoDelay", "##echoDelay", chain.echoDelay, 0.01f, 2.0f, false);
+                    slider("EchoFeedback", "##echoFeedback", chain.echoFeedback, 0.0f, 0.95f, false);
+                    slider("ReverbMix", "##reverbMix", chain.reverbMix, 0.0f, 1.0f, true);
+                    slider("ReverbRoom", "##reverbRoom", chain.reverbRoom, 0.0f, 1.0f, false);
+                    slider("ReverbDamping", "##reverbDamping", chain.reverbDamping, 0.0f, 1.0f, false);
+                    Widget::TreePop();
+                }
                 ImGui::PopID();
             }
             if (removeAt < m_draft.audioBuses.Size())

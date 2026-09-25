@@ -17,8 +17,10 @@
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/NameTable.h>
 
+#include <chrono>
 #include <cmath>
 #include <cstring>
+#include <thread>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -172,6 +174,17 @@ namespace
         Check(ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.audioBuses.IsEmpty(),
             "and reads back as empty");
 
+        // 이펙트 칸은 기본값과 다른 것만 적히고 되읽힌다(D-202).
+        project.audioBuses.Add(ProjectAudioBus{String("Cave"), 1.0f});
+        project.audioBuses.Last().effects.reverbMix = 0.4f;
+        project.audioBuses.Last().effects.lowPassHz = 800.0f;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "effects write");
+        Check(written.find("  - Name: Cave\n    Volume: 1\n    LowPass: 800\n    ReverbMix: 0.4\n") != String::npos,
+            "only the effect fields that differ from the defaults are written");
+        Check(ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.audioBuses.Last().effects.reverbMix == 0.4f
+                && reread.audioBuses.Last().effects.lowPassHz == 800.0f && reread.audioBuses.Last().effects.echoMix == 0.0f,
+            "and they read back");
+
         constexpr char bad[] = "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nAudioBuses:\n  - Name: Music\n    Volume: loud\n";
         Check(false == ParseProjectFile(bad, sizeof(bad) - 1, reread, error) && error.line == 6,
             "a volume that is not a number is refused with its line");
@@ -282,6 +295,47 @@ namespace
         Check(probe.calls == 2, "and the listener heard it first");
         assets.SetAudioReleaseListener(nullptr, nullptr);
         fixture.Close();
+    }
+
+    // ── 실제 장치 ──
+    // 장치가 믹서를 당겨 가는지 **소리 없이** 본다(보이스가 없어 0 만 나간다). `Stop` 이 돌아온 뒤에는 더 당기지 않아야 한다 -
+    // 그래야 믹서를 내려도 된다(D-201 의 종료 순서). 장치가 없는 기계(원격 세션)에서는 건너뛴다.
+    void TestTheDevicePullsTheMixerAndStopsWhenAsked()
+    {
+        WindowsPlatform platform;
+        JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform must initialize");
+        OwnerPtr<IAudioOutput> output = platform.CreateAudioOutput(AudioOutputDesc{});
+        if (output.Get() == nullptr)
+        {
+            std::cout << "  [skip] no audio device on this machine" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+        AudioMixerDesc desc;
+        desc.sampleRate = output->GetSampleRate();
+        desc.channels = output->GetChannels();
+        desc.maxVoices = 4;
+        AudioMixer mixer;
+        Check(mixer.Initialize(desc), "a mixer in the device's format initializes");
+        Check(output->Start(&AudioMixer::RenderCallback, &mixer), "the device starts");
+        const auto start = std::chrono::steady_clock::now();
+        while (mixer.GetStats().renderedFrames == 0
+            && std::chrono::steady_clock::now() - start < std::chrono::seconds(2))
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        const std::uint64_t pulled = mixer.GetStats().renderedFrames;
+        std::cout << "  the device " << output->GetDeviceName() << " pulled " << pulled << " frames in about 0.1 s" << std::endl;
+        Check(pulled > 0, "the device pulls frames from the mixer");
+        output->Stop();
+        const std::uint64_t afterStop = mixer.GetStats().renderedFrames;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        Check(mixer.GetStats().renderedFrames == afterStop, "after Stop returns the device no longer calls the mixer");
+        output = nullptr;
+        mixer.Shutdown();
+        platform.Shutdown();
     }
 
     // ── 2D 소스 시스템 ──────────────────────────────────────────────────────────────────────────
@@ -577,6 +631,7 @@ int RunAudioIntegrationTests()
     {
         TestProjectFileReadsAndKeepsAudioBuses();
         TestAudioAssetsLoadAndAnnounceTheirRelease();
+        TestTheDevicePullsTheMixerAndStopsWhenAsked();
         TestSourcesFollowTheirLifecycle();
         TestBusesAndSpatialSources();
         TestTheScriptServiceReachesTheMixer();

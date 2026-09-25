@@ -87,9 +87,9 @@
   `source/JBroNetwork/`(자기 `.slnx`, 엔진의 Core·Runtime 만 참조)에 있고, 엔진 쪽 어댑터는 `Modules/JBroNetworkSystem`(`NetworkHost`·
   `CanvasPoolAdapter`·수신/송신 시스템)이다. 소켓은 `IPlatform::CreateSocketProvider` 로만 온다. 기존 엔진의 WS + Reliable UDP
   하이브리드 분석이 §1, 설계(소켓 주입·꺼내 가기 큐·풀 스냅숏 델타 복제·WebRTC 웹 호스트)가 §2, 단계와 완료 조건·실측이 §3 에 있다
-- [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198). **아직 코드는 없다.** `ma_engine` 을 안에 둔 `AudioMixer`,
+- [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198·D-201·D-202). **여섯 단계가 모두 섰다**(믹서·장치 출력·에셋·2D/3D 소스·스크립트·에디터·버스 이펙트). `ma_engine` 을 안에 둔 `AudioMixer`,
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
-  `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건이 §3 에 있다
+  `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건·실측이 §3, `[열림]` 이 §5 에 있다
 - [tasks/input-plan.md](./tasks/input-plan.md) — 입력 계획. **제안 단계이고 코드는 없다.** 기존 엔진 입력(`GetAsyncKeyState` 폴링·
   `InputHandler<"UI", 10>` 레이어 블로킹)의 구조와 아팠던 것 P1~P8 이 §1, 새 엔진의 이벤트 입력(D-62)에서 프레임 상태를 만들고
   반환값 `Block` + 장치 단위 소비로 막는 설계가 §3, 단계가 §4, 확인할 질문이 §5 에 있다

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/AudioTypes/AudioTypes.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
@@ -66,6 +67,9 @@ namespace JBro
         String name;
         // 시작 음량이다(0..1). 스크립트가 바꾸면 그쪽이 이긴다.
         float volume = 1.0f;
+        // 이펙트 사슬(D-202). 기본값과 다른 칸만 파일에 적힌다(`LowPass:`·`HighPass:`·`EchoDelay:`·`EchoFeedback:`·`EchoMix:`·
+        // `ReverbRoom:`·`ReverbDamping:`·`ReverbMix:`) - 기존 엔진의 파일은 이 키가 없어도 바이트 하나 바뀌지 않는다.
+        AudioBusEffects effects;
     };
 
     struct ProjectFile
