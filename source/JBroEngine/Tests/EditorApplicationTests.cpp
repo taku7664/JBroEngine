@@ -3252,11 +3252,17 @@ namespace
         };
 
         // 재생 전에는 게임 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
-        game->RequestFocus();
+        // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다.
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
+        game->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the game view");
+        }
+        Check(game->IsFocused(), "the stopped game view must hold the focus too, or the next check proves nothing");
         post(WM_KEYDOWN, 'W');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
         Check(false == editor.IsGameReceivingInput(), "a stopped game receives nothing");
