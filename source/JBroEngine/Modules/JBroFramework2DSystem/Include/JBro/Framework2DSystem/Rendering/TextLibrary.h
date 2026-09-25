@@ -4,6 +4,7 @@
 #include <JBro/Text/FontFace.h>
 #include <JBro/Text/GlyphAtlas.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/ArrayView.h>
 #include <JBro/Types/SafePtr.h>
 
 #include <cstdint>
@@ -40,6 +41,12 @@ namespace JBro
         // 그 폰트가 다시 열리기 전까지 유효하다.
         bool Acquire(AssetHandle font, FontView& view);
 
+        // 프로젝트 폰트 목록(`AssetSystem::GetProjectFonts`, D-200 (6))을 따라간다. 목록의 판번호가 바뀌었으면 옛 핸들을
+        // 놓고 새 목록을 로드한다. 매 프레임 불러도 판번호가 같으면 아무것도 하지 않는다.
+        void SyncProjectFonts();
+        // 로드한 프로젝트 폰트다. 순서는 목록 그대로이고, 로드하지 못한 것은 빠진다.
+        ArrayView<const AssetHandle> GetProjectFonts() const;
+
         // 더러운 아틀라스 페이지를 올린다. 새 페이지는 등록하고 있던 페이지는 같은 핸들에 다시 쓴다. 올린 페이지 수다.
         std::uint32_t UploadDirtyPages();
 
@@ -66,8 +73,14 @@ namespace JBro
 
         void ReleasePages(FontEntry& entry);
 
+        void ReleaseProjectFonts();
+
         AssetSystem* m_assets = nullptr;
         Renderer*    m_renderer = nullptr;
+        // 이 라이브러리가 로드해 든 프로젝트 폰트 핸들이다. 놓는 것도 이 라이브러리다.
+        Array<AssetHandle> m_projectFonts;
+        bool          m_projectFontsSynced = false;
+        std::uint32_t m_projectFontsRevision = 0;
         // 폰트 에셋의 슬롯 번호로 찍는다. 원소가 옮겨 다니지 않게 따로 잡는다(FontView 가 face·atlas 를 가리킨다).
         Array<OwnerPtr<FontEntry>> m_fonts;
         std::uint64_t m_uploadCount = 0;

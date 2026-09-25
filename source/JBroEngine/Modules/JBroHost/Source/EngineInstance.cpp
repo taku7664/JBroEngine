@@ -249,6 +249,7 @@ namespace JBro
         m_assetQuietFrames = 0;
         // 프로젝트 기본 샘플러는 로드 때 적용되므로 잇기 전에 정한다(D-117).
         m_assets->SetDefaultTextureFilter(project.textureFilter);
+        m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));
         m_assets->Bind(*m_platform, m_assetRegistry, m_assetRoot.c_str());
         if (m_watchAssetDirectory && false == m_platform->WatchDirectory(m_assetRoot.c_str()))
         {
@@ -862,6 +863,8 @@ namespace JBro
         if (m_assets.Get() != nullptr)
         {
             m_assets->SetDefaultTextureFilter(project.textureFilter);
+            // 프로젝트 폰트는 지금 적용된다 - 텍스트 시스템이 다음 프레임에 판번호를 보고 다시 로드한다.
+            m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));
         }
         // 오디오 버스도 지금 적용한다(D-197). 설정 창에서 버스를 더하면 곧바로 고를 수 있어야 한다.
         ApplyAudioBuses();

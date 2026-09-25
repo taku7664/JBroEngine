@@ -10,12 +10,17 @@
 #include <JBro/Types/Table.h>
 #include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/RHI/RHI.h>
+#include <JBro/Types/Array.h>
 
 #include "../Gizmo/GizmoEditing.h"
 
 namespace JBro
 {
     class GameObject;
+    namespace Component
+    {
+        class Text2D;
+    }
 
     // **편집 화면**이다(D-130). 기존 엔진의 `CCanvasViewTool` 자리이고, 유니티로 치면 씬 뷰다.
     //
@@ -225,5 +230,7 @@ namespace JBro
         // 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가 되어 선택이 풀린다.
         bool m_boxSelecting = false;
         ImVec2 m_boxStart{0.0f, 0.0f};
+        // 오브젝트 하나에 붙은 텍스트들을 모으는 자리다. 외곽선이 매 프레임 묻으므로 한 번 잡은 용량을 계속 쓴다.
+        mutable Array<Component::Text2D*> m_textScratch;
     };
 }

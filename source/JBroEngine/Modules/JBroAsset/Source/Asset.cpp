@@ -420,6 +420,36 @@ namespace JBro
         return m_defaultTextureFilter;
     }
 
+    void AssetSystem::SetProjectFonts(ArrayView<const AssetId> fonts)
+    {
+        // 같은 목록이면 판번호를 올리지 않는다. 설정을 저장할 때마다 부르므로, 올리면 모든 텍스트가 다시 레이아웃된다.
+        bool same = fonts.Size() == m_projectFonts.Size();
+        for (std::size_t index = 0; same && index < fonts.Size(); ++index)
+        {
+            same = fonts[index] == m_projectFonts[index];
+        }
+        if (same)
+        {
+            return;
+        }
+        m_projectFonts.Clear();
+        for (std::size_t index = 0; index < fonts.Size(); ++index)
+        {
+            m_projectFonts.Add(fonts[index]);
+        }
+        ++m_projectFontsRevision;
+    }
+
+    ArrayView<const AssetId> AssetSystem::GetProjectFonts() const
+    {
+        return ArrayView<const AssetId>(m_projectFonts.Data(), m_projectFonts.Size());
+    }
+
+    std::uint32_t AssetSystem::GetProjectFontsRevision() const
+    {
+        return m_projectFontsRevision;
+    }
+
     bool AssetSystem::BuildSprite(const AssetRecord& record, SpriteData& data)
     {
         SpriteData built;

@@ -1,6 +1,9 @@
 ﻿#include "ProjectSettingsPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Editor/Widget/AssetField.h>
+#include <JBro/Editor/Widget/List.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -44,6 +47,34 @@ namespace JBro
         // 늘 보는 창이 아니다. 창 메뉴에서 열어 본다.
         SetOpen(false);
         return true;
+    }
+
+    void ProjectSettingsPanel::RefreshFontChoices()
+    {
+        const AssetRegistry& registry = m_editor->GetAssetRegistry();
+        if (m_fontChoicesBuilt && m_fontChoicesRevision == registry.GetRevision())
+        {
+            return;
+        }
+        m_fontChoicesBuilt = true;
+        m_fontChoicesRevision = registry.GetRevision();
+        m_fontNames.Clear();
+        m_fontIds.Clear();
+        for (std::size_t index = 0; index < registry.GetCount(); ++index)
+        {
+            const AssetRecord& record = registry.GetRecord(index);
+            if (record.type == AssetType::Font)
+            {
+                m_fontNames.Add(record.relativePath);
+                m_fontIds.Add(record.id);
+            }
+        }
+        // 이름을 다 모은 뒤에 가리킨다. 모으는 중에 배열이 자라면 앞의 포인터가 무효가 된다.
+        m_fontNamePointers.Clear();
+        for (std::size_t index = 0; index < m_fontNames.Size(); ++index)
+        {
+            m_fontNamePointers.Add(m_fontNames[index].c_str());
+        }
     }
 
     void ProjectSettingsPanel::Reload()
@@ -493,6 +524,26 @@ namespace JBro
             }
             m_draft.audioBuses.Add(ProjectAudioBus{name, 1.0f});
         }
+
+        // **프로젝트 폰트**(D-200 (6), 기존 설정 창의 Fonts 갈래). 순서가 있는 목록 하나다: 첫 폰트가 `fontId` 가 빈 텍스트를
+        // 그리고, 목록 전체가 폰트에 없는 글자를 차례로 찾아보는 폴백이다. 기존은 기본 패밀리와 폴백 목록이 따로였다.
+        Widget::SectionHeader(
+            Loc::TextOr(LocKeys::ProjectSettingsText, "Text")).SpacingBefore().Draw();
+        Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsFontsHelp,
+            "The first font draws texts with no fontId. Letters a font lacks are looked up in this list, in order."));
+        // 순서가 뜻을 가지므로 공용 목록 위젯이다(끌어서 순서 바꾸기·번호·지우기·항목 추가). 창이 좁게 도킹되어도(실측 202 px)
+        // 칸 하나가 한 줄을 다 쓴다 - 처음 판은 줄마다 "위로"·"삭제" 단추를 붙여 폰트 칸이 보이지 않을 만큼 줄었다.
+        // 새 줄은 빈 아이디로 시작하고, 고르지 않은 줄은 저장할 때 빠진다.
+        RefreshFontChoices();
+        Widget::List("##fonts", m_draft.fonts,
+            [&](AssetId& font, int) {
+                Widget::AssetField("##font",
+                    ArrayView<const char* const>(m_fontNamePointers.Data(), m_fontNamePointers.Size()),
+                    ArrayView<const AssetId>(m_fontIds.Data(), m_fontIds.Size()), font)
+                    .AllowClear(false)
+                    .Draw();
+            },
+            AssetId{}, Widget::ListFlagsShowIndex);
 
         Widget::SectionHeader(
             Loc::TextOr(LocKeys::ProjectSettingsBuild, "Build")).SpacingBefore().Draw();

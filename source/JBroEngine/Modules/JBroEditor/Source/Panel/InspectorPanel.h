@@ -68,6 +68,7 @@ namespace JBro
             // 편집 중인 블록. 고치면 그 블록의 `has*Options` 가 참이 된다.
             bool spriteBlock = false;
             bool audioBlock = false;
+            bool fontBlock = false;
         };
 
         struct Context
@@ -132,6 +133,8 @@ namespace JBro
         // 오디오 버스 필드(`JBro.AudioBusName`, D-197). 프로젝트의 버스 목록을 고르는 드롭다운이다 - 이름을 손으로 치면
         // 틀린 이름이 조용히 Master 로 떨어진다.
         void DrawAudioBusField(const TypeDescriptor& type, void* address, Context& context);
+        // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
+        void DrawTextBody(const TypeDescriptor& type, void* address, bool editable, Context& context);
         // 오디오 에셋의 형식·길이·파형·미리 듣기(D-197, 기존 `EditorAudioPreview`).
         void DrawAudioPreview(const AssetMetaFile& meta);
         // `AssetId` 필드. 레지스트리의 같은 타입 에셋을 고르는 드롭다운이다(D-116).
