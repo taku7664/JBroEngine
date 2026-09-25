@@ -53,14 +53,15 @@
   재질의 자료 모델은 `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }` 이고 빌트인 셰이더도 Shader 에셋이다. (D-111)
 - 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
 - 2D 스프라이트 정렬은 아이템이 아니라 `(키, 인덱스)` 를 옮긴다. 키는 레이어 순서가 최상위이고,
-  그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `sourceId` 로 안정화한다. (MUST)
+  그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `sourceId` 로, 그것도 같으면 제출 번호로 안정화한다(한 텍스트의 글자들, D-214). (MUST)
   그리는 순서는 `GetSprite(drawIndex)` 로, 제출된 순서는 `GetSubmittedSprites()` 로 읽는다.
 - 2D 스프라이트 패킷(`SpriteSubmit`)과 GPU 인스턴스의 변환은 `Matrix4x4`가 아니라 **아핀 6개 + 깊이 1개**를
   담는 `SpriteTransform2D { float linear[4]; float translation[2]; float depth; }`(28B)로 전달한다. (MUST)
   버텍스 셰이더는 `float4x4`를 조립하지 않고 두 내적으로 위치를 직접 만든다. `MeshSubmit`은 `Matrix4x4`를 유지한다.
   패킷 필드는 D-32 ABI이므로 이후 변경은 Decisions를 거친다. (D-54)
 - 스프라이트 패킷은 렌더러가 발급한 텍스처 핸들과 UV 사각형(uMin, vMin, uScale, vScale)을 든다. GPU 인스턴스는 40B 다
-  (변환 28B + 틴트 `UByte4Norm` 4B + UV `UShort4Norm` 8B, D-114).
+  (변환 28B + 틴트 `UByte4Norm` 4B + UV `UShort4Norm` 8B, D-114). SDF 텍스트(`shading = SdfText`)는 제 파이프라인과 52B 인스턴스
+  (외곽선 색 4B + 문턱 8B 를 더한 것) 버퍼로 그리고, 제출 패킷(84B)의 SDF 필드는 정규화 정수다 - 패킷을 키우면 스프라이트 제출이 느려진다(D-214).
   렌더러는 제출 순서를 바꾸지 않고 텍스처·샘플러가 같은 이웃만 드로우 하나로 묶는다. GPU 텍스처는 에셋이 아니라
   프레임워크의 `SpriteLibrary` 가 들고, 렌더러 프레임 밖(렌더 추출)에서만 올린다. (MUST) (D-113)
 - 스프라이트의 화면 크기와 피벗은 에셋이 정한다: 칸 픽셀 / 에셋 `pixelsPerUnit`, 칸의 피벗. `SpriteRenderer2D` 의
