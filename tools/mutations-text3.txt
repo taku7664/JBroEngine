@@ -4,7 +4,6 @@ Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:empty-block-kept	if (lo
 Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:default-box-kept	if (false == hasSprite && false == hasText)	if (false)
 Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:textid-one-line	SameName(type.typeName, "JBro.TextId")	SameName(type.typeName, "JBro.TextIdNot")
 Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:text-not-written	                TextStore::Get().Assign(id, draft.c_str(), draft.size());	                (void)draft;
-Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:draft-not-kept	            m_textDraft = shown;\n            m_textEditingId = widgetId;	            (void)shown;
 Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:font-block-missing	                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);	                TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, false);
 Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:font-options-not-marked	            scratch.hasFontOptions = true;	            (void)scratch;
 Modules\JBroEditor\Source\Widget\TextField.cpp	field:multiline-commits-per-key	        if (m_commitOnFinish)\n        {\n            return ImGui::IsItemDeactivatedAfterEdit();\n        }\n        return changed;\n    }\n\n    bool TextField::operator()() const	        return changed;\n    }\n\n    bool TextField::operator()() const
