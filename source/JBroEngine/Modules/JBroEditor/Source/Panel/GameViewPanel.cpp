@@ -88,7 +88,7 @@ namespace JBro
         // 이 프레임에 게임 화면을 붙였다. 붙이지 않은 프레임(닫힘·다른 탭에 가림)에는
         // 게임을 그리지 않는다(D-63).
         m_editor->RequestGameView();
-        // 게임 입력(D-201). 포커스가 여기 있으면 다음 프레임부터 게임이 키를 받고, 마우스는 이 그림 사각형 기준의 게임 픽셀이다.
+        // 게임 입력(D-210). 포커스가 여기 있으면 다음 프레임부터 게임이 키를 받고, 마우스는 이 그림 사각형 기준의 게임 픽셀이다.
         m_editor->ReportGameView(IsFocused(), imageLeft, imageTop, imageWidth, imageHeight);
 
         DrawStatusOverlay(origin.x, origin.y, hasImage);

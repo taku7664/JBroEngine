@@ -13,7 +13,7 @@
 
 namespace JBro::System
 {
-    // 게임 입력을 접고 레이어 체인에 내려보낸다(D-201). 엔진이 소유한다(ProjectRule §7).
+    // 게임 입력을 접고 레이어 체인에 내려보낸다(D-210). 엔진이 소유한다(ProjectRule §7).
     //
     // **폴링하지 않는다.** 플랫폼이 모은 이벤트(D-62)를 프레임마다 한 번 접는다 - 기존 엔진은
     // `GetAsyncKeyState` 로 긁어서 한 프레임 안에 눌렀다 뗀 키를 잃었다.
@@ -40,7 +40,7 @@ namespace JBro::System
         const InputSystemContext& GetSystemContext() const;
         const InputServiceContext& GetServiceContext() const;
 
-        // 레이어 체인이다(D-201). 누구를 어떤 차례로 부를지는 부르는 쪽(`ScriptSystem`)이 정하고, 여기는 소비를 나른다.
+        // 레이어 체인이다(D-210). 누구를 어떤 차례로 부를지는 부르는 쪽(`ScriptSystem`)이 정하고, 여기는 소비를 나른다.
         //   BeginDispatch() → 켜진 핸들러마다 Deliver() → EndDispatch()
         // `Deliver` 가 참이면 그 핸들러가 `Block` 한 것이고, 부르는 쪽은 거기서 멈춘다. 멈추지 않아도 아래는 빈 입력만 본다.
         void BeginDispatch();

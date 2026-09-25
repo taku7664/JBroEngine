@@ -2,6 +2,8 @@
 
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Platform/Platform.h>
+#include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
 namespace JBro
@@ -47,5 +49,12 @@ namespace JBro
         // 저장한 뒤 남기는 한 줄. 성공과 실패를 같은 자리에서 말한다.
         String m_message;
         bool m_messageIsError = false;
+        // 버스 고르기 목록의 이름들이다. 그릴 때마다 다시 채우되 자리는 재사용한다.
+        Array<const char*> m_busChoices;
+        // 출력 장치 목록(D-203). 창을 열 때와 "새로 고침" 에서만 읽는다 - 읽는 데 몇 ms 걸린다.
+        static constexpr std::uint32_t MaxAudioDevices = 32;
+        AudioDeviceInfo m_audioDevices[MaxAudioDevices];
+        std::uint32_t m_audioDeviceCount = 0;
+        bool m_audioDevicesListed = false;
     };
 }

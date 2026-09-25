@@ -1,0 +1,19 @@
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:flip-ignored	        manifold.normal = flip ? Scale(referenceNormal, -1.0f) : referenceNormal;	        manifold.normal = referenceNormal;
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:always-reference-a	        if (separationB > separationA + 0.1f * LinearSlop)	        if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:no-tie-bias	        if (separationB > separationA + 0.1f * LinearSlop)	        if (separationB > separationA)
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:incident-edge-first	            if (d < lowest)	            if (d > lowest)
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:no-first-clip	        if (ClipSegment(clipped1, incidentSegment, Scale(tangent, -1.0f), -Dot(tangent, v11), base | 2u) < 2)\n        {\n            return manifold;\n        }	        clipped1[0] = incidentSegment[0];\n        clipped1[1] = incidentSegment[1];
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:keep-far-points	            if (separation > SpeculativeDistance)\n            {\n                continue;\n            }	            if (false)\n            {\n                continue;\n            }
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:point-on-incident	            point.point = Subtract(vertex.point, Scale(referenceNormal, 0.5f * separation));	            point.point = vertex.point;
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:no-early-out-b	        if (separationB > SpeculativeDistance)\n        {\n            return manifold;\n        }	        if (false)\n        {\n            return manifold;\n        }
+Modules\JBroPhysics2D\Source\Collision.cpp	circle:no-vertex-region	            if (u1 <= 0.0f || u2 <= 0.0f)	            if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	circle:wrong-vertex	                const Vec2 vertex = u1 <= 0.0f ? v1 : v2;	                const Vec2 vertex = v1;
+Modules\JBroPhysics2D\Source\Collision.cpp	circle:inside-uses-vertex	        if (faceSeparation > FLT_EPSILON)	        if (true)
+Modules\JBroPhysics2D\Source\Collision.cpp	circles:no-distance-check	        if (separation > SpeculativeDistance)\n        {\n            return manifold;\n        }\n\n        // 중심이 겹치면	        if (false)\n        {\n            return manifold;\n        }\n\n        // 중심이 겹치면
+Modules\JBroPhysics2D\Source\Collision.cpp	circles:concentric-nan	        manifold.normal = distance > FLT_EPSILON ? Scale(delta, 1.0f / distance) : Vec2{ 0.0f, 1.0f };	        manifold.normal = Scale(delta, 1.0f / distance);
+Modules\JBroPhysics2D\Source\Collision.cpp	normals:inward	                world.normals[i] = length > 0.0f ? Vec2{ edge.y / length, -edge.x / length } : Vec2{};	                world.normals[i] = length > 0.0f ? Vec2{ -edge.y / length, edge.x / length } : Vec2{};
+Modules\JBroPhysics2D\Source\BroadPhase.cpp	sap:no-y-filter	                if (current.box.min.y > other.box.max.y || current.box.max.y < other.box.min.y)	                if (false)
+Modules\JBroPhysics2D\Source\BroadPhase.cpp	sap:strict-touch	                if (m_active[read].box.max.x >= current.box.min.x)	                if (m_active[read].box.max.x > current.box.min.x)
+Modules\JBroPhysics2D\Source\BroadPhase.cpp	sap:no-final-sort	            if (left.first != right.first)\n            {\n                return left.first < right.first;\n            }\n            return left.second < right.second;	            (void)left;\n            (void)right;\n            return false;
+Modules\JBroPhysics2D\Source\BroadPhase.cpp	sap:never-prune	                if (m_active[read].box.max.x >= current.box.min.x)	                if (true)
+Modules\JBroPhysics2D\Source\Collision.cpp	bounds:circle-offset-ignored	        const Vec2 center = TransformPoint(pose, circle.center);\n        return	        const Vec2 center = pose.position;\n        return

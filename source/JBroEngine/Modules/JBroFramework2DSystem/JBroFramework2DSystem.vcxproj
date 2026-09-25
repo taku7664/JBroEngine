@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -49,6 +49,10 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroHost\JBroHost.vcxproj">
       <Project>{1a000010-0000-4000-8000-000000000805}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
+      <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
@@ -81,6 +85,14 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroNetworkSystem\JBroNetworkSystem.vcxproj">
       <Project>{1a000017-0000-4000-8000-0000000ae75c}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAudioTypes\JBroAudioTypes.vcxproj">
+      <Project>{1a000018-0000-4000-8000-0000000a0d17}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAudio\JBroAudio.vcxproj">
+      <Project>{1a000019-0000-4000-8000-0000000a0d19}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj">

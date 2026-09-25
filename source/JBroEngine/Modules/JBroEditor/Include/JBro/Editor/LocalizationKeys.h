@@ -199,6 +199,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ComponentCategoryTransform = "component_category.Transform";
     inline constexpr const char* ComponentCategoryRendering = "component_category.Rendering";
     inline constexpr const char* ComponentCategoryPhysics = "component_category.Physics";
+    inline constexpr const char* ComponentCategoryAudio = "component_category.Audio";
     inline constexpr const char* ComponentCategoryDefault = "component_category.Components";
 
     // ── 에셋 칸 ──────────────────────────────────────────────────────────
@@ -273,6 +274,40 @@ namespace JBro::LocKeys
     inline constexpr const char* DialogBrowseFolder = "dialog.browse_folder";
     inline constexpr const char* DialogBrowseFile = "dialog.browse_file";
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
+    inline constexpr const char* InspectorAudioImportOptions = "inspector.audio_import_options";
+    inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
+    inline constexpr const char* InspectorAudioLength = "inspector.audio_length";
+    inline constexpr const char* InspectorAudioPreview = "inspector.audio_preview";
+    inline constexpr const char* InspectorAudioPlay = "inspector.audio_play";
+    inline constexpr const char* InspectorAudioStop = "inspector.audio_stop";
+    inline constexpr const char* InspectorAudioLoop = "inspector.audio_loop";
+    inline constexpr const char* InspectorAudioSeekHint = "inspector.audio_seek_hint";
+    inline constexpr const char* InspectorAudioOff = "inspector.audio_off";
+    inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
+    inline constexpr const char* InspectorAudioBusMissing = "inspector.audio_bus_missing";
+    inline constexpr const char* ProjectSettingsAudio = "project_settings.audio";
+    inline constexpr const char* ProjectSettingsAudioDuckHelp = "project_settings.audio_duck_help";
+    inline constexpr const char* ProjectSettingsAudioDefaultDevice = "project_settings.audio_default_device";
+    inline constexpr const char* ProjectSettingsAudioDeviceHelp = "project_settings.audio_device_help";
+    inline constexpr const char* ProjectSettingsAudioRefreshDevices = "project_settings.audio_refresh_devices";
+    inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
+    inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
+    inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";
+    inline constexpr const char* ProjectSettingsAudioParentHelp = "project_settings.audio_parent_help";
+    inline constexpr const char* ProjectSettingsAudioSendHelp = "project_settings.audio_send_help";
+    inline constexpr const char* StatsAudioSolo = "stats.audio_solo";
+    inline constexpr const char* StatsAudioBuses = "stats.audio_buses";
+    inline constexpr const char* StatsAudioVoices = "stats.audio_voices";
+    inline constexpr const char* StatsAudioDevice = "stats.audio_device";
+    inline constexpr const char* StatsAudioNoDevice = "stats.audio_no_device";
+    inline constexpr const char* StatsAudioStolen = "stats.audio_stolen";
+    inline constexpr const char* ProjectSettingsAudioEffects = "project_settings.audio_effects";
+    inline constexpr const char* ProjectSettingsAudioEffectOff = "project_settings.audio_effect_off";
+    inline constexpr const char* ProjectSettingsAudioAddBus = "project_settings.audio_add_bus";
+    inline constexpr const char* ProjectSettingsAudioRemoveBus = "project_settings.audio_remove_bus";
+    inline constexpr const char* ProjectSettingsAudioBusesHelp = "project_settings.audio_buses_help";
+    inline constexpr const char* ProjectSettingsAudioNoBuses = "project_settings.audio_no_buses";
+    inline constexpr const char* ProjectSettingsAudioDuplicate = "project_settings.audio_duplicate";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";
 

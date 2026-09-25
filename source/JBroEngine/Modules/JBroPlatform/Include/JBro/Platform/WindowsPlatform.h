@@ -7,6 +7,7 @@
 namespace JBro
 {
     struct FileWatcher;
+    class AudioDeviceWatch;
 
     class WindowsPlatform final : public IPlatform
     {
@@ -27,6 +28,7 @@ namespace JBro
         void UnloadDynamicLibrary(DynamicLibrary library) override;
         bool ShowFileDialog(WindowHandle owner, const FileDialogDesc& desc, String& outPath) override;
         bool ReadWholeFile(const char* utf8Path, Array<std::byte>& contents) override;
+        OwnerPtr<IFileStream> OpenFileStream(const char* utf8Path) override;
         bool WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents) override;
         bool MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path) override;
         bool CreateDirectoryAt(const char* utf8Path) override;
@@ -45,6 +47,10 @@ namespace JBro
         std::uint32_t TakeFileEvents(FileEvent* events, std::uint32_t capacity) override;
         // `WindowsSockets.cpp` 의 것이다.
         OwnerPtr<Network::ISocketProvider> CreateSocketProvider() override;
+        // `WindowsAudio.cpp` 의 것이다. miniaudio 의 WASAPI 장치다(D-197).
+        OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc) override;
+        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity) override;
+        bool TakeAudioDevicesChanged() override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);
@@ -61,6 +67,8 @@ namespace JBro
         Array<InputEvent> m_inputEvents;
         // `WindowsFileWatcher.cpp` 의 것이다. 감시하지 않으면 비어 있다.
         OwnerPtr<FileWatcher> m_fileWatcher;
+        // `WindowsAudio.cpp` 의 것이다. 처음 물을 때 켠다.
+        OwnerPtr<AudioDeviceWatch> m_audioWatch;
         std::uint16_t m_pendingHighSurrogate = 0;
         void* m_instance = nullptr;
         std::uint16_t m_windowClassAtom = 0;

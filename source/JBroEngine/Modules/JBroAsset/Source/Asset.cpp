@@ -3,6 +3,7 @@
 
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
@@ -56,6 +57,12 @@ namespace JBro
 
     void AssetSystem::Unbind()
     {
+        // 믹서가 빌려 쓰는 오디오 자료를 풀기 전에 알린다.
+        for (std::uint32_t index = 0; index < m_audio.slots.Size(); ++index)
+        {
+            NotifyAudioRelease(index);
+        }
+        m_audio = {};
         m_textures = {};
         m_sprites = {};
         m_loaded.Clear();
@@ -259,6 +266,115 @@ namespace JBro
         return true;
     }
 
+    bool AssetSystem::ReadAudio(const AssetRecord& record, AudioData& data)
+    {
+        AssetMetaFile meta;
+        if (false == ReadMeta(record, meta))
+        {
+            return false;
+        }
+        AudioData read;
+        read.options = meta.hasAudioOptions ? meta.audioOptions : AudioImportOptions{};
+        // 디스크 스트리밍은 헤더만 읽는다 - 파일이 메모리에 오지 않는다(D-203).
+        if (read.options.mode == AudioImportMode::StreamFromDisk)
+        {
+            const String path = SourcePathOf(record);
+            AudioFileDecoder decoder;
+            if (false == decoder.Open(m_platform->OpenFileStream(path.c_str()), path.c_str()) || decoder.CountFrames() == 0)
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: this file cannot be streamed from disk", path.c_str());
+                return false;
+            }
+            const AudioFormat format = decoder.GetFormat();
+            read.sampleRate = format.sampleRate;
+            read.channels = format.channels;
+            read.frameCount = format.frameCount;
+            read.streamPath = path;
+            data = std::move(read);
+            return true;
+        }
+        Array<std::byte> encoded;
+        if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), encoded))
+        {
+            return false;
+        }
+        JArrayView<std::byte> view;
+        view.data = encoded.Data();
+        view.size = static_cast<std::uint32_t>(encoded.Size());
+        AudioFormat format;
+        const bool decoded = read.options.mode == AudioImportMode::Streaming
+            ? ProbeAudio(view, format)
+            : DecodeAudio(view, format, read.pcm);
+        if (false == decoded)
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: not an audio file this engine can decode",
+                SourcePathOf(record).c_str());
+            return false;
+        }
+        if (read.options.mode == AudioImportMode::Streaming)
+        {
+            read.encoded = std::move(encoded);
+        }
+        read.sampleRate = format.sampleRate;
+        read.channels = format.channels;
+        read.frameCount = format.frameCount;
+        data = std::move(read);
+        return true;
+    }
+
+    void AssetSystem::NotifyAudioRelease(std::uint32_t slotIndex)
+    {
+        if (m_audioRelease == nullptr || slotIndex >= m_audio.slots.Size())
+        {
+            return;
+        }
+        const Slot<AudioData>& slot = m_audio.slots[slotIndex];
+        if (slot.occupied)
+        {
+            m_audioRelease(m_audioReleaseUser, MakeHandle(AssetType::Audio, slotIndex, slot.generation));
+        }
+    }
+
+    bool AssetSystem::ComputeAudioPeaks(AssetHandle handle, std::uint32_t buckets, Array<float>& peaks)
+    {
+        const AudioData* data = GetAudio(handle);
+        if (data == nullptr)
+        {
+            return false;
+        }
+        if (false == data->pcm.IsEmpty())
+        {
+            JBro::ComputeAudioPeaks(data->pcm.Data(), data->frameCount, data->channels, buckets, peaks);
+            return true;
+        }
+        if (false == data->encoded.IsEmpty())
+        {
+            JArrayView<std::byte> bytes;
+            bytes.data = data->encoded.Data();
+            bytes.size = static_cast<std::uint32_t>(data->encoded.Size());
+            return JBro::ComputeAudioPeaks(bytes, buckets, peaks);
+        }
+        if (false == data->streamPath.empty() && m_platform != nullptr)
+        {
+            AudioFileDecoder decoder;
+            return decoder.Open(m_platform->OpenFileStream(data->streamPath.c_str()), data->streamPath.c_str())
+                && JBro::ComputeAudioPeaks(decoder, buckets, peaks);
+        }
+        return false;
+    }
+
+    void AssetSystem::SetAudioReleaseListener(AudioReleaseCallback callback, void* user)
+    {
+        m_audioRelease = callback;
+        m_audioReleaseUser = callback != nullptr ? user : nullptr;
+    }
+
+    const AudioData* AssetSystem::GetAudio(AssetHandle handle) const
+    {
+        const Slot<AudioData>* slot = FindSlot(m_audio, handle, AssetType::Audio);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     void AssetSystem::SetDefaultTextureFilter(TextureFilter filter)
     {
         m_defaultTextureFilter = filter == TextureFilter::Default ? TextureFilter::Nearest : filter;
@@ -317,6 +433,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::Audio:
+                if (Slot<AudioData>* slot = FindSlot(m_audio, handle, AssetType::Audio))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -358,6 +481,16 @@ namespace JBro
             }
             break;
         }
+        case AssetType::Audio:
+        {
+            AudioData data;
+            if (false == ReadAudio(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_audio, AssetType::Audio, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -385,6 +518,14 @@ namespace JBro
             {
                 --sprite->referenceCount;
             }
+            return;
+        }
+        if (Slot<AudioData>* audio = FindSlot(m_audio, handle, AssetType::Audio))
+        {
+            if (audio->referenceCount != 0)
+            {
+                --audio->referenceCount;
+            }
         }
     }
 
@@ -397,7 +538,8 @@ namespace JBro
     bool AssetSystem::IsLoaded(AssetHandle handle) const
     {
         return FindSlot(m_textures, handle, AssetType::Texture) != nullptr
-            || FindSlot(m_sprites, handle, AssetType::Sprite) != nullptr;
+            || FindSlot(m_sprites, handle, AssetType::Sprite) != nullptr
+            || FindSlot(m_audio, handle, AssetType::Audio) != nullptr;
     }
 
     std::uint32_t AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -409,6 +551,10 @@ namespace JBro
         if (const Slot<SpriteData>* sprite = FindSlot(m_sprites, handle, AssetType::Sprite))
         {
             return sprite->referenceCount;
+        }
+        if (const Slot<AudioData>* audio = FindSlot(m_audio, handle, AssetType::Audio))
+        {
+            return audio->referenceCount;
         }
         return 0;
     }
@@ -471,6 +617,19 @@ namespace JBro
             sprite->data.frames = std::move(frames);
             return true;
         }
+        if (Slot<AudioData>* audio = FindSlot(m_audio, *loaded, AssetType::Audio))
+        {
+            AudioData fresh;
+            if (false == ReadAudio(*record, fresh))
+            {
+                return false;
+            }
+            // 새 자료를 다 읽은 뒤에 알린다 - 읽기가 실패하면 재생 중인 소리를 끊지 않는다.
+            NotifyAudioRelease(loaded->index & SlotMask);
+            fresh.dataGeneration = audio->data.dataGeneration + 1;
+            audio->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -514,6 +673,16 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_textures, index);
+                ++freed;
+            }
+        }
+        for (std::uint32_t index = 0; index < m_audio.slots.Size(); ++index)
+        {
+            Slot<AudioData>& slot = m_audio.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                NotifyAudioRelease(index);
+                Vacate(m_audio, index);
                 ++freed;
             }
         }

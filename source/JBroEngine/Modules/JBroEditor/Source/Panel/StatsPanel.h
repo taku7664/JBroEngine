@@ -2,6 +2,13 @@
 
 #include <JBro/Editor/EditorPanel.h>
 
+#include <cstdint>
+
+namespace JBro::System
+{
+    class AudioSystem;
+}
+
 namespace JBro
 {
     // 프레임이 얼마나 걸리는지, 렌더러가 무엇을 몇 개 넘겼는지 보여 준다.
@@ -19,6 +26,8 @@ namespace JBro
         EditorDock GetPreferredDock() const override { return EditorDock::Bottom; }
 
     private:
+        void DrawAudioMeters(System::AudioSystem& audio, float masterPeak);
+
         // 프레임 시간은 한 프레임만 보면 튄다. 최근 것들을 굴려 평균을 낸다.
         static constexpr int SampleCount = 60;
 
@@ -27,5 +36,11 @@ namespace JBro
         int m_nextSample = 0;
         int m_filledSamples = 0;
         std::uint64_t m_frames = 0;
+        // 미터는 봉우리를 곧 떨어뜨리지 않고 천천히 내린다 - 한 블록만 보면 읽을 새가 없다.
+        static constexpr std::uint32_t MaxMeteredBuses = 16;
+        float m_busLevels[MaxMeteredBuses] = {};
+        float m_masterLevel = 0.0f;
+        static constexpr std::uint32_t SpectrumBands = 48;
+        float m_spectrum[SpectrumBands] = {};
     };
 }

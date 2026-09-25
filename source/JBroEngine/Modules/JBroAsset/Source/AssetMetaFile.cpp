@@ -124,6 +124,12 @@ namespace JBro
             {
                 return false;
             }
+            const std::uint32_t audio = document.Find(root, "Audio");
+            if (false == ReadOptions(document, audio, TypeDescriptorOf<AudioImportOptions>::Get(),
+                    &parsed.audioOptions, parsed.hasAudioOptions, error))
+            {
+                return false;
+            }
 
             result = parsed;
             return true;
@@ -172,6 +178,17 @@ namespace JBro
             writer.BeginMap("Texture");
             if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<TextureImportOptions>::Get(),
                     &meta.textureOptions, error))
+            {
+                return false;
+            }
+            writer.EndMap();
+        }
+        // 오디오가 아닌 타입의 오디오 옵션은 뜻이 없어 적지 않는다.
+        if (meta.hasAudioOptions && meta.type == AssetType::Audio)
+        {
+            writer.BeginMap("Audio");
+            if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<AudioImportOptions>::Get(),
+                    &meta.audioOptions, error))
             {
                 return false;
             }

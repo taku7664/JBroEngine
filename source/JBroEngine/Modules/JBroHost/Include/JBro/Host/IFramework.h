@@ -10,6 +10,8 @@ namespace JBro
     class NetworkHost;
     namespace System
     {
+        // 오디오 시스템은 `JBroAudio` 의 것이다. 이 헤더를 쓰는 모듈이 오디오 헤더를 보지 않게 이름만 안다.
+        class AudioSystem;
         class InputSystem;
     }
     class Renderer;
@@ -68,7 +70,10 @@ namespace JBro
         // 호스트가 소유하는 네트워크(D-122). 있으면 프레임워크가 캔버스를 묶고 복제 풀과 수신·송신 시스템을 세운다.
         // 없으면(테스트의 가짜, 네트워크를 끈 호스트) 아무것도 세우지 않는다.
         NetworkHost* network = nullptr;
-        // 호스트가 소유하는 게임 입력(D-201). 프레임워크는 스크립트의 레이어 체인을 이것에 내려보낸다.
+        // 호스트가 소유하는 오디오 시스템(D-197). 있으면 프레임워크가 소스·리스너 시스템을 세운다. 없으면(오디오를 끈
+        // 호스트) 세우지 않는다 - 소스 컴포넌트는 그대로 읽히고 저장된다.
+        System::AudioSystem* audio = nullptr;
+        // 호스트가 소유하는 게임 입력(D-210). 프레임워크는 스크립트의 레이어 체인을 이것에 내려보낸다.
         // 없으면(테스트의 가짜) 체인을 돌리지 않고, 스크립트의 폴링은 빈 입력을 본다.
         System::InputSystem* input = nullptr;
     };

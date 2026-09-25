@@ -1,6 +1,8 @@
 ﻿#include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 
+#include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
@@ -24,6 +26,9 @@ namespace JBro::Component
             all = RegisterComponentType<Rigidbody3D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider3D>(ComponentCategory::Physics) && all;
+            all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
+            all = RegisterComponentType<AudioListener3D>(
+                      ComponentCategory::Audio, ComponentMultiplicity::Single) && all;
             return all;
         }();
         return registered;

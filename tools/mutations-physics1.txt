@@ -1,0 +1,15 @@
+Modules\JBroPhysics2D\Source\Geometry.cpp	outline:absolute-fan-area	            const float cross = Cross(p, q);	            const float cross = std::fabs(Cross(p, q));
+Modules\JBroPhysics2D\Source\Geometry.cpp	triangulate:drop-near-collinear-as-old	                    if (IsDegenerate(a, b, c))\n                    {\n                        ring.RemoveAt(i);	                    if (IsCollinear(a, b, c))\n                    {\n                        ring.RemoveAt(i);
+Modules\JBroPhysics2D\Source\Geometry.cpp	whole:concave-taken-whole	            if (IsConvexRing(clean, whole.vertices, whole.count))	            if (true)
+Modules\JBroPhysics2D\Source\Geometry.cpp	merge:never	                        if (TryMerge(clean, pieces[a], pieces[b], combined))	                        if (false)
+Modules\JBroPhysics2D\Source\Geometry.cpp	merge:no-convexity-check	                    if (false == IsConvexRing(points, candidate.vertices, candidate.count))	                    if (false)
+Modules\JBroPhysics2D\Source\Geometry.cpp	simple:not-checked	        if (false == IsSimple(out))	        if (false)
+Modules\JBroPhysics2D\Source\Geometry.cpp	clean:no-ccw-normalize	            std::reverse(out.begin(), out.end());	            (void)0;
+Modules\JBroPhysics2D\Source\Geometry.cpp	clean:no-dedupe	            if (false == out.IsEmpty()\n                && LengthSquared(Subtract(point, out.Last())) <= LinearSlop * LinearSlop)	            if (false)
+Modules\JBroPhysics2D\Source\Geometry.cpp	mass:no-parallel-axis	        result.inertia = density * inertiaAboutOrigin - result.mass * LengthSquared(center);	        result.inertia = density * inertiaAboutOrigin;
+Modules\JBroPhysics2D\Source\Geometry.cpp	combine:no-parallel-axis	                + part.mass * LengthSquared(Subtract(part.center, result.center));	                + 0.0f;
+Modules\JBroPhysics2D\Source\Geometry.cpp	triangulate:last-triangle-dropped	            if (false == IsDegenerate(a, b, c))\n            {\n                Piece& triangle = pieces.Emplace();	            if (false)\n            {\n                Piece& triangle = pieces.Emplace();
+Modules\JBroPhysics2D\Source\Geometry.cpp	ear:no-containment-test	                        if (PointInTriangle(points[other], a, b, c))	                        if (false)
+Modules\JBroPhysics2D\Source\Geometry.cpp	ear:exclusive-containment	            return d1 >= 0.0f && d2 >= 0.0f && d3 >= 0.0f;	            return d1 > 0.0f && d2 > 0.0f && d3 > 0.0f;
+Modules\JBroPhysics2D\Source\Geometry.cpp	circle:inertia-full	        result.inertia = 0.5f * result.mass * radius * radius;	        result.inertia = result.mass * radius * radius;
+Modules\JBroPhysics2D\Source\Geometry.cpp	clean:collinear-kept	                if (IsCollinear(a, b, c))\n                {\n                    out.RemoveAt(i);	                if (false)\n                {\n                    out.RemoveAt(i);

@@ -9,6 +9,11 @@
 #include <JBro/NetworkSystem/NetworkHost.h>
 
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/AudioDecoder.h>
+#include <JBro/Audio/AudioMixer.h>
+#include <JBro/Audio/AudioSystem.h>
+#include <JBro/AudioTypes/Internal/ScriptModuleContext.h>
+#include <JBro/Types/NameTable.h>
 
 #include <cmath>
 #include <iterator>
@@ -19,6 +24,53 @@
 
 namespace JBro
 {
+    namespace
+    {
+        // 오디오 시스템(과 스크립트 서비스)이 장치를 고르는 길이다(D-203). 장치는 호스트의 것이라 호스트를 거친다.
+        class EngineAudioDevices final : public System::IAudioDeviceControl
+        {
+        public:
+            explicit EngineAudioDevices(EngineInstance& engine) : m_engine(engine)
+            {
+            }
+
+            std::uint32_t RefreshOutputDevices() override
+            {
+                m_count = m_engine.EnumerateAudioOutputs(m_devices, MaxDevices);
+                m_count = m_count < MaxDevices ? m_count : MaxDevices;
+                return m_count;
+            }
+
+            const char* GetOutputDeviceName(std::uint32_t index) const override
+            {
+                return index < m_count ? m_devices[index].name : "";
+            }
+
+            const char* GetCurrentOutputDevice() const override
+            {
+                const IAudioOutput* output = m_engine.GetAudioOutput();
+                return output != nullptr ? output->GetDeviceName() : "";
+            }
+
+            bool SelectOutputDevice(const char* name) override
+            {
+                return m_engine.SetAudioOutputDevice(name);
+            }
+
+            bool IsWaitingForUserGesture() const override
+            {
+                const IAudioOutput* output = m_engine.GetAudioOutput();
+                return output != nullptr && output->IsWaitingForUserGesture();
+            }
+
+        private:
+            static constexpr std::uint32_t MaxDevices = 32;
+            EngineInstance& m_engine;
+            AudioDeviceInfo m_devices[MaxDevices];
+            std::uint32_t m_count = 0;
+        };
+    }
+
     EngineInstance::EngineInstance() = default;
 
     EngineInstance::~EngineInstance()
@@ -83,13 +135,52 @@ namespace JBro
                 BindNetworkSystemContext(m_network->GetSystemContext());
                 BindNetworkServiceContext(m_network->GetServiceContext());
             }
-            // 게임 입력(D-201). 네트워크처럼 호스트가 소유하고 두 차원이 같은 것을 쓴다. 이 모듈 사본에도 묶어
+            // 게임 입력(D-210). 네트워크처럼 호스트가 소유하고 두 차원이 같은 것을 쓴다. 이 모듈 사본에도 묶어
             // 호스트 안에서 붙인 스크립트(정적으로 붙인 것)도 같은 서비스를 읽는다.
             m_input = MakeOwnerPtr<System::InputSystem>();
             BindInputSystemContext(m_input->GetSystemContext());
             BindInputServiceContext(m_input->GetServiceContext());
             m_frameworkContext.input = m_input.Get();
             m_frameworkContext.network = m_network.Get();
+            // 오디오(D-197). 장치를 먼저 열어 그 형식으로 믹서를 만든다. 장치가 없으면 믹서만 선다 - 같은 API 가 소리 없이 돈다.
+            if (config.audioEnabled)
+            {
+                AudioMixerDesc mixerDesc;
+                mixerDesc.maxVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
+                // 디스크 스트리밍의 파일은 플랫폼이 연다(D-203). 스트리머 스레드에서 불린다 - `OpenFileStream` 은 어느
+                // 스레드에서 불러도 된다.
+                mixerDesc.openStream = [](void* user, const char* path, AudioFileDecoder& decoder) {
+                    return decoder.Open(static_cast<IPlatform*>(user)->OpenFileStream(path), path);
+                };
+                mixerDesc.openStreamUser = &platform;
+                if (config.audioDeviceEnabled)
+                {
+                    m_audioOutput = platform.CreateAudioOutput(AudioOutputDesc{});
+                    if (m_audioOutput)
+                    {
+                        mixerDesc.sampleRate = m_audioOutput->GetSampleRate();
+                        mixerDesc.channels = m_audioOutput->GetChannels();
+                    }
+                }
+                m_audioDeviceWanted = config.audioDeviceEnabled;
+                m_audioMixer = MakeOwnerPtr<AudioMixer>();
+                if (false == m_audioMixer->Initialize(mixerDesc))
+                {
+                    Log::Write(LogLevel::Warning, "audio", "the audio mixer did not start - the game runs silent");
+                    m_audioMixer.Reset();
+                    m_audioOutput.Reset();
+                }
+                else if (m_audioOutput && false == m_audioOutput->Start(&AudioMixer::RenderCallback, m_audioMixer.Get()))
+                {
+                    Log::Write(LogLevel::Warning, "audio", "the audio device did not start - the game runs silent");
+                    m_audioOutput.Reset();
+                }
+                if (m_audioMixer)
+                {
+                    m_audioDevices = MakeOwnerPtr<EngineAudioDevices>(*this);
+                    m_audioRetrySeconds = 2.0f;
+                }
+            }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
@@ -148,6 +239,7 @@ namespace JBro
             return false;
         }
         m_project = project;
+        ApplyAudioBuses();
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
@@ -434,6 +526,22 @@ namespace JBro
             if (m_assets->Initialize(m_frameworkContext.memory))
             {
                 m_frameworkContext.assets = m_assets.Get();
+                // 오디오 시스템은 프로젝트 수명이다(D-197). 프레임워크가 소스 시스템을 세울 때 이것을 받는다.
+                if (m_audioMixer)
+                {
+                    m_audio = MakeOwnerPtr<System::AudioSystem>();
+                    if (m_audio->Initialize(*m_audioMixer, m_assets.Get()))
+                    {
+                        m_audio->SetDeviceControl(m_audioDevices.Get());
+                        BindAudioSystemContext(m_audio->GetSystemContext());
+                        BindAudioServiceContext(m_audio->GetServiceContext());
+                    }
+                    else
+                    {
+                        m_audio.Reset();
+                    }
+                }
+                m_frameworkContext.audio = m_audio.Get();
                 m_framework = &framework;
                 initialized = framework.Initialize(m_frameworkContext);
                 // 지금 정해져 있는 값을 새 프레임워크에도 먹인다(D-131). 에디터가 멈춘 채로
@@ -465,6 +573,12 @@ namespace JBro
                         {
                             blocks.Add(MakeNetworkSystemContextBlock(m_network->GetSystemContext()));
                             blocks.Add(MakeNetworkServiceContextBlock(m_network->GetServiceContext()));
+                        }
+                        // 오디오도 호스트 것이다(D-197). 두 차원이 같은 것을 쓴다.
+                        if (m_audio)
+                        {
+                            blocks.Add(MakeAudioSystemContextBlock(m_audio->GetSystemContext()));
+                            blocks.Add(MakeAudioServiceContextBlock(m_audio->GetServiceContext()));
                         }
                         // **못 실어도 프로젝트는 연다**(D-98). 여기서 막으면 아직 한 번도
                         // 빌드하지 않은 프로젝트를 열 길이 없어진다 - 스크립트를 쓰려면
@@ -566,7 +680,7 @@ namespace JBro
                 m_platform->ClearInputEvents();
             }
             m_platform->PumpEvents();
-            // 게임 입력을 이번 프레임으로 접는다(D-201). 호스트(에디터)가 이벤트를 자기 UI 에 넣는 동안은 게임이
+            // 게임 입력을 이번 프레임으로 접는다(D-210). 호스트(에디터)가 이벤트를 자기 UI 에 넣는 동안은 게임이
             // 그 이벤트를 보지 않는다 - 빈 목록으로라도 불러 지난 프레임의 누름·뗌을 비운다.
             if (m_input)
             {
@@ -619,6 +733,16 @@ namespace JBro
             const ProfileScope scope("Update");
             m_framework->Update(deltaTime);
         }
+        // 끝난 보이스를 거둔다. 프레임워크 갱신이 이번 프레임의 재생 요청을 다 낸 뒤다.
+        if (m_audio.Get() != nullptr)
+        {
+            m_audio->Update();
+        }
+        else if (m_audioMixer.Get() != nullptr)
+        {
+            m_audioMixer->Update();
+        }
+        UpdateAudioDevice(deltaTime);
         if (m_exitRequested)
         {
             return false;
@@ -755,6 +879,183 @@ namespace JBro
         {
             m_assets->SetDefaultTextureFilter(project.textureFilter);
         }
+        // 오디오 버스도 지금 적용한다(D-197). 설정 창에서 버스를 더하면 곧바로 고를 수 있어야 한다.
+        ApplyAudioBuses();
+    }
+
+    void EngineInstance::ApplyAudioBuses()
+    {
+        if (m_audio.Get() == nullptr)
+        {
+            return;
+        }
+        Array<AudioBusConfig> buses;
+        buses.Reserve(m_project.audioBuses.Size());
+        for (std::size_t index = 0; index < m_project.audioBuses.Size(); ++index)
+        {
+            const ProjectAudioBus& bus = m_project.audioBuses[index];
+            AudioBusConfig config;
+            // 인턴해 둔다 - 로그와 에디터가 이름을 되찾는다.
+            config.name = NameTable::Get().Intern(bus.name.c_str());
+            config.volume = bus.volume;
+            config.effects = bus.effects;
+            if (false == bus.parent.empty())
+            {
+                config.parent = NameTable::Get().Intern(bus.parent.c_str());
+            }
+            if (false == bus.send.empty())
+            {
+                config.send = NameTable::Get().Intern(bus.send.c_str());
+                config.sendLevel = bus.sendLevel;
+            }
+            if (false == bus.duckBy.empty())
+            {
+                config.duckBy = NameTable::Get().Intern(bus.duckBy.c_str());
+                config.duckAmount = bus.duckAmount;
+                config.duckRelease = bus.duckRelease;
+            }
+            buses.Add(config);
+        }
+        m_audio->ConfigureBuses({buses.Data(), static_cast<std::uint32_t>(buses.Size())});
+        m_audio->SetMuteWhenUnfocused(m_project.audioMuteWhenUnfocused);
+        // 고른 장치가 바뀌었을 때만 다시 연다 - 설정을 저장할 때마다 소리가 끊기지 않게.
+        if (false == (m_project.audioOutputDevice == m_audioDevicePreference))
+        {
+            SetAudioOutputDevice(m_project.audioOutputDevice.c_str());
+        }
+    }
+
+    bool EngineInstance::OpenAudioOutput()
+    {
+        if (m_platform == nullptr || m_audioMixer.Get() == nullptr || false == m_audioDeviceWanted)
+        {
+            return false;
+        }
+        AudioOutputDesc desc;
+        // 믹서의 형식으로 연다. 장치가 다른 형식이면 miniaudio 가 바꾼다 - 믹서를 다시 만들지 않아도 된다.
+        desc.sampleRate = m_audioMixer->GetSampleRate();
+        desc.channels = m_audioMixer->GetChannels();
+        desc.deviceName = m_audioDevicePreference.empty() ? nullptr : m_audioDevicePreference.c_str();
+        OwnerPtr<IAudioOutput> output = m_platform->CreateAudioOutput(desc);
+        if (output.Get() == nullptr && desc.deviceName != nullptr)
+        {
+            // 고른 장치가 이 기계에 없다(또는 뽑혔다). 기본 장치로 연다 - 고른 이름은 그대로 둔다.
+            desc.deviceName = nullptr;
+            output = m_platform->CreateAudioOutput(desc);
+        }
+        if (output.Get() == nullptr || false == output->Start(&AudioMixer::RenderCallback, m_audioMixer.Get()))
+        {
+            return false;
+        }
+        m_audioOutput = std::move(output);
+        return true;
+    }
+
+    bool EngineInstance::SetAudioOutputDevice(const char* name)
+    {
+        m_audioDevicePreference = name != nullptr ? name : "";
+        if (m_audioMixer.Get() == nullptr || false == m_audioDeviceWanted)
+        {
+            return false;
+        }
+        // 옛 장치를 먼저 멈춘다 - 두 장치가 한 믹서를 함께 당기면 안 된다.
+        if (m_audioOutput)
+        {
+            m_audioOutput->Stop();
+            m_audioOutput.Reset();
+        }
+        const bool opened = OpenAudioOutput();
+        m_audioRetrySeconds = opened ? 0.0f : 2.0f;
+        // 장치 알림을 켠다(첫 호출은 거짓이다). 고른 장치가 없어 기본으로 열었으면 그 장치가 꽂힐 때 되돌아간다.
+        if (m_platform != nullptr && false == m_audioDevicePreference.empty())
+        {
+            m_platform->TakeAudioDevicesChanged();
+        }
+        return opened;
+    }
+
+    const char* EngineInstance::GetPreferredAudioOutputDevice() const
+    {
+        return m_audioDevicePreference.c_str();
+    }
+
+    std::uint32_t EngineInstance::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    {
+        return m_platform != nullptr ? m_platform->EnumerateAudioOutputs(devices, capacity) : 0;
+    }
+
+    void EngineInstance::UpdateAudioDevice(float deltaTime)
+    {
+        if (m_audioMixer.Get() == nullptr)
+        {
+            return;
+        }
+        // 포커스: 이번 프레임의 입력 사건에서 마지막 것을 따른다. 알리는 쪽은 바뀔 때만 일한다.
+        if (m_audio.Get() != nullptr && m_platform != nullptr)
+        {
+            const JArrayView<InputEvent> events = m_platform->GetInputEvents();
+            for (std::uint32_t index = 0; index < events.size; ++index)
+            {
+                const InputEventKind kind = events.data[index].kind;
+                if (kind == InputEventKind::FocusLost || kind == InputEventKind::FocusGained)
+                {
+                    m_audio->SetWindowFocused(kind == InputEventKind::FocusGained);
+                }
+            }
+        }
+        if (false == m_audioDeviceWanted)
+        {
+            return;
+        }
+        if (m_audioOutput && m_audioOutput->IsLost())
+        {
+            // 장치가 사라졌다(뽑힘). 소리는 믹서에서 계속 섞이고 있다 - 장치만 새로 연다.
+            Log::Write(LogLevel::Warning, "audio", "the audio device '%s' was lost - reopening", m_audioOutput->GetDeviceName());
+            m_audioOutput->Stop();
+            m_audioOutput.Reset();
+            m_audioRetrySeconds = 0.0f;
+        }
+        if (m_audioOutput.Get() != nullptr)
+        {
+            // 고른 장치가 없어 기본으로 떨어져 있으면, 장치가 바뀌었다는 알림이 올 때만 고른 장치를 다시 찾아본다(D-206).
+            // 목록을 매 프레임 읽지 않는다 - 알림은 원자 표지 하나다.
+            if (false == m_audioDevicePreference.empty()
+                && false == (m_audioDevicePreference == m_audioOutput->GetDeviceName())
+                && m_platform->TakeAudioDevicesChanged())
+            {
+                AudioOutputDesc desc;
+                desc.sampleRate = m_audioMixer->GetSampleRate();
+                desc.channels = m_audioMixer->GetChannels();
+                desc.deviceName = m_audioDevicePreference.c_str();
+                OwnerPtr<IAudioOutput> chosen = m_platform->CreateAudioOutput(desc);
+                if (chosen.Get() != nullptr)
+                {
+                    // 두 장치가 한 믹서를 함께 당기면 안 된다 - 옛 것을 멈춘 뒤에 새 것을 켠다.
+                    m_audioOutput->Stop();
+                    m_audioOutput.Reset();
+                    if (chosen->Start(&AudioMixer::RenderCallback, m_audioMixer.Get()))
+                    {
+                        Log::Write(LogLevel::Info, "audio", "back on the chosen audio device: %s", chosen->GetDeviceName());
+                        m_audioOutput = std::move(chosen);
+                    }
+                    else
+                    {
+                        m_audioRetrySeconds = 0.0f;
+                    }
+                }
+            }
+            return;
+        }
+        m_audioRetrySeconds -= std::isfinite(deltaTime) && deltaTime > 0.0f ? deltaTime : 0.0f;
+        if (m_audioRetrySeconds > 0.0f)
+        {
+            return;
+        }
+        if (OpenAudioOutput())
+        {
+            Log::Write(LogLevel::Info, "audio", "audio output: %s", m_audioOutput->GetDeviceName());
+        }
+        m_audioRetrySeconds = 2.0f;
     }
 
     bool EngineInstance::DidGameSubmitLastFrame() const
@@ -783,6 +1084,11 @@ namespace JBro
         if (m_framework != nullptr)
         {
             m_framework->SetSimulationEnabled(enabled);
+        }
+        // 게임을 세우면 게임 소리도 멈춘다(에디터의 미리 듣기는 그대로다). 소스 시스템이 서면 다시 켤 때 무장한다.
+        if (false == enabled && m_audio.Get() != nullptr)
+        {
+            m_audio->StopGameSounds();
         }
     }
 
@@ -844,6 +1150,16 @@ namespace JBro
                 m_exitRequested = true;
             }
         }
+        // 오디오 시스템은 프레임워크 뒤, 에셋 앞에 내린다. 캔버스가 내려가며 소스가 제 보이스를 멈췄고, 남은 클립은
+        // 여기서 등록을 내린다 - 그 뒤에 에셋이 자료를 푼다.
+        if (m_audio)
+        {
+            BindAudioSystemContext({});
+            BindAudioServiceContext({});
+            m_audio->Shutdown();
+            m_audio.Reset();
+        }
+        m_frameworkContext.audio = nullptr;
         if (m_assets)
         {
             m_assets->Shutdown();
@@ -878,6 +1194,16 @@ namespace JBro
         }
         m_socketProvider.Reset();
         m_networkClock.Reset();
+        // 장치를 먼저 멈춘다. `Stop` 이 돌아오면 오디오 스레드가 믹서를 더 부르지 않는다.
+        if (m_audioOutput)
+        {
+            m_audioOutput->Stop();
+            m_audioOutput.Reset();
+        }
+        m_audioMixer.Reset();
+        m_audioDevices.Reset();
+        m_audioDeviceWanted = false;
+        m_audioDevicePreference.clear();
         if (m_renderer)
         {
             m_renderer->Shutdown();
@@ -929,6 +1255,21 @@ namespace JBro
     NetworkHost* EngineInstance::GetNetwork()
     {
         return m_network.Get();
+    }
+
+    System::AudioSystem* EngineInstance::GetAudio()
+    {
+        return m_audio.Get();
+    }
+
+    AudioMixer* EngineInstance::GetAudioMixer()
+    {
+        return m_audioMixer.Get();
+    }
+
+    const IAudioOutput* EngineInstance::GetAudioOutput() const
+    {
+        return m_audioOutput.Get();
     }
 
     IFramework* EngineInstance::GetFramework()

@@ -1,6 +1,8 @@
 ﻿#include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 
+#include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -26,6 +28,10 @@ namespace JBro::Component
             all = RegisterComponentType<Rigidbody2D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider2D>(ComponentCategory::Physics) && all;
+            // 소스는 한 오브젝트에 여럿 붙는다(발소리와 숨소리). 리스너는 하나다(D-197).
+            all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
+            all = RegisterComponentType<AudioListener2D>(
+                      ComponentCategory::Audio, ComponentMultiplicity::Single) && all;
             return all;
         }();
         return registered;

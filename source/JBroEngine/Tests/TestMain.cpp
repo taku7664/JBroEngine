@@ -26,6 +26,10 @@ int RunUuidTests();
 int RunAssetRegistryTests();
 int RunAssetSystemTests();
 int RunSpriteLibraryTests();
+int RunPhysics2DGeometryTests();
+int RunPhysics2DCollisionTests();
+int RunPhysics2DWorldTests();
+int RunPhysics2DSystemTests();
 int RunGameHostArgumentTests();
 int RunPlatformFileTests();
 int RunReflectedYamlTests();
@@ -62,6 +66,7 @@ int RunScriptCompilerParserTests();
 int RunScriptCompilerCommandLineTests();
 int RunRendererBenchmark();
 int RunAudioMixerTests();
+int RunAudioIntegrationTests();
 
 int main()
 {
@@ -102,6 +107,22 @@ int main()
         {
             return 1;
         }
+        if (RunPhysics2DGeometryTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPhysics2DCollisionTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPhysics2DWorldTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPhysics2DSystemTests() != 0)
+        {
+            return 1;
+        }
         if (RunScriptCompilerParserTests() != 0)
         {
             return 1;
@@ -111,7 +132,7 @@ int main()
             return 1;
         }
         // 오디오 믹서는 장치 없이 몇 초 안에 끝난다(audio-plan §3-1).
-        // 입력 상태 접기는 창 하나만 쓰고 1 초 안에 끝난다(D-201). 앞에 두어 뮤테이션이 빨리 돈다.
+        // 입력 상태 접기는 창 하나만 쓰고 1 초 안에 끝난다(D-210). 앞에 두어 뮤테이션이 빨리 돈다.
         if (RunInputSystemTests() != 0)
         {
             return 1;
@@ -121,6 +142,10 @@ int main()
             return 1;
         }
         if (RunAudioMixerTests() != 0)
+        {
+            return 1;
+        }
+        if (RunAudioIntegrationTests() != 0)
         {
             return 1;
         }

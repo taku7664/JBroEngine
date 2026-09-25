@@ -9,7 +9,7 @@ namespace JBro::System
     class IInputSystem
     {
     public:
-        // 레이어 체인이 다 돈 뒤 남은 입력이다(D-201). 체인이 돌기 전에는 이번 프레임 전체다.
+        // 레이어 체인이 다 돈 뒤 남은 입력이다(D-210). 체인이 돌기 전에는 이번 프레임 전체다.
         virtual const InputView& GetResidualView() const noexcept = 0;
 
     protected:

@@ -76,6 +76,8 @@ namespace
     int RunGameHost(const JBro::GameHostArguments& arguments)
     {
         JBro::EngineConfig config;
+        // 게임은 소리를 낸다(D-197). 장치가 없으면 소리 없이 돈다.
+        config.audioDeviceEnabled = true;
         constexpr char title[] = "JBro Engine";
         config.window.title = {title, sizeof(title) - 1};
 

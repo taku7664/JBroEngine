@@ -20,23 +20,34 @@
   <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
   <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
   <PropertyGroup Label="Configuration">
-    <!-- 헤더 전용 모듈. include 루트를 소유하고 의존 선언을 강제하는 것이 존재 이유이며
-         링크 산출물은 없다. -->
-    <ConfigurationType>Utility</ConfigurationType>
+    <!-- Tier S 다(D-197). 스크립트 DLL 도 이것을 링크한다 - 서비스와 컴포넌트의 비인라인 구현이 여기 있다. -->
+    <ConfigurationType>StaticLibrary</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="Include\**\*.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Source\**\*.cpp" />
+  </ItemGroup>
 <ItemGroup>
     <ProjectReference Include="$(JBroModulesDir)JBroCore\JBroCore.vcxproj">
       <Project>{1a000001-0000-4000-8000-00000000c0de}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
-    </ProjectReference>  </ItemGroup>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAssetTypes\JBroAssetTypes.vcxproj">
+      <Project>{1a000012-0000-4000-8000-0000000a5570}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
+      <Project>{1a000006-0000-4000-8000-000000027417}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

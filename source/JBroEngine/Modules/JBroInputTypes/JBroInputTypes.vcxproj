@@ -20,7 +20,7 @@
   <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
   <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
   <PropertyGroup Label="Configuration">
-    <!-- 서비스와 컨텍스트 접근점의 .cpp 가 있다. 스크립트 DLL 도 이것을 정적으로 링크해 자기 사본을 갖는다(D-201). -->
+    <!-- 서비스와 컨텍스트 접근점의 .cpp 가 있다. 스크립트 DLL 도 이것을 정적으로 링크해 자기 사본을 갖는다(D-210). -->
     <ConfigurationType>StaticLibrary</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />

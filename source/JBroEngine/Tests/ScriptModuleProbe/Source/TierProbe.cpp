@@ -36,7 +36,7 @@
 
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Input
 #if defined(JBRO_TIER_PROBE_INPUT)
-// 입력을 접는 시스템은 Tier E 다(D-201). 스크립트는 상태와 뷰만 본다.
+// 입력을 접는 시스템은 Tier E 다(D-210). 스크립트는 상태와 뷰만 본다.
 #include <JBro/Input/InputSystem.h>
 #endif
 

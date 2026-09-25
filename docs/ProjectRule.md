@@ -24,6 +24,8 @@
   - **남은 일은 공용·2D·3D 로 나눠 적는다**: 공용은 `tasks/todo.md`, 2D 는 `tasks/todo-2d.md`, 3D 는 `tasks/todo-3d.md`.
     한 차원에만 닿는 항목을 공용에 두지 않고, 3D 는 2D 뒤의 순서다. (MUST) (D-116)
   - 사용자 확인을 기다리는 것도 빼지 않는다. `[열림]`·`[대기]` 처럼 상태를 붙여 적는다.
+  - **구현을 마친 남은 일은 지우지 않고 취소선(`~~...~~`)으로 긋고, 끝에 언제(날짜·커밋)와 어디서(파일·함수) 고쳤는지 붙인다.**
+    형식은 `~~항목~~ → 완료 날짜 · 커밋 · 파일(함수)` 이다. 이미 `[완료]` 로 남은 항목은 그대로 둔다. (MUST) (D-204)
   - **대화에만 나오고 문서에 없는 결정·실측은 없는 것으로 본다.** 다음 작업은 문서만 보고 시작할 수 있어야 한다.
 
 ## 2. 플랫폼과 렌더링 경계
@@ -88,6 +90,8 @@
   프레임이 열려 있는 동안 호출하면 실패해야 하고, 구현하지 않은 백엔드는 `false`를 반환한다.
 - 프로젝트 파일은 `.jproject`(YAML)이며 키 이름은 기존 엔진과 같다. (MUST)
   두 번째 형식을 만들지 않는다. 읽지 못하는 구조는 추측하지 않고 줄 번호와 함께 거절한다.
+  오디오 버스는 기존 엔진과 같은 키 `AudioBuses`(`- Name:`·`Volume:` 의 맵 시퀀스)다. 부동소수는 값을 지키는 가장 짧은 글자로
+  적는다 - `%.9g` 는 사람이 적은 `0.8` 을 `0.800000012` 로 바꿔 고친 것 없는 저장이 파일을 바꾼다(D-189·D-197).
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest) 다. `PixelsPerUnit` 은 프로젝트에 없다 - PPU 는 스프라이트 에셋의 것이다. (D-111·D-119)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
@@ -115,6 +119,29 @@
   `Canvas`는 Tier E라 스크립트 타깃이 보지 못하므로, 기존 엔진처럼 캔버스를 넘겨받을 수 없다.
 - `IFramework::Render()`는 `RenderResult { Submitted, NothingToSubmit, Failed }`를 반환하며 호스트는 `Failed`만
   치명 오류로 본다. 렌더 시스템이 없는 Framework는 `NothingToSubmit`을 반환한다. (MUST) (D-49)
+- **오디오는 장치를 직접 열지 않고 `IPlatform::CreateAudioOutput` 을 거친다**(소켓과 같은 규약, 기본 null). 장치가 없으면
+  엔진은 소리 없이 같은 API 로 돈다. 믹싱은 `JBroAudio` 의 `AudioMixer` 가 하고 miniaudio `ma_engine` 은 그 private 이다 -
+  miniaudio 헤더는 `.cpp` 만 본다. miniaudio 설정 매크로는 `JBro.Common.props` 의 `JBroMiniaudioDefines` 한 곳이고 구현 번역
+  단위(`ThirdParty/miniaudio/miniaudio.cpp`)와 그 헤더를 보는 모든 모듈이 같은 값을 받는다. (MUST) (D-197·D-198)
+  - 보이스·버스·클립은 믹서가 소유하고 밖에는 index+generation 핸들만 나간다. 호출자가 쥐는 오디오 객체를 만들지 않는다.
+  - 믹서 API 는 **메인 스레드 전용**이다. 오디오 스레드가 부르는 것은 `Render` 하나다.
+  - **재생 중에는 miniaudio 가 원자 변수로 든 값만 쓴다**(볼륨·피치·루프·위치·속도·시작/정지). 거리·감쇠·rolloff·도플러 계수는
+    보이스가 멈춰 있을 때(`AudioPlayDesc`)만 쓴다 - 그 값은 평범한 float 라 재생 중에 쓰면 오디오 스레드와 경쟁한다.
+  - miniaudio 의 할당은 믹서의 고정 할당기로 받고 초기화 때 보이스 수만큼 예열한다. 정상 오디오 프레임은 힙을 건드리지 않는다
+    (측정으로 고정한다). 예외는 Vorbis 스트리밍 시작 하나다(stb_vorbis 가 CRT 에서 할당한다).
+  - 오디오 에셋은 CPU 자료만 든다(`AudioData`: 전체 PCM 또는 압축 바이트). 믹서는 그것을 **빌려** 재생하므로, `AssetSystem` 은
+    오디오 자료를 풀거나 바꾸기 **직전에** `AudioReleaseCallback` 으로 알리고 받는 쪽은 그 클립의 보이스를 멈추고 등록을 내린다.
+  - 임포트 옵션(`Audio.ImportOptions`)은 파일의 속성(지금은 `mode`)만 든다. 재생 파라미터는 컴포넌트가 유일한 원천이다.
+  - 이펙트는 **버스마다 고정 사슬**(고역 차단 → 저역 차단 → 메아리 → 잔향)이다(D-202). 값은 원자 변수로 건너가고 필터 계수는
+    오디오 스레드가 짓는다. 메아리·잔향 버퍼는 처음 켤 때 메인 스레드가 잡는다 - 오디오 스레드는 할당하지 않는다.
+  - 버스의 부모는 목록의 앞 버스만이고, 센드는 되돌아오는 길을 만들면 거절한다(D-203). 솔로는 저장하지 않는다.
+  - 버스 음량·음소거·솔로는 이펙트 노드 끝의 램프로 건다(D-205). 그룹 음량을 곧바로 바꾸지 않는다 - 딸깍 소리가 난다.
+  - 버스 사용자 처리기는 엔진·호스트 코드만 건다. 스크립트 DLL 에는 열지 않는다(D-206). `SetBusProcessor` 가 돌아오면 옛 처리기는
+    불리지 않는다.
+  - 실제 스피커를 여는 시험은 `JBRO_AUDIO_DEVICE_TEST=1` 일 때만 돈다. 장치 쪽을 고쳤으면 켜고 돌린다(D-206).
+- 스크립트 DLL 경계 구조체의 크기 단언은 64 비트에서 잰 값이고 `sizeof(void*) != 8 ||` 로 건다(D-206). 웹(wasm32)에는 DLL 경계가 없다.
+  - 디스크 스트리밍의 파일은 `IPlatform::OpenFileStream` 으로만 열고, 믹서의 스트리머 스레드만 읽는다. 오디오 스레드는 링만 읽는다.
+  - 출력 장치는 호스트가 가진다. 사라진 장치는 호스트가 다음 프레임에 다시 열고, 믹서는 그대로 둔다(D-203).
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)
 
 ## 3. 모듈 경계와 링크
@@ -145,14 +172,16 @@
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry` |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
-  | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-201) |
-  | Tier E | `JBroInput` | `System::InputSystem` - 플랫폼 이벤트를 프레임 상태로 접고 레이어 체인의 소비를 나른다 (D-201) |
+  | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
+  | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-210) |
+  | Tier E | `JBroInput` | `System::InputSystem` - 플랫폼 이벤트를 프레임 상태로 접고 레이어 체인의 소비를 나른다 (D-210) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현) |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
+  | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
 
   > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고
   > 셋 다 스크립트 DLL 이 링크하기 때문이다. 스크립트가 그 선언을 받지 않는 것은 프렐류드가
@@ -447,19 +476,19 @@
 
 ### 7.1 게임 입력
 
-- **게임 입력은 플랫폼 이벤트(D-62)를 프레임마다 한 번 접은 상태다.** 키 상태를 폴링(`GetAsyncKeyState` 따위)하지 않는다. (MUST) (D-201)
+- **게임 입력은 플랫폼 이벤트(D-62)를 프레임마다 한 번 접은 상태다.** 키 상태를 폴링(`GetAsyncKeyState` 따위)하지 않는다. (MUST) (D-210)
   폴링은 한 프레임 안에 눌렀다 뗀 키를 잃는다. 키·버튼마다 지금 눌림과 이번 프레임의 눌림 수·뗌 수를 두고, 자동 반복은 누름이 아니며,
   `FocusLost` 는 눌린 것을 모두 뗀 것으로 접는다. 접는 것은 `System::InputSystem`(Tier E `JBroInput`)이고 `EngineInstance` 가 소유한다.
   키 이름(`Key`·`MouseButton`·`KeyModifiers`)은 `JBroCore` 의 `<JBro/Core/InputKeys.h>` 에 한 번 둔다. 상태·뷰·핸들러·서비스는 Tier S `JBroInputTypes` 다.
 - **입력 블로킹은 레이어 체인 하나로 한다.** 스크립트는 `InputHandler<"레이어", Order>` 를 상속해 `OnInput(InputView&)` 을 쓰고, `InputResult::Block` 을
-  돌려주면 아래 핸들러와 폴링이 모두 막힌다. `InputView::Consume(InputDevice)` 는 그 장치만 아래에 빈 장치로 보인다. (MUST) (D-201)
+  돌려주면 아래 핸들러와 폴링이 모두 막힌다. `InputView::Consume(InputDevice)` 는 그 장치만 아래에 빈 장치로 보인다. (MUST) (D-210)
   체인 순서는 (프로젝트 레이어 순서, `Order` 큰 것 먼저, 실행 순서)이고 없는 레이어는 맨 아래에서 받는다.
 - **입력을 읽는 뒷문을 두지 않는다.** 스크립트의 폴링(`Service::InputService`)은 체인이 막고 남은 것만 본다. 엔진 시스템이 입력을 써야 하면
-  (뒤에 올 UI 버튼 따위) 같은 체인에 레이어와 순서를 가진 핸들러로 선다 - 프레임 상태를 직접 읽지 않는다. (MUST) (D-201)
+  (뒤에 올 UI 버튼 따위) 같은 체인에 레이어와 순서를 가진 핸들러로 선다 - 프레임 상태를 직접 읽지 않는다. (MUST) (D-210)
   기존 엔진의 `GetDeviceContext()` 가 그 뒷문이었고, 모달 아래의 버튼이 눌렸다.
 - **핸들러는 따로 등록하지 않는다.** 스크립트 타입에서 `if constexpr` 로 만든 썽크를 `ScriptTypeInfo`·컴포넌트 버킷이 들고, `ScriptSystem` 이 실행
-  순서 목록과 함께 체인을 세운다. 날 핸들러 포인터를 등록·해제하는 목록을 만들지 않는다. (MUST) (D-201)
-- 체인은 시작 훅을 받은 켜진 스크립트만, 그 프레임의 `OnFixedUpdate`·`OnUpdate` 보다 먼저 부른다. 부르는 자리는 프레임워크의 고정 스텝 앞이다. (MUST) (D-201)
+  순서 목록과 함께 체인을 세운다. 날 핸들러 포인터를 등록·해제하는 목록을 만들지 않는다. (MUST) (D-210)
+- 체인은 시작 훅을 받은 켜진 스크립트만, 그 프레임의 `OnFixedUpdate`·`OnUpdate` 보다 먼저 부른다. 부르는 자리는 프레임워크의 고정 스텝 앞이다. (MUST) (D-210)
 
 ## 8. 오브젝트-컴포넌트 모델
 
@@ -486,6 +515,10 @@
   보존이 철 지난 월드를 쓴다.
 - `ComponentBase`의 가상 함수 집합은 `~ComponentBase`·`GetTypeId`·`OnAttached`·`OnDetached`·`OnEnabled`·`OnDisabled`다. (MUST)
   스크립트 DLL이 파생하는 타입의 vtable은 ABI이므로 추가는 Decisions와 D-28 재빌드 규약을 거친다.
+- **2D 스크립트는 모두 `GameScript2D` 에서 파생하고, 2D 스크립트 모듈은 `RegisterScriptType2D<T>` 로만 타입을 등록한다.** (MUST) (D-207)
+  물리 시스템은 오브젝트에 붙은 스크립트를 `GameScript2D` 로 여기고 충돌·트리거 훅을 부른다(프레임 경로에 `dynamic_cast` 금지).
+  `RegisterScriptType2D` 는 `GameScriptBase` 에서 바로 파생한 타입을 컴파일 시간에 거절한다(`static_assert`).
+  `GameScript2D` 의 가상 함수 표는 `Framework2DServiceContextAbiVersion` 이 대표한다 - 훅을 더하면 그 값을 올린다.
   형제 컴포넌트 캐시는 `OnAttached`에서 잡고 `InstanceHandle`과 함께 저장해 프레임 시작에 세대 비교로 검증한다. (D-48)
 - `GameObject`는 `m_activeInHierarchy`를 캐시하고 `SetActive`·`SetParent`가 하위 트리에 전파한다.
   `IsActiveInHierarchy()`는 O(1)이다. (MUST) (D-54)

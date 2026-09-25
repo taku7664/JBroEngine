@@ -21,6 +21,12 @@
 
 namespace JBro
 {
+    namespace System
+    {
+        // `JBroAudio` 의 것이다. 이 헤더를 쓰는 쪽이 오디오 헤더를 보지 않게 이름만 안다.
+        class AudioSystem;
+    }
+
     class Canvas;
     class EditorThumbnails;
     // 단축키 표(`EditorShortcuts.h`)는 ImGui 를 끌어온다. 이 헤더는 에디터 호스트처럼 ImGui 를
@@ -33,6 +39,7 @@ namespace JBro
     class EngineInstance;
     class IFramework;
     class IPlatform;
+    struct AudioDeviceInfo;
     class AssetRegistry;
     class AssetSystem;
     struct AssetMetaFile;
@@ -76,6 +83,8 @@ namespace JBro
         std::uint32_t windowHeight = 720;
         bool windowVisible = true;
         bool enableValidation = false;
+        // 참이면 오디오 출력 장치를 연다(D-197). 실제 에디터만 참이다 - 테스트는 장치 없이 믹서만 세운다.
+        bool audioDevice = false;
         // 화면 글자를 어디서 읽을지(ProjectRule §11.2). 못 읽어도 에디터는 뜬다 -
         // 그때는 코드에 있는 영어 원문이 나온다. 글자 파일 하나 때문에 아무것도
         // 못 보는 것이 더 나쁘다.
@@ -183,6 +192,13 @@ namespace JBro
         const AssetRegistry& GetAssetRegistry() const;
         // 열린 프로젝트의 에셋 시스템이다. 프로젝트가 없으면 nullptr 다.
         AssetSystem* GetAssetSystem();
+        // 열린 프로젝트의 오디오 시스템이다(D-197). 프로젝트가 없거나 오디오를 끈 엔진이면 nullptr 다.
+        // 인스펙터의 미리 듣기가 이것을 쓴다.
+        System::AudioSystem* GetAudio();
+        // 소리가 나가는 장치의 이름이다. 장치를 열지 않았거나 못 열었으면 nullptr 이다 - 통계 창이 "소리 없음" 을 알린다.
+        const char* GetAudioDeviceName() const;
+        // 출력 장치 목록이다(D-203). 몇 ms 걸리므로 목록을 여는 순간에만 부른다.
+        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity);
         // 열린 프로젝트의 에셋 폴더가 감시되고 있는가. 거짓이면 밖에서 바꾼 파일이 반영되지 않는다.
         bool IsWatchingAssets() const;
 
@@ -355,9 +371,9 @@ namespace JBro
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetGameViewExtent() const;
         // 게임 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
-        // 그 패널이 포커스를 가졌는지다. 게임 입력의 마우스를 게임 화면 픽셀로 옮기는 데 쓴다(D-201).
+        // 그 패널이 포커스를 가졌는지다. 게임 입력의 마우스를 게임 화면 픽셀로 옮기는 데 쓴다(D-210).
         void ReportGameView(bool focused, float left, float top, float width, float height);
-        // 이번 프레임에 게임이 에디터 창의 입력을 받는가(D-201). 재생 중이고 멈추지 않았으며 **지난 프레임에** 게임 뷰가
+        // 이번 프레임에 게임이 에디터 창의 입력을 받는가(D-210). 재생 중이고 멈추지 않았으며 **지난 프레임에** 게임 뷰가
         // 포커스를 가졌을 때다. 그 동안 에디터 단축키는 재생 제어(F5·F6)만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
         bool IsGameReceivingInput() const;
 
@@ -626,7 +642,7 @@ namespace JBro
         String m_simulationSnapshot;
         bool m_simulationPlaying = false;
         bool m_simulationPaused = false;
-        // 게임 입력(D-201). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
+        // 게임 입력(D-210). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
         // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(게임 뷰를 누르면 포커스부터 온다).
         bool m_gameViewFocused = false;
         bool m_gameViewReported = false;

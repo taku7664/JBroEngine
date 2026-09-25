@@ -3,6 +3,7 @@
 #include "Rendering/RenderBridge3D.h"
 
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
+#include <JBro/Framework3DSystem/System/Audio3DSystem.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Canvas/CanvasReflection.h>
@@ -169,6 +170,29 @@ namespace JBro
         auto& meshes = systems.AddSystem<System::MeshRender3DSystem>();
         meshes.SetRenderWorld(&m_renderWorld);
         meshes.SetMeshLibrary(&m_meshes);
+        // 오디오가 있으면 소스·리스너 시스템을 세운다(D-197).
+        if (m_context.audio != nullptr)
+        {
+            systems.AddSystem<System::Audio3DSystem>(*m_context.audio).SetEnabled(m_simulationEnabled);
+        }
+    }
+
+    void Framework3D::SetSimulationEnabled(bool enabled)
+    {
+        m_simulationEnabled = enabled;
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        // 멈추면 보이스를 멈추고 소스를 처음으로 되돌린다 - 다시 켜면 `playOnStart` 가 한 번 다시 울린다.
+        if (System::Audio3DSystem* audio = m_canvas->GetSystems().FindSystem<System::Audio3DSystem>())
+        {
+            if (false == enabled)
+            {
+                audio->ReleaseAllSources(*m_canvas);
+            }
+            audio->SetEnabled(enabled);
+        }
     }
 
     void Framework3D::RunFixedSteps(float deltaTime)

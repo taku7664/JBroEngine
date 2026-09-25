@@ -1,11 +1,16 @@
 ﻿#include "StatsPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/FormLayout.h>
+#include <JBro/Editor/Widget/Meter.h>
 #include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Audio/AudioMixer.h>
+#include <JBro/Audio/AudioSystem.h>
 
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -14,6 +19,41 @@
 
 namespace JBro
 {
+    // 버스마다 미터와 솔로다(D-203). 미터는 봉우리를 잡고 초당 1.5 씩 내린다 - 한 블록만 보면 읽을 새가 없다.
+    void StatsPanel::DrawAudioMeters(System::AudioSystem& audio, float masterPeak)
+    {
+        const auto hold = [](float& shown, float now) {
+            const float fallen = shown - 1.5f * ImGui::GetIO().DeltaTime;
+            shown = now > fallen ? now : (fallen > 0.0f ? fallen : 0.0f);
+        };
+        Widget::FormLayout meters("##audioMeters");
+        hold(m_masterLevel, masterPeak);
+        meters.Row([] { Widget::Text(AudioMasterBusName); },
+            [&] { Widget::LevelMeter("##master", m_masterLevel); });
+        const JArrayView<AudioBusConfig> buses = audio.GetBusConfigs();
+        for (std::uint32_t index = 0; index < buses.size && index < MaxMeteredBuses; ++index)
+        {
+            const AudioBusConfig& config = buses.data[index];
+            AudioBusName name;
+            name.id = config.name;
+            hold(m_busLevels[index], audio.GetBusPeak(name));
+            // 번호는 값 칸 안에서만 민다 - 표의 줄 사이에서 밀면 표의 ID 쌓기가 어긋난다.
+            meters.Row([&config] { Widget::Text(NameTable::Get().Resolve(config.name)); },
+                [&] {
+                    ImGui::PushID(static_cast<int>(index));
+                    bool solo = audio.IsBusSolo(name);
+                    if (Widget::Checkbox("##solo", solo))
+                    {
+                        audio.SetBusSolo(name, solo);
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::StatsAudioSolo, "Solo - hear only this bus while mixing"));
+                    ImGui::SameLine();
+                    Widget::LevelMeter("##level", m_busLevels[index]);
+                    ImGui::PopID();
+                });
+        }
+    }
+
     const char* StatsPanel::GetTitle() const
     {
         // 안정된 이름이다. 번역하지 않는다 - 창의 정체가 여기 달려 있다.
@@ -84,6 +124,44 @@ namespace JBro
                 stats.droppedViewCount, stats.droppedSpriteCount);
         }
 
+        // **소리가 얼마나 쓰이는지**(D-197, 기존 백로그의 오디오 프로파일러 자리). 보이스가 모자라 훔치거나 거절하면 소리가
+        // 조용히 사라진다 - 그것이 보여야 한다.
+        if (System::AudioSystem* audio = m_editor->GetAudio())
+        {
+            if (const AudioMixer* mixer = audio->GetMixer())
+            {
+                const AudioMixer::Stats sound = mixer->GetStats();
+                ImGui::Separator();
+                if (const char* device = m_editor->GetAudioDeviceName())
+                {
+                    Widget::TextF(Loc::TextOr(LocKeys::StatsAudioDevice, "audio device %s"), device);
+                }
+                else
+                {
+                    Widget::HintTextF("%s", Loc::TextOr(LocKeys::StatsAudioNoDevice,
+                        "no audio device - sounds are mixed but not heard"));
+                }
+                Widget::TextF(Loc::TextOr(LocKeys::StatsAudioVoices, "voices %u / %u, peak %.2f"),
+                    sound.activeVoices, sound.maxVoices, static_cast<double>(sound.lastPeak));
+                if (sound.voicesStolen != 0 || sound.voicesRejected != 0)
+                {
+                    Widget::SeverityTextF(Widget::Severity::Warning,
+                        Loc::TextOr(LocKeys::StatsAudioStolen,
+                            "%llu voice(s) stolen, %llu refused - raise the voice count or lower priorities"),
+                        static_cast<unsigned long long>(sound.voicesStolen),
+                        static_cast<unsigned long long>(sound.voicesRejected));
+                }
+                // 버스마다 미터와 솔로다(D-203). 미터는 봉우리를 잡고 초당 1.5 씩 내린다.
+                if (Widget::FoldNode(Loc::TextOr(LocKeys::StatsAudioBuses, "Buses"), ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    // 표는 마디를 닫기 전에 끝나야 한다 - 그래서 제 함수 안에서 연다.
+                    DrawAudioMeters(*audio, sound.lastPeak);
+                    Widget::TreePop();
+                }
+                mixer->ComputeSpectrum(m_spectrum, SpectrumBands);
+                Widget::Spectrum("##spectrum", {m_spectrum, SpectrumBands}, ImGui::GetFrameHeight() * 2.5f);
+            }
+        }
         // **캔버스가 얼마나 찼는지**(D-145). 기존 엔진의 CPU 프로파일러가 이 숫자들을 냈다.
         // 오브젝트가 몇인지, 고른 것이 몇인지, 되돌릴 것이 남았는지 - 화면에 없으면
         // 캔버스가 무거워진 까닭을 짐작으로 찾게 된다.

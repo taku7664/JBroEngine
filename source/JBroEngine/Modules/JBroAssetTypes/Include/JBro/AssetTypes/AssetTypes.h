@@ -90,6 +90,27 @@ namespace JBro
         TextureFilter filter = TextureFilter::Default;
     };
 
+    // 오디오 에셋의 디코드 방식이다(`.jmeta` 의 `Audio.ImportOptions.mode`, D-197). 파일의 속성이라 에셋 몫이다(D-198).
+    enum class AudioImportMode : std::uint8_t
+    {
+        // 로드 때 전부 PCM 으로 푼다. 짧은 효과음.
+        Decompressed,
+        // 압축된 바이트를 메모리에 두고 재생하며 푼다. 긴 배경음.
+        Streaming,
+        // 파일을 메모리에 올리지 않고 디스크에서 흘려 읽는다(D-203). 몇 분짜리 배경음·음성처럼 메모리에 두기 아까운 것.
+        // 동시에 흘려 읽는 수가 정해져 있고(기본 8) 웹 빌드에서는 되지 않는다 - 그때는 `Streaming` 으로 둔다.
+        StreamFromDisk
+    };
+
+    // `.jmeta` 의 `Audio.ImportOptions` 블록이다. **재생 파라미터는 없다** - 볼륨·루프·거리·버스는 컴포넌트가
+    // 유일한 원천이다(D-197·D-198). 라우드니스 정규화 게인·루프 지점처럼 파일의 속성이 생기면 여기에 온다.
+    struct AudioImportOptions
+    {
+        AudioImportMode mode = AudioImportMode::Decompressed;
+        // 파일의 크기 보정(트림, 0..4, D-205)이다. 녹음마다 다른 크기를 여기서 한 번 맞추면 컴포넌트의 `volume` 은 연출에만 쓴다.
+        float gain = 1.0f;
+    };
+
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.
     struct SpriteFrame
     {
@@ -132,6 +153,11 @@ namespace JBro
         };
 
         struct ShaderAsset
+        {
+            AssetId id;
+        };
+
+        struct AudioAsset
         {
             AssetId id;
         };

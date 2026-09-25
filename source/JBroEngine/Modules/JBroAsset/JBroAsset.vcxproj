@@ -25,7 +25,8 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroThirdPartyDir)stb;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>$(JBroMiniaudioDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroThirdPartyDir)stb;$(JBroThirdPartyDir)miniaudio;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -45,6 +46,10 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroPlatform\JBroPlatform.vcxproj">
       <Project>{1a000004-0000-4000-8000-00000091a7f0}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
+      <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>

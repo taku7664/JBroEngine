@@ -11,7 +11,7 @@ namespace JBro
         class InputSystem;
     }
 
-    // 소비를 가르는 장치 단위다(D-201).
+    // 소비를 가르는 장치 단위다(D-210).
     enum class InputDevice : std::uint8_t
     {
         Keyboard,
@@ -20,7 +20,7 @@ namespace JBro
         Count
     };
 
-    // 핸들러와 폴링이 읽는 입력이다(D-201).
+    // 핸들러와 폴링이 읽는 입력이다(D-210).
     //
     // 레이어 체인을 따라 **하나가 내려간다.** 위의 핸들러가 `Consume` 한 장치는 아래에서 빈 장치로
     // 보이고, 체인이 다 돈 뒤 남은 것을 `Service::InputService` 가 `OnUpdate` 의 폴링에 준다.

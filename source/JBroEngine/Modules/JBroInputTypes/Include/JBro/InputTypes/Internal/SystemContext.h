@@ -11,7 +11,7 @@ namespace JBro
     inline constexpr std::uint32_t InputSystemContextAbiVersion = 1;
 
     // 입력 시스템 인터페이스 묶음이다. 호스트가 소유한 `System::InputSystem` 을 가리킨다.
-    // `JBroRuntime::SystemContext` 에 넣지 않고 네트워크처럼 D-37 확장 블록으로 넘긴다(D-201) -
+    // `JBroRuntime::SystemContext` 에 넣지 않고 네트워크처럼 D-37 확장 블록으로 넘긴다(D-210) -
     // 그러면 Runtime 이 입력 모듈을 알 필요가 없다. 서비스 구현만 읽는다.
     struct InputSystemContext
     {

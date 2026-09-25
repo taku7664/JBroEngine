@@ -12,10 +12,17 @@
 namespace JBro
 {
     class NetworkHost;
+    class AudioMixer;
+    namespace System
+    {
+        // 오디오의 것들(D-197). 이 헤더를 쓰는 에디터가 오디오 헤더를 보지 않게 이름만 안다. 정의는 EngineInstance.cpp 가 본다.
+        class AudioSystem;
+        class IAudioDeviceControl;
+    }
 
     namespace System
     {
-        // 게임 입력(D-201). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
+        // 게임 입력(D-210). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
         class InputSystem;
     }
 
@@ -46,6 +53,14 @@ namespace JBro
         // 트랜스포트 버퍼와 복제가 서고, `Disconnect` 가 그것을 돌려준다. 그래서 기본값이 참이다 - 스크립트가 켤 대상은
         // 늘 있어야 하기 때문이다.
         bool networkEnabled = true;
+        // 거짓이면 오디오를 세우지 않는다. 소스 컴포넌트는 읽히지만 소리가 나지 않고 스크립트의 오디오 서비스는 조용히
+        // 아무 일도 하지 않는다(D-197).
+        bool audioEnabled = true;
+        // 참이면 플랫폼의 출력 장치를 연다. **게임 호스트와 에디터만 참이다** - 테스트는 장치 없이 믹서만 세운다.
+        // 장치를 열지 못해도(스피커 없음) 엔진은 소리 없이 선다.
+        bool audioDeviceEnabled = false;
+        // 동시에 울리는 보이스 수다(D-197, 기존 엔진과 같은 64). 다 차면 우선순위가 낮은 것부터 훔친다.
+        std::uint32_t audioMaxVoices = 64;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -111,7 +126,7 @@ namespace JBro
         // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
         // 입력이 쌓이기만 한다.
         void SetInputOwnedByHost(bool owned);
-        // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-201). 다음 `Tick` 이 이것을 접고 비운다.
+        // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-210). 다음 `Tick` 이 이것을 접고 비운다.
         // 에디터는 재생 중이고 게임 뷰가 포커스를 가졌을 때만 부르고, 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
         // 한 틱에 여러 번 부르면 이어 붙는다. `mapping` 은 마지막 것을 쓴다.
         void SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping);
@@ -156,6 +171,19 @@ namespace JBro
         Renderer* GetRenderer();
         // 호스트가 소유하는 네트워크(D-122). 끈 호스트는 null 이다. 캔버스보다 오래 산다.
         NetworkHost* GetNetwork();
+        // 프로젝트 수명의 오디오 시스템(D-197). 프로젝트가 없거나 오디오를 끈 호스트는 null 이다.
+        System::AudioSystem* GetAudio();
+        // 프로세스 수명의 믹서다. 오디오를 끈 호스트는 null 이다.
+        AudioMixer* GetAudioMixer();
+        // 출력 장치다. 장치를 열지 않았거나 못 열었으면 null 이다.
+        const IAudioOutput* GetAudioOutput() const;
+        // 출력 장치 목록(D-203)이다. 몇 ms 걸리므로 목록을 여는 순간에만 부른다.
+        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity);
+        // 이 이름의 장치로 바꾼다(비우면 시스템 기본). 그 장치가 없으면 기본으로 연다. 소리는 끊김 없이 이어진다 - 믹서는
+        // 그대로이고 장치만 바뀐다. 어느 장치도 열지 못하면 거짓이고, 그 뒤로 2 초마다 다시 시도한다.
+        bool SetAudioOutputDevice(const char* name);
+        // 고른 장치 이름이다(없는 장치여도 고른 그대로다). 비었으면 시스템 기본이다.
+        const char* GetPreferredAudioOutputDevice() const;
         // 대화상자의 주인 창으로 쓴다. 창이 없으면 값이 0 이다.
         WindowHandle GetMainWindow() const
         {
@@ -180,6 +208,12 @@ namespace JBro
         bool TickFrame(float deltaTime);
         void ReleaseProject();
         void ReleaseResources();
+        // 프로젝트의 버스 목록·장치·포커스 정책을 오디오 시스템에 건다.
+        void ApplyAudioBuses();
+        // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
+        bool OpenAudioOutput();
+        // 프레임마다: 장치가 사라졌으면 닫고 다시 연다(D-203). 창 포커스를 오디오 시스템에 알린다.
+        void UpdateAudioDevice(float deltaTime);
 
         IPlatform* m_platform = nullptr;
         IFramework* m_framework = nullptr;
@@ -192,6 +226,16 @@ namespace JBro
         OwnerPtr<Network::ISocketProvider> m_socketProvider;
         OwnerPtr<Network::SteadyClock> m_networkClock;
         OwnerPtr<NetworkHost> m_network;
+        // 오디오(D-197). 출력 장치와 믹서는 프로세스 수명, 오디오 시스템은 프로젝트 수명이다. 내릴 때는 장치를 먼저
+        // 멈춘다 - 멈춘 뒤에는 오디오 스레드가 믹서를 부르지 않는다.
+        OwnerPtr<IAudioOutput> m_audioOutput;
+        OwnerPtr<AudioMixer> m_audioMixer;
+        OwnerPtr<System::AudioSystem> m_audio;
+        // 장치를 열어야 하는 호스트인가(`audioDeviceEnabled`). 사라진 장치를 다시 열지를 이것이 정한다.
+        bool m_audioDeviceWanted = false;
+        String m_audioDevicePreference;
+        float m_audioRetrySeconds = 0.0f;
+        OwnerPtr<System::IAudioDeviceControl> m_audioDevices;
         OwnerPtr<System::InputSystem> m_input;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;

@@ -2,11 +2,13 @@
 
 > 공용 남은 일과 Decisions 는 `todo.md`, 2D 는 `todo-2d.md` 다(D-116). 여기는 3D 프레임워크·3D 렌더링·3D 편집의 것만
 > 적는다. 3D 는 2D 뒤의 순서다 - 여기 항목은 2D 쪽이 막히지 않는 한 뒤로 미룬다. 실측과 배경은 `framework3d-plan.md` §3.
+> 구현을 마친 항목은 지우지 않고 취소선으로 긋고 언제(날짜·커밋)와 어디서(파일·함수) 고쳤는지 붙인다(D-204).
 
 ## 오디오 (audio-plan §3-6, D-197)
 
-- `[진행 예정]` **`Component::AudioListener3D` 와 `System::Audio3DSystem`.** 2D 와 같은 모양이고 리스너 방향을 `Transform3D` 에서
-  읽는다. 2D 오디오가 선 뒤다.
+- `[완료]` **`Component::AudioListener3D` 와 `System::Audio3DSystem`**(D-201). 2D 와 같은 모양이고 리스너 방향을 `Transform3D` 의
+  회전(-Z 앞, +Y 위)에서 읽는다. 3D 프레임워크가 처음으로 `SetSimulationEnabled` 를 받는다 - 지금 세우는 것은 소리뿐이다.
+- `[열림]` 3D 에서만 뜻이 있는 소스 필드(원뿔 감쇠)는 공용 `AudioSource` 밖의 3D 컴포넌트로 둔다(D-198). 아직 없다.
 
 ## 재질
 

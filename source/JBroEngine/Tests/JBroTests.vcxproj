@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroScriptCompiler\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(JBroNegativePreludeProbe)' == 'SystemContext'">JBRO_TEST_SCRIPT_API_SYSTEM_CONTEXT_LEAK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -86,6 +86,9 @@
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2DSystem\JBroFramework2DSystem.vcxproj">
       <Project>{1a000011-0000-4000-8000-0000000f2d5e}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
+      <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
+    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">
       <Project>{1a000008-0000-4000-8000-000000000f2d}</Project>
     </ProjectReference>
@@ -114,17 +117,17 @@
     <ProjectReference Include="$(JBroModulesDir)JBroAudioTypes\JBroAudioTypes.vcxproj">
       <Project>{1a000018-0000-4000-8000-0000000a0d17}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj">
-      <Project>{1a000030-0000-4000-8000-00000001a7e5}</Project>
-    </ProjectReference>
-    <ProjectReference Include="$(JBroModulesDir)JBroInput\JBroInput.vcxproj">
-      <Project>{1a000031-0000-4000-8000-00000001a7e0}</Project>
-    </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroAudio\JBroAudio.vcxproj">
       <Project>{1a000019-0000-4000-8000-0000000a0d19}</Project>
     </ProjectReference>
     <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
       <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj">
+      <Project>{1a000030-0000-4000-8000-00000001a7e5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroInput\JBroInput.vcxproj">
+      <Project>{1a000031-0000-4000-8000-00000001a7e0}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

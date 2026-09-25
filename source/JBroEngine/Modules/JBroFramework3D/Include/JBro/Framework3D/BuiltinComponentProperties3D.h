@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/AudioTypes/BuiltinAudioComponents.h>
+#include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
@@ -28,6 +30,9 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<MeshRenderer3D>() && all;
             all = RegisterBuiltinProperties<Rigidbody3D>()    && all;
             all = RegisterBuiltinProperties<Collider3D>()     && all;
+            all = RegisterBuiltinProperties<AudioListener3D>() && all;
+            // 소스는 차원과 무관한 모듈의 것이다(D-197). 두 프레임워크가 함께 부르고 한 번만 등록된다.
+            all = RegisterBuiltinAudioComponentProperties()   && all;
             return all;
         }();
         return registered;

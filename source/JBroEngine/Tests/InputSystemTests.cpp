@@ -9,7 +9,7 @@
 #include <iostream>
 #include <stdexcept>
 
-// 게임 입력이 플랫폼 이벤트를 프레임 상태로 접는 것을 잰다(D-201, input-plan §4 의 1).
+// 게임 입력이 플랫폼 이벤트를 프레임 상태로 접는 것을 잰다(D-210, input-plan §4 의 1).
 namespace
 {
     using namespace JBro;

@@ -46,7 +46,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroHostFrameworkIncludes);$(JBroScriptFrameworkIncludes);$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroHostFrameworkIncludes);$(JBroScriptFrameworkIncludes);$(JBroNetworkDir)Include;$(JBroModulesDir)JBroNetworkSystem\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroInput\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions Condition="'$(JBroScriptDimension)' == '2D'">JBRO_GAME_DIMENSION_2D;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroScriptDimension)' == '3D'">JBRO_GAME_DIMENSION_3D;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Configuration)' == 'Debug_Game2D' Or '$(Configuration)' == 'Debug_Game3D'">_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -109,6 +109,9 @@
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2DSystem\JBroFramework2DSystem.vcxproj">
       <Project>{1a000011-0000-4000-8000-0000000f2d5e}</Project>
     </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
+      <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup Condition="'$(JBroScriptDimension)' == '3D'">
     <ProjectReference Include="$(JBroModulesDir)JBroFramework3D\JBroFramework3D.vcxproj">
@@ -122,6 +125,15 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroNetworkSystem\JBroNetworkSystem.vcxproj">
       <Project>{1a000017-0000-4000-8000-0000000ae75c}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroThirdPartyDir)miniaudio\miniaudio.vcxproj">
+      <Project>{1b000002-0000-4000-8000-0000000a0d10}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAudioTypes\JBroAudioTypes.vcxproj">
+      <Project>{1a000018-0000-4000-8000-0000000a0d17}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroAudio\JBroAudio.vcxproj">
+      <Project>{1a000019-0000-4000-8000-0000000a0d19}</Project>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj">
       <Project>{1a000030-0000-4000-8000-00000001a7e5}</Project>
