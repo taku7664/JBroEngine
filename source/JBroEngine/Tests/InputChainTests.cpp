@@ -241,6 +241,12 @@ namespace
         rig.Frame({});
         Check(g_dispatchLog.Size() == 12, "handlers are called even on a frame without input");
         Check(CountUnknownLayerWarnings() == 1, "and the unknown layer is not reported again");
+
+        // 스크립트가 하나 더 붙으면 체인을 다시 세운다. 그때도 같은 레이어를 두 번 말하지 않는다.
+        rig.Add<GameProbe>(9);
+        rig.Frame({});
+        Check(rig.scripts.GetInputHandlerCount() == 7, "a new handler joins when the chain is rebuilt");
+        Check(CountUnknownLayerWarnings() == 1, "rebuilding the chain does not repeat the warning");
     }
 
     // 시작 훅을 받기 전에는 체인에 서지 않는다. 그 프레임에 붙인 것은 다음 프레임부터다(D-201 (6)).

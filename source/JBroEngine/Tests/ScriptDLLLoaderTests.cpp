@@ -4,6 +4,7 @@
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Host/ScriptDLLLoader.h>
+#include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/GameObject.h>
@@ -808,6 +809,9 @@ namespace
         PostMessageW(window, WM_KEYDOWN, VK_SPACE, 0);
         Check(engine.Tick(0.016f), "the host must tick with the script module loaded");
         Check(isKeyDown(space), "a key posted to the game window must reach the service inside the script DLL");
+        // 호스트 안에서 정적으로 붙인 스크립트는 호스트 모듈의 사본을 읽는다. 엔진이 그 사본에도 묶었어야 한다.
+        Check(JBro::GetInputServices().Input.Keyboard().IsDown(JBro::Key::Space),
+            "the host's own copy of the service must see the same key");
         PostMessageW(window, WM_KEYUP, VK_SPACE, static_cast<LPARAM>(0xC0000001u));
         Check(engine.Tick(0.016f), "the host must keep ticking");
         Check(false == isKeyDown(space), "and releasing it must reach the DLL too");
