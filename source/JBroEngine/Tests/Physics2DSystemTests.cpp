@@ -161,6 +161,8 @@ namespace
 
         scene.Run(0.3f);
         Check(body->linearVelocity.y < -2.0f, "while falling the kernel's velocity is written back to the component");
+        // Transform2DSystem 이 채운 캐시를 흉내 낸다. 물리가 로컬을 옮겼으면 이 캐시는 헌 것이어야 한다.
+        scene.TransformOf(box)->worldValid = true;
         scene.Run(1.7f);
         Check(scene.physics.GetBodyCount() == 2 && scene.physics.GetShapeCount() == 2,
             "one body and one shape per object reach the kernel");
@@ -270,6 +272,28 @@ namespace
         Check(boxProbe->collisionExit == 2, "destroying the ground ends the contact too");
         Check(false == boxProbe->lastExit.other.IsValid(), "and the handle to the destroyed ground is dead");
         Check(scene.physics.GetBodyCount() == 1, "the ground's body leaves the kernel");
+    }
+
+    // **바디가 남는 쪽의 콜라이더를 꺼도 그 도형은 빠진다.** 위에서는 끈 쪽이 바디째 사라져 도형도 함께 없어졌다.
+    // 여기서는 Rigidbody2D 가 있는 상자의 콜라이더를 끈다 - 상자는 바닥을 지나 떨어지고, 두 쪽 다 끝을 받는다.
+    void TestSwitchingOffAMovingBodysColliderLetsItFall()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        ContactProbe* groundProbe = scene.Probe(ground);
+        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
+        Collider2D* shape = scene.Box(box, { 1, 1 });
+        scene.Dynamic(box);
+        scene.Run(0.5f);
+        Check(groundProbe->collisionEnter == 1, "the box starts on the ground");
+
+        shape->SetEnabled(false);
+        scene.Run(0.5f);
+        Check(scene.physics.GetBodyCount() == 2 && scene.physics.GetShapeCount() == 1,
+            "the box keeps its body but loses its shape");
+        Check(scene.TransformOf(box)->position.y < 0.0f, "so it falls through the ground");
+        Check(groundProbe->collisionExit == 1, "and the ground hears it leave");
     }
 
     // **재생을 멈췄다 다시 켜면 끝 이벤트가 튀지 않고, 닿아 있는 것은 처음처럼 시작한다.**
@@ -387,6 +411,7 @@ int RunPhysics2DSystemTests()
     TestAConcavePolygonColliderHoldsWhatFallsOnAndIntoIt();
     TestATriggerReportsWithoutPushing();
     TestLosingAPartnerEndsTheContact();
+    TestSwitchingOffAMovingBodysColliderLetsItFall();
     TestRestartingDoesNotReplayOldContacts();
     TestQueriesSeePolygonsAndRotatedBoxes();
     TestAStaticBodyFollowsItsTransform();
