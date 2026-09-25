@@ -41,6 +41,11 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewCameraFormat = "canvas_view.camera_format";
     inline constexpr const char* CanvasViewCamera3DFormat = "canvas_view.camera_3d_format";
     inline constexpr const char* CanvasViewCollidersTooltip = "canvas_view.colliders_tooltip";
+    // 폴리곤 콜라이더의 포인트 편집(physics-plan §4 의 5). 필드 이름(`points`)과 같은 말을 쓴다 - 기존 엔진의 `버텍스` 는 따르지 않았다.
+    inline constexpr const char* CanvasViewEditCollider = "canvas_view.edit_collider";
+    inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";
+    inline constexpr const char* CanvasViewPointDelete = "canvas_view.point_delete";
+    inline constexpr const char* CanvasViewPointDeleteMin = "canvas_view.point_delete_min";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
     // 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지(D-184, 기존 `canvas_view.unit.*`).
     inline constexpr const char* CanvasViewUnitWorld = "canvas_view.unit_world";

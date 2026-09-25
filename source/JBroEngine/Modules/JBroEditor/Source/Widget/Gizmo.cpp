@@ -182,6 +182,35 @@ namespace JBro::Widget
         return output;
     }
 
+    void OverlayHandle(const char* id, bool hovered, bool holding, bool pressed)
+    {
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        if (window == nullptr)
+        {
+            return;
+        }
+        const ImGuiID item = window->GetID(id);
+        if (holding)
+        {
+            ImGui::SetActiveID(item, window);
+            ImGui::KeepAliveID(item);
+            if (pressed)
+            {
+                // hover id 가 있으면 ImGui 가 창에 포커스를 주지 않는다. 손잡이를 잡는 것도 클릭이다.
+                ImGui::FocusWindow(window);
+            }
+            return;
+        }
+        if (ImGui::GetActiveID() == item)
+        {
+            ImGui::ClearActiveID();
+        }
+        if (hovered)
+        {
+            ImGui::SetHoveredID(item);
+        }
+    }
+
     bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel,
         bool hotkeys)
     {

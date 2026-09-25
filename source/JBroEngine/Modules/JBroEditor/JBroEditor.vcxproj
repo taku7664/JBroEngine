@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroTask\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroEditor\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroCanvas\Include;$(JBroModulesDir)JBroHost\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroFramework2DSystem\Include;$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroFramework2D\Include;$(JBroModulesDir)JBroFramework3DSystem\Include;$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroD3D12RHI\Include;$(JBroModulesDir)JBroD3D11RHI\Include;$(JBroModulesDir)JBroVulkanRHI\Include;$(JBroThirdPartyDir)imgui;$(JBroModulesDir)JBroAudio\Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroTask\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -73,6 +73,10 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2DSystem\JBroFramework2DSystem.vcxproj">
       <Project>{1a000011-0000-4000-8000-0000000f2d5e}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroPhysics2D\JBroPhysics2D.vcxproj">
+      <Project>{1a000022-0000-4000-8000-0000000f2d20}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroFramework2D\JBroFramework2D.vcxproj">

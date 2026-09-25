@@ -8163,6 +8163,142 @@ namespace
         editor.Shutdown();
     }
 
+    // **폴리곤 콜라이더의 포인트를 캔버스 뷰에서 고친다**(physics-plan §4 의 5, 기존 `CCanvasViewTool` 의 버텍스 편집).
+    // "콜라이더 편집" 을 켜면 고른 오브젝트의 폴리곤에 손잡이가 선다. 끌기·변 누르기·우클릭 지우기가 각각 되돌리기
+    // 하나이고, 포인트가 없는 폴리곤은 보이는 `size` 상자에서 시작한다.
+    void TestTheCanvasViewEditsPolygonColliderPoints()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; polygon point editing not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PolygonEditProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        // 창을 넉넉히 연다. 도구 막대는 줄을 넘기지 않아, 좁은 창에서는 끝의 "콜라이더 편집" 이 잘린다.
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
+        auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
+        Check(collider != nullptr, "and a collider");
+        collider->shape = JBro::Component::ColliderShape2D::Polygon;
+        collider->points = { {-2.0f, -2.0f}, {2.0f, -2.0f}, {2.0f, 2.0f}, {-2.0f, 2.0f} };
+        editor.SetSelectedObject(cup);
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+
+        const auto at = [&](float worldX, float worldY) {
+            float x = 0.0f;
+            float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<int>(std::lround(x));
+            spot.y = static_cast<int>(std::lround(y));
+            return spot;
+        };
+        const auto hoveredAt = [&](const Spot& spot) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+            Check(editor.Tick(Frame), "the editor must tick while hovering");
+            Check(editor.Tick(Frame), "and once more for the hover to settle");
+            return ImGui::GetHoveredID();
+        };
+
+        Check(hoveredAt(at(2.0f, -2.0f)) != LabelId(view->ID, "##vertex_1"),
+            "with collider editing off there is no point handle");
+        // 기즈모의 x 손잡이는 오브젝트 가운데에서 오른쪽으로 뻗는다(70 픽셀). 그 위에 먼저 있는지 본다 -
+        // 켠 뒤에 "없다" 를 재려면 끄고서는 "있다" 가 참이어야 한다. 가운데만 재면 손잡이가 늘 비켜 있어 헛검사였다.
+        Spot onAxis = at(0.0f, 0.0f);
+        onAxis.x += 35;
+        Check(hoveredAt(onAxis) == LabelId(view->ID, "##gizmo_x"),
+            "with editing off the gizmo's x handle is there, right of the middle");
+
+        const char* editLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditCollider, "Edit Collider");
+        Spot toggle;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, editLabel), toggle),
+            "the edit collider button must be on the canvas view tool bar");
+        ClickAt(editor, hwnd, toggle);
+        Check(editor.Tick(Frame), "the editor must settle with editing on");
+        Check(hoveredAt(at(2.0f, -2.0f)) == LabelId(view->ID, "##vertex_1"),
+            "with editing on the corner is a point handle");
+        Check(hoveredAt(onAxis) != LabelId(view->ID, "##gizmo_x"),
+            "and the gizmo steps aside while the collider is edited");
+
+        // 끌기: 놓을 때 되돌리기 하나.
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        const Spot corner = at(2.0f, -2.0f);
+        DragFrom(editor, hwnd, corner, corner.x + 40);
+        Check(collider->points.Size() == 4, "dragging a point keeps the count");
+        Check(collider->points[1].x > 2.5f && std::fabs(collider->points[1].y + 2.0f) < 0.05f,
+            "and moves that point right, along the drag");
+        Check(collider->points[0].x == -2.0f && collider->points[2].x == 2.0f, "and no other");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one undo step");
+        Check(editor.GetSelectedObject() == cup, "grabbing a point does not change the selection");
+        Check(editor.GetCommands().Undo() && collider->points[1].x == 2.0f, "undo puts the point back");
+
+        // 변 누르기: 포인트가 하나 생긴다.
+        ClickAt(editor, hwnd, at(0.0f, -2.0f));
+        Check(collider->points.Size() == 5, "clicking an edge adds a point");
+        Check(std::fabs(collider->points[1].x) < 0.05f && std::fabs(collider->points[1].y + 2.0f) < 0.05f,
+            "where the edge was clicked, right after the edge's first point");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "and it is one undo step");
+
+        // 우클릭 지우기.
+        RightClickAt(editor, hwnd, at(-2.0f, 2.0f));
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking a point must open its menu");
+        const char* deleteLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewPointDelete, "Delete Point");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, deleteLabel), item),
+            "the menu offers to delete the point");
+        ClickAt(editor, hwnd, item);
+        Check(collider->points.Size() == 4, "deleting takes the point off");
+        Check(collider->points[3].x == 2.0f && collider->points[3].y == 2.0f,
+            "the one right-clicked: (-2, 2) was last, so (2, 2) is last now");
+        Check(editor.GetCommands().GetUndoCount() == undo + 2, "and it is one more undo step");
+
+        // 포인트가 없는 폴리곤은 보이는 `size` 상자에서 시작한다.
+        collider->points.Clear();
+        collider->size = {2.0f, 2.0f};
+        Check(editor.Tick(Frame), "the editor must see the empty polygon");
+        const Spot boxCorner = at(1.0f, 1.0f);
+        DragFrom(editor, hwnd, boxCorner, boxCorner.x + 30);
+        Check(collider->points.Size() == 4, "the first drag on an empty polygon writes the four box corners");
+        Check(collider->points[2].x > 1.3f && collider->points[0].x == -1.0f,
+            "with the grabbed corner moved and the others where the box had them");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "polygon_edit");
+
+        ClickAt(editor, hwnd, toggle);
+        Check(hoveredAt(at(-1.0f, -1.0f)) != LabelId(view->ID, "##vertex_0"), "turning editing off removes the handles");
+        ClickAt(editor, hwnd, toggle);
+
+        // 셋 남은 도형은 지우지 못한다. 메뉴를 연 채로 끝낸다 - 창에 부친 Esc 는 포커스가 없으면 닿지 않는다.
+        collider->points = { {-2.0f, -2.0f}, {2.0f, -2.0f}, {0.0f, 2.0f} };
+        Check(editor.Tick(Frame), "the editor must see the triangle");
+        RightClickAt(editor, hwnd, at(0.0f, 2.0f));
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "a triangle's point still opens the menu");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, deleteLabel), item),
+            "with the delete item");
+        Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled, "but locked, because three points are the least");
+        editor.Shutdown();
+    }
+
     // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글). 그림은 픽셀로
     // 그려 오는데 씬은 유닛으로 세므로, 스프라이트를 자리에 맞출 때 그 둘을 머리로 곱하고
     // 있어야 했다. 곱하는 값은 에셋 PPU 의 기본값(100)이다 - 프로젝트에는 PPU 가 없다(D-117).
@@ -10086,6 +10222,7 @@ int RunEditorApplicationTests()
     TestClosingTheEditorRemembersWhereYouWere();
     TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();
+    TestTheCanvasViewEditsPolygonColliderPoints();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheCanvasItselfCanBeSelectedAndPainted();
