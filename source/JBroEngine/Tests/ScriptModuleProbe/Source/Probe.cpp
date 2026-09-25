@@ -1,5 +1,6 @@
 ﻿#include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
+#include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/NameTable.h>
@@ -14,7 +15,7 @@ namespace
 {
 // 호스트가 이름으로 만들 수 있는 스크립트다. 이 타입은 DLL 안에만 있고
 // 호스트는 그 정의를 보지 못한다 — 그게 이 경로의 요점이다(H5).
-    class ProbeRegisteredScript final : public JBro::GameScriptBase
+    class ProbeRegisteredScript final : public JBro::GameScript2D
 {
 public:
     static constexpr const char* StaticTypeName()
@@ -73,7 +74,7 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
         JBro::BindFramework2DSystemContext(*frameworkSystems);
         // 이름으로 만들 수 있게 타입을 호스트 표에 등록한다. 여기서 만들어지는
         // 생성·파괴 함수는 이 DLL 안의 코드이며, 호스트는 그 주소만 부른다.
-        if (false == JBro::RegisterScriptType<ProbeRegisteredScript>())
+        if (false == JBro::RegisterScriptType2D<ProbeRegisteredScript>())
         {
             return false;
         }

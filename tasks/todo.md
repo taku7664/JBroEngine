@@ -1,4 +1,4 @@
-﻿# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
+# 신규 리포를 기존 엔진 구조에 맞추기 — TODO
 
 폐기된 World/ECS 단계 기록은 [canvas-world-foundation.md](./canvas-world-foundation.md)에 남아 있다.
 이 문서는 현재 설계나 작업 지시가 아니다.
@@ -2727,6 +2727,22 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-206. 2D 프로젝트의 스크립트는 모두 `GameScript2D` 에서 파생하고, 그것을 등록할 때 컴파일 시간에 검사한다.**
+  (2026-09-25, [physics-plan.md](./physics-plan.md) §6, 사용자 확인) Updates: D-199 (5). 물리 시스템이 충돌·트리거 훅을 부르려면
+  오브젝트에 붙은 스크립트가 `GameScript2D` 인지 알아야 한다. `Canvas` 는 차원을 몰라 스크립트를 `GameScriptBase*` 로만 모으고,
+  프레임 경로에는 `dynamic_cast` 를 두지 않는다(§9). 사용자 지적대로 2D 프로젝트는 원래 2D 스크립트만 쓰므로, 빈 곳은 규칙이
+  아니라 **그 규칙을 코드가 막지 않는 것**이었다 - 실제로 테스트용 스크립트 DLL(`Probe.cpp`)이 2D 문맥에서 `GameScriptBase` 를
+  바로 파생하고 있었다. 정한 것: (1) 2D 스크립트 모듈의 등록은 `RegisterScriptType2D<T>`(`GameScript.h`)로만 하고, 그것이
+  `static_assert(std::is_base_of_v<GameScript2D, T>)` 로 거절한다 - 음성 검사로 C2338 을 확인했다. 사용자 스크립트가 호스트에
+  들어오는 길은 모듈의 등록 하나뿐이다(`Canvas` 는 Tier E 라 스크립트가 직접 붙일 수 없다). (2) 물리는 스크립트를
+  `static_cast<GameScript2D*>` 로 부른다 - 표시 필드도 RTTI 도 쓰지 않고 `GameScriptBase` 의 모양은 그대로다.
+  (3) D-199 (5) 의 `OnTriggerEnter`·`OnTriggerExit` 를 더해 `GameScript2D` 의 가상 함수 표가 바뀌었으므로
+  `Framework2DServiceContextAbiVersion` 을 2 로 올렸다(D-28, 옛 2D 스크립트 DLL 은 로드가 거절된다). 트리거 훅도 `Collision2D` 를
+  받고 point·normal 은 0 이다 - 구조체 모양은 바뀌지 않는다. (4) 3D 스크립트는 지금처럼 `GameScriptBase` 에서 파생한다 -
+  3D 캔버스에서는 2D 물리가 돌지 않는다. 기각: `GameScriptBase` 에 차원 표시 4 바이트(모양과 ABI 가 함께 바뀐다),
+  `ScriptTypeInfo` 에 훅 정보(Canvas·등록표·정적 부착 길을 모두 거친다), 재구축 때의 `dynamic_cast`(DLL 경계를 넘는 RTTI).
+  (처음 D-203 으로 적었으나 main 의 오디오 D-203 과 겹쳐 D-206 으로 옮겼다.)
 
 - **D-204. 구현을 마친 남은 일은 지우지 않고 취소선으로 긋고, 언제·어디서 고쳤는지 붙인다.** (2026-09-26)
   사용자가 요청했다. 항목을 지우면 무엇을 했는지와 어디를 보면 되는지가 함께 사라진다. `[완료]` 태그만 붙이던 관례를 대신한다 -

@@ -17,6 +17,16 @@ namespace
         &T::OnCollisionEnter;
     };
 
+    template<typename T>
+    concept HasTriggerHooks = requires
+    {
+        &T::OnTriggerEnter;
+        &T::OnTriggerExit;
+    };
+
+    static_assert(HasTriggerHooks<JBro::GameScript2D>, "2D scripts receive trigger hooks (D-203)");
+    static_assert(false == HasTriggerHooks<JBro::GameScriptBase>, "and the dimension-free base does not");
+
     JBRO_SCRIPT(ScriptProbe) final : public JBro::GameScript2D
     {
     public:
