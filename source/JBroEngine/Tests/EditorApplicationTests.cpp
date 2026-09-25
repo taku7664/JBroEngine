@@ -3293,11 +3293,12 @@ namespace
         }
         Check(false == editor.IsGameReceivingInput(), "leaving the game view stops the game input");
         Check(false == keyboard().IsDown(JBro::Key::W), "and the held key is released for the game");
-        Check(false == keyboard().IsPressed(JBro::Key::W),
-            "and what the editor handed over is not folded again on later frames");
         post(WM_KEYDOWN, 'A');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
         Check(false == keyboard().IsDown(JBro::Key::A), "a key typed into another panel does not reach the game");
+        // 떠난 뒤 몇 프레임이 지났다. 에디터가 건넨 것이 틱마다 비워지지 않으면 W 가 매 프레임 다시 눌린다.
+        Check(false == keyboard().IsPressed(JBro::Key::W),
+            "what the editor handed over is not folded again on later frames");
         post(WM_KEYUP, 'A');
         post(WM_KEYUP, 'W');
         Check(editor.Tick(Frame), "the editor must tick");
