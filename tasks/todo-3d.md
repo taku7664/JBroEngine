@@ -3,6 +3,11 @@
 > 공용 남은 일과 Decisions 는 `todo.md`, 2D 는 `todo-2d.md` 다(D-116). 여기는 3D 프레임워크·3D 렌더링·3D 편집의 것만
 > 적는다. 3D 는 2D 뒤의 순서다 - 여기 항목은 2D 쪽이 막히지 않는 한 뒤로 미룬다. 실측과 배경은 `framework3d-plan.md` §3.
 
+## 오디오 (audio-plan §3-6, D-197)
+
+- `[진행 예정]` **`Component::AudioListener3D` 와 `System::Audio3DSystem`.** 2D 와 같은 모양이고 리스너 방향을 `Transform3D` 에서
+  읽는다. 2D 오디오가 선 뒤다.
+
 ## 재질
 
 - `[진행 예정]` **재질의 첫 구현**(D-33·D-111 확정, 2026-09-18). 자료 모델은 `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }` 이고
