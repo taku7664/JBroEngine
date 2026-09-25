@@ -62,6 +62,7 @@ int RunRendererBenchmark();
 int RunAudioMixerTests();
 int RunAudioIntegrationTests();
 int RunTextLayoutTests();
+int RunGlyphAtlasTests();
 
 int main()
 {
@@ -121,6 +122,10 @@ int main()
         }
         // 텍스트 커널은 그래픽도 파일도 쓰지 않는다(text-plan §5 의 1 단계). 앞에 두어 뮤테이션이 빨리 끝나게 한다.
         if (RunTextLayoutTests() != 0)
+        {
+            return 1;
+        }
+        if (RunGlyphAtlasTests() != 0)
         {
             return 1;
         }

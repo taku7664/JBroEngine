@@ -39,6 +39,15 @@ namespace JBro::Text
         bool         empty = true;
     };
 
+    // 한 크기로 래스터화한 글리프 비트맵의 자리다(픽셀). left·top 은 기준선 위 원점에서 비트맵 왼쪽 위까지이고 top 은 위쪽이 양수다.
+    struct GlyphBitmapBox
+    {
+        std::int32_t left = 0;
+        std::int32_t top = 0;
+        std::int32_t width = 0;
+        std::int32_t height = 0;
+    };
+
     class FontFace final
     {
     public:
@@ -65,6 +74,12 @@ namespace JBro::Text
         // 두 글리프 사이의 커닝이다. GPOS 쌍 조정을 먼저, 없으면 kern 표를 본다. 대개 음수다.
         std::int32_t GetKerning(GlyphIndex left, GlyphIndex right) const;
         GlyphBox GetGlyphBox(GlyphIndex glyph) const;
+
+        // em 픽셀 크기 pixelSize 로 그린 글리프의 비트맵 자리를 잰다. 그릴 것이 없으면 크기가 0 이다.
+        bool MeasureGlyphBitmap(GlyphIndex glyph, float pixelSize, GlyphBitmapBox& box) const;
+        // box(MeasureGlyphBitmap 이 잰 것) 크기의 커버리지(한 채널, 0~255)를 coverage 에 그린다. 행 간격은 stride 바이트다.
+        // 처음 보는 글리프에서만 부른다 - stb 가 안에서 힙을 쓴다(프레임 규칙은 아틀라스의 캐시가 지킨다).
+        bool RasterizeGlyph(GlyphIndex glyph, float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, std::int32_t stride) const;
 
     private:
         // stbtt_fontinfo 를 담는 자리다. 크기는 FontFace.cpp 가 단언한다. 헤더에 stb 를 들이지 않으려고 불투명하게 둔다.

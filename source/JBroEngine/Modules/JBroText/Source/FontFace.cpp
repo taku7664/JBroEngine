@@ -170,4 +170,42 @@ namespace JBro::Text
         box.empty = false;
         return box;
     }
+
+    bool FontFace::MeasureGlyphBitmap(GlyphIndex glyph, float pixelSize, GlyphBitmapBox& box) const
+    {
+        box = {};
+        if (false == m_loaded || false == (pixelSize > 0.0f))
+        {
+            return false;
+        }
+        const stbtt_fontinfo* info = Info(m_info);
+        if (0 != stbtt_IsGlyphEmpty(info, static_cast<int>(glyph)))
+        {
+            return true;
+        }
+        const float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
+        int x0 = 0;
+        int y0 = 0;
+        int x1 = 0;
+        int y1 = 0;
+        // stb 의 상자는 y 가 아래쪽이다. 위쪽이 양수인 top 으로 뒤집는다.
+        stbtt_GetGlyphBitmapBox(info, static_cast<int>(glyph), scale, scale, &x0, &y0, &x1, &y1);
+        box.left = x0;
+        box.top = -y0;
+        box.width = x1 > x0 ? x1 - x0 : 0;
+        box.height = y1 > y0 ? y1 - y0 : 0;
+        return true;
+    }
+
+    bool FontFace::RasterizeGlyph(GlyphIndex glyph, float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, std::int32_t stride) const
+    {
+        if (false == m_loaded || coverage == nullptr || box.width <= 0 || box.height <= 0 || stride < box.width || false == (pixelSize > 0.0f))
+        {
+            return false;
+        }
+        const stbtt_fontinfo* info = Info(m_info);
+        const float scale = stbtt_ScaleForMappingEmToPixels(info, pixelSize);
+        stbtt_MakeGlyphBitmap(info, coverage, box.width, box.height, stride, scale, scale, static_cast<int>(glyph));
+        return true;
+    }
 }
