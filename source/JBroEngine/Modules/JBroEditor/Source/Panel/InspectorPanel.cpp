@@ -777,18 +777,12 @@ namespace JBro
     void InspectorPanel::DrawTextBody(const TypeDescriptor& type, void* address, bool editable, Context& context)
     {
         TextId& id = *static_cast<TextId*>(address);
-        // **치는 중이 아니면 늘 저장소의 글자를 든다**(이름 칸과 같다). 그래야 되돌리기·스크립트가 바꾼 글자가 바로 보인다.
-        const ImGuiID widgetId = ImGui::GetID("##value");
-        const bool editing = m_textEditingId == widgetId;
-        String shown;
-        if (false == editing)
-        {
-            const ArrayView<const char> text = TextStore::Get().GetText(id);
-            shown.assign(text.Data(), text.Size());
-        }
-        String& draft = editing ? m_textDraft : shown;
+        // **매 프레임 저장소의 글자를 넘긴다.** 치는 동안에는 ImGui 가 제 버퍼를 들고 넘긴 글자를 보지 않고, 편집이 끝나는
+        // 프레임에 친 글자를 돌려준다. 그래서 되돌리기·스크립트가 바꾼 글자는 치지 않을 때 바로 보인다. (처음 판은 이름 칸처럼
+        // 치는 칸의 글자를 따로 들었는데, 그 상태를 지우는 뮤테이션이 모든 검사를 지나 - 같은 동작이라 - 뺐다.)
+        const ArrayView<const char> stored = TextStore::Get().GetText(id);
+        String draft(stored.Data(), stored.Size());
         const bool finished = Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw();
-        const bool active = ImGui::IsItemActive();
         if (finished && editable)
         {
             // 편집 전 값은 코덱 글자로 뜬다(길이 제한 없는 길). 새 글자를 저장소에 쓰고 나면 `CommitEdit` 가
@@ -799,15 +793,6 @@ namespace JBro
                 TextStore::Get().Assign(id, draft.c_str(), draft.size());
                 CommitEdit(type, address, before, context);
             }
-        }
-        if (active && false == editing)
-        {
-            m_textDraft = shown;
-            m_textEditingId = widgetId;
-        }
-        else if (false == active && editing)
-        {
-            m_textEditingId = 0;
         }
     }
 

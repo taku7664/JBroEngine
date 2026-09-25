@@ -7411,7 +7411,8 @@ namespace
         // 오브젝트를 두 배로 키워 고른다. 블록은 오브젝트 로컬이라 캔버스 뷰가 크기를 곱해야 그림과 맞는다.
         constexpr float Scale = 2.0f;
         transform->scale = JBro::Vec2{Scale, Scale};
-        const float pickX = (minX + maxX) * 0.5f * Scale;
+        // 블록의 오른쪽 가까이다. 크기를 곱하지 않은 블록이라면 그 밖이다.
+        const float pickX = (minX + (maxX - minX) * 0.8f) * Scale;
         const float pickY = (minY + maxY) * 0.5f * Scale;
         // 빈 오브젝트의 기본 상자(반폭 0.25) 밖이어야 이 검사가 텍스트의 사각형을 잰다.
         Check(pickX > 0.3f, "the middle of the text is outside the empty-object box");

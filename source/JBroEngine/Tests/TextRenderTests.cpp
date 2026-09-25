@@ -658,6 +658,11 @@ namespace
             const DarkBox notdef = FindDark(gpu);
             std::cout << "  [measure] fallback han " << han.count << " px, latin notdef " << notdef.count << " px" << std::endl;
             Check(notdef.count > 0 && notdef.count != han.count, "without the fallback the letter becomes the notdef box");
+            // 끄기 전에 목록을 되돌려 둔다. 텍스트 시스템이 든 프로젝트 폰트를 끌 때 놓는지 아래에서 잰다.
+            project.assets.SetProjectFonts(sansOnly);
+            gpu.Paint(framework);
+            Check(project.assets.GetReferenceCount(project.assets.Find(project.fontId)) > 0,
+                "the text system holds the project font while it runs");
 
             framework.Shutdown();
         }

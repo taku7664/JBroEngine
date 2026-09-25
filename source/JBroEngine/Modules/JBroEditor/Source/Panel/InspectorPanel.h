@@ -195,10 +195,6 @@ namespace JBro
         const GameObject* m_namedObject = nullptr;
         // 지난 프레임에 이름 칸이 글자를 받고 있었는가. 그렇지 않으면 칸의 글자를 다시 든다.
         bool m_nameEditing = false;
-        // 치고 있는 텍스트 칸의 ImGui Id 와 그 칸의 글자다. 0 이면 아무도 치고 있지 않다. 치는 칸만 이 글자를 쓰고
-        // 나머지 칸은 매 프레임 저장소에서 읽는다 - 텍스트가 둘이면 한쪽이 다른 쪽의 치던 글자를 덮지 않게.
-        unsigned int m_textEditingId = 0;
-        String m_textDraft;
 
         // ── 오디오 미리 듣기(D-197) ──
         // 보고 있는 오디오 에셋과 그 요약이다. 에셋이 바뀌거나 자료가 다시 읽히면(판번호) 다시 잰다 - 파형은 한 번만 푼다.
