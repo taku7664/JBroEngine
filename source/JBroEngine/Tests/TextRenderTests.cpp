@@ -547,6 +547,13 @@ namespace
             Check(fitted == std::floor(fitted) && fitted * 0.608f <= 16.0f + 0.01f && (fitted + 1.0f) * 0.608f > 16.0f,
                 "auto size picks the largest whole size whose A fits the box width");
             Check(FindDark(gpu).count > 0 && FindDark(gpu).count < dark.count, "and draws the smaller A");
+            // 자동 크기만 끄고 켜도 다시 레이아웃한다(상자는 그대로).
+            label->autoSize = false;
+            gpu.Paint(framework);
+            Check(texts->GetLaidOutFontSize(label->GetInstanceId()) == 40.0f, "turning auto size off goes back to fontSize");
+            label->autoSize = true;
+            gpu.Paint(framework);
+            Check(texts->GetLaidOutFontSize(label->GetInstanceId()) == fitted, "and on again fits the box again");
             label->boxSize = {0.0f, 0.0f};
             gpu.Paint(framework);
             Check(texts->GetLaidOutFontSize(label->GetInstanceId()) == 40.0f, "without a box auto size falls back to fontSize");
