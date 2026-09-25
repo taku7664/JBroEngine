@@ -657,11 +657,11 @@ namespace
         text.tint[0] = 1.0f;
         text.tint[1] = 0.0f;
         text.tint[2] = 0.0f;
-        text.outlineColor[0] = 0.0f;
-        text.outlineColor[1] = 0.0f;
-        text.outlineColor[2] = 1.0f;
-        text.outlineColor[3] = 1.0f;
-        text.outlineEdge = 0.25f;
+        text.outlineColor[0] = 0;
+        text.outlineColor[1] = 0;
+        text.outlineColor[2] = 255;
+        text.outlineColor[3] = 255;
+        text.outlineEdge = 16384;
         // 앞 스프라이트는 오른쪽 아래(거리장이 비어 있는 자리), 뒤 스프라이트는 왼쪽 위(채우기 위)다.
         JBro::SpriteSubmit before;
         before.world.linear[0] = 0.25f;
@@ -708,7 +708,7 @@ namespace
 
         // 문턱을 0 으로 줘도 거리값 0 인 자리(칸의 모서리)는 칠하지 않는다. 기존 엔진은 여기서 칸 전체가 외곽선 색이 됐다.
         JBro::SpriteSubmit widest = text;
-        widest.outlineEdge = 0.0f;
+        widest.outlineEdge = 0;
         paint(widest, false);
         const Pixel corner = ReadPixel(image, readback.rowPitch, 63, 32);
         Check(Near(corner.b, 0.0f), "an outline edge of zero still leaves the zero-distance edge of the quad empty");
@@ -716,7 +716,7 @@ namespace
         // 반투명 채우기와 외곽선을 한 번에 합성한다. 채우기 자리는 빨강 절반이지 외곽선 위에 한 번 더 얹힌 색이 아니다.
         JBro::SpriteSubmit ghost = text;
         ghost.tint[3] = 0.5f;
-        ghost.outlineColor[3] = 0.5f;
+        ghost.outlineColor[3] = 128;
         paint(ghost, false);
         const Pixel ghostFill = ReadPixel(image, readback.rowPitch, 12, 32);
         const Pixel ghostOutline = ReadPixel(image, readback.rowPitch, 38, 32);

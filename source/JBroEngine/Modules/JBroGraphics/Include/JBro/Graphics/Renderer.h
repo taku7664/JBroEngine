@@ -123,10 +123,15 @@ namespace JBro
         float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
         SpriteFilter filter = SpriteFilter::Nearest;
         SpriteShading shading = SpriteShading::Sprite;
-        // `SdfText` 에서만 읽는다. 외곽선 색과, 외곽선이 끝나는 거리값(0.5 면 외곽선이 없다). 거리값은 부르는 쪽이 한 칸 이상 0 위로 둔다.
-        float outlineColor[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-        float outlineEdge = 0.5f;
+        // `SdfText` 에서만 읽는다. 외곽선이 끝나는 거리값(0..1 을 65535 로, 32768 은 0.5 라 외곽선이 없다)과 외곽선 색(0..255)이다.
+        // 거리값은 부르는 쪽이 한 칸 이상 0 위로 둔다. **인스턴스와 같은 정규화 정수로 담는다** - float 다섯으로 두면 패킷이 80 → 100 바이트가
+        // 되어 스프라이트 6 만 개의 제출이 0.1~0.2 ms 늘었다(D3D12·D3D11 A/B). 이렇게 두면 앞의 두 바이트는 기존 패딩 자리라 84 바이트다.
+        std::uint16_t outlineEdge = 32768;
+        std::uint8_t outlineColor[4] = {0, 0, 0, 0};
     };
+
+    // 제출 패킷의 크기는 스프라이트 제출 비용이다(위 주석). 늘리기 전에 벤치마크(`JBRO_BENCH`)로 잰다.
+    static_assert(sizeof(SpriteSubmit) == 84, "the sprite packet size is measured - see the outline fields");
 
     struct MeshSubmit
     {

@@ -91,10 +91,10 @@ namespace JBro::Internal
             if (source.sdfText)
             {
                 result.shading = SpriteShading::SdfText;
-                result.outlineColor[0] = source.outlineColor.R;
-                result.outlineColor[1] = source.outlineColor.G;
-                result.outlineColor[2] = source.outlineColor.B;
-                result.outlineColor[3] = source.outlineColor.A;
+                result.outlineColor[0] = source.outlineColor[0];
+                result.outlineColor[1] = source.outlineColor[1];
+                result.outlineColor[2] = source.outlineColor[2];
+                result.outlineColor[3] = source.outlineColor[3];
                 result.outlineEdge = source.outlineEdge;
             }
             return result;

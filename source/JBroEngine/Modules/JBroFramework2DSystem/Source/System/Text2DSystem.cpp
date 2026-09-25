@@ -365,8 +365,12 @@ namespace JBro::System
             {
                 item.sdfText = true;
                 item.filter = TextureFilter::Linear;
-                item.outlineColor = text.outlineColor;
-                item.outlineEdge = outlineEdge;
+                const float channels[4] = { text.outlineColor.R, text.outlineColor.G, text.outlineColor.B, text.outlineColor.A };
+                for (int channel = 0; channel < 4; ++channel)
+                {
+                    item.outlineColor[channel] = static_cast<std::uint8_t>(std::lround(std::clamp(channels[channel], 0.0f, 1.0f) * 255.0f));
+                }
+                item.outlineEdge = static_cast<std::uint16_t>(std::lround(std::clamp(outlineEdge, 0.0f, 1.0f) * 65535.0f));
             }
             m_renderWorld->SubmitSprite(item);
         }

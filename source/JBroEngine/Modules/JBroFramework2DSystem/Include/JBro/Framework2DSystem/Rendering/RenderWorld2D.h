@@ -41,10 +41,11 @@ namespace JBro
         Vec2          pivot;
         Vec2          size;
         std::int32_t  renderOrder = 0;
-        // 텍스처 알파를 거리장으로 읽는 SDF 글자다(4 단계). 참이면 외곽선 색과 외곽선이 끝나는 거리값을 쓴다(0.5 면 외곽선 없음).
+        // 텍스처 알파를 거리장으로 읽는 SDF 글자다(4 단계). 참이면 외곽선 색과 외곽선이 끝나는 거리값을 쓴다. 렌더러 패킷과 같은 정규화
+        // 정수다(`SpriteSubmit`) - 아이템을 정렬 뒤 옮기는 비용을 스프라이트에 물리지 않는다.
         bool          sdfText = false;
-        Color         outlineColor{ 0.0f, 0.0f, 0.0f, 0.0f };
-        float         outlineEdge = 0.5f;
+        std::uint16_t outlineEdge = 32768; // 0..1 을 65535 로. 32768 은 0.5(외곽선 없음)
+        std::uint8_t  outlineColor[4] = { 0, 0, 0, 0 };
     };
 
     // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).

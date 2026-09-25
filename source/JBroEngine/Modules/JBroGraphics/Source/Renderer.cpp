@@ -1560,9 +1560,9 @@ namespace JBro
                     {
                         text.fill[channel] = ToUnorm8(item.tint[channel]);
                         text.uvRect[channel] = ToUnorm16(item.uvRect[channel]);
-                        text.outline[channel] = ToUnorm8(item.outlineColor[channel]);
+                        text.outline[channel] = item.outlineColor[channel];
                     }
-                    text.params[0] = ToUnorm16(item.outlineEdge);
+                    text.params[0] = item.outlineEdge;
                     m_gpuTextFirst = index < m_gpuTextFirst ? index : m_gpuTextFirst;
                     m_gpuTextEnd = index + 1 > m_gpuTextEnd ? index + 1 : m_gpuTextEnd;
                 }
