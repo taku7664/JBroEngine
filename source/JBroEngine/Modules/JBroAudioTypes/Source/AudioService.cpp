@@ -148,11 +148,92 @@ namespace JBro::Service
         return audio != nullptr && audio->IsBusMuted(bus);
     }
 
+    void AudioService::SetBusEffects(AudioBusName bus, const AudioBusEffects& effects) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            audio->SetBusEffects(bus, effects);
+        }
+    }
+
+    AudioBusEffects AudioService::GetBusEffects(AudioBusName bus) const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetBusEffects(bus) : AudioBusEffects{};
+    }
+
+    void AudioService::SetBusLowPass(const char* bus, float cutoffHz) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            AudioBusEffects effects = audio->GetBusEffects(Named(bus));
+            effects.lowPassHz = cutoffHz;
+            audio->SetBusEffects(Named(bus), effects);
+        }
+    }
+
     void AudioService::StopAll() const
     {
         if (System::IAudioSystem* audio = Audio())
         {
             audio->StopAll();
         }
+    }
+
+    void AudioService::FadeBusVolume(const char* bus, float volume, float seconds) const
+    {
+        FadeBusVolume(Named(bus), volume, seconds);
+    }
+
+    void AudioService::FadeBusVolume(AudioBusName bus, float volume, float seconds) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            audio->FadeBusVolume(bus, volume, seconds);
+        }
+    }
+
+    std::uint32_t AudioService::GetOutputDeviceCount() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetOutputDeviceCount() : 0;
+    }
+
+    const char* AudioService::GetOutputDeviceName(std::uint32_t index) const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetOutputDeviceName(index) : "";
+    }
+
+    const char* AudioService::GetOutputDevice() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetOutputDevice() : "";
+    }
+
+    bool AudioService::SetOutputDevice(const char* name) const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr && audio->SetOutputDevice(name);
+    }
+
+    bool AudioService::IsWaitingForUserGesture() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr && audio->IsWaitingForUserGesture();
+    }
+
+    void AudioService::SetMuteWhenUnfocused(bool mute) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            audio->SetMuteWhenUnfocused(mute);
+        }
+    }
+
+    bool AudioService::IsMuteWhenUnfocused() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr && audio->IsMuteWhenUnfocused();
     }
 }

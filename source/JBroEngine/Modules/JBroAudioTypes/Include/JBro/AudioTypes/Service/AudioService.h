@@ -46,6 +46,26 @@ namespace JBro::Service
         void SetBusMuted(const char* bus, bool muted) const;
         void SetBusMuted(AudioBusName bus, bool muted) const;
         bool IsBusMuted(AudioBusName bus) const;
+        // 버스의 이펙트 사슬 전부(D-202). 한 칸만 바꾸려면 읽어서 고쳐 쓴다.
+        void SetBusEffects(AudioBusName bus, const AudioBusEffects& effects) const;
+        AudioBusEffects GetBusEffects(AudioBusName bus) const;
+        // 자주 쓰는 하나: 이 위를 깎는다(Hz). 0 이면 끈다. 일시 정지 화면에서 `SetBusLowPass("Music", 800)`.
+        void SetBusLowPass(const char* bus, float cutoffHz) const;
+        // 버스 음량을 `seconds` 에 걸쳐 옮긴다(D-205). `FadeBusVolume("Music", 0.2f, 1.5f)` - 스냅숏 대신 이것 몇 줄이다.
+        void FadeBusVolume(const char* bus, float volume, float seconds) const;
+        void FadeBusVolume(AudioBusName bus, float volume, float seconds) const;
         void StopAll() const;
+
+        // 옵션 화면의 "출력 장치" 다(D-203). 목록을 열 때 `GetOutputDeviceCount` 를 한 번 부르고(몇 ms 걸린다) 그 뒤
+        // 이름을 읽는다. 없는 이름을 주면 시스템 기본으로 연다.
+        std::uint32_t GetOutputDeviceCount() const;
+        const char* GetOutputDeviceName(std::uint32_t index) const;
+        const char* GetOutputDevice() const;
+        bool SetOutputDevice(const char* name) const;
+        // 웹에서 브라우저가 첫 입력 전까지 소리를 막고 있다. 참이면 "눌러서 시작" 같은 안내를 띄운다.
+        bool IsWaitingForUserGesture() const;
+        // 창이 포커스를 잃었을 때 소리를 끌지다(옵션 화면의 "백그라운드에서 음소거").
+        void SetMuteWhenUnfocused(bool mute) const;
+        bool IsMuteWhenUnfocused() const;
     };
 }

@@ -7,6 +7,7 @@
 #include <JBro/NetworkSystem/NetworkHost.h>
 
 #include <JBro/Asset/AssetTypeRules.h>
+#include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/Internal/ScriptModuleContext.h>
@@ -21,6 +22,53 @@
 
 namespace JBro
 {
+    namespace
+    {
+        // 오디오 시스템(과 스크립트 서비스)이 장치를 고르는 길이다(D-203). 장치는 호스트의 것이라 호스트를 거친다.
+        class EngineAudioDevices final : public System::IAudioDeviceControl
+        {
+        public:
+            explicit EngineAudioDevices(EngineInstance& engine) : m_engine(engine)
+            {
+            }
+
+            std::uint32_t RefreshOutputDevices() override
+            {
+                m_count = m_engine.EnumerateAudioOutputs(m_devices, MaxDevices);
+                m_count = m_count < MaxDevices ? m_count : MaxDevices;
+                return m_count;
+            }
+
+            const char* GetOutputDeviceName(std::uint32_t index) const override
+            {
+                return index < m_count ? m_devices[index].name : "";
+            }
+
+            const char* GetCurrentOutputDevice() const override
+            {
+                const IAudioOutput* output = m_engine.GetAudioOutput();
+                return output != nullptr ? output->GetDeviceName() : "";
+            }
+
+            bool SelectOutputDevice(const char* name) override
+            {
+                return m_engine.SetAudioOutputDevice(name);
+            }
+
+            bool IsWaitingForUserGesture() const override
+            {
+                const IAudioOutput* output = m_engine.GetAudioOutput();
+                return output != nullptr && output->IsWaitingForUserGesture();
+            }
+
+        private:
+            static constexpr std::uint32_t MaxDevices = 32;
+            EngineInstance& m_engine;
+            AudioDeviceInfo m_devices[MaxDevices];
+            std::uint32_t m_count = 0;
+        };
+    }
+
     EngineInstance::EngineInstance() = default;
 
     EngineInstance::~EngineInstance()
@@ -91,6 +139,12 @@ namespace JBro
             {
                 AudioMixerDesc mixerDesc;
                 mixerDesc.maxVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
+                // 디스크 스트리밍의 파일은 플랫폼이 연다(D-203). 스트리머 스레드에서 불린다 - `OpenFileStream` 은 어느
+                // 스레드에서 불러도 된다.
+                mixerDesc.openStream = [](void* user, const char* path, AudioFileDecoder& decoder) {
+                    return decoder.Open(static_cast<IPlatform*>(user)->OpenFileStream(path), path);
+                };
+                mixerDesc.openStreamUser = &platform;
                 if (config.audioDeviceEnabled)
                 {
                     m_audioOutput = platform.CreateAudioOutput(AudioOutputDesc{});
@@ -100,6 +154,7 @@ namespace JBro
                         mixerDesc.channels = m_audioOutput->GetChannels();
                     }
                 }
+                m_audioDeviceWanted = config.audioDeviceEnabled;
                 m_audioMixer = MakeOwnerPtr<AudioMixer>();
                 if (false == m_audioMixer->Initialize(mixerDesc))
                 {
@@ -111,6 +166,11 @@ namespace JBro
                 {
                     Log::Write(LogLevel::Warning, "audio", "the audio device did not start - the game runs silent");
                     m_audioOutput.Reset();
+                }
+                if (m_audioMixer)
+                {
+                    m_audioDevices = MakeOwnerPtr<EngineAudioDevices>(*this);
+                    m_audioRetrySeconds = 2.0f;
                 }
             }
             m_frameworkContext.renderer = m_renderer.Get();
@@ -464,6 +524,7 @@ namespace JBro
                     m_audio = MakeOwnerPtr<System::AudioSystem>();
                     if (m_audio->Initialize(*m_audioMixer, m_assets.Get()))
                     {
+                        m_audio->SetDeviceControl(m_audioDevices.Get());
                         BindAudioSystemContext(m_audio->GetSystemContext());
                         BindAudioServiceContext(m_audio->GetServiceContext());
                     }
@@ -653,6 +714,7 @@ namespace JBro
         {
             m_audioMixer->Update();
         }
+        UpdateAudioDevice(deltaTime);
         if (m_exitRequested)
         {
             return false;
@@ -808,9 +870,132 @@ namespace JBro
             // 인턴해 둔다 - 로그와 에디터가 이름을 되찾는다.
             config.name = NameTable::Get().Intern(bus.name.c_str());
             config.volume = bus.volume;
+            config.effects = bus.effects;
+            if (false == bus.parent.empty())
+            {
+                config.parent = NameTable::Get().Intern(bus.parent.c_str());
+            }
+            if (false == bus.send.empty())
+            {
+                config.send = NameTable::Get().Intern(bus.send.c_str());
+                config.sendLevel = bus.sendLevel;
+            }
+            if (false == bus.duckBy.empty())
+            {
+                config.duckBy = NameTable::Get().Intern(bus.duckBy.c_str());
+                config.duckAmount = bus.duckAmount;
+                config.duckRelease = bus.duckRelease;
+            }
             buses.Add(config);
         }
         m_audio->ConfigureBuses({buses.Data(), static_cast<std::uint32_t>(buses.Size())});
+        m_audio->SetMuteWhenUnfocused(m_project.audioMuteWhenUnfocused);
+        // 고른 장치가 바뀌었을 때만 다시 연다 - 설정을 저장할 때마다 소리가 끊기지 않게.
+        if (false == (m_project.audioOutputDevice == m_audioDevicePreference))
+        {
+            SetAudioOutputDevice(m_project.audioOutputDevice.c_str());
+        }
+    }
+
+    bool EngineInstance::OpenAudioOutput()
+    {
+        if (m_platform == nullptr || m_audioMixer.Get() == nullptr || false == m_audioDeviceWanted)
+        {
+            return false;
+        }
+        AudioOutputDesc desc;
+        // 믹서의 형식으로 연다. 장치가 다른 형식이면 miniaudio 가 바꾼다 - 믹서를 다시 만들지 않아도 된다.
+        desc.sampleRate = m_audioMixer->GetSampleRate();
+        desc.channels = m_audioMixer->GetChannels();
+        desc.deviceName = m_audioDevicePreference.empty() ? nullptr : m_audioDevicePreference.c_str();
+        OwnerPtr<IAudioOutput> output = m_platform->CreateAudioOutput(desc);
+        if (output.Get() == nullptr && desc.deviceName != nullptr)
+        {
+            // 고른 장치가 이 기계에 없다(또는 뽑혔다). 기본 장치로 연다 - 고른 이름은 그대로 둔다.
+            desc.deviceName = nullptr;
+            output = m_platform->CreateAudioOutput(desc);
+        }
+        if (output.Get() == nullptr || false == output->Start(&AudioMixer::RenderCallback, m_audioMixer.Get()))
+        {
+            return false;
+        }
+        m_audioOutput = std::move(output);
+        return true;
+    }
+
+    bool EngineInstance::SetAudioOutputDevice(const char* name)
+    {
+        m_audioDevicePreference = name != nullptr ? name : "";
+        if (m_audioMixer.Get() == nullptr || false == m_audioDeviceWanted)
+        {
+            return false;
+        }
+        // 옛 장치를 먼저 멈춘다 - 두 장치가 한 믹서를 함께 당기면 안 된다.
+        if (m_audioOutput)
+        {
+            m_audioOutput->Stop();
+            m_audioOutput.Reset();
+        }
+        const bool opened = OpenAudioOutput();
+        m_audioRetrySeconds = opened ? 0.0f : 2.0f;
+        return opened;
+    }
+
+    const char* EngineInstance::GetPreferredAudioOutputDevice() const
+    {
+        return m_audioDevicePreference.c_str();
+    }
+
+    std::uint32_t EngineInstance::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    {
+        return m_platform != nullptr ? m_platform->EnumerateAudioOutputs(devices, capacity) : 0;
+    }
+
+    void EngineInstance::UpdateAudioDevice(float deltaTime)
+    {
+        if (m_audioMixer.Get() == nullptr)
+        {
+            return;
+        }
+        // 포커스: 이번 프레임의 입력 사건에서 마지막 것을 따른다. 알리는 쪽은 바뀔 때만 일한다.
+        if (m_audio.Get() != nullptr && m_platform != nullptr)
+        {
+            const JArrayView<InputEvent> events = m_platform->GetInputEvents();
+            for (std::uint32_t index = 0; index < events.size; ++index)
+            {
+                const InputEventKind kind = events.data[index].kind;
+                if (kind == InputEventKind::FocusLost || kind == InputEventKind::FocusGained)
+                {
+                    m_audio->SetWindowFocused(kind == InputEventKind::FocusGained);
+                }
+            }
+        }
+        if (false == m_audioDeviceWanted)
+        {
+            return;
+        }
+        if (m_audioOutput && m_audioOutput->IsLost())
+        {
+            // 장치가 사라졌다(뽑힘). 소리는 믹서에서 계속 섞이고 있다 - 장치만 새로 연다.
+            Log::Write(LogLevel::Warning, "audio", "the audio device '%s' was lost - reopening", m_audioOutput->GetDeviceName());
+            m_audioOutput->Stop();
+            m_audioOutput.Reset();
+            m_audioRetrySeconds = 0.0f;
+        }
+        if (m_audioOutput.Get() != nullptr)
+        {
+            return;
+        }
+        m_audioRetrySeconds -= std::isfinite(deltaTime) && deltaTime > 0.0f ? deltaTime : 0.0f;
+        if (m_audioRetrySeconds > 0.0f)
+        {
+            return;
+        }
+        if (OpenAudioOutput())
+        {
+            Log::Write(LogLevel::Info, "audio", "audio output: %s", m_audioOutput->GetDeviceName());
+        }
+        m_audioRetrySeconds = 2.0f;
     }
 
     bool EngineInstance::DidGameSubmitLastFrame() const
@@ -938,6 +1123,9 @@ namespace JBro
             m_audioOutput.Reset();
         }
         m_audioMixer.Reset();
+        m_audioDevices.Reset();
+        m_audioDeviceWanted = false;
+        m_audioDevicePreference.clear();
         if (m_renderer)
         {
             m_renderer->Shutdown();

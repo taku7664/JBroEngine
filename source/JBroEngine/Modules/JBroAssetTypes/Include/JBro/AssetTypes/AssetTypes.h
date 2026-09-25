@@ -96,7 +96,10 @@ namespace JBro
         // 로드 때 전부 PCM 으로 푼다. 짧은 효과음.
         Decompressed,
         // 압축된 바이트를 메모리에 두고 재생하며 푼다. 긴 배경음.
-        Streaming
+        Streaming,
+        // 파일을 메모리에 올리지 않고 디스크에서 흘려 읽는다(D-203). 몇 분짜리 배경음·음성처럼 메모리에 두기 아까운 것.
+        // 동시에 흘려 읽는 수가 정해져 있고(기본 8) 웹 빌드에서는 되지 않는다 - 그때는 `Streaming` 으로 둔다.
+        StreamFromDisk
     };
 
     // `.jmeta` 의 `Audio.ImportOptions` 블록이다. **재생 파라미터는 없다** - 볼륨·루프·거리·버스는 컴포넌트가
@@ -104,6 +107,8 @@ namespace JBro
     struct AudioImportOptions
     {
         AudioImportMode mode = AudioImportMode::Decompressed;
+        // 파일의 크기 보정(트림, 0..4, D-205)이다. 녹음마다 다른 크기를 여기서 한 번 맞추면 컴포넌트의 `volume` 은 연출에만 쓴다.
+        float gain = 1.0f;
     };
 
     // `.jmeta` 의 `Font.ImportOptions` 블록이다(D-200, text-plan §4.1). 글자 크기는 컴포넌트의 몫이고(`Text2D::fontSize`,

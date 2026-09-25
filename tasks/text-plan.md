@@ -5,7 +5,7 @@
 > `[제안]` 은 **사용자 확인 전**이다. 2026-09-25 사용자 지시("텍스트 계획서 초안 써 줘, 그리고 이 구조가 최선이었는지도
 > 깨트려 봐")로 시작했다. 같은 날 §6 의 여섯 가지가 모두 권고대로 확인돼("전부 권고대로 해") **D-200** 이 됐다.
 > 1 단계(커널)가 섰다(2026-09-25, `2ef2001`·`d8434da`). 2 단계(아틀라스·`Font` 에셋·`TextStore`·`Text2D`·`Text2DSystem`)가 섰다
-> (2026-09-26, `bd6e043`). 저장소의 자리는 D-203 이 고쳤다. 다음은 3 단계(에디터)다.
+> (2026-09-26, `bd6e043`). 저장소의 자리는 D-206 이 고쳤다. 다음은 3 단계(에디터)다.
 
 ## 0. 한 줄 요약
 
@@ -249,7 +249,7 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
 
 ### 4.3 저장소와 변경 감지
 
-- ~~`TextStore` 는 캔버스마다 하나이고 Framework2DSystem 이 든다~~ → **프로세스에 하나이고 `JBroRuntime` 이 든다(D-203)**. 코덱이 문맥을 받지
+- ~~`TextStore` 는 캔버스마다 하나이고 Framework2DSystem 이 든다~~ → **프로세스에 하나이고 `JBroRuntime` 이 든다(D-206)**. 코덱이 문맥을 받지
   않고, 캔버스가 시스템을 오브젝트보다 먼저 내리기 때문이다. 슬롯은 `{ String utf8, generation, revision }`, 핸들은 `번호 + 세대`.
 - 컴포넌트가 붙을 때 슬롯을 받고 떨어질 때 돌려준다. 캔버스 파일을 읽을 때 글자를 슬롯에 넣는다. 복사·붙여넣기·프리팹은 글자를 복사해 새 슬롯을 받는다.
 - 시스템 캐시(키 `InstanceId`)는 `(text 세대, 폰트 핸들 세대, 레이아웃 옵션 해시)` 가 같으면 레이아웃을 건너뛴다. 옵션 해시는 필드 몇 개의
@@ -320,17 +320,19 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
      풀었다 같은 크기로 다시 잡은 블록이 같은 주소로 올 수 있어 손으로 돌리니 살았다(`mutate.py` 는 그 판에 우연히 잡힘으로 셌다).
      `TextLayout::GetReservedCapacity`(안쪽 배열 넷의 용량 합)를 두고 그 값을 비교하게 고쳐 세 번씩 돌려 모두 잡혔다(`d8434da`).
      완료 조건의 "할당 0 번" 은 이 용량 비교로 잰다 - 할당 횟수를 세는 훅은 엔진에 없다(`BindHeapAllocator` 는 한 번만 묶을 수 있어 테스트에 쓰지 않았다).
-2. **아틀라스와 비트맵 렌더.** `GlyphAtlas`(선반·페이지·더러운 표시), `Font` 에셋과 로더, `TextStore`, `Text2D`, `Text2DSystem`, 글자마다 스프라이트 아이템.
+2. ~~**아틀라스와 비트맵 렌더.** `GlyphAtlas`(선반·페이지·더러운 표시), `Font` 에셋과 로더, `TextStore`, `Text2D`, `Text2DSystem`, 글자마다 스프라이트 아이템.~~
+   → 완료 2026-09-26 · `13ac0ef`·`bd6e043`·`3fe31bd` · `JBroText/GlyphAtlas`, `JBroAsset/Asset.cpp`(`ReadFont`), `JBroRuntime/TextStore`,
+   `JBroFramework2D/Component/Text2D.h`·`Service/Text2DService`, `JBroFramework2DSystem/System/Text2DSystem`·`Rendering/TextLibrary` (D-204 형식)
    - 완료 조건: 픽셀 테스트에서 흰 배경에 검은 `A` 가 기대한 칸 안에만 찍힌다. 같은 텍스트를 매 프레임 바꾸는 동안 GPU 버퍼 생성이 0 번이다.
      새 글자가 없는 프레임에 텍스처 업로드가 0 번이다. 페이지가 넘치면 둘째 페이지가 생기고 첫 페이지의 UV 가 바뀌지 않는다. 폰트를 다시 쓰면 세대가 올라 다시 그려진다.
      캔버스 파일 왕복에 글자가 남는다. 스크립트가 `SetText` 로 바꾼 글자가 다음 프레임에 보인다.
-   - `[완료]` (2026-09-26, `13ac0ef`·`bd6e043`·`3fe31bd`) 만든 것:
+   - 만든 것:
      - 커널: `GlyphAtlas`(face 하나의 CPU 아틀라스, RGBA8 `(255,255,255,커버리지)`, 선반 할당·1 px 틈, 칸은 옮기지 않고 차면 새 페이지,
        새 칸이 든 페이지만 더러움), `FontFace::MeasureGlyphBitmap`·`RasterizeGlyph`(stb 는 여전히 `FontFace.cpp` 안).
      - 에셋: `Font` 로드·재로드·수거(`FontData { options, bytes, dataGeneration }`), `.jmeta` 의 `Font.ImportOptions { pixelsPerUnit, filter }`.
        `filter: Default` 는 로드 때 프로젝트 필터가 되고 PPU 0 이하는 100 이다(텍스처와 같은 규칙, D-119). **렌더 모드 옵션은 두지 않았다** -
        쓰이지 않는 옵션을 먼저 만들지 않는다. 4 단계(SDF)에서 온다.
-     - `TextStore`·`TextId`(JBroRuntime, 프로세스에 하나 - **D-203 이 D-200 (1) 의 "캔버스마다" 를 고쳤다**), 코덱의 이스케이프(D-203 (b)).
+     - `TextStore`·`TextId`(JBroRuntime, 프로세스에 하나 - **D-206 이 D-200 (1) 의 "캔버스마다" 를 고쳤다**), 코덱의 이스케이프(D-206 (b)).
      - `Component::Text2D`(14 필드: `text` `fontId` `font` `fontSize` `boxSize` `overflow` `wrapMode` `alignX` `alignY` `lineSpacing`
        `letterSpacing` `color` `renderOrder` `visible`, 기존 엔진 표처럼 Rendering·여럿 붙음), `Service::Text2DService`(SetText·GetTextLength·
        CopyText) → `System::IText2DSystem`(호스트 코드). 2D 시스템 문맥·서비스 문맥 ABI 가 둘 다 2 가 됐다.
@@ -353,7 +355,7 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
        §1.2 의 8 번과 §3.6 의 칸 크기 추정은 실제보다 컸다. 페이지당 글자 수는 계산보다 많다.)
      - 폰트 메타의 PPU 를 32 → 64 로 고쳐 제자리 재로드하면 다시 레이아웃되고 절반 크기로 그려진다.
      - 까다로운 글자 21 개(여러 줄, `a: b`, 앞뒤 공백, 따옴표 두 종류, `[]`·`{}`, 백슬래시, 탭, CRLF, 한글 등)가 진짜 캔버스 파일을 지나
-       그대로 돌아오고, 스냅숏 길(글자로 떴다 다시 쓰기)도 같다. 처음 판에서 `[]` 가 깨졌다 - 파서가 따옴표를 벗긴 뒤 빈 시퀀스로 읽었다(D-203 (b)).
+       그대로 돌아오고, 스냅숏 길(글자로 떴다 다시 쓰기)도 같다. 처음 판에서 `[]` 가 깨졌다 - 파서가 따옴표를 벗긴 뒤 빈 시퀀스로 읽었다(D-206 (b)).
      - 복사(`FromText`)는 새 칸을 받고, 원본을 바꿔도 사본은 그대로다. 오브젝트를 부수면 칸이 돌아오고 캔버스를 내리면 나머지도 돌아온다.
      전체 솔루션(`Debug_Game2D`)·에디터 호스트(`Debug`)·테스트 전부가 경고 없이 서고 통과한다(다른 세션의 테스트가 함께 돌면 에디터의 마우스
      테스트 하나가 흔들렸다 - 혼자 돌린 판은 통과).

@@ -3528,6 +3528,92 @@ namespace
         fs::remove_all(root, ignored);
     }
 
+    // **프로젝트 설정의 오디오 마디가 그려진다**(D-202·D-203). 버스마다 접는 "이펙트"·"라우팅" 마디를 열고, 통계 창의
+    // 버스 미터를 함께 그린다. 표를 마디 안에서 닫지 않으면 ImGui 의 ID 쌓기가 어긋나 단언이 터진다 - 이 시험이 그것을 잡는다.
+    void TestTheAudioSettingsAndMetersDraw()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroAudioSettingsProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        const JBro::String projectPath = TempPath("JBroAudioSettingsProbe\\Audio.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "AudioMuteWhenUnfocused: true\n"
+            "AudioBuses:\n"
+            "  - Name: SFX\n"
+            "    Volume: 0.5\n"
+            "  - Name: Steps\n"
+            "    Volume: 1\n"
+            "    Parent: SFX\n"
+            "    Send: Room\n"
+            "    SendLevel: 0.5\n"
+            "  - Name: Room\n"
+            "    Volume: 1\n"
+            "    ReverbMix: 1\n"
+            "    Dry: 0\n"
+            "Build:\n"
+            "  ProductName: AudioSettingsProbe\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the audio settings not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.GetProjectFile().audioMuteWhenUnfocused && editor.GetProjectFile().audioBuses[1].parent == "SFX",
+            "the project reads its audio settings");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.GetAudio() != nullptr && editor.GetAudio()->IsMuteWhenUnfocused(),
+            "the focus policy reaches the audio system");
+        JBro::EditorPanel* settings = editor.FindPanel("ProjectSettings");
+        JBro::EditorPanel* stats = editor.FindPanel("Stats");
+        Check(settings != nullptr && stats != nullptr, "both panels exist");
+        settings->SetOpen(true);
+        settings->RequestFocus();
+        stats->SetOpen(true);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the settings open");
+        }
+        JBro::String label = settings->GetDisplayTitle();
+        label += "###ProjectSettings";
+        ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
+        Check(window != nullptr, "the project settings must have a window");
+        // 버스마다 두 마디를 연 채로 둔다. 마디의 Id 는 창 → 버스 번호 → 번역된 제목이다.
+        const char* effects = JBro::Loc::TextOr(JBro::LocKeys::ProjectSettingsAudioEffects, "Effects");
+        const char* routing = JBro::Loc::TextOr(JBro::LocKeys::ProjectSettingsAudioRouting, "Routing");
+        for (int bus = 0; bus < 3; ++bus)
+        {
+            const ImGuiID seed = ImHashData(&bus, sizeof(bus), window->ID);
+            window->StateStorage.SetInt(LabelId(seed, effects), 1);
+            window->StateStorage.SetInt(LabelId(seed, routing), 1);
+        }
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the open audio folds");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "audio_project_settings");
+        }
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
     // **에셋 브라우저에서 고르면 인스펙터가 임포트 옵션을 보이고, 고치면 메타가 커맨드로 다시 쓰인다**(D-120).
     // 폴더 안의 그림 줄을 눌러 고르고, 인스펙터의 `pixelsPerUnit` 을 끌어 메타 파일에 옵션 블록이 생기는지, 스프라이트
     // 아이디가 보존되는지, 되돌리면 파일이 원래대로 오는지 잰다. 오브젝트를 고르면 에셋 선택은 빈다.
@@ -9483,6 +9569,7 @@ int RunEditorApplicationTests()
     TestTypingTheSameValueLeavesNothingToUndo();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheInspectorPreviewsAudioAndPicksABus();
+    TestTheAudioSettingsAndMetersDraw();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();

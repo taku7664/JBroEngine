@@ -29,6 +29,7 @@ namespace JBro::System
         AudioClipDesc DescribeClip(const AudioData& data)
         {
             AudioClipDesc desc;
+            desc.gain = data.options.gain;
             desc.frameCount = data.frameCount;
             desc.sampleRate = data.sampleRate;
             desc.channels = data.channels;
@@ -37,6 +38,11 @@ namespace JBro::System
                 desc.encoding = AudioClipEncoding::Encoded;
                 desc.bytes = data.encoded.Data();
                 desc.byteCount = data.encoded.Size();
+            }
+            else if (data.options.mode == AudioImportMode::StreamFromDisk)
+            {
+                desc.encoding = AudioClipEncoding::File;
+                desc.path = data.streamPath.c_str();
             }
             else
             {
@@ -98,6 +104,12 @@ namespace JBro::System
         m_buses.Clear();
         m_busConfigs.Clear();
         m_warnedBuses.Clear();
+        m_soloBuses.Clear();
+        // 믹서는 프로세스 수명이다 - 포커스 정책이 줄여 둔 출력을 다음 프로젝트에 넘기지 않는다.
+        m_mixer->SetOutputGain(1.0f, 0.0f);
+        m_muteWhenUnfocused = false;
+        m_focused = true;
+        m_deviceControl = nullptr;
         m_mixer = nullptr;
         m_assets = nullptr;
         m_systemContext = {};
@@ -134,16 +146,76 @@ namespace JBro::System
                 if (config.name == master)
                 {
                     m_mixer->SetBusVolume(AudioMasterBus, config.volume);
+                    m_mixer->SetBusEffects(AudioMasterBus, config.effects);
                 }
                 continue;
             }
-            const AudioBusId bus = m_mixer->CreateBus(config.volume);
+            AudioBusId parent = AudioMasterBus;
+            if (config.parent != InvalidNameId && config.parent != master)
+            {
+                if (const AudioBusId* found = m_buses.Find(config.parent))
+                {
+                    parent = *found;
+                }
+                else
+                {
+                    const char* text = NameTable::Get().Resolve(config.name);
+                    Log::Write(LogLevel::Warning, "audio", "bus '%s': its parent must come earlier in the list - placing it under Master",
+                        text[0] != '\0' ? text : "?");
+                }
+            }
+            const AudioBusId bus = m_mixer->CreateBus(config.volume, parent);
             if (bus == AudioMasterBus)
             {
                 break;
             }
             m_buses.TryAdd(config.name, bus);
+            m_mixer->SetBusEffects(bus, config.effects);
             m_busConfigs.Add(config);
+        }
+        // 센드는 모든 버스가 선 뒤에 잇는다 - 받는 버스가 목록의 뒤에 있어도 된다.
+        for (const AudioBusConfig& config : m_busConfigs)
+        {
+            if (config.send == InvalidNameId || config.sendLevel <= 0.0f)
+            {
+                continue;
+            }
+            const AudioBusId* from = m_buses.Find(config.name);
+            const AudioBusId* to = m_buses.Find(config.send);
+            if (from == nullptr || to == nullptr || false == m_mixer->SetBusSend(*from, *to, config.sendLevel))
+            {
+                const char* text = NameTable::Get().Resolve(config.name);
+                Log::Write(LogLevel::Warning, "audio", "bus '%s': its send target is missing or would feed back - the send is off",
+                    text[0] != '\0' ? text : "?");
+            }
+        }
+        // 더킹도 모든 버스가 선 뒤에 잇는다(D-205).
+        for (const AudioBusConfig& config : m_busConfigs)
+        {
+            if (config.duckBy == InvalidNameId || config.duckAmount <= 0.0f)
+            {
+                continue;
+            }
+            const AudioBusId* bus = m_buses.Find(config.name);
+            const AudioBusId* trigger = m_buses.Find(config.duckBy);
+            if (bus != nullptr && trigger != nullptr && *bus != *trigger)
+            {
+                m_mixer->SetBusDucking(*bus, *trigger, config.duckAmount, config.duckRelease);
+            }
+            else
+            {
+                const char* text = NameTable::Get().Resolve(config.name);
+                Log::Write(LogLevel::Warning, "audio", "bus '%s': the bus it ducks under is missing - ducking is off",
+                    text[0] != '\0' ? text : "?");
+            }
+        }
+        // 솔로는 믹싱 상태라 파일에 없다. 버스를 다시 세워도 이름으로 되살린다.
+        for (const auto& solo : m_soloBuses)
+        {
+            if (const AudioBusId* found = m_buses.Find(solo.KeyValue))
+            {
+                m_mixer->SetBusSolo(*found, solo.MappedValue);
+            }
         }
     }
 
@@ -300,6 +372,8 @@ namespace JBro::System
             return;
         }
         AudioPlayDesc play;
+        play.lowPassHz = Finite(source.lowPass, 0.0f);
+        play.highPassHz = Finite(source.highPass, 0.0f);
         play.clip = clip;
         play.bus = ResolveBus(source.bus);
         play.volume = Finite(source.volume, 1.0f);
@@ -320,6 +394,8 @@ namespace JBro::System
         runtime.lastPitch = play.pitch;
         runtime.lastLoop = play.loop;
         runtime.lastBus = source.bus;
+        runtime.lastLowPass = play.lowPassHz;
+        runtime.lastHighPass = play.highPassHz;
         // 보이스가 모자라 거절되면 끝난 것과 같다 - 매 프레임 다시 시도하지 않는다.
         source.state = runtime.voice.IsSet() ? Component::AudioSourceState::Playing : Component::AudioSourceState::Finished;
     }
@@ -430,6 +506,14 @@ namespace JBro::System
         {
             m_mixer->SetBus(runtime.voice, ResolveBus(source.bus));
             runtime.lastBus = source.bus;
+        }
+        const float lowPass = Finite(source.lowPass, 0.0f);
+        const float highPass = Finite(source.highPass, 0.0f);
+        if (lowPass != runtime.lastLowPass || highPass != runtime.lastHighPass)
+        {
+            m_mixer->SetVoiceFilter(runtime.voice, lowPass, highPass);
+            runtime.lastLowPass = lowPass;
+            runtime.lastHighPass = highPass;
         }
         if (source.spatial)
         {
@@ -656,8 +740,117 @@ namespace JBro::System
         return m_initialized && m_mixer->IsBusMuted(ResolveBus(bus));
     }
 
+    void AudioSystem::SetBusEffects(AudioBusName bus, const AudioBusEffects& effects)
+    {
+        if (m_initialized)
+        {
+            m_mixer->SetBusEffects(ResolveBus(bus), effects);
+        }
+    }
+
+    AudioBusEffects AudioSystem::GetBusEffects(AudioBusName bus) const
+    {
+        return m_initialized ? m_mixer->GetBusEffects(ResolveBus(bus)) : AudioBusEffects{};
+    }
+
     void AudioSystem::StopAll()
     {
         StopGameSounds();
+    }
+
+    void AudioSystem::FadeBusVolume(AudioBusName bus, float volume, float seconds)
+    {
+        if (m_initialized)
+        {
+            m_mixer->SetBusVolume(ResolveBus(bus), volume, seconds);
+        }
+    }
+
+    void AudioSystem::SetBusSolo(AudioBusName bus, bool solo)
+    {
+        if (false == m_initialized || bus.IsMaster())
+        {
+            return;
+        }
+        if (solo)
+        {
+            m_soloBuses.InsertOrAssign(bus.id, true);
+        }
+        else
+        {
+            m_soloBuses.Remove(bus.id);
+        }
+        if (const AudioBusId* found = m_buses.Find(bus.id))
+        {
+            m_mixer->SetBusSolo(*found, solo);
+        }
+    }
+
+    bool AudioSystem::IsBusSolo(AudioBusName bus) const
+    {
+        return m_initialized && false == bus.IsMaster() && m_soloBuses.Contains(bus.id);
+    }
+
+    float AudioSystem::GetBusPeak(AudioBusName bus) const
+    {
+        return m_initialized ? m_mixer->GetBusPeak(ResolveBus(bus)) : 0.0f;
+    }
+
+    void AudioSystem::SetDeviceControl(IAudioDeviceControl* control)
+    {
+        m_deviceControl = control;
+    }
+
+    void AudioSystem::SetWindowFocused(bool focused)
+    {
+        if (m_focused == focused)
+        {
+            return;
+        }
+        m_focused = focused;
+        if (m_initialized && m_muteWhenUnfocused)
+        {
+            m_mixer->SetOutputGain(focused ? 1.0f : 0.0f, 0.2f);
+        }
+    }
+
+    std::uint32_t AudioSystem::GetOutputDeviceCount()
+    {
+        return m_deviceControl != nullptr ? m_deviceControl->RefreshOutputDevices() : 0;
+    }
+
+    const char* AudioSystem::GetOutputDeviceName(std::uint32_t index) const
+    {
+        return m_deviceControl != nullptr ? m_deviceControl->GetOutputDeviceName(index) : "";
+    }
+
+    const char* AudioSystem::GetOutputDevice() const
+    {
+        return m_deviceControl != nullptr ? m_deviceControl->GetCurrentOutputDevice() : "";
+    }
+
+    bool AudioSystem::SetOutputDevice(const char* name)
+    {
+        return m_deviceControl != nullptr && m_deviceControl->SelectOutputDevice(name);
+    }
+
+    bool AudioSystem::IsWaitingForUserGesture() const
+    {
+        return m_deviceControl != nullptr && m_deviceControl->IsWaitingForUserGesture();
+    }
+
+    void AudioSystem::SetMuteWhenUnfocused(bool mute)
+    {
+        m_muteWhenUnfocused = mute;
+        if (m_initialized)
+        {
+            // 정책을 바꾸는 순간의 포커스로 곧바로 맞춘다 - 포커스 없이 켜면 곧 줄고, 끄면 곧 돌아온다.
+            m_mixer->SetOutputGain(mute && false == m_focused ? 0.0f : 1.0f, 0.2f);
+        }
+    }
+
+    bool AudioSystem::IsMuteWhenUnfocused() const
+    {
+        return m_muteWhenUnfocused;
     }
 }

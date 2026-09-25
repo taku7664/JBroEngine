@@ -1041,6 +1041,17 @@ namespace JBro
         return m_engine.Get() != nullptr ? m_engine->GetAudio() : nullptr;
     }
 
+    std::uint32_t EditorApplication::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    {
+        return m_engine.Get() != nullptr ? m_engine->EnumerateAudioOutputs(devices, capacity) : 0;
+    }
+
+    const char* EditorApplication::GetAudioDeviceName() const
+    {
+        const IAudioOutput* output = m_engine.Get() != nullptr ? m_engine->GetAudioOutput() : nullptr;
+        return output != nullptr ? output->GetDeviceName() : nullptr;
+    }
+
     bool EditorApplication::IsWatchingAssets() const
     {
         return m_engine.Get() != nullptr && m_engine->IsWatchingAssets();

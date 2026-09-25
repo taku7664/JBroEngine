@@ -87,6 +87,10 @@ namespace JBro::Component
         JBRO_FIELD(std::int32_t, priority, Range(0, 255)) = 128;
         // 시작할 때 이만큼 키운다(초).
         JBRO_FIELD(float, fadeIn) = 0.0f;
+        // 이 소스에만 거는 필터다(Hz, 0 이면 끔). 벽 너머의 소리는 저역 통과 800 쯤, 무전기는 고역 통과 1500 쯤이다.
+        // 재생 중에 바꿔도 된다. 둘 다 0 인 소스는 필터 비용이 없다.
+        JBRO_FIELD(float, lowPass, Category("Filter")) = 0.0f;
+        JBRO_FIELD(float, highPass, Category("Filter")) = 0.0f;
         JBRO_FIELD(AudioSourceState, state, NoSerialize() | ReadOnly()) = AudioSourceState::Idle;
 
         // ── 시스템 전용 ───────────────────────────────────────────────────────────────────────
@@ -101,6 +105,8 @@ namespace JBro::Component
             float lastPitch = -1.0f;
             bool lastLoop = false;
             AudioBusName lastBus;
+            float lastLowPass = 0.0f;
+            float lastHighPass = 0.0f;
             bool wasActive = false;
             // 이번 활성 구간에 `playOnStart` 를 이미 썼는가.
             bool playOnStartUsed = false;

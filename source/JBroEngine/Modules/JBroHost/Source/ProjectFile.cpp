@@ -156,6 +156,35 @@ namespace JBro
             return false;
         }
 
+        // 버스 이펙트 키 → 칸. 모르는 키면 null 이다. 쓰는 쪽도 이 차례로 적는다.
+        struct AudioEffectKey
+        {
+            const char* key;
+            float AudioBusEffects::* field;
+        };
+        const AudioEffectKey AudioEffectKeys[] = {
+            {"LowPass", &AudioBusEffects::lowPassHz},
+            {"HighPass", &AudioBusEffects::highPassHz},
+            {"EchoDelay", &AudioBusEffects::echoDelay},
+            {"EchoFeedback", &AudioBusEffects::echoFeedback},
+            {"EchoMix", &AudioBusEffects::echoMix},
+            {"ReverbRoom", &AudioBusEffects::reverbRoom},
+            {"ReverbDamping", &AudioBusEffects::reverbDamping},
+            {"ReverbMix", &AudioBusEffects::reverbMix},
+            {"Dry", &AudioBusEffects::dry}};
+
+        float* AudioBusEffectField(AudioBusEffects& effects, const String& key)
+        {
+            for (const AudioEffectKey& entry : AudioEffectKeys)
+            {
+                if (key == entry.key)
+                {
+                    return &(effects.*entry.field);
+                }
+            }
+            return nullptr;
+        }
+
         bool Fail(ProjectFileError& error, std::size_t line, const char* message)
         {
             error.line = static_cast<std::uint32_t>(line);
@@ -296,6 +325,39 @@ namespace JBro
                     if (false == ParseFloat(busValue, bus.volume))
                     {
                         return Fail(error, lineNumber, "an audio bus Volume must be a number");
+                    }
+                }
+                else if (busKey == "Parent")
+                {
+                    bus.parent = busValue;
+                }
+                else if (busKey == "Send")
+                {
+                    bus.send = busValue;
+                }
+                else if (busKey == "SendLevel")
+                {
+                    if (false == ParseFloat(busValue, bus.sendLevel))
+                    {
+                        return Fail(error, lineNumber, "an audio bus SendLevel must be a number");
+                    }
+                }
+                else if (busKey == "DuckBy")
+                {
+                    bus.duckBy = busValue;
+                }
+                else if (busKey == "DuckAmount" || busKey == "DuckRelease")
+                {
+                    if (false == ParseFloat(busValue, busKey == "DuckAmount" ? bus.duckAmount : bus.duckRelease))
+                    {
+                        return Fail(error, lineNumber, "an audio bus DuckAmount and DuckRelease must be numbers");
+                    }
+                }
+                else if (float* effect = AudioBusEffectField(bus.effects, busKey))
+                {
+                    if (false == ParseFloat(busValue, *effect))
+                    {
+                        return Fail(error, lineNumber, "an audio bus effect must be a number");
                     }
                 }
                 // 모르는 필드는 두고 지나간다(뒤의 판이 더할 수 있다).
@@ -447,6 +509,8 @@ namespace JBro
             else if (key == "ScriptOutputLibraryPath") { parsed.scriptOutputLibraryPath = value; }
             else if (key == "LastOpenedCanvasPath") { parsed.lastOpenedCanvasPath = value; }
             else if (key == "EditorLocale") { parsed.editorLocale = value; }
+            else if (key == "AudioOutputDevice") { parsed.audioOutputDevice = value; }
+            else if (key == "AudioMuteWhenUnfocused") { recognized = ParseBool(value, parsed.audioMuteWhenUnfocused); }
             else if (key == "CanvasViewCameraX")
             {
                 if (false == ParseFloat(value, parsed.canvasViewCameraX))
@@ -570,6 +634,11 @@ namespace JBro
             else if (key == "ScriptOutputLibraryPath") { value = project.scriptOutputLibraryPath; }
             else if (key == "LastOpenedCanvasPath") { value = project.lastOpenedCanvasPath; }
             else if (key == "EditorLocale") { value = project.editorLocale; }
+            else if (key == "AudioOutputDevice") { value = project.audioOutputDevice; }
+            else if (key == "AudioMuteWhenUnfocused")
+            {
+                value = project.audioMuteWhenUnfocused ? "true" : "false";
+            }
             else if (key == "CanvasViewCameraX") { value = FormatFloat(project.canvasViewCameraX); }
             else if (key == "CanvasViewCameraY") { value = FormatFloat(project.canvasViewCameraY); }
             else if (key == "CanvasViewCameraSize")
@@ -607,7 +676,8 @@ namespace JBro
             "ResolutionWidth", "ResolutionHeight", "TextureFilter", "DebugModeEnabled",
             "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
             "AssetDirectory", "EditorLocale",
-            "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize"};
+            "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize",
+            "AudioOutputDevice", "AudioMuteWhenUnfocused"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
             "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath"};
@@ -750,6 +820,67 @@ namespace JBro
                 const String volume = FormatShortFloat(bus.volume);
                 result.append(volume.c_str(), volume.size());
                 result.append("\n", 1);
+                // 부모·센드도 쓸 때만 적는다. 쓰지 않는 파일은 전과 같다.
+                const auto appendName = [&result](const char* key, const String& name)
+                {
+                    result.append("    ", 4);
+                    result.append(key, std::strlen(key));
+                    result.append(": ", 2);
+                    if (IsPlainName(name))
+                    {
+                        result.append(name.c_str(), name.size());
+                    }
+                    else
+                    {
+                        result.append("\"", 1);
+                        result.append(name.c_str(), name.size());
+                        result.append("\"", 1);
+                    }
+                    result.append("\n", 1);
+                };
+                if (false == bus.parent.empty())
+                {
+                    appendName("Parent", bus.parent);
+                }
+                if (false == bus.send.empty() && bus.sendLevel > 0.0f)
+                {
+                    appendName("Send", bus.send);
+                    result.append("    SendLevel: ", 15);
+                    const String level = FormatShortFloat(bus.sendLevel);
+                    result.append(level.c_str(), level.size());
+                    result.append("\n", 1);
+                }
+                if (false == bus.duckBy.empty() && bus.duckAmount > 0.0f)
+                {
+                    appendName("DuckBy", bus.duckBy);
+                    result.append("    DuckAmount: ", 16);
+                    const String amount = FormatShortFloat(bus.duckAmount);
+                    result.append(amount.c_str(), amount.size());
+                    result.append("\n", 1);
+                    if (bus.duckRelease != 0.3f)
+                    {
+                        result.append("    DuckRelease: ", 17);
+                        const String release = FormatShortFloat(bus.duckRelease);
+                        result.append(release.c_str(), release.size());
+                        result.append("\n", 1);
+                    }
+                }
+                // 이펙트는 기본값과 다른 칸만 적는다. 이펙트를 쓰지 않는 파일은 전과 같다.
+                const AudioBusEffects defaults;
+                for (const AudioEffectKey& entry : AudioEffectKeys)
+                {
+                    const float value = bus.effects.*entry.field;
+                    if (value == defaults.*entry.field)
+                    {
+                        continue;
+                    }
+                    result.append("    ", 4);
+                    result.append(entry.key, std::strlen(entry.key));
+                    result.append(": ", 2);
+                    const String text = FormatShortFloat(value);
+                    result.append(text.c_str(), text.size());
+                    result.append("\n", 1);
+                }
             }
         }
 

@@ -31,5 +31,6 @@ namespace JBro
         OwnerPtr<Network::ISocketProvider> CreateSocketProvider() override;
         // Emscripten 빌드에서만 장치를 돌려준다(miniaudio 의 Web Audio). 브라우저는 사용자 입력 전에는 소리를 막는다.
         OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc) override;
+        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity) override;
     };
 }

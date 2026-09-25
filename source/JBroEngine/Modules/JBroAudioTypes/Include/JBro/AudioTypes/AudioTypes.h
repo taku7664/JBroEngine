@@ -42,6 +42,8 @@ namespace JBro
     inline constexpr AudioBusId AudioFirstProjectBus = 2;
     // 버스는 사람이 손으로 관리하는 카테고리라 이 정도면 넉넉하다(기존 엔진 `MAX_AUDIO_BUSES` 16 + 예약 둘).
     inline constexpr std::uint32_t AudioMaxBuses = 18;
+    // 센드가 없다는 표지다.
+    inline constexpr AudioBusId AudioNoBus = 0xFF;
     // 예약 이름이다. 빈 이름도 Master 다.
     inline constexpr const char* AudioMasterBusName = "Master";
 
@@ -58,6 +60,30 @@ namespace JBro
         Exponential
     };
 
+    // 버스 하나의 이펙트 사슬이다(D-202). **버스마다 고정된 네 칸**이고 차례는 저역 차단 → 고역 차단 → 메아리 → 잔향이다.
+    // 각 칸은 0 이면 꺼진다(`lowPassHz`·`highPassHz`·`echoMix`·`reverbMix`). 재생 중에 바꿔도 된다 - 값은 원자 변수로
+    // 건너가고 오디오 스레드가 처리 앞에 한 번 읽는다. 쓰임: 일시 정지 화면에서 배경음을 먹먹하게(저역 통과), 동굴의 잔향.
+    struct AudioBusEffects
+    {
+        // 이 위의 소리를 깎는다(Hz). 0 이면 끈다. 800 쯤이면 벽 너머처럼 들린다.
+        float lowPassHz = 0.0f;
+        // 이 아래의 소리를 깎는다(Hz). 0 이면 끈다. 라디오·전화 소리.
+        float highPassHz = 0.0f;
+        // 메아리의 간격(초, 0.01..2)·되먹임(0..0.95)·섞는 양(0..1, 0 이면 끔).
+        float echoDelay = 0.25f;
+        float echoFeedback = 0.35f;
+        float echoMix = 0.0f;
+        // 잔향의 방 크기(0..1)·고음 흡수(0..1)·섞는 양(0..1, 0 이면 끔).
+        float reverbRoom = 0.6f;
+        float reverbDamping = 0.5f;
+        float reverbMix = 0.0f;
+        // 필터를 거친 원음이 남는 양(0..1)이다. 메아리·잔향은 이것과 무관하게 더해진다. 센드를 받아 잔향만 내는 버스는 0 이다.
+        float dry = 1.0f;
+
+        bool operator==(const AudioBusEffects& other) const = default;
+    };
+
+    static_assert(std::is_trivially_copyable_v<AudioBusEffects>);
     static_assert(std::is_trivially_copyable_v<AudioVoiceHandle>);
     static_assert(std::is_trivially_copyable_v<AudioClipHandle>);
     static_assert(sizeof(AudioVoiceHandle) == 8);

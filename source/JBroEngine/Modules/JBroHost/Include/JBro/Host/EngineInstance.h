@@ -17,6 +17,7 @@ namespace JBro
     {
         // 오디오의 것들(D-197). 이 헤더를 쓰는 에디터가 오디오 헤더를 보지 않게 이름만 안다. 정의는 EngineInstance.cpp 가 본다.
         class AudioSystem;
+        class IAudioDeviceControl;
     }
 
     namespace Network
@@ -166,6 +167,13 @@ namespace JBro
         AudioMixer* GetAudioMixer();
         // 출력 장치다. 장치를 열지 않았거나 못 열었으면 null 이다.
         const IAudioOutput* GetAudioOutput() const;
+        // 출력 장치 목록(D-203)이다. 몇 ms 걸리므로 목록을 여는 순간에만 부른다.
+        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity);
+        // 이 이름의 장치로 바꾼다(비우면 시스템 기본). 그 장치가 없으면 기본으로 연다. 소리는 끊김 없이 이어진다 - 믹서는
+        // 그대로이고 장치만 바뀐다. 어느 장치도 열지 못하면 거짓이고, 그 뒤로 2 초마다 다시 시도한다.
+        bool SetAudioOutputDevice(const char* name);
+        // 고른 장치 이름이다(없는 장치여도 고른 그대로다). 비었으면 시스템 기본이다.
+        const char* GetPreferredAudioOutputDevice() const;
         // 대화상자의 주인 창으로 쓴다. 창이 없으면 값이 0 이다.
         WindowHandle GetMainWindow() const
         {
@@ -190,8 +198,12 @@ namespace JBro
         bool TickFrame(float deltaTime);
         void ReleaseProject();
         void ReleaseResources();
-        // 프로젝트의 버스 목록을 오디오 시스템에 건다.
+        // 프로젝트의 버스 목록·장치·포커스 정책을 오디오 시스템에 건다.
         void ApplyAudioBuses();
+        // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
+        bool OpenAudioOutput();
+        // 프레임마다: 장치가 사라졌으면 닫고 다시 연다(D-203). 창 포커스를 오디오 시스템에 알린다.
+        void UpdateAudioDevice(float deltaTime);
 
         IPlatform* m_platform = nullptr;
         IFramework* m_framework = nullptr;
@@ -209,6 +221,11 @@ namespace JBro
         OwnerPtr<IAudioOutput> m_audioOutput;
         OwnerPtr<AudioMixer> m_audioMixer;
         OwnerPtr<System::AudioSystem> m_audio;
+        // 장치를 열어야 하는 호스트인가(`audioDeviceEnabled`). 사라진 장치를 다시 열지를 이것이 정한다.
+        bool m_audioDeviceWanted = false;
+        String m_audioDevicePreference;
+        float m_audioRetrySeconds = 0.0f;
+        OwnerPtr<System::IAudioDeviceControl> m_audioDevices;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.

@@ -2,9 +2,13 @@
 
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Audio/AudioMixer.h>
+#include <JBro/Audio/AudioSystem.h>
+#include <JBro/AudioTypes/ServiceContext.h>
 #include <JBro/Runtime/ComponentLookupStats.h>
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <iostream>
@@ -345,9 +349,93 @@ namespace
         std::uint32_t destroyDeviceCount = 0;
     };
 
+    // 소리 없이 열리는 가짜 출력 장치다(D-203). 시험이 `lost` 를 켜서 뽑힌 장치를 흉내 낸다.
+    class FakeAudioOutput final : public JBro::IAudioOutput
+    {
+    public:
+        explicit FakeAudioOutput(int& live) : m_live(live)
+        {
+            ++m_live;
+        }
+        ~FakeAudioOutput() override
+        {
+            --m_live;
+        }
+        bool Start(JBro::AudioRenderCallback, void*) override
+        {
+            running = true;
+            return true;
+        }
+        void Stop() override
+        {
+            running = false;
+        }
+        bool IsRunning() const override
+        {
+            return running;
+        }
+        std::uint32_t GetSampleRate() const override
+        {
+            return 48000;
+        }
+        std::uint32_t GetChannels() const override
+        {
+            return 2;
+        }
+        const char* GetDeviceName() const override
+        {
+            return name.c_str();
+        }
+        bool IsLost() const override
+        {
+            return lost;
+        }
+        JBro::String name;
+        bool running = false;
+        bool lost = false;
+
+    private:
+        int& m_live;
+    };
+
     class HostPlatform final : public JBro::IPlatform
     {
     public:
+        // 장치 둘(Speakers 가 기본, Headphones). 다른 이름은 이 기계에 없다.
+        JBro::OwnerPtr<JBro::IAudioOutput> CreateAudioOutput(const JBro::AudioOutputDesc& desc) override
+        {
+            ++audioOpens;
+            lastRequestedDevice = desc.deviceName != nullptr ? desc.deviceName : "";
+            if (refuseAudio)
+            {
+                return nullptr;
+            }
+            if (false == lastRequestedDevice.empty() && lastRequestedDevice != "Speakers" && lastRequestedDevice != "Headphones")
+            {
+                return nullptr;
+            }
+            JBro::OwnerPtr<FakeAudioOutput> output = JBro::MakeOwnerPtr<FakeAudioOutput>(liveOutputs);
+            output->name = lastRequestedDevice.empty() ? JBro::String("Speakers") : lastRequestedDevice;
+            lastOutput = output.Get();
+            return JBro::OwnerPtr<JBro::IAudioOutput>(std::move(output));
+        }
+        std::uint32_t EnumerateAudioOutputs(JBro::AudioDeviceInfo* devices, std::uint32_t capacity) override
+        {
+            const char* const names[2] = {"Speakers", "Headphones"};
+            for (std::uint32_t index = 0; index < 2 && index < capacity; ++index)
+            {
+                std::snprintf(devices[index].name, sizeof(devices[index].name), "%s", names[index]);
+                devices[index].isDefault = index == 0;
+            }
+            return 2;
+        }
+        int audioOpens = 0;
+        int liveOutputs = 0;
+        bool refuseAudio = false;
+        JBro::String lastRequestedDevice;
+        FakeAudioOutput* lastOutput = nullptr;
+        JBro::Array<JBro::InputEvent> events;
+
         bool Initialize(const JBro::JMemoryContext&) override
         {
             return true;
@@ -382,7 +470,10 @@ namespace
 
         JBro::JArrayView<JBro::InputEvent> GetInputEvents() const override
         {
-            return {};
+            JBro::JArrayView<JBro::InputEvent> view;
+            view.data = events.Data();
+            view.size = static_cast<std::uint32_t>(events.Size());
+            return view;
         }
         void WaitForEvents(std::uint32_t) override
         {
@@ -637,6 +728,87 @@ namespace
             return false;
         }
         return true;
+    }
+
+    // 출력 장치 고르기·뽑힌 장치 다시 열기·포커스 정책(D-203). 장치는 가짜라 소리가 나지 않는다.
+    void TestEngineHostAudioDevices()
+    {
+        FakeModule module;
+        HostPlatform platform;
+        platform.module = &module;
+        HostFramework framework;
+        framework.platform = &platform;
+        JBro::EngineInstance engine;
+        framework.engine = &engine;
+        JBro::EngineConfig config;
+        config.window.visible = false;
+        config.audioDeviceEnabled = true;
+        Check(InitializeHost(engine, config, platform, module, framework), "a host with an audio device must initialize");
+        Check(platform.audioOpens == 1 && platform.lastRequestedDevice.empty() && engine.GetAudioOutput() != nullptr
+                && platform.lastOutput->running,
+            "the system default device opens and runs");
+
+        Check(engine.SetAudioOutputDevice("Headphones") && platform.lastRequestedDevice == "Headphones"
+                && std::strcmp(engine.GetAudioOutput()->GetDeviceName(), "Headphones") == 0,
+            "choosing a device reopens the output on it");
+        Check(platform.liveOutputs == 1, "the old device is closed before the new one opens");
+        Check(engine.SetAudioOutputDevice("Gone") && std::strcmp(engine.GetAudioOutput()->GetDeviceName(), "Speakers") == 0
+                && std::strcmp(engine.GetPreferredAudioOutputDevice(), "Gone") == 0,
+            "a device missing on this machine falls back to the default and keeps the choice");
+
+        // 뽑힘: 다음 프레임에 다시 연다.
+        int opens = platform.audioOpens;
+        platform.lastOutput->lost = true;
+        Check(engine.Tick(0.016f), "the host keeps running when the device goes");
+        Check(engine.GetAudioOutput() != nullptr && false == engine.GetAudioOutput()->IsLost() && platform.audioOpens > opens,
+            "a lost device is reopened on the next frame");
+        Check(platform.liveOutputs == 1, "the lost device was closed");
+
+        // 아무 장치도 열리지 않으면 소리 없이 돌고 2 초마다 다시 시도한다.
+        platform.refuseAudio = true;
+        platform.lastOutput->lost = true;
+        Check(engine.Tick(0.016f) && engine.GetAudioOutput() == nullptr, "with no device the host runs silent");
+        opens = platform.audioOpens;
+        engine.Tick(0.5f);
+        engine.Tick(0.5f);
+        Check(platform.audioOpens == opens, "it does not retry every frame");
+        platform.refuseAudio = false;
+        engine.Tick(0.6f);
+        engine.Tick(0.6f);
+        Check(engine.GetAudioOutput() != nullptr && platform.audioOpens > opens, "it retries after two seconds and recovers");
+
+        // 포커스 정책: 꺼 두면 그대로, 켜면 포커스를 잃은 동안 출력이 0 이다.
+        JBro::System::AudioSystem* audio = engine.GetAudio();
+        JBro::AudioMixer* mixer = engine.GetAudioMixer();
+        Check(audio != nullptr && mixer != nullptr, "the host has an audio system");
+        JBro::InputEvent lost;
+        lost.kind = JBro::InputEventKind::FocusLost;
+        JBro::InputEvent gained;
+        gained.kind = JBro::InputEventKind::FocusGained;
+        platform.events.Add(lost);
+        engine.Tick(0.016f);
+        Check(mixer->GetOutputGain() == 1.0f, "with the policy off losing focus keeps the sound");
+        audio->SetMuteWhenUnfocused(true);
+        Check(mixer->GetOutputGain() == 0.0f, "turning the policy on while unfocused mutes at once");
+        platform.events.Clear();
+        platform.events.Add(gained);
+        engine.Tick(0.016f);
+        Check(mixer->GetOutputGain() == 1.0f, "regaining focus restores the sound");
+        platform.events.Clear();
+        platform.events.Add(lost);
+        engine.Tick(0.016f);
+        Check(mixer->GetOutputGain() == 0.0f, "losing focus again mutes");
+        platform.events.Clear();
+
+        // 스크립트의 옵션 화면이 쓰는 길이다.
+        const JBro::Service::AudioService& service = JBro::GetAudioServices().Audio;
+        Check(service.GetOutputDeviceCount() == 2 && std::strcmp(service.GetOutputDeviceName(1), "Headphones") == 0,
+            "scripts list the output devices");
+        Check(service.SetOutputDevice("Headphones") && std::strcmp(service.GetOutputDevice(), "Headphones") == 0,
+            "scripts choose an output device");
+        Check(service.IsMuteWhenUnfocused() && false == service.IsWaitingForUserGesture(), "scripts read the policies");
+        engine.Shutdown();
+        Check(platform.liveOutputs == 0, "shutting down closes the device");
     }
 
     void TestEngineHostLifecycle()
@@ -1170,6 +1342,7 @@ int RunRendererContractTests()
     TestRendererCollectsBeforeRecording();
     TestFrameworkSubmitsTransformedBatches();
     TestEngineHostLifecycle();
+    TestEngineHostAudioDevices();
     TestTheHostHandsTheEditorItsFrame();
     TestMeshRegistrationValidatesItsInput();
     TestMeshesSharingAHandleDrawAsOneInstancedCall();

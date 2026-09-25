@@ -24,6 +24,8 @@
   - **남은 일은 공용·2D·3D 로 나눠 적는다**: 공용은 `tasks/todo.md`, 2D 는 `tasks/todo-2d.md`, 3D 는 `tasks/todo-3d.md`.
     한 차원에만 닿는 항목을 공용에 두지 않고, 3D 는 2D 뒤의 순서다. (MUST) (D-116)
   - 사용자 확인을 기다리는 것도 빼지 않는다. `[열림]`·`[대기]` 처럼 상태를 붙여 적는다.
+  - **구현을 마친 남은 일은 지우지 않고 취소선(`~~...~~`)으로 긋고, 끝에 언제(날짜·커밋)와 어디서(파일·함수) 고쳤는지 붙인다.**
+    형식은 `~~항목~~ → 완료 날짜 · 커밋 · 파일(함수)` 이다. 이미 `[완료]` 로 남은 항목은 그대로 둔다. (MUST) (D-204)
   - **대화에만 나오고 문서에 없는 결정·실측은 없는 것으로 본다.** 다음 작업은 문서만 보고 시작할 수 있어야 한다.
 
 ## 2. 플랫폼과 렌더링 경계
@@ -130,6 +132,12 @@
   - 오디오 에셋은 CPU 자료만 든다(`AudioData`: 전체 PCM 또는 압축 바이트). 믹서는 그것을 **빌려** 재생하므로, `AssetSystem` 은
     오디오 자료를 풀거나 바꾸기 **직전에** `AudioReleaseCallback` 으로 알리고 받는 쪽은 그 클립의 보이스를 멈추고 등록을 내린다.
   - 임포트 옵션(`Audio.ImportOptions`)은 파일의 속성(지금은 `mode`)만 든다. 재생 파라미터는 컴포넌트가 유일한 원천이다.
+  - 이펙트는 **버스마다 고정 사슬**(고역 차단 → 저역 차단 → 메아리 → 잔향)이다(D-202). 값은 원자 변수로 건너가고 필터 계수는
+    오디오 스레드가 짓는다. 메아리·잔향 버퍼는 처음 켤 때 메인 스레드가 잡는다 - 오디오 스레드는 할당하지 않는다.
+  - 버스의 부모는 목록의 앞 버스만이고, 센드는 되돌아오는 길을 만들면 거절한다(D-203). 솔로는 저장하지 않는다.
+  - 버스 음량·음소거·솔로는 이펙트 노드 끝의 램프로 건다(D-205). 그룹 음량을 곧바로 바꾸지 않는다 - 딸깍 소리가 난다.
+  - 디스크 스트리밍의 파일은 `IPlatform::OpenFileStream` 으로만 열고, 믹서의 스트리머 스레드만 읽는다. 오디오 스레드는 링만 읽는다.
+  - 출력 장치는 호스트가 가진다. 사라진 장치는 호스트가 다음 프레임에 다시 열고, 믹서는 그대로 둔다(D-203).
 - Web 환경 문제로 Windows 쪽 엔진 구조 안정화가 불필요하게 막히지 않도록 작업 순서를 조정할 수 있다. (MAY)
 
 ## 3. 모듈 경계와 링크
@@ -157,7 +165,7 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-203) |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-206) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |

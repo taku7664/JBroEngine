@@ -657,17 +657,7 @@ namespace JBro
                 m_audioChannels = data->channels;
                 m_audioSeconds = data->sampleRate > 0 ? static_cast<double>(data->frameCount) / data->sampleRate : 0.0;
                 constexpr std::uint32_t Buckets = 512;
-                if (false == data->pcm.IsEmpty())
-                {
-                    ComputeAudioPeaks(data->pcm.Data(), data->frameCount, data->channels, Buckets, m_audioPeaks);
-                }
-                else
-                {
-                    JArrayView<std::byte> bytes;
-                    bytes.data = data->encoded.Data();
-                    bytes.size = static_cast<std::uint32_t>(data->encoded.Size());
-                    ComputeAudioPeaks(bytes, Buckets, m_audioPeaks);
-                }
+                assets->ComputeAudioPeaks(held, Buckets, m_audioPeaks);
             }
             // 붙잡지 않는다. 참조 수 0 이어도 `CollectUnused` 까지 살고, 내려가면 해제 알림이 미리 듣기를 멈춘다.
             assets->Release(held);
