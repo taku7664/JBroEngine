@@ -275,6 +275,24 @@ namespace JBro
         }
         AudioData read;
         read.options = meta.hasAudioOptions ? meta.audioOptions : AudioImportOptions{};
+        // 디스크 스트리밍은 헤더만 읽는다 - 파일이 메모리에 오지 않는다(D-203).
+        if (read.options.mode == AudioImportMode::StreamFromDisk)
+        {
+            const String path = SourcePathOf(record);
+            AudioFileDecoder decoder;
+            if (false == decoder.Open(m_platform->OpenFileStream(path.c_str()), path.c_str()) || decoder.CountFrames() == 0)
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: this file cannot be streamed from disk", path.c_str());
+                return false;
+            }
+            const AudioFormat format = decoder.GetFormat();
+            read.sampleRate = format.sampleRate;
+            read.channels = format.channels;
+            read.frameCount = format.frameCount;
+            read.streamPath = path;
+            data = std::move(read);
+            return true;
+        }
         Array<std::byte> encoded;
         if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), encoded))
         {
@@ -315,6 +333,34 @@ namespace JBro
         {
             m_audioRelease(m_audioReleaseUser, MakeHandle(AssetType::Audio, slotIndex, slot.generation));
         }
+    }
+
+    bool AssetSystem::ComputeAudioPeaks(AssetHandle handle, std::uint32_t buckets, Array<float>& peaks)
+    {
+        const AudioData* data = GetAudio(handle);
+        if (data == nullptr)
+        {
+            return false;
+        }
+        if (false == data->pcm.IsEmpty())
+        {
+            JBro::ComputeAudioPeaks(data->pcm.Data(), data->frameCount, data->channels, buckets, peaks);
+            return true;
+        }
+        if (false == data->encoded.IsEmpty())
+        {
+            JArrayView<std::byte> bytes;
+            bytes.data = data->encoded.Data();
+            bytes.size = static_cast<std::uint32_t>(data->encoded.Size());
+            return JBro::ComputeAudioPeaks(bytes, buckets, peaks);
+        }
+        if (false == data->streamPath.empty() && m_platform != nullptr)
+        {
+            AudioFileDecoder decoder;
+            return decoder.Open(m_platform->OpenFileStream(data->streamPath.c_str()), data->streamPath.c_str())
+                && JBro::ComputeAudioPeaks(decoder, buckets, peaks);
+        }
+        return false;
     }
 
     void AssetSystem::SetAudioReleaseListener(AudioReleaseCallback callback, void* user)

@@ -536,6 +536,182 @@ namespace
         mixer.Shutdown();
     }
 
+    // 버스 중첩·센드·솔로·원음 양·미터(audio-plan §3-7).
+    void TestBusRouting()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> sine = MakeSine(2, 440.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+
+        // 중첩: SFX(0.5) 아래 Footsteps(0.5) 의 소리는 둘을 곱한 0.25 배다.
+        const AudioBusId sfx = mixer.CreateBus(0.5f);
+        const AudioBusId footsteps = mixer.CreateBus(0.5f, sfx);
+        Check(mixer.GetBusParent(footsteps) == sfx && mixer.GetBusParent(sfx) == AudioMasterBus, "a bus remembers its parent");
+        Check(mixer.GetBusParent(mixer.CreateBus(1.0f, AudioEditorPreviewBus)) == AudioMasterBus,
+            "the preview bus cannot be a parent");
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        play.bus = footsteps;
+        const AudioVoiceHandle step = mixer.Play(play);
+        float peak = Render(mixer, 9600).Peak(0, 4800);
+        Check(std::fabs(peak - 0.125f) < 0.02f, "a nested bus multiplies its parent's volume");
+        Check(std::fabs(mixer.GetBusPeak(footsteps) - 0.25f) < 0.03f && std::fabs(mixer.GetBusPeak(sfx) - 0.125f) < 0.02f,
+            "each bus meters its own output");
+        mixer.SetBusMuted(sfx, true);
+        Check(Render(mixer, 9600).Peak(0, 4800) < 0.001f, "muting a parent silences its children");
+        mixer.SetBusMuted(sfx, false);
+
+        // 센드: Footsteps 가 원음 0 의 Reverb 버스로 보낸다. 센드를 끊으면 Reverb 는 조용하다.
+        const AudioBusId reverb = mixer.CreateBus(1.0f);
+        AudioBusEffects wetOnly;
+        wetOnly.dry = 0.0f;
+        wetOnly.reverbMix = 1.0f;
+        mixer.SetBusEffects(reverb, wetOnly);
+        Render(mixer, 4800);
+        Check(mixer.GetBusPeak(reverb) == 0.0f, "a bus nothing sends to stays silent");
+        Check(mixer.SetBusSend(footsteps, reverb, 1.0f), "a send to an unrelated bus is accepted");
+        Render(mixer, 9600);
+        const float returned = mixer.GetBusPeak(reverb);
+        std::cout << "  reverb return fed by a send: " << returned << '\n';
+        Check(returned > 0.01f, "the send feeds the return bus");
+        Check(mixer.GetBusSendTarget(footsteps) == reverb && mixer.GetBusSendLevel(footsteps) == 1.0f,
+            "the bus reports its send");
+        Check(false == mixer.SetBusSend(reverb, footsteps, 1.0f), "a send that would loop back is refused");
+        Check(false == mixer.SetBusSend(sfx, footsteps, 1.0f), "a parent cannot send into its own child");
+        Check(false == mixer.SetBusSend(footsteps, footsteps, 1.0f), "a bus cannot send to itself");
+        Check(false == mixer.SetBusSend(AudioMasterBus, reverb, 1.0f), "the master cannot send");
+        Check(mixer.GetBusSendTarget(footsteps) == reverb, "a refused send keeps the previous one");
+        Check(mixer.SetBusSend(footsteps, AudioNoBus, 0.0f), "a send can be cut");
+        Render(mixer, Rate * 2);
+        Check(mixer.GetBusPeak(reverb) < 0.01f, "a cut send stops feeding the return bus");
+
+        // 원음 양: 0 이면 이펙트가 꺼진 버스는 조용하다.
+        AudioBusEffects muted;
+        muted.dry = 0.0f;
+        mixer.SetBusEffects(footsteps, muted);
+        Check(Render(mixer, 9600).Peak(0, 4800) < 0.001f, "dry 0 without any wet effect is silent");
+        mixer.SetBusEffects(footsteps, AudioBusEffects{});
+
+        // 솔로: Music 을 솔로로 두면 Footsteps 는 들리지 않고, 풀면 전과 같다.
+        const AudioBusId music = mixer.CreateBus(1.0f);
+        play.bus = music;
+        play.volume = 0.2f;
+        mixer.Play(play);
+        const float both = Render(mixer, 9600).Peak(0, 4800);
+        mixer.SetBusSolo(music, true);
+        const float soloed = Render(mixer, 9600).Peak(0, 4800);
+        Check(std::fabs(soloed - 0.1f) < 0.02f, "a solo keeps only the soloed bus");
+        Check(mixer.IsBusSolo(music) && false == mixer.IsBusMuted(footsteps) && mixer.GetBusVolume(footsteps) == 0.5f,
+            "a solo leaves the other buses' own settings alone");
+        mixer.SetBusSolo(music, false);
+        mixer.SetBusSolo(footsteps, true);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.125f) < 0.02f, "a soloed child keeps its parent open");
+        mixer.SetBusSolo(footsteps, false);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - both) < 0.02f, "clearing the solo restores the mix");
+        Check(mixer.IsAlive(step), "routing changes never stop a voice");
+        mixer.Shutdown();
+    }
+
+    // 보이스 필터: 한 보이스만 먹먹하게 하고, 끄면 필터 노드를 떠난다(D-203).
+    void TestVoiceFilter()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> high = MakeSine(2, 5000.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, high, 2);
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        play.lowPassHz = 300.0f;
+        const AudioVoiceHandle muffled = mixer.Play(play);
+        const float cut = Render(mixer, 9600).Peak(0, 4800);
+        std::cout << "  5 kHz voice through its own 300 Hz low-pass: " << cut << '\n';
+        Check(cut < 0.05f, "a voice filter set at Play cuts the voice");
+        play.lowPassHz = 0.0f;
+        const AudioVoiceHandle clear = mixer.Play(play);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.5f) < 0.08f, "another voice on the same bus is untouched");
+        mixer.Stop(clear);
+        mixer.SetVoiceFilter(muffled, 0.0f, 0.0f);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.5f) < 0.08f, "clearing the filter restores the voice");
+        mixer.SetVoiceFilter(muffled, 0.0f, 20000.0f);
+        Check(Render(mixer, 9600).Peak(0, 4800) < 0.1f, "a high-pass set while playing cuts the voice");
+
+        // 켜고 끄기를 거듭해도 할당이 없다(노드는 초기화 때 만들었다).
+        Array<float> buffer;
+        buffer.Resize(960);
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_crtAllocations = 0;
+        _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountCrtAllocations);
+#endif
+        for (int frame = 0; frame < 200; ++frame)
+        {
+            mixer.SetVoiceFilter(muffled, (frame % 3) == 0 ? 0.0f : 500.0f + static_cast<float>(frame), 0.0f);
+            mixer.Render(buffer.Data(), 480);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        _CrtSetAllocHook(previous);
+        Check(g_crtAllocations.load() == 0, "toggling a voice filter does not touch the heap");
+#endif
+        mixer.Stop(muffled);
+        // 필터를 쓴 자리를 새 보이스가 받으면 필터 없이 시작한다.
+        const AudioVoiceHandle fresh = mixer.Play(play);
+        Check(std::fabs(Render(mixer, 9600).Peak(0, 4800) - 0.5f) < 0.08f, "a recycled voice does not inherit a filter");
+        mixer.Stop(fresh);
+        mixer.Shutdown();
+    }
+
+    // 출력 이득은 곧게 옮겨 가고(클릭 없음), 스펙트럼은 사인파의 자리를 가리킨다.
+    void TestOutputGainAndSpectrum()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+        const Array<float> sine = MakeSine(2, 1000.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 2);
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        mixer.Play(play);
+        Render(mixer, 4800);
+        mixer.SetOutputGain(0.0f, 0.1f);
+        const Rendered fading = Render(mixer, Rate / 5);
+        float largestJump = 0.0f;
+        for (std::size_t frame = 1; frame < fading.samples.Size() / 2; ++frame)
+        {
+            largestJump = std::fmax(largestJump, std::fabs(fading.samples[frame * 2] - fading.samples[(frame - 1) * 2]));
+        }
+        const float halfway = fading.Peak(0, 2000, 2600);
+        std::cout << "  output gain fade: halfway " << halfway << ", after " << fading.Peak(0, 5000) << '\n';
+        Check(halfway > 0.1f && halfway < 0.45f, "the output gain is still on its way halfway through the fade");
+        Check(fading.Peak(0, 5000) < 0.001f, "the output gain reaches zero after its fade");
+        // 1 kHz 사인의 한 샘플 차는 최대 2πf/rate × 0.5 ≈ 0.065 다. 뚝 끊기면 0.5 가까이 뛴다.
+        Check(largestJump < 0.08f, "fading the output never jumps");
+        mixer.SetOutputGain(1.0f, 0.0f);
+        Render(mixer, 4800);
+
+        float bands[32];
+        mixer.ComputeSpectrum(bands, 32);
+        std::uint32_t loudest = 0;
+        for (std::uint32_t band = 1; band < 32; ++band)
+        {
+            if (bands[band] > bands[loudest])
+            {
+                loudest = band;
+            }
+        }
+        const float from = 30.0f * std::pow(24000.0f / 30.0f, static_cast<float>(loudest) / 32.0f);
+        const float to = 30.0f * std::pow(24000.0f / 30.0f, static_cast<float>(loudest + 1) / 32.0f);
+        std::cout << "  spectrum: loudest band " << loudest << " (" << from << ".." << to << " Hz) = " << bands[loudest] << '\n';
+        Check(from <= 1050.0f && to >= 950.0f, "the loudest spectrum band holds the 1 kHz tone");
+        // 0.5 는 -6 dB 이므로 (72 - 6) / 72 ≈ 0.92 다.
+        Check(bands[loudest] > 0.85f && bands[loudest] < 0.97f, "the spectrum reads the tone's level in decibels");
+        Check(bands[31] < bands[loudest] - 0.3f, "bands far from the tone are much quieter");
+        float recent[64];
+        Check(mixer.CopyRecentOutput(recent, 64) == 64, "the recent output can be copied");
+        mixer.Shutdown();
+    }
+
     void TestStealing()
     {
         AudioMixer mixer;
@@ -712,6 +888,9 @@ int RunAudioMixerTests()
         TestSeekWhilePlaying();
         TestBusEffects();
         TestEffectsChangeWhileRendering();
+        TestBusRouting();
+        TestVoiceFilter();
+        TestOutputGainAndSpectrum();
         TestStealing();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();

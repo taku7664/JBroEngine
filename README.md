@@ -15,7 +15,7 @@ Windows / D3D12 위에서 도는 2D 우선 게임 엔진이다. 기존 엔진(`J
 - 에디터(`JBroEditorHost`)가 프로젝트(`.jproject`)를 열고, 씬(`.jcanvas`)을 읽고 그리고 저장한다.
   편집은 전부 커맨드라 되돌리기가 된다
 - 렌더러는 프레임 패킷을 모았다가 프레임 끝에 정렬·기록한다. RHI 뒤에 D3D12 가 있다
-- 오디오(`JBroAudio`·`JBroAudioTypes`, miniaudio 위): `AudioSource` 와 2D/3D 리스너, 버스와 버스 이펙트, 스크립트의 `AudioService`,
+- 오디오(`JBroAudio`·`JBroAudioTypes`, miniaudio 위): `AudioSource` 와 2D/3D 리스너, 버스(중첩·센드·솔로)와 버스 이펙트, 디스크 스트리밍, 장치 고르기와 뽑힌 장치 되살리기, 스크립트의 `AudioService`,
   에디터의 미리 듣기·프로젝트 설정·통계. 계획과 실측은 [tasks/audio-plan.md](./tasks/audio-plan.md)
 
 ## 아직 없는 것

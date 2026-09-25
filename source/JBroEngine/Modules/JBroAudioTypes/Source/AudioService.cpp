@@ -179,4 +179,48 @@ namespace JBro::Service
             audio->StopAll();
         }
     }
+
+    std::uint32_t AudioService::GetOutputDeviceCount() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetOutputDeviceCount() : 0;
+    }
+
+    const char* AudioService::GetOutputDeviceName(std::uint32_t index) const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetOutputDeviceName(index) : "";
+    }
+
+    const char* AudioService::GetOutputDevice() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr ? audio->GetOutputDevice() : "";
+    }
+
+    bool AudioService::SetOutputDevice(const char* name) const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr && audio->SetOutputDevice(name);
+    }
+
+    bool AudioService::IsWaitingForUserGesture() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr && audio->IsWaitingForUserGesture();
+    }
+
+    void AudioService::SetMuteWhenUnfocused(bool mute) const
+    {
+        if (System::IAudioSystem* audio = Audio())
+        {
+            audio->SetMuteWhenUnfocused(mute);
+        }
+    }
+
+    bool AudioService::IsMuteWhenUnfocused() const
+    {
+        System::IAudioSystem* audio = Audio();
+        return audio != nullptr && audio->IsMuteWhenUnfocused();
+    }
 }

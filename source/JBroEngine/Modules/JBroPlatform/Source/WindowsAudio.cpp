@@ -9,4 +9,9 @@ namespace JBro
     {
         return Internal::CreateMiniaudioOutput(desc);
     }
+
+    std::uint32_t WindowsPlatform::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    {
+        return Internal::EnumerateMiniaudioOutputs(devices, capacity);
+    }
 }

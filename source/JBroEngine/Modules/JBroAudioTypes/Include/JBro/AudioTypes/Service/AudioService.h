@@ -52,5 +52,17 @@ namespace JBro::Service
         // 자주 쓰는 하나: 이 위를 깎는다(Hz). 0 이면 끈다. 일시 정지 화면에서 `SetBusLowPass("Music", 800)`.
         void SetBusLowPass(const char* bus, float cutoffHz) const;
         void StopAll() const;
+
+        // 옵션 화면의 "출력 장치" 다(D-203). 목록을 열 때 `GetOutputDeviceCount` 를 한 번 부르고(몇 ms 걸린다) 그 뒤
+        // 이름을 읽는다. 없는 이름을 주면 시스템 기본으로 연다.
+        std::uint32_t GetOutputDeviceCount() const;
+        const char* GetOutputDeviceName(std::uint32_t index) const;
+        const char* GetOutputDevice() const;
+        bool SetOutputDevice(const char* name) const;
+        // 웹에서 브라우저가 첫 입력 전까지 소리를 막고 있다. 참이면 "눌러서 시작" 같은 안내를 띄운다.
+        bool IsWaitingForUserGesture() const;
+        // 창이 포커스를 잃었을 때 소리를 끌지다(옵션 화면의 "백그라운드에서 음소거").
+        void SetMuteWhenUnfocused(bool mute) const;
+        bool IsMuteWhenUnfocused() const;
     };
 }

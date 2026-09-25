@@ -114,6 +114,17 @@ namespace JBro
 #endif
     }
 
+    std::uint32_t WebPlatform::EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+    {
+#if defined(__EMSCRIPTEN__)
+        return Internal::EnumerateMiniaudioOutputs(devices, capacity);
+#else
+        (void)devices;
+        (void)capacity;
+        return 0;
+#endif
+    }
+
     OwnerPtr<Network::ISocketProvider> WebPlatform::CreateSocketProvider()
     {
 #if defined(__EMSCRIPTEN__)

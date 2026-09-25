@@ -8,6 +8,12 @@
 
 namespace JBro
 {
+    class AudioFileDecoder;
+
+    // 디스크 스트리밍 클립의 파일을 연다(D-203). `decoder` 를 그 파일로 열고 참을 돌려준다. **스트리머 스레드가 부른다** -
+    // 어느 스레드에서 불려도 되는 함수여야 한다(호스트는 `IPlatform::OpenFileStream` 으로 잇는다).
+    using AudioStreamOpenCallback = bool (*)(void* user, const char* utf8Path, AudioFileDecoder& decoder);
+
     struct AudioMixerDesc
     {
         // 출력 형식이다. 장치가 이 형식으로 당겨 간다(`Render`).
@@ -17,6 +23,12 @@ namespace JBro
         std::uint32_t maxVoices = 64;
         // 등록할 수 있는 클립 수다. 에셋 하나가 클립 하나다.
         std::uint32_t maxClips = 1024;
+        // 디스크 스트리밍(D-203). 여는 함수가 없으면 `File` 클립은 재생되지 않는다. 동시에 흘려 읽는 보이스는 `maxStreams`
+        // 개이고 보이스마다 `streamBufferSeconds` 만큼을 미리 풀어 둔다 - 디스크가 그만큼 늦어도 끊기지 않는다.
+        AudioStreamOpenCallback openStream = nullptr;
+        void* openStreamUser = nullptr;
+        std::uint32_t maxStreams = 8;
+        float streamBufferSeconds = 1.0f;
     };
 
     // 클립의 자료 모양이다. 믹서는 **빌린다** - 등록한 쪽이 `UnregisterClip` 이 돌아올 때까지 메모리를 살려 둔다.
@@ -25,7 +37,10 @@ namespace JBro
         // f32 인터리브 PCM (`pcm`, `frameCount`, `sampleRate`, `channels`).
         Pcm,
         // 압축된 파일 바이트(`bytes`, `byteCount`). 보이스마다 디코더를 열어 재생하며 푼다.
-        Encoded
+        Encoded,
+        // 디스크의 파일(`path`, UTF-8)이다(D-203). 스트리머 스레드가 조금씩 풀어 링 버퍼에 채우고 오디오 스레드는 그것만 읽는다.
+        // 형식(`frameCount`·`sampleRate`·`channels`)은 등록할 때 알려 준다 - 임포트가 헤더를 읽어 둔 값이다.
+        File
     };
 
     struct AudioClipDesc
@@ -37,6 +52,7 @@ namespace JBro
         std::uint32_t channels = 0;
         const void* bytes = nullptr;
         std::size_t byteCount = 0;
+        const char* path = nullptr;
     };
 
     // 보이스를 시작할 때 한 번 정하는 값이다. **거리·감쇠·원뿔·도플러 계수는 여기에만 있다** - miniaudio 가 그것을
@@ -63,6 +79,10 @@ namespace JBro
         // 0 보다 크면 그만큼 뒤에 시작한다(샘플 단위로 정확하다 - 기존 엔진의 PlayAt).
         float startDelaySeconds = 0.0f;
         float fadeInSeconds = 0.0f;
+        // 보이스 하나에만 거는 필터다(Hz, 0 이면 끔). 벽 너머의 소리(저역 통과)·무전기(고역 통과). 둘 다 0 이면 보이스가
+        // 필터 노드를 거치지 않는다 - 쓰지 않는 보이스는 비용이 없다. 재생 중에는 `SetVoiceFilter` 로 바꾼다.
+        float lowPassHz = 0.0f;
+        float highPassHz = 0.0f;
         // 누가 만든 보이스인지다. `StopAllWithTag` 로 한 무리를 멈춘다(플레이 중지·미리 듣기).
         std::uint32_t tag = 0;
     };
@@ -94,6 +114,10 @@ namespace JBro
             float lastPeak = 0.0f;
             // 지금까지 당겨 간 프레임 수다. 장치가 실제로 돌고 있는지 소리 없이 알 수 있다.
             std::uint64_t renderedFrames = 0;
+            // 디스크 스트리밍(D-203). 흘려 읽는 보이스 수와, 링 버퍼가 비어 무음을 낸 블록의 누계다(0 이 아니면 디스크가 늦다).
+            std::uint32_t activeStreams = 0;
+            std::uint32_t maxStreams = 0;
+            std::uint64_t streamUnderruns = 0;
         };
 
         AudioMixer();
@@ -125,8 +149,10 @@ namespace JBro
         // 클립의 길이(초). 없으면 0.
         double GetClipDurationSeconds(AudioClipHandle clip) const;
 
-        // 프로젝트 버스를 Master 아래에 만든다. 다 차면 Master 를 돌려준다.
-        AudioBusId CreateBus(float volume);
+        // 프로젝트 버스를 `parent` 아래에 만든다(기본 Master). 부모는 이미 있는 버스여야 하고 미리 듣기 버스는 부모가 될 수
+        // 없다 - 아니면 Master 아래다. 다 차면 Master 를 돌려준다.
+        AudioBusId CreateBus(float volume, AudioBusId parent = AudioMasterBus);
+        AudioBusId GetBusParent(AudioBusId bus) const;
         // 프로젝트 버스를 전부 없앤다. 그 버스의 보이스는 Master 로 옮긴다.
         void DestroyProjectBuses();
         std::uint32_t GetBusCount() const;
@@ -138,6 +164,18 @@ namespace JBro
         // 여기서(메인 스레드) 한 번 잡는다. 그 뒤로는 켜고 꺼도 할당이 없다.
         void SetBusEffects(AudioBusId bus, const AudioBusEffects& effects);
         AudioBusEffects GetBusEffects(AudioBusId bus) const;
+        // 버스의 출력(음량·이펙트를 거친 뒤)을 `level` 만큼 다른 버스에도 보낸다. 쓰임: 여러 버스가 잔향 버스 하나를 나눠
+        // 쓴다(받는 쪽은 `dry` 0 에 `reverbMix` 1). `target` 이 `AudioNoBus` 거나 `level` 이 0 이면 끊는다. 프로젝트 버스만
+        // 보낼 수 있다. 되돌아오는 길(받는 버스가 부모·센드를 따라 보내는 버스에 닿는다)이 생기면 거절하고 거짓이다.
+        bool SetBusSend(AudioBusId bus, AudioBusId target, float level);
+        AudioBusId GetBusSendTarget(AudioBusId bus) const;
+        float GetBusSendLevel(AudioBusId bus) const;
+        // 믹싱할 때 한 버스만 듣는다. 솔로가 하나라도 있으면 솔로 버스와 그 자식·조상·센드를 받는 버스만 들리고 나머지
+        // 프로젝트 버스는 0 이다. 음량·음소거 값은 그대로 두고 들리는 크기만 바꾼다 - 풀면 전과 같다.
+        void SetBusSolo(AudioBusId bus, bool solo);
+        bool IsBusSolo(AudioBusId bus) const;
+        // 버스가 마지막으로 낸 블록의 최대 절댓값(음량·이펙트 뒤)이다. 미터가 읽는다.
+        float GetBusPeak(AudioBusId bus) const;
 
         // 보이스가 모자라고 훔칠 것도 없으면 빈 핸들이다(`voicesRejected`).
         AudioVoiceHandle Play(const AudioPlayDesc& desc);
@@ -162,12 +200,26 @@ namespace JBro
         void SetPosition(AudioVoiceHandle voice, const float position[3]);
         void SetVelocity(AudioVoiceHandle voice, const float velocity[3]);
         void SetBus(AudioVoiceHandle voice, AudioBusId bus);
+        // 보이스의 필터다(Hz, 0 이면 끔). 켜면 보이스가 제 필터 노드를 거쳐 버스로 가고, 둘 다 끄면 곧장 버스로 간다.
+        void SetVoiceFilter(AudioVoiceHandle voice, float lowPassHz, float highPassHz);
 
         // 리스너다. 2D 는 방향을 기본(-Z 앞, +Y 위)으로 두고 위치만 준다.
         void SetListener(const float position[3], const float forward[3], const float up[3]);
         void SetListenerVelocity(const float velocity[3]);
         void SetMasterVolume(float volume);
         float GetMasterVolume() const;
+        // 장치로 나가기 직전의 이득이다. `seconds` 동안 곧게 옮겨 가므로 뚝 끊기는 소리(클릭)가 없다. 창이 포커스를 잃었을
+        // 때 줄이는 정책이 이것을 쓴다 - 게임이 정한 Master 음량과 따로 논다.
+        void SetOutputGain(float gain, float seconds);
+        float GetOutputGain() const;
+
+        // 장치로 나간 마지막 `count` 샘플(채널 평균, 최대 `RecentCapacity`)을 옛것부터 복사하고 복사한 수를 돌려준다.
+        // 오디오 스레드가 쓰는 도중에 읽으므로 한두 샘플이 어긋날 수 있다 - 화면에 그리는 데만 쓴다.
+        static constexpr std::uint32_t RecentCapacity = 4096;
+        std::uint32_t CopyRecentOutput(float* mono, std::uint32_t count) const;
+        // 최근 출력의 스펙트럼을 `bandCount` 칸(로그 간격, 30 Hz..나이퀴스트)으로 채운다. 값은 0..1 이고 -72 dB 가 0,
+        // 0 dB(최대 크기의 사인파)가 1 이다. 메인 스레드에서 2048 점 FFT 를 한 번 돈다. 할당하지 않는다.
+        void ComputeSpectrum(float* bands, std::uint32_t bandCount) const;
 
         // 오디오 시계(초). 예약 시작의 기준이다.
         double GetTimeSeconds() const;

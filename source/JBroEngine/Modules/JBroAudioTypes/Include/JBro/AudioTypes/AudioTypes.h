@@ -42,6 +42,8 @@ namespace JBro
     inline constexpr AudioBusId AudioFirstProjectBus = 2;
     // 버스는 사람이 손으로 관리하는 카테고리라 이 정도면 넉넉하다(기존 엔진 `MAX_AUDIO_BUSES` 16 + 예약 둘).
     inline constexpr std::uint32_t AudioMaxBuses = 18;
+    // 센드가 없다는 표지다.
+    inline constexpr AudioBusId AudioNoBus = 0xFF;
     // 예약 이름이다. 빈 이름도 Master 다.
     inline constexpr const char* AudioMasterBusName = "Master";
 
@@ -75,6 +77,8 @@ namespace JBro
         float reverbRoom = 0.6f;
         float reverbDamping = 0.5f;
         float reverbMix = 0.0f;
+        // 필터를 거친 원음이 남는 양(0..1)이다. 메아리·잔향은 이것과 무관하게 더해진다. 센드를 받아 잔향만 내는 버스는 0 이다.
+        float dry = 1.0f;
 
         bool operator==(const AudioBusEffects& other) const = default;
     };

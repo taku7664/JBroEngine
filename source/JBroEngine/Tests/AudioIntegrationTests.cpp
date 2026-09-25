@@ -185,6 +185,35 @@ namespace
                 && reread.audioBuses.Last().effects.lowPassHz == 800.0f && reread.audioBuses.Last().effects.echoMix == 0.0f,
             "and they read back");
 
+        // 부모·센드·원음 양(D-203)도 쓸 때만 적히고 되읽힌다.
+        project.audioBuses.Add(ProjectAudioBus{String("Steps"), 0.5f});
+        project.audioBuses.Last().parent = "Cave";
+        project.audioBuses.Last().send = "Cave";
+        project.audioBuses.Last().sendLevel = 0.3f;
+        project.audioBuses.Last().effects.dry = 0.0f;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "routing writes");
+        Check(written.find("  - Name: Steps\n    Volume: 0.5\n    Parent: Cave\n    Send: Cave\n    SendLevel: 0.3\n    Dry: 0\n")
+                != String::npos,
+            "the parent, the send and the dry level are written after the volume");
+        Check(written.find("  - Name: Cave\n    Volume: 1\n    LowPass: 800\n    ReverbMix: 0.4\n  - Name: Steps") != String::npos,
+            "a bus without routing writes no routing keys");
+        Check(ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.audioBuses.Last().parent == "Cave"
+                && reread.audioBuses.Last().send == "Cave" && reread.audioBuses.Last().sendLevel == 0.3f
+                && reread.audioBuses.Last().effects.dry == 0.0f,
+            "and the routing reads back");
+
+        // 장치 이름과 포커스 정책(D-203)은 최상위 키다. 괄호와 한글이 든 장치 이름도 그대로 되읽힌다.
+        project.audioOutputDevice = "스피커(Realtek High Definition Audio)";
+        project.audioMuteWhenUnfocused = true;
+        Check(WriteProjectFileText(project, LegacyProject, sizeof(LegacyProject) - 1, written, error), "audio settings write");
+        Check(ParseProjectFile(written.c_str(), written.size(), reread, error)
+                && reread.audioOutputDevice == "스피커(Realtek High Definition Audio)" && reread.audioMuteWhenUnfocused,
+            "the output device and the focus policy read back");
+        constexpr char plain[] = "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\n";
+        Check(ParseProjectFile(plain, sizeof(plain) - 1, reread, error) && reread.audioOutputDevice.empty()
+                && false == reread.audioMuteWhenUnfocused,
+            "a file without them uses the system default and keeps the sound when unfocused");
+
         constexpr char bad[] = "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nAudioBuses:\n  - Name: Music\n    Volume: loud\n";
         Check(false == ParseProjectFile(bad, sizeof(bad) - 1, reread, error) && error.line == 6,
             "a volume that is not a number is refused with its line");
@@ -328,6 +357,19 @@ namespace
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         const std::uint64_t pulled = mixer.GetStats().renderedFrames;
         std::cout << "  the device " << output->GetDeviceName() << " pulled " << pulled << " frames in about 0.1 s" << std::endl;
+        // 목록의 이름으로 그 장치를 연다(D-203). 없는 이름은 열지 않는다 - 기본으로 떨어질지는 호스트가 정한다.
+        AudioDeviceInfo devices[16];
+        const std::uint32_t deviceCount = platform.EnumerateAudioOutputs(devices, 16);
+        std::cout << "  output devices on this machine: " << deviceCount << std::endl;
+        Check(deviceCount >= 1, "a machine with a default device lists at least one device");
+        AudioOutputDesc named;
+        named.deviceName = devices[0].name;
+        OwnerPtr<IAudioOutput> chosen = platform.CreateAudioOutput(named);
+        Check(chosen.Get() != nullptr && std::strcmp(chosen->GetDeviceName(), devices[0].name) == 0,
+            "a device opens by its listed name");
+        chosen = nullptr;
+        named.deviceName = "JBro no such device";
+        Check(platform.CreateAudioOutput(named).Get() == nullptr, "a missing device name does not open");
         Check(pulled > 0, "the device pulls frames from the mixer");
         output->Stop();
         const std::uint64_t afterStop = mixer.GetStats().renderedFrames;
@@ -336,6 +378,130 @@ namespace
         output = nullptr;
         mixer.Shutdown();
         platform.Shutdown();
+    }
+
+    // ── 디스크 스트리밍 (D-203) ──
+    bool OpenStreamForTest(void* user, const char* path, AudioFileDecoder& decoder)
+    {
+        return decoder.Open(static_cast<IPlatform*>(user)->OpenFileStream(path), path);
+    }
+
+    // 소리를 장치처럼 조금씩 당기되 스트리머가 따라올 틈을 준다(실시간의 약 10 배). 창마다의 최대 크기를 모은다.
+    Array<float> PacedWindowPeaks(AudioMixer& mixer, std::uint32_t windows, std::uint32_t windowFrames)
+    {
+        Array<float> peaks;
+        float buffer[480 * 2];
+        for (std::uint32_t window = 0; window < windows; ++window)
+        {
+            float peak = 0.0f;
+            for (std::uint32_t done = 0; done < windowFrames; done += 480)
+            {
+                mixer.Render(buffer, 480);
+                for (float sample : buffer)
+                {
+                    peak = std::fmax(peak, std::fabs(sample));
+                }
+                std::this_thread::sleep_for(std::chrono::microseconds(1000));
+            }
+            peaks.Add(peak);
+        }
+        return peaks;
+    }
+
+    void TestStreamingFromDisk()
+    {
+        Fixture fixture;
+        fixture.Open();
+        // 1 초짜리 theme.wav 를 디스크 스트리밍으로 바꾼다. 경로에 한글이 있다(`JBroAudioProbe·오디오`).
+        const String metaPath = Utf8(fixture.root / "Sound" / "theme.wav.jmeta");
+        AssetMetaFile meta;
+        AssetMetaError metaError;
+        Check(LoadAssetMetaFile(fixture.platform, metaPath.c_str(), meta, metaError), "the meta reads");
+        meta.audioOptions.mode = AudioImportMode::StreamFromDisk;
+        Check(SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the meta takes the disk mode");
+        const AssetHandle theme = fixture.assets.Load(fixture.longId);
+        const AudioData* data = fixture.assets.GetAudio(theme);
+        Check(data != nullptr && data->pcm.IsEmpty() && data->encoded.IsEmpty() && false == data->streamPath.empty(),
+            "a disk-streamed asset keeps only its path in memory");
+        Check(data->frameCount == Rate && data->channels == 2 && data->sampleRate == Rate, "its format is read from the header");
+        Array<float> wave;
+        Check(fixture.assets.ComputeAudioPeaks(theme, 64, wave) && wave.Size() == 64 && wave[32] > 0.4f,
+            "the editor can draw its waveform by streaming it once");
+
+        AudioMixerDesc desc;
+        desc.maxVoices = 8;
+        desc.maxStreams = 2;
+        desc.openStream = &OpenStreamForTest;
+        desc.openStreamUser = &fixture.platform;
+        AudioMixer mixer;
+        Check(mixer.Initialize(desc), "the mixer initializes");
+        AudioClipDesc clipDesc;
+        clipDesc.encoding = AudioClipEncoding::File;
+        clipDesc.path = data->streamPath.c_str();
+        clipDesc.frameCount = data->frameCount;
+        clipDesc.sampleRate = data->sampleRate;
+        clipDesc.channels = data->channels;
+        const AudioClipHandle clip = mixer.RegisterClip(clipDesc);
+        Check(clip.IsSet(), "a file clip registers");
+
+        // 되풀이: 1 초짜리를 3 초 동안 당겨도 빈 틈이 없다.
+        AudioPlayDesc play;
+        play.clip = clip;
+        play.loop = true;
+        const AudioVoiceHandle looping = mixer.Play(play);
+        Check(looping.IsSet(), "a disk stream starts");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        const Array<float> windows = PacedWindowPeaks(mixer, 30, 4800);
+        float quietest = 1.0f;
+        for (float peak : windows)
+        {
+            quietest = std::fmin(quietest, peak);
+        }
+        std::cout << "  disk stream over 3 s of a 1 s loop: quietest window " << quietest << ", underruns "
+                  << mixer.GetStats().streamUnderruns << '\n';
+        Check(quietest > 0.4f, "a looping disk stream plays across its end without a gap");
+        Check(mixer.GetStats().streamUnderruns == 0 && mixer.GetStats().activeStreams == 1,
+            "the streamer keeps ahead of the audio thread");
+
+        // 위치 옮기기: 0.5 초로 옮기면 그 자리부터다.
+        mixer.Seek(looping, 0.5);
+        PacedWindowPeaks(mixer, 1, 480);
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        PacedWindowPeaks(mixer, 1, 480);
+        const double at = mixer.GetPlaybackSeconds(looping);
+        std::cout << "  after seeking a disk stream to 0.5 s: " << at << " s\n";
+        Check(at > 0.49 && at < 0.56, "seeking a disk stream moves its cursor");
+
+        // 자리는 둘뿐이다: 둘째는 되고 셋째는 거절된다.
+        play.loop = false;
+        const AudioVoiceHandle once = mixer.Play(play);
+        Check(once.IsSet(), "a second disk stream starts");
+        Check(false == mixer.Play(play).IsSet(), "a third disk stream is refused when the streams are all busy");
+        // 되풀이가 아닌 것은 끝나면 거둬진다.
+        PacedWindowPeaks(mixer, 13, 4800);
+        mixer.Update();
+        Check(false == mixer.IsAlive(once) && mixer.IsAlive(looping), "a one-shot disk stream ends and is collected");
+
+        // 에셋 경로로도 된다: 오디오 시스템이 `File` 로 등록한다.
+        mixer.StopAll();
+        const auto closed = std::chrono::steady_clock::now();
+        while (mixer.GetStats().activeStreams != 0 && std::chrono::steady_clock::now() - closed < std::chrono::seconds(2))
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        Check(mixer.GetStats().activeStreams == 0, "stopped streams are closed by the streamer");
+        System::AudioSystem audio;
+        Check(audio.Initialize(mixer, &fixture.assets), "the audio system initializes");
+        audio.PlayOneShot(theme, AudioBusName{}, 1.0f, 1.0f);
+        Check(mixer.GetStats().activeStreams == 1, "a disk-streamed asset plays through the audio system");
+        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        Check(PacedWindowPeaks(mixer, 2, 4800)[1] > 0.4f, "and it is heard");
+        // 흘려 읽는 중에 내려도 멈추지 않고 끝난다.
+        audio.Shutdown();
+        mixer.Play(play);
+        mixer.Shutdown();
+        fixture.assets.Release(theme);
+        fixture.Close();
     }
 
     // ── 2D 소스 시스템 ──────────────────────────────────────────────────────────────────────────
@@ -547,6 +713,67 @@ namespace
         scene.Close();
     }
 
+    // 프로젝트의 부모·센드가 믹서에 선다. 솔로는 버스를 다시 세워도 남고, 소스의 필터는 재생 중에 바뀐다(D-203).
+    void TestRoutingFromTheProjectAndSourceFilters()
+    {
+        Scene scene;
+        scene.Open();
+        NameTable& names = NameTable::Get();
+        AudioBusConfig buses[4];
+        buses[0] = {names.Intern("SFX"), 0.5f};
+        buses[1] = {names.Intern("Steps"), 0.5f};
+        buses[1].parent = names.Intern("SFX");
+        buses[1].send = names.Intern("Room");
+        buses[1].sendLevel = 1.0f;
+        buses[2] = {names.Intern("Room"), 1.0f};
+        buses[2].effects.dry = 0.0f;
+        buses[2].effects.reverbMix = 1.0f;
+        // 뒤에 있는 부모는 받지 않는다 - Master 아래로 가고 알린다.
+        buses[3] = {names.Intern("Early"), 1.0f};
+        buses[3].parent = names.Intern("Later");
+        scene.audio.ConfigureBuses({buses, 4});
+        AudioMixer& mixer = scene.mixer;
+        const AudioBusId sfx = AudioFirstProjectBus;
+        const AudioBusId steps = AudioFirstProjectBus + 1;
+        const AudioBusId room = AudioFirstProjectBus + 2;
+        Check(mixer.GetBusParent(steps) == sfx, "a bus is created under the parent named in the project");
+        Check(mixer.GetBusParent(AudioFirstProjectBus + 3) == AudioMasterBus, "a parent that comes later falls back to Master");
+        Check(mixer.GetBusSendTarget(steps) == room && mixer.GetBusSendLevel(steps) == 1.0f,
+            "a send to a bus later in the list is connected once every bus exists");
+
+        Component::AudioSource* source = scene.AddSource("steps", 0.0f, true);
+        source->bus = AudioBusName::FromText("Steps");
+        scene.framework.BindCanvasAssets();
+        scene.Frame();
+        RenderPeaks(mixer, 9600);
+        Check(std::fabs(scene.audio.GetBusPeak(AudioBusName::FromText("Steps")) - 0.25f) < 0.04f,
+            "the bus meter reads the nested bus");
+        Check(scene.audio.GetBusPeak(AudioBusName::FromText("Room")) > 0.01f, "the send reaches the room");
+
+        // 소스의 저역 통과: 440 Hz 사인을 100 Hz 로 깎으면 크게 준다.
+        const AudioBusName stepsName = AudioBusName::FromText("Steps");
+        const float open = scene.audio.GetBusPeak(stepsName);
+        source->lowPass = 100.0f;
+        scene.Frame();
+        RenderPeaks(mixer, 9600);
+        const float muffled = scene.audio.GetBusPeak(stepsName);
+        std::cout << "  a source low-pass at 100 Hz: " << open << " -> " << muffled << '\n';
+        Check(muffled < open * 0.3f, "a source's low-pass cuts it while it plays");
+        source->lowPass = 0.0f;
+        scene.Frame();
+        RenderPeaks(mixer, 9600);
+        Check(std::fabs(scene.audio.GetBusPeak(stepsName) - open) < 0.03f, "clearing it restores the source");
+
+        // 솔로는 저장하지 않지만 버스를 다시 세워도 이름으로 남는다.
+        scene.audio.SetBusSolo(AudioBusName::FromText("Room"), true);
+        scene.audio.ConfigureBuses({buses, 4});
+        Check(scene.audio.IsBusSolo(AudioBusName::FromText("Room")) && mixer.IsBusSolo(room),
+            "a solo survives rebuilding the buses");
+        scene.audio.SetBusSolo(AudioBusName::FromText("Room"), false);
+        Check(false == mixer.IsBusSolo(room), "the solo clears");
+        scene.Close();
+    }
+
     // 에셋이 재생 중에 다시 읽히면 믹서가 먼저 그 클립을 놓는다 - 오디오 스레드가 풀린 자료를 읽지 않는다.
     void TestAReloadedClipIsReleasedBeforeItsDataGoes()
     {
@@ -632,10 +859,12 @@ int RunAudioIntegrationTests()
         TestProjectFileReadsAndKeepsAudioBuses();
         TestAudioAssetsLoadAndAnnounceTheirRelease();
         TestTheDevicePullsTheMixerAndStopsWhenAsked();
+        TestStreamingFromDisk();
         TestSourcesFollowTheirLifecycle();
         TestBusesAndSpatialSources();
         TestTheScriptServiceReachesTheMixer();
         TestAReloadedClipIsReleasedBeforeItsDataGoes();
+        TestRoutingFromTheProjectAndSourceFilters();
         TestSteadyAudioFramesDoNotAllocate();
     }
     catch (const std::exception&)

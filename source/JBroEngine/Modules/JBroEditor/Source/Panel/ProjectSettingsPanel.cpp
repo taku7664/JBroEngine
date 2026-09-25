@@ -54,6 +54,7 @@ namespace JBro
         m_loaded = true;
         m_message.clear();
         m_messageIsError = false;
+        m_audioDevicesListed = false;
     }
 
     void ProjectSettingsPanel::DrawPathValue(const char* id, String& value, const char* filterName,
@@ -234,6 +235,50 @@ namespace JBro
         // 목록에 없다. 버스마다 제 표를 연다 - 접는 이펙트 마디가 표 사이에 서야 해서다.
         Widget::SectionHeader(
             Loc::TextOr(LocKeys::ProjectSettingsAudio, "Audio")).SpacingBefore().Draw();
+        // 출력 장치와 포커스 정책(D-203). 장치 목록은 창을 열 때 한 번 읽는다.
+        if (false == m_audioDevicesListed)
+        {
+            const std::uint32_t found = m_editor->EnumerateAudioOutputs(m_audioDevices, MaxAudioDevices);
+            m_audioDeviceCount = found < MaxAudioDevices ? found : MaxAudioDevices;
+            m_audioDevicesListed = true;
+        }
+        {
+            Widget::FormLayout device("##audioDevice");
+            device.Row([] { Widget::Text("AudioOutputDevice"); },
+                [&] {
+                    m_busChoices.Clear();
+                    m_busChoices.Add(Loc::TextOr(LocKeys::ProjectSettingsAudioDefaultDevice, "System default"));
+                    int current = m_draft.audioOutputDevice.empty() ? 0 : -1;
+                    for (std::uint32_t index = 0; index < m_audioDeviceCount; ++index)
+                    {
+                        m_busChoices.Add(m_audioDevices[index].name);
+                        if (m_draft.audioOutputDevice == m_audioDevices[index].name)
+                        {
+                            current = static_cast<int>(index) + 1;
+                        }
+                    }
+                    // 이 기계에 없는 이름이 적혀 있으면 그 이름을 그대로 보인다 - 지우지 않는다.
+                    if (Widget::FilterCombo("##device", {m_busChoices.Data(), m_busChoices.Size()}, current)
+                            .EmptyText(m_draft.audioOutputDevice.c_str())
+                            .Draw())
+                    {
+                        m_draft.audioOutputDevice = current <= 0 ? String() : String(m_busChoices[static_cast<std::size_t>(current)]);
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioDeviceHelp,
+                        "On a computer without this device the system default is used"));
+                    ImGui::SameLine();
+                    if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsAudioRefreshDevices, "Refresh")))
+                    {
+                        m_audioDevicesListed = false;
+                    }
+                });
+            device.Row([] { Widget::Text("AudioMuteWhenUnfocused"); },
+                [&] {
+                    Widget::Checkbox("##muteUnfocused", m_draft.audioMuteWhenUnfocused);
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioMuteHelp,
+                        "Mutes the sound while the window is not focused"));
+                });
+        }
         Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsAudioBusesHelp,
             "Master is always there and every bus plays under it."));
         {
@@ -275,28 +320,95 @@ namespace JBro
                 // 값 하나가 한 줄이다. 켜는 칸(0 이면 꺼짐)을 먼저 두고 세부를 뒤에 둔다.
                 if (Widget::FoldNode(Loc::TextOr(LocKeys::ProjectSettingsAudioEffects, "Effects")))
                 {
-                    Widget::FormLayout effects("##effects");
-                    const auto slider = [&](const char* name, const char* id, float& value, float low, float high,
-                                            bool turnsOff) {
-                        effects.Row([name] { Widget::Text(name); },
-                            [&value, id, low, high, turnsOff] {
-                                Widget::SliderFloat(id, value, low, high);
-                                if (turnsOff)
+                    // 표는 마디를 닫기 전에 끝나야 한다 - 그래서 제 괄호 안에 둔다.
+                    {
+                        Widget::FormLayout effects("##effects");
+                        const auto slider = [&](const char* name, const char* id, float& value, float low, float high,
+                                                bool turnsOff) {
+                            effects.Row([name] { Widget::Text(name); },
+                                [&value, id, low, high, turnsOff] {
+                                    Widget::SliderFloat(id, value, low, high);
+                                    if (turnsOff)
+                                    {
+                                        Widget::HoveredTooltip(
+                                            Loc::TextOr(LocKeys::ProjectSettingsAudioEffectOff, "0 turns it off"));
+                                    }
+                                });
+                        };
+                        AudioBusEffects& chain = bus.effects;
+                        slider("LowPass", "##lowPass", chain.lowPassHz, 0.0f, 20000.0f, true);
+                        slider("HighPass", "##highPass", chain.highPassHz, 0.0f, 5000.0f, true);
+                        slider("EchoMix", "##echoMix", chain.echoMix, 0.0f, 1.0f, true);
+                        slider("EchoDelay", "##echoDelay", chain.echoDelay, 0.01f, 2.0f, false);
+                        slider("EchoFeedback", "##echoFeedback", chain.echoFeedback, 0.0f, 0.95f, false);
+                        slider("ReverbMix", "##reverbMix", chain.reverbMix, 0.0f, 1.0f, true);
+                        slider("ReverbRoom", "##reverbRoom", chain.reverbRoom, 0.0f, 1.0f, false);
+                        slider("ReverbDamping", "##reverbDamping", chain.reverbDamping, 0.0f, 1.0f, false);
+                        slider("Dry", "##dry", chain.dry, 0.0f, 1.0f, false);
+                    }
+                    Widget::TreePop();
+                }
+                // 부모와 센드(D-203). 부모는 위에 있는 버스만 고른다 - 파일의 차례가 곧 만드는 차례라서다.
+                if (Widget::FoldNode(Loc::TextOr(LocKeys::ProjectSettingsAudioRouting, "Routing")))
+                {
+                    // 표는 마디를 닫기 전에 끝나야 한다 - 그래서 제 괄호 안에 둔다.
+                    {
+                        Widget::FormLayout routing("##routing");
+                        routing.Row([] { Widget::Text("Parent"); },
+                            [&] {
+                                m_busChoices.Clear();
+                                m_busChoices.Add(AudioMasterBusName);
+                                int current = 0;
+                                for (std::size_t other = 0; other < index; ++other)
                                 {
-                                    Widget::HoveredTooltip(
-                                        Loc::TextOr(LocKeys::ProjectSettingsAudioEffectOff, "0 turns it off"));
+                                    m_busChoices.Add(m_draft.audioBuses[other].name.c_str());
+                                    if (m_draft.audioBuses[other].name == bus.parent)
+                                    {
+                                        current = static_cast<int>(other) + 1;
+                                    }
                                 }
+                                if (Widget::FilterCombo("##parent", {m_busChoices.Data(), m_busChoices.Size()}, current)
+                                        .ShowFilter(false)
+                                        .Draw())
+                                {
+                                    bus.parent = current <= 0 ? String() : m_draft.audioBuses[current - 1].name;
+                                }
+                                Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioParentHelp,
+                                    "Only buses above this one can be its parent"));
                             });
-                    };
-                    AudioBusEffects& chain = bus.effects;
-                    slider("LowPass", "##lowPass", chain.lowPassHz, 0.0f, 20000.0f, true);
-                    slider("HighPass", "##highPass", chain.highPassHz, 0.0f, 5000.0f, true);
-                    slider("EchoMix", "##echoMix", chain.echoMix, 0.0f, 1.0f, true);
-                    slider("EchoDelay", "##echoDelay", chain.echoDelay, 0.01f, 2.0f, false);
-                    slider("EchoFeedback", "##echoFeedback", chain.echoFeedback, 0.0f, 0.95f, false);
-                    slider("ReverbMix", "##reverbMix", chain.reverbMix, 0.0f, 1.0f, true);
-                    slider("ReverbRoom", "##reverbRoom", chain.reverbRoom, 0.0f, 1.0f, false);
-                    slider("ReverbDamping", "##reverbDamping", chain.reverbDamping, 0.0f, 1.0f, false);
+                        routing.Row([] { Widget::Text("Send"); },
+                            [&] {
+                                m_busChoices.Clear();
+                                m_busChoices.Add(Loc::TextOr(LocKeys::ProjectSettingsAudioNoSend, "None"));
+                                int current = 0;
+                                for (std::size_t other = 0; other < m_draft.audioBuses.Size(); ++other)
+                                {
+                                    if (other == index)
+                                    {
+                                        continue;
+                                    }
+                                    m_busChoices.Add(m_draft.audioBuses[other].name.c_str());
+                                    if (m_draft.audioBuses[other].name == bus.send)
+                                    {
+                                        current = static_cast<int>(m_busChoices.Size()) - 1;
+                                    }
+                                }
+                                if (Widget::FilterCombo("##send", {m_busChoices.Data(), m_busChoices.Size()}, current)
+                                        .ShowFilter(false)
+                                        .Draw())
+                                {
+                                    bus.send = current <= 0 ? String() : String(m_busChoices[static_cast<std::size_t>(current)]);
+                                    if (current > 0 && bus.sendLevel <= 0.0f)
+                                    {
+                                        bus.sendLevel = 0.5f;
+                                    }
+                                }
+                                Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioSendHelp,
+                                    "Also sends this bus to another bus, e.g. a shared reverb bus with Dry 0"));
+                            });
+                        routing.Row([] { Widget::Text("SendLevel"); },
+                            [&] { Widget::SliderFloat("##sendLevel", bus.sendLevel, 0.0f, 1.0f); });
+                    }
                     Widget::TreePop();
                 }
                 ImGui::PopID();

@@ -102,6 +102,86 @@ namespace JBro
         return true;
     }
 
+    namespace
+    {
+        class WindowsFileStream final : public IFileStream
+        {
+        public:
+            explicit WindowsFileStream(HANDLE file) : m_file(file)
+            {
+            }
+
+            ~WindowsFileStream() override
+            {
+                CloseHandle(m_file);
+            }
+
+            std::size_t Read(void* buffer, std::size_t bytes) override
+            {
+                std::size_t total = 0;
+                while (total < bytes)
+                {
+                    const std::size_t left = bytes - total;
+                    const DWORD chunk = left > 0x40000000u ? 0x40000000u : static_cast<DWORD>(left);
+                    DWORD read = 0;
+                    if (FALSE == ReadFile(m_file, static_cast<char*>(buffer) + total, chunk, &read, nullptr) || read == 0)
+                    {
+                        break;
+                    }
+                    total += read;
+                }
+                return total;
+            }
+
+            bool Seek(std::int64_t offset, FileSeekOrigin origin) override
+            {
+                LARGE_INTEGER distance;
+                distance.QuadPart = offset;
+                const DWORD method = origin == FileSeekOrigin::Begin ? FILE_BEGIN
+                    : (origin == FileSeekOrigin::Current ? FILE_CURRENT : FILE_END);
+                return FALSE != SetFilePointerEx(m_file, distance, nullptr, method);
+            }
+
+            std::int64_t Tell() const override
+            {
+                LARGE_INTEGER zero;
+                zero.QuadPart = 0;
+                LARGE_INTEGER position;
+                if (FALSE == SetFilePointerEx(m_file, zero, &position, FILE_CURRENT))
+                {
+                    return -1;
+                }
+                return position.QuadPart;
+            }
+
+            std::int64_t GetSize() const override
+            {
+                LARGE_INTEGER size;
+                return FALSE != GetFileSizeEx(m_file, &size) ? size.QuadPart : -1;
+            }
+
+        private:
+            HANDLE m_file;
+        };
+    }
+
+    OwnerPtr<IFileStream> WindowsPlatform::OpenFileStream(const char* utf8Path)
+    {
+        if (utf8Path == nullptr || utf8Path[0] == '\0')
+        {
+            return nullptr;
+        }
+        const fs::path path = ToPath(utf8Path);
+        // 읽는 동안에도 다른 쪽이 고쳐 쓰고 지울 수 있게 연다 - 에디터에서 파일을 바꾸면 감시가 다시 읽는다.
+        const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, nullptr);
+        if (file == INVALID_HANDLE_VALUE)
+        {
+            return nullptr;
+        }
+        return OwnerPtr<IFileStream>(MakeOwnerPtr<WindowsFileStream>(file));
+    }
+
     bool WindowsPlatform::WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents)
     {
         std::ofstream file(ToPath(utf8Path), std::ios::binary | std::ios::trunc);

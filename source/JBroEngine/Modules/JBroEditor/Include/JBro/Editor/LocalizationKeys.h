@@ -286,6 +286,16 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
     inline constexpr const char* InspectorAudioBusMissing = "inspector.audio_bus_missing";
     inline constexpr const char* ProjectSettingsAudio = "project_settings.audio";
+    inline constexpr const char* ProjectSettingsAudioDefaultDevice = "project_settings.audio_default_device";
+    inline constexpr const char* ProjectSettingsAudioDeviceHelp = "project_settings.audio_device_help";
+    inline constexpr const char* ProjectSettingsAudioRefreshDevices = "project_settings.audio_refresh_devices";
+    inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
+    inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
+    inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";
+    inline constexpr const char* ProjectSettingsAudioParentHelp = "project_settings.audio_parent_help";
+    inline constexpr const char* ProjectSettingsAudioSendHelp = "project_settings.audio_send_help";
+    inline constexpr const char* StatsAudioSolo = "stats.audio_solo";
+    inline constexpr const char* StatsAudioBuses = "stats.audio_buses";
     inline constexpr const char* StatsAudioVoices = "stats.audio_voices";
     inline constexpr const char* StatsAudioDevice = "stats.audio_device";
     inline constexpr const char* StatsAudioNoDevice = "stats.audio_no_device";

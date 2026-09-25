@@ -39,7 +39,8 @@ namespace JBro
     };
 
     // 로드된 오디오다(D-197). **CPU 자료만이다** - 재생은 엔진의 믹서가 한다. `Decompressed` 면 `pcm` 이 f32 인터리브
-    // 전체이고, `Streaming` 이면 `encoded` 가 파일 바이트 그대로다(믹서가 보이스마다 풀어 재생한다). 형식은 파일 그대로다.
+    // 전체이고, `Streaming` 이면 `encoded` 가 파일 바이트 그대로다(믹서가 보이스마다 풀어 재생한다). `StreamFromDisk` 면 둘 다
+    // 비고 `streamPath`(UTF-8 절대경로)만 있다 - 믹서의 스트리머가 그 파일을 연다(D-203). 형식은 파일 그대로다.
     // `dataGeneration` 은 in-place 재로드마다 오른다.
     struct AudioData
     {
@@ -49,6 +50,7 @@ namespace JBro
         std::uint64_t frameCount = 0;
         Array<float> pcm;
         Array<std::byte> encoded;
+        String streamPath;
         std::uint32_t dataGeneration = 1;
     };
 
@@ -97,6 +99,8 @@ namespace JBro
         const AudioData* GetAudio(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
+        // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
+        bool ComputeAudioPeaks(AssetHandle handle, std::uint32_t buckets, Array<float>& peaks);
 
         // 디스크의 최신 상태로 자료만 바꾼다. 핸들과 세대는 그대로다(asset-plan §2.7). 로드돼 있지 않으면 false.
         bool ReloadInPlace(AssetId id);

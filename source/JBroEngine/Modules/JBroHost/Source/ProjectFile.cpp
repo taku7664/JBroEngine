@@ -170,7 +170,8 @@ namespace JBro
             {"EchoMix", &AudioBusEffects::echoMix},
             {"ReverbRoom", &AudioBusEffects::reverbRoom},
             {"ReverbDamping", &AudioBusEffects::reverbDamping},
-            {"ReverbMix", &AudioBusEffects::reverbMix}};
+            {"ReverbMix", &AudioBusEffects::reverbMix},
+            {"Dry", &AudioBusEffects::dry}};
 
         float* AudioBusEffectField(AudioBusEffects& effects, const String& key)
         {
@@ -324,6 +325,21 @@ namespace JBro
                     if (false == ParseFloat(busValue, bus.volume))
                     {
                         return Fail(error, lineNumber, "an audio bus Volume must be a number");
+                    }
+                }
+                else if (busKey == "Parent")
+                {
+                    bus.parent = busValue;
+                }
+                else if (busKey == "Send")
+                {
+                    bus.send = busValue;
+                }
+                else if (busKey == "SendLevel")
+                {
+                    if (false == ParseFloat(busValue, bus.sendLevel))
+                    {
+                        return Fail(error, lineNumber, "an audio bus SendLevel must be a number");
                     }
                 }
                 else if (float* effect = AudioBusEffectField(bus.effects, busKey))
@@ -482,6 +498,8 @@ namespace JBro
             else if (key == "ScriptOutputLibraryPath") { parsed.scriptOutputLibraryPath = value; }
             else if (key == "LastOpenedCanvasPath") { parsed.lastOpenedCanvasPath = value; }
             else if (key == "EditorLocale") { parsed.editorLocale = value; }
+            else if (key == "AudioOutputDevice") { parsed.audioOutputDevice = value; }
+            else if (key == "AudioMuteWhenUnfocused") { recognized = ParseBool(value, parsed.audioMuteWhenUnfocused); }
             else if (key == "CanvasViewCameraX")
             {
                 if (false == ParseFloat(value, parsed.canvasViewCameraX))
@@ -605,6 +623,11 @@ namespace JBro
             else if (key == "ScriptOutputLibraryPath") { value = project.scriptOutputLibraryPath; }
             else if (key == "LastOpenedCanvasPath") { value = project.lastOpenedCanvasPath; }
             else if (key == "EditorLocale") { value = project.editorLocale; }
+            else if (key == "AudioOutputDevice") { value = project.audioOutputDevice; }
+            else if (key == "AudioMuteWhenUnfocused")
+            {
+                value = project.audioMuteWhenUnfocused ? "true" : "false";
+            }
             else if (key == "CanvasViewCameraX") { value = FormatFloat(project.canvasViewCameraX); }
             else if (key == "CanvasViewCameraY") { value = FormatFloat(project.canvasViewCameraY); }
             else if (key == "CanvasViewCameraSize")
@@ -642,7 +665,8 @@ namespace JBro
             "ResolutionWidth", "ResolutionHeight", "TextureFilter", "DebugModeEnabled",
             "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
             "AssetDirectory", "EditorLocale",
-            "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize"};
+            "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize",
+            "AudioOutputDevice", "AudioMuteWhenUnfocused"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
             "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath"};
@@ -785,6 +809,36 @@ namespace JBro
                 const String volume = FormatShortFloat(bus.volume);
                 result.append(volume.c_str(), volume.size());
                 result.append("\n", 1);
+                // 부모·센드도 쓸 때만 적는다. 쓰지 않는 파일은 전과 같다.
+                const auto appendName = [&result](const char* key, const String& name)
+                {
+                    result.append("    ", 4);
+                    result.append(key, std::strlen(key));
+                    result.append(": ", 2);
+                    if (IsPlainName(name))
+                    {
+                        result.append(name.c_str(), name.size());
+                    }
+                    else
+                    {
+                        result.append("\"", 1);
+                        result.append(name.c_str(), name.size());
+                        result.append("\"", 1);
+                    }
+                    result.append("\n", 1);
+                };
+                if (false == bus.parent.empty())
+                {
+                    appendName("Parent", bus.parent);
+                }
+                if (false == bus.send.empty() && bus.sendLevel > 0.0f)
+                {
+                    appendName("Send", bus.send);
+                    result.append("    SendLevel: ", 15);
+                    const String level = FormatShortFloat(bus.sendLevel);
+                    result.append(level.c_str(), level.size());
+                    result.append("\n", 1);
+                }
                 // 이펙트는 기본값과 다른 칸만 적는다. 이펙트를 쓰지 않는 파일은 전과 같다.
                 const AudioBusEffects defaults;
                 for (const AudioEffectKey& entry : AudioEffectKeys)

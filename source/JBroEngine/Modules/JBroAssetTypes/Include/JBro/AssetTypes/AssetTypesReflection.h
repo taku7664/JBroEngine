@@ -67,7 +67,8 @@ namespace JBro
 
     JBRO_DEFINE_ENUM_TYPE(AudioImportMode, "JBro.AudioImportMode",
         { AudioImportMode::Decompressed, "Decompressed" },
-        { AudioImportMode::Streaming,    "Streaming" });
+        { AudioImportMode::Streaming,    "Streaming" },
+        { AudioImportMode::StreamFromDisk, "StreamFromDisk" });
 
     // `.jmeta` 의 `Audio.ImportOptions` 가 이 표로 읽히고 쓰인다(D-197).
     template <>

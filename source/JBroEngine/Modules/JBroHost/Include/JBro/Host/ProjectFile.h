@@ -70,6 +70,11 @@ namespace JBro
         // 이펙트 사슬(D-202). 기본값과 다른 칸만 파일에 적힌다(`LowPass:`·`HighPass:`·`EchoDelay:`·`EchoFeedback:`·`EchoMix:`·
         // `ReverbRoom:`·`ReverbDamping:`·`ReverbMix:`) - 기존 엔진의 파일은 이 키가 없어도 바이트 하나 바뀌지 않는다.
         AudioBusEffects effects;
+        // 부모 버스 이름(`Parent:`)이다. 비우면 Master 다. 부모는 목록에서 앞에 있어야 한다(D-203).
+        String parent;
+        // 센드(`Send:`·`SendLevel:`)다. 받는 버스 이름과 양(0..1). 비우거나 양이 0 이면 적지 않는다.
+        String send;
+        float sendLevel = 0.0f;
     };
 
     struct ProjectFile
@@ -109,6 +114,11 @@ namespace JBro
         Array<String> assetIgnorePatterns;
         // 새 프로젝트는 흔한 둘(`Music`·`SFX`)로 시작한다. 파일에 키가 없으면 빈 목록이다(Master 하나).
         Array<ProjectAudioBus> audioBuses;
+        // 소리를 낼 장치 이름이다(`AudioOutputDevice`, D-203). 비우면 시스템 기본이다. 사람마다 다른 값이지만 `editorLocale`
+        // 과 같은 까닭으로 프로젝트에 둔다 - 그 이름의 장치가 없는 기계에서는 기본으로 연다.
+        String        audioOutputDevice;
+        // 창이 포커스를 잃으면 소리를 끈다(`AudioMuteWhenUnfocused`). 스크립트가 옵션 화면에서 바꿀 수 있다.
+        bool          audioMuteWhenUnfocused = false;
         ProjectBuildSettings build;
     };
 

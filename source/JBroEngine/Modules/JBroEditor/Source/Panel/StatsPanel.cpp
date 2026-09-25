@@ -1,6 +1,9 @@
 ﻿#include "StatsPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/FormLayout.h>
+#include <JBro/Editor/Widget/Meter.h>
 #include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Types/NameTable.h>
@@ -16,6 +19,41 @@
 
 namespace JBro
 {
+    // 버스마다 미터와 솔로다(D-203). 미터는 봉우리를 잡고 초당 1.5 씩 내린다 - 한 블록만 보면 읽을 새가 없다.
+    void StatsPanel::DrawAudioMeters(System::AudioSystem& audio, float masterPeak)
+    {
+        const auto hold = [](float& shown, float now) {
+            const float fallen = shown - 1.5f * ImGui::GetIO().DeltaTime;
+            shown = now > fallen ? now : (fallen > 0.0f ? fallen : 0.0f);
+        };
+        Widget::FormLayout meters("##audioMeters");
+        hold(m_masterLevel, masterPeak);
+        meters.Row([] { Widget::Text(AudioMasterBusName); },
+            [&] { Widget::LevelMeter("##master", m_masterLevel); });
+        const JArrayView<AudioBusConfig> buses = audio.GetBusConfigs();
+        for (std::uint32_t index = 0; index < buses.size && index < MaxMeteredBuses; ++index)
+        {
+            const AudioBusConfig& config = buses.data[index];
+            AudioBusName name;
+            name.id = config.name;
+            hold(m_busLevels[index], audio.GetBusPeak(name));
+            // 번호는 값 칸 안에서만 민다 - 표의 줄 사이에서 밀면 표의 ID 쌓기가 어긋난다.
+            meters.Row([&config] { Widget::Text(NameTable::Get().Resolve(config.name)); },
+                [&] {
+                    ImGui::PushID(static_cast<int>(index));
+                    bool solo = audio.IsBusSolo(name);
+                    if (Widget::Checkbox("##solo", solo))
+                    {
+                        audio.SetBusSolo(name, solo);
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::StatsAudioSolo, "Solo - hear only this bus while mixing"));
+                    ImGui::SameLine();
+                    Widget::LevelMeter("##level", m_busLevels[index]);
+                    ImGui::PopID();
+                });
+        }
+    }
+
     const char* StatsPanel::GetTitle() const
     {
         // 안정된 이름이다. 번역하지 않는다 - 창의 정체가 여기 달려 있다.
@@ -113,6 +151,15 @@ namespace JBro
                         static_cast<unsigned long long>(sound.voicesStolen),
                         static_cast<unsigned long long>(sound.voicesRejected));
                 }
+                // 버스마다 미터와 솔로다(D-203). 미터는 봉우리를 잡고 초당 1.5 씩 내린다.
+                if (Widget::FoldNode(Loc::TextOr(LocKeys::StatsAudioBuses, "Buses"), ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    // 표는 마디를 닫기 전에 끝나야 한다 - 그래서 제 함수 안에서 연다.
+                    DrawAudioMeters(*audio, sound.lastPeak);
+                    Widget::TreePop();
+                }
+                mixer->ComputeSpectrum(m_spectrum, SpectrumBands);
+                Widget::Spectrum("##spectrum", {m_spectrum, SpectrumBands}, ImGui::GetFrameHeight() * 2.5f);
             }
         }
         // **캔버스가 얼마나 찼는지**(D-145). 기존 엔진의 CPU 프로파일러가 이 숫자들을 냈다.

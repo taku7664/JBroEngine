@@ -38,6 +38,7 @@ namespace JBro
     class EngineInstance;
     class IFramework;
     class IPlatform;
+    struct AudioDeviceInfo;
     class AssetRegistry;
     class AssetSystem;
     struct AssetMetaFile;
@@ -195,6 +196,8 @@ namespace JBro
         System::AudioSystem* GetAudio();
         // 소리가 나가는 장치의 이름이다. 장치를 열지 않았거나 못 열었으면 nullptr 이다 - 통계 창이 "소리 없음" 을 알린다.
         const char* GetAudioDeviceName() const;
+        // 출력 장치 목록이다(D-203). 몇 ms 걸리므로 목록을 여는 순간에만 부른다.
+        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity);
         // 열린 프로젝트의 에셋 폴더가 감시되고 있는가. 거짓이면 밖에서 바꾼 파일이 반영되지 않는다.
         bool IsWatchingAssets() const;
 

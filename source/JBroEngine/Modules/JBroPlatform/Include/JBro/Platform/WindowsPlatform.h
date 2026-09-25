@@ -27,6 +27,7 @@ namespace JBro
         void UnloadDynamicLibrary(DynamicLibrary library) override;
         bool ShowFileDialog(WindowHandle owner, const FileDialogDesc& desc, String& outPath) override;
         bool ReadWholeFile(const char* utf8Path, Array<std::byte>& contents) override;
+        OwnerPtr<IFileStream> OpenFileStream(const char* utf8Path) override;
         bool WriteWholeFile(const char* utf8Path, JArrayView<std::byte> contents) override;
         bool MoveFileTo(const char* fromUtf8Path, const char* toUtf8Path) override;
         bool CreateDirectoryAt(const char* utf8Path) override;
@@ -47,6 +48,7 @@ namespace JBro
         OwnerPtr<Network::ISocketProvider> CreateSocketProvider() override;
         // `WindowsAudio.cpp` 의 것이다. miniaudio 의 WASAPI 장치다(D-197).
         OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc) override;
+        std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity) override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.
         void RecordInputEvent(const InputEvent& event);

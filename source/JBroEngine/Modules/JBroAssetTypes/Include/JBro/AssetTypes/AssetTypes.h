@@ -96,7 +96,10 @@ namespace JBro
         // 로드 때 전부 PCM 으로 푼다. 짧은 효과음.
         Decompressed,
         // 압축된 바이트를 메모리에 두고 재생하며 푼다. 긴 배경음.
-        Streaming
+        Streaming,
+        // 파일을 메모리에 올리지 않고 디스크에서 흘려 읽는다(D-203). 몇 분짜리 배경음·음성처럼 메모리에 두기 아까운 것.
+        // 동시에 흘려 읽는 수가 정해져 있고(기본 8) 웹 빌드에서는 되지 않는다 - 그때는 `Streaming` 으로 둔다.
+        StreamFromDisk
     };
 
     // `.jmeta` 의 `Audio.ImportOptions` 블록이다. **재생 파라미터는 없다** - 볼륨·루프·거리·버스는 컴포넌트가

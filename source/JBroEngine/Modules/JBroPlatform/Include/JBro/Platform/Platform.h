@@ -89,6 +89,16 @@ namespace JBro
         std::uint32_t channels = 2;
         // 한 번에 당기는 프레임 수다. 0 이면 장치의 기본(보통 10 ms 안팎)이다. 작을수록 지연이 줄고 끊길 위험이 는다.
         std::uint32_t periodFrames = 0;
+        // 열 장치의 이름(UTF-8, `EnumerateAudioOutputs` 의 것)이다(D-203). 비우면 시스템 기본 장치이고, 기본 장치는 사용자가
+        // 바꾸면 따라간다. 이름의 장치가 없으면 열지 않는다(null) - 기본으로 떨어질지는 부르는 쪽이 정한다.
+        const char* deviceName = nullptr;
+    };
+
+    // 출력 장치 하나의 이름이다(D-203).
+    struct AudioDeviceInfo
+    {
+        char name[256] = {};
+        bool isDefault = false;
     };
 
     // 출력 장치 하나다. 만든 쪽(호스트)이 소유한다. **메인 스레드에서 만들고 멈추고 없앤다.** 콜백은 장치의 스레드에서
@@ -103,8 +113,41 @@ namespace JBro
         // 장치가 실제로 받아들인 형식이다. 요청과 다를 수 있다 - 믹서는 이 값으로 만든다.
         virtual std::uint32_t GetSampleRate() const = 0;
         virtual std::uint32_t GetChannels() const = 0;
-        // 사람이 읽는 장치 이름(UTF-8). 로그와 에디터가 쓴다.
+        // 사람이 읽는 장치 이름(UTF-8). 로그와 에디터가 쓴다. 기본 장치가 바뀌어 따라갔으면 새 이름이다.
         virtual const char* GetDeviceName() const = 0;
+        // 장치가 스스로 멈췄다(뽑힘·드라이버 오류, D-203). 그 뒤로는 콜백이 오지 않는다 - 호스트가 닫고 다시 연다.
+        virtual bool IsLost() const
+        {
+            return false;
+        }
+        // 브라우저가 사용자의 첫 누름·키 입력 전까지 소리를 막고 있다(자동 재생 정책, D-203). miniaudio 가 그 입력에서
+        // 스스로 푼다 - 게임은 "눌러서 시작" 같은 안내를 띄우면 된다. 데스크톱은 늘 거짓이다.
+        virtual bool IsWaitingForUserGesture() const
+        {
+            return false;
+        }
+    };
+
+    // ── 조금씩 읽는 파일 (D-203) ─────────────────────────────────────────────────────────────
+    enum class FileSeekOrigin : std::uint8_t
+    {
+        Begin,
+        Current,
+        End
+    };
+
+    // 연 파일 하나를 앞에서부터(또는 옮겨 가며) 읽는다. 통째로 읽기에 큰 파일(긴 배경음)을 디스크에서 흘려 읽는 쪽이 쓴다.
+    // **한 번에 한 스레드만 쓴다** - 오디오 스트리머는 제 스레드에서 열고 읽고 닫는다. 다른 프로그램이 파일을 고쳐 써도
+    // 막지 않는다(에디터의 파일 감시가 다시 읽는다).
+    class IFileStream
+    {
+    public:
+        virtual ~IFileStream() = default;
+        // 읽은 바이트 수다. 끝이면 0 이다.
+        virtual std::size_t Read(void* buffer, std::size_t bytes) = 0;
+        virtual bool Seek(std::int64_t offset, FileSeekOrigin origin) = 0;
+        virtual std::int64_t Tell() const = 0;
+        virtual std::int64_t GetSize() const = 0;
     };
 
     // 워커에서 메인 스레드로 값으로 건너가는 POD 다. 할당도 참조도 들지 않는다 - `SafePtr` 는 메인 스레드 전용이다.
@@ -283,6 +326,14 @@ namespace JBro
             return nullptr;
         }
 
+        // 파일을 조금씩 읽으려고 연다(D-203). 없거나 못 열면 null 이다. **어느 스레드에서 불러도 된다** - 플랫폼의 다른
+        // 상태를 만지지 않는다. 기본은 "이 플랫폼에는 없다" 다.
+        virtual OwnerPtr<IFileStream> OpenFileStream(const char* utf8Path)
+        {
+            (void)utf8Path;
+            return nullptr;
+        }
+
         // ── 오디오 (D-197) ──────────────────────────────────────────────────────────────────────
         // **오디오는 장치를 직접 열지 않고 이것을 거친다.** 소켓과 같은 규약이다 - 기본은 "이 플랫폼에는 없다"(null)이고
         // 장치가 있는 플랫폼만 덮어쓴다. 장치를 열지 못해도(스피커 없음·원격 세션) null 이다. 그때 엔진은 소리 없이 같은
@@ -291,6 +342,14 @@ namespace JBro
         {
             (void)desc;
             return nullptr;
+        }
+        // 출력 장치들의 이름을 `capacity` 개까지 채우고 모두 몇 개인지 돌려준다(D-203). 장치를 여는 일은 하지 않는다.
+        // 몇 ms 가 걸리므로 목록을 여는 순간에만 부른다.
+        virtual std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity)
+        {
+            (void)devices;
+            (void)capacity;
+            return 0;
         }
     };
 }
