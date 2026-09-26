@@ -4,6 +4,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
+#include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
@@ -23,6 +24,9 @@
 
 #include <cstring>
 #include <filesystem>
+#include <string>
+
+#include <process.h>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -47,6 +51,16 @@ namespace
     {
         const std::u8string text = path.generic_u8string();
         return String(reinterpret_cast<const char*>(text.data()), text.size());
+    }
+
+    // 시험 폴더는 프로세스마다 다르다. 여러 세션의 시험이 한 기계에서 함께 돌면 같은 이름의 임시 폴더를 서로 지우고 덮어썼다(메타를 못 읽는
+    // 실패가 운으로 났다).
+    fs::path ProcessTempFolder(const wchar_t* name)
+    {
+        std::wstring folder(name);
+        folder += L"-";
+        folder += std::to_wstring(_getpid());
+        return fs::temp_directory_path() / folder;
     }
 
     ArrayView<const std::byte> Bytes(const char* text)
@@ -135,13 +149,33 @@ namespace
         return bytes;
     }
 
+    // 패키지의 색인을 풀어 `change` 로 고치고 해시를 다시 잰 뒤 섞어 넣는다. 색인 해시가 맞는 채로 내용이 틀린 패키지를 만든다.
+    template <typename TChange>
+    Array<std::byte> RewriteIndex(const Array<std::byte>& file, TChange change)
+    {
+        Array<std::byte> copy = file;
+        std::uint64_t indexOffset = 0;
+        std::uint64_t indexSize = 0;
+        std::uint64_t key = 0;
+        std::memcpy(&indexOffset, copy.Data() + 24, 8);
+        std::memcpy(&indexSize, copy.Data() + 32, 8);
+        std::memcpy(&key, copy.Data() + 48, 8);
+        std::byte* index = copy.Data() + indexOffset;
+        Obfuscate(key, indexOffset, index, static_cast<std::size_t>(indexSize));
+        change(index);
+        const std::uint64_t hash = JBro::Package::Hash(index, static_cast<std::size_t>(indexSize));
+        std::memcpy(copy.Data() + 40, &hash, 8);
+        Obfuscate(key, indexOffset, index, static_cast<std::size_t>(indexSize));
+        return copy;
+    }
+
     // **패키지에서 싣기**(package-plan 2 단계). 원본 폴더를 구운 뒤 지우고, 패키지로 연 에셋 시스템이 느슨한 파일과 같은 자료를 내는지 본다.
     void TestAssetsLoadTheSameFromAPackage()
     {
         WindowsPlatform platform;
         JMemoryContext memory;
         Check(platform.Initialize(memory), "the platform initializes");
-        const fs::path root = fs::temp_directory_path() / L"JBroPackageAssets·에셋";
+        const fs::path root = ProcessTempFolder(L"JBroPackageAssets·에셋");
         fs::remove_all(root);
         const fs::path assetsFolder = root / "Assets";
         WriteRaw(assetsFolder / "Art" / "hero.png", TinyPng, sizeof(TinyPng));
@@ -191,6 +225,22 @@ namespace
         const AudioData looseSound = *looseAssets.GetAudio(looseAssets.Load(soundId));
         looseAssets.Shutdown();
 
+        // 참조 따라가기: 이미지의 Texture 와 Sprite 는 어느 쪽에서 가도 한 짝으로 간다.
+        {
+            Array<AssetId> seeds;
+            seeds.Add(textureId);
+            Array<AssetId> collected;
+            CollectReport collectReport;
+            CollectAssets(platform, loose, assetRoot.c_str(), ArrayView<const AssetId>(seeds.Data(), seeds.Size()), collected, collectReport);
+            Check(collected.Size() == 2 && collected[0] == textureId && collected[1] == spriteId && collectReport.warnings.IsEmpty(),
+                "a texture takes its sprite along");
+            seeds.Clear();
+            seeds.Add(spriteId);
+            seeds.Add(Uuid::Generate());
+            CollectAssets(platform, loose, assetRoot.c_str(), ArrayView<const AssetId>(seeds.Data(), seeds.Size()), collected, collectReport);
+            Check(collected.Size() == 2 && collected[0] == spriteId && collected[1] == textureId && collectReport.warnings.Size() == 1,
+                "a sprite takes its texture along, and a seed that is not in the project is a warning");
+        }
         Array<AssetId> ids;
         ids.Add(textureId);
         ids.Add(spriteId);
@@ -303,7 +353,7 @@ namespace
             platform.Shutdown();
             return;
         }
-        const fs::path root = fs::temp_directory_path() / L"JBroGameBuildProbe·빌드";
+        const fs::path root = ProcessTempFolder(L"JBroGameBuildProbe·빌드");
         fs::remove_all(root);
         const fs::path source = root / "Source";
         WriteRaw(source / "Assets" / "Art" / "hero.png", TinyPng, sizeof(TinyPng));
@@ -311,6 +361,8 @@ namespace
         WriteRaw(source / "Assets" / "Fonts" / "latin.otf", TestFontNotoSansKRLatin, sizeof(TestFontNotoSansKRLatin));
         const char* table = "menu.start: Start\n";
         WriteRaw(source / "Assets" / "Text" / "ui.en-US.jstrings", table, std::strlen(table));
+        const Array<std::byte> wav = MakeWav(4800);
+        WriteRaw(source / "Assets" / "Sound" / "theme.wav", wav.Data(), wav.Size());
         const fs::path projectPath = source / "Probe.jproject";
         const auto writeProject = [&](const char* extra) {
             std::ofstream file(projectPath, std::ios::binary | std::ios::trunc);
@@ -332,6 +384,7 @@ namespace
         AssetId spriteId;
         AssetId unusedId;
         AssetId fontId;
+        AssetId soundId;
         {
             Framework2D framework;
             ProjectFileError error;
@@ -340,6 +393,17 @@ namespace
             heroId = registry.FindByPath("Art/hero.png")->id;
             unusedId = registry.FindByPath("Art/unused.png")->id;
             fontId = registry.FindByPath("Fonts/latin.otf")->id;
+            soundId = registry.FindByPath("Sound/theme.wav")->id;
+            {
+                // 소리는 디스크에서 흘려 읽는다 - 패키지로 연 게임은 패키지의 창 스트림이다.
+                const String metaPath = Utf8(source / "Assets" / "Sound" / "theme.wav.jmeta");
+                AssetMetaFile meta;
+                AssetMetaError metaError;
+                Check(LoadAssetMetaFile(platform, metaPath.c_str(), meta, metaError), "the sound meta reads");
+                meta.hasAudioOptions = true;
+                meta.audioOptions.mode = AudioImportMode::StreamFromDisk;
+                Check(SaveAssetMetaFile(platform, metaPath.c_str(), meta), "the sound meta saves");
+            }
             Array<AssetId> owned;
             registry.CollectOwned(heroId, owned);
             spriteId = owned[0];
@@ -348,6 +412,7 @@ namespace
             GameObject* hero = canvas->CreateObject("hero");
             canvas->AttachComponent<Component::Transform2D>(hero);
             canvas->AttachComponent<Component::SpriteRenderer2D>(hero)->spriteId = spriteId;
+            canvas->AttachComponent<Component::AudioSource>(hero)->clipId = soundId;
             String text;
             CanvasFileError canvasError;
             Check(WriteCanvasText(*canvas, text, canvasError), "the canvas writes");
@@ -385,8 +450,8 @@ namespace
             }
             Check(built, "the game builds");
             Check(report.warnings.IsEmpty(), "a clean project builds without warnings");
-            // 캔버스·텍스처·스프라이트·폰트·문자열 표. 쓰지 않은 그림은 가지 않는다.
-            Check(report.assets == 5 && report.cookedTextures == 1, "only what the game uses is packed");
+            // 캔버스·텍스처·스프라이트·소리·폰트·문자열 표. 쓰지 않은 그림은 가지 않는다.
+            Check(report.assets == 6 && report.cookedTextures == 1, "only what the game uses is packed");
             engine.CloseProject();
         }
         const fs::path output = root / "Out" / "Probe Game";
@@ -439,6 +504,15 @@ namespace
             const SpriteData* data = assets->GetSprite(sprite->sprite);
             const TextureData* texture = data != nullptr ? assets->GetTexture(data->texture) : nullptr;
             Check(texture != nullptr && texture->width == 2 && texture->height == 2, "with its texture decoded at build time");
+            const AudioData* sound = assets->GetAudio(assets->Load(soundId));
+            Check(sound != nullptr && sound->streamPath.rfind("jpak:", 0) == 0, "the streamed sound points into the package");
+            OwnerPtr<IFileStream> stream = engine.OpenAudioStream(sound->streamPath.c_str());
+            Array<std::byte> streamed;
+            streamed.Resize(wav.Size());
+            Check(stream.Get() != nullptr && stream->Read(streamed.Data(), streamed.Size()) == wav.Size()
+                    && std::memcmp(streamed.Data(), wav.Data(), wav.Size()) == 0,
+                "the engine opens the mixer's stream from the package");
+            stream.Reset();
             Check(engine.Tick(1.0f / 60.0f), "the packaged game ticks");
             engine.CloseProject();
         }
@@ -462,7 +536,7 @@ namespace
         WindowsPlatform platform;
         JMemoryContext memory;
         Check(platform.Initialize(memory), "the platform initializes");
-        const fs::path root = fs::temp_directory_path() / L"JBroPackageProbe·패키지";
+        const fs::path root = ProcessTempFolder(L"JBroPackageProbe·패키지");
         fs::remove_all(root);
         fs::create_directories(root);
         const String path = Utf8(root / "game.jpak");
@@ -590,6 +664,48 @@ namespace
             const String cutPath = Utf8(root / "cut.jpak");
             Check(false == reader.Open(platform, cutPath.c_str(), error), "a cut file is refused");
             Check(false == reader.IsOpen(), "a refused package leaves the reader closed");
+        }
+        // 색인 해시가 맞아도 내용이 틀리면 열지 않는다: 같은 (id, kind) 둘, 블롭이 색인을 넘는 것.
+        {
+            const Array<std::byte> repeated = RewriteIndex(file, [](std::byte* index) {
+                // 둘째 줄의 아이디와 종류를 첫 줄의 것으로 덮는다(아이디 16 바이트, 종류는 18 번째).
+                const std::uint32_t firstPath = [&] { std::uint32_t length = 0; std::memcpy(&length, index + 20, 4); return length; }();
+                std::byte* second = index + RecordFixedSize + firstPath;
+                std::memcpy(second, index, 16);
+                second[18] = index[18];
+            });
+            WriteFile(root / "repeated.jpak", repeated);
+            Check(false == reader.Open(platform, Utf8(root / "repeated.jpak").c_str(), error), "an index that repeats a record is refused");
+            const Array<std::byte> overflowing = RewriteIndex(file, [](std::byte* index) {
+                // 첫 줄은 (id, kind) 가 가장 작은 것이다. 블롭이 있는 줄을 찾아 크기를 파일보다 크게 한다.
+                std::byte* row = index;
+                for (;;)
+                {
+                    std::uint32_t length = 0;
+                    std::memcpy(&length, row + 20, 4);
+                    if (row[18] != std::byte{ 0 })
+                    {
+                        const std::uint64_t huge = 1ull << 40;
+                        std::memcpy(row + 48, &huge, 8);
+                        return;
+                    }
+                    row += RecordFixedSize + length;
+                }
+            });
+            WriteFile(root / "overflowing.jpak", overflowing);
+            Check(false == reader.Open(platform, Utf8(root / "overflowing.jpak").c_str(), error), "a blob that runs past the index is refused");
+        }
+        // 섞기는 자리마다 다르다. 0 으로 채운 블롭이 8 바이트마다 되풀이되면 한 낱말로 섞은 것이다(풀기 쉽다).
+        {
+            PackageWriter zeros(0x77ull);
+            Array<std::byte> blank;
+            blank.Resize(64);
+            Check(zeros.Add(Make(canvas, AssetType::Canvas, BlobKind::Source, "z"), ArrayView<const std::byte>(blank.Data(), blank.Size())), "added");
+            Array<std::byte> built;
+            zeros.Build(built);
+            Check(std::memcmp(built.Data() + HeaderSize, built.Data() + HeaderSize + 8, 8) != 0
+                    && std::memcmp(built.Data() + HeaderSize, built.Data() + HeaderSize + 32, 8) != 0,
+                "the scrambling changes with the position in the file");
         }
         // 키가 다르면 같은 내용도 다른 바이트다.
         {

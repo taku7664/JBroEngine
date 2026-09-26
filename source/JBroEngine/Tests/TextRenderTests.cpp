@@ -44,6 +44,9 @@
 #include <thread>
 #include <cstring>
 #include <filesystem>
+#include <string>
+
+#include <process.h>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -214,6 +217,16 @@ namespace
         Check(TextStore::Get().GetLiveCount() == baseline, "tearing the canvas down returns the rest");
     }
 
+    // 시험 폴더는 프로세스마다 다르다. 여러 세션의 시험이 한 기계에서 함께 돌면 같은 이름의 임시 폴더를 서로 지우고 덮어썼다(메타를 못 읽는
+    // 실패가 운으로 났다).
+    fs::path ProcessTempFolder(const wchar_t* name)
+    {
+        std::wstring folder(name);
+        folder += L"-";
+        folder += std::to_wstring(_getpid());
+        return fs::temp_directory_path() / folder;
+    }
+
     struct FontProject
     {
         WindowsPlatform platform;
@@ -236,7 +249,7 @@ namespace
 
         void Open(float pixelsPerUnit)
         {
-            root = fs::temp_directory_path() / L"JBroTextProbe·글자";
+            root = ProcessTempFolder(L"JBroTextProbe·글자");
             fs::remove_all(root);
             WriteBytes(root / "Fonts" / "sans.otf", TestFontNotoSansKR, sizeof(TestFontNotoSansKR));
             WriteBytes(root / "Fonts" / "latin.otf", TestFontNotoSansKRLatin, sizeof(TestFontNotoSansKRLatin));

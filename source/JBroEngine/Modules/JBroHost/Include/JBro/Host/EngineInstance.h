@@ -170,6 +170,9 @@ namespace JBro
         GameLocalization* GetLocalization();
         // 패키지로 연 프로젝트인가(`AssetPackage`, D-227). 참이면 에셋 폴더가 없고 다시 스캔·감시가 없다.
         bool IsRunningFromPackage() const;
+        // 디스크 스트리밍 오디오의 스트림을 연다(D-227). 믹서의 스트리머 스레드가 부른다 - 패키지로 연 프로젝트는 `jpak:<아이디>` 를 패키지의
+        // 창 스트림으로 연다. 어느 스레드에서 불러도 된다.
+        OwnerPtr<IFileStream> OpenAudioStream(const char* path);
         // 감시가 쌓아 둔 에셋 폴더 변경을 적용한다(D-121). 원본이 바뀌면 로드된 것을 in-place 재로드하고, 이름이 바뀌면
         // 레지스트리의 경로만 바꾸고, 지워지면 레코드를 뺀다(로드된 자료는 참조 수 0 까지 산다). 새 파일과 넘침은
         // 다시 스캔한다. `.jmeta` 의 변경은 무시한다. **프레임 밖에서 부른다.** 돌려주는 값은 아래 요약이다.
@@ -289,8 +292,7 @@ namespace JBro
         // 패키지로 연 프로젝트의 것이다(D-227). 에셋 시스템이 내려간 뒤에 내린다.
         OwnerPtr<Package::PackageReader> m_package;
         OwnerPtr<Package::PackageAssetSource> m_packageSource;
-        // 디스크 스트리밍 오디오의 스트림을 연다. 믹서의 스트리머 스레드가 부른다.
-        OwnerPtr<IFileStream> OpenAudioStream(const char* path);
+
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.

@@ -80,8 +80,9 @@ namespace
         const JBro::String folderText = platform.GetExecutableFolder();
         const fs::path folder(std::u8string(reinterpret_cast<const char8_t*>(folderText.c_str()), folderText.size()));
         Check(false == folderText.empty() && fs::is_directory(folder), "the test binary has a folder");
+        // NTFS 는 대소문자를 가리지 않고 `alpha` 를 먼저 열거한다. 바이트 차례로는 `Zeta` 가 먼저다 - 열거 차례를 믿지 않는지 본다.
         const fs::path zeta = folder / "Zeta.jproject";
-        const fs::path alpha = folder / "Alpha.jproject";
+        const fs::path alpha = folder / "alpha.jproject";
         const fs::path nested = folder / "JBroBesideProbe" / "Aardvark.jproject";
         std::error_code ignored;
         fs::remove(zeta, ignored);
@@ -97,8 +98,8 @@ namespace
         fs::remove(zeta, ignored);
         fs::remove(alpha, ignored);
         fs::remove_all(nested.parent_path(), ignored);
-        Check(found.size() > 15 && found.compare(found.size() - 15, 15, "/Alpha.jproject") == 0,
-            "the first project by name beside the executable is found, not one in a subfolder");
+        Check(found.size() > 14 && found.compare(found.size() - 14, 14, "/Zeta.jproject") == 0,
+            "the first project by byte order beside the executable is found, not one in a subfolder");
 
         JBro::ProjectFile project;
         project.build.startupCanvas = "Canvases/Main.jcanvas";

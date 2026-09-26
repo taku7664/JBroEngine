@@ -58,8 +58,8 @@ namespace JBro
             auto& found = *static_cast<Search*>(user);
             const std::string_view name(relative);
             constexpr std::string_view extension(".jproject");
-            // 옆의 파일만 본다. 아래 폴더로 내려가지 않는다.
-            if (false == isDirectory && name.find('/') == std::string_view::npos && name.size() > extension.size()
+            // 옆의 파일만 본다 - 폴더에 거짓을 돌려주어 아래로 내려가지 않는다. 차례는 바이트 차례다(파일 시스템의 열거 차례를 믿지 않는다).
+            if (false == isDirectory && name.size() > extension.size()
                 && name.compare(name.size() - extension.size(), extension.size(), extension) == 0
                 && (found.best.empty() || name < std::string_view(found.best)))
             {
