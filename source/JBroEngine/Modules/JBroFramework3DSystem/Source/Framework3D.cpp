@@ -150,6 +150,20 @@ namespace JBro
             auto* binding = static_cast<std::pair<AssetSystem*, Array<AssetHandle>*>*>(user);
             binding->first->BindComponentAssets(table, &component, *binding->second);
         }
+
+        void CollectComponentAssetIdsVisitor(const PropertyTable& table, ComponentBase& component, void* user)
+        {
+            AssetSystem::CollectComponentAssetIds(table, &component, *static_cast<Array<AssetId>*>(user));
+        }
+    }
+
+    void Framework3D::CollectCanvasAssetIds(Array<AssetId>& ids)
+    {
+        if (m_context.assets == nullptr || m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        ForEachReflectedComponent(*m_canvas, &CollectComponentAssetIdsVisitor, &ids);
     }
 
     void Framework3D::BindCanvasAssets()

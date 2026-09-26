@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Runtime/ScriptModule.h>
@@ -123,6 +124,12 @@ namespace JBro
         // 캔버스나 에셋 시스템이 없는 프레임워크(테스트의 가짜)는 아무것도 하지 않는다.
         virtual void BindCanvasAssets()
         {
+        }
+        // 해석 패스가 볼 에셋 아이디를 모은다(D-227). 싣지 않는다 - 워커 로드가 캔버스를 열 때 무엇을 읽을지 알려고 쓴다.
+        // 캔버스나 에셋 시스템이 없는 프레임워크는 아무것도 더하지 않는다.
+        virtual void CollectCanvasAssetIds(Array<AssetId>& ids)
+        {
+            (void)ids;
         }
     };
 }

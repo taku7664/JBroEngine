@@ -7,9 +7,11 @@
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Host/AssetLoad.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Task/TaskManager.h>
 
 #include <cstring>
 #include <filesystem>
@@ -456,6 +458,170 @@ namespace
         Check(fixture.assets.CollectUnused() == 2, "so the sprite and its texture can be collected");
         fixture.Close();
     }
+
+    JBro::TaskManagerDesc LoadWorkers()
+    {
+        JBro::TaskManagerDesc desc;
+        desc.workerCount = 2;
+        return desc;
+    }
+
+    JBro::TaskManagerDesc LoadOnMainThread()
+    {
+        JBro::TaskManagerDesc desc;
+        desc.useWorkers = false;
+        return desc;
+    }
+
+    // **캔버스를 열 때의 워커 로드**(D-227). 아이디를 모으고, 워커가 주인 텍스처를 디코드하고, 메인이 풀에 넣은 뒤
+    // 바인딩은 실린 것을 찾아 참조만 올린다. 모으기는 겹친 것과 빈 아이디를 뺀다.
+    void TestTheCanvasAssetsLoadOnWorkersThenBind()
+    {
+        Fixture fixture;
+        fixture.Open();
+        JBro::Framework2D framework;
+        JBro::FrameworkContext context;
+        context.memory = fixture.memory;
+        context.assets = &fixture.assets;
+        Check(framework.Initialize(context), "a framework without a renderer initializes");
+        JBro::Canvas* canvas = framework.GetCanvas();
+        auto* a = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(canvas->CreateObject("a"));
+        auto* b = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(canvas->CreateObject("b"));
+        auto* none = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(canvas->CreateObject("none"));
+        auto* ghost = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(canvas->CreateObject("ghost"));
+        a->spriteId = fixture.spriteId;
+        b->spriteId = fixture.spriteId;
+        none->spriteId = JBro::AssetId{};
+        ghost->spriteId = JBro::Uuid::FromName("nobody");
+
+        JBro::Array<JBro::AssetId> ids;
+        framework.CollectCanvasAssetIds(ids);
+        Check(ids.Size() == 2 && ids.Contains(fixture.spriteId) && ids.Contains(ghost->spriteId),
+            "collecting keeps each id once and leaves out empty ids");
+        Check(a->sprite.generation == 0 && fixture.assets.GetLoadedCount() == 0, "collecting neither loads nor binds");
+
+        JBro::TaskManager tasks;
+        Check(tasks.Initialize(LoadWorkers()), "the task manager starts");
+        // 프로젝트 기본을 기본값(Nearest)과 다르게 둔다. 풀에 넣을 때 적용되는지가 드러난다.
+        fixture.assets.SetDefaultTextureFilter(JBro::TextureFilter::Linear);
+        JBro::AssetLoadResult result;
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+            JBro::ArrayView<const JBro::AssetId>(ids.Data(), ids.Size()), "editor.task.load_canvas", result);
+        Check(id != JBro::InvalidTaskGroupId, "the load is submitted");
+        Check(fixture.assets.GetLoadedCount() == 0, "submitting loads nothing on the main thread");
+        const JBro::TaskGroup* group = tasks.FindGroup(id);
+        Check(group != nullptr && group->GetTaskCount() == 1, "the sprite sends its owner texture, and the unknown id sends nothing");
+        Check(group->GetTaskAt(0).GetName() == "tiny.png", "a load task is named after its file");
+        Check(group->GetName() == "editor.task.load_canvas", "the group carries its localization key");
+        Check(tasks.Wait(id), "waiting on the load works");
+        Check(result.finished && false == result.canceled && result.failed == 0, "the load finished without failures");
+        Check(result.held.Size() == 1, "the load holds the texture it put in the pool");
+        const JBro::AssetHandle texture = result.held[0];
+        Check(fixture.assets.Find(fixture.textureId).generation == texture.generation, "the texture is in the pool");
+        const JBro::TextureData* data = fixture.assets.GetTexture(texture);
+        Check(data != nullptr && data->width == 2 && data->height == 2 && PixelIs(*data, 0, 0, 255, 0, 0, 255),
+            "the worker decoded the pixels");
+        Check(data->filter == JBro::TextureFilter::Linear, "the project default filter is applied when adopted");
+
+        framework.BindCanvasAssets();
+        Check(a->sprite.generation != 0 && b->sprite.generation == a->sprite.generation, "binding resolves both sprites");
+        Check(fixture.assets.GetReferenceCount(texture) == 2, "the texture is held by the load and by the sprite");
+        fixture.assets.ReleaseAll(result.held);
+        Check(fixture.assets.GetReferenceCount(texture) == 1, "releasing the load's hold leaves the sprite's");
+        Check(fixture.assets.GetLoadedCount() == 2 && fixture.assets.CollectUnused() == 0, "nothing is collected while bound");
+
+        // 다시 보내면 이미 실린 것이라 보낼 것이 없다. 빈 묶음도 끝난다.
+        JBro::AssetLoadResult again;
+        const JBro::TaskGroupId second = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+            JBro::ArrayView<const JBro::AssetId>(ids.Data(), ids.Size()), "editor.task.load_canvas", again);
+        Check(tasks.FindGroup(second)->GetTaskCount() == 0, "what is already loaded is not sent again");
+        tasks.Update();
+        Check(again.finished && again.held.IsEmpty(), "an empty load finishes on the next Update");
+        tasks.Shutdown();
+        framework.Shutdown();
+        fixture.Close();
+    }
+
+    // 스프라이트와 그 주인 텍스처를 함께 보내도 디코드는 한 번이다.
+    void TestASpriteAndItsTextureDecodeOnce()
+    {
+        Fixture fixture;
+        fixture.Open();
+        JBro::TaskManager tasks;
+        Check(tasks.Initialize(LoadOnMainThread()), "the task manager starts");
+        const JBro::AssetId ids[] = { fixture.spriteId, fixture.textureId };
+        JBro::AssetLoadResult result;
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+            JBro::ArrayView<const JBro::AssetId>(ids, 2), "editor.task.load_canvas", result);
+        Check(tasks.FindGroup(id)->GetTaskCount() == 1, "a sprite and its own texture send one decode");
+        Check(tasks.Wait(id) && result.held.Size() == 1, "and hold one texture");
+        fixture.assets.ReleaseAll(result.held);
+        tasks.Shutdown();
+        fixture.Close();
+    }
+
+    // 읽지 못한 파일은 실패로 세고 사유를 남기며 풀에 넣지 않는다.
+    void TestAFailedDecodeIsCountedAndNotAdopted()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const char garbage[] = "not a png";
+        WriteBytes(fixture.root / "Art" / "tiny.png", garbage, sizeof(garbage) - 1);
+        JBro::TaskManager tasks;
+        Check(tasks.Initialize(LoadWorkers()), "the task manager starts");
+        JBro::AssetLoadResult result;
+        const JBro::AssetId ids[] = { fixture.textureId };
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+            JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", result);
+        Check(tasks.Wait(id), "waiting works");
+        Check(result.finished && result.failed == 1 && result.held.IsEmpty(), "the bad file is one failure and nothing is held");
+        Check(result.firstFailure.find("tiny.png") != JBro::String::npos, "the reason names the file");
+        Check(tasks.FindGroup(id)->GetTaskAt(0).GetState() == JBro::TaskState::Failed, "the task reads Failed");
+        Check(fixture.assets.GetLoadedCount() == 0, "a failed decode is not put in the pool");
+        tasks.Shutdown();
+        fixture.Close();
+    }
+
+    // 도는 사이 동기 로드가 먼저 실었으면 두 벌을 만들지 않고 그 핸들에 참조를 더한다. 취소한 로드는 아무것도 싣지 않는다.
+    void TestTheLoadYieldsToASyncLoadAndCancels()
+    {
+        Fixture fixture;
+        fixture.Open();
+        JBro::TaskManager tasks;
+        Check(tasks.Initialize(LoadOnMainThread()), "the task manager starts without workers");
+        const JBro::AssetId ids[] = { fixture.textureId };
+        JBro::AssetLoadResult raced;
+        JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+            JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", raced);
+        const JBro::AssetHandle loaded = fixture.assets.Load(fixture.textureId);
+        tasks.Update();
+        Check(raced.finished && raced.held.Size() == 1, "the load finishes holding one reference");
+        Check(raced.held[0].generation == loaded.generation && raced.held[0].index == loaded.index,
+            "it holds the handle the sync load made");
+        Check(fixture.assets.GetLoadedCount() == 1 && fixture.assets.GetReferenceCount(loaded) == 2,
+            "one texture, held twice - not two copies");
+        fixture.assets.ReleaseAll(raced.held);
+        fixture.assets.Release(loaded);
+        fixture.assets.CollectUnused();
+
+        JBro::AssetLoadResult canceled;
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+            JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", canceled);
+        tasks.FindGroup(id)->RequestCancel();
+        Check(tasks.Wait(id), "a canceled load still finishes");
+        Check(canceled.finished && canceled.canceled && canceled.held.IsEmpty() && canceled.failed == 0,
+            "a canceled load reads canceled, holds nothing and counts no failure");
+        Check(fixture.assets.GetLoadedCount() == 0, "and loads nothing");
+        tasks.Shutdown();
+
+        JBro::TaskManager down;
+        JBro::AssetLoadResult refused;
+        Check(JBro::SubmitAssetLoad(down, fixture.assets, fixture.platform,
+            JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", refused) == JBro::InvalidTaskGroupId,
+            "a manager that has not started refuses the load");
+        Check(refused.finished, "and says it is finished so nobody waits for it");
+        fixture.Close();
+    }
 }
 
 int RunAssetSystemTests()
@@ -466,6 +632,10 @@ int RunAssetSystemTests()
     TestLoadReleaseAndCollect();
     TestReloadInPlaceKeepsHandles();
     TestBindComponentAssetsFillsHandlesFromIds();
+    TestTheCanvasAssetsLoadOnWorkersThenBind();
+    TestASpriteAndItsTextureDecodeOnce();
+    TestAFailedDecodeIsCountedAndNotAdopted();
+    TestTheLoadYieldsToASyncLoadAndCancels();
     std::cout << "Asset system tests passed.\n";
     return 0;
 }

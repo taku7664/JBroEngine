@@ -192,6 +192,7 @@ namespace JBro
         // Android 는 APK 안의 에셋이며, Web 은 가상 파일 시스템이다. 경로는 전부 UTF-8 이다. 전부 프레임 밖의 일이다.
         // 없는 파일·열 수 없는 파일은 거짓이고 `contents` 는 손대지 않는다. **기본은 "파일 시스템이 없다"** - 테스트의
         // 가짜 플랫폼과 아직 붙이지 않은 플랫폼이 그것이다. 파일을 읽는 플랫폼은 다섯을 함께 덮어쓴다.
+        // **`ReadWholeFile` 은 어느 스레드에서 불러도 된다**(D-227) - 에셋 로드가 워커에서 부른다. 플랫폼의 다른 상태를 만지지 않는다.
         virtual bool ReadWholeFile(const char* utf8Path, Array<std::byte>& contents)
         {
             (void)utf8Path;
