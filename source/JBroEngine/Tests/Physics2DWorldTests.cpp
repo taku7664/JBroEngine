@@ -627,6 +627,126 @@ namespace
         Check(g_allocations == 0, "a physics step, reshaping included, does not touch the heap");
 #endif
     }
+
+    // 워커 테스트의 장면: 10 층 상자 피라미드(55), 원 20, 캡슐 5, U 에 든 조약돌. 쉬는 동안에도 후보가 64 를 넘는다.
+    Array<BodyId> BuildPile(World& world)
+    {
+        Array<BodyId> moving;
+        AddGround(world);
+        for (int row = 0; row < 10; ++row)
+        {
+            for (int column = 0; column < 10 - row; ++column)
+            {
+                const float x = -5.0f + static_cast<float>(column) + 0.5f * static_cast<float>(row);
+                const BodyId box = AddBody(world, BodyType::Dynamic, { x, 0.5f + static_cast<float>(row) });
+                AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+                moving.Add(box);
+            }
+        }
+        JBro::Physics2D::Circle ball;
+        ball.radius = 0.25f;
+        for (int i = 0; i < 20; ++i)
+        {
+            const BodyId body = AddBody(world, BodyType::Dynamic, { 8.0f + 0.3f * static_cast<float>(i % 5), 1.0f + 0.6f * static_cast<float>(i / 5) });
+            world.CreateCircleShape(body, ball, {});
+            moving.Add(body);
+        }
+        for (int i = 0; i < 5; ++i)
+        {
+            const BodyId body = AddBody(world, BodyType::Dynamic, { -12.0f, 0.5f + static_cast<float>(i) });
+            world.CreateCapsuleShape(body, { -0.5f, 0 }, { 0.5f, 0 }, 0.45f, {});
+            moving.Add(body);
+        }
+        const BodyId cup = AddBody(world, BodyType::Static, { 14, 0 });
+        AddPolygon(world, cup, UOutline());
+        for (int i = 0; i < 3; ++i)
+        {
+            const BodyId pebble = AddBody(world, BodyType::Dynamic, { 15.5f, 2.0f + static_cast<float>(i) });
+            JBro::Physics2D::Circle small;
+            small.radius = 0.2f;
+            world.CreateCircleShape(pebble, small, {});
+            moving.Add(pebble);
+        }
+        return moving;
+    }
+
+    // **좁은 판정을 워커와 나눠도 결과는 같다(D-223).** 워커 0 과 3 의 두 월드를 3 초 돌려 모든 몸의 자세를 비트까지 맞댄다.
+    void TestWorkersGiveTheSameResult()
+    {
+        World serial;
+        World parallel;
+        const Array<BodyId> serialBodies = BuildPile(serial);
+        const Array<BodyId> parallelBodies = BuildPile(parallel);
+        Check(serialBodies.Size() == 83 && parallelBodies.Size() == 83, "both piles hold 83 moving bodies");
+        parallel.SetWorkerCount(3);
+#if !defined(__EMSCRIPTEN__)
+        Check(parallel.GetWorkerCount() == 3, "the parallel world starts three physics workers");
+#endif
+        for (int i = 0; i < 180; ++i)
+        {
+            serial.Step(Frame);
+            parallel.Step(Frame);
+        }
+        const JBro::Physics2D::StepStats serialStats = serial.GetLastStepStats();
+        const JBro::Physics2D::StepStats parallelStats = parallel.GetLastStepStats();
+        Check(serialStats.candidates >= 64 && serialStats.candidates == parallelStats.candidates,
+            "the pile keeps enough candidates to split, the same in both");
+        Check(serialStats.parallelSubSteps == 0 && parallelStats.parallelSubSteps == parallel.Settings().subSteps,
+            "only the world with workers splits its narrow phase, every substep");
+        for (std::size_t i = 0; i < serialBodies.Size(); ++i)
+        {
+            const Vec2 a = serial.GetPosition(serialBodies[i]);
+            const Vec2 b = parallel.GetPosition(parallelBodies[i]);
+            const float angleA = serial.GetAngle(serialBodies[i]);
+            const float angleB = parallel.GetAngle(parallelBodies[i]);
+            Check(std::memcmp(&a, &b, sizeof(a)) == 0 && std::memcmp(&angleA, &angleB, sizeof(angleA)) == 0,
+                "every body ends bit for bit where the single-thread world put it");
+        }
+
+        parallel.SetWorkerCount(1000);
+#if !defined(__EMSCRIPTEN__)
+        Check(parallel.GetWorkerCount() == JBro::Physics2D::MaxWorkerCount, "an asked-for count is capped");
+#endif
+        parallel.SetWorkerCount(0);
+        parallel.Step(Frame);
+        Check(parallel.GetWorkerCount() == 0 && parallel.GetLastStepStats().parallelSubSteps == 0,
+            "and zero goes back to the main thread alone");
+    }
+
+    // **추천 워커 수(D-223).** 256 조각 아래는 메인 한 스레드, 그 위로 128 조각마다 하나, 코어 수 - 1 과 8 이 상한이다.
+    void TestRecommendedWorkerCounts()
+    {
+        using JBro::Physics2D::RecommendWorkerCount;
+        Check(RecommendWorkerCount(0, 8) == 0 && RecommendWorkerCount(255, 8) == 0, "a small scene stays on the main thread");
+        Check(RecommendWorkerCount(256, 8) == 2 && RecommendWorkerCount(1000, 8) == 7, "a bigger one gets a worker per 128 pieces");
+        Check(RecommendWorkerCount(5000, 8) == 7 && RecommendWorkerCount(5000, 32) == 8,
+            "but never more than the other cores, nor more than eight");
+        Check(RecommendWorkerCount(5000, 1) == 0 && RecommendWorkerCount(300, 2) == 1, "a single core never gets workers");
+    }
+
+    // **워커와 나눠 도는 스텝도 힙을 건드리지 않는다.** 워커는 시작할 때만 세운다.
+    void TestParallelSteppingDoesNotAllocate()
+    {
+        World world;
+        BuildPile(world);
+        world.SetWorkerCount(3);
+        for (int i = 0; i < 60; ++i)
+        {
+            world.Step(Frame);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_allocations = 0;
+        const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
+        for (int i = 0; i < 60; ++i)
+        {
+            world.Step(Frame);
+        }
+        _CrtSetAllocHook(previous);
+        std::cout << "  CRT allocations during 60 physics steps on three workers: " << g_allocations << '\n';
+        Check(g_allocations == 0 && world.GetLastStepStats().parallelSubSteps > 0,
+            "a physics step split across workers does not touch the heap");
+#endif
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -648,6 +768,9 @@ int RunPhysics2DWorldTests()
     TestCapsulesRestOnTheGround();
     TestReshapingKeepsTheContact();
     TestSteppingDoesNotAllocate();
+    TestWorkersGiveTheSameResult();
+    TestRecommendedWorkerCounts();
+    TestParallelSteppingDoesNotAllocate();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

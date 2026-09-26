@@ -1,6 +1,7 @@
 ﻿#include <JBro/Physics2D/World.h>
 
 #include "VectorMath.h"
+#include "WorkerPool.h"
 
 #include <algorithm>
 #include <cmath>
@@ -24,6 +25,10 @@ namespace JBro::Physics2D
             return { normal.y, -normal.x };
         }
 
+        // 이보다 적은 후보는 나누지 않는다. 워커를 깨우고 모으는 비용이 판정보다 크다.
+        constexpr std::uint32_t MinParallelCandidates = 64;
+        constexpr std::uint32_t MinCandidatesPerChunk = 16;
+
         bool IsLess(std::uint32_t a0, std::uint32_t a1, std::uint32_t a2, std::uint32_t a3,
             std::uint32_t b0, std::uint32_t b1, std::uint32_t b2, std::uint32_t b3)
         {
@@ -41,6 +46,50 @@ namespace JBro::Physics2D
             }
             return a3 < b3;
         }
+    }
+
+    std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads)
+    {
+        if (hardwareThreads <= 1 || work < 256)
+        {
+            return 0;
+        }
+        const std::uint32_t cap = std::min(hardwareThreads - 1, 8u);
+        return std::min(work / 128, cap);
+    }
+
+    World::World() = default;
+
+    World::~World() = default;
+
+    void World::SetWorkerCount(std::uint32_t count)
+    {
+        count = std::min(count, MaxWorkerCount);
+        if (count == 0)
+        {
+            m_workers.Reset();
+            return;
+        }
+        if (m_workers.Get() == nullptr)
+        {
+            m_workers = MakeOwnerPtr<Internal::WorkerPool>();
+        }
+        m_workers->Start(count);
+        if (m_workers->GetWorkerCount() == 0)
+        {
+            // 스레드가 없는 빌드다.
+            m_workers.Reset();
+        }
+    }
+
+    std::uint32_t World::GetWorkerCount() const
+    {
+        return m_workers.Get() != nullptr ? m_workers->GetWorkerCount() : 0;
+    }
+
+    StepStats World::GetLastStepStats() const
+    {
+        return m_lastStats;
     }
 
     WorldSettings& World::Settings()
@@ -506,6 +555,7 @@ namespace JBro::Physics2D
     {
         m_beginEvents.Clear();
         m_endEvents.Clear();
+        m_lastStats = {};
         if (deltaTime <= 0.0f)
         {
             return;
@@ -538,6 +588,34 @@ namespace JBro::Physics2D
             }
         }
         UpdateTouching();
+    }
+
+    Manifold World::ComputeManifold(const Candidate& candidate) const
+    {
+        const Shape& shapeA = m_shapes[candidate.shapeA];
+        const Shape& shapeB = m_shapes[candidate.shapeB];
+        const Body& bodyA = m_bodies[shapeA.body];
+        const Body& bodyB = m_bodies[shapeB.body];
+        const Pose poseA{ bodyA.origin, bodyA.rotation };
+        const Pose poseB{ bodyB.origin, bodyB.rotation };
+        if (shapeA.isCircle)
+        {
+            return CollideCircles(shapeA.circle, poseA, shapeB.circle, poseB);
+        }
+        if (shapeB.isCircle)
+        {
+            return CollidePolygonAndCircle(shapeA.pieces[candidate.childA], poseA, shapeB.circle, poseB);
+        }
+        return CollidePolygons(shapeA.pieces[candidate.childA], poseA, shapeB.pieces[candidate.childB], poseB);
+    }
+
+    void World::CollideCandidates(void* context, std::uint32_t begin, std::uint32_t end)
+    {
+        World& world = *static_cast<World*>(context);
+        for (std::uint32_t i = begin; i < end; ++i)
+        {
+            world.m_candidateManifolds[i] = world.ComputeManifold(world.m_candidates[i]);
+        }
     }
 
     void World::IntegrateVelocities(float h)
@@ -591,6 +669,9 @@ namespace JBro::Physics2D
 
         m_broadPhase.FindPairs(m_proxyBounds.View(), m_pairs);
 
+        // 1. 거르기(메인). 2. 좁은 판정(후보마다 따로 - 워커가 있으면 나눈다). 3. 접촉 모으기(메인, 후보 순서대로).
+        // 2 가 제 칸에만 쓰고 3 이 순서를 지키므로 결과는 워커 수와 관계없이 같다.
+        m_candidates.Clear();
         for (const ProxyPair& pair : m_pairs)
         {
             Proxy proxyA = m_proxies[pair.first];
@@ -629,43 +710,52 @@ namespace JBro::Physics2D
             if (shapeA->isCircle && false == shapeB->isCircle)
             {
                 std::swap(proxyA, proxyB);
-                std::swap(shapeA, shapeB);
             }
+            Candidate& candidate = m_candidates.Emplace();
+            candidate.shapeA = proxyA.shape;
+            candidate.childA = proxyA.child;
+            candidate.shapeB = proxyB.shape;
+            candidate.childB = proxyB.child;
+            candidate.isTrigger = isTrigger;
+        }
 
-            const Body& bodyA = m_bodies[shapeA->body];
-            const Body& bodyB = m_bodies[shapeB->body];
-            const Pose poseA{ bodyA.origin, bodyA.rotation };
-            const Pose poseB{ bodyB.origin, bodyB.rotation };
-            Manifold manifold;
-            if (shapeA->isCircle)
-            {
-                manifold = CollideCircles(shapeA->circle, poseA, shapeB->circle, poseB);
-            }
-            else if (shapeB->isCircle)
-            {
-                manifold = CollidePolygonAndCircle(shapeA->pieces[proxyA.child], poseA, shapeB->circle, poseB);
-            }
-            else
-            {
-                manifold = CollidePolygons(
-                    shapeA->pieces[proxyA.child], poseA, shapeB->pieces[proxyB.child], poseB);
-            }
+        const std::uint32_t candidateCount = static_cast<std::uint32_t>(m_candidates.Size());
+        m_candidateManifolds.Resize(candidateCount);
+        const std::uint32_t workers = GetWorkerCount();
+        m_lastStats.candidates = candidateCount;
+        if (workers == 0 || candidateCount < MinParallelCandidates)
+        {
+            CollideCandidates(this, 0, candidateCount);
+        }
+        else
+        {
+            ++m_lastStats.parallelSubSteps;
+            // 한 스레드에 네 조각쯤 돌아가게 잘라, 판정이 무거운 쌍이 몰려도 남는 스레드가 나머지를 가져간다.
+            const std::uint32_t grain = std::max(MinCandidatesPerChunk, candidateCount / (4 * (workers + 1)));
+            m_workers->ParallelFor(candidateCount, grain, &World::CollideCandidates, this);
+        }
+
+        for (std::uint32_t i = 0; i < candidateCount; ++i)
+        {
+            const Manifold& manifold = m_candidateManifolds[i];
             if (manifold.count == 0)
             {
                 continue;
             }
-
+            const Candidate& candidate = m_candidates[i];
+            const Shape& shapeA = m_shapes[candidate.shapeA];
+            const Shape& shapeB = m_shapes[candidate.shapeB];
             Contact& contact = m_contacts.Emplace();
-            contact.shapeA = proxyA.shape;
-            contact.childA = proxyA.child;
-            contact.shapeB = proxyB.shape;
-            contact.childB = proxyB.child;
-            contact.bodyA = shapeA->body;
-            contact.bodyB = shapeB->body;
-            contact.isTrigger = isTrigger;
+            contact.shapeA = candidate.shapeA;
+            contact.childA = candidate.childA;
+            contact.shapeB = candidate.shapeB;
+            contact.childB = candidate.childB;
+            contact.bodyA = shapeA.body;
+            contact.bodyB = shapeB.body;
+            contact.isTrigger = candidate.isTrigger;
             // Box2D 와 같은 섞기: 마찰은 기하 평균, 반발은 큰 쪽.
-            contact.friction = std::sqrt(shapeA->friction * shapeB->friction);
-            contact.restitution = std::fmax(shapeA->restitution, shapeB->restitution);
+            contact.friction = std::sqrt(shapeA.friction * shapeB.friction);
+            contact.restitution = std::fmax(shapeA.restitution, shapeB.restitution);
             contact.manifold = manifold;
         }
 
