@@ -10549,6 +10549,110 @@ namespace
         editor.Shutdown();
     }
 
+    // **인스펙터 컴포넌트 머리 메뉴도 같은 표를 쓴다**(D-220). 그 메뉴는 이미 인스턴스 하나의 것이라 하위 메뉴 없이
+    // 늘어놓고, 둘째 인스턴스의 머리에서 연 메뉴의 훅은 둘째 주소를 받는다. 훅이 없는 타입의 머리에서는 부르지 않는다.
+    void TestComponentHooksAppearInTheInspectorHeaderMenu()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; inspector component hooks not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "InspectorHookProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(probe);
+        auto* first = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        auto* second = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        Check(transform != nullptr && first != nullptr && second != nullptr, "the probe needs three components");
+        const JBro::ComponentTypeId colliderType = first->GetTypeId();
+
+        int owner = 0;
+        g_componentHook = {};
+        Check(editor.GetComponentMenus().Register(colliderType, &ProbeComponentHook, &owner),
+            "the probe hook must be taken");
+        JBro::GameObject* one[] = {probe};
+        editor.SelectObjects({one, 1});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        // 머리는 슬롯 번호를 쌓고 타입 이름으로 선다. 둘째 콜라이더는 셋째 슬롯이다.
+        // 콜라이더 절은 길어서 둘째 머리가 창 아래로 밀린다. 첫째를 접어 올린다.
+        Spot header;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 1), ComponentLine(colliderType)), header),
+            "the first collider header must be in the inspector");
+        ClickAt(editor, hwnd, header);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the section must fold");
+        }
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 2), ComponentLine(colliderType)), header),
+            "the second collider header must be in the inspector");
+        RightClickAt(editor, hwnd, header);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the collider header must open its menu");
+        Check(g_componentHook.calls > 0, "the collider's hooks must be drawn in its header menu");
+        Check(g_componentHook.last.ordinal == 1, "the second collider's header must hand the second collider over");
+        Check(g_componentHook.last.objectId == editor.GetObjectIds().Track(probe), "with the object's editor id");
+        Check(g_componentHook.componentMatches, "and the component the address names");
+        Check(false == g_componentHook.placementSeen, "the inspector has no spot in the canvas to pass");
+        // **훅이 거짓이면 그 프레임의 나머지 메뉴를 그리지 않는다** - 슬롯이 바뀌었을 수 있다. 떼기 항목 위에 마우스를
+        // 둔 채 한 프레임을 돌리면, 그 항목이 서지 않았으니 가리켜지지도 않는다.
+        const char* removeLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorRemoveComponent, "Remove Component");
+        const ImGuiID removeId = LabelId(menu->ID, removeLabel);
+        Spot removeSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, removeId, removeSpot),
+            "the header menu must offer to remove the component");
+        g_componentHook.returnValue = false;
+        Check(editor.Tick(Frame), "the editor must tick with a failing hook");
+        Check(ImGui::GetCurrentContext()->HoveredId != removeId,
+            "after a hook that may have changed the slots, the rest of the header menu must wait for the next frame");
+        g_componentHook.returnValue = true;
+        bool back = false;
+        for (int frame = 0; frame < 4 && false == back; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick");
+            back = ImGui::GetCurrentContext()->HoveredId == removeId;
+        }
+        Check(back, "and it is back once the hook keeps its target");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "Probe Item"), item),
+            "the hook's item stands in the header menu itself, not in a submenu");
+        // 항목을 누르면 메뉴가 닫힌다(창에 포커스가 없어 Esc 는 닿지 않는다).
+        ClickAt(editor, hwnd, item);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must close");
+        }
+
+        const int callsBefore = g_componentHook.calls;
+        Check(FindInspectorItem(editor, hwnd,
+                LabelId(PushedId(inspector->ID, 0), ComponentLine(transform->GetTypeId())), header),
+            "the transform header must be in the inspector");
+        RightClickAt(editor, hwnd, header);
+        Check(FindContextMenuWindow() != nullptr, "right-clicking the transform header must open its menu");
+        Check(g_componentHook.calls == callsBefore, "a type without hooks must not call anybody's hooks");
+
+        Check(editor.GetComponentMenus().Unregister(&owner) == 1, "the probe hook comes off");
+        editor.Shutdown();
+    }
+
     void TestRightClickingAnObjectInTheCanvasViewOpensItsMenu()
     {
         JBro::EditorApplication editor;
@@ -10809,6 +10913,7 @@ int RunEditorApplicationTests()
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
     TestComponentHooksAreSubmenusPerInstance();
+    TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestTheGizmoCanWorkInWorldAxes();
     TestThePathHelpersAgreeOnOneAnswer();
