@@ -1029,6 +1029,13 @@ namespace
             const float angle = scene.TransformOf(rod)->rotation;
             Check(Near(end.x - std::cos(angle), 2.0f, 0.02f) && Near(end.y - std::sin(angle), 1.0f, 0.02f),
                 "and its end stays on the pin");
+            // 모터로 반시계로 들어 올리면 위 한계(시작에서 +10°)에서 선다.
+            hinge->useMotor = true;
+            hinge->motorSpeed = 180.0f;
+            hinge->maxMotorTorque = 1000.0f;
+            scene.Run(1.5f);
+            Check(Near(scene.TransformOf(rod)->rotation, 30.0f * degree, 2.0f * degree),
+                "a motor lifting it counterclockwise stops at the upper limit");
         }
         {
             Scene scene;

@@ -1201,6 +1201,21 @@ namespace
             Check(hanging > 1.95f && hanging < 2.02f, "and it stops the ball at its length");
         }
         {
+            // 팽팽한 밧줄 끝의 공을 핀 쪽으로 던지면 밧줄은 막지 않는다 - 당기기만 하고 밀지 않는다.
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2, 0 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef rope;
+            rope.bodyA = ball;
+            rope.length = 2.0f;
+            rope.maxLengthOnly = true;
+            world.CreateDistanceJoint(rope);
+            world.SetLinearVelocity(ball, { -10, 0 });
+            Run(world, 0.15f);
+            Check(DistanceBetween(world.GetPosition(ball), { 0, 0 }) < 1.0f, "a rope never pushes a ball thrown toward its pin");
+        }
+        {
             World world;
             const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, -1 });
             world.CreateCircleShape(ball, MakeBall(0.1f), {});
@@ -1271,9 +1286,33 @@ namespace
             // A 가 바퀴이고 B 가 월드라 상대 각속도(B - A)가 목표다: 바퀴는 거꾸로 돈다.
             Check(Near(world.GetAngularVelocity(wheel), -2.0f, 0.01f), "a motor spins the wheel at its speed");
             def.maxMotorTorque = 0.0f;
+            def.motorSpeed = -5.0f;
             world.SetHingeJoint(motor, def);
             Run(world, 0.5f);
-            Check(Near(world.GetAngularVelocity(wheel), -2.0f, 0.05f), "with no torque the motor stops driving and the wheel coasts");
+            Check(Near(world.GetAngularVelocity(wheel), -2.0f, 0.05f), "with no torque a new target is not followed and the wheel coasts");
+        }
+        {
+            // 핀에서 0.5 m 떨어져 시작하고 한계 밖(-0.5 rad, 한계 ±0.1)에 놓인 막대는 위치 보정이 핀으로 끌어오고 한계 안으로 돌린다.
+            // 속도만 맞추면 벌어진 틈과 넘은 각은 그대로 남는다.
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1, 0 });
+            AddPolygon(world, rod, BoxOutline(1.0f, 0.1f));
+            HingeJointDef def;
+            def.bodyA = rod;
+            def.localAnchorA = { -1, 0 };
+            def.localAnchorB = { -0.5f, 0 };
+            def.referenceAngle = 0.5f;
+            def.enableLimit = true;
+            def.lowerAngle = -0.1f;
+            def.upperAngle = 0.1f;
+            const JointId hinge = world.CreateHingeJoint(def);
+            Run(world, 1.0f);
+            const Vec2 end = world.GetPosition(rod);
+            const float angle = world.GetAngle(rod);
+            Check(DistanceBetween({ end.x - std::cos(angle), end.y - std::sin(angle) }, { -0.5f, 0 }) < 0.02f,
+                "a hinge that starts apart pulls its pins together");
+            Check(world.GetHingeAngle(hinge) > -0.12f, "and one that starts past its limit turns back inside it");
         }
         {
             World world;
@@ -1322,9 +1361,35 @@ namespace
         world.CreateDistanceJoint(def);
         Run(world, 2.0f);
         Check(false == world.IsAwake(box) && false == world.IsAwake(ball), "a box and the ball tied to it sleep together");
-        world.ApplyLinearImpulseToCenter(ball, { 0, 3 });
+        const Vec2 boxBefore = world.GetPosition(box);
+        world.ApplyLinearImpulseToCenter(ball, { 6, 0 });
         world.Step(Frame);
         Check(world.IsAwake(box), "waking the ball wakes the box it is tied to");
+        Check(world.GetPosition(box).x > boxBefore.x, "and the pull moves the box in the same step");
+
+        // 무거워서 거의 서 있는 몸도 이어진 몸이 도는 동안은 잠들지 않는다 - 섬의 가장 짧은 시간이 기준이다.
+        World orbit;
+        orbit.Settings().gravity = { 0, 0 };
+        const BodyId hub = AddBody(orbit, BodyType::Dynamic, { 0, 0 });
+        orbit.CreateCircleShape(hub, MakeBall(0.5f), {});
+        JBro::Physics2D::BodyDef heavy;
+        heavy.mass = 1000.0f;
+        orbit.SetBodyProperties(hub, heavy);
+        const BodyId moon = AddBody(orbit, BodyType::Dynamic, { 2, 0 });
+        orbit.CreateCircleShape(moon, MakeBall(0.1f), {});
+        DistanceJointDef tether;
+        tether.bodyA = hub;
+        tether.bodyB = moon;
+        tether.length = 2.0f;
+        orbit.CreateDistanceJoint(tether);
+        orbit.SetLinearVelocity(moon, { 0, 2 });
+        int hubAsleep = 0;
+        for (int i = 0; i < 120; ++i)
+        {
+            orbit.Step(Frame);
+            hubAsleep += orbit.IsAwake(hub) ? 0 : 1;
+        }
+        Check(hubAsleep == 0, "a heavy hub never sleeps while the moon tied to it circles");
     }
 
     // **이어지는 판정(CCD, D-231).** 서브스텝마다 0.8 m 를 가는 반지름 5 cm 공과 상자는 두께 10 cm 벽도, 체인 선분도 뚫지 않는다.
