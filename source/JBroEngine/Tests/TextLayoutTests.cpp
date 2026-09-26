@@ -2,6 +2,7 @@
 #include <JBro/Text/TextLayout.h>
 
 #include "TestFontNotoSansKR.generated.h"
+#include "TestFontNotoSansKRLatin.generated.h"
 #include "TestFontNotoSansKRExtension.generated.h"
 #include "TestFontNotoSansKRXPlacement.generated.h"
 #include "TestFontNotoSansKRMarks.generated.h"
@@ -317,7 +318,7 @@ namespace
                 && layout.GetGlyphs()[1].glyph == face.FindGlyph(U'<'), "<< is one <");
         Check(layout.Build(Utf8("</color>"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 8,
             "a closing tag with nothing open is text");
-        Check(layout.Build(Utf8("<b>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 4, "an unknown tag is text");
+        Check(layout.Build(Utf8("<u>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 4, "an unknown tag is text");
         Check(layout.Build(Utf8("<color=#FF00>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 14,
             "a short colour is text");
         Check(layout.Build(Utf8("<size=0>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 9,
@@ -377,6 +378,43 @@ namespace
             "a sized text fits its box");
         Check(chosen < 340.0f && chosen > 320.0f && Near(layout.GetGlyphs()[1].size, chosen * 2.0f),
             "auto size shrinks the tagged letter with the rest");
+    }
+
+    // **`<b>`·`<i>` 와 스타일 face**(D-224). 굵게 face 를 둘째 face 로 주면 `<b>` 안의 글자는 그 face 에서 온다. 기울임 face 가 없으면
+    // 기울임 글자는 보통 face 다. 굵은 기울임은 굵은 기울임 → 굵게 순으로 찾는다. 스타일 face 에 없는 글자(한글)는 폴백 순서로 간다.
+    void TestBoldAndItalicTagsPickStyleFaces()
+    {
+        const FontFace regular = LoadTestFont();
+        FontFace bold;
+        Check(bold.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRLatin),
+                  sizeof(TestFontNotoSansKRLatin))),
+            "the latin face loads as a stand-in bold");
+        const FontFace* faces[] = { &regular, &bold };
+        TextLayout layout;
+        LayoutOptions options = Unscaled();
+        options.richText = true;
+        options.boldFace = 1;
+        Check(layout.Build(Utf8("A<b>A</b><i>A</i><b><i>A</i></b>"), faces, options) == LayoutError::None
+                && layout.GetGlyphs().Size() == 4, "styled letters lay out");
+        const ArrayView<const PositionedGlyph> glyphs = layout.GetGlyphs();
+        Check(glyphs[0].face == 0 && glyphs[0].style == GlyphStyleRegular, "a plain letter is regular");
+        Check(glyphs[1].face == 1 && glyphs[1].style == GlyphStyleBold, "a bold letter comes from the bold face");
+        Check(glyphs[2].face == 0 && glyphs[2].style == GlyphStyleItalic, "without an italic face an italic letter stays regular");
+        Check(glyphs[3].face == 1 && glyphs[3].style == (GlyphStyleBold | GlyphStyleItalic),
+            "bold italic falls back to the bold face");
+        options.boldItalicFace = 0;
+        Check(layout.Build(Utf8("<b><i>A</i></b>"), faces, options) == LayoutError::None && layout.GetGlyphs()[0].face == 0,
+            "a bold italic face is taken first when there is one");
+        options.boldItalicFace = LayoutOptions::NoStyleFace;
+        // 굵게 face(라틴)에 한글이 없다: 폴백 순서라 첫 face 의 한글이다.
+        Check(layout.Build(Utf8("<b>\xED\x95\x9C</b>"), faces, options) == LayoutError::None && layout.GetGlyphs()[0].face == 0
+                && layout.GetGlyphs()[0].glyph == regular.FindGlyph(U'\uD55C'),
+            "a letter the bold face lacks falls back in order");
+        Check(layout.Build(Utf8("</b>A"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 5,
+            "an unmatched </b> is text");
+        options.richText = false;
+        Check(layout.Build(Utf8("<b>A</b>"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 8,
+            "without richText the tags are text");
     }
 
     void TestWordWrap()
@@ -707,6 +745,7 @@ int RunTextLayoutTests()
         TestKerningSurvivesGposShapesStbSkipped();
         TestCombiningMarksAttachToTheirBase();
         TestRichTextMarkup();
+        TestBoldAndItalicTagsPickStyleFaces();
         TestWordWrap();
         TestHangulWrapModes();
         TestTabStopsAndLineBreakRules();

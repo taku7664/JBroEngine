@@ -167,6 +167,25 @@ namespace JBro::Text
             std::uint16_t face = 0;
         };
 
+        // 스타일 글자는 그 스타일의 face 를 먼저 본다(D-224). 굵은 기울임이 없으면 굵게, 기울임 순이다. 거기 글자가 없으면 보통 고르기다.
+        std::uint16_t StyleFaceOf(const LayoutOptions& options, std::uint8_t style, std::size_t faceCount)
+        {
+            const auto valid = [&](std::uint16_t face) { return face != LayoutOptions::NoStyleFace && face < faceCount; };
+            if ((style & GlyphStyleBold) != 0 && (style & GlyphStyleItalic) != 0 && valid(options.boldItalicFace))
+            {
+                return options.boldItalicFace;
+            }
+            if ((style & GlyphStyleBold) != 0 && valid(options.boldFace))
+            {
+                return options.boldFace;
+            }
+            if ((style & GlyphStyleItalic) != 0 && valid(options.italicFace))
+            {
+                return options.italicFace;
+            }
+            return LayoutOptions::NoStyleFace;
+        }
+
         // 앞에서부터 그 글자가 있는 face 를 고른다. 어디에도 없으면 U+FFFD 를, 그것도 없으면 첫 face 의 .notdef 를 쓴다.
         FaceChoice ChooseFace(ArrayView<const FontFace* const> faces, std::uint16_t primary, char32_t codepoint)
         {
@@ -321,6 +340,8 @@ namespace JBro::Text
         std::uint32_t colorStack[MaxMarkupDepth] = {};
         int sizeDepth = 0;
         int colorDepth = 0;
+        int boldDepth = 0;
+        int italicDepth = 0;
         const auto currentSize = [&]() { return sizeDepth > 0 ? sizeStack[sizeDepth - 1] : options.fontSize; };
         const auto add = [&](char32_t value, std::uint32_t offset) {
             Codepoint codepoint;
@@ -329,6 +350,7 @@ namespace JBro::Text
             codepoint.size = currentSize();
             codepoint.hasColor = colorDepth > 0;
             codepoint.color = colorDepth > 0 ? colorStack[colorDepth - 1] : 0;
+            codepoint.style = static_cast<std::uint8_t>((boldDepth > 0 ? GlyphStyleBold : 0) | (italicDepth > 0 ? GlyphStyleItalic : 0));
             m_codepoints.Add(codepoint);
         };
         // 꺾쇠 하나를 태그로 읽는다. 태그면 스택을 바꾸고 커서를 `>` 뒤로 옮긴다. 아니면 아무것도 바꾸지 않는다.
@@ -344,7 +366,25 @@ namespace JBro::Text
             }
             const char* body = text + at + 1;
             const std::size_t bodyLength = close - at - 1;
-            if (Matches(body, bodyLength, "/color"))
+            if (Matches(body, bodyLength, "b") || Matches(body, bodyLength, "i"))
+            {
+                int& depth = body[0] == 'b' ? boldDepth : italicDepth;
+                if (depth >= MaxMarkupDepth)
+                {
+                    return false;
+                }
+                ++depth;
+            }
+            else if (Matches(body, bodyLength, "/b") || Matches(body, bodyLength, "/i"))
+            {
+                int& depth = body[1] == 'b' ? boldDepth : italicDepth;
+                if (depth == 0)
+                {
+                    return false;
+                }
+                --depth;
+            }
+            else if (Matches(body, bodyLength, "/color"))
             {
                 if (colorDepth == 0)
                 {
@@ -444,6 +484,7 @@ namespace JBro::Text
             item.size = m_codepoints[first].size;
             item.color = m_codepoints[first].color;
             item.hasColor = m_codepoints[first].hasColor;
+            item.style = m_codepoints[first].style;
             if (value == U'\n')
             {
                 item.kind = ItemKind::Newline;
@@ -494,7 +535,20 @@ namespace JBro::Text
             item.kind = IsSpace(value) ? ItemKind::Space : ItemKind::Visible;
             // 탭은 공백 글리프로 재고, 줄을 나눌 때 멈춤 자리까지 폭을 늘린다(아래 3.).
             const char32_t lookup = value == 0x09 ? U' ' : value;
-            const FaceChoice choice = ChooseFace(faces, primary, lookup);
+            FaceChoice choice;
+            const std::uint16_t styleFace = item.style != 0 ? StyleFaceOf(options, item.style, faces.Size()) : LayoutOptions::NoStyleFace;
+            const GlyphIndex styled = styleFace != LayoutOptions::NoStyleFace && faces[styleFace] != nullptr && faces[styleFace]->IsLoaded()
+                ? faces[styleFace]->FindGlyph(lookup)
+                : MissingGlyph;
+            if (styled != MissingGlyph)
+            {
+                choice.glyph = styled;
+                choice.face = styleFace;
+            }
+            else
+            {
+                choice = ChooseFace(faces, primary, lookup);
+            }
             item.glyph = choice.glyph;
             item.face = choice.face;
             item.breaksAnywhere = item.kind == ItemKind::Visible
@@ -555,6 +609,7 @@ namespace JBro::Text
                 glyph.size = item.size;
                 glyph.color = item.color;
                 glyph.hasColor = item.hasColor;
+                glyph.style = item.style;
                 m_glyphs.Add(glyph);
                 line.width = std::max(line.width, item.x + item.advance);
             }

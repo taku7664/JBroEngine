@@ -73,6 +73,21 @@ namespace JBro::Text
         float    markupScale = 1.0f;
         // `<size>` 를 정수 픽셀로 반올림한다. 비트맵 폰트는 정수 크기마다 뜨므로 레이아웃도 그 크기로 재야 한다.
         bool     wholePixelMarkup = false;
+        // **스타일 face**(D-224). 리치 텍스트의 `<b>`·`<i>` 가 붙은 글자가 먼저 볼 faces 안의 번호다(굵게·기울임·굵은 기울임 순).
+        // `NoStyleFace` 면 그 스타일의 face 가 없다 - 굵은 기울임은 굵게, 기울임 순으로, 모두 없으면 보통 글자와 같은 face 를 쓴다.
+        // 그 face 에 글자가 없으면 폴백 순서(faces 앞에서부터)로 간다.
+        static constexpr std::uint16_t NoStyleFace = 0xFFFF;
+        std::uint16_t boldFace = NoStyleFace;
+        std::uint16_t italicFace = NoStyleFace;
+        std::uint16_t boldItalicFace = NoStyleFace;
+    };
+
+    // 글자의 스타일 비트다(리치 텍스트의 `<b>`·`<i>`).
+    enum GlyphStyle : std::uint8_t
+    {
+        GlyphStyleRegular = 0,
+        GlyphStyleBold = 1,
+        GlyphStyleItalic = 2,
     };
 
     // 그릴 글리프 하나다. 공백과 개행은 들어오지 않는다. (x, y) 는 기준선 위의 글리프 원점이다.
@@ -90,6 +105,7 @@ namespace JBro::Text
         float         size = 0.0f;      // 이 글자의 em 크기(픽셀). 리치 텍스트의 `<size>` 밖이면 fontSize 다
         std::uint32_t color = 0;        // hasColor 이면 `<color>` 의 RGBA8(R 이 가장 낮은 바이트)
         bool          hasColor = false;
+        std::uint8_t  style = GlyphStyleRegular; // `GlyphStyle` 비트
     };
 
     struct LineInfo
@@ -161,6 +177,7 @@ namespace JBro::Text
             float         size = 0.0f;
             std::uint32_t color = 0;
             bool          hasColor = false;
+            std::uint8_t  style = 0;
         };
 
         struct Item
@@ -179,6 +196,7 @@ namespace JBro::Text
             float         size = 0.0f;            // em 크기(픽셀)
             std::uint32_t color = 0;
             bool          hasColor = false;
+            std::uint8_t  style = 0;
         };
 
         void Reset();
