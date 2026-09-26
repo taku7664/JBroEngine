@@ -10,8 +10,8 @@
 
 namespace JBro
 {
-    // 4: 시간과 난수 시스템이 들어왔다(D-231).
-    // 5: 디버그 드로 시스템이 들어왔다(D-232).
+    // 4: 시간과 난수 시스템이 들어왔다(D-233).
+    // 5: 디버그 드로 시스템이 들어왔다(D-234).
     inline constexpr std::uint32_t SystemContextAbiVersion = 5;
 
     // 차원과 무관한 시스템만 담는다. 차원별 시스템은 각 Framework 가 확장 Context 블록으로

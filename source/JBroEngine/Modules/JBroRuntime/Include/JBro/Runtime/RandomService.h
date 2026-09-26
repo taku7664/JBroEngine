@@ -6,7 +6,7 @@
 
 namespace JBro::Service
 {
-    // 스크립트가 엔진 난수 흐름에서 뽑는 표면이다(D-231).
+    // 스크립트가 엔진 난수 흐름에서 뽑는 표면이다(D-233).
     //
     //     const auto& random = GetServiceContext().Random;
     //     const std::int32_t damage = random.Range(3, 7);    // 3..7

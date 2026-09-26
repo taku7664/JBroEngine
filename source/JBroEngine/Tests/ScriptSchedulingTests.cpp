@@ -50,7 +50,7 @@ namespace
             startCount++;
         }
 
-        // 델타는 인자가 아니라 서비스에서 읽는다(D-231).
+        // 델타는 인자가 아니라 서비스에서 읽는다(D-233).
         void OnUpdate() override
         {
             lastDeltaTime = JBro::GetServiceContext().Time.DeltaTime();
@@ -130,7 +130,7 @@ namespace
         auto* script = canvas.AttachComponent<ProbeScript>(object);
         script->mark = 1;
 
-        // 스크립트는 델타를 시계에서 읽는다(D-231). 호스트가 하듯 시계를 먼저 연다. 0.05 초는 고정 스텝 셋이라 상한(넷) 안이다 -
+        // 스크립트는 델타를 시계에서 읽는다(D-233). 호스트가 하듯 시계를 먼저 연다. 0.05 초는 고정 스텝 셋이라 상한(넷) 안이다 -
         // 상한을 넘는 프레임은 버린 스텝만큼 게임 델타도 줄어든다(TimeTests).
         JBro::FrameworkContext clockContext;
         JBro::Testing::AttachClock(clockContext);

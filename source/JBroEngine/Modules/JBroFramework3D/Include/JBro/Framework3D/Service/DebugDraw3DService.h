@@ -5,7 +5,7 @@
 
 namespace JBro::Service
 {
-    // 스크립트가 3D 월드에 디버그 도형을 그리는 표면이다(D-232). 기존 엔진에는 3D 디버그 드로가 없었다.
+    // 스크립트가 3D 월드에 디버그 도형을 그리는 표면이다(D-234). 기존 엔진에는 3D 디버그 드로가 없었다.
     //
     //     const auto& debug = GetFramework3DServices().DebugDraw;
     //     debug.Ray(eye, forward * 10.0f, Color{0, 1, 0, 1});

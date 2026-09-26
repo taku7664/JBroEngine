@@ -7,7 +7,7 @@ namespace JBro
 {
     class EditorApplication;
 
-    // 에디터의 **전역** 단축키 열이다(D-132). 한 프레임 진행은 D-231 에서 더했다. 누르는 자리·보이는 글자·바꾸는 자리는 `EditorShortcutManager` 한 표이고(D-228),
+    // 에디터의 **전역** 단축키 열이다(D-132). 한 프레임 진행은 D-233 에서 더했다. 누르는 자리·보이는 글자·바꾸는 자리는 `EditorShortcutManager` 한 표이고(D-228),
     // 여기는 그 표에 올리는 기본 조합과 할 일(할 수 있는지·왜 못 하는지·하기)을 든다. 메뉴는 이 열거로 가리킨다.
     enum class EditorShortcut : std::uint8_t
     {

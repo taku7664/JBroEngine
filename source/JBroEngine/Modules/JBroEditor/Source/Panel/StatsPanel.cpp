@@ -108,7 +108,7 @@ namespace JBro
         {
             return;
         }
-        // **게임의 시간과 디버그 선**(D-231, D-232). 타임스케일을 바꾼 게임이 왜 느린지, 선이 왜 안 보이는지가 여기서 보여야 한다.
+        // **게임의 시간과 디버그 선**(D-233, D-234). 타임스케일을 바꾼 게임이 왜 느린지, 선이 왜 안 보이는지가 여기서 보여야 한다.
         if (const FrameTime* time = m_editor->GetFrameTime())
         {
             ImGui::Separator();

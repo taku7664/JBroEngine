@@ -756,7 +756,7 @@ namespace
 
         bool BindScriptContexts() noexcept override
         {
-            // 공통 컨텍스트는 호스트의 것이다(D-231) - 시계·난수를 호스트가 묶었다. 프레임워크는 제 블록만 낸다.
+            // 공통 컨텍스트는 호스트의 것이다(D-233) - 시계·난수를 호스트가 묶었다. 프레임워크는 제 블록만 낸다.
             m_frameworkSystems.Physics2D = reinterpret_cast<JBro::System::IPhysics2DSystem*>(
                 static_cast<std::uintptr_t>(0x0BADF00D));
             m_blocks[0] = JBro::MakeFramework2DServiceContextBlock(m_frameworkServices);
@@ -889,7 +889,7 @@ namespace
         PostMessageW(window, WM_KEYUP, VK_SPACE, static_cast<LPARAM>(0xC0000001u));
         Check(engine.Tick(0.016f), "the host must keep ticking");
 
-        // 시간과 난수가 DLL 까지 닿는다(D-231). DLL 은 제 사본의 서비스로 호스트의 시계와 난수 흐름을 읽는다 - 호스트가 공통 시스템
+        // 시간과 난수가 DLL 까지 닿는다(D-233). DLL 은 제 사본의 서비스로 호스트의 시계와 난수 흐름을 읽는다 - 호스트가 공통 시스템
         // 컨텍스트를 채우지 않았으면 델타는 0 이고, DLL 이 묶지 않았으면 제 사본의 고정 씨앗 흐름에서 뽑아 엔진 씨앗이 바뀌지 않는다.
         using GetDelta = float (*)() noexcept;
         using GetFrames = std::uint64_t (*)() noexcept;
@@ -911,7 +911,7 @@ namespace
         Check(randomRange(0, 1000) == reference.Range(0, 1000), "and the DLL must draw from that stream");
         Check(JBro::GetServiceContext().Random.Range(0, 1000) == reference.Range(0, 1000),
             "the host's copy of the service shares the same engine stream");
-        // DLL 이 그린 디버그 선이 엔진의 저장소에 들어오고, 엔진이 다음 프레임 첫머리에 거둔다(D-232).
+        // DLL 이 그린 디버그 선이 엔진의 저장소에 들어오고, 엔진이 다음 프레임 첫머리에 거둔다(D-234).
         using DrawLine = void (*)() noexcept;
         const auto drawLine = reinterpret_cast<DrawLine>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_DrawLine"));
         Check(drawLine != nullptr && engine.GetDebugDraw() != nullptr, "the probe must export its line and the engine own a store");
@@ -921,7 +921,7 @@ namespace
         drawLine();
         engine.RestartGameTime();
         Check(engine.GetDebugDraw()->GetLineCount() == 0, "restarting the game time clears the lines of the last play");
-        // 멈춤과 한 프레임 진행은 엔진의 것이다(D-231). 멈추면 DLL 이 읽는 델타가 0 이고, 한 프레임 진행은 고정 델타 한 번이다.
+        // 멈춤과 한 프레임 진행은 엔진의 것이다(D-233). 멈추면 DLL 이 읽는 델타가 0 이고, 한 프레임 진행은 고정 델타 한 번이다.
         engine.SetSimulationEnabled(false);
         Check(engine.Tick(0.02f) && getDelta() == 0.0f, "a paused engine must hand the script a zero delta");
         engine.StepSimulation();

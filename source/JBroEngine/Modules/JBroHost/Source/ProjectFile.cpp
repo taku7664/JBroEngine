@@ -858,7 +858,7 @@ namespace JBro
             else if (key == "DebugModeEnabled") { recognized = ParseBool(value, parsed.debugModeEnabled); }
             else if (key == "FixedDeltaTime" || key == "MaxFixedSteps" || key == "MaxDeltaTime")
             {
-                // 범위는 시계의 것을 그대로 쓴다(D-231) - 다른 두 값은 기본값인 채로 이 하나만 재 본다.
+                // 범위는 시계의 것을 그대로 쓴다(D-233) - 다른 두 값은 기본값인 채로 이 하나만 재 본다.
                 TimeSettings probe;
                 const bool number = key == "MaxFixedSteps" ? ParseUInt(value, probe.maxFixedSteps)
                     : ParseFloat(value, key == "FixedDeltaTime" ? probe.fixedDeltaTime : probe.maxDeltaTime);
@@ -1081,7 +1081,7 @@ namespace JBro
             const ProjectFile defaults;
             return (key == "DefaultLocale" && project.defaultLocale.empty())
                 || (key == "FallbackLocale" && project.fallbackLocale.empty())
-                // 시간도 기본값이면 새로 적지 않는다(D-231).
+                // 시간도 기본값이면 새로 적지 않는다(D-233).
                 || (key == "FixedDeltaTime" && project.fixedDeltaTime == defaults.fixedDeltaTime)
                 || (key == "MaxFixedSteps" && project.maxFixedSteps == defaults.maxFixedSteps)
                 || (key == "MaxDeltaTime" && project.maxDeltaTime == defaults.maxDeltaTime)

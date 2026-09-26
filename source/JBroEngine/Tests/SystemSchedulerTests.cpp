@@ -72,7 +72,7 @@ namespace
     {
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
-        Check(false == framework.Initialize(context), "a framework without the host clock must be rejected (D-231)");
+        Check(false == framework.Initialize(context), "a framework without the host clock must be rejected (D-233)");
         // 틀린 고정 스텝은 이제 시계가 거절한다(TimeTests). 여기서는 상한이 스텝 수를 자르고 빚이 남지 않는지를 본다 -
         // 델타 상한을 넉넉히 두어 3 초 프레임이 잘리지 않고 스텝 상한에 닿게 한다.
         JBro::TimeSettings settings;

@@ -146,7 +146,7 @@ namespace JBro
         const FrameTime& time = m_context.time->GetFrameTime();
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
-        // **한 프레임 진행**(D-231). 멈춘 동안 이 프레임만 게임이 돈다: 스크립트·물리를 켰다가 끝에 다시 끈다.
+        // **한 프레임 진행**(D-233). 멈춘 동안 이 프레임만 게임이 돈다: 스크립트·물리를 켰다가 끝에 다시 끈다.
         const bool stepping = false == m_simulationEnabled && m_context.time->IsStepFrame();
         const bool simulating = m_simulationEnabled || stepping;
         if (stepping)
@@ -436,7 +436,7 @@ namespace JBro
     }
     void Framework2D::RunFixedSteps()
     {
-        // 몇 스텝을 돌지는 시계가 정했다(누산·상한·타임스케일·한 프레임 진행, D-231).
+        // 몇 스텝을 돌지는 시계가 정했다(누산·상한·타임스케일·한 프레임 진행, D-233).
         System::TimeSystem& time = *m_context.time;
         const FrameTime& frame = time.GetFrameTime();
         for (std::uint32_t step = 0; step < frame.fixedStepCount; ++step)

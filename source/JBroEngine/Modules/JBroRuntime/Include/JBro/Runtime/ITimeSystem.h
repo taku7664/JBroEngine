@@ -5,7 +5,7 @@
 
 namespace JBro
 {
-    // 이번 프레임의 시간이다(D-231). 호스트의 `System::TimeSystem` 이 프레임마다 한 번 채우고, 서비스가 읽는다.
+    // 이번 프레임의 시간이다(D-233). 호스트의 `System::TimeSystem` 이 프레임마다 한 번 채우고, 서비스가 읽는다.
     // 스크립트는 이것을 직접 보지 않고 `Service::TimeService` 를 쓴다 - 고정 스텝 안에서 델타가 무엇인지는 서비스가 고른다.
     struct FrameTime
     {
@@ -41,7 +41,7 @@ namespace JBro
 
 namespace JBro::System
 {
-    // 서비스가 시간을 읽고 타임스케일을 바꾸는 길이다(D-231). 호스트의 `TimeSystem` 이 구현한다.
+    // 서비스가 시간을 읽고 타임스케일을 바꾸는 길이다(D-233). 호스트의 `TimeSystem` 이 구현한다.
     // 가상 함수 표는 스크립트 DLL 과의 ABI 다. 바꾸면 공통 `SystemContext` 의 판번호를 올린다(D-28).
     class ITimeSystem
     {

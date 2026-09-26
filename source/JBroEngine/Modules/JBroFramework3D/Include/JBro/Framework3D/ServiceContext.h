@@ -9,7 +9,7 @@ namespace JBro
 {
     // 3D 스크립트 DLL 과의 약속의 판번호다(D-224). 2D 의 `Framework2DServiceContext` 와 같은 모양이다.
     // 1: `Text3DService` 가 첫 서비스다.
-    // 2: `DebugDraw3DService` 를 더했고(D-232) 공통 훅이 인자를 잃었다(D-231).
+    // 2: `DebugDraw3DService` 를 더했고(D-234) 공통 훅이 인자를 잃었다(D-233).
     inline constexpr std::uint32_t Framework3DServiceContextAbiVersion = 2;
 
     // Non-owning value services. Kept outside Runtime's dimension-independent context.

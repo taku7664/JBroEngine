@@ -244,7 +244,7 @@ extern "C" __declspec(dllexport) bool JBroScriptProbe_IsKeyDown(std::uint16_t ke
     return JBro::GetInputServices().Input.Keyboard().IsDown(static_cast<JBro::Key>(key));
 }
 
-// 시간과 난수가 DLL 까지 닿는다(D-231). 공통 컨텍스트는 `BindScriptModuleContexts` 가 묶는다 - 확장 블록이 필요 없다.
+// 시간과 난수가 DLL 까지 닿는다(D-233). 공통 컨텍스트는 `BindScriptModuleContexts` 가 묶는다 - 확장 블록이 필요 없다.
 extern "C" __declspec(dllexport) float JBroScriptProbe_GetDeltaTime() noexcept
 {
     return JBro::GetServiceContext().Time.DeltaTime();
@@ -265,7 +265,7 @@ extern "C" __declspec(dllexport) std::int32_t JBroScriptProbe_RandomRange(std::i
     return JBro::GetServiceContext().Random.Range(min, max);
 }
 
-// 디버그 선이 DLL 에서 호스트의 저장소로 간다(D-232). 서비스는 공통 시스템 컨텍스트의 저장소에 쌓는다.
+// 디버그 선이 DLL 에서 호스트의 저장소로 간다(D-234). 서비스는 공통 시스템 컨텍스트의 저장소에 쌓는다.
 extern "C" __declspec(dllexport) void JBroScriptProbe_DrawLine() noexcept
 {
     JBro::GetFramework2DServices().DebugDraw.Line({0.0f, 0.0f}, {1.0f, 0.0f});

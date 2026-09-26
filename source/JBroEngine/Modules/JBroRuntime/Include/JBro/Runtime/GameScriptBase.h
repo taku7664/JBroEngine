@@ -14,7 +14,7 @@ namespace JBro
 
         virtual void OnCreate();
         virtual void OnStart();
-        // 델타는 인자로 오지 않는다(ProjectRule §7, D-231). `GetServiceContext().Time.DeltaTime()` 으로 읽는다 -
+        // 델타는 인자로 오지 않는다(ProjectRule §7, D-233). `GetServiceContext().Time.DeltaTime()` 으로 읽는다 -
         // `OnFixedUpdate` 안에서 읽으면 고정 델타다.
         virtual void OnUpdate();
         virtual void OnFixedUpdate();

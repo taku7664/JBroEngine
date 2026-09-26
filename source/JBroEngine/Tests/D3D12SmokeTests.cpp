@@ -72,7 +72,7 @@ namespace
             "opening a real project must bind its physics service without manual wiring");
         {
             JBro::Framework2D preview;
-            // 미리보기도 시계는 있어야 한다(D-231). 활성 프로젝트의 것을 빌리지 않고 제 것을 준다.
+            // 미리보기도 시계는 있어야 한다(D-233). 활성 프로젝트의 것을 빌리지 않고 제 것을 준다.
             JBro::System::TimeSystem previewClock;
             JBro::FrameworkContext previewContext;
             previewContext.time = &previewClock;

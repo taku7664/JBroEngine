@@ -6,7 +6,7 @@
 
 namespace JBro
 {
-    // 시간의 프로젝트 설정이다(D-231). `.jproject` 의 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime` 이다.
+    // 시간의 프로젝트 설정이다(D-233). `.jproject` 의 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime` 이다.
     struct TimeSettings
     {
         // 고정 스텝 하나의 길이(초)다. 0.001 이상 1 이하.
@@ -20,7 +20,7 @@ namespace JBro
 
     namespace System
     {
-        // 엔진의 시계다(D-231). 프레임 델타·타임스케일·멈춤·한 프레임 진행·고정 스텝 누산을 **한 자리에** 둔다 - 기존 엔진은 시계와 누산기와
+        // 엔진의 시계다(D-233). 프레임 델타·타임스케일·멈춤·한 프레임 진행·고정 스텝 누산을 **한 자리에** 둔다 - 기존 엔진은 시계와 누산기와
         // 멈춤이 셋으로 갈라져 있었고, 이 엔진은 두 프레임워크가 누산기를 따로 들어 3D 만 멈춤을 무시했다(time-plan T4).
         //
         // 한 프레임:

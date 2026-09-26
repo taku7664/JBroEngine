@@ -905,7 +905,7 @@ namespace
         config.time.fixedDeltaTime = 0.02f;
         Check(InitializeHost(engine, config, platform, module, framework), "host must initialize");
         Check(framework.context.time != nullptr && framework.context.time->GetSettings().fixedDeltaTime == 0.02f,
-            "host must hand the framework its clock with the fixed-step policy (D-231)");
+            "host must hand the framework its clock with the fixed-step policy (D-233)");
         Check(false == InitializeHost(engine, config, platform, module, framework), "double init must reject without teardown");
         for (int frame = 0; frame < 3; ++frame)
         {
@@ -1114,7 +1114,7 @@ namespace
             "camera projection must use half-height, aspect ratio and inverse translation");
         Check(module.device.waitIdleCount == 0, "framework frame must not wait for GPU idle");
 
-        // 무효한 dt 는 시계가 거절한다(D-231). 프레임워크까지 오지 않으므로 지난 프레임 내용이 그대로 남는다.
+        // 무효한 dt 는 시계가 거절한다(D-233). 프레임워크까지 오지 않으므로 지난 프레임 내용이 그대로 남는다.
         Check(false == JBro::Testing::SharedClock().BeginFrame(std::numeric_limits<float>::quiet_NaN()),
             "a non-finite delta time must be refused by the clock");
         Check(false == JBro::Testing::SharedClock().BeginFrame(-1.0f),

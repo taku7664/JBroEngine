@@ -56,7 +56,7 @@ namespace JBro
     private:
         void CreateDefaultSystems();
         void RunFixedSteps();
-        // 멈춘 게임의 한 프레임 진행(D-231)에서 그 프레임만 스크립트·물리를 켰다 끈다. 오디오·네트워크는 건드리지 않는다.
+        // 멈춘 게임의 한 프레임 진행(D-233)에서 그 프레임만 스크립트·물리를 켰다 끈다. 오디오·네트워크는 건드리지 않는다.
         void SetSteppedSystemsEnabled(bool enabled);
         // 지금 정해져 있는 값을 시스템들에 먹인다. 시스템이 선 뒤와 값이 바뀔 때 부른다.
         void ApplySimulationEnabled();
