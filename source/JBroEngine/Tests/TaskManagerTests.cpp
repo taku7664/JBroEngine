@@ -697,14 +697,23 @@ namespace
         manager.Shutdown();
     }
 
+    // 콜백 안에서 본 것이다. 태스크와 묶음은 곧 정리되어 지워지므로 바깥에 적는다.
+    struct ChainReport
+    {
+        TaskGroupId next = JBro::InvalidTaskGroupId;
+        bool waited = false;
+        int finishedAfterWait = 0;
+        bool nextStillListed = false;
+    };
+
     class SubmitFromCallbackTask final : public Task
     {
     public:
-        SubmitFromCallbackTask(TaskManager& manager, Journal& journal, TaskGroupId& next)
+        SubmitFromCallbackTask(TaskManager& manager, Journal& journal, ChainReport& report)
             : Task("chain")
             , m_manager(manager)
             , m_journal(journal)
-            , m_next(next)
+            , m_report(report)
         {
         }
 
@@ -716,37 +725,97 @@ namespace
         void OnFinished(const TaskResult& result) override
         {
             RecordFinished(m_journal, result);
-            // 콜백 안에서 다음 묶음을 제출하는 것이 순서를 잇는 길이다. 그 안에서 기다리는 것은 막힌다.
+            // 콜백 안에서 다음 묶음을 제출하는 것이 순서를 잇는 길이다. 그 안에서 기다려도 된다 - 기다리는 동안
+            // 그 묶음의 콜백까지 불려야 한다(전에는 조용히 거절되어, 기다리는 루프를 짠 쪽이 영원히 돌 수 있었다).
             OwnerPtr<TaskGroup> group = JBro::MakeOwnerPtr<TaskGroup>("next");
             group->Add(JBro::MakeOwnerPtr<SleepTask>(m_journal, 1, 0));
-            m_next = m_manager.Submit(std::move(group));
-            m_waitRefused = false == m_manager.Wait(m_next);
+            m_report.next = m_manager.Submit(std::move(group));
+            m_report.waited = m_manager.Wait(m_report.next);
+            m_report.finishedAfterWait = m_journal.finished;
+            m_report.nextStillListed = m_manager.FindGroup(m_report.next) != nullptr;
         }
-
-    public:
-        bool m_waitRefused = false;
 
     private:
         TaskManager& m_manager;
         Journal& m_journal;
-        TaskGroupId& m_next;
+        ChainReport& m_report;
     };
 
-    void TestCallbackMaySubmitButNotWait()
+    void TestCallbackWaitDeliversNestedCallbacks()
     {
         Journal journal;
         journal.mainThread = std::this_thread::get_id();
         TaskManager manager;
-        Check(manager.Initialize(Workers(2)), "the manager must start");
-        TaskGroupId next = JBro::InvalidTaskGroupId;
+        // 끝난 묶음을 남기지 않는다. 그래야 콜백 안의 Update 가 정리를 하면 드러난다.
+        TaskManagerDesc desc = Workers(2);
+        desc.keptFinishedGroups = 0;
+        Check(manager.Initialize(desc), "the manager must start");
+        ChainReport report;
         OwnerPtr<TaskGroup> group = JBro::MakeOwnerPtr<TaskGroup>("first");
-        group->Add(JBro::MakeOwnerPtr<SubmitFromCallbackTask>(manager, journal, next));
+        group->Add(JBro::MakeOwnerPtr<SubmitFromCallbackTask>(manager, journal, report));
         const TaskGroupId first = manager.Submit(std::move(group));
         Check(manager.Wait(first), "waiting on the first group must succeed");
-        const auto* chain = static_cast<const SubmitFromCallbackTask*>(&manager.FindGroup(first)->GetTaskAt(0));
-        Check(chain->m_waitRefused, "waiting inside a callback must be refused, not hang");
-        Check(next != JBro::InvalidTaskGroupId, "a callback must be able to submit the next group");
-        Check(manager.Wait(next) && journal.finished == 2, "the group submitted from a callback must run and finish");
+        Check(report.next != JBro::InvalidTaskGroupId, "a callback must be able to submit the next group");
+        Check(report.waited, "waiting inside a callback must work, not be refused");
+        Check(report.finishedAfterWait == 2, "waiting inside a callback must deliver the next group's callback");
+        Check(report.nextStillListed, "a nested Update must not trim groups while an outer callback runs");
+        Check(manager.FindGroup(first) == nullptr, "once the callback returned the outer Update trims as usual");
+        Check(journal.finished == 2 && journal.finishedOffMain == 0, "each callback once, all on the main thread");
+        manager.Shutdown();
+    }
+
+    class ThrowingCallbackTask final : public Task
+    {
+    public:
+        explicit ThrowingCallbackTask(int& calls)
+            : Task("throws in callback")
+            , m_calls(calls)
+        {
+        }
+
+    protected:
+        void Run() override
+        {
+        }
+
+        void OnFinished(const TaskResult&) override
+        {
+            ++m_calls;
+            throw std::runtime_error("callback exploded");
+        }
+
+    private:
+        int& m_calls;
+    };
+
+    // 콜백이 던져도 같은 콜백이 두 번 불리지 않고, 남은 콜백은 다음 Update 에서 불리며, 묶음은 끝난다.
+    void TestThrowingCallbackIsNotCalledTwice()
+    {
+        Journal journal;
+        journal.mainThread = std::this_thread::get_id();
+        int throwerCalls = 0;
+        TaskManager manager;
+        Check(manager.Initialize(MainThreadOnly()), "the manager must start");
+        OwnerPtr<RecordingGroup> group = JBro::MakeOwnerPtr<RecordingGroup>(journal, "throws", TaskGroupOrder::Parallel);
+        group->Add(JBro::MakeOwnerPtr<ThrowingCallbackTask>(throwerCalls));
+        group->Add(JBro::MakeOwnerPtr<SleepTask>(journal, 0, 0));
+        group->Add(JBro::MakeOwnerPtr<SleepTask>(journal, 1, 0));
+        const TaskGroupId id = manager.Submit(std::move(group));
+        bool threw = false;
+        try
+        {
+            manager.Update();
+        }
+        catch (const std::runtime_error&)
+        {
+            threw = true;
+        }
+        Check(threw, "the callback's exception must come out of Update");
+        Check(throwerCalls == 1 && journal.finished == 0, "the throwing callback ran once and the rest waited");
+        manager.Update();
+        Check(throwerCalls == 1, "a callback that threw must not be called again");
+        Check(journal.finished == 2, "the callbacks left behind must come on the next Update");
+        Check(journal.groupFinished == 1 && manager.FindGroup(id)->IsFinished(), "the group must still finish");
         manager.Shutdown();
     }
 
@@ -844,7 +913,8 @@ int RunTaskManagerTests()
         TestSubmitRules();
         TestFinishedGroupsAreTrimmed();
         TestWorkersCarryNames();
-        TestCallbackMaySubmitButNotWait();
+        TestCallbackWaitDeliversNestedCallbacks();
+        TestThrowingCallbackIsNotCalledTwice();
         TestEngineOwnsTheManager();
     }
     catch (const std::exception& error)

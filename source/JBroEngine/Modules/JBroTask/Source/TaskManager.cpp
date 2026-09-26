@@ -25,24 +25,24 @@ namespace JBro
 #endif
         }
 
-        // 콜백을 부르는 동안 표시를 세운다. 콜백이 던져도 표시가 남지 않는다.
+        // 콜백을 부르는 동안 깊이를 센다. 콜백 안에서 `Update` 가 다시 들어오면 둘이 된다. 콜백이 던져도 수가 남지 않는다.
         class CallbackScope
         {
         public:
-            explicit CallbackScope(bool& flag)
-                : m_flag(flag)
+            explicit CallbackScope(std::uint32_t& depth)
+                : m_depth(depth)
             {
-                m_flag = true;
+                ++m_depth;
             }
             ~CallbackScope()
             {
-                m_flag = false;
+                --m_depth;
             }
             CallbackScope(const CallbackScope&) = delete;
             CallbackScope& operator=(const CallbackScope&) = delete;
 
         private:
-            bool& m_flag;
+            std::uint32_t& m_depth;
         };
     }
 
@@ -91,7 +91,7 @@ namespace JBro
 
     void TaskManager::Shutdown()
     {
-        if (false == m_initialized || m_inCallback)
+        if (false == m_initialized || m_callbackDepth > 0)
         {
             return;
         }
@@ -120,13 +120,13 @@ namespace JBro
         m_startedWorkers = 0;
         RunOnMainThread(true);
         DrainFinished();
-        FinishEmptyGroups();
+        FinishReadyGroups();
         m_groups.Clear();
-        m_emptyGroupsPending = 0;
+        m_groupsMayBeReady = false;
         m_ready.Clear();
         m_readyHead = 0;
         m_finished.Clear();
-        m_draining.Clear();
+        m_finishedHead = 0;
         m_useWorkers = false;
         m_initialized = false;
     }
@@ -169,7 +169,7 @@ namespace JBro
         m_groups.Add(std::move(group));
         if (count == 0)
         {
-            ++m_emptyGroupsPending;
+            m_groupsMayBeReady = true;
             return id;
         }
         if (sequential)
@@ -193,7 +193,7 @@ namespace JBro
 
     void TaskManager::Update()
     {
-        if (false == m_initialized || m_inCallback)
+        if (false == m_initialized)
         {
             return;
         }
@@ -202,13 +202,17 @@ namespace JBro
             RunOnMainThread(false);
         }
         DrainFinished();
-        FinishEmptyGroups();
-        TrimFinishedGroups();
+        FinishReadyGroups();
+        // 콜백 안에서 들어온 `Update` 는 묶음을 지우지 않는다 - 바깥에서 콜백이 불리고 있는 태스크의 묶음일 수 있다.
+        if (m_callbackDepth == 0)
+        {
+            TrimFinishedGroups();
+        }
     }
 
     bool TaskManager::Wait(TaskGroupId id)
     {
-        if (false == m_initialized || m_inCallback)
+        if (false == m_initialized)
         {
             return false;
         }
@@ -224,7 +228,7 @@ namespace JBro
                 // 끝난 태스크가 오면 곧바로 깨고, 오지 않아도 가끔 깨어 살핀다.
                 std::unique_lock lock(m_mutex);
                 m_taskFinished.wait_for(lock, std::chrono::milliseconds(1), [this] {
-                    return false == m_finished.IsEmpty();
+                    return m_finishedHead < m_finished.Size();
                 });
             }
             Update();
@@ -417,51 +421,62 @@ namespace JBro
 
     void TaskManager::DrainFinished()
     {
+        // 하나씩 꺼내 부른다. 콜백 안에서 `Update` 가 다시 들어와도 남은 것을 이어서 꺼낼 뿐이고, 콜백이 던져도
+        // 이미 꺼낸 것은 다시 불리지 않고 남은 것은 다음 `Update` 에서 불린다.
+        for (;;)
         {
-            std::lock_guard lock(m_mutex);
-            m_draining.Swap(m_finished);
-        }
-        if (m_draining.IsEmpty())
-        {
-            return;
-        }
-        const CallbackScope scope(m_inCallback);
-        for (Task* task : m_draining)
-        {
-            task->OnFinished(task->GetResult());
+            Task* task = nullptr;
+            {
+                std::lock_guard lock(m_mutex);
+                if (m_finishedHead >= m_finished.Size())
+                {
+                    m_finished.Clear();
+                    m_finishedHead = 0;
+                    return;
+                }
+                task = m_finished[m_finishedHead];
+                ++m_finishedHead;
+            }
+            // 묶음의 셈은 콜백 전에 한다. 콜백이 던져도 묶음은 끝날 수 있어야 한다.
             TaskGroup& group = *task->m_group;
             ++group.m_finishedTasks;
             if (group.m_finishedTasks == group.GetTaskCount())
             {
-                FinishGroup(group);
+                m_groupsMayBeReady = true;
             }
+            const CallbackScope scope(m_callbackDepth);
+            task->OnFinished(task->GetResult());
         }
-        m_draining.Clear();
     }
 
-    void TaskManager::FinishEmptyGroups()
+    void TaskManager::FinishReadyGroups()
     {
-        if (m_emptyGroupsPending == 0)
+        if (false == m_groupsMayBeReady)
         {
             return;
         }
-        const CallbackScope scope(m_inCallback);
+        m_groupsMayBeReady = false;
         // 콜백이 새 묶음을 제출하면 배열이 자란다. 그래서 번호로 돌고 매번 다시 꺼낸다.
         for (std::uint32_t i = 0; i < m_groups.Size(); ++i)
         {
             TaskGroup& group = *m_groups[i];
-            if (false == group.m_finished && group.m_tasks.IsEmpty())
+            if (group.m_finished || group.m_finishedTasks != group.GetTaskCount())
             {
-                --m_emptyGroupsPending;
-                FinishGroup(group);
+                continue;
+            }
+            // 부르기 전에 끝난 것으로 적는다. 콜백이 던져도 다시 불리지 않고, 남은 묶음은 다음 `Update` 가 본다.
+            group.m_finished = true;
+            try
+            {
+                const CallbackScope scope(m_callbackDepth);
+                group.OnFinished();
+            }
+            catch (...)
+            {
+                m_groupsMayBeReady = true;
+                throw;
             }
         }
-    }
-
-    void TaskManager::FinishGroup(TaskGroup& group)
-    {
-        group.m_finished = true;
-        group.OnFinished();
     }
 
     void TaskManager::TrimFinishedGroups()
