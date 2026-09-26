@@ -957,6 +957,60 @@ namespace
         Run(world, 2.0f);
         Check(world.GetPosition(boxes[9]).y == top, "and stays exactly where it slept");
     }
+
+    // **무엇이 잠든 몸을 깨우는가(D-228).** 잠든 두 층 더미에서: 밑 상자를 쳐올리면 같은 스텝에 위 상자도 깨어 함께 오르고(풀기 전에 깨운다),
+    // 중력을 뒤집으면 깨어 오르며, 잠든 상자를 순간 이동하면 그 자리에서 떨어지고, 잠든 상자에 겹쳐 새 벽을 세우면 깨어 밀려난다.
+    void TestWhatWakesASleepingBody()
+    {
+        {
+            World world;
+            AddGround(world);
+            const BodyId bottom = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            AddPolygon(world, bottom, BoxOutline(0.5f, 0.5f));
+            const BodyId top = AddBody(world, BodyType::Dynamic, { 0, 1.5f });
+            AddPolygon(world, top, BoxOutline(0.5f, 0.5f));
+            Run(world, 2.0f);
+            Check(false == world.IsAwake(bottom) && false == world.IsAwake(top), "the two-box stack sleeps");
+            const float topBefore = world.GetPosition(top).y;
+            world.ApplyLinearImpulseToCenter(bottom, { 0, 5 });
+            world.Step(Frame);
+            Check(world.IsAwake(top) && world.GetPosition(top).y > topBefore + 0.01f,
+                "knocking the bottom box up lifts the top one in the same step");
+        }
+        {
+            World world;
+            AddGround(world);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 2.0f);
+            Check(false == world.IsAwake(box), "the box sleeps");
+            world.Settings().gravity = { 0, 9.81f };
+            Run(world, 0.5f);
+            Check(world.GetPosition(box).y > 1.0f, "turning gravity over wakes it and it rises");
+        }
+        {
+            World world;
+            AddGround(world);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 2.0f);
+            world.SetTransform(box, { 0, 5 }, 0.0f);
+            Run(world, 0.3f);
+            Check(world.GetPosition(box).y < 4.9f, "a sleeping box moved into the air falls from there");
+        }
+        {
+            World world;
+            AddGround(world);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 2.0f);
+            Check(false == world.IsAwake(box), "the box sleeps again");
+            const BodyId wall = AddBody(world, BodyType::Static, { 0.9f, 0.5f });
+            AddPolygon(world, wall, BoxOutline(0.5f, 0.5f));
+            Run(world, 0.5f);
+            Check(world.GetPosition(box).x < -0.05f, "a new wall overlapping it wakes it and pushes it out");
+        }
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -988,6 +1042,7 @@ int RunPhysics2DWorldTests()
     TestABoxSlidesAcrossAChainWithoutSnagging();
     TestBodiesFallAsleepAndWake();
     TestAStackSleeps();
+    TestWhatWakesASleepingBody();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

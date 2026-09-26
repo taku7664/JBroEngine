@@ -735,6 +735,22 @@ namespace
         scene.Run(0.1f);
         Check(scene.physics.GetShapeCount() == 2, "looping the chain reshapes it in place");
         Check(JBro::CountPhysicsWork(scene.canvas) == 1 + 4, "a looped chain of four points is four segments of work");
+
+        // 삼각형 체인: 닫으면 (10,10)-(-10,0) 변(기울기 0.5)이 생긴다. y = 5 로 쏜 레이가 열리면 세로 변(x = 10), 닫히면 그 닫는 변(x = 0)에 맞는다.
+        chain->points = { { -10, 0 }, { 10, 0 }, { 10, 10 } };
+        chain->loop = false;
+        Check(queries.Raycast({ -9, 5 }, { 1, 0 }, 30, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 19.0f, 1.0e-4f),
+            "an open triangle chain has no closing edge for the ray");
+        chain->loop = true;
+        Check(queries.Raycast({ -9, 5 }, { 1, 0 }, 30, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 9.0f, 1.0e-4f),
+            "a looped one does");
+        JBro::GameObject* ball = scene.Object("ball", { -6.0f, 6.0f });
+        Collider2D* round = scene.canvas.AttachComponent<Collider2D>(ball);
+        round->shape = ColliderShape2D::Circle;
+        round->radius = 0.3f;
+        scene.Dynamic(ball);
+        scene.Run(1.0f);
+        Check(scene.TransformOf(ball)->position.y > 1.5f, "and the looped chain's closing edge holds a ball dropped on it");
     }
 
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
