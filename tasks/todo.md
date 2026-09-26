@@ -2859,6 +2859,29 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-225. 폰트 패밀리는 새 에셋 타입 `FontFamily` 이고, 텍스트의 `fontId` 가 폰트 대신 가리킬 수 있으며, 리치 텍스트의 `<b>`·`<i>` 가 face 를 고른다.**
+  (2026-09-26, text-plan §5 의 7 단계. 사용자 확인: "패밀리 에셋 + `<b>`·`<i>`", 없는 면은 Regular) Updates: D-200 (6), D-221, D-222.
+  (1) `.jfontfamily` 파일이 `FontFamily` 로 등록된다. **네 칸(Regular·Bold·Italic·BoldItalic)은 본문이 아니라 `.jmeta` 의 `FontFamily.ImportOptions`
+  블록**(`FontFamilyOptions`, 칸마다 Font 아이디)이다 - 에셋 옵션을 고치는 기존 길(인스펙터 블록·`SetAssetMetaCommand`·제자리 재로드)을 그대로 쓴다.
+  본문은 표지 한 줄이다. (2) 패밀리를 로드하면 칸마다 Font 를 참조 수로 잡는다(스프라이트가 텍스처를 잡는 것과 같다). 빈 칸과 Font 가 아닌 아이디
+  (자기 자신·다른 패밀리)는 빈 핸들이다. 제자리 재로드는 새 칸을 싣고 옛 칸을 놓으며, `CollectUnused` 는 패밀리를 먼저 내려 그것이 놓은 폰트가
+  같은 걸음에 따라 내려간다. (3) 커널: `<b>`·`<i>` 가 글자에 스타일 비트를 달고, `LayoutOptions` 가 굵게·기울임·굵은 기울임 face 번호를 받는다. 굵은
+  기울임이 없으면 굵게, 기울임 순이고, 스타일 face 가 없거나 그 face 에 글자가 없으면 보통 고르기다 - **가짜 굵게·기울임은 없다**. (4) `TextBlock`:
+  `font` 가 패밀리면 처음 찬 칸(대개 Regular)이 기본 face 이고 나머지 칸이 스타일 face 다. 칸이 바뀌면 다시 레이아웃한다. 프로젝트 폰트 목록(폴백)은
+  여전히 Font 만이다. (5) 에디터: 에셋 브라우저의 "새 폰트 패밀리", 인스펙터의 네 칸 블록. 칸 필드(`regularFontId` 따위)는 이름의 마지막 낱말로
+  Font 만 고르고, 텍스트의 `fontId` 는 Font 와 FontFamily 를 다 보인다. 기각: 칸을 파일 본문(YAML)에 두기(본문을 고치는 새 커맨드·재로드 길이
+  하나 더 생긴다), 컴포넌트에 `boldFontId`·`italicFontId` 필드(텍스트마다 같은 폰트를 다시 고른다), 가짜 스타일(사용자가 고르지 않았다).
+- **D-224. 텍스트 스크립트 서비스는 차원 무관 몸통(`TextServiceBase`)과 호스트 인터페이스(`ITextSystem`)를 공유하고, 3D 도 2D 와 같은 서비스·시스템 컨텍스트를 받는다.**
+  (2026-09-26. 사용자 확인: "2D 환경에 맞춰서 작업. Text 공용 서비스와 2D·3D 서비스를 잘 구분해서 상속할 수 있게, 공통 부분은 재사용") Updates: D-36, D-43, D-200 (1), D-222.
+  (1) `System::ITextSystem`(JBroRuntime, Tier S): `TextId` 로 글자를 쓰고 읽는 호스트 인터페이스다. 호스트 구현은 `TextSystemBase`(JBroTextRendering)
+  하나이고 `Text2DSystem`·`Text3DSystem` 이 물려받는다. 서비스가 호스트 코드를 부르는 까닭은 그대로다 - 스크립트 DLL 이 저장소 문자열을 자기
+  할당기로 잡지 않는다(D-51). (2) `Service::TextServiceBase<TComponent, TDerived>`(JBroRuntime 헤더): `SetText`·`GetTextLength`·`CopyText` 몸통이다.
+  **가상 함수가 없다** - 서비스는 POD 서비스 컨텍스트 안에 값으로 DLL 경계를 넘는다. 차원별 서비스(`Text2DService`·`Text3DService`)는 이것을 물려받고
+  제 시스템 컨텍스트의 슬롯을 찾는 `GetTextSystem()` 하나만 준다. (3) `IText2DSystem` 은 없어졌고 `Framework2DSystemContext::Text2D` 는 `ITextSystem*`
+  이다(판번호 3 → 4). (4) 3D: `Framework3DServiceContext`(`Text3DService`)·`Framework3DSystemContext`(`ITextSystem* Text3D`), 블록 타입 아이디와
+  찾기 함수가 2D 와 같은 모양이다(판번호 1). `JBroFramework3D` 는 이것들을 들려고 다시 정적 라이브러리다. `Framework3D` 가 묶고 블록을 내며,
+  3D 프렐류드가 `Text3D` 와 서비스 컨텍스트를 보인다. 기각: 헤더만의 서비스가 `TextStore` 를 곧장 쓰기(2D 와 모양이 갈리고 D-51 의 할당기 경계를 넘는다),
+  서비스에 가상 함수(서비스 컨텍스트가 POD 가 아니게 된다).
 - **D-223. 2D 물리는 좁은 판정을 물리 전용 워커로 나눌 수 있고, 워커 수는 빌드 설정 `Build.PhysicsThreads`(기본 Auto)가 정한다.**
   (2026-09-26, physics-plan §3.7·§4 의 8. 사용자 확인: "스레드 사용 가능 환경에서만"·"빌드 설정, 기본 Auto, 기준은 정해서 빌드 시 할당"·"추천 값 사용
   버튼"·"기본은 메인 단일 스레드", 그리고 선택지에서 "물리 전용 워커를 따로 둠"·"설정 + 버튼 둘 다"·"좁은 판정만") Updates: D-209, D-199.

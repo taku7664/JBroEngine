@@ -30,6 +30,8 @@
 
 - ~~`[열림]` 3D 텍스트~~ → 완료 2026-09-26 · `aa57faa`·`0ffa0f1`·`cec17b7` · `Component::Text3D`·`System::Text3DSystem`·`RenderBridge3D`(`PushWorldTexts`)·
   렌더러 `WorldTextSubmit`(D-222). 2D 와 같은 커널·아틀라스·레이아웃 캐시(`JBroTextRendering`)를 쓴다. 남긴 것은 text-plan §5 의 6 단계 끝에 있다.
+- ~~3D 스크립트 서비스가 없다(텍스트)~~ → 완료 2026-09-26 · `2e86bfe` · `Framework3DServiceContext`·`Text3DService`(D-224). 3D 의 첫 서비스 컨텍스트이고
+  `JBroFramework3D` 가 다시 정적 라이브러리다. 레이캐스트 같은 다른 3D 서비스는 같은 자리에 더한다.
 
 ## 편집
 
