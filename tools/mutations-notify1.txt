@@ -1,4 +1,4 @@
-﻿Modules\JBroEditor\Source\EditorNotifications.cpp	queue:no-limit	            if (onScreen >= MaxVisible)	            if (false)
+Modules\JBroEditor\Source\EditorNotifications.cpp	queue:no-limit	            if (onScreen >= MaxVisible)	            if (false)
 Modules\JBroEditor\Source\EditorNotifications.cpp	queue:leaving-holds-slot	            if (owned->phase == Phase::Entering || owned->phase == Phase::Shown)	            if (owned->phase != Phase::Waiting)
 Modules\JBroEditor\Source\EditorNotifications.cpp	notify:blank-title-accepted	        if (IsBlank(desc.title))\n        {\n            return InvalidNotificationHandle;	        if (false)\n        {\n            return InvalidNotificationHandle;
 Modules\JBroEditor\Source\EditorNotifications.cpp	clock:hover-does-not-pause	                if (entry.duration > 0.0f && false == entry.hovered && false == entry.dragging)	                if (entry.duration > 0.0f && false == entry.dragging)
@@ -31,4 +31,4 @@ Modules\JBroEditor\Source\Widget\Notification.cpp	widget:click-anywhere	        
 Modules\JBroEditor\Source\Widget\Notification.cpp	widget:no-margin	        const float right = viewport->WorkPos.x + viewport->WorkSize.x - style.margin;	        const float right = viewport->WorkPos.x + viewport->WorkSize.x;
 Modules\JBroEditor\Source\EditorApplication.cpp	editor:no-activate	            m_notifications.Activate(clicked, *this);	            (void)clicked;
 Modules\JBroEditor\Source\EditorApplication.cpp	editor:no-update	        m_notifications.Update(deltaTime);\n	\n
-Modules\JBroEditor\SourceditorNotifications.cpp	leave:space-follows-alpha-curve	            view.space = view.leaving ? entry.presence : 1.0f;	            view.space = view.leaving ? EaseOut(entry.presence) : 1.0f;
+Modules\JBroEditor\Source\EditorNotifications.cpp	leave:space-follows-alpha-curve	            view.space = view.leaving ? entry.presence : 1.0f;	            view.space = view.leaving ? EaseOut(entry.presence) : 1.0f;
