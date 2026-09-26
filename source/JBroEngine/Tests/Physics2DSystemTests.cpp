@@ -1172,6 +1172,15 @@ namespace
         Array<JBro::GameObjectHandle> found;
         queries.OverlapCircle({ 12, 12 }, 0.2f, found, JBro::AllPhysicsLayers);
         Check(found.Size() == 1 && scene.physics.GetLastQueryColliderCount() == 1, "a small circle looks at one collider");
+        // 원 콜라이더(중심 (9, 6), 반지름 0.5)의 가장자리만 걸치는 질의도 찾는다 - 경계는 반지름을 품는다.
+        queries.OverlapCircle({ 9.6f, 6.0f }, 0.2f, found, JBro::AllPhysicsLayers);
+        Check(found.Size() == 1, "a query touching only a circle's edge still finds it");
+        // 가로로 네 배 늘린 상자의 먼 끝도 찾는다 - 경계는 크기를 곱한다.
+        JBro::GameObject* stretched = scene.Object("stretched", { 40, 0 });
+        scene.TransformOf(stretched)->scale = { 4, 1 };
+        scene.Box(stretched, { 1, 1 });
+        Check(queries.OverlapPoint({ 41.8f, 0.0f }, JBro::AllPhysicsLayers).GetInstanceId() == stretched->GetInstanceId(),
+            "the far end of a scaled box is still found");
         Check(false == queries.Raycast({ 100, 100 }, { 0, 1 }, 5, hit, JBro::AllPhysicsLayers)
                 && scene.physics.GetLastQueryColliderCount() == 0,
             "a query far away looks at none");
