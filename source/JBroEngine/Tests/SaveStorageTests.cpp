@@ -1,5 +1,6 @@
 ﻿#include <JBro/Core/Log.h>
 #include <JBro/Host/SaveStorage.h>
+#include <JBro/Platform/Platform.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/SaveTypes/Service/SaveService.h>
@@ -48,6 +49,162 @@ namespace
             }
         }
         return count;
+    }
+
+    // 파일 일은 실제 플랫폼에 넘기되 쓰기와 바꿔 넣기를 일부러 실패시킨다. 쓰는 중에 꺼진 것과 다른 프로그램이 파일을 줄인 것을 흉내 낸다.
+    class FlakyFilePlatform final : public IPlatform
+    {
+    public:
+        bool Initialize(const JMemoryContext&) override
+        {
+            return true;
+        }
+
+        void Shutdown() override
+        {
+        }
+
+        WindowHandle OpenPlatformWindow(const WindowDesc&) override
+        {
+            return {};
+        }
+
+        void ClosePlatformWindow(WindowHandle) override
+        {
+        }
+
+        SurfaceHandle CreateSurface(WindowHandle) override
+        {
+            return {};
+        }
+
+        void PumpEvents() override
+        {
+        }
+
+        JArrayView<InputEvent> GetInputEvents() const override
+        {
+            return {};
+        }
+
+        void WaitForEvents(std::uint32_t) override
+        {
+        }
+
+        bool ShouldClose(WindowHandle) const override
+        {
+            return false;
+        }
+
+        bool GetWindowState(WindowHandle, WindowState&) const override
+        {
+            return false;
+        }
+
+        DynamicLibrary LoadDynamicLibrary(const char*) override
+        {
+            return {};
+        }
+
+        void* GetSymbol(DynamicLibrary, const char*) override
+        {
+            return nullptr;
+        }
+
+        void UnloadDynamicLibrary(DynamicLibrary) override
+        {
+        }
+
+        bool WriteWholeFile(const char* path, JArrayView<std::byte> contents) override
+        {
+            if (failWriteHalfway)
+            {
+                // 앞 절반만 쓰고 꺼진다.
+                inner.WriteWholeFile(path, {contents.data, contents.size / 2});
+                return false;
+            }
+            return inner.WriteWholeFile(path, contents);
+        }
+
+        bool MoveFileTo(const char* from, const char* to) override
+        {
+            return false == failMove && inner.MoveFileTo(from, to);
+        }
+
+        bool CreateDirectoryAt(const char* path) override
+        {
+            return inner.CreateDirectoryAt(path);
+        }
+
+        bool DeleteFileAt(const char* path) override
+        {
+            return inner.DeleteFileAt(path);
+        }
+
+        bool FileExists(const char* path) const override
+        {
+            return inner.FileExists(path);
+        }
+
+        OwnerPtr<IFileStream> OpenFileStream(const char* path) override
+        {
+            ++opens;
+            // 크기를 물은 뒤(첫 열기) 다른 프로그램이 파일을 줄였다.
+            if (shrinkAfterFirstOpen && opens == 2)
+            {
+                const char tail[] = "ab";
+                inner.WriteWholeFile(path, {reinterpret_cast<const std::byte*>(tail), 2});
+            }
+            return inner.OpenFileStream(path);
+        }
+
+        WindowsPlatform inner;
+        bool failWriteHalfway = false;
+        bool failMove = false;
+        bool shrinkAfterFirstOpen = false;
+        std::uint32_t opens = 0;
+    };
+
+    void TestAFailedWriteLeavesTheOldSaveAndNoSideFile()
+    {
+        FlakyFilePlatform platform;
+        const fs::path root = fs::temp_directory_path() / u8"JBroSaveFlakyProbe";
+        std::error_code error;
+        fs::remove_all(root, error);
+        SaveStorage storage(platform);
+        Check(storage.Open(Utf8(root).c_str()), "the flaky folder opens");
+        BindSaveSystemContext({SaveSystemContextAbiVersion, &storage});
+        const Service::SaveService save;
+        Check(save.WriteText("slot0.yaml", String("level: 3\n")), "the first save goes through");
+
+        platform.failWriteHalfway = true;
+        Check(false == save.WriteText("slot0.yaml", String("level: 4 and a much longer line\n")), "a write cut off halfway fails");
+        String text;
+        Check(save.ReadText("slot0.yaml", text) && text == "level: 3\n", "the old save is whole");
+        Check(false == fs::exists(root / u8"slot0.yaml.writing", error), "and the half-written side file is gone");
+        platform.failWriteHalfway = false;
+
+        platform.failMove = true;
+        Check(false == save.WriteText("slot0.yaml", String("level: 5\n")), "a swap that fails fails the write");
+        Check(save.ReadText("slot0.yaml", text) && text == "level: 3\n", "the old save is still whole");
+        Check(false == fs::exists(root / u8"slot0.yaml.writing", error), "and the finished side file is gone too");
+        platform.failMove = false;
+
+        // 실패한 읽기는 들고 있던 것을 남기지 않는다.
+        Array<std::byte> bytes;
+        bytes.Resize(5);
+        Check(false == save.ReadBytes("missing.bin", bytes) && bytes.IsEmpty(), "a failed read leaves nothing behind");
+
+        // 크기를 물은 뒤 파일이 줄었으면 읽은 만큼만 준다.
+        Check(save.WriteText("shrink.txt", String("0123456789")), "a longer file is written");
+        platform.opens = 0;
+        platform.shrinkAfterFirstOpen = true;
+        Check(save.ReadText("shrink.txt", text) && text == "ab", "a file that shrank between the two calls reads as what is there");
+        platform.shrinkAfterFirstOpen = false;
+
+        storage.Close();
+        BindSaveSystemContext({});
+        fs::remove_all(root, error);
     }
 
     void TestSlotNamesStayInsideTheFolder()
@@ -176,6 +333,7 @@ int RunSaveStorageTests()
     TestTheFolderIsNamedAfterTheProduct();
     TestThePlatformFindsTheUserFolder();
     TestSavesRoundTripAndReplaceWhole();
+    TestAFailedWriteLeavesTheOldSaveAndNoSideFile();
     Log::SetEchoToConsole(echo);
     std::cout << "Save storage tests passed.\n";
     return 0;

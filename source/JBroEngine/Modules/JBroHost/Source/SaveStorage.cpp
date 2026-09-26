@@ -104,7 +104,8 @@ namespace JBro
         }
         // 사람이 설정 창에 적는 값이라 공백·기호가 섞인다. 경로에 그대로 붙이면 플랫폼마다 다르게 깨진다(기존 `SanitizeProductName`).
         // 한글 같은 UTF-8 바이트는 둔다 - 파일 이름에 쓸 수 있다.
-        String product = (productName != nullptr && productName[0] != '\0') ? String(productName) : String(UnnamedProduct);
+        // 빈 이름은 다듬은 뒤(끝 공백만인 이름도 비게 된다) 한 번에 기본 이름으로 바꾼다.
+        String product = productName != nullptr ? String(productName) : String();
         for (char& c : product)
         {
             const unsigned char byte = static_cast<unsigned char>(c);
