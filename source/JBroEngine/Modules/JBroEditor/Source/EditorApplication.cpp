@@ -3071,7 +3071,7 @@ namespace JBro
         {
             DrawPanelMenuItem("ProjectSettings",
                 Loc::TextOr(LocKeys::MenuSettingsProject, "Project Settings"));
-            // 프로젝트가 아니라 이 사람의 에디터에 대한 설정이다(단축키 등, D-229).
+            // 프로젝트가 아니라 이 사람의 에디터에 대한 설정이다(단축키 등, D-230).
             DrawPanelMenuItem("EditorSettings",
                 Loc::TextOr(LocKeys::MenuSettingsEditor, "Editor Settings"));
             Widget::EndMenu();

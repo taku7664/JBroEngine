@@ -10823,7 +10823,7 @@ namespace
         editor.Shutdown();
     }
 
-    // **에디터 설정에서 조합 칸을 누르고 키를 누르면 그 키가 된다**(D-229). 잡는 동안 누른 Ctrl+S 는 저장하지 않고 조합이 되며,
+    // **에디터 설정에서 조합 칸을 누르고 키를 누르면 그 키가 된다**(D-230). 잡는 동안 누른 Ctrl+S 는 저장하지 않고 조합이 되며,
     // Esc 는 취소하고, 창을 닫으면 잡기가 풀린다. 기본값 단추가 되돌린다.
     void TestEditorSettingsRemapsAShortcutByPressingAKey()
     {
