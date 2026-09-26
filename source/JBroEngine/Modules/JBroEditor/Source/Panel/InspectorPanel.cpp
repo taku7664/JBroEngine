@@ -354,6 +354,7 @@ namespace JBro
                 }
                 // **컴포넌트마다 더한 항목**(D-220). 오브젝트 메뉴와 같은 표다. 이 메뉴는 이미 이 인스턴스의
                 // 것이므로 하위 메뉴 없이 늘어놓는다. 떼기는 무거운 손짓이라 그 아래 맨 끝에 남긴다.
+                // `Has` 는 주소를 만들기 전에 거르는 것일 뿐이다 - 항목이 없으면 `DrawItems` 는 구분선도 긋지 않는다.
                 ComponentMenuTable& menus = m_editor->GetComponentMenus();
                 ComponentMenuContext hookContext;
                 if (menus.Has(slot.typeId)
@@ -361,8 +362,7 @@ namespace JBro
                 {
                     hookContext.editor = m_editor;
                     hookContext.component = component;
-                    ImGui::Separator();
-                    if (false == menus.DrawItems(hookContext))
+                    if (false == menus.DrawItems(hookContext, true))
                     {
                         Widget::EndContextMenu();
                         ImGui::PopID();

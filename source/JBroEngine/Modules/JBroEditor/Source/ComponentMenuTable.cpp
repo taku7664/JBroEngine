@@ -100,7 +100,7 @@ namespace JBro
         return count;
     }
 
-    bool ComponentMenuTable::DrawItems(const ComponentMenuContext& context)
+    bool ComponentMenuTable::DrawItems(const ComponentMenuContext& context, bool separatorFirst)
     {
         const DrawScope scope(m_drawDepth);
         ComponentMenuContext itemContext = context;
@@ -111,7 +111,8 @@ namespace JBro
             {
                 continue;
             }
-            if (previousOwner != nullptr && previousOwner != entry.owner)
+            const bool first = previousOwner == nullptr;
+            if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))
             {
                 ImGui::Separator();
             }

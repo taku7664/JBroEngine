@@ -68,7 +68,9 @@ namespace JBro
         // `context.address.typeId` 의 항목을 등록 순서로 그린다. 등록자가 바뀌는 자리에 구분선을 넣는다.
         // 항목마다 `context.user` 를 그 등록의 값으로 바꿔 넘긴다. 어느 훅이든 거짓을 돌려주면 거기서 멈추고
         // 거짓이다. 이미 열린 메뉴 안에서 부른다.
-        bool DrawItems(const ComponentMenuContext& context);
+        // `separatorFirst` 가 참이면 **항목을 하나라도 그릴 때만** 맨 앞에 구분선을 넣는다 - 앞의 항목과 가르되,
+        // 그 타입에 항목이 없으면 빈 구분선이 겹쳐 서지 않는다.
+        bool DrawItems(const ComponentMenuContext& context, bool separatorFirst = false);
 
         bool IsDrawing() const;
 

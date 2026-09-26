@@ -143,15 +143,20 @@ namespace
         Stage(const Stage&) = delete;
         Stage& operator=(const Stage&) = delete;
 
-        bool Draw(ComponentMenuTable& table, const ComponentMenuContext& context)
+        bool Draw(ComponentMenuTable& table, const ComponentMenuContext& context, bool separatorFirst = false)
         {
             ImGui::NewFrame();
             ImGui::Begin("Menu");
-            const bool result = table.DrawItems(context);
+            cursorBefore = ImGui::GetCursorPosY();
+            const bool result = table.DrawItems(context, separatorFirst);
+            cursorAfter = ImGui::GetCursorPosY();
             ImGui::End();
             ImGui::Render();
             return result;
         }
+
+        float cursorBefore = 0.0f;
+        float cursorAfter = 0.0f;
 
     private:
         ImGuiContext* m_context = nullptr;
@@ -231,6 +236,27 @@ namespace
             "no separator after the change until the owner changes again");
     }
 
+    // 앞 구분선은 항목을 그릴 때만 선다. 항목이 없는 타입에서 그으면 빈 구분선이 앞의 것과 겹친다.
+    void TestALeadingSeparatorOnlyComesWithItems()
+    {
+        Stage stage;
+        ComponentMenuTable table;
+        Recorder recorder;
+        int owner = 0;
+        Slot slot1{ &recorder, 1 };
+        table.Register(TypeA, &DrawOk, &owner, &slot1);
+
+        stage.Draw(table, ContextFor(TypeA));
+        const float plain = recorder.calls[0].cursorY;
+        stage.Draw(table, ContextFor(TypeA), true);
+        Check(recorder.count == 2 && recorder.calls[1].cursorY > plain,
+            "asked for, a separator goes in front of the first item");
+
+        stage.Draw(table, ContextFor(TypeB), true);
+        Check(recorder.count == 2, "a type without entries draws nothing");
+        Check(stage.cursorAfter == stage.cursorBefore, "not even the leading separator");
+    }
+
     void TestAFailingHookStopsTheRest()
     {
         Stage stage;
@@ -307,6 +333,7 @@ int RunComponentMenuTableTests()
     TestBadEntriesAreRefused();
     TestItemsDrawInRegistrationOrderWithTheirOwnUser();
     TestASeparatorGoesWhereTheOwnerChanges();
+    TestALeadingSeparatorOnlyComesWithItems();
     TestAFailingHookStopsTheRest();
     TestUnregisterTakesOnlyThatOwnerAndKeepsTheOrder();
     TestTheTableCannotChangeWhileDrawing();
