@@ -25,8 +25,13 @@ namespace JBro
         // 출력 형식이다. 장치가 이 형식으로 당겨 간다(`Render`).
         std::uint32_t sampleRate = 48000;
         std::uint32_t channels = 2;
-        // 동시에 울릴 수 있는 보이스 수다(D-197, 기존 엔진 `MaxPolyphony` 와 같은 64). 다 차면 훔친다.
+        // 동시에 살아 있을 수 있는 보이스 수다(D-197, 기존 엔진 `MaxPolyphony` 와 같은 64). 다 차면 훔친다.
         std::uint32_t maxVoices = 64;
+        // 그 가운데 실제로 섞는 수다(D-235, 0 이면 `maxVoices` 와 같고 가상 보이스가 없다). 넘치면 들리는 크기가 작은 루프부터
+        // **가상**이 된다 - 자리와 핸들은 그대로 쥔 채 멈추고 재생 위치만 센다. 다시 순위에 들면 센 자리에서 페이드인으로 잇는다.
+        // 한 번짜리·디스크 스트리밍은 가상이 되지 않는다. 섞는 수가 찼을 때 한 번짜리가 오면 가장 약한 루프를 가상으로 돌리고,
+        // 그런 루프가 없으면 실제로 섞는 보이스 가운데서 훔친다.
+        std::uint32_t maxAudibleVoices = 0;
         // 등록할 수 있는 클립 수다. 에셋 하나가 클립 하나다.
         std::uint32_t maxClips = 1024;
         // 디스크 스트리밍(D-203). 여는 함수가 없으면 `File` 클립은 재생되지 않는다. 동시에 흘려 읽는 보이스는 `maxStreams`
@@ -103,6 +108,9 @@ namespace JBro
         std::uint32_t tag = 0;
     };
 
+    // 가상 보이스(D-235)가 한 번 바뀐 뒤 다시 바뀌기까지 지키는 시간(초)이다. 경계의 소리가 프레임마다 오가며 떨리지 않게 한다.
+    inline constexpr float AudioVirtualDwellSeconds = 0.25f;
+
     // 오디오의 믹서다(D-197·D-198). 안에 miniaudio `ma_engine`(장치 없음)이 있고 **밖에는 번호만 나간다.**
     //
     // **메인 스레드 전용이다.** 예외는 `Render` 하나이고 출력 장치의 오디오 스레드가 부른다. 재생 중에 쓰는 값은
@@ -118,6 +126,8 @@ namespace JBro
         struct Stats
         {
             std::uint32_t activeVoices = 0;
+            // `activeVoices` 가운데 가상인 수다(D-235). 섞는 비용이 없다.
+            std::uint32_t virtualVoices = 0;
             std::uint32_t maxVoices = 0;
             std::uint32_t registeredClips = 0;
             // 시작 이후 누계다.
@@ -128,6 +138,9 @@ namespace JBro
             std::uint64_t voicesCulled = 0;
             std::uint64_t voicesThrottled = 0;
             std::uint64_t voicesReplaced = 0;
+            // 가상이 되거나 다시 실제가 된 횟수의 누계다(D-235).
+            std::uint64_t voicesVirtualized = 0;
+            std::uint64_t voicesRealized = 0;
             // 고정 할당기가 모자라 힙에서 새로 받은 횟수다. 초기화 뒤에 늘면 예열이 모자란 것이다.
             std::uint64_t allocatorGrowths = 0;
             // 마지막 `Render` 의 최대 절댓값(클리핑 전). 에디터 미터가 읽는다.

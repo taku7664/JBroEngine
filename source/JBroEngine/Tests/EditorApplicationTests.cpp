@@ -6029,9 +6029,11 @@ namespace
         Check(false == editor.IsSelected(far_), "and not the one outside it");
 
         // **끌지 않고 누른 것은 상자가 아니다.** 빈 곳을 한 번 누르면 선택이 풀린다.
+        // 빈 곳은 뷰 크기에서 고른다. 가운데에서 고정 150 px 위였는데, 창 바닥에 상태 표시줄이 서며(D-236) 뷰가 짧아지자
+        // 그 점이 탭 줄 위로 올라가 뷰를 누르지 못했다. 오른쪽 가장자리 가까이, 오브젝트 줄보다 조금 아래는 늘 비어 있다.
         Spot empty;
-        empty.x = static_cast<int>(centerX);
-        empty.y = static_cast<int>(centerY - 150.0f);
+        empty.x = static_cast<int>(centerX + view->Size.x * 0.4f);
+        empty.y = static_cast<int>(centerY + 60.0f);
         ClickAt(editor, hwnd, empty);
         Check(editor.GetSelectionCount() == 0,
             "a plain click on empty space clears the selection instead of boxing nothing");
@@ -7678,10 +7680,17 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        // 화면 한가운데가 월드 원점이고, 세로 절반이 5 유닛이다.
-        const float centerX = view->Pos.x + view->Size.x * 0.5f;
-        const float centerY = view->Pos.y + view->Size.y * 0.5f;
-        const float pixelsPerUnit = view->Size.y * 0.5f / 5.0f;
+        // 월드 원점과 배율은 캔버스 뷰에게 묻는다. 창 가운데를 원점으로, 창 높이로 배율을 어림하던 것은 탭 줄과
+        // 도구 줄 몫만큼 어긋나 여유가 몇 px 뿐이었고, 창 바닥에 상태 표시줄이 서며(D-236) 뷰가 짧아지자 그림 밖을 눌렀다.
+        float centerX = 0.0f;
+        float centerY = 0.0f;
+        float unitX = 0.0f;
+        float unitY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, centerX, centerY)
+                && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
+            "the canvas view must map world points to the screen");
+        const float pixelsPerUnit = unitX - centerX;
+        Check(pixelsPerUnit > 1.0f, "one world unit must be some pixels wide");
 
         Spot inside;
         inside.x = static_cast<int>(centerX);
@@ -7763,9 +7772,10 @@ namespace
         }
 
         // 두 유닛 옆은 **그림 밖**이다. 예전 셈으로는 아직 한참 안쪽이었다.
+        // 원점과 같은 높이는 고른 것의 기즈모 X 축 위라, 한 유닛 반 위로 비켜 누른다(그림은 ±1 유닛이라 여전히 밖이다).
         Spot outside;
         outside.x = static_cast<int>(centerX + pixelsPerUnit * 2.0f);
-        outside.y = static_cast<int>(centerY);
+        outside.y = static_cast<int>(centerY - pixelsPerUnit * 1.5f);
         ClickAt(editor, hwnd, outside);
         Check(editor.GetSelectedObject() == nullptr,
             "and two units to the side is outside the picture, so nothing is picked");
@@ -10201,7 +10211,7 @@ namespace
 
     // **게임 언어**(D-226). 프로젝트의 기본 언어로 열리고, 새 문자열 표는 그 언어를 메타에 적고, 인스펙터가 로케일 칸을 보인다.
     // 캔버스 뷰의 미리보기 고르기는 게임 언어가 있을 때 도구 줄에 있고, 재생이 끝나면 게임이 바꾼 로케일이 재생 전으로 돌아간다.
-    // **에디터의 화면 레이어**(D-233, ui-plan 2 단계). 레이어를 화면 레이어로 바꾸면 루트가 게임 화면에서 보이던 자리(기준 픽셀)로 옮겨지고,
+    // **에디터의 화면 레이어**(D-237, ui-plan 2 단계). 레이어를 화면 레이어로 바꾸면 루트가 게임 화면에서 보이던 자리(기준 픽셀)로 옮겨지고,
     // 되돌리면 공간과 자리가 함께 돌아온다. 맞춤 방식만 바꾸면 자리는 그대로다. 화면 레이어의 오브젝트를 고르면 캔버스 뷰가 UI 보기로 가고,
     // 지운 화면 레이어를 되살리면 화면 레이어로 돌아온다.
     void TestScreenLayersInTheEditor()

@@ -80,6 +80,7 @@ int RunTextLayoutTests();
 int RunGlyphAtlasTests();
 int RunTextRenderTests();
 int RunTaskManagerTests();
+int RunEditorLoadingTests();
 
 int main()
 {
@@ -201,6 +202,16 @@ int main()
         }
         // 태스크 관리자는 몇 초 안에 끝난다(D-209).
         if (RunTaskManagerTests() != 0)
+        {
+            return 1;
+        }
+        // 에디터 로딩과 상태 표시줄(D-236). 에디터를 두 번 띄울 뿐이라 앞에 둔다.
+        if (RunEditorLoadingTests() != 0)
+        {
+            return 1;
+        }
+        // 에셋 시스템도 몇 초다. 워커 로드(D-236)의 뮤테이션이 스위트 끝까지 기다리지 않게 여기로 당겼다.
+        if (RunAssetSystemTests() != 0)
         {
             return 1;
         }
@@ -385,10 +396,6 @@ int main()
             return 1;
         }
         if (RunAssetRegistryTests() != 0)
-        {
-            return 1;
-        }
-        if (RunAssetSystemTests() != 0)
         {
             return 1;
         }

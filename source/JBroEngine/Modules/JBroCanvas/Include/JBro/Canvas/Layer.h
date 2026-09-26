@@ -12,7 +12,7 @@ namespace JBro
     // 합성 순서. 렌더 정렬 키의 최상위 필드라 매 오브젝트가 읽는다.
     using LayerOrder = std::uint16_t;
 
-    // 레이어가 그려지는 공간이다(D-233, ui-plan §2.1). `Screen` 은 카메라와 무관한 화면 좌표(기준 해상도의 픽셀)이고 월드 뒤에 그려진다.
+    // 레이어가 그려지는 공간이다(D-237, ui-plan §2.1). `Screen` 은 카메라와 무관한 화면 좌표(기준 해상도의 픽셀)이고 월드 뒤에 그려진다.
     enum class LayerSpace : std::uint8_t
     {
         World,

@@ -21,7 +21,7 @@ namespace JBro
     {
         float widthUnits = 0.0f;
         float heightUnits = 0.0f;
-        // 프레임의 픽셀 크기다. 화면 레이어(D-233)는 PPU 대신 이것을 쓴다 - 그 좌표가 기준 해상도의 픽셀이다.
+        // 프레임의 픽셀 크기다. 화면 레이어(D-237)는 PPU 대신 이것을 쓴다 - 그 좌표가 기준 해상도의 픽셀이다.
         float widthPixels = 0.0f;
         float heightPixels = 0.0f;
         float pivotX = 0.5f;

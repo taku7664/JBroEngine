@@ -43,9 +43,12 @@ namespace JBro
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         void Shutdown() override;
         void BindCanvasAssets() override;
+        void CollectCanvasAssetIds(Array<AssetId>& ids) override;
 
         // 물리의 좁은 판정을 나눌 워커 수(D-223). 호스트가 프로젝트를 연 뒤 `ResolvePhysicsWorkerCount` 로 푼 값을 넘긴다.
         void           SetPhysicsWorkerCount(std::uint32_t count);
+        // 물리 레이어 충돌 표를 캔버스의 물리에 넘긴다(D-233). 행 i 의 비트 j 는 레이어 i 와 j 가 서로 지나간다.
+        void           SetPhysicsIgnoredLayers(const std::uint32_t (&rows)[32]);
         std::uint32_t  GetPhysicsWorkerCount();
         Canvas*        GetCanvas();
         RenderWorld2D* GetRenderWorld();
@@ -67,7 +70,7 @@ namespace JBro
         Array<AssetHandle> m_canvasAssets;
         Table<LayerId, OwnerPtr<Layer2D>> m_layer2DStates;
         RenderWorld2D    m_renderWorld;
-        // 호스트가 준 화면 기준이다(D-233). 대상 크기가 0 이면(호스트가 주지 않은 시험) 렌더러의 프레임 크기를 쓴다.
+        // 호스트가 준 화면 기준이다(D-237). 대상 크기가 0 이면(호스트가 주지 않은 시험) 렌더러의 프레임 크기를 쓴다.
         ScreenSpaceFrame m_screenSpace;
         // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
         SpriteLibrary    m_spriteLibrary;

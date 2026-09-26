@@ -874,7 +874,7 @@ namespace
         Check(false == layer->IsVisible(), "a hidden layer must come back hidden");
     }
 
-    // **화면 레이어가 파일을 오간다**(D-233). 공간과 맞춤 방식을 적고, 기본값(월드·FixedHeight)이면 적지 않는다. 앵커도 오간다.
+    // **화면 레이어가 파일을 오간다**(D-237). 공간과 맞춤 방식을 적고, 기본값(월드·FixedHeight)이면 적지 않는다. 앵커도 오간다.
     void TestScreenLayersComeBack()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();

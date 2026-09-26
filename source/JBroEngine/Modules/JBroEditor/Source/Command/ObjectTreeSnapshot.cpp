@@ -2,7 +2,9 @@
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Types/NameTable.h>
 
 #include <utility>
@@ -26,6 +28,8 @@ namespace JBro
         entry.flags = object.GetFlags();
         entry.layer = object.GetLayerId();
         entry.parentIndex = parentIndex;
+        entry.instanceId = object.GetInstanceId();
+        entry.sourceInstanceId = entry.instanceId;
 
         const Array<ComponentSlot>& components = object.GetComponents();
         for (std::size_t index = 0; index < components.Size(); ++index)
@@ -71,11 +75,13 @@ namespace JBro
         for (std::size_t index = 0; index < objects.Size(); ++index)
         {
             ObjectSnapshotEntry& entry = objects[index];
-            GameObject* object = canvas.CreateObject(entry.name.c_str());
+            // 되살리기는 옛 번호로, 붙여넣기의 첫 실행은 새 번호로 만든다. 다시 하기는 첫 실행이 받은 번호를 다시 쓴다.
+            GameObject* object = canvas.CreateObject(entry.name.c_str(), rebind ? entry.instanceId : InvalidInstanceId);
             if (object == nullptr)
             {
                 return false;
             }
+            entry.instanceId = object->GetInstanceId();
             GameObject* parent = entry.parentIndex < 0
                 ? outerParent
                 : created[static_cast<std::size_t>(entry.parentIndex)];
@@ -122,7 +128,53 @@ namespace JBro
                 }
             }
         }
+        RetargetReferences(created);
         return true;
+    }
+
+    void ObjectTreeSnapshot::RetargetReferences(const Array<GameObject*>& created) const
+    {
+        // **나무 안의 참조는 나무 안의 새 오브젝트로 옮긴다**(D-233). 붙여넣은 조인트가 원본의 상대를 붙잡지 않고 함께 붙여넣은
+        // 상대를 잡는다. 나무 밖을 가리키는 참조는 그대로 둔다. 맨 위 필드만 본다 - 참조 필드를 가진 컴포넌트가 그렇게 선언한다.
+        bool moved = false;
+        for (std::size_t index = 0; index < objects.Size(); ++index)
+        {
+            moved = moved || objects[index].sourceInstanceId != objects[index].instanceId;
+        }
+        if (false == moved)
+        {
+            return;
+        }
+        const NameId handleType = NameTable::Get().Intern("JBro.GameObjectHandle");
+        for (GameObject* object : created)
+        {
+            for (const ComponentSlot& slot : object->GetComponents())
+            {
+                ComponentBase* component = slot.reference.TryGet();
+                const PropertyTable* table = component != nullptr ? PropertyRegistry::Lookup(component->GetTypeId()) : nullptr;
+                if (table == nullptr)
+                {
+                    continue;
+                }
+                for (std::uint32_t p = 0; p < table->count; ++p)
+                {
+                    const PropertyInfo& property = table->properties[p];
+                    if (property.type == nullptr || property.type->typeName != handleType || property.Address == nullptr)
+                    {
+                        continue;
+                    }
+                    GameObjectHandle& handle = *static_cast<GameObjectHandle*>(property.Address(component));
+                    for (const ObjectSnapshotEntry& entry : objects)
+                    {
+                        if (entry.sourceInstanceId != InvalidInstanceId && handle.GetInstanceId() == entry.sourceInstanceId)
+                        {
+                            handle = Internal::GameObjectHandleAccess::FromId(entry.instanceId);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     bool ObjectTreeSnapshot::DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const

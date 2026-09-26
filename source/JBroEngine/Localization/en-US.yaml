@@ -162,6 +162,10 @@ Entries:
   inspector.audio_off: "Audio is off in this editor"
   inspector.audio_unreadable: "This audio file could not be read"
   inspector.audio_bus_missing: "Not one of the project's audio buses - it plays on Master"
+  inspector.layers_everything: "Everything"
+  inspector.layers_nothing: "Nothing"
+  inspector.object_none: "None"
+  inspector.object_missing: "Missing object"
   project_settings.audio: "Audio"
   project_settings.audio_effect_ratio_off: "1 turns it off"
   project_settings.audio_duck_help: "While that bus sounds, this one steps back (e.g. music under dialogue)"
@@ -174,6 +178,11 @@ Entries:
   project_settings.physics_threads_help: "Auto picks the worker count from the colliders in the build canvases when the game starts. Platforms without threads (web) always run on a single thread"
   project_settings.physics_recommend: "Use Recommended"
   project_settings.physics_recommend_help: "Counts the colliders in the build canvases and fixes the recommended worker count"
+  project_settings.physics: "Physics"
+  project_settings.physics_layers: "Layer Names"
+  project_settings.physics_layers_help: "The names colliders' layer and mask fields pick from. The number in front is the bit"
+  project_settings.physics_matrix: "Layer Collisions"
+  project_settings.physics_matrix_help: "Clear a box to let two layers pass through each other. Only named layers are shown"
   project_settings.audio_mute_help: "Mutes the sound while the window is not focused"
   project_settings.audio_routing: "Routing"
   project_settings.audio_no_send: "None"
@@ -182,6 +191,7 @@ Entries:
   stats.audio_solo: "Solo - hear only this bus while mixing"
   stats.audio_buses: "Buses"
   stats.audio_saved: "skipped %llu inaudible play(s), held back %llu by instance limit or cooldown, replaced %llu"
+  stats.audio_virtual: "%u virtual voice(s) - too quiet or crowded out, counted but not mixed"
   stats.audio_voices: "voices %u / %u, peak %.2f"
   stats.audio_device: "audio device %s"
   stats.audio_no_device: "no audio device - sounds are mixed but not heard"
@@ -219,6 +229,11 @@ Entries:
   log.info: Info
   log.warning: Warning
   log.error: Error
+  task.load_canvas: Loading canvas assets
+  notify.canvas_assets_failed_title: Some assets could not be loaded
+  notify.canvas_assets_failed_message: "%u file(s) could not be loaded - %s"
+  status_bar.show_tasks: Show the task list
+  status_bar.open_log: Open the log
   menu.open_project: Open Project
   menu.window_editor: Editor
   menu.window_importer: Importer

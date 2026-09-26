@@ -108,7 +108,7 @@ namespace JBro::System
                 return;
             }
 
-            // **화면 레이어의 루트는 앵커 점에서 시작한다**(D-233). 점을 부모 행렬로 넣는다 - `position` 을 덮지 않는다. 화면 기준이 아직
+            // **화면 레이어의 루트는 앵커 점에서 시작한다**(D-237). 점을 부모 행렬로 넣는다 - `position` 을 덮지 않는다. 화면 기준이 아직
             // 없으면(대상 크기 0) 원점이다.
             Matrix3x2 parent;
             const Layer* layer = owner->GetLayer();

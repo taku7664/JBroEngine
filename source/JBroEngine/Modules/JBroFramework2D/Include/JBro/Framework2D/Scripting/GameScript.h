@@ -21,9 +21,12 @@ namespace JBro
         ~GameScript2D() override = default;
 
         virtual void OnCollisionEnter(const Collision2D& hit);
+        // 닿아 있는 동안 고정 스텝마다 불린다(시작한 스텝은 Enter 만). 두 몸이 모두 멈춰 있거나 잠들면 불리지 않는다(D-233).
+        virtual void OnCollisionStay(const Collision2D& hit);
         virtual void OnCollisionExit(const Collision2D& hit);
         // 트리거는 밀지 않고 알리기만 한다. 넘어오는 point·normal 은 0 이다.
         virtual void OnTriggerEnter(const Collision2D& hit);
+        virtual void OnTriggerStay(const Collision2D& hit);
         virtual void OnTriggerExit(const Collision2D& hit);
     };
 

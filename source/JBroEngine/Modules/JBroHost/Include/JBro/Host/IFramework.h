@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Core/Core.h>
 #include <JBro/RHI/RHI.h>
@@ -47,7 +48,7 @@ namespace JBro
         // 두 화면의 배율을 같은 수로 견줄 수 있다.
         float orthographicSize = 5.0f;
         float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
-        // 참이면 화면 레이어만 그린다(UI 보기, D-233). 가운데·크기는 기준 픽셀이다. 거짓이면 월드 레이어만 그린다.
+        // 참이면 화면 레이어만 그린다(UI 보기, D-237). 가운데·크기는 기준 픽셀이다. 거짓이면 월드 레이어만 그린다.
         bool screenSpace = false;
 
         // ── 3D 만 쓰는 값 ────────────────────────────────────────────
@@ -102,7 +103,7 @@ namespace JBro
         {
             return {};
         }
-        // 이번 프레임의 화면 기준이다(D-233): 프로젝트의 기준 해상도와 게임이 그려지는 크기. 호스트가 `Update` 앞에서 부른다 - 화면 레이어의 앵커가
+        // 이번 프레임의 화면 기준이다(D-237): 프로젝트의 기준 해상도와 게임이 그려지는 크기. 호스트가 `Update` 앞에서 부른다 - 화면 레이어의 앵커가
         // 그 프레임의 크기로 잰다(기존 엔진은 그린 뒤에 알려 첫 프레임이 0 이었다). 화면 레이어가 없는 프레임워크는 무시한다.
         virtual void SetScreenSpace(const ScreenSpaceFrame& frame)
         {
@@ -132,6 +133,12 @@ namespace JBro
         // 캔버스나 에셋 시스템이 없는 프레임워크(테스트의 가짜)는 아무것도 하지 않는다.
         virtual void BindCanvasAssets()
         {
+        }
+        // 해석 패스가 볼 에셋 아이디를 모은다(D-236). 싣지 않는다 - 워커 로드가 캔버스를 열 때 무엇을 읽을지 알려고 쓴다.
+        // 캔버스나 에셋 시스템이 없는 프레임워크는 아무것도 더하지 않는다.
+        virtual void CollectCanvasAssetIds(Array<AssetId>& ids)
+        {
+            (void)ids;
         }
     };
 }

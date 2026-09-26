@@ -23,7 +23,9 @@
 #include <JBro/Framework2DSystem/PhysicsThreads.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Host/AssetLoad.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Host/GameBuild.h>
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Canvas/ScreenSpace.h>
@@ -34,6 +36,8 @@
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Notification.h>
+#include <JBro/Editor/Widget/Scalar.h>
+#include <JBro/Editor/Widget/TaskProgress.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Canvas/Canvas.h>
@@ -212,6 +216,8 @@ namespace JBro
             engineConfig.fixedDeltaTime = config.fixedDeltaTime;
             engineConfig.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
             engineConfig.enableValidation = config.enableValidation;
+            engineConfig.tasks.workerCount = config.taskWorkerCount;
+            engineConfig.tasks.useWorkers = config.taskWorkers;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
             // 에디터에서 재생한 게임의 세이브는 실제 게임의 것과 다른 폴더다(D-218).
@@ -416,7 +422,7 @@ namespace JBro
         // 이 프로젝트의 에셋 시스템에 그림·외곽선 캐시를 잇는다(D-165).
         BindAssetTools();
         // 재생도 게임과 같은 물리 스레드로 돈다(D-223).
-        ApplyPhysicsThreads();
+        ApplyPhysicsSettings();
 
         // ── 세션을 되살린다(D-146) ──────────────────────────────────────────
         const ProjectFile& file = GetProjectFile();
@@ -435,7 +441,8 @@ namespace JBro
             // 지워진 파일 하나 때문에 프로젝트가 열리지 않으면 고칠 방법도 없다.
             const String canvasPath = JoinPath(GetAssetRoot(), file.lastOpenedCanvasPath.c_str());
             CanvasFileError canvasError;
-            if (LoadCanvas(canvasPath.c_str(), canvasError))
+            // 에셋은 워커가 읽는다(D-217 의 첫 사용처). 캔버스는 곧바로 보이고 그림은 로드가 끝나는 틱에 붙는다.
+            if (LoadCanvasAsync(canvasPath.c_str(), canvasError))
             {
                 Log::Write(LogLevel::Info, "editor", "opened the canvas from last time: %s",
                     file.lastOpenedCanvasPath.c_str());
@@ -1125,7 +1132,7 @@ namespace JBro
             return false;
         }
         m_engine->SetProjectFile(reloaded);
-        ApplyPhysicsThreads();
+        ApplyPhysicsSettings();
         return true;
     }
 
@@ -1138,14 +1145,17 @@ namespace JBro
         return RecommendProjectPhysicsWorkers(*m_platform, GetProjectFile(), m_projectFilePath.c_str());
     }
 
-    void EditorApplication::ApplyPhysicsThreads()
+    void EditorApplication::ApplyPhysicsSettings()
     {
         if (m_frameworkKind != FrameworkKind::Framework2D || m_framework.Get() == nullptr || m_projectFilePath.empty())
         {
             return;
         }
-        static_cast<Framework2D*>(m_framework.Get())->SetPhysicsWorkerCount(
-            ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
+        Framework2D& framework = *static_cast<Framework2D*>(m_framework.Get());
+        framework.SetPhysicsWorkerCount(ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
+        std::uint32_t ignored[32] = {};
+        ResolvePhysicsIgnoredLayers(GetProjectFile(), ignored);
+        framework.SetPhysicsIgnoredLayers(ignored);
     }
 
     const AssetRegistry& EditorApplication::GetAssetRegistry() const
@@ -1157,6 +1167,11 @@ namespace JBro
     AssetSystem* EditorApplication::GetAssetSystem()
     {
         return m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr;
+    }
+
+    TaskManager* EditorApplication::GetTaskManager()
+    {
+        return m_engine.Get() != nullptr ? m_engine->GetTaskManager() : nullptr;
     }
 
     System::AudioSystem* EditorApplication::GetAudio()
@@ -1318,6 +1333,150 @@ namespace JBro
 
     bool EditorApplication::LoadCanvas(const char* path, CanvasFileError& error)
     {
+        CancelCanvasLoad();
+        if (false == ReadCanvasFile(path, error))
+        {
+            return false;
+        }
+        // 해석 패스는 프레임워크의 것이다(D-115). 게임 호스트도 같은 것을 부른다.
+        m_framework->BindCanvasAssets();
+        return true;
+    }
+
+    bool EditorApplication::LoadCanvasAsync(const char* path, CanvasFileError& error)
+    {
+        CancelCanvasLoad();
+        if (false == ReadCanvasFile(path, error))
+        {
+            return false;
+        }
+        TaskManager* tasks = m_engine->GetTaskManager();
+        AssetSystem* assets = m_engine->GetAssetSystem();
+        if (tasks == nullptr || assets == nullptr || false == assets->IsBound())
+        {
+            m_framework->BindCanvasAssets();
+            return true;
+        }
+        Array<AssetId> ids;
+        m_framework->CollectCanvasAssetIds(ids);
+        m_canvasLoad = MakeOwnerPtr<AssetLoadResult>();
+        m_canvasLoadGroup = SubmitAssetLoad(*tasks, *assets,
+            ArrayView<const AssetId>(ids.Data(), ids.Size()), LocKeys::TaskLoadCanvas, *m_canvasLoad);
+        if (m_canvasLoadGroup == InvalidTaskGroupId)
+        {
+            CompleteCanvasLoad();
+        }
+        return true;
+    }
+
+    bool EditorApplication::IsCanvasLoading() const
+    {
+        return m_canvasLoad.Get() != nullptr;
+    }
+
+    TaskGroupId EditorApplication::GetCanvasLoadGroup() const
+    {
+        return m_canvasLoadGroup;
+    }
+
+    void EditorApplication::FinishCanvasLoadNow()
+    {
+        if (m_canvasLoad.Get() == nullptr)
+        {
+            return;
+        }
+        if (TaskManager* tasks = m_engine->GetTaskManager())
+        {
+            tasks->Wait(m_canvasLoadGroup);
+        }
+        CompleteCanvasLoad();
+    }
+
+    void EditorApplication::PollCanvasLoad()
+    {
+        if (m_canvasLoad.Get() != nullptr && m_canvasLoad->finished)
+        {
+            CompleteCanvasLoad();
+        }
+    }
+
+    namespace
+    {
+        // 로드 실패 알림을 누르면 로그 창을 연다. 사유가 한 줄씩 거기에 있다(`AdoptDecoded` 가 남긴다).
+        class OpenLogAction final : public NotificationAction
+        {
+        public:
+            void OnClick(EditorApplication& editor) override
+            {
+                if (EditorPanel* log = editor.FindPanel("Log"))
+                {
+                    log->SetOpen(true);
+                    log->RequestFocus();
+                }
+            }
+        };
+    }
+
+    void EditorApplication::CompleteCanvasLoad()
+    {
+        if (m_canvasLoad.Get() == nullptr)
+        {
+            return;
+        }
+        AssetLoadResult& result = *m_canvasLoad;
+        if (false == result.canceled && m_framework.Get() != nullptr)
+        {
+            // 워커가 실은 것은 이미 풀에 있다. 여기서 `Load` 는 찾아 참조만 올린다.
+            m_framework->BindCanvasAssets();
+        }
+        if (AssetSystem* assets = m_engine->GetAssetSystem())
+        {
+            // 바인딩이 잡은 뒤에 놓는다. 그사이 컴포넌트가 지워져 아무도 잡지 않게 된 것은 여기서 내려간다.
+            assets->ReleaseAll(result.held);
+            assets->CollectUnused();
+        }
+        if (result.failed > 0)
+        {
+            // 실패만 알린다. 성공까지 띄우면 캔버스를 열 때마다 알림이 쌓여 소음이 된다(D-208).
+            char message[512];
+            std::snprintf(message, sizeof(message),
+                Loc::TextOr(LocKeys::NotifyCanvasAssetsFailedMessage, "%u file(s) could not be loaded - %s"),
+                result.failed, result.firstFailure.c_str());
+            NotificationDesc desc;
+            desc.level = NotificationLevel::Warning;
+            desc.title = Loc::TextOr(LocKeys::NotifyCanvasAssetsFailedTitle, "Some assets could not be loaded");
+            desc.message = message;
+            desc.action = MakeOwnerPtr<OpenLogAction>();
+            m_notifications.Notify(std::move(desc));
+        }
+        m_canvasLoad.Reset();
+        m_canvasLoadGroup = InvalidTaskGroupId;
+    }
+
+    void EditorApplication::CancelCanvasLoad()
+    {
+        if (m_canvasLoad.Get() == nullptr)
+        {
+            return;
+        }
+        if (TaskManager* tasks = m_engine.Get() != nullptr ? m_engine->GetTaskManager() : nullptr)
+        {
+            if (TaskGroup* group = tasks->FindGroup(m_canvasLoadGroup))
+            {
+                group->RequestCancel();
+            }
+            tasks->Wait(m_canvasLoadGroup);
+        }
+        if (AssetSystem* assets = m_engine.Get() != nullptr ? m_engine->GetAssetSystem() : nullptr)
+        {
+            assets->ReleaseAll(m_canvasLoad->held);
+        }
+        m_canvasLoad.Reset();
+        m_canvasLoadGroup = InvalidTaskGroupId;
+    }
+
+    bool EditorApplication::ReadCanvasFile(const char* path, CanvasFileError& error)
+    {
         error = CanvasFileError{};
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr)
@@ -1342,8 +1501,6 @@ namespace JBro
             return false;
         }
         m_canvasPath = path;
-        // 해석 패스는 프레임워크의 것이다(D-115). 게임 호스트도 같은 것을 부른다.
-        m_framework->BindCanvasAssets();
         return true;
     }
 
@@ -2247,7 +2404,7 @@ namespace JBro
         }
         const String absolute = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
         CanvasFileError error;
-        if (false == LoadCanvas(absolute.c_str(), error))
+        if (false == LoadCanvasAsync(absolute.c_str(), error))
         {
             // **빈 채로 남는다.** 읽다 만 것을 섞어 두는 것보다 낫고, 무엇이 잘못됐는지는 로그가 말한다.
             Log::Write(LogLevel::Error, "editor", "the canvas could not be opened: %s (%s)",
@@ -3309,10 +3466,11 @@ namespace JBro
     void EditorApplication::DrawRootDock(const Extent2D& display)
     {
         // **창 전체를 덮는 도크 뿌리다**(D-134). 기존 엔진의 `CRootDockWindow` 자리이고,
-        // 여기에는 **메인 도크 하나만** 붙는다 - 도구 창은 그 안쪽에 붙는다.
+        // 여기에는 **메인 도크 하나만** 붙는다 - 도구 창은 그 안쪽에 붙는다. 바닥 한 줄은 상태 표시줄이 쓴다(13 번).
+        const float statusHeight = StatusBarHeight();
+        const float rootHeight = std::max(1.0f, static_cast<float>(display.height) - statusHeight);
         ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-        ImGui::SetNextWindowSize(ImVec2(
-            static_cast<float>(display.width), static_cast<float>(display.height)));
+        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(display.width), rootHeight));
         ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
@@ -3335,9 +3493,7 @@ namespace JBro
             ImGui::DockBuilderAddNode(rootDock,
                 ImGuiDockNodeFlags_DockSpace | EditorDockNodeFlags
                     | ImGuiDockNodeFlags_AutoHideTabBar);
-            ImGui::DockBuilderSetNodeSize(rootDock, ImVec2(
-                static_cast<float>(display.width),
-                static_cast<float>(display.height)));
+            ImGui::DockBuilderSetNodeSize(rootDock, ImVec2(static_cast<float>(display.width), rootHeight));
             ImGui::DockBuilderDockWindow(MainDockLabel, rootDock);
             ImGui::DockBuilderFinish(rootDock);
             m_rootLayoutBuilt = true;
@@ -3351,6 +3507,114 @@ namespace JBro
         // 늘 하나인 탭은 이름만 보여 주고 한 줄을 먹는다.
         ImGui::DockSpace(rootDock, ImVec2(0.0f, 0.0f),
             EditorDockNodeFlags | ImGuiDockNodeFlags_AutoHideTabBar, &RootDockClass());
+        ImGui::End();
+        DrawStatusBar(display, statusHeight);
+    }
+
+    float EditorApplication::StatusBarHeight() const
+    {
+        return ImGui::GetFrameHeight() + 4.0f;
+    }
+
+    void EditorApplication::DrawStatusBar(const Extent2D& display, float height)
+    {
+        // **창 바닥의 한 줄이다**(13 번). 왼쪽에 도는 태스크 묶음(가장 먼저 온 것과 나머지 수), 오른쪽에 마지막 알림이 선다.
+        // 묶음을 누르면 그 위에 태스크 목록을 펼치고(D-217 의 "로딩 바 아래 목록"), 알림을 누르면 로그 창을 연다.
+        const float top = static_cast<float>(display.height) - height;
+        ImGui::SetNextWindowPos(ImVec2(0.0f, top));
+        ImGui::SetNextWindowSize(ImVec2(static_cast<float>(display.width), height));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 2.0f));
+        // 창의 최소 크기(기본 32)가 한 줄보다 커서, 풀지 않으면 띠가 창 아래로 삐져나간다(실측: 25 를 달라 해 30 이 섰다).
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
+        ImGui::Begin("##EditorStatusBar", nullptr,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking
+                | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
+                | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoScrollbar);
+        ImGui::PopStyleVar(4);
+
+        const TaskManager* tasks = m_engine.Get() != nullptr ? m_engine->GetTaskManager() : nullptr;
+        TaskGroupId first = InvalidTaskGroupId;
+        std::uint32_t running = 0;
+        if (tasks != nullptr)
+        {
+            for (std::uint32_t index = 0; index < tasks->GetGroupCount(); ++index)
+            {
+                const TaskGroup& group = tasks->GetGroupAt(index);
+                if (group.IsFinished())
+                {
+                    continue;
+                }
+                if (running == 0)
+                {
+                    first = group.GetId();
+                }
+                ++running;
+            }
+        }
+        if (running == 0)
+        {
+            m_taskListOpen = false;
+        }
+        else
+        {
+            if (Widget::TaskStatusItem(*tasks, first, running - 1, 160.0f))
+            {
+                m_taskListOpen = false == m_taskListOpen;
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::StatusBarShowTasks, "Show the task list"));
+        }
+
+        const char* last = m_notifications.GetLastTitle();
+        if (false == Widget::IsEmptyText(last))
+        {
+            Widget::Severity severity = Widget::Severity::Info;
+            switch (m_notifications.GetLastLevel())
+            {
+            case NotificationLevel::Success:
+                severity = Widget::Severity::Success;
+                break;
+            case NotificationLevel::Warning:
+                severity = Widget::Severity::Warning;
+                break;
+            case NotificationLevel::Error:
+                severity = Widget::Severity::Error;
+                break;
+            default:
+                break;
+            }
+            if (Widget::StatusMessage(last, severity))
+            {
+                if (EditorPanel* log = FindPanel("Log"))
+                {
+                    log->SetOpen(true);
+                    log->RequestFocus();
+                }
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::StatusBarOpenLog, "Open the log"));
+        }
+        ImGui::End();
+
+        if (false == m_taskListOpen || tasks == nullptr)
+        {
+            return;
+        }
+        // 펼친 목록은 상태 표시줄 바로 위, 왼쪽에 붙는다. 도는 묶음마다 로딩 바와 그 아래 태스크 목록이다.
+        ImGui::SetNextWindowPos(ImVec2(8.0f, top - 4.0f), ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+        ImGui::SetNextWindowSize(ImVec2(380.0f, 0.0f));
+        ImGui::Begin("##EditorTaskList", nullptr,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking
+                | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_AlwaysAutoResize);
+        for (std::uint32_t index = 0; index < tasks->GetGroupCount(); ++index)
+        {
+            const TaskGroup& group = tasks->GetGroupAt(index);
+            if (group.IsFinished())
+            {
+                continue;
+            }
+            Widget::TaskGroupSection(*tasks, group.GetId());
+        }
         ImGui::End();
     }
 
@@ -3557,7 +3821,10 @@ namespace JBro
         // **알림은 모든 것 위에 선다** - 팝업보다 뒤에 그린다. 누른 것의 할 일은 여기서 부른다: 할 일이
         // 에디터를 받아야 하는데 위젯 계층은 에디터를 모른다.
         m_notifications.Update(deltaTime);
-        const NotificationHandle clicked = Widget::NotificationStack(m_notifications);
+        // 상태 표시줄 위에 쌓는다 - 그 줄의 마지막 알림 자리를 덮지 않게.
+        Widget::NotificationStackStyle stackStyle;
+        stackStyle.bottomInset = StatusBarHeight();
+        const NotificationHandle clicked = Widget::NotificationStack(m_notifications, stackStyle);
         if (clicked != InvalidNotificationHandle)
         {
             m_notifications.Activate(clicked, *this);
@@ -3811,6 +4078,8 @@ namespace JBro
                     "the asset folder could not be rescanned; the registry keeps its previous contents");
             }
         }
+        // 워커로 여는 캔버스가 끝났으면 여기서 바인딩한다(D-236). UI 보다 먼저라 이 프레임부터 그림이 붙는다.
+        PollCanvasLoad();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
         if (m_thumbnails.Get() != nullptr)
         {
@@ -3902,6 +4171,8 @@ namespace JBro
         }
         // 재생 중이면 재생 전 캔버스로 되돌린 뒤 닫는다 - 되살린 캔버스가 이 프로젝트의 마지막 모습이다.
         StopSimulation();
+        // **도는 캔버스 로드를 먼저 거둔다**(D-212 의 닫기 규칙). 워커가 이 프로젝트의 에셋 시스템과 파일을 읽고 있다.
+        CancelCanvasLoad();
         // **닫기 전에 적는다.** 닫고 나면 무엇을 보고 있었는지 아는 것이 아무도 없다.
         SaveEditorSession();
         // **이 프로젝트를 가리키는 것은 여기서 다 비운다**(D-165). 고른 것·오브젝트 번호·되돌리기 더미는 이 캔버스의

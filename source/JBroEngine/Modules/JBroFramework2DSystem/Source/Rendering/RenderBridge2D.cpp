@@ -108,7 +108,7 @@ namespace JBro::Internal
         //
         // `editorView` 면 **에디터에서 감춘 오브젝트를 건너뛴다**(D-163, 기존 `EditorHidden`). 게임 뷰는 보지 않는다 -
         // 감추는 것은 편집을 위한 것이지 게임의 모습이 아니다.
-        // 어느 아이템을 그 뷰에 넣는가. 월드 뷰는 월드 레이어만, 화면 뷰는 그 맞춤 방식의 화면 레이어만이다(D-233).
+        // 어느 아이템을 그 뷰에 넣는가. 월드 뷰는 월드 레이어만, 화면 뷰는 그 맞춤 방식의 화면 레이어만이다(D-237).
         struct SpriteFilterRule
         {
             bool screenSpace = false;
@@ -183,7 +183,7 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-233) - 화면 좌표는 기준 픽셀이라 섞으면 백 배쯤 크다.
+        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 백 배쯤 크다.
         SpriteFilterRule rule;
         rule.screenSpace = view.screenSpace;
         const bool accepted = PushSprites(world, renderer, true, rule);
@@ -193,7 +193,7 @@ namespace JBro::Internal
 
     namespace
     {
-        // 화면 레이어의 정사영이다(D-233). 가운데 원점, y 위, 기준 픽셀 - 앵커와 같은 `ComputeScreenExtent` 로 잰다.
+        // 화면 레이어의 정사영이다(D-237). 가운데 원점, y 위, 기준 픽셀 - 앵커와 같은 `ComputeScreenExtent` 로 잰다.
         bool BuildScreenCamera(const ScreenExtent& extent, Extent2D target, CameraParams& result)
         {
             if (target.width == 0 || target.height == 0 || false == (extent.halfWidth > 0.0f) || false == (extent.halfHeight > 0.0f))
@@ -292,7 +292,7 @@ namespace JBro::Internal
             }
             worldSubmitted = true;
         }
-        // 화면 레이어는 월드 위에 그린다(D-233). 렌더러는 대상을 첫 뷰에서만 지운다.
+        // 화면 레이어는 월드 위에 그린다(D-237). 렌더러는 대상을 첫 뷰에서만 지운다.
         bool screenSubmitted = false;
         if (false == SubmitScreenViews(world, renderer, screenSubmitted))
         {

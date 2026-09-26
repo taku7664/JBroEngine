@@ -340,7 +340,7 @@ namespace JBro
             {
                 Widget::HintText(layer.GetName());
             }
-            // 화면 레이어는 이름 뒤에 표시한다 - 그 레이어의 오브젝트가 왜 캔버스 뷰의 월드 보기에 없는지가 줄에서 보인다(D-233).
+            // 화면 레이어는 이름 뒤에 표시한다 - 그 레이어의 오브젝트가 왜 캔버스 뷰의 월드 보기에 없는지가 줄에서 보인다(D-237).
             if (layer.GetSpace() == LayerSpace::Screen)
             {
                 ImGui::SameLine();
@@ -483,7 +483,7 @@ namespace JBro
         }
 
         ImGui::Separator();
-        // **화면 레이어**(D-233). 켜고 끄면 루트의 자리가 게임 화면에서 보이던 곳에 남는다(`MakeLayerSpaceCommand`).
+        // **화면 레이어**(D-237). 켜고 끄면 루트의 자리가 게임 화면에서 보이던 곳에 남는다(`MakeLayerSpaceCommand`).
         {
             const bool screen = layer.GetSpace() == LayerSpace::Screen;
             const char* toggle = screen ? Loc::TextOr(LocKeys::HierarchyLayerToWorld, "Make World Layer")

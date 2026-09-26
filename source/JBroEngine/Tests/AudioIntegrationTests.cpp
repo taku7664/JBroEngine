@@ -12,9 +12,11 @@
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Host/AssetLoad.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Types/NameTable.h>
 
 #include <chrono>
@@ -632,6 +634,62 @@ namespace
         Check(SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the meta saves");
     }
 
+    // 워커 로드(D-236)도 동기 로드와 같은 모양으로 클립을 푼다(D-231): 미리 푸는 소리는 믹서의 레이트와 모노로, 압축한 채 두는
+    // 소리는 채널 1 로 알린다. 믹서의 레이트는 메인 스레드가 작업을 만들 때 떠 간다 - 워커는 에셋 시스템을 보지 않는다.
+    void TestWorkerLoadShapesClipsLikeTheSyncLoad()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const Array<std::uint8_t> leftOnlyShort = MakeWav(Rate / 10, 0.5f, 0.0f);
+        const Array<std::uint8_t> leftOnlyLong = MakeWav(Rate, 0.5f, 0.0f);
+        WriteBytes(fixture.root / "Sound" / "blip.wav", leftOnlyShort.Data(), leftOnlyShort.Size());
+        WriteBytes(fixture.root / "Sound" / "theme.wav", leftOnlyLong.Data(), leftOnlyLong.Size());
+        AudioImportOptions shortOptions;
+        shortOptions.mono = true;
+        EditAudioMeta(fixture, "blip.wav.jmeta", shortOptions);
+        AudioImportOptions longOptions;
+        longOptions.mode = AudioImportMode::Streaming;
+        longOptions.mono = true;
+        EditAudioMeta(fixture, "theme.wav.jmeta", longOptions);
+
+        AudioMixerDesc desc;
+        desc.sampleRate = 44100;
+        desc.maxVoices = 16;
+        AudioMixer mixer;
+        Check(mixer.Initialize(desc), "the mixer initializes");
+        System::AudioSystem audio;
+        Check(audio.Initialize(mixer, &fixture.assets), "the audio system initializes");
+
+        TaskManager tasks;
+        TaskManagerDesc taskDesc;
+        taskDesc.workerCount = 2;
+        Check(tasks.Initialize(taskDesc), "the task manager starts");
+        AssetLoadResult result;
+        const AssetId ids[] = { fixture.shortId, fixture.longId };
+        const TaskGroupId group = SubmitAssetLoad(tasks, fixture.assets,
+            ArrayView<const AssetId>(ids, 2), "editor.task.load_canvas", result);
+        Check(tasks.Wait(group) && result.finished && result.failed == 0 && result.held.Size() == 2,
+            "both clips load on workers");
+        const AudioData* decoded = fixture.assets.GetAudio(fixture.assets.Find(fixture.shortId));
+        Check(decoded != nullptr && decoded->sampleRate == 44100 && decoded->channels == 1,
+            "a worker decodes a decompressed clip at the mixer rate and in mono");
+        Check(decoded->frameCount >= 4408 && decoded->frameCount <= 4412, "and its length scales with the rate");
+        float peak = 0.0f;
+        for (std::size_t frame = 0; frame < decoded->pcm.Size(); ++frame)
+        {
+            peak = std::fmax(peak, std::fabs(decoded->pcm[frame]));
+        }
+        Check(peak > 0.23f && peak < 0.27f, "mono on a worker is the average of the channels too");
+        const AudioData* streamed = fixture.assets.GetAudio(fixture.assets.Find(fixture.longId));
+        Check(streamed != nullptr && streamed->channels == 1 && streamed->sampleRate == Rate,
+            "a streaming clip loaded on a worker reports one channel and keeps its file rate");
+        fixture.assets.ReleaseAll(result.held);
+        tasks.Shutdown();
+        audio.Shutdown();
+        mixer.Shutdown();
+        fixture.Close();
+    }
+
     // 임포트가 클립을 믹서에 맞춘다(D-231): 미리 푸는 소리는 믹서의 레이트로, 모노 옵션은 세 방식 모두 채널 평균으로.
     // 클립의 동시 수는 `.jmeta` 에서 믹서까지 간다.
     void TestImportShapesClipsForTheMixer()
@@ -1056,6 +1114,7 @@ int RunAudioIntegrationTests()
         TestTheDevicePullsTheMixerAndStopsWhenAsked();
         TestStreamingFromDisk();
         TestImportShapesClipsForTheMixer();
+        TestWorkerLoadShapesClipsLikeTheSyncLoad();
         TestSourcesFollowTheirLifecycle();
         TestBusesAndSpatialSources();
         TestTheScriptServiceReachesTheMixer();

@@ -918,7 +918,7 @@ namespace
         project.Close();
     }
 
-    // **화면 영역**(D-233). 맞춤 방식 넷이 기준 1920 x 1080 과 대상 1280 x 1024 에서 무엇을 보이는가.
+    // **화면 영역**(D-237). 맞춤 방식 넷이 기준 1920 x 1080 과 대상 1280 x 1024 에서 무엇을 보이는가.
     void TestScreenExtentsFollowTheirScaleMode()
     {
         ScreenSpaceFrame frame;
@@ -951,7 +951,7 @@ namespace
             "the file names read back and unknown ones are refused");
     }
 
-    // **화면 레이어를 그린다**(D-233, ui-plan 1 단계). 64 x 64 대상에서 화면 레이어의 붉은 사각형이 앵커 자리에 기준 픽셀 크기로 그려지고, 월드
+    // **화면 레이어를 그린다**(D-237, ui-plan 1 단계). 64 x 64 대상에서 화면 레이어의 붉은 사각형이 앵커 자리에 기준 픽셀 크기로 그려지고, 월드
     // 위에 오며, 카메라가 없어도 그려진다. 화면 레이어의 글자는 글자 픽셀이 기준 픽셀이다.
     void TestScreenLayersDrawOverTheWorld()
     {

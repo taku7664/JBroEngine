@@ -315,6 +315,10 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAudioOff = "inspector.audio_off";
     inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
     inline constexpr const char* InspectorAudioBusMissing = "inspector.audio_bus_missing";
+    inline constexpr const char* InspectorLayersEverything = "inspector.layers_everything";
+    inline constexpr const char* InspectorLayersNothing = "inspector.layers_nothing";
+    inline constexpr const char* InspectorObjectNone = "inspector.object_none";
+    inline constexpr const char* InspectorObjectMissing = "inspector.object_missing";
     inline constexpr const char* ProjectSettingsAudio = "project_settings.audio";
     inline constexpr const char* ProjectSettingsAudioEffectRatioOff = "project_settings.audio_effect_ratio_off";
     inline constexpr const char* ProjectSettingsAudioDuckHelp = "project_settings.audio_duck_help";
@@ -327,6 +331,11 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsPhysicsThreadsHelp = "project_settings.physics_threads_help";
     inline constexpr const char* ProjectSettingsPhysicsRecommend = "project_settings.physics_recommend";
     inline constexpr const char* ProjectSettingsPhysicsRecommendHelp = "project_settings.physics_recommend_help";
+    inline constexpr const char* ProjectSettingsPhysics = "project_settings.physics";
+    inline constexpr const char* ProjectSettingsPhysicsLayers = "project_settings.physics_layers";
+    inline constexpr const char* ProjectSettingsPhysicsLayersHelp = "project_settings.physics_layers_help";
+    inline constexpr const char* ProjectSettingsPhysicsMatrix = "project_settings.physics_matrix";
+    inline constexpr const char* ProjectSettingsPhysicsMatrixHelp = "project_settings.physics_matrix_help";
     inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
     inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
     inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";
@@ -336,6 +345,7 @@ namespace JBro::LocKeys
     inline constexpr const char* StatsAudioBuses = "stats.audio_buses";
     inline constexpr const char* StatsAudioVoices = "stats.audio_voices";
     inline constexpr const char* StatsAudioSaved = "stats.audio_saved";
+    inline constexpr const char* StatsAudioVirtual = "stats.audio_virtual";
     inline constexpr const char* StatsAudioDevice = "stats.audio_device";
     inline constexpr const char* StatsAudioNoDevice = "stats.audio_no_device";
     inline constexpr const char* StatsAudioStolen = "stats.audio_stolen";
@@ -418,4 +428,13 @@ namespace JBro::LocKeys
     inline constexpr const char* EditorSettingsShadows = "editor_settings.shadows";
     inline constexpr const char* EditorSettingsShadowed = "editor_settings.shadowed";
     inline constexpr const char* EditorSettingsNoMatch = "editor_settings.no_match";
+
+    // ── 로딩과 상태 표시줄 (D-217·D-236) ───────────────────────────────────
+    // 캔버스를 열 때 워커로 에셋을 읽는 묶음의 이름이다. 상태 표시줄과 태스크 목록이 보인다.
+    inline constexpr const char* TaskLoadCanvas = "task.load_canvas";
+    inline constexpr const char* NotifyCanvasAssetsFailedTitle = "notify.canvas_assets_failed_title";
+    // 수와 첫 사유(파일)를 받는다.
+    inline constexpr const char* NotifyCanvasAssetsFailedMessage = "notify.canvas_assets_failed_message";
+    inline constexpr const char* StatusBarShowTasks = "status_bar.show_tasks";
+    inline constexpr const char* StatusBarOpenLog = "status_bar.open_log";
 }

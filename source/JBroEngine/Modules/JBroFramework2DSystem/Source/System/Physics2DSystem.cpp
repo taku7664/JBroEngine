@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <utility>
 
@@ -198,7 +199,8 @@ namespace JBro::System
             print.Mix(collider.size);
             print.Mix(collider.radius);
             print.Mix(scale);
-            const std::uint8_t trigger = static_cast<std::uint8_t>((collider.isTrigger ? 1 : 0) | (collider.loop ? 2 : 0));
+            const std::uint8_t trigger = static_cast<std::uint8_t>(
+                (collider.isTrigger ? 1 : 0) | (collider.loop ? 2 : 0) | (collider.oneWay ? 4 : 0));
             print.Mix(&trigger, sizeof(trigger));
             print.Mix(collider.friction);
             print.Mix(collider.restitution);
@@ -268,6 +270,19 @@ namespace JBro::System
             bool               seen = false;
         };
 
+        // 조인트 컴포넌트 하나의 연결이다(D-233). 두 몸의 오브젝트가 바뀌면 새로 만들고, 성질만 바뀌면 제자리에서 바꾼다.
+        struct JointLink
+        {
+            Physics2D::JointId joint;
+            InstanceId         bodyObject = InvalidInstanceId;
+            InstanceId         connectedObject = InvalidInstanceId;
+            std::uint64_t      signature = 0;
+            // 경첩의 기준 각(커널의 B - A). 처음 이어질 때 정하고 몸이 다시 만들어져도 그대로 쓴다.
+            float              referenceAngle = 0.0f;
+            bool               hinge = false;
+            bool               seen = false;
+        };
+
         struct PieceCache
         {
             std::uint64_t                   signature = 0;
@@ -281,6 +296,7 @@ namespace JBro::System
         std::uint32_t                 appliedWorkers = 0;
         Table<InstanceId, BodyLink>   bodies;
         Table<InstanceId, ShapeLink>  shapes;
+        Table<InstanceId, JointLink>  joints;
         // 이번 스텝에 지운 콜라이더의 연결. 그 끝 이벤트가 이번 커널 스텝에서 나오므로 발송할 때까지만 둔다.
         Array<ShapeLink>              retired;
         Array<InstanceId>             removals;
@@ -353,9 +369,24 @@ namespace JBro::System
         m_workerCount = count;
     }
 
+    void Physics2DSystem::SetIgnoredLayers(const std::uint32_t (&rows)[PhysicsLayerCount])
+    {
+        std::memcpy(m_ignoredLayers, rows, sizeof(m_ignoredLayers));
+    }
+
     std::uint32_t Physics2DSystem::GetWorkerCount() const
     {
         return m_state->world.GetWorkerCount();
+    }
+
+    std::size_t Physics2DSystem::GetLastQueryColliderCount() const
+    {
+        return m_lastQueryColliders;
+    }
+
+    std::size_t Physics2DSystem::GetJointCount() const
+    {
+        return m_state->world.GetJointCount();
     }
 
     std::size_t Physics2DSystem::GetBodyCount() const
@@ -402,8 +433,9 @@ namespace JBro::System
     }
 
     template<typename Fn>
-    void Physics2DSystem::ForEachQueryShape(std::uint32_t layerMask, Fn&& visit) const
+    void Physics2DSystem::ForEachQueryShape(std::uint32_t layerMask, const Rect& area, Fn&& visit) const
     {
+        m_lastQueryColliders = 0;
         if (m_canvas == nullptr)
         {
             return;
@@ -426,6 +458,47 @@ namespace JBro::System
             shape.owner = owner;
             shape.collider = &collider;
             shape.pose = ToPose(objectPose);
+            // **경계로 먼저 거른다**(D-234). 도형을 굽고(폴리곤은 분해 캐시를 찾고) 조각마다 판정하기 전에, 콜라이더를 감싸는 원이
+            // 질의 영역과 겹치는지만 본다. 콜라이더가 많은 캔버스에서 먼 것들이 값을 치르지 않는다.
+            {
+                const Vec2 magnitude{ std::fabs(objectPose.scale.x), std::fabs(objectPose.scale.y) };
+                const float largest = std::fmax(magnitude.x, magnitude.y);
+                const auto halfDiagonal = [&](Vec2 size) {
+                    return 0.5f * std::sqrt(size.x * size.x * magnitude.x * magnitude.x + size.y * size.y * magnitude.y * magnitude.y);
+                };
+                float reach = 0.0f;
+                switch (collider.shape)
+                {
+                case Component::ColliderShape2D::Circle:
+                    reach = collider.radius * largest;
+                    break;
+                case Component::ColliderShape2D::Polygon:
+                case Component::ColliderShape2D::Chain:
+                    if (collider.points.IsEmpty())
+                    {
+                        reach = collider.shape == Component::ColliderShape2D::Chain
+                            ? 0.5f * std::fabs(collider.size.x) * magnitude.x
+                            : halfDiagonal(collider.size);
+                    }
+                    for (const Vec2& point : collider.points)
+                    {
+                        reach = std::fmax(reach, std::sqrt(point.x * point.x * magnitude.x * magnitude.x
+                            + point.y * point.y * magnitude.y * magnitude.y));
+                    }
+                    break;
+                default:
+                    reach = halfDiagonal(collider.size);
+                    break;
+                }
+                const Vec2 middle = Physics2D::TransformPoint(shape.pose,
+                    { collider.offset.x * objectPose.scale.x, collider.offset.y * objectPose.scale.y });
+                if (middle.x + reach < area.min.x || middle.x - reach > area.max.x
+                    || middle.y + reach < area.min.y || middle.y - reach > area.max.y)
+                {
+                    return;
+                }
+            }
+            ++m_lastQueryColliders;
             if (collider.shape == Component::ColliderShape2D::Circle)
             {
                 const Physics2D::Circle circle = BakeCircle(collider, objectPose.scale);
@@ -480,6 +553,14 @@ namespace JBro::System
 
     namespace
     {
+        // 원(반지름 radius)을 from 에서 direction 으로 distance 만큼 민 자리를 감싸는 상자다. 반직선은 반지름 0 이다.
+        Rect SweptArea(Vec2 from, Vec2 direction, float distance, float radius)
+        {
+            const Vec2 to{ from.x + direction.x * distance, from.y + direction.y * distance };
+            return { { std::fmin(from.x, to.x) - radius, std::fmin(from.y, to.y) - radius },
+                { std::fmax(from.x, to.x) + radius, std::fmax(from.y, to.y) + radius } };
+        }
+
         RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vec2 point, Vec2 normal, float distance)
         {
             RaycastHit2D hit;
@@ -522,7 +603,7 @@ namespace JBro::System
             return false;
         }
         bool found = false;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;
@@ -548,7 +629,7 @@ namespace JBro::System
         // 콜라이더마다 한 번이다. 폴리곤의 조각 여럿에 걸려도 그 콜라이더의 가장 가까운 것 하나다 - 조각은 우리 사정이다.
         const Component::Collider2D* current = nullptr;
         std::size_t currentIndex = 0;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;
@@ -587,7 +668,7 @@ namespace JBro::System
         box.points[3] = { area.min.x, area.max.y };
         box.count = 4;
         const Physics2D::Pose identity;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, area, [&](const QueryShape& shape)
         {
             const bool overlaps = shape.circle != nullptr
                 ? Physics2D::OverlapPolygonAndCircle(box, identity, *shape.circle, shape.pose)
@@ -602,7 +683,7 @@ namespace JBro::System
     GameObjectHandle Physics2DSystem::OverlapPoint(Vec2 point, std::uint32_t layerMask) const
     {
         GameObjectHandle found;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, Rect{ point, point }, [&](const QueryShape& shape)
         {
             if (found.GetInstanceId() != InvalidInstanceId)
             {
@@ -631,7 +712,7 @@ namespace JBro::System
         probe.center = center;
         probe.radius = radius;
         const Physics2D::Pose identity;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(center, { 1.0f, 0.0f }, 0.0f, radius), [&](const QueryShape& shape)
         {
             const bool overlaps = shape.circle != nullptr
                 ? Physics2D::OverlapCircles(probe, identity, *shape.circle, shape.pose)
@@ -652,7 +733,7 @@ namespace JBro::System
             return false;
         }
         bool found = false;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, radius), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;
@@ -690,7 +771,7 @@ namespace JBro::System
         box.count = 4;
         const Physics2D::Pose start{ center, Physics2D::Rotation::FromAngle(angle) };
         bool found = false;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(center, direction, distance, std::sqrt(halfExtents.x * halfExtents.x + halfExtents.y * halfExtents.y)), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;
@@ -974,6 +1055,7 @@ namespace JBro::System
             def.isTrigger = collider.isTrigger;
             def.layer = collider.layer;
             def.mask = collider.mask;
+            def.oneWay = collider.oneWay;
             def.userData = colliderId;
 
             // 같은 오브젝트의 살아 있는 도형이면 제자리에서 바꾼다. 스텝마다 지우고 만들면 크기를 움직이는 콜라이더가
@@ -1077,8 +1159,217 @@ namespace JBro::System
             state.bodies.Remove(id);
         }
 
+        // ── 3.5 조인트(D-233) ───────────────────────────────────────────────────────
+        // 몸을 모두 맞추고 사라진 몸을 지운 뒤라야 두 몸의 번호가 확정된다. 몸을 지우면 커널이 그 조인트도 지우므로 연결은
+        // 번호가 죽은 것을 보고 다시 만든다.
+        for (auto& entry : state.joints)
+        {
+            entry.MappedValue.seen = false;
+        }
+        const auto bodyOf = [&](InstanceId objectId) -> State::BodyLink* {
+            State::BodyLink* link = objectId != InvalidInstanceId ? state.bodies.Find(objectId) : nullptr;
+            return link != nullptr && link->seen ? link : nullptr;
+        };
+        const auto localToWorld = [&](Physics2D::BodyId body, Vec2 local) {
+            const Vec2 origin = world.GetPosition(body);
+            const float angle = world.GetAngle(body);
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            return Vec2{ origin.x + c * local.x - s * local.y, origin.y + s * local.x + c * local.y };
+        };
+        const auto worldToLocal = [&](Physics2D::BodyId body, Vec2 point) {
+            const Vec2 origin = world.GetPosition(body);
+            const float angle = world.GetAngle(body);
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            const Vec2 d{ point.x - origin.x, point.y - origin.y };
+            return Vec2{ c * d.x + s * d.y, -s * d.x + c * d.y };
+        };
+        const auto scaled = [](Vec2 value, Vec2 scale) {
+            return Vec2{ value.x * scale.x, value.y * scale.y };
+        };
+        const auto unscaled = [](Vec2 value, Vec2 scale) {
+            return Vec2{ scale.x != 0.0f ? value.x / scale.x : 0.0f, scale.y != 0.0f ? value.y / scale.y : 0.0f };
+        };
+        // 조인트 하나를 맞춘다. 두 몸이 없으면 연결을 두지 않는다(보이지 않은 연결은 아래에서 지운다).
+        const auto syncJoint = [&](ComponentBase& component, GameObjectHandle connected, bool hinge,
+                                   const auto& configure, const auto& signatureOf, const auto& create, const auto& update) {
+            if (false == component.IsActiveComponent())
+            {
+                return;
+            }
+            GameObject* object = Internal::CanvasAccess::GetOwner(component);
+            State::BodyLink* own = object != nullptr ? bodyOf(object->GetInstanceId()) : nullptr;
+            const InstanceId connectedId = connected.GetInstanceId();
+            State::BodyLink* other = bodyOf(connectedId);
+            if (own == nullptr || (connectedId != InvalidInstanceId && other == nullptr))
+            {
+                return;
+            }
+            Internal::ObjectPose ownPose;
+            Internal::CalculateObjectPose(canvas, object, ownPose);
+            Internal::ObjectPose otherPose;
+            if (other != nullptr && other->object != nullptr)
+            {
+                Internal::CalculateObjectPose(canvas, other->object, otherPose);
+            }
+            const Physics2D::BodyId otherBody = other != nullptr ? other->body : Physics2D::BodyId{};
+            const InstanceId componentId = component.GetInstanceId();
+            State::JointLink* link = state.joints.Find(componentId);
+            const bool fresh = link == nullptr;
+            if (fresh)
+            {
+                // 처음 이어진다. 자동 설정(거리·상대 앵커)을 여기서 한 번 적는다.
+                configure(own->body, otherBody, ownPose.scale, otherPose.scale);
+                State::JointLink made;
+                state.joints.TryAdd(componentId, made);
+                link = state.joints.Find(componentId);
+            }
+            link->seen = true;
+            const std::uint64_t signature = signatureOf(ownPose.scale, otherPose.scale);
+            const bool sameBodies = world.IsValid(link->joint) && link->bodyObject == object->GetInstanceId()
+                && link->connectedObject == connectedId && link->hinge == hinge;
+            if (sameBodies)
+            {
+                if (link->signature != signature)
+                {
+                    update(*link, own->body, otherBody, ownPose.scale, otherPose.scale);
+                    link->signature = signature;
+                }
+                return;
+            }
+            // 처음 잇거나 상대가 바뀌었으면 기준 각을 다시 잰다. 몸만 다시 만들어진 것(종류를 바꿨다)이면 그대로 쓴다.
+            if (fresh || link->bodyObject != object->GetInstanceId() || link->connectedObject != connectedId)
+            {
+                // 경첩의 한계는 이어지는 순간의 상대 각도를 0 으로 잰다.
+                const float angleA = world.GetAngle(own->body);
+                const float angleB = other != nullptr ? world.GetAngle(other->body) : 0.0f;
+                link->referenceAngle = angleB - angleA;
+            }
+            world.DestroyJoint(link->joint);
+            link->joint = create(*link, own->body, otherBody, ownPose.scale, otherPose.scale);
+            link->bodyObject = object->GetInstanceId();
+            link->connectedObject = connectedId;
+            link->hinge = hinge;
+            link->signature = signature;
+        };
+
+        canvas.ForEach<Component::DistanceJoint2D>([&](Component::DistanceJoint2D& joint) {
+            const auto makeDef = [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                Physics2D::DistanceJointDef def;
+                def.bodyA = bodyA;
+                def.bodyB = bodyB;
+                def.localAnchorA = scaled(joint.anchor, scaleA);
+                def.localAnchorB = bodyB.index != Physics2D::InvalidIndex ? scaled(joint.connectedAnchor, scaleB) : joint.connectedAnchor;
+                def.length = std::fmax(joint.distance, 0.0f);
+                def.maxLengthOnly = joint.maxDistanceOnly;
+                def.hertz = std::fmax(joint.frequency, 0.0f);
+                def.dampingRatio = std::clamp(joint.dampingRatio, 0.0f, 1.0f);
+                def.collideConnected = joint.collideConnected;
+                return def;
+            };
+            syncJoint(joint, joint.connectedObject, false,
+                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    if (false == joint.autoDistance)
+                    {
+                        return;
+                    }
+                    const Vec2 a = localToWorld(bodyA, scaled(joint.anchor, scaleA));
+                    const Vec2 b = bodyB.index != Physics2D::InvalidIndex ? localToWorld(bodyB, scaled(joint.connectedAnchor, scaleB))
+                                                                          : joint.connectedAnchor;
+                    joint.distance = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+                },
+                [&](Vec2 scaleA, Vec2 scaleB) {
+                    Fingerprint print;
+                    print.Mix(joint.anchor);
+                    print.Mix(joint.connectedAnchor);
+                    print.Mix(joint.distance);
+                    print.Mix(joint.frequency);
+                    print.Mix(joint.dampingRatio);
+                    print.Mix(scaleA);
+                    print.Mix(scaleB);
+                    const std::uint8_t flags = static_cast<std::uint8_t>((joint.maxDistanceOnly ? 1 : 0) | (joint.collideConnected ? 2 : 0));
+                    print.Mix(&flags, sizeof(flags));
+                    return print.value;
+                },
+                [&](State::JointLink&, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    return world.CreateDistanceJoint(makeDef(bodyA, bodyB, scaleA, scaleB));
+                },
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    world.SetDistanceJoint(link.joint, makeDef(bodyA, bodyB, scaleA, scaleB));
+                });
+        });
+
+        canvas.ForEach<Component::HingeJoint2D>([&](Component::HingeJoint2D& joint) {
+            constexpr float Radian = 3.14159265358979323846f / 180.0f;
+            // 커널의 A 는 이 오브젝트, B 는 상대다. 커널의 각은 B - A 라서 "이 오브젝트가 상대에 대해" 의 부호를 뒤집는다.
+            const auto makeDef = [&](const State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB,
+                                     Vec2 scaleA, Vec2 scaleB) {
+                Physics2D::HingeJointDef def;
+                def.bodyA = bodyA;
+                def.bodyB = bodyB;
+                def.localAnchorA = scaled(joint.anchor, scaleA);
+                def.localAnchorB = bodyB.index != Physics2D::InvalidIndex ? scaled(joint.connectedAnchor, scaleB) : joint.connectedAnchor;
+                def.referenceAngle = link.referenceAngle;
+                def.enableLimit = joint.useLimits;
+                def.lowerAngle = -std::fmax(joint.lowerAngle, joint.upperAngle) * Radian;
+                def.upperAngle = -std::fmin(joint.lowerAngle, joint.upperAngle) * Radian;
+                def.enableMotor = joint.useMotor;
+                def.motorSpeed = -joint.motorSpeed * Radian;
+                def.maxMotorTorque = std::fmax(joint.maxMotorTorque, 0.0f);
+                def.collideConnected = joint.collideConnected;
+                return def;
+            };
+            syncJoint(joint, joint.connectedObject, true,
+                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    if (false == joint.autoConnectedAnchor)
+                    {
+                        return;
+                    }
+                    const Vec2 pin = localToWorld(bodyA, scaled(joint.anchor, scaleA));
+                    joint.connectedAnchor = bodyB.index != Physics2D::InvalidIndex ? unscaled(worldToLocal(bodyB, pin), scaleB) : pin;
+                },
+                [&](Vec2 scaleA, Vec2 scaleB) {
+                    Fingerprint print;
+                    print.Mix(joint.anchor);
+                    print.Mix(joint.connectedAnchor);
+                    print.Mix(joint.lowerAngle);
+                    print.Mix(joint.upperAngle);
+                    print.Mix(joint.motorSpeed);
+                    print.Mix(joint.maxMotorTorque);
+                    print.Mix(scaleA);
+                    print.Mix(scaleB);
+                    const std::uint8_t flags = static_cast<std::uint8_t>(
+                        (joint.useLimits ? 1 : 0) | (joint.useMotor ? 2 : 0) | (joint.collideConnected ? 4 : 0));
+                    print.Mix(&flags, sizeof(flags));
+                    return print.value;
+                },
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    return world.CreateHingeJoint(makeDef(link, bodyA, bodyB, scaleA, scaleB));
+                },
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    world.SetHingeJoint(link.joint, makeDef(link, bodyA, bodyB, scaleA, scaleB));
+                });
+        });
+
+        state.removals.Clear();
+        for (const auto& entry : state.joints)
+        {
+            if (false == entry.MappedValue.seen)
+            {
+                state.removals.Add(entry.KeyValue);
+            }
+        }
+        for (const InstanceId id : state.removals)
+        {
+            world.DestroyJoint(state.joints.Find(id)->joint);
+            state.joints.Remove(id);
+        }
+
         // ── 4. 스텝 ─────────────────────────────────────────────────────────────────
         world.Settings().gravity = m_gravity;
+        static_assert(sizeof(world.Settings().ignoredLayers) == sizeof(m_ignoredLayers), "one row per layer on both sides");
+        std::memcpy(world.Settings().ignoredLayers, m_ignoredLayers, sizeof(m_ignoredLayers));
         world.Step(fixedDeltaTime);
 
         // ── 5. 되쓰기 ───────────────────────────────────────────────────────────────
@@ -1138,7 +1429,8 @@ namespace JBro::System
         State& state = *m_state;
         const ArrayView<const Physics2D::ContactEvent> begins = state.world.GetBeginEvents();
         const ArrayView<const Physics2D::ContactEvent> ends = state.world.GetEndEvents();
-        if (begins.IsEmpty() && ends.IsEmpty())
+        const ArrayView<const Physics2D::ContactEvent> stays = state.world.GetStayEvents();
+        if (begins.IsEmpty() && ends.IsEmpty() && stays.IsEmpty())
         {
             return;
         }
@@ -1176,7 +1468,7 @@ namespace JBro::System
             return nullptr;
         };
 
-        enum class Phase : std::uint8_t { Enter, Exit };
+        enum class Phase : std::uint8_t { Enter, Stay, Exit };
 
         // 훅이 오브젝트를 지워도 지나간 객체 위에서 다음 훅이 불리지 않게, 발송 내내 파괴를 미룬다(§8).
         Canvas::IterationGuard guard(canvas);
@@ -1205,6 +1497,10 @@ namespace JBro::System
                     {
                         script->OnTriggerEnter(hit);
                     }
+                    else if (phase == Phase::Stay)
+                    {
+                        script->OnTriggerStay(hit);
+                    }
                     else
                     {
                         script->OnTriggerExit(hit);
@@ -1213,6 +1509,10 @@ namespace JBro::System
                 else if (phase == Phase::Enter)
                 {
                     script->OnCollisionEnter(hit);
+                }
+                else if (phase == Phase::Stay)
+                {
+                    script->OnCollisionStay(hit);
                 }
                 else
                 {
@@ -1252,6 +1552,10 @@ namespace JBro::System
         for (const Physics2D::ContactEvent& event : begins)
         {
             dispatch(event, Phase::Enter);
+        }
+        for (const Physics2D::ContactEvent& event : stays)
+        {
+            dispatch(event, Phase::Stay);
         }
     }
 }

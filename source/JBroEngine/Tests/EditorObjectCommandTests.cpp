@@ -5,6 +5,7 @@
 #include <JBro/Editor/Command/HierarchyCommands.h>
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
@@ -2244,6 +2245,55 @@ namespace
             "the last layer must be refused");
         Check(canvas.GetLayerCount() == 1, "and must still be there");
     }
+
+    // **오브젝트 참조와 되돌리기·붙여넣기(D-233).** 지운 오브젝트를 되돌리면 옛 번호로 돌아와, 그것을 가리키던 조인트가 다시 잡는다.
+    // 참조를 가진 나무를 붙여넣으면 나무 안을 가리키던 참조는 붙여넣은 사본을, 나무 밖을 가리키던 것은 그대로 원본을 잡는다.
+    void TestObjectReferencesFollowDeleteAndPaste()
+    {
+        RegisterOnce();
+        using JBro::Component::DistanceJoint2D;
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        JBro::EditorObjectRegistry ids;
+        JBro::EditorCommandManager commands;
+
+        JBro::GameObject* anchor = canvas.CreateObject("Anchor");
+        JBro::GameObject* rig = canvas.CreateObject("Rig");
+        JBro::GameObject* inside = canvas.CreateObject("Inside");
+        inside->SetParent(rig);
+        DistanceJoint2D* toInside = canvas.AttachComponent<DistanceJoint2D>(rig);
+        toInside->connectedObject = inside->GetScriptHandle();
+        DistanceJoint2D* toAnchor = canvas.AttachComponent<DistanceJoint2D>(inside);
+        toAnchor->connectedObject = anchor->GetScriptHandle();
+
+        const JBro::InstanceId anchorId = anchor->GetInstanceId();
+        Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(canvas, ids, anchor)), "the anchor is deleted");
+        canvas.FlushPendingDestroy();
+        Check(false == toAnchor->connectedObject.IsValid(), "the reference to it now finds nothing");
+        Check(commands.Undo(), "undoing the delete runs");
+        Check(toAnchor->connectedObject.IsValid() && toAnchor->connectedObject.GetInstanceId() == anchorId,
+            "the anchor comes back under its old object number and the reference finds it again");
+
+        JBro::ObjectTreeSnapshot tree;
+        Check(tree.Capture(ids, *rig), "the rig is captured");
+        JBro::Array<JBro::ObjectTreeSnapshot> clipboard;
+        clipboard.Add(tree);
+        auto paste = JBro::MakeOwnerPtr<JBro::PasteObjectsCommand>(canvas, ids, clipboard, JBro::InvalidEditorObjectId);
+        JBro::PasteObjectsCommand* raw = paste.Get();
+        Check(commands.Execute(std::move(paste)), "the rig is pasted");
+        const auto check = [&](const char* what) {
+            JBro::GameObject* copy = ids.Resolve(raw->GetPastedRootIds()[0]);
+            JBro::GameObject* copiedInside = copy != nullptr && copy->GetChildren().Size() == 1 ? copy->GetChildren()[0].TryGet() : nullptr;
+            DistanceJoint2D* copiedToInside = copy != nullptr ? canvas.FindComponentRaw<DistanceJoint2D>(copy) : nullptr;
+            DistanceJoint2D* copiedToAnchor = copiedInside != nullptr ? canvas.FindComponentRaw<DistanceJoint2D>(copiedInside) : nullptr;
+            Check(copiedToInside != nullptr && copiedToInside->connectedObject.GetInstanceId() == copiedInside->GetInstanceId(), what);
+            Check(copiedToAnchor != nullptr && copiedToAnchor->connectedObject.GetInstanceId() == anchorId,
+                "a reference out of the tree still points at the original");
+        };
+        check("a reference inside the pasted tree points at the pasted copy");
+        Check(toInside->connectedObject.GetInstanceId() == inside->GetInstanceId(), "and the source keeps its own");
+        Check(commands.Undo() && commands.Redo(), "undo and redo the paste");
+        check("after redo the reference still points at the pasted copy");
+    }
 }
 
 int RunEditorObjectCommandTests()
@@ -2264,6 +2314,7 @@ int RunEditorObjectCommandTests()
     TestComponentSlotsCanBeRearranged();
     TestMovingAComponentSlotCanBeUndone();
     TestPastingBuildsTheTreeAgainUnderNewNumbers();
+    TestObjectReferencesFollowDeleteAndPaste();
     TestAnEditBeforeARemovalStillFindsItsComponent();
     TestRemovingIsRefusedWhenTheValuesCannotBeSaved();
     TestDeletingBringsBackContainers();

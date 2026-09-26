@@ -150,7 +150,7 @@ namespace JBro
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
         {
-            // 화면 기준을 갱신 전에 건다 - 트랜스폼이 이번 프레임의 앵커를 잰다(D-233).
+            // 화면 기준을 갱신 전에 건다 - 트랜스폼이 이번 프레임의 앵커를 잰다(D-237).
             ScreenSpaceFrame frame = m_screenSpace;
             if ((false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f)) && m_context.renderer != nullptr)
             {
@@ -201,6 +201,19 @@ namespace JBro
         if (System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>())
         {
             physics->SetWorkerCount(count);
+        }
+    }
+
+    void Framework2D::SetPhysicsIgnoredLayers(const std::uint32_t (&rows)[32])
+    {
+        static_assert(PhysicsLayerCount == 32, "the framework passes one row per physics layer");
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        if (System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>())
+        {
+            physics->SetIgnoredLayers(rows);
         }
     }
 
@@ -292,6 +305,20 @@ namespace JBro
             auto* binding = static_cast<std::pair<AssetSystem*, Array<AssetHandle>*>*>(user);
             binding->first->BindComponentAssets(table, &component, *binding->second);
         }
+
+        void CollectComponentAssetIdsVisitor(const PropertyTable& table, ComponentBase& component, void* user)
+        {
+            AssetSystem::CollectComponentAssetIds(table, &component, *static_cast<Array<AssetId>*>(user));
+        }
+    }
+
+    void Framework2D::CollectCanvasAssetIds(Array<AssetId>& ids)
+    {
+        if (m_context.assets == nullptr || m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        ForEachReflectedComponent(*m_canvas, &CollectComponentAssetIdsVisitor, &ids);
     }
 
     void Framework2D::BindCanvasAssets()

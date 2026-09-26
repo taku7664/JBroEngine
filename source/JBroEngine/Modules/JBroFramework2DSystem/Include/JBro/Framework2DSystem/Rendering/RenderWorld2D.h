@@ -47,7 +47,7 @@ namespace JBro
         bool          sdfText = false;
         std::uint16_t outlineEdge = 32768; // 0..1 을 65535 로. 32768 은 0.5(외곽선 없음)
         std::uint8_t  outlineColor[4] = { 0, 0, 0, 0 };
-        // 화면 레이어의 것이다(D-233). 참이면 좌표는 기준 해상도의 픽셀이고 월드 뷰 뒤의 화면 뷰에 그려진다.
+        // 화면 레이어의 것이다(D-237). 참이면 좌표는 기준 해상도의 픽셀이고 월드 뷰 뒤의 화면 뷰에 그려진다.
         bool          screenSpace = false;
         ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
     };
@@ -66,7 +66,7 @@ namespace JBro
         bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
-        // 화면 레이어의 기준이다(D-233). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.
+        // 화면 레이어의 기준이다(D-237). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.
         void SetScreenSpace(const ScreenSpaceFrame& frame);
         const ScreenSpaceFrame& GetScreenSpace() const;
         std::size_t GetScreenSpriteCount() const;

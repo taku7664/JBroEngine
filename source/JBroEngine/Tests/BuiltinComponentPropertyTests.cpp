@@ -50,16 +50,19 @@ namespace
 
         // 개수를 적어 두면 필드를 더하거나 지울 때 테스트가 먼저 운다.
         // 그 자체가 목적이다 — 인스펙터에 뭐가 보일지가 조용히 바뀌지 않게 한다.
-        Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-233 is the ninth");
+        Check(Table("Component::Transform2D").count == 9, "Transform2D declares nine fields - the anchor of D-237 is the ninth");
         Check(Table("Component::Camera2D").count == 6, "Camera2D declares six fields");
         Check(Table("Component::SpriteRenderer2D").count == 13, "SpriteRenderer2D declares thirteen fields");
         Check(Table("Component::Text2D").count == 22, "Text2D declares twenty-two fields");
         Check(Table("Component::Rigidbody2D").count == 11,
             "Rigidbody2D declares eleven fields - the seven of D-199, then angular damping, the axis locks of D-227 and canSleep of D-229");
-        Check(Table("Component::Collider2D").count == 11,
-            "Collider2D declares eleven fields - shape, size and trigger, then points, the chain loop of D-229, and the surface and filter of D-199");
+        Check(Table("Component::Collider2D").count == 12,
+            "Collider2D declares twelve fields - shape, size and trigger, then points, the chain loop of D-229, oneWay of D-233, and the surface and filter of D-199");
 
         // 두 번 불러도 된다. 부르는 쪽이 순서를 신경 쓰지 않아도 되게 한다.
+        Check(Table("Component::DistanceJoint2D").count == 9, "DistanceJoint2D declares nine fields (D-233)");
+        Check(Table("Component::HingeJoint2D").count == 11, "HingeJoint2D declares eleven fields (D-233)");
+
         Check(JBro::Component::RegisterBuiltinComponentProperties2D(),
             "registering twice must not turn into a failure");
     }

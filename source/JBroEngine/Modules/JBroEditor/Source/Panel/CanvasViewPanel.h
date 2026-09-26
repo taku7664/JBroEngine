@@ -53,7 +53,7 @@ namespace JBro
         float GetCameraY() const { return m_centerY; }
         float GetCameraSize() const { return m_orthographicSize; }
 
-        // **UI 보기**(D-233). 참이면 화면 레이어만 기준 픽셀 좌표로 보이고 고르며 기준 사각형 안내선을 그린다. 편집 카메라는 보기마다 따로다.
+        // **UI 보기**(D-237). 참이면 화면 레이어만 기준 픽셀 좌표로 보이고 고르며 기준 사각형 안내선을 그린다. 편집 카메라는 보기마다 따로다.
         // 고른 오브젝트의 레이어가 다른 공간이면 보기가 따라 바뀐다.
         bool IsScreenView() const { return m_screenView; }
         void SetScreenView(bool screen);
@@ -95,6 +95,7 @@ namespace JBro
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);
+        void DrawJoints(const ViewRect& rect);
 
         // ── 폴리곤 콜라이더 편집(physics-plan §4 의 5, 기존 `CCanvasViewTool` 의 버텍스 편집) ─────────
         //
@@ -202,6 +203,8 @@ namespace JBro
         std::uint32_t m_menuVertex = 0;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
+        Array<Component::DistanceJoint2D*> m_distanceJointScratch;
+        Array<Component::HingeJoint2D*> m_hingeJointScratch;
         Array<Vec2> m_screenScratch;
         Array<Vec2> m_outlineScratch;
         Table<InstanceId, PieceCache> m_pieceCache;
@@ -210,7 +213,7 @@ namespace JBro
         float m_centerY = 0.0f;
         // 화면 세로 절반이 담는 월드 길이다. 게임 카메라의 `orthographicSize` 와 같은 뜻이다.
         float m_orthographicSize = 5.0f;
-        // UI 보기(D-233)와, 쉬고 있는 쪽 보기의 편집 카메라다. 보기를 바꾸면 지금 카메라와 맞바꾼다.
+        // UI 보기(D-237)와, 쉬고 있는 쪽 보기의 편집 카메라다. 보기를 바꾸면 지금 카메라와 맞바꾼다.
         bool m_screenView = false;
         bool m_otherCameraSet = false;
         float m_otherCenterX = 0.0f;

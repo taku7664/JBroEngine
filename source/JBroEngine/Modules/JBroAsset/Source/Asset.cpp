@@ -35,6 +35,40 @@ namespace JBro
             return text.size() >= suffix.size()
                 && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
         }
+
+        // 컴포넌트의 `xxxId`(`AssetId`) 필드와 그 짝 `xxx`(`AssetHandle`) 필드를 찾아 짝마다 `visit` 를 부른다. 해석 패스와
+        // 아이디 모으기가 같은 규칙을 쓰도록 한 곳에 둔다.
+        template <typename Visitor>
+        void ForEachAssetField(const PropertyTable& table, Visitor&& visit)
+        {
+            const NameId uuidName = NameTable::Get().Intern("JBro.Uuid");
+            const NameId handleName = NameTable::Get().Intern("JBro.AssetHandle");
+            for (std::uint32_t i = 0; i < table.count; ++i)
+            {
+                const PropertyInfo& idProperty = table.properties[i];
+                if (idProperty.type == nullptr || idProperty.type->typeName != uuidName)
+                {
+                    continue;
+                }
+                const std::string_view idName = NameTable::Get().Resolve(idProperty.name);
+                if (false == EndsWith(idName, "Id") || idName.size() <= 2)
+                {
+                    continue;
+                }
+                const std::string_view handleFieldName = idName.substr(0, idName.size() - 2);
+                for (std::uint32_t j = 0; j < table.count; ++j)
+                {
+                    const PropertyInfo& handleProperty = table.properties[j];
+                    if (handleProperty.type == nullptr || handleProperty.type->typeName != handleName
+                        || handleFieldName != NameTable::Get().Resolve(handleProperty.name))
+                    {
+                        continue;
+                    }
+                    visit(idProperty, handleProperty);
+                    break;
+                }
+            }
+        }
     }
 
     bool AssetSystem::Initialize(const JMemoryContext&)
@@ -230,25 +264,106 @@ namespace JBro
             data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
             return true;
         }
-        Array<std::byte> encoded;
-        if (false == m_source->Read(record, AssetBlob::Source, encoded))
+        // 원본은 워커 로드와 같은 디코드를 부른다(D-236). 동기 로드는 메인에서 부를 뿐이다.
+        AssetDecodeJob job;
+        job.type = AssetType::Texture;
+        job.record = record;
+        if (false == DecodeAssetFile(*m_source, job))
         {
             return false;
         }
-        JArrayView<std::byte> view;
-        view.data = encoded.Data();
-        view.size = static_cast<std::uint32_t>(encoded.Size());
-        DecodedImage image;
-        if (false == DecodeImage(view, image))
-        {
-            return false;
-        }
-        data.width = image.width;
-        data.height = image.height;
-        data.pixels = std::move(image.pixels);
+        data.width = job.texture.width;
+        data.height = job.texture.height;
+        data.pixels = std::move(job.texture.pixels);
         // 프로젝트 기본은 여기서 한 번 적용한다(D-117). 그리는 쪽이 매번 프로젝트를 묻지 않게.
         data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
         return true;
+    }
+
+    bool DecodeAssetFile(const IAssetSource& source, AssetDecodeJob& job)
+    {
+        job.decoded = false;
+        job.failure.clear();
+        const String& name = job.record.relativePath;
+        if (job.type == AssetType::Texture)
+        {
+            Array<std::byte> encoded;
+            if (false == source.Read(job.record, AssetBlob::Source, encoded))
+            {
+                job.failure = "cannot read " + name;
+                return false;
+            }
+            JArrayView<std::byte> view;
+            view.data = encoded.Data();
+            view.size = static_cast<std::uint32_t>(encoded.Size());
+            DecodedImage image;
+            if (false == DecodeImage(view, image))
+            {
+                job.failure = "not an image this engine can decode: " + name;
+                return false;
+            }
+            job.texture.width = image.width;
+            job.texture.height = image.height;
+            job.texture.pixels = std::move(image.pixels);
+            job.decoded = true;
+            return true;
+        }
+        if (job.type == AssetType::Audio)
+        {
+            AudioData& read = job.audio;
+            // 디스크 스트리밍은 헤더만 읽는다 - 파일이 메모리에 오지 않는다(D-203). `OpenStream` 은 어느 스레드에서 불러도 된다.
+            if (read.options.mode == AudioImportMode::StreamFromDisk)
+            {
+                AudioFileDecoder decoder;
+                if (false == decoder.Open(source.OpenStream(job.streamPath.c_str()), job.streamPath.c_str())
+                    || decoder.CountFrames() == 0)
+                {
+                    job.failure = job.streamPath + ": this file cannot be streamed from disk";
+                    return false;
+                }
+                const AudioFormat format = decoder.GetFormat();
+                read.sampleRate = format.sampleRate;
+                // 모노면 믹서의 스트리머가 연 디코더에 `SetMono` 를 건다 - 클립의 채널 1 이 그 신호다(D-231).
+                read.channels = read.options.mono ? 1 : format.channels;
+                read.frameCount = format.frameCount;
+                read.streamPath = job.streamPath;
+                job.decoded = true;
+                return true;
+            }
+            Array<std::byte> encoded;
+            if (false == source.Read(job.record, AssetBlob::Source, encoded))
+            {
+                job.failure = "cannot read " + name;
+                return false;
+            }
+            JArrayView<std::byte> view;
+            view.data = encoded.Data();
+            view.size = static_cast<std::uint32_t>(encoded.Size());
+            AudioFormat format;
+            AudioDecodeTarget target;
+            target.sampleRate = job.audioSampleRate;
+            target.mono = read.options.mono;
+            const bool decoded = read.options.mode == AudioImportMode::Streaming
+                ? ProbeAudio(view, format)
+                : DecodeAudio(view, format, read.pcm, target);
+            if (false == decoded)
+            {
+                job.failure = name + ": not an audio file this engine can decode";
+                return false;
+            }
+            if (read.options.mode == AudioImportMode::Streaming)
+            {
+                read.encoded = std::move(encoded);
+            }
+            read.sampleRate = format.sampleRate;
+            // `Streaming` 은 보이스마다 여는 디코더가 클립의 채널로 푼다 - 모노면 1 로 알린다(D-231).
+            read.channels = read.options.mono ? 1 : format.channels;
+            read.frameCount = format.frameCount;
+            job.decoded = true;
+            return true;
+        }
+        job.failure = "this asset type is not decoded on workers: " + name;
+        return false;
     }
 
     bool AssetSystem::ReadMeta(const AssetRecord& record, AssetMetaFile& meta)
@@ -326,58 +441,119 @@ namespace JBro
         {
             return false;
         }
-        AudioData read;
-        read.options = meta.hasAudioOptions ? meta.audioOptions : AudioImportOptions{};
-        // 디스크 스트리밍은 헤더만 읽는다 - 파일이 메모리에 오지 않는다(D-203).
-        if (read.options.mode == AudioImportMode::StreamFromDisk)
+        // 워커 로드와 같은 디코드를 부른다(D-236).
+        AssetDecodeJob job;
+        job.type = AssetType::Audio;
+        job.record = record;
+        job.audio.options = meta.hasAudioOptions ? meta.audioOptions : AudioImportOptions{};
+        job.audioSampleRate = m_audioDecodeSampleRate;
+        if (job.audio.options.mode == AudioImportMode::StreamFromDisk)
         {
-            const String path = m_source->MakeStreamPath(record);
-            AudioFileDecoder decoder;
-            if (false == decoder.Open(m_source->OpenStream(path.c_str()), path.c_str()) || decoder.CountFrames() == 0)
+            job.streamPath = m_source->MakeStreamPath(record);
+        }
+        if (false == DecodeAssetFile(*m_source, job))
+        {
+            // 파일이 없는 것은 조용히 둔다(전과 같다). 풀지 못한 것만 말한다.
+            if (job.failure.rfind("cannot read ", 0) != 0)
             {
-                Log::Write(LogLevel::Warning, "asset", "%s: this file cannot be streamed from disk", path.c_str());
+                Log::Write(LogLevel::Warning, "asset", "%s", job.failure.c_str());
+            }
+            return false;
+        }
+        data = std::move(job.audio);
+        return true;
+    }
+
+    bool AssetSystem::PrepareDecode(AssetId id, AssetDecodeJob& job)
+    {
+        if (false == IsBound() || id.IsNull() || m_source == nullptr || false == m_source->CanReadOnWorkers())
+        {
+            return false;
+        }
+        const AssetRecord* record = m_registry->Find(id);
+        if (record == nullptr)
+        {
+            return false;
+        }
+        // 스프라이트는 주인 텍스처를 대신 보낸다. 스프라이트 자체는 바인딩 때 프레임만 짓는다.
+        if (record->type == AssetType::Sprite)
+        {
+            record = m_registry->Find(record->owner);
+            if (record == nullptr)
+            {
                 return false;
             }
-            const AudioFormat format = decoder.GetFormat();
-            read.sampleRate = format.sampleRate;
-            // 모노면 믹서의 스트리머가 연 디코더에 `SetMono` 를 건다 - 클립의 채널 1 이 그 신호다(D-231).
-            read.channels = read.options.mono ? 1 : format.channels;
-            read.frameCount = format.frameCount;
-            read.streamPath = path;
-            data = std::move(read);
-            return true;
         }
-        Array<std::byte> encoded;
-        if (false == m_source->Read(record, AssetBlob::Source, encoded))
+        if (record->type != AssetType::Texture && record->type != AssetType::Audio)
         {
             return false;
         }
-        JArrayView<std::byte> view;
-        view.data = encoded.Data();
-        view.size = static_cast<std::uint32_t>(encoded.Size());
-        AudioFormat format;
-        AudioDecodeTarget target;
-        target.sampleRate = m_audioDecodeSampleRate;
-        target.mono = read.options.mono;
-        const bool decoded = read.options.mode == AudioImportMode::Streaming
-            ? ProbeAudio(view, format)
-            : DecodeAudio(view, format, read.pcm, target);
-        if (false == decoded)
+        if (m_loaded.Find(record->id) != nullptr)
         {
-            Log::Write(LogLevel::Warning, "asset", "%s: not an audio file this engine can decode",
-                record.relativePath.c_str());
             return false;
         }
-        if (read.options.mode == AudioImportMode::Streaming)
+        // 빌드가 디코드해 둔 텍스처는 복사뿐이다. 동기 로드에 둔다.
+        if (record->type == AssetType::Texture && m_source->Has(*record, AssetBlob::CookedTexture))
         {
-            read.encoded = std::move(encoded);
+            return false;
         }
-        read.sampleRate = format.sampleRate;
-        // `Streaming` 은 보이스마다 여는 디코더가 클립의 채널로 푼다 - 모노면 1 로 알린다.
-        read.channels = read.options.mono ? 1 : format.channels;
-        read.frameCount = format.frameCount;
-        data = std::move(read);
+        job = AssetDecodeJob{};
+        job.id = record->id;
+        job.type = record->type;
+        job.record = *record;
+        if (record->type == AssetType::Texture)
+        {
+            return ReadTextureOptions(*record, job.texture.options);
+        }
+        AssetMetaFile meta;
+        if (false == ReadMeta(*record, meta))
+        {
+            return false;
+        }
+        job.audio.options = meta.hasAudioOptions ? meta.audioOptions : AudioImportOptions{};
+        job.audioSampleRate = m_audioDecodeSampleRate;
+        if (job.audio.options.mode == AudioImportMode::StreamFromDisk)
+        {
+            job.streamPath = m_source->MakeStreamPath(*record);
+        }
         return true;
+    }
+
+    AssetHandle AssetSystem::AdoptDecoded(AssetDecodeJob& job)
+    {
+        if (false == IsBound() || job.id.IsNull())
+        {
+            return {};
+        }
+        if (false == job.decoded)
+        {
+            if (false == job.failure.empty())
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s", job.failure.c_str());
+            }
+            return {};
+        }
+        // 워커가 도는 사이 동기 로드가 먼저 실었다. 그 핸들에 참조를 더하고 디코드한 것은 버린다.
+        if (m_loaded.Find(job.id) != nullptr)
+        {
+            return Load(job.id);
+        }
+        AssetHandle handle;
+        if (job.type == AssetType::Texture)
+        {
+            TextureData& data = job.texture;
+            data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
+            handle = Occupy(m_textures, AssetType::Texture, job.id, std::move(data));
+        }
+        else if (job.type == AssetType::Audio)
+        {
+            handle = Occupy(m_audio, AssetType::Audio, job.id, std::move(job.audio));
+        }
+        if (handle.generation != 0)
+        {
+            m_loaded.TryAdd(job.id, handle);
+        }
+        return handle;
     }
 
     bool AssetSystem::ReadFont(const AssetRecord& record, FontData& data)
@@ -1099,42 +1275,33 @@ namespace JBro
         {
             return 0;
         }
-        const NameId uuidName = NameTable::Get().Intern("JBro.Uuid");
-        const NameId handleName = NameTable::Get().Intern("JBro.AssetHandle");
         std::uint32_t bound = 0;
-        for (std::uint32_t i = 0; i < table.count; ++i)
-        {
-            const PropertyInfo& idProperty = table.properties[i];
-            if (idProperty.type == nullptr || idProperty.type->typeName != uuidName)
+        ForEachAssetField(table, [&](const PropertyInfo& idProperty, const PropertyInfo& handleProperty) {
+            const AssetId id = *static_cast<const AssetId*>(idProperty.ConstAddress(component));
+            AssetHandle& target = *static_cast<AssetHandle*>(handleProperty.Address(component));
+            target = id.IsNull() ? AssetHandle{} : Load(id);
+            if (target.generation != 0)
             {
-                continue;
+                acquired.Add(target);
+                ++bound;
             }
-            const std::string_view idName = NameTable::Get().Resolve(idProperty.name);
-            if (false == EndsWith(idName, "Id") || idName.size() <= 2)
-            {
-                continue;
-            }
-            const std::string_view handleFieldName = idName.substr(0, idName.size() - 2);
-            for (std::uint32_t j = 0; j < table.count; ++j)
-            {
-                const PropertyInfo& handleProperty = table.properties[j];
-                if (handleProperty.type == nullptr || handleProperty.type->typeName != handleName
-                    || handleFieldName != NameTable::Get().Resolve(handleProperty.name))
-                {
-                    continue;
-                }
-                const AssetId id = *static_cast<const AssetId*>(idProperty.ConstAddress(component));
-                AssetHandle& target = *static_cast<AssetHandle*>(handleProperty.Address(component));
-                target = id.IsNull() ? AssetHandle{} : Load(id);
-                if (target.generation != 0)
-                {
-                    acquired.Add(target);
-                    ++bound;
-                }
-                break;
-            }
-        }
+        });
         return bound;
+    }
+
+    void AssetSystem::CollectComponentAssetIds(const PropertyTable& table, const void* component, Array<AssetId>& ids)
+    {
+        if (component == nullptr)
+        {
+            return;
+        }
+        ForEachAssetField(table, [&](const PropertyInfo& idProperty, const PropertyInfo&) {
+            const AssetId id = *static_cast<const AssetId*>(idProperty.ConstAddress(component));
+            if (false == id.IsNull() && false == ids.Contains(id))
+            {
+                ids.Add(id);
+            }
+        });
     }
 
     void AssetSystem::ReleaseAll(Array<AssetHandle>& acquired)

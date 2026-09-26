@@ -71,7 +71,7 @@ namespace JBro::Widget
         }
         const ImGuiViewport* viewport = ImGui::GetMainViewport();
         const float right = viewport->WorkPos.x + viewport->WorkSize.x - style.margin;
-        const float bottom = viewport->WorkPos.y + viewport->WorkSize.y - style.margin;
+        const float bottom = viewport->WorkPos.y + viewport->WorkSize.y - style.margin - style.bottomInset;
 
         // **가장 새 것부터 바닥에 쌓는다.** 사라지는 것은 남은 몫만큼만 높이를 차지해, 위의 것들이
         // 뚝 떨어지지 않고 내려온다. 들어오는 것은 처음부터 제 높이를 차지한다 - 그래야 새 알림이 올 때

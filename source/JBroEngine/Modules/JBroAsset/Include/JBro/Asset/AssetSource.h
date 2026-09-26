@@ -48,6 +48,12 @@ namespace JBro
         // 원본을 흘려 읽을 때 쓰는 이름이다. 느슨한 파일은 절대경로, 패키지는 `jpak:<아이디>` 다. 믹서가 이 글자를 들고 있다가 `OpenStream` 에 준다.
         virtual String MakeStreamPath(const AssetRecord& record) const = 0;
         virtual OwnerPtr<IFileStream> OpenStream(const char* streamPath) const = 0;
+        // `Read` 를 워커에서 불러도 되는가(D-236). 참인 소스만 워커 로드(`AssetSystem::PrepareDecode`)가 쓴다. 기본은 거짓이다 -
+        // 파일 하나를 열어 두고 자리를 옮겨 가며 읽는 소스(패키지)는 동시에 읽으면 경쟁이다. 거짓이면 그 에셋은 동기 로드로 간다.
+        virtual bool CanReadOnWorkers() const
+        {
+            return false;
+        }
     };
 
     // 에셋 폴더의 파일이다. 에디터와 원본 프로젝트로 여는 게임이 쓴다. 파일은 플랫폼이 연다(D-112).
@@ -60,6 +66,11 @@ namespace JBro
         bool Has(const AssetRecord& record, AssetBlob blob) const override;
         String MakeStreamPath(const AssetRecord& record) const override;
         OwnerPtr<IFileStream> OpenStream(const char* streamPath) const override;
+        // 파일을 통째로 읽는 것뿐이고 플랫폼의 `ReadWholeFile` 은 어느 스레드에서 불러도 된다.
+        bool CanReadOnWorkers() const override
+        {
+            return true;
+        }
 
         String SourcePathOf(const AssetRecord& record) const;
 
