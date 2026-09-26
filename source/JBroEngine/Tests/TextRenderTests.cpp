@@ -215,7 +215,10 @@ namespace
         AssetId fontId;
         // 한글이 없는 라틴 서브셋이다. 폴백 시험이 쓴다(3 단계).
         AssetId latinId;
+        // 폰트 패밀리(D-224)다. 칸은 비어 있고 테스트가 `WriteFamily` 로 채운다.
+        AssetId familyId;
         String metaPath;
+        String familyMetaPath;
 
         void Open(float pixelsPerUnit)
         {
@@ -223,6 +226,8 @@ namespace
             fs::remove_all(root);
             WriteBytes(root / "Fonts" / "sans.otf", TestFontNotoSansKR, sizeof(TestFontNotoSansKR));
             WriteBytes(root / "Fonts" / "latin.otf", TestFontNotoSansKRLatin, sizeof(TestFontNotoSansKRLatin));
+            constexpr char familyBody[] = "# JBro font family\n";
+            WriteBytes(root / "Fonts" / "family.jfontfamily", familyBody, sizeof(familyBody) - 1);
             Check(platform.Initialize(memory), "the platform initializes");
             AssetScanOptions options;
             options.createMissingMeta = true;
@@ -234,12 +239,31 @@ namespace
             const AssetRecord* latin = registry.FindByPath("Fonts/latin.otf");
             Check(latin != nullptr && latin->type == AssetType::Font, "the latin subset registers as a Font");
             latinId = latin->id;
+            const AssetRecord* family = registry.FindByPath("Fonts/family.jfontfamily");
+            Check(family != nullptr && family->type == AssetType::FontFamily, "a .jfontfamily registers as a FontFamily");
+            familyId = family->id;
+            familyMetaPath = Utf8(root / "Fonts" / "family.jfontfamily.jmeta");
             metaPath = Utf8(root / "Fonts" / "sans.otf.jmeta");
             WriteOptions(pixelsPerUnit, TextureFilter::Default);
             // 라틴 폰트도 같은 PPU 다. 폴백 글자는 기본 폰트(라틴)의 PPU 로 그려지므로 둘이 다르면 칸이 어긋난다.
             WriteOptionsAt(Utf8(root / "Fonts" / "latin.otf.jmeta"), pixelsPerUnit, TextureFilter::Default);
             Check(assets.Initialize(memory), "the asset system initializes");
             assets.Bind(platform, registry, Utf8(root).c_str());
+        }
+
+        void WriteFamily(const FontFamilyOptions& slots)
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(platform, familyMetaPath.c_str(), meta, error), "the family meta reads");
+            meta.hasFontFamilyOptions = true;
+            meta.fontFamilyOptions = slots;
+            Check(SaveAssetMetaFile(platform, familyMetaPath.c_str(), meta), "the family meta saves");
+            AssetMetaFile reread;
+            Check(LoadAssetMetaFile(platform, familyMetaPath.c_str(), reread, error) && reread.hasFontFamilyOptions
+                    && reread.fontFamilyOptions.regularFontId == slots.regularFontId
+                    && reread.fontFamilyOptions.boldItalicFontId == slots.boldItalicFontId,
+                "the FontFamily block round-trips");
         }
 
         void WriteOptions(float pixelsPerUnit, TextureFilter filter)
@@ -293,6 +317,51 @@ namespace
         assets.Release(font);
         assets.Release(font);
         Check(assets.CollectUnused() == 1 && assets.GetFont(font) == nullptr, "an unused font is collected");
+        project.Close();
+    }
+
+    // **폰트 패밀리 에셋**(D-224). 칸은 `.jmeta` 의 `FontFamily` 블록이고, 로드하면 칸마다 Font 를 참조 수로 잡는다. 빈 칸과 Font 가
+    // 아닌 칸(자기 자신)은 빈 핸들이다. 칸을 바꿔 in-place 재로드하면 새 칸을 싣고 옛 칸을 놓는다. 쓰지 않게 되면 패밀리가 먼저
+    // 내려가고 그것이 놓은 폰트가 따라 내려간다.
+    void TestFontFamilyAssetsHoldTheirFonts()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        AssetSystem& assets = project.assets;
+        FontFamilyOptions slots;
+        slots.regularFontId = project.fontId;
+        slots.boldFontId = project.latinId;
+        slots.italicFontId = project.familyId;
+        project.WriteFamily(slots);
+
+        const AssetHandle family = assets.Load(project.familyId);
+        const FontFamilyData* data = assets.GetFontFamily(family);
+        Check(data != nullptr && AssetSystem::GetHandleType(family) == AssetType::FontFamily, "a family loads");
+        const AssetHandle regular = data->fonts[static_cast<std::size_t>(FontFamilySlot::Regular)];
+        const AssetHandle bold = data->fonts[static_cast<std::size_t>(FontFamilySlot::Bold)];
+        Check(assets.GetFont(regular) != nullptr && assets.GetFont(bold) != nullptr, "its regular and bold slots are fonts");
+        Check(data->fonts[static_cast<std::size_t>(FontFamilySlot::Italic)].generation == 0
+                && data->fonts[static_cast<std::size_t>(FontFamilySlot::BoldItalic)].generation == 0,
+            "a slot naming the family itself and an empty slot stay empty");
+        Check(assets.GetReferenceCount(regular) == 1 && assets.GetReferenceCount(bold) == 1, "the family holds each font once");
+        Check(assets.GetFont(family) == nullptr, "a family handle is not a font");
+
+        // 굵게 칸을 기울임 칸으로 옮긴다.
+        slots.boldFontId = {};
+        slots.italicFontId = project.latinId;
+        project.WriteFamily(slots);
+        Check(assets.ReloadInPlace(project.familyId), "a loaded family reloads in place");
+        data = assets.GetFontFamily(family);
+        Check(data != nullptr && data->dataGeneration == 2, "with a new generation on the same handle");
+        Check(data->fonts[static_cast<std::size_t>(FontFamilySlot::Bold)].generation == 0
+                && data->fonts[static_cast<std::size_t>(FontFamilySlot::Italic)].index == bold.index,
+            "the latin font moved from bold to italic");
+        Check(assets.GetReferenceCount(bold) == 1 && assets.GetReferenceCount(regular) == 1,
+            "and each font is still held once - the old slots were released after the new ones loaded");
+
+        assets.Release(family);
+        Check(assets.CollectUnused() == 3 && assets.GetFontFamily(family) == nullptr && assets.GetFont(regular) == nullptr,
+            "an unused family goes first and takes its two fonts with it");
         project.Close();
     }
 
@@ -1617,6 +1686,7 @@ int RunTextRenderTests()
         TestTheCodecSurvivesTheCanvasFile();
         TestCopiesGetTheirOwnSlot();
         TestFontAssetsLoadAndReload();
+        TestFontFamilyAssetsHoldTheirFonts();
         TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
         TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
         TestSdfTextKeepsItsOutlineInProportion();

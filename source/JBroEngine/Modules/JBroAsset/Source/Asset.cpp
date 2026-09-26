@@ -63,6 +63,7 @@ namespace JBro
             NotifyAudioRelease(index);
         }
         m_audio = {};
+        m_fontFamilies = {};
         m_fonts = {};
         m_textures = {};
         m_sprites = {};
@@ -358,6 +359,54 @@ namespace JBro
         return true;
     }
 
+    bool AssetSystem::ReadFontFamily(const AssetRecord& record, FontFamilyData& data)
+    {
+        AssetMetaFile meta;
+        if (false == ReadMeta(record, meta))
+        {
+            return false;
+        }
+        FontFamilyData read;
+        read.options = meta.hasFontFamilyOptions ? meta.fontFamilyOptions : FontFamilyOptions{};
+        const AssetId ids[] = { read.options.regularFontId, read.options.boldFontId, read.options.italicFontId,
+            read.options.boldItalicFontId };
+        for (std::size_t slot = 0; slot < static_cast<std::size_t>(FontFamilySlot::Count); ++slot)
+        {
+            if (ids[slot].IsNull() || ids[slot] == record.id)
+            {
+                continue;
+            }
+            const AssetHandle font = Load(ids[slot]);
+            // 패밀리의 칸은 Font 만이다. 다른 타입(패밀리 안의 패밀리 포함)을 가리키면 놓고 비운다.
+            if (font.generation != 0 && GetHandleType(font) != AssetType::Font)
+            {
+                Release(font);
+                continue;
+            }
+            read.fonts[slot] = font;
+        }
+        data = std::move(read);
+        return true;
+    }
+
+    void AssetSystem::ReleaseFamilyFonts(FontFamilyData& data)
+    {
+        for (AssetHandle& font : data.fonts)
+        {
+            if (font.generation != 0)
+            {
+                Release(font);
+            }
+            font = {};
+        }
+    }
+
+    const FontFamilyData* AssetSystem::GetFontFamily(AssetHandle handle) const
+    {
+        const Slot<FontFamilyData>* slot = FindSlot(m_fontFamilies, handle, AssetType::FontFamily);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     const FontData* AssetSystem::GetFont(AssetHandle handle) const
     {
         const Slot<FontData>* slot = FindSlot(m_fonts, handle, AssetType::Font);
@@ -519,6 +568,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::FontFamily:
+                if (Slot<FontFamilyData>* slot = FindSlot(m_fontFamilies, handle, AssetType::FontFamily))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -580,6 +636,22 @@ namespace JBro
             handle = Occupy(m_fonts, AssetType::Font, id, std::move(data));
             break;
         }
+        case AssetType::FontFamily:
+        {
+            FontFamilyData data;
+            if (false == ReadFontFamily(*record, data))
+            {
+                return {};
+            }
+            FontFamilyData kept = data;
+            handle = Occupy(m_fontFamilies, AssetType::FontFamily, id, std::move(data));
+            if (handle.generation == 0)
+            {
+                // 풀이 찼다. 칸이 잡은 폰트를 놓아야 폰트가 샌 채로 남지 않는다.
+                ReleaseFamilyFonts(kept);
+            }
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -623,6 +695,14 @@ namespace JBro
             {
                 --font->referenceCount;
             }
+            return;
+        }
+        if (Slot<FontFamilyData>* family = FindSlot(m_fontFamilies, handle, AssetType::FontFamily))
+        {
+            if (family->referenceCount != 0)
+            {
+                --family->referenceCount;
+            }
         }
     }
 
@@ -637,7 +717,8 @@ namespace JBro
         return FindSlot(m_textures, handle, AssetType::Texture) != nullptr
             || FindSlot(m_sprites, handle, AssetType::Sprite) != nullptr
             || FindSlot(m_audio, handle, AssetType::Audio) != nullptr
-            || FindSlot(m_fonts, handle, AssetType::Font) != nullptr;
+            || FindSlot(m_fonts, handle, AssetType::Font) != nullptr
+            || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr;
     }
 
     std::uint32_t AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -657,6 +738,10 @@ namespace JBro
         if (const Slot<FontData>* font = FindSlot(m_fonts, handle, AssetType::Font))
         {
             return font->referenceCount;
+        }
+        if (const Slot<FontFamilyData>* family = FindSlot(m_fontFamilies, handle, AssetType::FontFamily))
+        {
+            return family->referenceCount;
         }
         return 0;
     }
@@ -744,6 +829,19 @@ namespace JBro
             font->data = std::move(fresh);
             return true;
         }
+        if (Slot<FontFamilyData>* family = FindSlot(m_fontFamilies, *loaded, AssetType::FontFamily))
+        {
+            // 새 칸을 먼저 싣고 옛 칸을 놓는다 - 같은 폰트가 두 칸에 걸쳐 있으면 참조 수가 0 을 거치지 않는다.
+            FontFamilyData fresh;
+            if (false == ReadFontFamily(*record, fresh))
+            {
+                return false;
+            }
+            ReleaseFamilyFonts(family->data);
+            fresh.dataGeneration = family->data.dataGeneration + 1;
+            family->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -770,6 +868,17 @@ namespace JBro
     std::uint32_t AssetSystem::CollectUnused()
     {
         std::uint32_t freed = 0;
+        // 패밀리가 맨 먼저다. 그것이 놓는 폰트가 뒤의 순회에서 0 이 될 수 있다.
+        for (std::uint32_t index = 0; index < m_fontFamilies.slots.Size(); ++index)
+        {
+            Slot<FontFamilyData>& slot = m_fontFamilies.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                ReleaseFamilyFonts(slot.data);
+                Vacate(m_fontFamilies, index);
+                ++freed;
+            }
+        }
         // 스프라이트가 먼저다. 그것이 놓는 텍스처가 두 번째 순회에서 0 이 될 수 있다.
         for (std::uint32_t index = 0; index < m_sprites.slots.Size(); ++index)
         {

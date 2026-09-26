@@ -136,6 +136,12 @@ namespace JBro
             {
                 return false;
             }
+            const std::uint32_t family = document.Find(root, "FontFamily");
+            if (false == ReadOptions(document, family, TypeDescriptorOf<FontFamilyOptions>::Get(),
+                    &parsed.fontFamilyOptions, parsed.hasFontFamilyOptions, error))
+            {
+                return false;
+            }
 
             result = parsed;
             return true;
@@ -205,6 +211,16 @@ namespace JBro
             writer.BeginMap("Font");
             if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<FontImportOptions>::Get(),
                     &meta.fontOptions, error))
+            {
+                return false;
+            }
+            writer.EndMap();
+        }
+        if (meta.hasFontFamilyOptions && meta.type == AssetType::FontFamily)
+        {
+            writer.BeginMap("FontFamily");
+            if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<FontFamilyOptions>::Get(),
+                    &meta.fontFamilyOptions, error))
             {
                 return false;
             }

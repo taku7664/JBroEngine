@@ -69,6 +69,24 @@ namespace JBro
         std::uint32_t dataGeneration = 1;
     };
 
+    // 로드된 폰트 패밀리다(D-224). 칸마다 Font 핸들을 참조 수로 잡고 있다(스프라이트가 텍스처를 잡는 것과 같다). 빈 칸이나
+    // Font 가 아닌 아이디는 빈 핸들이다. 칸 순서는 `FontFamilySlot` 이다. `dataGeneration` 은 in-place 재로드마다 오른다.
+    enum class FontFamilySlot : std::uint8_t
+    {
+        Regular,
+        Bold,
+        Italic,
+        BoldItalic,
+        Count
+    };
+
+    struct FontFamilyData
+    {
+        FontFamilyOptions options;
+        AssetHandle fonts[static_cast<std::size_t>(FontFamilySlot::Count)];
+        std::uint32_t dataGeneration = 1;
+    };
+
     // 프로젝트 수명 동안 에셋 로드와 캐시를 소유한다(D-50·D-111). 사용자 호출 표면은 값형 Service::AssetService 다.
     //
     // **타입별 풀과 index+generation 핸들이다.** `IAsset` 가상 기반이 없다. 핸들의 `index` 상위 4 비트가 타입이고
@@ -115,6 +133,7 @@ namespace JBro
         const SpriteData* GetSprite(AssetHandle handle) const;
         const AudioData* GetAudio(AssetHandle handle) const;
         const FontData* GetFont(AssetHandle handle) const;
+        const FontFamilyData* GetFontFamily(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
@@ -171,6 +190,9 @@ namespace JBro
         bool ReadTextureOptions(const AssetRecord& record, TextureImportOptions& options);
         bool ReadAudio(const AssetRecord& record, AudioData& data);
         bool ReadFont(const AssetRecord& record, FontData& data);
+        // 메타의 네 칸을 읽고 칸마다 Font 를 싣는다. 실패한 칸은 비운다(패밀리는 선다).
+        bool ReadFontFamily(const AssetRecord& record, FontFamilyData& data);
+        void ReleaseFamilyFonts(FontFamilyData& data);
         void NotifyAudioRelease(std::uint32_t slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
@@ -192,6 +214,7 @@ namespace JBro
         Pool<SpriteData> m_sprites;
         Pool<AudioData> m_audio;
         Pool<FontData> m_fonts;
+        Pool<FontFamilyData> m_fontFamilies;
         AudioReleaseCallback m_audioRelease = nullptr;
         void* m_audioReleaseUser = nullptr;
         Table<AssetId, AssetHandle> m_loaded;

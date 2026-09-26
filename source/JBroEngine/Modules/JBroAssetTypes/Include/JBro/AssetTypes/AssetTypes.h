@@ -34,7 +34,9 @@ namespace JBro
         Canvas,
         Prefab,
         Audio,
-        Font
+        Font,
+        // 굵게·기울임 face 를 묶는 폰트 패밀리다(D-224). 본문(`.jfontfamily`)은 표지뿐이고 네 칸은 `.jmeta` 의 `FontFamily` 블록에 있다.
+        FontFamily
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반
@@ -143,6 +145,16 @@ namespace JBro
         FontPrewarm    prewarm = FontPrewarm::None;
         // `Bitmap` 을 미리 뜰 em 픽셀 크기다. 비트맵은 크기마다 따로 뜨므로 이 크기의 글자만 미리 선다. `Sdf` 는 `sdfSize` 로 뜬다.
         std::uint32_t  prewarmSize = 32;
+    };
+
+    // 폰트 패밀리의 네 칸이다(D-224). 칸마다 Font 에셋의 아이디이고, 빈 칸은 그리는 쪽이 Regular 로 대신한다(가짜 굵게는 없다).
+    // 필드 이름이 `...FontId` 라 인스펙터의 고르기가 Font 만 보인다.
+    struct FontFamilyOptions
+    {
+        AssetId regularFontId;
+        AssetId boldFontId;
+        AssetId italicFontId;
+        AssetId boldItalicFontId;
     };
 
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.
