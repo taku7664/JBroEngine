@@ -28,6 +28,14 @@ namespace JBro
         virtual void OnTriggerEnter(const Collision2D& hit);
         virtual void OnTriggerStay(const Collision2D& hit);
         virtual void OnTriggerExit(const Collision2D& hit);
+
+        // **같은 오브젝트의 `Button2D` 가 부른다**(D-237). 입력 체인 안에서(고정 스텝·`OnUpdate` 보다 먼저) 불린다.
+        // 들어옴·나감은 포인터가 그 버튼의 가장 위에 오고 갈 때, 누름·뗌은 그 버튼에서 누른 것에만, `OnClick` 은 버튼 위에서 누르고 뗐을 때다.
+        virtual void OnPointerEnter();
+        virtual void OnPointerExit();
+        virtual void OnPointerDown();
+        virtual void OnPointerUp();
+        virtual void OnClick();
     };
 
     // 2D 스크립트 모듈이 타입을 호스트에 알리는 유일한 길이다. `GameScriptBase` 에서 바로 파생한 타입은 여기서

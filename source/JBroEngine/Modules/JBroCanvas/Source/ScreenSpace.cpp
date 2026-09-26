@@ -58,6 +58,52 @@ namespace JBro
         y = -extent.halfHeight + 2.0f * extent.halfHeight * anchorY;
     }
 
+    bool ScreenPixelToNormalized(const ScreenSpaceFrame& frame, float pixelX, float pixelY, float& x, float& y)
+    {
+        if (false == Usable(frame.targetWidth) || false == Usable(frame.targetHeight))
+        {
+            return false;
+        }
+        x = pixelX / frame.targetWidth * 2.0f - 1.0f;
+        y = 1.0f - pixelY / frame.targetHeight * 2.0f;
+        return true;
+    }
+
+    bool NormalizedToScreenPixel(const ScreenSpaceFrame& frame, float x, float y, float& pixelX, float& pixelY)
+    {
+        if (false == Usable(frame.targetWidth) || false == Usable(frame.targetHeight))
+        {
+            return false;
+        }
+        pixelX = (x + 1.0f) * 0.5f * frame.targetWidth;
+        pixelY = (1.0f - y) * 0.5f * frame.targetHeight;
+        return true;
+    }
+
+    bool ScreenPixelToLayer(ScreenScaleMode mode, const ScreenSpaceFrame& frame, float pixelX, float pixelY, float& x, float& y)
+    {
+        ScreenExtent extent;
+        float nx = 0.0f;
+        float ny = 0.0f;
+        if (false == ComputeScreenExtent(mode, frame, extent) || false == ScreenPixelToNormalized(frame, pixelX, pixelY, nx, ny))
+        {
+            return false;
+        }
+        x = nx * extent.halfWidth;
+        y = ny * extent.halfHeight;
+        return true;
+    }
+
+    bool LayerToScreenPixel(ScreenScaleMode mode, const ScreenSpaceFrame& frame, float x, float y, float& pixelX, float& pixelY)
+    {
+        ScreenExtent extent;
+        if (false == ComputeScreenExtent(mode, frame, extent))
+        {
+            return false;
+        }
+        return NormalizedToScreenPixel(frame, x / extent.halfWidth, y / extent.halfHeight, pixelX, pixelY);
+    }
+
     const char* LayerSpaceName(LayerSpace space)
     {
         return space == LayerSpace::Screen ? "Screen" : "World";

@@ -141,6 +141,7 @@ Entries:
   component_category.Rendering: 렌더링
   component_category.Physics: 물리
   component_category.Audio: 오디오
+  component_category.UI: UI
   component_category.Components: 컴포넌트
   asset.none: (없음)
   asset.missing: (없는 에셋)

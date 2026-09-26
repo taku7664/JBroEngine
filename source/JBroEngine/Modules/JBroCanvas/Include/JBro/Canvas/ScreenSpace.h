@@ -37,6 +37,15 @@ namespace JBro
     // 앵커(0..1, y 위)가 가리키는 화면의 점이다(기준 픽셀, 가운데 원점).
     void ComputeAnchorPoint(const ScreenExtent& extent, float anchorX, float anchorY, float& x, float& y);
 
+    // **역투영**(3 단계). 게임 화면 픽셀(왼쪽 위 원점, y 아래 - 마우스·터치의 좌표)과 보이는 영역의 -1..1 자리를 오간다.
+    // 화면 레이어는 이 자리에 `ScreenExtent` 를 곱하면 기준 픽셀이고, 월드 레이어는 카메라의 반폭·반높이를 곱하면 뷰 좌표다.
+    // 대상 크기가 0 이하·무한이면 거짓이고 결과를 건드리지 않는다.
+    bool ScreenPixelToNormalized(const ScreenSpaceFrame& frame, float pixelX, float pixelY, float& x, float& y);
+    bool NormalizedToScreenPixel(const ScreenSpaceFrame& frame, float x, float y, float& pixelX, float& pixelY);
+    // 게임 화면 픽셀 ↔ 화면 레이어의 좌표(기준 픽셀, 가운데 원점, y 위)다. 위 둘과 `ComputeScreenExtent` 를 잇는다.
+    bool ScreenPixelToLayer(ScreenScaleMode mode, const ScreenSpaceFrame& frame, float pixelX, float pixelY, float& x, float& y);
+    bool LayerToScreenPixel(ScreenScaleMode mode, const ScreenSpaceFrame& frame, float x, float y, float& pixelX, float& pixelY);
+
     // 파일과 인스펙터의 이름이다. 모르는 이름은 거짓이고 결과를 건드리지 않는다.
     const char* LayerSpaceName(LayerSpace space);
     bool ParseLayerSpace(const char* name, LayerSpace& space);

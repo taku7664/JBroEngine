@@ -223,6 +223,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ComponentCategoryRendering = "component_category.Rendering";
     inline constexpr const char* ComponentCategoryPhysics = "component_category.Physics";
     inline constexpr const char* ComponentCategoryAudio = "component_category.Audio";
+    inline constexpr const char* ComponentCategoryUi = "component_category.UI";
     inline constexpr const char* ComponentCategoryDefault = "component_category.Components";
 
     // ── 에셋 칸 ──────────────────────────────────────────────────────────

@@ -13,6 +13,7 @@
 #include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include "Rendering/RenderBridge2D.h"
@@ -107,6 +108,7 @@ namespace JBro
         m_scriptSystems.Physics2D = physics;
         // 텍스트 시스템은 늘 선다(CreateDefaultSystems). 없으면 서비스가 아무것도 하지 않을 뿐이다.
         m_scriptSystems.Text2D = m_canvas->GetSystems().FindSystem<System::Text2DSystem>();
+        m_scriptSystems.Screen2D = m_canvas->GetSystems().FindSystem<System::Button2DSystem>();
         m_scriptServices = {};
         BindFramework2DSystemContext(m_scriptSystems);
         BindFramework2DServiceContext(m_scriptServices);
@@ -162,6 +164,11 @@ namespace JBro
             if (System::Transform2DSystem* transforms = m_canvas->GetSystems().FindSystem<System::Transform2DSystem>())
             {
                 transforms->SetScreenSpace(frame);
+            }
+            // 버튼은 입력 체인 안에서 지난 프레임의 화면을 누른다 - 같은 기준이어야 그린 자리를 누른다.
+            if (System::Button2DSystem* buttons = m_canvas->GetSystems().FindSystem<System::Button2DSystem>())
+            {
+                buttons->SetScreenSpace(frame);
             }
         }
         // **입력 체인은 고정 스텝보다 먼저다**(D-214). `OnFixedUpdate` 가 폴링하는 입력에도 위 레이어의 블로킹이
@@ -453,7 +460,10 @@ namespace JBro
         auto& systems = m_canvas->GetSystems();
         systems.AddSystem<System::Transform2DSystem>();
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
-        systems.AddSystem<System::ScriptSystem>().SetInputSystem(m_context.input);
+        System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
+        scripts.SetInputSystem(m_context.input);
+        // 버튼은 입력 체인의 `"UI"` 레이어에 선다(D-237).
+        systems.AddSystem<System::Button2DSystem>().SetScriptSystem(&scripts);
         systems.AddSystem<System::Physics2DSystem>();
         systems.AddSystem<System::Camera2DSystem>().SetRenderWorld(&m_renderWorld);
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();

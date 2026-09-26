@@ -141,6 +141,7 @@ Entries:
   component_category.Rendering: Rendering
   component_category.Physics: Physics
   component_category.Audio: Audio
+  component_category.UI: UI
   component_category.Components: Components
   asset.none: (None)
   asset.missing: (Missing asset)

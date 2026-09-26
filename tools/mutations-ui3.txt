@@ -1,0 +1,12 @@
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:no-consume	            input.Consume(InputDevice::Mouse);	            (void)0;
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:world-above-screen	const bool above = top == nullptr || (screen != topScreen ? screen	const bool above = top == nullptr || (screen != topScreen ? topScreen
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:tiny-hit-box	const float halfWidth = std::fabs(button.size.x) * 0.5f;	const float halfWidth = std::fabs(button.size.x) * 0.05f;
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:click-anywhere	if (pointer.released && released == top && topButton != nullptr && topButton->interactable)	if (pointer.released && topButton != nullptr)
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:disabled-pressable	if (pointer.pressed && topButton != nullptr && topButton->interactable)	if (pointer.pressed && topButton != nullptr)
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:clicked-sticks	            button.clicked = false;	            (void)0;
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:no-hold	m_pointerOver = top != nullptr || m_pressed != InvalidInstanceId;	m_pointerOver = top != nullptr;
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:camera-ignored	return Apply(cameraWorld, nx * halfWidth, ny * halfHeight, point.x, point.y);	point.x = nx; point.y = ny; return true;
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:touch-ignored	if (touch.count > 0)	if (false)
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	button:no-tint	                    sprite->tint = TintFor(button);	                    (void)0;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	screen:y-not-flipped	y = 1.0f - pixelY / frame.targetHeight * 2.0f;	y = pixelY / frame.targetHeight * 2.0f - 1.0f;
+Modules\JBroFramework2DSystem\Source\Framework2D.cpp	framework:no-screen-for-buttons	                buttons->SetScreenSpace(frame);	                (void)frame;

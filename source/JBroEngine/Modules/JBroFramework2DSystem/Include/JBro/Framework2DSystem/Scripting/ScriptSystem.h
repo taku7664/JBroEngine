@@ -36,6 +36,10 @@ namespace JBro::System
         void DispatchInput(Canvas& canvas);
         // 체인에 선 핸들러 수다(켜지 않은 것도 센다). 테스트가 붙잡는 손잡이다.
         std::size_t GetInputHandlerCount() const;
+        // **엔진 시스템도 체인에 선다**(D-236). 버튼 시스템이 `"UI"` 레이어에서 포인터를 소비하는 길이다. 스크립트와 같은 규칙으로
+        // 줄 서고(레이어 순위, `order` 내림차순), 같은 자리면 스크립트보다 먼저다. 시스템이 살아 있는 동안만 둔다 - 내릴 때 뺀다.
+        void AddSystemInputHandler(IInputHandler& handler, const char* layer, std::int32_t order);
+        void RemoveSystemInputHandler(IInputHandler& handler);
 
     protected:
         void OnInitialize (Canvas& canvas) override;
@@ -91,8 +95,11 @@ namespace JBro::System
             std::uint32_t  priority = 0;
             std::int32_t   order = 0;
         };
+        // `ordered` 가 이것이면 시스템 핸들러다 - 시작 훅과 켜짐을 보지 않는다.
+        static constexpr std::uint32_t SystemHandlerSlot = 0xFFFFFFFFu;
         InputSystem*                 m_input = nullptr;
         Array<InputEntry>            m_inputChain;
+        Array<InputEntry>            m_systemHandlers;
         std::uint64_t                m_inputLayerRevision = 0;
         // 이미 OnCreate/OnStart 를 받은 스크립트다. 재생성된 슬롯과 헷갈리지 않도록
         // 주소가 아니라 InstanceId 로 기억한다. 훑는 것은 재구축 때뿐이다.

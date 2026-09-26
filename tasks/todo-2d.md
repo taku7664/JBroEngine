@@ -147,7 +147,8 @@
   ~~패밀리~~ → 완료 2026-09-26 · `1c000e3`·`7d73728`·`5f2c9b1`·`a027da5` · 에셋 `FontFamily`·`<b>`·`<i>`(D-225).
   ~~게임 로컬라이징 키~~ → 완료 2026-09-26 · `bdcd4f3`·`f687872` · 에셋 `StringTable`(`.jstrings`)·`textKey`·Tier S `JBroLocalizationTypes`(D-226).
   ~~`.jpak` 아틀라스~~ → 완료 2026-09-27 · 패키지·게임 빌드와 함께(D-232, package-plan).
-  화면 공간 UI 텍스트 → [진행] 화면 레이어와 앵커로 세운다(D-237, [ui-plan.md](./ui-plan.md)). 1 단계(그리기)가 섰다.
+  ~~화면 공간 UI 텍스트~~ → 완료 2026-09-27 · 화면 레이어와 앵커(D-237, [ui-plan.md](./ui-plan.md)). 그리기·에디터·입력(`Button2D`)의 세 단계가 섰다.
+  레이아웃 컨테이너·스크롤·마스크·텍스트 입력·게임패드 포커스는 ui-plan §4 의 `[열림]` 이다.
   남은 것(옛한글)은 사용자 결정이 먼저다(text-plan §5 의 5 단계).
 - `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·Shape 렌더러.
   렌더 패스 그래프(공용 todo)가 먼저다.

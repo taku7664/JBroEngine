@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Framework2D/Service/Physics2DService.h>
+#include <JBro/Framework2D/Service/Screen2DService.h>
 #include <JBro/Framework2D/Service/Text2DService.h>
 
 #include <cstdint>
@@ -12,7 +13,8 @@ namespace JBro
     // 2: `OnTriggerEnter`·`OnTriggerExit` 를 더했다(D-207).
     // 3: `Text2DService` 를 더했다(D-211).
     // 4: `OnCollisionStay`·`OnTriggerStay` 를 더했다(D-233).
-    inline constexpr std::uint32_t Framework2DServiceContextAbiVersion = 4;
+    // 5: 버튼 훅 다섯(`OnPointerEnter`~`OnClick`)과 `Screen2DService` 를 더했다(D-237).
+    inline constexpr std::uint32_t Framework2DServiceContextAbiVersion = 5;
 
     // Non-owning value services. Kept outside Runtime's dimension-independent context.
     struct Framework2DServiceContext
@@ -20,6 +22,7 @@ namespace JBro
         std::uint32_t AbiVersion = Framework2DServiceContextAbiVersion;
         Service::Physics2DService Physics2D;
         Service::Text2DService Text2D;
+        Service::Screen2DService Screen2D;
     };
 
     // Main-thread only. Copy the host's context into this module at load/rebind time.

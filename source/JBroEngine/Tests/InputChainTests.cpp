@@ -1,6 +1,11 @@
 ﻿#include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
+#include <JBro/Framework2D/Component/Button2D.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Host/IFramework.h>
@@ -12,6 +17,8 @@
 #include <crtdbg.h>
 
 #include <atomic>
+#include <cmath>
+#include <initializer_list>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -443,6 +450,217 @@ namespace
         BindInputSystemContext({});
         BindInputServiceContext({});
     }
+
+    // 버튼의 훅을 센다(D-237).
+    class ButtonProbe final : public GameScript2D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "InputChainTests::ButtonProbe";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnPointerEnter() override
+        {
+            ++enters;
+        }
+
+        void OnPointerExit() override
+        {
+            ++exits;
+        }
+
+        void OnPointerDown() override
+        {
+            ++downs;
+        }
+
+        void OnPointerUp() override
+        {
+            ++ups;
+        }
+
+        void OnClick() override
+        {
+            ++clicks;
+        }
+
+        int enters = 0;
+        int exits = 0;
+        int downs = 0;
+        int ups = 0;
+        int clicks = 0;
+    };
+
+    InputEvent MouseAt(float x, float y)
+    {
+        InputEvent event;
+        event.kind = InputEventKind::MouseMove;
+        event.x = x;
+        event.y = y;
+        return event;
+    }
+
+    InputEvent Released(MouseButton button)
+    {
+        InputEvent event;
+        event.kind = InputEventKind::MouseButtonUp;
+        event.button = button;
+        return event;
+    }
+
+    InputEvent Touch(InputEventKind kind, float x, float y)
+    {
+        InputEvent event;
+        event.kind = kind;
+        event.x = x;
+        event.y = y;
+        event.codePoint = 7;
+        return event;
+    }
+
+    // **버튼은 `"UI"` 레이어에서 포인터를 가져간다**(D-237, ui-plan 3 단계). 200 x 100 게임 화면 = 기준이라 화면 레이어의 1 유닛이 1 픽셀이고,
+    // 월드 카메라(세로 절반 50)도 1 유닛이 1 픽셀이다. 화면 버튼은 가운데 40 x 20, 월드 버튼은 (60, 0) 의 20 x 20 이고, 가운데 밑에는 월드 버튼이
+    // 하나 더 깔려 있다(화면 레이어가 위다).
+    void TestButtonsTakeThePointerOnTheUiLayer()
+    {
+        System::InputSystem input;
+        BindInputSystemContext(input.GetSystemContext());
+        BindInputServiceContext(input.GetServiceContext());
+        Framework2D framework;
+        FrameworkContext context;
+        context.fixedDeltaTime = 1.0f / 60.0f;
+        context.input = &input;
+        Check(framework.Initialize(context), "the framework must initialize without a renderer");
+        Check(framework.BindScriptContexts(), "the script contexts bind");
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = 200.0f;
+        frame.referenceHeight = 100.0f;
+        frame.targetWidth = 200.0f;
+        frame.targetHeight = 100.0f;
+        framework.SetScreenSpace(frame);
+        Canvas* canvas = framework.GetCanvas();
+
+        GameObject* eye = canvas->CreateObject("eye");
+        canvas->AttachComponent<Component::Transform2D>(eye);
+        auto* camera = canvas->AttachComponent<Component::Camera2D>(eye);
+        camera->primary = true;
+        camera->orthographicSize = 50.0f;
+
+        Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(LayerSpace::Screen);
+        const auto makeButton = [&](const char* name, Layer* layer, Vec2 position, Vec2 size) {
+            GameObject* object = canvas->CreateObject(name);
+            if (layer != nullptr)
+            {
+                canvas->SetObjectLayer(object, layer->GetId());
+            }
+            canvas->AttachComponent<Component::Transform2D>(object)->position = position;
+            canvas->AttachComponent<Component::Button2D>(object)->size = size;
+            canvas->AttachComponent<Component::SpriteRenderer2D>(object);
+            return object;
+        };
+        GameObject* play = makeButton("play", &hud, {0.0f, 0.0f}, {40.0f, 20.0f});
+        GameObject* sign = makeButton("sign", nullptr, {60.0f, 0.0f}, {20.0f, 20.0f});
+        GameObject* under = makeButton("under", nullptr, {0.0f, 0.0f}, {30.0f, 30.0f});
+        auto* playButton = canvas->FindComponentRaw<Component::Button2D>(play);
+        auto* playSprite = canvas->FindComponentRaw<Component::SpriteRenderer2D>(play);
+        auto* probe = canvas->AttachComponent<ButtonProbe>(play);
+        auto* signProbe = canvas->AttachComponent<ButtonProbe>(sign);
+        auto* underProbe = canvas->AttachComponent<ButtonProbe>(under);
+        auto* poller = canvas->AttachComponent<PollingProbe>(canvas->CreateObject("poller"));
+        const Service::Screen2DService& screen = GetFramework2DServices().Screen2D;
+
+        const auto frameWith = [&](std::initializer_list<InputEvent> events) {
+            Array<InputEvent> list;
+            for (const InputEvent& event : events)
+            {
+                list.Add(event);
+            }
+            input.BeginFrame({list.Data(), static_cast<std::uint32_t>(list.Size())});
+            framework.Update(1.0f / 60.0f);
+        };
+        frameWith({});
+        frameWith({});
+
+        // 가운데로 오면 화면 버튼의 호버다. 밑의 월드 버튼은 받지 않는다.
+        frameWith({MouseAt(100.0f, 50.0f)});
+        Check(playButton->hovered && probe->enters == 1 && underProbe->enters == 0, "the pointer over the screen button hovers it, not the world one under it");
+        Check(screen.IsPointerOverButton(), "and the service says the pointer is over a button");
+        Check(playSprite->tint.R == playButton->hoverTint.R, "the hovered button takes its hover tint");
+
+        // 누르면 눌림이고 게임의 폴링은 마우스를 보지 못한다.
+        frameWith({HeldButton(MouseButton::Left)});
+        Check(playButton->pressed && probe->downs == 1 && false == poller->sawMouse, "pressing the button hides the mouse from the game below");
+        Check(playSprite->tint.R == playButton->pressedTint.R, "and it takes the pressed tint");
+        frameWith({Released(MouseButton::Left)});
+        Check(playButton->clicked && probe->ups == 1 && probe->clicks == 1 && underProbe->downs == 0, "releasing on the button clicks it once");
+        frameWith({});
+        Check(false == playButton->clicked, "the click lasts one frame");
+
+        // 눌렀다가 벗어나 떼면 떼기만 있고 누름은 없다.
+        frameWith({HeldButton(MouseButton::Left)});
+        frameWith({MouseAt(190.0f, 90.0f)});
+        Check(playButton->pressed && screen.IsPointerOverButton(), "a held button keeps the pointer while it is dragged away");
+        frameWith({Released(MouseButton::Left)});
+        Check(probe->ups == 2 && probe->clicks == 1 && probe->exits == 1, "releasing away from it is no click");
+
+        // 버튼 밖의 누름은 게임이 받는다.
+        frameWith({HeldButton(MouseButton::Left)});
+        Check(poller->sawMouse && false == screen.IsPointerOverButton(), "a press away from every button reaches the game");
+        frameWith({Released(MouseButton::Left)});
+
+        // 월드 레이어의 버튼은 주 카메라로 맞춘다: 월드 (60, 0) 은 픽셀 (160, 50) 이다.
+        frameWith({MouseAt(160.0f, 50.0f), HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(signProbe->clicks == 1 && probe->clicks == 1, "the world button is hit through the camera");
+
+        // 앵커는 누름 사각형도 옮긴다: 오른쪽 위 앵커에서 (-20, -10) 은 픽셀 (180, 10) 이다.
+        auto* playPlace = canvas->FindComponentRaw<Component::Transform2D>(play);
+        playPlace->anchor = {1.0f, 1.0f};
+        playPlace->position = {-20.0f, -10.0f};
+        frameWith({MouseAt(10.0f, 10.0f)});
+        frameWith({MouseAt(180.0f, 10.0f), HeldButton(MouseButton::Left)});
+        frameWith({Released(MouseButton::Left)});
+        Check(probe->clicks == 2, "an anchored button is pressed where it is drawn");
+
+        // 꺼진 버튼은 누르지 못하지만 포인터는 가져간다.
+        playButton->interactable = false;
+        frameWith({HeldButton(MouseButton::Left)});
+        Check(probe->downs == 3 && false == poller->sawMouse && playSprite->tint.A == playButton->disabledTint.A,
+            "a disabled button is not pressed but still hides the pointer");
+        frameWith({Released(MouseButton::Left)});
+        Check(probe->clicks == 2, "and it does not click");
+        playButton->interactable = true;
+
+        // 손가락도 같다.
+        frameWith({Touch(InputEventKind::TouchBegan, 180.0f, 10.0f)});
+        Check(probe->downs == 4, "a finger presses the button");
+        frameWith({Touch(InputEventKind::TouchEnded, 180.0f, 10.0f)});
+        Check(probe->clicks == 3, "and lifting it there clicks");
+
+        // 역투영 서비스: 화면 레이어는 기준 픽셀, 월드 레이어는 월드 좌표다. 거꾸로도 같은 자리다.
+        const auto closeTo = [](float a, float b) { return std::fabs(a - b) < 0.001f; };
+        Vec2 point;
+        Check(screen.ScreenToLayer({150.0f, 25.0f}, play->GetScriptHandle(), point) && closeTo(point.x, 50.0f) && closeTo(point.y, 25.0f),
+            "a pixel lands on the screen layer in reference pixels");
+        Check(screen.ScreenToLayer({160.0f, 50.0f}, sign->GetScriptHandle(), point) && closeTo(point.x, 60.0f) && closeTo(point.y, 0.0f),
+            "and on a world layer in world units");
+        Vec2 pixel;
+        Check(screen.LayerToScreen({60.0f, 0.0f}, sign->GetScriptHandle(), pixel) && closeTo(pixel.x, 160.0f) && closeTo(pixel.y, 50.0f),
+            "a world point goes back to its pixel");
+        Check(false == screen.ScreenToLayer({1.0f, 1.0f}, GameObjectHandle{}, point), "an empty handle has no layer");
+
+        framework.UnbindScriptContexts();
+        framework.Shutdown();
+        BindInputSystemContext({});
+        BindInputServiceContext({});
+    }
 }
 
 int RunInputChainTests()
@@ -459,6 +677,7 @@ int RunInputChainTests()
     TestAFrameWithoutTheChainIsNotBlocked();
     TestDispatchDoesNotAllocate();
     TestTheFrameworkDispatchesBeforeTheFixedSteps();
+    TestButtonsTakeThePointerOnTheUiLayer();
     Log::SetEchoToConsole(echo);
     g_dispatchLog.Clear();
     std::cout << "Input chain tests passed.\n";

@@ -233,7 +233,52 @@ namespace JBro::System
             entry.order = binding.order;
             m_inputChain.Add(entry);
         }
+        for (const InputEntry& entry : m_systemHandlers)
+        {
+            m_inputChain.Add(entry);
+        }
         SortInputChain();
+    }
+
+    void ScriptSystem::AddSystemInputHandler(IInputHandler& handler, const char* layer, std::int32_t order)
+    {
+        for (const InputEntry& existing : m_systemHandlers)
+        {
+            if (existing.handler == &handler)
+            {
+                return;
+            }
+        }
+        InputEntry entry;
+        entry.ordered = SystemHandlerSlot;
+        entry.handler = &handler;
+        entry.layer = MakeNameId(layer);
+        entry.layerText = layer;
+        entry.order = order;
+        m_systemHandlers.Add(entry);
+        // 지금 선 체인에도 바로 넣는다. 스크립트 목록이 다시 세워질 때는 `BuildInputChain` 이 다시 넣는다.
+        m_inputChain.Add(entry);
+        SortInputChain();
+    }
+
+    void ScriptSystem::RemoveSystemInputHandler(IInputHandler& handler)
+    {
+        for (std::size_t index = 0; index < m_systemHandlers.Size(); ++index)
+        {
+            if (m_systemHandlers[index].handler == &handler)
+            {
+                m_systemHandlers.RemoveAt(index);
+                break;
+            }
+        }
+        for (std::size_t index = 0; index < m_inputChain.Size(); ++index)
+        {
+            if (m_inputChain[index].handler == &handler)
+            {
+                m_inputChain.RemoveAt(index);
+                break;
+            }
+        }
     }
 
     void ScriptSystem::SortInputChain()
@@ -243,7 +288,7 @@ namespace JBro::System
             entry.priority = m_input != nullptr ? m_input->GetLayerPriority(entry.layer, entry.layerText) : 0;
         }
         m_inputLayerRevision = m_input != nullptr ? m_input->GetLayerRevision() : 0;
-        // 같은 레이어에서는 `Order` 가 큰 것이 먼저, 그것도 같으면 실행 순서다. 등록 순(기존 엔진)은 로드 순서에 따라 흔들린다.
+        // 같은 레이어에서는 `Order` 가 큰 것이 먼저, 그것도 같으면 시스템이 먼저고 그다음 실행 순서다. 등록 순(기존 엔진)은 로드 순서에 따라 흔들린다.
         std::sort(m_inputChain.begin(), m_inputChain.end(), [](const InputEntry& left, const InputEntry& right)
         {
             if (left.priority != right.priority)
@@ -253,6 +298,12 @@ namespace JBro::System
             if (left.order != right.order)
             {
                 return left.order > right.order;
+            }
+            const bool leftSystem = left.ordered == SystemHandlerSlot;
+            const bool rightSystem = right.ordered == SystemHandlerSlot;
+            if (leftSystem != rightSystem)
+            {
+                return leftSystem;
             }
             return left.ordered < right.ordered;
         });
@@ -274,11 +325,14 @@ namespace JBro::System
         m_input->BeginDispatch();
         for (const InputEntry& entry : m_inputChain)
         {
-            // 앞의 핸들러가 이 스크립트를 끌 수 있으므로 부르기 직전에 본다.
-            const ScriptEntry& script = m_ordered[entry.ordered];
-            if (false == script.started || false == script.script->IsActiveComponent())
+            // 앞의 핸들러가 이 스크립트를 끌 수 있으므로 부르기 직전에 본다. 시스템 핸들러는 늘 받는다.
+            if (entry.ordered != SystemHandlerSlot)
             {
-                continue;
+                const ScriptEntry& script = m_ordered[entry.ordered];
+                if (false == script.started || false == script.script->IsActiveComponent())
+                {
+                    continue;
+                }
             }
             if (m_input->Deliver(*entry.handler))
             {

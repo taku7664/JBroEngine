@@ -7,6 +7,7 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 
@@ -25,6 +26,7 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Camera2D>()         && all;
             all = RegisterBuiltinProperties<SpriteRenderer2D>() && all;
             all = RegisterBuiltinProperties<Text2D>()           && all;
+            all = RegisterBuiltinProperties<Button2D>()         && all;
             all = RegisterBuiltinProperties<Rigidbody2D>()      && all;
             all = RegisterBuiltinProperties<Collider2D>()       && all;
             all = RegisterBuiltinProperties<DistanceJoint2D>()  && all;
