@@ -1,5 +1,6 @@
 ﻿#include <JBro/Host/GameLocalization.h>
 
+#include <algorithm>
 #include <cstring>
 #include <string_view>
 
@@ -155,6 +156,30 @@ namespace JBro
     const String& GameLocalization::GetLocaleName() const
     {
         return m_locale;
+    }
+
+    void GameLocalization::CollectKeys(Array<String>& out) const
+    {
+        out.Clear();
+        if (m_assets == nullptr)
+        {
+            return;
+        }
+        for (const HeldTable& table : m_tables)
+        {
+            const StringTableData* data = m_assets->GetStringTable(table.handle);
+            if (data == nullptr)
+            {
+                continue;
+            }
+            for (const auto& entry : data->entries)
+            {
+                out.Add(entry.KeyValue);
+            }
+        }
+        std::sort(out.begin(), out.end());
+        const auto last = std::unique(out.begin(), out.end());
+        out.Resize(static_cast<std::size_t>(last - out.begin()));
     }
 
     bool GameLocalization::FindIn(const String& locale, std::string_view key, const char*& text, std::size_t& textLength) const

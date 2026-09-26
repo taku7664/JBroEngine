@@ -789,6 +789,40 @@ namespace JBro
         // 치는 칸의 글자를 따로 들었는데, 그 상태를 지우는 뮤테이션이 모든 검사를 지나 - 같은 동작이라 - 뺐다.)
         const ArrayView<const char> stored = TextStore::Get().GetText(id);
         String draft(stored.Data(), stored.Size());
+        // **문자열 표의 키는 표에서 고른다**(D-226). 표에 키가 하나라도 있으면 검색 드롭다운이고, 없으면(표를 아직 채우지 않았다) 한 줄 칸이다.
+        // 표에 없는 키가 적혀 있으면 트리거에 그 키가 그대로 보인다 - 빠진 번역도 화면에서 보인다.
+        if (false == multiline)
+        {
+            const Array<String>& keys = m_editor->GetStringKeys();
+            if (false == keys.IsEmpty())
+            {
+                m_keyNames.Clear();
+                int current = -1;
+                for (std::size_t index = 0; index < keys.Size(); ++index)
+                {
+                    m_keyNames.Add(keys[index].c_str());
+                    if (keys[index] == draft)
+                    {
+                        current = static_cast<int>(index);
+                    }
+                }
+                const bool picked = Widget::FilterCombo("##value", ArrayView<const char* const>(m_keyNames.Data(), m_keyNames.Size()),
+                    current)
+                                        .EmptyText(draft.empty() ? Loc::TextOr(LocKeys::InspectorNoStringKey, "(none)") : draft.c_str())
+                                        .Draw();
+                if (picked && editable && current >= 0)
+                {
+                    String before;
+                    if (SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before))
+                    {
+                        const String& chosen = keys[static_cast<std::size_t>(current)];
+                        TextStore::Get().Assign(id, chosen.c_str(), chosen.size());
+                        CommitEdit(type, address, before, context);
+                    }
+                }
+                return;
+            }
+        }
         const bool finished = multiline ? Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw()
                                         : Widget::TextField("##value", draft).CommitOnFinish().Draw();
         if (finished && editable)

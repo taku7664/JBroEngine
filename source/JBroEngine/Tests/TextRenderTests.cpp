@@ -1437,6 +1437,10 @@ namespace
             "a locale is a name; an empty one is refused");
         localization.Refresh();
         Check(localization.GetTableCount() == 2, "every string table is held whatever its locale");
+        // 에디터의 키 고르기가 보이는 목록이다: 두 표의 키가 겹친 것 하나씩, 이름 차례.
+        Array<String> keys;
+        localization.CollectKeys(keys);
+        Check(keys.Size() == 2 && keys[0] == "en.only" && keys[1] == "title", "the keys of every table are collected once, in order");
         Check(project.assets.GetReferenceCount(project.assets.Find(project.koreanTableId)) == 1, "and held once");
 
         // 서비스(게임 DLL 의 사본이 부르는 길)다.

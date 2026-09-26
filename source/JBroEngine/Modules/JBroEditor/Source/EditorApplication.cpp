@@ -1928,6 +1928,24 @@ namespace JBro
         return localization != nullptr ? localization->GetLocaleName() : String();
     }
 
+    const Array<String>& EditorApplication::GetStringKeys()
+    {
+        const GameLocalization* localization = m_engine.Get() != nullptr ? m_engine->GetLocalization() : nullptr;
+        if (localization == nullptr)
+        {
+            m_stringKeys.Clear();
+            m_stringKeysRevision = 0;
+            return m_stringKeys;
+        }
+        // 판번호는 로케일을 바꿀 때도 오른다. 키는 그대로지만 모으는 것이 싸고 드물어 가르지 않는다.
+        if (m_stringKeysRevision != localization->GetRevision())
+        {
+            localization->CollectKeys(m_stringKeys);
+            m_stringKeysRevision = localization->GetRevision();
+        }
+        return m_stringKeys;
+    }
+
     bool EditorApplication::SetPreviewLocale(const char* locale)
     {
         GameLocalization* localization = m_engine.Get() != nullptr ? m_engine->GetLocalization() : nullptr;

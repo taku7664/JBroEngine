@@ -45,6 +45,8 @@ namespace JBro
 
         // 호스트 쪽 편의다. `GetLocale` 과 같되 버퍼가 없다.
         const String& GetLocaleName() const;
+        // 든 표의 키를 모두 모은다(로케일 무관, 겹친 것은 하나, 이름 차례). 에디터의 키 고르기가 판번호가 바뀔 때만 부른다.
+        void CollectKeys(Array<String>& out) const;
 
     private:
         struct HeldTable

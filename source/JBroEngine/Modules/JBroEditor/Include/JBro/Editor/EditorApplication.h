@@ -500,6 +500,8 @@ namespace JBro
         // 재생 전의 언어로 되돌린다(게임이 바꾼 로케일이 편집 화면에 남지 않게).
         String GetPreviewLocale() const;
         bool SetPreviewLocale(const char* locale);
+        // 프로젝트의 문자열 표에 있는 키 전부다(D-226, 이름 차례). 인스펙터의 `textKey` 고르기가 쓴다. 표가 바뀔 때만 다시 모은다.
+        const Array<String>& GetStringKeys();
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
         void AnswerCanvasSwitch(int choice);
@@ -673,6 +675,8 @@ namespace JBro
         String m_simulationSnapshot;
         // 재생을 시작할 때의 로케일이다. 멈추면 이것으로 되돌린다.
         String m_simulationLocale;
+        Array<String> m_stringKeys;
+        std::uint32_t m_stringKeysRevision = 0;
         bool m_simulationPlaying = false;
         bool m_simulationPaused = false;
         // 게임 입력(D-214). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은

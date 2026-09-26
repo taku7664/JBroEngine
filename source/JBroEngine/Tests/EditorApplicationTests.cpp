@@ -10249,6 +10249,8 @@ namespace
         Check(editor.Tick(Frame), "the editor ticks after the new table");
         Check(JBro::GetLocalizationServices().Localization.GetText("probe.key") == "Hello",
             "a table made while the project is open is found on the next tick");
+        const JBro::Array<JBro::String>& keys = editor.GetStringKeys();
+        Check(keys.Size() == 1 && keys[0] == "probe.key", "the inspector's key picker lists the tables' keys");
         editor.SetSelectedAsset(tableId);
         for (int frame = 0; frame < 3; ++frame)
         {

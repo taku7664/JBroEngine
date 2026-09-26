@@ -139,6 +139,8 @@ namespace JBro
         void DrawAudioBusField(const TypeDescriptor& type, void* address, Context& context);
         // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
         void DrawTextBody(const TypeDescriptor& type, void* address, bool editable, bool multiline, Context& context);
+        // `textKey` 고르기의 이름 뷰다. 매 프레임 채우되 용량은 남긴다.
+        Array<const char*> m_keyNames;
         // 오디오 에셋의 형식·길이·파형·미리 듣기(D-197, 기존 `EditorAudioPreview`).
         void DrawAudioPreview(const AssetMetaFile& meta);
         // `AssetId` 필드. 레지스트리의 같은 타입 에셋을 고르는 드롭다운이다(D-116).

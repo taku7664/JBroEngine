@@ -142,6 +142,7 @@ Entries:
   inspector.font_import_options: "폰트 임포트 옵션"
   inspector.font_family_faces: "폰트 패밀리"
   inspector.string_table: "문자열 표"
+  inspector.no_string_key: "(없음)"
   inspector.audio_format: "형식"
   inspector.audio_length: "길이"
   inspector.audio_preview: "미리 듣기"

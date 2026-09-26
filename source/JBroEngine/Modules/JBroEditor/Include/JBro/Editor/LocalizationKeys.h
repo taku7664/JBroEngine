@@ -290,6 +290,7 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorFontImportOptions = "inspector.font_import_options";
     inline constexpr const char* InspectorFontFamilyFaces = "inspector.font_family_faces";
     inline constexpr const char* InspectorStringTable = "inspector.string_table";
+    inline constexpr const char* InspectorNoStringKey = "inspector.no_string_key";
     inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
     inline constexpr const char* InspectorAudioLength = "inspector.audio_length";
     inline constexpr const char* InspectorAudioPreview = "inspector.audio_preview";
