@@ -39,6 +39,7 @@
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Input'">JBRO_TIER_PROBE_INPUT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Save'">JBRO_TIER_PROBE_SAVE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Task'">JBRO_TIER_PROBE_TASK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'TextRendering'">JBRO_TIER_PROBE_TEXT_RENDERING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

@@ -6,6 +6,7 @@
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
+#include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 
 namespace JBro::Component
@@ -23,6 +24,7 @@ namespace JBro::Component
             all = RegisterComponentType<Camera3D>(
                       ComponentCategory::Rendering, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<MeshRenderer3D>(ComponentCategory::Rendering) && all;
+            all = RegisterComponentType<Text3D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody3D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider3D>(ComponentCategory::Physics) && all;

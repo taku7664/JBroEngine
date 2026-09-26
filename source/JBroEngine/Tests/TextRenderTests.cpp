@@ -12,6 +12,13 @@
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Framework3D/Component/Camera3D.h>
+#include <JBro/Framework3D/Component/MeshRenderer3D.h>
+#include <JBro/Framework3D/Component/Text3D.h>
+#include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/Framework3D.h>
+#include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
+#include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Runtime/GameObject.h>
@@ -337,7 +344,8 @@ namespace
             platform.PumpEvents();
         }
 
-        void Paint(Framework2D& framework)
+        template <typename TFramework>
+        void Paint(TFramework& framework)
         {
             framework.Update(1.0f / 60.0f);
             Check(renderer.BeginFrame() == FrameStatus::Ready, "the frame begins");
@@ -351,6 +359,20 @@ namespace
             const auto* pixel = reinterpret_cast<const unsigned char*>(
                 image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
             return pixel[2] / 255.0f;
+        }
+
+        float Green(std::uint32_t x, std::uint32_t y) const
+        {
+            const auto* pixel = reinterpret_cast<const unsigned char*>(
+                image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
+            return pixel[1] / 255.0f;
+        }
+
+        float Blue(std::uint32_t x, std::uint32_t y) const
+        {
+            const auto* pixel = reinterpret_cast<const unsigned char*>(
+                image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
+            return pixel[0] / 255.0f;
         }
     };
 
@@ -948,6 +970,279 @@ namespace
         project.Close();
     }
 
+    // **리치 텍스트를 그린다**(D-221). 검은 `AA` 의 뒤 글자에 `<color=#FF0000>` 을 주면 그 글자만 빨갛다. 텍스트 전체의 알파(0.5)는 태그
+    // 색에도 곱해진다 - 흰 바탕 위 빨강 절반은 (1, 0.5, 0.5) 다. `<size>` 를 준 글자는 더 크게 그려진다. 끄면 태그가 글자로 보인다.
+    void TestRichTextDrawsTaggedColourAndSize()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; rich text drawing not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 24.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            label->richText = true;
+            const char* tagged = "A<color=#FF0000>A</color>";
+            TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
+            framework.BindCanvasAssets();
+
+            // 빨강(R 높고 G 낮음)과 검정(R 낮음) 픽셀을 센다.
+            const auto count = [&](std::uint32_t& red, std::uint32_t& black) {
+                red = 0;
+                black = 0;
+                for (std::uint32_t y = 0; y < 64; ++y)
+                {
+                    for (std::uint32_t x = 0; x < 64; ++x)
+                    {
+                        const float r = gpu.Red(x, y);
+                        const float g = gpu.Green(x, y);
+                        red += r > 0.8f && g < 0.3f ? 1u : 0u;
+                        black += r < 0.3f && g < 0.3f ? 1u : 0u;
+                    }
+                }
+            };
+            gpu.Paint(framework);
+            std::uint32_t red = 0;
+            std::uint32_t black = 0;
+            count(red, black);
+            Check(red > 20 && black > 20, "the tagged A is red and the other is black");
+
+            // 텍스트 알파가 태그 색에도 곱해진다: 순 빨강 자리가 흰 바탕 위 빨강 절반(G 0.5)이 된다.
+            label->color = {0.0f, 0.0f, 0.0f, 0.5f};
+            gpu.Paint(framework);
+            std::uint32_t halfRed = 0;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const float g = gpu.Green(x, y);
+                    halfRed += gpu.Red(x, y) > 0.95f && g > 0.45f && g < 0.55f ? 1u : 0u;
+                }
+            }
+            std::uint32_t fullRed = 0;
+            count(fullRed, black);
+            Check(halfRed > 20 && fullRed == 0, "the text's alpha multiplies the tag colour");
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+
+            // 크기: 태그 없는 `AA` 와 뒤 글자만 두 배인 것.
+            const char* plain = "AA";
+            TextStore::Get().Assign(label->text, plain, 2);
+            gpu.Paint(framework);
+            const DarkBox small = FindDark(gpu);
+            const char* sized = "A<size=48>A</size>";
+            TextStore::Get().Assign(label->text, sized, std::strlen(sized));
+            gpu.Paint(framework);
+            const DarkBox large = FindDark(gpu);
+            Check(large.count > small.count * 2 && large.maxY - large.minY > small.maxY - small.minY,
+                "the sized A draws larger and taller");
+
+            // 비트맵은 `<size>` 도 정수로 뜬다: 12.6 은 13 과 같은 그림이다. 글자 열이 가운데 정렬이라, 전진 폭을 12.6 으로 재면 블록 폭이
+            // 달라 모든 글자가 옮겨진다.
+            const char* whole = "<size=13>AAAAAAAAAA</size>";
+            TextStore::Get().Assign(label->text, whole, std::strlen(whole));
+            gpu.Paint(framework);
+            const Array<std::byte> at13 = gpu.image;
+            const char* fractional = "<size=12.6>AAAAAAAAAA</size>";
+            TextStore::Get().Assign(label->text, fractional, std::strlen(fractional));
+            gpu.Paint(framework);
+            Check(FindDark(gpu).count > 20 && gpu.image.Size() == at13.Size()
+                    && std::memcmp(gpu.image.Data(), at13.Data(), at13.Size()) == 0,
+                "a bitmap font rounds a tag size to whole pixels");
+
+            // 끄면 태그가 글자로 보이고 빨강은 없다(글자 수가 늘어 블록이 넓다). 글자는 그대로 두고 필드만 끈다.
+            TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
+            gpu.Paint(framework);
+            count(red, black);
+            Check(red > 20, "the tagged text is red again");
+            label->richText = false;
+            gpu.Paint(framework);
+            count(red, black);
+            Check(red == 0, "without richText nothing is red");
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+            Check(texts != nullptr && texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY)
+                    && maxX - minX > 1.5f, "and the tags lay out as letters");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
+    // **3D 텍스트**(D-222). 카메라(z=3, 세로 60 도)가 64 x 64 백버퍼를 본다. 원점의 검은 `A`(40 px, PPU 32 라 1.25 유닛)가 그려진다.
+    // - 앞(z=1.5)에 상자를 두면 가려진다(월드 텍스트는 메시 뒤에 깊이를 본다). 상자를 치우면 다시 보인다.
+    // - Y 로 90 도 돌리면 판이 옆을 보아 사라지고, `Billboard` 면 회전과 무관하게 카메라를 봐 다시 보인다.
+    // - 반투명 파랑(가까움)과 빨강(멀리)이 겹친 자리는 **뒤→앞** 합성이다: 파랑을 먼저 붙여도 겹친 자리는 파랑이 위(B > R)다.
+    void TestText3DDrawsInTheWorld()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; 3D text not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework3D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the 3D framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* eye = canvas->CreateObject("eye");
+            canvas->AttachComponent<Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
+            auto* camera = canvas->AttachComponent<Component::Camera3D>(eye);
+            camera->primary = true;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            auto* place = canvas->AttachComponent<Component::Transform3D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text3D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "A", 1);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text3DSystem>();
+            Check(texts != nullptr, "the 3D framework runs a text system");
+
+            gpu.Paint(framework);
+            const DarkBox front = FindDark(gpu);
+            Check(front.count > 20, "the A draws in the world");
+            Check(front.minX < 32 && front.maxX > 32 && front.minY < 32 && front.maxY > 32, "centred on the object");
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY) && maxY - minY > 1.0f,
+                "the block is over a unit tall (40 px at 32 px per unit)");
+
+            // 앞의 상자가 가린다.
+            GameObject* box = canvas->CreateObject("box");
+            canvas->AttachComponent<Component::Transform3D>(box)->position = {0.0f, 0.0f, 1.5f};
+            auto* mesh = canvas->AttachComponent<Component::MeshRenderer3D>(box);
+            mesh->meshId = MeshLibrary::BuiltinCubeId();
+            mesh->tint = {1.0f, 0.0f, 0.0f, 1.0f};
+            gpu.Paint(framework);
+            Check(FindDark(gpu).count == 0, "a cube in front hides the A");
+            canvas->DestroyObject(box);
+            gpu.Paint(framework);
+            Check(FindDark(gpu).count == front.count, "without it the A is back pixel for pixel");
+
+            // 옆으로 돌리면 사라지고, 빌보드면 다시 보인다.
+            place->rotation = Quaternion{0.0f, std::sin(0.7853982f), 0.0f, std::cos(0.7853982f)};
+            gpu.Paint(framework);
+            Check(FindDark(gpu).count < 3, "turned 90 degrees about Y the plate is edge-on");
+            label->facing = Component::TextFacing3D::Billboard;
+            gpu.Paint(framework);
+            Check(FindDark(gpu).count == front.count, "a billboard faces the camera whatever its rotation");
+            label->facing = Component::TextFacing3D::Transform;
+            place->rotation = Quaternion{};
+
+            // 왼쪽 정렬이면 글자가 오브젝트 원점의 오른쪽에 선다(글자 사각형의 자리가 월드로 간다).
+            label->alignX = Component::TextAlignX::Left;
+            gpu.Paint(framework);
+            const DarkBox left = FindDark(gpu);
+            Check(left.count > 20 && left.minX >= 31, "left aligned, the A starts at the object's origin");
+            label->alignX = Component::TextAlignX::Center;
+
+            // 리치 텍스트: 태그 색에 텍스트 알파(0.5)가 곱해져 흰 바탕 위 빨강 절반이다.
+            label->richText = true;
+            label->color = {0.0f, 0.0f, 0.0f, 0.5f};
+            const char* tagged = "<color=#FF0000>A</color>";
+            TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
+            gpu.Paint(framework);
+            std::uint32_t halfRed = 0;
+            std::uint32_t fullRed = 0;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const float g = gpu.Green(x, y);
+                    halfRed += gpu.Red(x, y) > 0.95f && g > 0.45f && g < 0.55f ? 1u : 0u;
+                    fullRed += gpu.Red(x, y) > 0.9f && g < 0.3f ? 1u : 0u;
+                }
+            }
+            Check(halfRed > 10 && fullRed == 0, "a 3D tag colour takes the text's alpha");
+            label->richText = false;
+            TextStore::Get().Assign(label->text, "A", 1);
+
+            // 뒤→앞: 가까운 파랑을 먼저 붙인다.
+            label->color = {0.0f, 0.0f, 1.0f, 0.5f};
+            place->position = {0.0f, 0.0f, 0.5f};
+            GameObject* farObject = canvas->CreateObject("far");
+            canvas->AttachComponent<Component::Transform3D>(farObject);
+            auto* farLabel = canvas->AttachComponent<Component::Text3D>(farObject);
+            farLabel->fontId = project.fontId;
+            farLabel->fontSize = 40.0f;
+            farLabel->color = {1.0f, 0.0f, 0.0f, 0.5f};
+            TextStore::Get().Assign(farLabel->text, "A", 1);
+            framework.BindCanvasAssets();
+            gpu.Paint(framework);
+            std::uint32_t overlap = 0;
+            std::uint32_t wrongOrder = 0;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    // 둘 다 덮은 자리는 초록이 0.25 로 떨어진다(하나만이면 0.5).
+                    if (gpu.Green(x, y) < 0.3f)
+                    {
+                        ++overlap;
+                        wrongOrder += gpu.Blue(x, y) > gpu.Red(x, y) ? 0u : 1u;
+                    }
+                }
+            }
+            std::cout << "  [measure] 3D text overlap pixels: " << overlap << std::endl;
+            Check(overlap > 5 && wrongOrder == 0, "where the two overlap the nearer blue lies on top");
+            Check(gpu.renderer.GetLastFrameStats().worldTextCount == 2, "two glyphs went to the renderer as world text");
+
+            // 폰트를 못 찾는 텍스트는 그리지 않고 그렇다고 말한다(인스펙터 경고가 이것을 묻는다).
+            GameObject* lostObject = canvas->CreateObject("lost");
+            canvas->AttachComponent<Component::Transform3D>(lostObject);
+            auto* lost = canvas->AttachComponent<Component::Text3D>(lostObject);
+            lost->fontId = Uuid::FromName("a font that is not in the project");
+            TextStore::Get().Assign(lost->text, "A", 1);
+            framework.BindCanvasAssets();
+            gpu.Paint(framework);
+            Check(texts->IsMissingFont(lost->GetInstanceId()) && false == texts->IsMissingFont(label->GetInstanceId()),
+                "a Text3D whose font is missing is reported, the others are not");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     struct ColourCount
     {
         std::uint32_t red = 0;
@@ -1311,6 +1606,8 @@ int RunTextRenderTests()
         TestPrewarmedFontsUploadOnce();
         TestPrewarmRunsOnWorkers();
         TestPixelSnapLandsGlyphsOnWholePixels();
+        TestRichTextDrawsTaggedColourAndSize();
+        TestText3DDrawsInTheWorld();
     }
     catch (const std::exception&)
     {

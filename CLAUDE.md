@@ -102,7 +102,8 @@
   `TextLayout`)와 2 단계(`GlyphAtlas`·`Font` 에셋·`TextStore`(JBroRuntime, 프로세스에 하나, D-211)·`Text2D`·`Text2DSystem`·`Text2DService`),
   3 단계(에디터: 여러 줄 글자 칸·캔버스 뷰 고르기·폰트 임포트 옵션·폰트 없음 경고, `.jproject` 의 프로젝트 폰트 목록 `Fonts`, D-213)가
   4 단계(SDF 와 외곽선: 세 백엔드 셰이더·글자 픽셀 폭 외곽선, D-215), 5 단계(미리 채우기·워커 래스터화·아틀라스 부분 업로드·자동 크기·퇴출과
-  결합 표시·금칙·GPOS 직접 읽기, D-216)가 섰다. 남은 것은 없는 계층(게임 UI·로컬라이징·`.jpak`·3D)이나 사용자 결정(리치 텍스트·패밀리)이 먼저다. 기존 엔진 `Text2D` 를 깨트려 본 결과
+  결합 표시·금칙·GPOS 직접 읽기, D-216), 6 단계(리치 텍스트 `<color>`·`<size>`, D-221, 3D 텍스트 `Text3D`·렌더러 월드 텍스트 경로·공용 모듈
+  `Modules/JBroTextRendering`, D-222)가 섰다. 남은 것은 없는 계층(게임 UI·로컬라이징·`.jpak`)이나 사용자 결정(패밀리)이 먼저다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).

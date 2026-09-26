@@ -288,6 +288,97 @@ namespace
             "a mark with no base still draws");
     }
 
+    // **리치 텍스트**(D-221). 태그는 글자로 나오지 않고 뒤 글자에 색과 크기를 붙인다. 끄면 태그도 글자다. `<<` 는 `<` 한 글자이고,
+    // 모르는 태그·틀린 태그·짝 없는 닫는 태그·아홉째 겹은 글자로 보인다. 크기가 섞인 줄은 가장 큰 글자로 줄 높이와 기준선을 잰다.
+    // 시험 폰트: em 1000, 올림 1160, 줄 높이 1448(1160 + 288), `A` 폭 608, `AV` 커닝 -15.
+    void TestRichTextMarkup()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        LayoutOptions options = Unscaled();
+
+        Check(layout.Build(Utf8("<color=#FF0000>A"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 16,
+            "without richText a tag is text");
+        options.richText = true;
+        Check(layout.Build(Utf8("<color=#FF000080>A</color>B"), faces, options) == LayoutError::None, "a coloured A lays out");
+        Check(layout.GetGlyphs().Size() == 2, "the tags draw nothing");
+        Check(layout.GetGlyphs()[0].hasColor && layout.GetGlyphs()[0].color == 0x800000FFu, "the A takes the tag's colour and alpha");
+        Check(false == layout.GetGlyphs()[1].hasColor, "and the B after the closing tag has none");
+        Check(layout.GetGlyphs()[0].sourceOffset == 17 && layout.GetGlyphs()[1].sourceOffset == 26,
+            "glyphs keep the byte offsets of their letters");
+        Check(Near(layout.GetGlyphs()[1].x, 608.0f + static_cast<float>(face.GetKerning(face.FindGlyph(U'A'), face.FindGlyph(U'B')))),
+            "and the B follows the A as if the tags were not there");
+        Check(layout.Build(Utf8("<color=#00FF00>A</color>"), faces, options) == LayoutError::None
+                && layout.GetGlyphs()[0].color == 0xFF00FF00u, "a colour without alpha is opaque");
+
+        // 틀린 것은 글자로 보인다.
+        Check(layout.Build(Utf8("a<<b"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 3
+                && layout.GetGlyphs()[1].glyph == face.FindGlyph(U'<'), "<< is one <");
+        Check(layout.Build(Utf8("</color>"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 8,
+            "a closing tag with nothing open is text");
+        Check(layout.Build(Utf8("<b>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 4, "an unknown tag is text");
+        Check(layout.Build(Utf8("<color=#FF00>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 14,
+            "a short colour is text");
+        Check(layout.Build(Utf8("<size=0>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 9,
+            "a zero size is text");
+        Check(layout.Build(Utf8("<size=12px>x"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 12,
+            "a size with a unit is text");
+        Check(layout.Build(Utf8("a<b"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 3, "an unclosed < is text");
+        {
+            constexpr char tag[] = "<color=#112233>";
+            constexpr std::size_t tagLength = sizeof(tag) - 1;
+            char nested[tagLength * 9 + 1] = {};
+            for (std::size_t depth = 0; depth < 9; ++depth)
+            {
+                std::memcpy(nested + depth * tagLength, tag, tagLength);
+            }
+            nested[tagLength * 9] = 'x';
+            Check(layout.Build(ArrayView<const char>(nested, sizeof(nested)), faces, options) == LayoutError::None
+                    && layout.GetGlyphs().Size() == 15 + 1, "the ninth nested tag is text");
+        }
+
+        // 크기: 뒤 글자의 전진 폭과 커닝이 그 크기로 재지고, 겹친 태그는 안쪽이 이긴다.
+        Check(layout.Build(Utf8("A<size=2000>A</size>A"), faces, options) == LayoutError::None, "a sized A lays out");
+        Check(Near(layout.GetGlyphs()[1].size, 2000.0f) && Near(layout.GetGlyphs()[0].size, 1000.0f) && Near(layout.GetGlyphs()[2].size, 1000.0f),
+            "only the A inside the tag is 2000 px");
+        Check(Near(layout.GetGlyphs()[2].x - layout.GetGlyphs()[1].x,
+                1216.0f + static_cast<float>(face.GetKerning(face.FindGlyph(U'A'), face.FindGlyph(U'A')))),
+            "and it advances twice as far");
+        Check(layout.Build(Utf8("<size=500><size=2000>A</size>A</size>"), faces, options) == LayoutError::None
+                && Near(layout.GetGlyphs()[0].size, 2000.0f) && Near(layout.GetGlyphs()[1].size, 500.0f), "the inner size wins");
+
+        // 줄 높이: 둘째 줄에 2000 px 글자가 있으면 그 줄의 높이와 올림이 두 배다.
+        // 큰 글자가 줄의 첫 글자가 아니어도 그 줄의 높이다.
+        Check(layout.Build(Utf8("A\nA<size=2000>A</size>"), faces, options) == LayoutError::None && layout.GetLines().Size() == 2,
+            "two lines of different sizes lay out");
+        Check(Near(layout.GetLines()[0].height, 1448.0f) && Near(layout.GetLines()[1].height, 2896.0f), "each line is as tall as its largest letter");
+        Check(Near(layout.GetLines()[0].baseline, 0.0f) && Near(layout.GetLines()[1].baseline, 1160.0f - 1448.0f - 2320.0f),
+            "the second baseline drops by the first line and its own ascent");
+        Check(Near(layout.GetContentHeight(), 1448.0f + 2896.0f), "the content height adds the lines");
+        Check(Near(layout.GetGlyphs()[2].y, layout.GetLines()[1].baseline) && Near(layout.GetGlyphs()[2].size, 2000.0f),
+            "the large A sits on its line");
+
+        // 배율(자동 크기가 쓴다)과 정수 반올림(비트맵이 쓴다).
+        LayoutOptions scaled = options;
+        scaled.markupScale = 0.5f;
+        Check(layout.Build(Utf8("<size=2000>A</size>"), faces, scaled) == LayoutError::None && Near(layout.GetGlyphs()[0].size, 1000.0f),
+            "markupScale scales tag sizes");
+        LayoutOptions whole = options;
+        whole.wholePixelMarkup = true;
+        Check(layout.Build(Utf8("<size=10.4>A</size>"), faces, whole) == LayoutError::None && Near(layout.GetGlyphs()[0].size, 10.0f),
+            "wholePixelMarkup rounds tag sizes");
+
+        // 자동 크기는 태그 크기도 같은 비로 줄인다: 상자 폭 608 에 `A<size=2000>A</size>` 는 608 x 3 = 1824 폭이라 1/3 로 준다.
+        LayoutOptions fit = options;
+        fit.boxWidth = 608.0f;
+        float chosen = 0.0f;
+        Check(layout.BuildToFit(Utf8("A<size=2000>A</size>"), faces, fit, 10.0f, 1000.0f, 0.0f, chosen) == LayoutError::None,
+            "a sized text fits its box");
+        Check(chosen < 340.0f && chosen > 320.0f && Near(layout.GetGlyphs()[1].size, chosen * 2.0f),
+            "auto size shrinks the tagged letter with the rest");
+    }
+
     void TestWordWrap()
     {
         const FontFace face = LoadTestFont();
@@ -615,6 +706,7 @@ int RunTextLayoutTests()
         TestKerningIsAppliedAcrossTheRun();
         TestKerningSurvivesGposShapesStbSkipped();
         TestCombiningMarksAttachToTheirBase();
+        TestRichTextMarkup();
         TestWordWrap();
         TestHangulWrapModes();
         TestTabStopsAndLineBreakRules();

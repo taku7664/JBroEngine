@@ -6,6 +6,8 @@
 #include "BuiltinSdfTextVS.generated.h"
 #include "BuiltinSpritePS.generated.h"
 #include "BuiltinSpriteVS.generated.h"
+#include "BuiltinWorldTextPS.generated.h"
+#include "BuiltinWorldTextVS.generated.h"
 
 // D3D11 은 DXIL 을 읽지 못해 같은 HLSL 을 SM 5.0 DXBC 로도 굽는다(D-107). fxc 의 헤더는 `BYTE` 를
 // 쓰므로 그 이름을 이 네임스페이스 안에서만 준다 - windows.h 를 렌더러에 들이지 않는다.
@@ -18,6 +20,8 @@ namespace JBro::Sm5
 #include "BuiltinSdfTextVS_SM5.generated.h"
 #include "BuiltinSpritePS_SM5.generated.h"
 #include "BuiltinSpriteVS_SM5.generated.h"
+#include "BuiltinWorldTextPS_SM5.generated.h"
+#include "BuiltinWorldTextVS_SM5.generated.h"
 }
 
 // Vulkan 은 SPIR-V 를 읽는다(D-108). Vulkan SDK 의 dxc 가 같은 HLSL 을 `-spirv` 로 구운 것이다.
@@ -29,6 +33,8 @@ namespace JBro::Spv
 #include "BuiltinSdfTextVS_SPV.generated.h"
 #include "BuiltinSpritePS_SPV.generated.h"
 #include "BuiltinSpriteVS_SPV.generated.h"
+#include "BuiltinWorldTextPS_SPV.generated.h"
+#include "BuiltinWorldTextVS_SPV.generated.h"
 }
 
 #include <cmath>
@@ -114,6 +120,9 @@ namespace JBro
             m_views.Reserve(config.maxViews);
             m_sprites.Reserve(config.maxSpriteSubmissions);
             m_meshes.Reserve(config.maxMeshSubmissions);
+            m_worldTexts.Reserve(config.maxWorldTextSubmissions);
+            m_worldTextRuns.Reserve(config.maxWorldTextSubmissions);
+            m_gpuWorldTextInstances.Resize(config.maxWorldTextSubmissions);
             m_gpuSpriteInstances.Reserve(config.maxSpriteSubmissions);
             m_gpuMeshInstances.Reserve(config.maxMeshSubmissions);
             m_meshRuns.Reserve(config.maxMeshSubmissions);
@@ -172,7 +181,8 @@ namespace JBro
         m_rhi = &rhi;
         m_device = device;
         m_swapchain = swapchain;
-        if (false == CreateBuiltinSpriteResources() || false == CreateBuiltinMeshResources())
+        if (false == CreateBuiltinSpriteResources() || false == CreateBuiltinMeshResources()
+            || false == CreateBuiltinWorldTextResources())
         {
             Shutdown();
             return false;
@@ -195,6 +205,7 @@ namespace JBro
             DestroyMeshResources();
             DestroyTextureResources();
             DestroyDepthTargets();
+            DestroyBuiltinWorldTextResources();
             DestroyBuiltinMeshResources();
             DestroyBuiltinSpriteResources();
             if (m_swapchain.IsValid())
@@ -213,6 +224,10 @@ namespace JBro
         m_meshes = {};
         m_gpuSpriteInstances = {};
         m_gpuMeshInstances = {};
+        m_worldTexts = {};
+        m_gpuWorldTextInstances = {};
+        m_worldTextRuns = {};
+        m_gpuWorldTextCount = 0;
         m_gpuSpriteCount = 0;
         m_gpuMeshCount = 0;
         m_meshRuns = {};
@@ -590,6 +605,7 @@ namespace JBro
         packet.camera = camera;
         packet.spriteOffset = static_cast<std::uint32_t>(m_sprites.Size());
         packet.meshOffset = static_cast<std::uint32_t>(m_meshes.Size());
+        packet.worldTextOffset = static_cast<std::uint32_t>(m_worldTexts.Size());
         m_views.Add(packet);
         m_activeView = static_cast<std::uint32_t>(m_views.Size() - 1);
         ++m_currentStats.viewCount;
@@ -653,6 +669,36 @@ namespace JBro
         m_meshes.Append(items.data, items.size);
         m_views[m_activeView].meshCount += items.size;
         m_currentStats.meshCount += items.size;
+        return true;
+    }
+
+    bool Renderer::SubmitWorldText(const WorldTextSubmit& item)
+    {
+        return SubmitWorldTexts({&item, 1});
+    }
+
+    bool Renderer::SubmitWorldTexts(JArrayView<WorldTextSubmit> items)
+    {
+        if (false == m_frameActive || m_activeView == InvalidViewIndex)
+        {
+            return false;
+        }
+
+        if (items.size == 0)
+        {
+            return true;
+        }
+
+        const std::size_t available = m_config.maxWorldTextSubmissions - m_worldTexts.Size();
+        if (items.data == nullptr || items.size > available)
+        {
+            m_currentStats.droppedWorldTextCount += items.size;
+            return false;
+        }
+
+        m_worldTexts.Append(items.data, items.size);
+        m_views[m_activeView].worldTextCount += items.size;
+        m_currentStats.worldTextCount += items.size;
         return true;
     }
 
@@ -893,7 +939,7 @@ namespace JBro
             m_currentStats.skippedViewCount += static_cast<std::uint32_t>(m_views.Size());
             return true;
         }
-        if (false == UploadSpriteInstances() || false == UploadMeshInstances())
+        if (false == UploadSpriteInstances() || false == UploadMeshInstances() || false == UploadWorldTextInstances())
         {
             return false;
         }
@@ -978,10 +1024,11 @@ namespace JBro
 
             RenderPassDesc pass;
             pass.colorAttachments = {&colorAttachment, 1};
-            // **메시가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4). 스프라이트만 있는 2D 프레임은
+            // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-222). 스프라이트만 있는 2D 프레임은
             // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이다.
+            const bool withDepth = view.runCount != 0 || view.worldTextRunCount != 0;
             DepthStencilAttachmentDesc depthAttachment;
-            if (view.runCount != 0)
+            if (withDepth)
             {
                 if (false == AcquireDepthTarget(extent, toTexture, depthAttachment.texture))
                 {
@@ -1017,7 +1064,7 @@ namespace JBro
                     sizeof(viewProjection.values)};
                 // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
                 // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다. 스프라이트만 있는 뷰는 예전처럼 한 번만 묶는다.
-                const bool overDepth = view.runCount != 0;
+                const bool overDepth = withDepth;
                 const auto bindShading = [&](bool sdf) {
                     const GraphicsPipelineHandle pipeline = sdf
                         ? (overDepth ? m_sdfTextOverDepthPipeline : m_sdfTextPipeline)
@@ -1103,6 +1150,36 @@ namespace JBro
                             mesh->indexBuffer, IndexFormat::UInt32, 0)
                         || false == m_frame.commands->DrawIndexedInstanced(
                             mesh->indexCount, run.instanceCount, 0, 0, run.firstInstance))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            // 월드 텍스트는 메시 **뒤**다 - 메시가 쓴 깊이로 가려진다. 파이프라인은 깊이를 보되 쓰지 않는다.
+            if (view.worldTextRunCount != 0)
+            {
+                const Matrix4x4 viewProjection = Multiply(
+                    view.camera.projection,
+                    view.camera.view);
+                const JArrayView<std::byte> constants = {
+                    reinterpret_cast<const std::byte*>(viewProjection.values),
+                    sizeof(viewProjection.values)};
+                if (false == m_frame.commands->SetGraphicsPipeline(m_worldTextPipeline)
+                    || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
+                    || false == m_frame.commands->SetVertexBuffer(
+                        1, m_worldTextInstanceBuffers[m_frame.slot], sizeof(GpuWorldTextInstance), 0)
+                    || false == m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+                    || false == m_frame.commands->SetGraphicsConstants(constants))
+                {
+                    return false;
+                }
+                for (std::uint32_t runIndex = 0; runIndex < view.worldTextRunCount; ++runIndex)
+                {
+                    const SpriteRun& run = m_worldTextRuns[view.worldTextRunOffset + runIndex];
+                    if (false == m_frame.commands->SetTexture(0, run.texture)
+                        || false == m_frame.commands->SetSampler(0, run.sampler)
+                        || false == m_frame.commands->DrawIndexedInstanced(6, run.instanceCount, 0, 0, run.firstInstance))
                     {
                         return false;
                     }
@@ -1452,6 +1529,164 @@ namespace JBro
                 static_cast<std::uint32_t>(byteSize)});
     }
 
+    bool Renderer::CreateBuiltinWorldTextResources()
+    {
+        // 상한 0 은 월드 텍스트를 쓰지 않는 렌더러다. 버퍼와 파이프라인을 만들지 않는다.
+        if (m_config.maxWorldTextSubmissions == 0)
+        {
+            return true;
+        }
+        if (m_device == nullptr
+            || m_config.maxWorldTextSubmissions > (std::numeric_limits<std::uint32_t>::max)() / sizeof(GpuWorldTextInstance))
+        {
+            return false;
+        }
+        BufferDesc instanceBufferDesc;
+        instanceBufferDesc.size = static_cast<std::size_t>(m_config.maxWorldTextSubmissions) * sizeof(GpuWorldTextInstance);
+        instanceBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+        instanceBufferDesc.memory = MemoryType::Upload;
+        for (std::uint32_t slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
+        {
+            m_worldTextInstanceBuffers[slot] = m_device->CreateBuffer(instanceBufferDesc);
+            if (false == m_worldTextInstanceBuffers[slot].IsValid())
+            {
+                return false;
+            }
+        }
+        const VertexAttributeDesc vertexAttributes[] = {
+            {0, 0, VertexFormat::Float2}};
+        const VertexAttributeDesc instanceAttributes[] = {
+            {1, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 0, VertexFormat::Float4},
+            {2, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 16, VertexFormat::Float4},
+            {3, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 32, VertexFormat::Float4},
+            {4, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, world)) + 48, VertexFormat::Float4},
+            {5, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, fill)), VertexFormat::UByte4Norm},
+            {6, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, uvRect)), VertexFormat::UShort4Norm},
+            {7, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, outline)), VertexFormat::UByte4Norm},
+            {8, static_cast<std::uint32_t>(offsetof(GpuWorldTextInstance, params)), VertexFormat::UShort4Norm}};
+        const VertexBufferLayoutDesc vertexLayouts[] = {
+            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {sizeof(GpuWorldTextInstance), VertexStepMode::Instance, {instanceAttributes, 8}}};
+        const TextureFormat colorFormats[] = {m_config.backBufferFormat};
+        GraphicsPipelineDesc pipelineDesc;
+        pipelineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinWorldTextVS, sizeof(JBroBuiltinWorldTextVS),
+            Sm5::JBroBuiltinWorldTextVS_SM5, sizeof(Sm5::JBroBuiltinWorldTextVS_SM5),
+            Spv::JBroBuiltinWorldTextVS_SPV, sizeof(Spv::JBroBuiltinWorldTextVS_SPV));
+        pipelineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinWorldTextPS, sizeof(JBroBuiltinWorldTextPS),
+            Sm5::JBroBuiltinWorldTextPS_SM5, sizeof(Sm5::JBroBuiltinWorldTextPS_SM5),
+            Spv::JBroBuiltinWorldTextPS_SPV, sizeof(Spv::JBroBuiltinWorldTextPS_SPV));
+        pipelineDesc.vertexBuffers = {vertexLayouts, 2};
+        pipelineDesc.colorFormats = {colorFormats, 1};
+        pipelineDesc.depthFormat = TextureFormat::D32Float;
+        // 메시에 가려지되 글자끼리는 가리지 않는다. 판은 양면이다 - 뒤에서 보면 거울 글자다(빌보드는 늘 앞을 본다).
+        pipelineDesc.depthTest = true;
+        pipelineDesc.depthWrite = false;
+        pipelineDesc.blend = BlendMode::Alpha;
+        pipelineDesc.cull = CullMode::None;
+        pipelineDesc.pushConstantStages = ShaderStage::Vertex;
+        pipelineDesc.pushConstantBytes = sizeof(Matrix4x4);
+        pipelineDesc.sampledTextureCount = 1;
+        pipelineDesc.samplerCount = 1;
+        m_worldTextPipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
+        return m_worldTextPipeline.IsValid();
+    }
+
+    void Renderer::DestroyBuiltinWorldTextResources()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+        if (m_worldTextPipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_worldTextPipeline);
+            m_worldTextPipeline = {};
+        }
+        for (BufferHandle& buffer : m_worldTextInstanceBuffers)
+        {
+            if (buffer.IsValid())
+            {
+                m_device->DestroyBuffer(buffer);
+                buffer = {};
+            }
+        }
+    }
+
+    bool Renderer::UploadWorldTextInstances()
+    {
+        // 제출 번호가 인스턴스 번호다. 순서는 프레임워크가 정한 뒤→앞 그대로이고, 텍스처·샘플러가 같은 이웃만 묶는다.
+        m_worldTextRuns.Clear();
+        const std::size_t count = m_worldTexts.Size();
+        m_gpuWorldTextCount = count;
+        if (count == 0)
+        {
+            for (ViewPacket& view : m_views)
+            {
+                view.worldTextRunOffset = 0;
+                view.worldTextRunCount = 0;
+            }
+            return true;
+        }
+        if (m_gpuWorldTextInstances.Size() < count || m_frame.slot >= MaxFrameSlots
+            || false == m_worldTextInstanceBuffers[m_frame.slot].IsValid())
+        {
+            return false;
+        }
+        for (ViewPacket& view : m_views)
+        {
+            view.worldTextRunOffset = static_cast<std::uint32_t>(m_worldTextRuns.Size());
+            view.worldTextRunCount = 0;
+            SpriteRun* last = nullptr;
+            const std::uint32_t end = view.worldTextOffset + view.worldTextCount;
+            for (std::uint32_t index = view.worldTextOffset; index < end; ++index)
+            {
+                const WorldTextSubmit& item = m_worldTexts[index];
+                GpuWorldTextInstance& instance = m_gpuWorldTextInstances[index];
+                instance.world = item.world;
+                for (int channel = 0; channel < 4; ++channel)
+                {
+                    instance.fill[channel] = ToUnorm8(item.tint[channel]);
+                    instance.uvRect[channel] = ToUnorm16(item.uvRect[channel]);
+                    instance.outline[channel] = item.outlineColor[channel];
+                }
+                instance.params[0] = item.outlineEdge;
+                instance.params[1] = item.sdf ? 65535 : 0;
+
+                TextureHandle texture = m_whiteTexture;
+                if (item.texture.generation != 0)
+                {
+                    const TextureResource* resource = FindTexture(item.texture);
+                    if (resource != nullptr)
+                    {
+                        texture = resource->texture;
+                    }
+                    else
+                    {
+                        ++m_currentStats.staleTextureSpriteCount;
+                    }
+                }
+                const SamplerHandle sampler = item.filter == SpriteFilter::Linear ? m_linearSampler : m_nearestSampler;
+                if (last != nullptr && last->texture == texture && last->sampler == sampler)
+                {
+                    ++last->instanceCount;
+                    continue;
+                }
+                SpriteRun run;
+                run.texture = texture;
+                run.sampler = sampler;
+                run.firstInstance = index;
+                run.instanceCount = 1;
+                last = &m_worldTextRuns.Add(run);
+                ++view.worldTextRunCount;
+            }
+        }
+        return m_device->WriteBuffer(
+            m_worldTextInstanceBuffers[m_frame.slot],
+            0,
+            {reinterpret_cast<const std::byte*>(m_gpuWorldTextInstances.Data()),
+                static_cast<std::uint32_t>(count * sizeof(GpuWorldTextInstance))});
+    }
+
     void Renderer::DestroyBuiltinSpriteResources()
     {
         if (m_device == nullptr)
@@ -1664,6 +1899,8 @@ namespace JBro
         m_meshes.Clear();
         m_meshRuns.Clear();
         m_spriteRuns.Clear();
+        m_worldTexts.Clear();
+        m_worldTextRuns.Clear();
         m_currentStats = {};
         m_activeView = InvalidViewIndex;
     }

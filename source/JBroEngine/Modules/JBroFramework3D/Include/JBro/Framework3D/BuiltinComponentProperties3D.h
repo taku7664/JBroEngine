@@ -5,6 +5,7 @@
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
+#include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 
@@ -28,6 +29,7 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Transform3D>()    && all;
             all = RegisterBuiltinProperties<Camera3D>()       && all;
             all = RegisterBuiltinProperties<MeshRenderer3D>() && all;
+            all = RegisterBuiltinProperties<Text3D>()         && all;
             all = RegisterBuiltinProperties<Rigidbody3D>()    && all;
             all = RegisterBuiltinProperties<Collider3D>()     && all;
             all = RegisterBuiltinProperties<AudioListener3D>() && all;

@@ -2855,6 +2855,33 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-222. 3D 텍스트는 렌더러의 월드 텍스트 경로(4x4 배치, 메시 뒤 깊이 테스트)로 그리고, 텍스트 렌더링의 공용 부분은 새 Tier E 모듈 `JBroTextRendering` 이 든다.**
+  (2026-09-26, text-plan §5 의 6 단계. 사용자 확인: "월드 텍스트 경로"·"facing 필드로 고른다"·"새 모듈로 옮긴다") Updates: D-200, D-215, D-216.
+  (1) `JBroTextRendering` 은 `TextLibrary`(`JBroFramework2DSystem` 에서 옮김)·`GlyphMesh`(`BuildGlyphQuads`·`GlyphPixelSize`·`SdfOutlineEdge`)·
+  `TextBlock`(폰트 모으기·다시 레이아웃 판단·레이아웃·쿼드, 입력은 컴포넌트를 모르는 `TextBlockSettings`)을 든다. Core·Text·AssetTypes·Asset·
+  RHI·Graphics·Task·Platform·Runtime(`TextStore`)에 기대고 캔버스·컴포넌트·프레임워크를 모른다 - 모듈 안에서 캔버스 헤더를 넣으면 C1083 이고,
+  스크립트 타깃에서도 C1083 이다(티어 탐침 `TextRendering`). 2D·3D 텍스트 시스템이 같은 코드로 레이아웃한다. (2) 텍스트 배치 enum
+  (`TextOverflow`·`TextWrapMode`·`TextAlignX`·`TextAlignY`)은 차원과 무관하므로 JBroCore 의 `TextOptions.h` 에 한 번 둔다. 반사 이름은 그대로라
+  저장한 캔버스가 읽힌다. (3) 렌더러: `WorldTextSubmit`(행 우선 4x4 월드, 텍스처·UV·틴트·거리장 외곽선), 88 B 인스턴스, `BuiltinWorldText.hlsl`
+  하나가 인스턴스마다 스프라이트/거리장을 고른다. 뷰의 메시 **뒤**에 깊이 테스트 켬·쓰기 끔·알파·양면으로 그린다(메시에 가려지고 글자끼리는
+  가리지 않는다). 월드 텍스트만 있는 뷰도 깊이를 단다. 상한은 `RendererConfig::maxWorldTextSubmissions`(16384, 0 이면 끔). 스프라이트 84 B 패킷과
+  2D 경로는 그대로다. (4) `Component::Text3D`(18 필드): `Text2D` 의 레이아웃 필드에 `facing { Transform, Billboard }` 를 더했고, 상자는
+  `boxWidth`·`boxHeight`, 기본 정렬은 가운데·가운데다. `autoSize`·`pixelSnap`·`renderOrder` 는 두지 않았다 - 원근에서 화면 픽셀 맞춤은 뜻이 없고,
+  순서는 거리로 정해진다(자동 크기는 필요해지면 더한다). (5) `Text3DSystem`(410)은 제 `TextLibrary` 를 들고 글자마다 오브젝트 로컬 사각형(유닛)을
+  렌더 월드에 낸다. **빌보드 회전과 뒤→앞 정렬은 뷰마다 브리지가 한다** - 게임 뷰와 편집 뷰의 카메라가 다르다. 정렬 키는 오브젝트 위치까지의
+  거리이고, 같은 텍스트의 글자는 낸 순서다. (6) 스크립트는 서비스 없이 `TextStore` 로 글자를 바꾼다(스크립트 DLL 에 호스트 저장소가 묶였다, D-216 (7)).
+  기각: 화면 공간 이름표(가려지지 않고 뷰 상한을 쓴다), 기존 스프라이트 경로에 깊이만 켜기(2D 아핀이라 판을 기울일 수 없다), 3D 시스템이 2D 시스템에
+  기대기(ProjectRule 의 프레임워크 상호 의존 금지), `TextLibrary` 를 `JBroText` 로(커널이 렌더러를 알게 된다), 3D 가 따로 복사본 두기(같은 캐시
+  코드가 두 벌이 된다).
+- **D-221. 리치 텍스트는 커널이 태그 둘(`<color>`·`<size>`)을 읽고, 텍스트마다 `richText` 로 켠다.**
+  (2026-09-26, text-plan §5 의 6 단계. 사용자 확인: 범위 "색·크기", `<` 는 `<<`) Updates: D-200 (6).
+  (1) `<color=#RRGGBB>`·`<color=#RRGGBBAA>` ... `</color>`, `<size=픽셀>` ... `</size>`, `<<` 는 `<` 한 글자다. 모르는 태그·틀린 태그·짝 없는 닫는
+  태그·여덟 겹을 넘는 태그는 **글자 그대로 보인다** - 조용히 삼키면 오타가 보이지 않는다. (2) 읽는 것은 커널(`TextLayout`, `LayoutOptions::richText`)
+  이라 2D·3D 가 같은 결과다. 글리프마다 크기와 색을 든다. 전진 폭·커닝·결합 표시 앵커는 그 글자의 크기이고, 줄 높이와 기준선은 그 줄에서 가장 큰
+  글자의 크기다. (3) 태그 색은 RGB 와 알파를 정하고 컴포넌트 `color` 의 알파를 곱한다(텍스트 전체를 흐리게 하는 연출이 그대로 된다). (4) `<size>` 는
+  글자 픽셀이고 자동 크기에서 같은 비로 줄며(`LayoutOptions::markupScale`), 비트맵 폰트는 정수로 반올림한다(`wholePixelMarkup`). (5) SDF 외곽선 문턱은
+  글자마다다(크기가 섞이면 거리장 픽셀 / 글자 픽셀이 다르다). 기각: 굵게·기울임(패밀리가 없고 사용자가 색·크기만 골랐다), 태그를 삼키는 관대한
+  읽기(위 (1)).
 - **D-220. 컴포넌트별 우클릭 항목은 에디터가 소유한 등록형 표에 타입으로 걸고, 인스턴스마다 `ComponentAddress` 로 부르며, 오브젝트 메뉴와 인스펙터 머리 메뉴가 같은 표를 쓴다.** (2026-09-26)
   사용자가 정했다(에디터 공용 기반 8 번). 처음 제안(85a7d33·4749b0c)은 `FindFieldExtra` 모양의 표를 타입 단위로 한 번 부르는 것이었고, devil 검토에서 세 곳이 깨졌다:
   - **같은 타입을 둘 붙일 수 있다**(`InspectorPanel` 슬롯). 타입 단위로 한 번 부르면 둘째 인스턴스에 훅이 닿지 않는다. 예로 든 항목("포인트 편집")이 모두
@@ -2916,7 +2943,7 @@ EditorApplication::Tick
   `TaskManager` 에 두지 않고 에디터 위젯 `Widget::TaskProgress` 하나가 바·원 모양과 아래 태스크 목록을 고른다(권장안 - 사용자가 추천을 물었다).
 
 - **D-216. 텍스트 5 단계: 미리 채우기·부분 업로드·퇴출·자동 크기는 텍스트 라이브러리 안에서 닫고, 워커 일은 `JBroTask` 로, 새 GPU 계약은 `WriteTextureRegion` 하나다.**
-  (2026-09-26, text-plan §5 의 5 단계와 §7) Updates: D-200 (2)·(6), D-211, D-215. 정한 것:
+  (2026-09-26, text-plan §5 의 5 단계와 §7. 새 계약 둘 - `WriteTextureRegion` 과 `JBroFramework2DSystem` → `JBroTask` - 은 같은 날 사용자가 그대로 두기로 확인했다) Updates: D-200 (2)·(6), D-211, D-215. 정한 것:
   (1) 아틀라스 페이지는 더러운 사각형만 올린다. `IRHIDevice::WriteTextureRegion(texture, mip, x, y, w, h, data, rowPitch)` 이고 기본 구현은 `false` 다 -
   부르는 쪽이 페이지 전체로 되돌아가므로 구현하지 않은 백엔드도 맞게 그린다. 세 백엔드가 구현한다. 새 글자 하나의 프레임이 1.7 / 0.65 / 1.4 ms 에서
   0.54 / 0.01 / 0.43 ms 가 됐다(D3D12 / D3D11 / Vulkan). (2) R8 포맷은 두지 않는다. RGBA8 `(255,255,255,a)` 칸은 스프라이트 셰이더를 그대로 쓰고,
