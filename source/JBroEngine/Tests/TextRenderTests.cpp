@@ -1061,13 +1061,17 @@ namespace
             Check(large.count > small.count * 2 && large.maxY - large.minY > small.maxY - small.minY,
                 "the sized A draws larger and taller");
 
-            // 비트맵은 `<size>` 도 정수로 뜬다: 47.6 은 48 과 같은 그림이다.
+            // 비트맵은 `<size>` 도 정수로 뜬다: 12.6 은 13 과 같은 그림이다. 글자 열이 가운데 정렬이라, 전진 폭을 12.6 으로 재면 블록 폭이
+            // 달라 모든 글자가 옮겨진다.
+            const char* whole = "<size=13>AAAAAAAAAA</size>";
+            TextStore::Get().Assign(label->text, whole, std::strlen(whole));
             gpu.Paint(framework);
-            const Array<std::byte> at48 = gpu.image;
-            const char* fractional = "A<size=47.6>A</size>";
+            const Array<std::byte> at13 = gpu.image;
+            const char* fractional = "<size=12.6>AAAAAAAAAA</size>";
             TextStore::Get().Assign(label->text, fractional, std::strlen(fractional));
             gpu.Paint(framework);
-            Check(gpu.image.Size() == at48.Size() && std::memcmp(gpu.image.Data(), at48.Data(), at48.Size()) == 0,
+            Check(FindDark(gpu).count > 20 && gpu.image.Size() == at13.Size()
+                    && std::memcmp(gpu.image.Data(), at13.Data(), at13.Size()) == 0,
                 "a bitmap font rounds a tag size to whole pixels");
 
             // 끄면 태그가 글자로 보이고 빨강은 없다(글자 수가 늘어 블록이 넓다). 글자는 그대로 두고 필드만 끈다.
