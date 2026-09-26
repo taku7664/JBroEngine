@@ -51,6 +51,10 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewEditPointsNotPolygon = "canvas_view.edit_points_not_polygon";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
     inline constexpr const char* CanvasViewPreviewLocale = "canvas_view.preview_locale";
+    inline constexpr const char* CanvasViewSpaceWorld = "canvas_view.space_world";
+    inline constexpr const char* CanvasViewSpaceUi = "canvas_view.space_ui";
+    inline constexpr const char* CanvasViewSpaceTooltip = "canvas_view.space_tooltip";
+    inline constexpr const char* CanvasViewReferenceRect = "canvas_view.reference_rect";
     inline constexpr const char* CanvasViewPreviewLocaleTooltip = "canvas_view.preview_locale_tooltip";
     // 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지(D-184, 기존 `canvas_view.unit.*`).
     inline constexpr const char* CanvasViewUnitWorld = "canvas_view.unit_world";
@@ -128,6 +132,11 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyUnnamed = "hierarchy.unnamed";
     inline constexpr const char* HierarchySearch = "hierarchy.search";
     inline constexpr const char* HierarchyAddLayer = "hierarchy.add_layer";
+    inline constexpr const char* HierarchyLayerScreen = "hierarchy.layer_screen";
+    inline constexpr const char* HierarchyLayerToWorld = "hierarchy.layer_to_world";
+    inline constexpr const char* HierarchyLayerScreenTooltip = "hierarchy.layer_screen_tooltip";
+    inline constexpr const char* HierarchyLayerScaleMode = "hierarchy.layer_scale_mode";
+    inline constexpr const char* HierarchyLayerScreenTag = "hierarchy.layer_screen_tag";
     inline constexpr const char* HierarchyDeleteLayer = "hierarchy.delete_layer";
     inline constexpr const char* HierarchyLayerName = "hierarchy.layer_name";
     // 계층 맨 위의 캔버스 줄(D-186).

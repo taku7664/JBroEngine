@@ -1,4 +1,5 @@
 ﻿#include "HierarchyPanel.h"
+#include <JBro/Editor/Widget/FilterCombo.h>
 
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Command/HierarchyCommands.h>
@@ -339,6 +340,12 @@ namespace JBro
             {
                 Widget::HintText(layer.GetName());
             }
+            // 화면 레이어는 이름 뒤에 표시한다 - 그 레이어의 오브젝트가 왜 캔버스 뷰의 월드 보기에 없는지가 줄에서 보인다(D-233).
+            if (layer.GetSpace() == LayerSpace::Screen)
+            {
+                ImGui::SameLine();
+                Widget::HintText(Loc::TextOr(LocKeys::HierarchyLayerScreenTag, "UI"));
+            }
 
             ImGui::SetCursorScreenPos(cursor);
             // **눈 표시는 줄의 오른쪽 끝이다.** 기존 엔진도 같은 자리에 두었다. 오브젝트 줄과 같은 함수다.
@@ -475,6 +482,38 @@ namespace JBro
                 MakeOwnerPtr<RenameLayerCommand>(*canvas, layerId, m_renameText.c_str()));
         }
 
+        ImGui::Separator();
+        // **화면 레이어**(D-233). 켜고 끄면 루트의 자리가 게임 화면에서 보이던 곳에 남는다(`MakeLayerSpaceCommand`).
+        {
+            const bool screen = layer.GetSpace() == LayerSpace::Screen;
+            const char* toggle = screen ? Loc::TextOr(LocKeys::HierarchyLayerToWorld, "Make World Layer")
+                                        : Loc::TextOr(LocKeys::HierarchyLayerScreen, "Make Screen Layer");
+            if (Widget::MenuItem(toggle))
+            {
+                if (OwnerPtr<EditorCommand> command = m_editor->MakeLayerSpaceCommand(
+                        layerId, screen ? LayerSpace::World : LayerSpace::Screen, layer.GetScaleMode()))
+                {
+                    m_editor->GetCommands().Execute(std::move(command));
+                }
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::HierarchyLayerScreenTooltip,
+                "the objects on this layer stay fixed on the screen whatever the camera does, in reference-resolution pixels"));
+            if (layer.GetSpace() == LayerSpace::Screen)
+            {
+                Widget::Text(Loc::TextOr(LocKeys::HierarchyLayerScaleMode, "Scale Mode"));
+                const char* const modes[] = { "FixedHeight", "FixedWidth", "Contain", "ConstantPixel" };
+                int current = static_cast<int>(layer.GetScaleMode());
+                if (Widget::FilterCombo("##scaleMode", ArrayView<const char* const>(modes, 4), current).ShowFilter(false).Width(180.0f).Draw()
+                    && current >= 0)
+                {
+                    if (OwnerPtr<EditorCommand> command = m_editor->MakeLayerSpaceCommand(
+                            layerId, LayerSpace::Screen, static_cast<ScreenScaleMode>(current)))
+                    {
+                        m_editor->GetCommands().Execute(std::move(command));
+                    }
+                }
+            }
+        }
         ImGui::Separator();
         if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
         {

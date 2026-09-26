@@ -42,7 +42,8 @@ namespace JBro
         // 화면 세로 절반이 담는 월드 길이의 한계다. 아래로는 한 화면이 2 cm, 위로는
         // 한 화면이 2 km 쯤 된다. 끝을 두지 않으면 휠 한 번에 0 이나 무한으로 간다.
         constexpr float MinOrthographicSize = 0.01f;
-        constexpr float MaxOrthographicSize = 1000.0f;
+        // UI 보기는 기준 픽셀이라 4K 기준(세로 절반 1080)도 담아야 한다.
+        constexpr float MaxOrthographicSize = 20000.0f;
         // 휠 한 칸의 배율. 1.1 은 열 칸에 약 2.6 배라 손에 붙는다.
         constexpr float ZoomStep = 1.1f;
         // 트랜스폼만 있는(그림이 없는) 오브젝트가 화면에서 차지하는 크기다. 이것이 없으면
@@ -240,11 +241,66 @@ namespace JBro
             - (screenY - rect.top - drawHeight * 0.5f) / (drawHeight * 0.5f) * halfHeight;
     }
 
+    void CanvasViewPanel::SetScreenView(bool screen)
+    {
+        if (screen == m_screenView || Is3D())
+        {
+            return;
+        }
+        // 처음 들어가는 UI 보기는 기준 사각형이 다 보이게 연다.
+        if (false == m_otherCameraSet)
+        {
+            const ScreenSpaceFrame frame = m_editor->GetGameScreenSpace();
+            m_otherCenterX = 0.0f;
+            m_otherCenterY = 0.0f;
+            m_otherSize = screen ? std::max(frame.referenceHeight, 1.0f) * 0.55f : 5.0f;
+            m_otherCameraSet = true;
+        }
+        std::swap(m_centerX, m_otherCenterX);
+        std::swap(m_centerY, m_otherCenterY);
+        std::swap(m_orthographicSize, m_otherSize);
+        m_screenView = screen;
+    }
+
+    bool CanvasViewPanel::InViewSpace(const GameObject& object) const
+    {
+        const Layer* layer = object.GetLayer();
+        const bool screen = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
+        return screen == m_screenView;
+    }
+
+    void CanvasViewPanel::DrawReferenceRect(const ViewRect& rect)
+    {
+        // **기준 사각형**(D-233). 화면 레이어의 1 유닛이 기준 해상도의 1 픽셀이라, 게임 화면의 가장자리가 어디인지 이 선이 보인다.
+        const ScreenSpaceFrame frame = m_editor->GetGameScreenSpace();
+        float x0 = 0.0f;
+        float y0 = 0.0f;
+        float x1 = 0.0f;
+        float y1 = 0.0f;
+        WorldToScreen(rect, -frame.referenceWidth * 0.5f, frame.referenceHeight * 0.5f, x0, y0);
+        WorldToScreen(rect, frame.referenceWidth * 0.5f, -frame.referenceHeight * 0.5f, x1, y1);
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        draw->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), IM_COL32(120, 200, 255, 200), 0.0f, 0, 1.5f);
+        char label[96] = {};
+        std::snprintf(label, sizeof(label), "%s %.0f x %.0f", Loc::TextOr(LocKeys::CanvasViewReferenceRect, "Reference resolution"),
+            frame.referenceWidth, frame.referenceHeight);
+        draw->AddText(ImVec2(x0 + 4.0f, y0 + 4.0f), IM_COL32(120, 200, 255, 220), label);
+    }
+
     void CanvasViewPanel::OnDraw()
     {
         if (m_editor == nullptr)
         {
             return;
+        }
+        // 고른 것이 바뀌면 그 레이어의 공간으로 보기를 맞춘다(D-233). 계층에서 화면 레이어의 오브젝트를 누르면 UI 보기로 간다.
+        if (GameObject* selected = m_editor->GetSelectedObject(); selected != m_lastSelection)
+        {
+            m_lastSelection = selected;
+            if (selected != nullptr && false == InViewSpace(*selected))
+            {
+                SetScreenView(false == m_screenView);
+            }
         }
         DrawToolBar();
 
@@ -266,7 +322,7 @@ namespace JBro
         }
         else
         {
-            m_editor->RequestCanvasView(wanted, m_centerX, m_centerY, m_orthographicSize);
+            m_editor->RequestCanvasView(wanted, m_centerX, m_centerY, m_orthographicSize, m_screenView);
         }
 
         const ImVec2 origin = ImGui::GetCursorScreenPos();
@@ -327,6 +383,10 @@ namespace JBro
             if (m_showGrid)
             {
                 DrawGrid(rect);
+            }
+            if (m_screenView)
+            {
+                DrawReferenceRect(rect);
             }
             if (m_showColliders)
             {
@@ -451,6 +511,16 @@ namespace JBro
         }
         Widget::HoveredTooltip(
             Loc::TextOr(LocKeys::CanvasViewFrameTooltip, "fit the view to the selection"));
+        if (false == Is3D())
+        {
+            // **월드 / UI 보기**(D-233). 단추의 글이 지금 보기다 - 로컬·월드 단추와 같은 모양이다.
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::Button(m_screenView ? Loc::TextOr(LocKeys::CanvasViewSpaceUi, "UI") : Loc::TextOr(LocKeys::CanvasViewSpaceWorld, "World")))
+            {
+                SetScreenView(false == m_screenView);
+            }
+            Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewSpaceTooltip, "edit the world layers or the screen (UI) layers"));
+        }
         DrawPreviewLocale();
         if (false == Is3D())
         {
@@ -751,8 +821,11 @@ namespace JBro
                 const SpriteFrame& frame = data->frames[frameIndex];
                 if (sprite->sizeMode == Component::SpriteSizeMode::FromSprite)
                 {
-                    widthUnits = static_cast<float>(frame.width) / data->options.pixelsPerUnit;
-                    heightUnits = static_cast<float>(frame.height) / data->options.pixelsPerUnit;
+                    // 화면 레이어는 PPU 대신 픽셀이다 - 그리는 쪽과 같다(D-233).
+                    const Layer* layer = object.GetLayer();
+                    const float ppu = layer != nullptr && layer->GetSpace() == LayerSpace::Screen ? 1.0f : data->options.pixelsPerUnit;
+                    widthUnits = static_cast<float>(frame.width) / ppu;
+                    heightUnits = static_cast<float>(frame.height) / ppu;
                 }
                 if (sprite->pivotMode == Component::SpritePivotMode::FromSprite)
                 {
@@ -826,8 +899,8 @@ namespace JBro
 
         canvas->ForEachObject([&](GameObject& object)
         {
-            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
-            if (object.IsEditorHidden())
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-233).
+            if (object.IsEditorHidden() || false == InViewSpace(object))
             {
                 return;
             }
@@ -1365,7 +1438,7 @@ namespace JBro
             float minY = 0.0f;
             float maxX = 0.0f;
             float maxY = 0.0f;
-            if (object == nullptr || false == GetWorldBounds(*object, minX, minY, maxX, maxY))
+            if (object == nullptr || false == InViewSpace(*object) || false == GetWorldBounds(*object, minX, minY, maxX, maxY))
             {
                 continue;
             }
@@ -1489,8 +1562,8 @@ namespace JBro
         float bestArea = 0.0f;
         canvas->ForEachObject([&](GameObject& object)
         {
-            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
-            if (object.IsEditorHidden())
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-233).
+            if (object.IsEditorHidden() || false == InViewSpace(object))
             {
                 return;
             }
@@ -1767,8 +1840,8 @@ namespace JBro
         Array<GameObject*> hit;
         canvas->ForEachObject([&](GameObject& object)
         {
-            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
-            if (object.IsEditorHidden())
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-233).
+            if (object.IsEditorHidden() || false == InViewSpace(object))
             {
                 return;
             }
@@ -2214,8 +2287,8 @@ namespace JBro
         };
         canvas->ForEachObject([&](GameObject& object)
         {
-            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
-            if (object.IsEditorHidden())
+            // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-233).
+            if (object.IsEditorHidden() || false == InViewSpace(object))
             {
                 return;
             }

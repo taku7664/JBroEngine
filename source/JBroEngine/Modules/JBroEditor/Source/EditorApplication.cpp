@@ -25,6 +25,9 @@
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Host/GameBuild.h>
+#include <JBro/Editor/Command/LayerCommands.h>
+#include <JBro/Canvas/ScreenSpace.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
@@ -2015,6 +2018,80 @@ namespace JBro
         return localization != nullptr ? localization->GetLocaleName() : String();
     }
 
+    ScreenSpaceFrame EditorApplication::GetGameScreenSpace() const
+    {
+        ScreenSpaceFrame frame;
+        frame.referenceWidth = static_cast<float>(GetProjectFile().resolutionWidth);
+        frame.referenceHeight = static_cast<float>(GetProjectFile().resolutionHeight);
+        frame.targetWidth = static_cast<float>(m_gameViewExtent.width);
+        frame.targetHeight = static_cast<float>(m_gameViewExtent.height);
+        return frame;
+    }
+
+    OwnerPtr<EditorCommand> EditorApplication::MakeLayerSpaceCommand(LayerId layerId, LayerSpace space, ScreenScaleMode scaleMode)
+    {
+        Canvas* canvas = GetCanvas();
+        const Layer* layer = canvas != nullptr ? canvas->FindLayer(layerId) : nullptr;
+        if (layer == nullptr)
+        {
+            return {};
+        }
+        Array<SetLayerSpaceCommand::RootMove> moves;
+        const LayerSpace from = layer->GetSpace();
+        const RenderWorld2D* world = m_frameworkKind == FrameworkKind::Framework2D && m_framework.Get() != nullptr
+            ? static_cast<Framework2D*>(m_framework.Get())->GetRenderWorld() : nullptr;
+        const RenderCamera2D* camera = world != nullptr ? world->GetCamera() : nullptr;
+        const ScreenSpaceFrame frame = GetGameScreenSpace();
+        ScreenExtent fromExtent;
+        ScreenExtent toExtent;
+        const bool fromOk = ComputeScreenExtent(layer->GetScaleMode(), frame, fromExtent);
+        const bool toOk = ComputeScreenExtent(scaleMode, frame, toExtent);
+        const auto* cameraTransform = camera != nullptr && camera->owner != nullptr
+            ? canvas->FindComponentRaw<Component::Transform2D>(camera->owner) : nullptr;
+        // **보이던 자리를 지킨다.** 월드 → 화면: 게임 카메라가 그 점을 화면 어디에 그렸는지를 기준 픽셀로 옮긴다. 화면 → 월드는 거꾸로다.
+        const bool convert = from != space && camera != nullptr && camera->orthographicSize > 0.0f && fromOk && toOk
+            && cameraTransform != nullptr && cameraTransform->worldValid && frame.targetHeight > 0.0f;
+        if (convert)
+        {
+            const float cameraHalfHeight = camera->orthographicSize;
+            const float cameraHalfWidth = cameraHalfHeight * frame.targetWidth / frame.targetHeight;
+            canvas->ForEachObject([&](GameObject& object) {
+                if (object.GetLayer() != layer || canvas->FindComponentRaw<Component::Transform2D>(object.GetParent()) != nullptr)
+                {
+                    return;
+                }
+                const auto* transform = canvas->FindComponentRaw<Component::Transform2D>(&object);
+                if (transform == nullptr || false == transform->worldValid)
+                {
+                    return;
+                }
+                SetLayerSpaceCommand::RootMove move;
+                move.object = GetObjectIds().Track(&object);
+                if (space == LayerSpace::Screen)
+                {
+                    const Matrix3x2& view = camera->view;
+                    const float vx = transform->worldPosition.x * view.m11 + transform->worldPosition.y * view.m21 + view.m31;
+                    const float vy = transform->worldPosition.x * view.m12 + transform->worldPosition.y * view.m22 + view.m32;
+                    float anchorX = 0.0f;
+                    float anchorY = 0.0f;
+                    ComputeAnchorPoint(toExtent, transform->anchor.x, transform->anchor.y, anchorX, anchorY);
+                    move.x = vx / cameraHalfWidth * toExtent.halfWidth - anchorX;
+                    move.y = vy / cameraHalfHeight * toExtent.halfHeight - anchorY;
+                }
+                else
+                {
+                    const float vx = transform->worldPosition.x / fromExtent.halfWidth * cameraHalfWidth;
+                    const float vy = transform->worldPosition.y / fromExtent.halfHeight * cameraHalfHeight;
+                    const Matrix3x2& eye = cameraTransform->world;
+                    move.x = vx * eye.m11 + vy * eye.m21 + eye.m31;
+                    move.y = vx * eye.m12 + vy * eye.m22 + eye.m32;
+                }
+                moves.Add(move);
+            });
+        }
+        return MakeOwnerPtr<SetLayerSpaceCommand>(*canvas, GetObjectIds(), layerId, space, scaleMode, moves);
+    }
+
     String EditorApplication::FindGameHostExecutable() const
     {
         const bool is3D = m_frameworkKind == FrameworkKind::Framework3D;
@@ -2865,7 +2942,7 @@ namespace JBro
     }
 
     bool EditorApplication::RequestCanvasView(
-        const Extent2D& extent, float centerX, float centerY, float orthographicSize)
+        const Extent2D& extent, float centerX, float centerY, float orthographicSize, bool screenSpace)
     {
         if (false == m_uiEnabled || extent.width == 0 || extent.height == 0
             || false == std::isfinite(centerX) || false == std::isfinite(centerY)
@@ -2889,6 +2966,7 @@ namespace JBro
         m_canvasViewRequest.centerX = centerX;
         m_canvasViewRequest.centerY = centerY;
         m_canvasViewRequest.orthographicSize = orthographicSize;
+        m_canvasViewRequest.screenSpace = screenSpace;
         // **캔버스가 지우는 색을 쓴다**(D-186). 편집하는 배경이 게임에서 보일 배경과
         // 달라 보이면, 색을 고르는 일 자체를 화면에서 판단할 수 없다.
         if (const Canvas* canvas = GetCanvas())

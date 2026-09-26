@@ -60,6 +60,9 @@ namespace JBro
         String m_name;
         std::size_t m_index = 0;
         bool m_visible = true;
+        // 되살릴 때 화면 레이어였는지도 같이 뜬다(D-233).
+        LayerSpace m_space = LayerSpace::World;
+        ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
         Array<EditorObjectId> m_objects;
         bool m_captured = false;
     };
@@ -101,6 +104,42 @@ namespace JBro
         LayerId m_layerId = InvalidLayerId;
         String m_before;
         String m_after;
+        bool m_captured = false;
+    };
+
+    // **레이어의 공간과 맞춤 방식을 바꾼다**(D-233). 월드↔화면을 오가면 그 레이어 루트의 자리를 함께 옮긴다 - 화면에서 보이던 자리가 그대로 남게
+    // (자리는 부르는 쪽이 게임 카메라로 계산해 넘긴다, `EditorApplication::MakeLayerSpaceCommand`). 되돌리면 공간·맞춤·자리가 모두 돌아온다.
+    // 대상은 번호로 가리킨다. 옮길 루트의 옛 자리를 뜨지 못했으면 실행하지 않는다.
+    class SetLayerSpaceCommand final : public EditorCommand
+    {
+    public:
+        struct RootMove
+        {
+            EditorObjectId object = 0;
+            float x = 0.0f;
+            float y = 0.0f;
+        };
+
+        SetLayerSpaceCommand(Canvas& canvas, EditorObjectRegistry& registry, LayerId layer, LayerSpace space, ScreenScaleMode scaleMode,
+            const Array<RootMove>& moves);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        void Apply(bool after);
+
+        Canvas* m_canvas = nullptr;
+        EditorObjectRegistry* m_registry = nullptr;
+        LayerId m_layerId = InvalidLayerId;
+        LayerSpace m_spaceBefore = LayerSpace::World;
+        LayerSpace m_spaceAfter = LayerSpace::World;
+        ScreenScaleMode m_modeBefore = ScreenScaleMode::FixedHeight;
+        ScreenScaleMode m_modeAfter = ScreenScaleMode::FixedHeight;
+        Array<RootMove> m_after;
+        Array<RootMove> m_before;
         bool m_captured = false;
     };
 

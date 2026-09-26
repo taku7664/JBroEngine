@@ -183,8 +183,10 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        // 캔버스 뷰는 월드 레이어만 보인다. 화면 레이어는 UI 보기(에디터 2 단계)의 것이다 - 좌표가 기준 픽셀이라 월드와 섞으면 백 배쯤 크다.
-        const bool accepted = PushSprites(world, renderer, true, SpriteFilterRule{});
+        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-233) - 화면 좌표는 기준 픽셀이라 섞으면 백 배쯤 크다.
+        SpriteFilterRule rule;
+        rule.screenSpace = view.screenSpace;
+        const bool accepted = PushSprites(world, renderer, true, rule);
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }

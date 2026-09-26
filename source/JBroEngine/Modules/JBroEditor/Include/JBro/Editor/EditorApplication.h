@@ -437,7 +437,14 @@ namespace JBro
         bool IsSimulationPaused() const;
 
         bool RequestCanvasView(
-            const Extent2D& extent, float centerX, float centerY, float orthographicSize);
+            const Extent2D& extent, float centerX, float centerY, float orthographicSize, bool screenSpace = false);
+        // 게임이 쓰는 화면 기준이다(D-233): 프로젝트의 기준 해상도와 게임 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
+        ScreenSpaceFrame GetGameScreenSpace() const;
+        // 캔버스 뷰가 마지막으로 UI 보기를 청했는가(D-233). 시험과 상태 표시가 읽는다.
+        bool IsCanvasViewScreenSpace() const { return m_canvasViewRequest.screenSpace; }
+        // **레이어의 공간·맞춤 방식을 바꾸는 커맨드를 만든다**(D-233). 월드↔화면을 오가면 그 레이어 루트의 자리를 지난 프레임의 게임 카메라로
+        // 옮겨, 게임 화면에서 보이던 자리가 남는다. 카메라가 없으면 자리는 그대로다. 캔버스나 레이어가 없으면 null 이다.
+        OwnerPtr<EditorCommand> MakeLayerSpaceCommand(LayerId layer, LayerSpace space, ScreenScaleMode scaleMode);
         // 3D 의 편집 화면이다(D-136). 바라보는 점과 그 둘레를 도는 거리·각을 준다 -
         // 평면을 밀고 당기는 것으로는 3D 의 뒤를 볼 수 없다.
         bool RequestCanvasView3D(

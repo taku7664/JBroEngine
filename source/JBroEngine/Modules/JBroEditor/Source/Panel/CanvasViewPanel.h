@@ -53,6 +53,11 @@ namespace JBro
         float GetCameraY() const { return m_centerY; }
         float GetCameraSize() const { return m_orthographicSize; }
 
+        // **UI 보기**(D-233). 참이면 화면 레이어만 기준 픽셀 좌표로 보이고 고르며 기준 사각형 안내선을 그린다. 편집 카메라는 보기마다 따로다.
+        // 고른 오브젝트의 레이어가 다른 공간이면 보기가 따라 바뀐다.
+        bool IsScreenView() const { return m_screenView; }
+        void SetScreenView(bool screen);
+
         // 월드 한 점이 마지막으로 그린 화면(2D)의 어디에 놓였는가. 그린 적이 없거나 3D 면 거짓이다.
         bool ProjectWorldToScreen(float worldX, float worldY, float& screenX, float& screenY) const;
 
@@ -205,6 +210,17 @@ namespace JBro
         float m_centerY = 0.0f;
         // 화면 세로 절반이 담는 월드 길이다. 게임 카메라의 `orthographicSize` 와 같은 뜻이다.
         float m_orthographicSize = 5.0f;
+        // UI 보기(D-233)와, 쉬고 있는 쪽 보기의 편집 카메라다. 보기를 바꾸면 지금 카메라와 맞바꾼다.
+        bool m_screenView = false;
+        bool m_otherCameraSet = false;
+        float m_otherCenterX = 0.0f;
+        float m_otherCenterY = 0.0f;
+        float m_otherSize = 5.0f;
+        // 고른 것이 바뀐 프레임에만 보기를 따라 바꾼다 - 손으로 바꾼 보기를 매 프레임 되돌리지 않는다.
+        GameObject* m_lastSelection = nullptr;
+        // 이 오브젝트가 지금 보기의 공간에 있는가. 그리기·고르기·테두리가 같은 규칙이다.
+        bool InViewSpace(const GameObject& object) const;
+        void DrawReferenceRect(const ViewRect& rect);
         // 3D 의 궤도 카메라(D-136). 바라보는 점의 높이와, 그 점에서의 거리와 각이다.
         float m_centerZ = 0.0f;
         float m_distance = 12.0f;

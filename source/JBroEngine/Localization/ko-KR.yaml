@@ -62,6 +62,10 @@ Entries:
   canvas_view.edit_points_not_polygon: shape 가 Polygon 이나 Chain 이어야 합니다
   canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
   canvas_view.preview_locale: 언어
+  canvas_view.space_world: 월드
+  canvas_view.space_ui: UI
+  canvas_view.space_tooltip: 월드 레이어와 화면(UI) 레이어 가운데 무엇을 편집할지 고릅니다
+  canvas_view.reference_rect: 기준 해상도
   canvas_view.preview_locale_tooltip: textKey 가 있는 텍스트를 이 언어로 미리 봅니다
   canvas_view.unit_world: "단위: 유닛"
   canvas_view.unit_pixel: "단위: 픽셀"
@@ -223,6 +227,11 @@ Entries:
   dialog.project_filter: JBro 프로젝트 파일
   hierarchy.add_layer: 레이어 추가
   hierarchy.delete_layer: 레이어 삭제
+  hierarchy.layer_screen: 화면 레이어로 바꾸기
+  hierarchy.layer_to_world: 월드 레이어로 바꾸기
+  hierarchy.layer_screen_tooltip: 화면 레이어의 오브젝트가 카메라와 무관하게 화면에 고정되고, 좌표가 기준 해상도의 픽셀이 됩니다
+  hierarchy.layer_scale_mode: 맞춤 방식
+  hierarchy.layer_screen_tag: UI
   hierarchy.layer_name: 이름
   hierarchy.canvas_unsaved: 캔버스 (저장 안 됨)
   inspector.canvas_properties: 캔버스

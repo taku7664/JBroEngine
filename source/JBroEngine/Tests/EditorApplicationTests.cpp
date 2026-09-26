@@ -1,4 +1,5 @@
 ﻿#include <JBro/LocalizationTypes/ServiceContext.h>
+#include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
 #include <JBro/Core/Version.h>
@@ -10200,6 +10201,102 @@ namespace
 
     // **게임 언어**(D-226). 프로젝트의 기본 언어로 열리고, 새 문자열 표는 그 언어를 메타에 적고, 인스펙터가 로케일 칸을 보인다.
     // 캔버스 뷰의 미리보기 고르기는 게임 언어가 있을 때 도구 줄에 있고, 재생이 끝나면 게임이 바꾼 로케일이 재생 전으로 돌아간다.
+    // **에디터의 화면 레이어**(D-233, ui-plan 2 단계). 레이어를 화면 레이어로 바꾸면 루트가 게임 화면에서 보이던 자리(기준 픽셀)로 옮겨지고,
+    // 되돌리면 공간과 자리가 함께 돌아온다. 맞춤 방식만 바꾸면 자리는 그대로다. 화면 레이어의 오브젝트를 고르면 캔버스 뷰가 UI 보기로 가고,
+    // 지운 화면 레이어를 되살리면 화면 레이어로 돌아온다.
+    void TestScreenLayersInTheEditor()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; screen layers in the editor not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ScreenLayerProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        Check(canvas != nullptr, "the probe has a canvas");
+        JBro::GameObject* eye = canvas->CreateObject("eye");
+        canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        camera->primary = true;
+        camera->orthographicSize = 5.0f;
+        JBro::Layer& ui = canvas->CreateLayer("UI");
+        const JBro::LayerId uiId = ui.GetId();
+        JBro::GameObject* badge = canvas->CreateObject("badge");
+        Check(canvas->SetObjectLayer(badge, uiId), "the badge goes on the layer");
+        auto* place = canvas->AttachComponent<JBro::Component::Transform2D>(badge);
+        place->position = {5.0f, 0.0f};
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // 월드 (5, 0) 은 카메라(세로 절반 5, 64 x 48)의 x 0.75 자리다. 기준 1920 x 1080 FixedHeight 에서 그 자리는 (540, 0) 이다.
+        const auto closeTo = [](float a, float b) { return std::fabs(a - b) < 0.01f; };
+        JBro::OwnerPtr<JBro::EditorCommand> toScreen = editor.MakeLayerSpaceCommand(uiId, JBro::LayerSpace::Screen, JBro::ScreenScaleMode::FixedHeight);
+        Check(toScreen.Get() != nullptr && editor.GetCommands().Execute(std::move(toScreen)), "the layer becomes a screen layer");
+        Check(ui.GetSpace() == JBro::LayerSpace::Screen && closeTo(place->position.x, 540.0f) && closeTo(place->position.y, 0.0f),
+            "and its root keeps the place it had on the game screen");
+        Check(editor.GetCommands().Undo() && ui.GetSpace() == JBro::LayerSpace::World && closeTo(place->position.x, 5.0f),
+            "undoing brings back the world layer and the world place");
+        Check(editor.GetCommands().Redo() && ui.GetSpace() == JBro::LayerSpace::Screen && closeTo(place->position.x, 540.0f),
+            "and redoing takes both again");
+
+        // 맞춤 방식만 바꾸면 자리는 앵커에서의 거리 그대로다.
+        JBro::OwnerPtr<JBro::EditorCommand> contain = editor.MakeLayerSpaceCommand(uiId, JBro::LayerSpace::Screen, JBro::ScreenScaleMode::Contain);
+        Check(contain.Get() != nullptr && editor.GetCommands().Execute(std::move(contain)) && ui.GetScaleMode() == JBro::ScreenScaleMode::Contain
+                && closeTo(place->position.x, 540.0f),
+            "changing the scale mode keeps the place");
+
+        // 고른 오브젝트의 공간으로 캔버스 뷰가 따라간다.
+        editor.SetSelectedObject(badge);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor ticks with the badge picked");
+        }
+        Check(editor.IsCanvasViewScreenSpace(), "picking an object on a screen layer turns the canvas view to UI");
+        editor.SetSelectedObject(eye);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor ticks with the camera picked");
+        }
+        Check(false == editor.IsCanvasViewScreenSpace(), "and picking a world object turns it back");
+
+        // 화면 → 월드도 보이던 자리를 지킨다.
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles the screen place");
+        }
+        JBro::OwnerPtr<JBro::EditorCommand> toWorld = editor.MakeLayerSpaceCommand(uiId, JBro::LayerSpace::World, JBro::ScreenScaleMode::Contain);
+        Check(toWorld.Get() != nullptr && editor.GetCommands().Execute(std::move(toWorld)) && ui.GetSpace() == JBro::LayerSpace::World,
+            "the layer goes back to the world");
+        // Contain(64 x 48 는 기준보다 좁다 - 폭이 묶여 반폭 960)에서 540 은 x 0.5625 자리다 → 월드 0.5625 x 6.667 = 3.75.
+        Check(closeTo(place->position.x, 3.75f) && closeTo(place->position.y, 0.0f), "and the root lands where the game drew it");
+
+        // 지운 화면 레이어를 되살리면 화면 레이어로 돌아온다.
+        Check(editor.GetCommands().Undo() && ui.GetSpace() == JBro::LayerSpace::Screen, "back to the screen layer");
+        editor.ClearSelection();
+        editor.SetSelectedObject(nullptr);
+        Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::DeleteLayerCommand>(*canvas, editor.GetObjectIds(), uiId)),
+            "the screen layer is deleted");
+        Check(editor.GetCommands().Undo(), "and restored");
+        // 되살린 레이어는 번호가 새것이다(`DeleteLayerCommand`) - 그 위의 오브젝트로 찾는다.
+        const JBro::Layer* restored = badge->GetLayer();
+        Check(restored != nullptr && restored->GetSpace() == JBro::LayerSpace::Screen && restored->GetScaleMode() == JBro::ScreenScaleMode::Contain,
+            "a restored screen layer keeps its space and scale mode");
+        Check(nullptr == editor.MakeLayerSpaceCommand(JBro::InvalidLayerId, JBro::LayerSpace::Screen, JBro::ScreenScaleMode::FixedHeight).Get(),
+            "a layer that is not there makes no command");
+        editor.Shutdown();
+    }
+
     void TestTheEditorPreviewsGameLanguages()
     {
         JBro::EditorApplication editor;
@@ -11833,6 +11930,7 @@ int RunEditorApplicationTests()
     TestTheEditorMakesAndOpensCanvases();
     TestTheEditorMakesFontFamilies();
     TestTheEditorPreviewsGameLanguages();
+    TestScreenLayersInTheEditor();
     TestTheEditorSaysWhatIsChosen();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();

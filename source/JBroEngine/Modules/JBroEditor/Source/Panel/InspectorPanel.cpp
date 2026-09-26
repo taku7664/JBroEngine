@@ -1,4 +1,5 @@
 ﻿#include "InspectorPanel.h"
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include "InspectorFieldExtras.h"
 
 #include <JBro/Editor/Widget/Basic.h>
@@ -50,6 +51,12 @@
 
 namespace JBro
 {
+    namespace
+    {
+        const ComponentTypeId Transform2DTypeId = MakeStableTypeId(Component::Transform2D::StaticTypeName());
+        const NameId AnchorFieldName = MakeNameId("anchor");
+    }
+
     namespace
     {
         // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
@@ -1447,6 +1454,15 @@ namespace JBro
                     && property.edit->displayName != nullptr
                 ? property.edit->displayName
                 : NameTable::Get().Resolve(property.name);
+            // **앵커는 화면 레이어의 것이다**(D-233). 월드 레이어의 `Transform2D` 에는 뜻이 없으니 줄을 두지 않는다.
+            if (context.element == nullptr && context.owner != nullptr && context.typeId == Transform2DTypeId && property.name == AnchorFieldName)
+            {
+                const Layer* layer = context.owner->GetLayer();
+                if (layer == nullptr || layer->GetSpace() != LayerSpace::Screen)
+                {
+                    continue;
+                }
+            }
 
             // 길에 한 칸 더 내려간다. 그려 놓고 되돌려야 형제 필드가 제 길을 갖는다.
             // 목록 원소 안이면 컴포넌트 길이 아니라 원소 안의 필드 길이다(D-89).

@@ -47,6 +47,8 @@ namespace JBro
         // 두 화면의 배율을 같은 수로 견줄 수 있다.
         float orthographicSize = 5.0f;
         float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
+        // 참이면 화면 레이어만 그린다(UI 보기, D-233). 가운데·크기는 기준 픽셀이다. 거짓이면 월드 레이어만 그린다.
+        bool screenSpace = false;
 
         // ── 3D 만 쓰는 값 ────────────────────────────────────────────
         //
