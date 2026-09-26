@@ -182,6 +182,20 @@ namespace JBro
         entry.pageTextures.Clear();
     }
 
+    bool TextLibrary::GetFamilyFonts(AssetHandle font, AssetHandle (&slots)[4]) const
+    {
+        const FontFamilyData* family = m_assets != nullptr ? m_assets->GetFontFamily(font) : nullptr;
+        if (family == nullptr)
+        {
+            return false;
+        }
+        for (std::size_t slot = 0; slot < 4; ++slot)
+        {
+            slots[slot] = family->fonts[slot];
+        }
+        return true;
+    }
+
     bool TextLibrary::Acquire(AssetHandle font, FontView& view)
     {
         if (m_assets == nullptr || font.generation == 0)

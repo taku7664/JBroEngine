@@ -49,6 +49,9 @@ namespace JBro
         // 아니면 거짓이다(같은 데이터 세대에는 다시 열어 보지 않는다). 받은 포인터는 이 라이브러리가 살아 있는 동안, 그리고
         // 그 폰트가 다시 열리기 전까지 유효하다.
         bool Acquire(AssetHandle font, FontView& view);
+        // `font` 가 폰트 패밀리(D-224)면 네 칸의 Font 핸들(Regular·Bold·Italic·BoldItalic 순, 빈 칸은 빈 핸들)을 주고 참이다.
+        // 패밀리가 아니면 거짓이다. 칸의 폰트는 패밀리가 잡고 있으므로 따로 놓지 않는다.
+        bool GetFamilyFonts(AssetHandle font, AssetHandle (&slots)[4]) const;
 
         // 프로젝트 폰트 목록(`AssetSystem::GetProjectFonts`, D-200 (6))을 따라간다. 목록의 판번호가 바뀌었으면 옛 핸들을
         // 놓고 새 목록을 로드한다. 매 프레임 불러도 판번호가 같으면 아무것도 하지 않는다.

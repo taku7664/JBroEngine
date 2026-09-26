@@ -1329,6 +1329,84 @@ namespace
         project.Close();
     }
 
+    // **패밀리로 그린다**(D-224). `fontId` 가 패밀리(Regular = 한글 서브셋, Bold = 라틴 서브셋)를 가리키면 보통 글자는 Regular 의 아틀라스,
+    // `<b>` 글자는 Bold 의 아틀라스로 간다 - 두 서브셋은 모양이 같으므로 픽셀이 아니라 **페이지를 가진 폰트 수**로 본다.
+    // 패밀리의 칸을 바꾸면 다시 레이아웃한다. Regular 칸이 빈 패밀리는 처음 찬 칸을 기본으로 쓴다.
+    void TestFontFamiliesDrawBoldFromTheBoldFace()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        FontFamilyOptions slots;
+        slots.regularFontId = project.fontId;
+        slots.boldFontId = project.latinId;
+        project.WriteFamily(slots);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; font families not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.familyId;
+            label->fontSize = 24.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            label->richText = true;
+            TextStore::Get().Assign(label->text, "AA", 2);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+
+            gpu.Paint(framework);
+            Check(false == texts->IsMissingFont(label->GetInstanceId()) && FindDark(gpu).count > 40, "a family draws");
+            Check(texts->GetLibrary().GetPageTextureCount() == 1, "plain letters come from the regular font alone");
+            const char* bolded = "A<b>A</b>";
+            TextStore::Get().Assign(label->text, bolded, std::strlen(bolded));
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetPageTextureCount() == 2, "a bold letter comes from the bold font's atlas");
+            Check(FindDark(gpu).count > 40, "and still draws");
+
+            // 칸을 바꾸면 다시 레이아웃한다.
+            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            slots.boldFontId = {};
+            project.WriteFamily(slots);
+            Check(project.assets.ReloadInPlace(project.familyId), "the family reloads");
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() == relayouts + 1 && FindDark(gpu).count > 40,
+                "a changed family lays the text out again, the bold letter now regular");
+
+            // Regular 칸이 비면 처음 찬 칸이 기본이다.
+            slots.regularFontId = {};
+            slots.italicFontId = project.latinId;
+            project.WriteFamily(slots);
+            Check(project.assets.ReloadInPlace(project.familyId), "the family reloads again");
+            TextStore::Get().Assign(label->text, "AA", 2);
+            gpu.Paint(framework);
+            Check(false == texts->IsMissingFont(label->GetInstanceId()) && FindDark(gpu).count > 40,
+                "a family without a regular font draws with its first font");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     struct ColourCount
     {
         std::uint32_t red = 0;
@@ -1687,6 +1765,7 @@ int RunTextRenderTests()
         TestCopiesGetTheirOwnSlot();
         TestFontAssetsLoadAndReload();
         TestFontFamilyAssetsHoldTheirFonts();
+        TestFontFamiliesDrawBoldFromTheBoldFace();
         TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
         TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
         TestSdfTextKeepsItsOutlineInProportion();

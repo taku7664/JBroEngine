@@ -44,8 +44,9 @@ namespace JBro
     }
 
     bool TextBlock::GatherFonts(TextLibrary& library, const TextBlockSettings& settings, AssetHandle* handles, FontView* views,
-        std::uint32_t& count) const
+        std::uint32_t& count, StyleFaces& styles) const
     {
+        styles = {};
         // **`fontId` 가 비면 프로젝트의 첫 폰트다**(D-200 (6)). 아이디를 적었는데 그 폰트가 없으면 대신 기본 폰트로 그리지 않는다 -
         // 고른 폰트가 깨졌다는 것이 보여야 한다(경고가 뜬다).
         count = 0;
@@ -55,17 +56,69 @@ namespace JBro
         {
             primary = project.Size() > 0 ? project[0] : AssetHandle{};
         }
+        // **패밀리면 Regular 가 기본 face 이고 나머지 칸이 스타일 face 다**(D-224). Regular 칸이 비면 처음 찬 칸이 기본이다.
+        AssetHandle family[4];
+        const bool isFamily = library.GetFamilyFonts(primary, family);
+        if (isFamily)
+        {
+            primary = AssetHandle{};
+            for (const AssetHandle slot : family)
+            {
+                if (slot.generation != 0)
+                {
+                    primary = slot;
+                    break;
+                }
+            }
+        }
         if (false == library.Acquire(primary, views[0]))
         {
             return false;
         }
         handles[0] = primary;
         count = 1;
+        if (isFamily)
+        {
+            std::uint16_t* targets[3] = { &styles.bold, &styles.italic, &styles.boldItalic };
+            for (std::size_t slot = 1; slot < 4 && count < MaxFaces; ++slot)
+            {
+                const AssetHandle font = family[slot];
+                if (font.generation == 0)
+                {
+                    continue;
+                }
+                // 같은 폰트가 이미 모였으면 그 번호를 쓴다(Regular 와 같은 폰트를 굵게 칸에 둔 패밀리).
+                std::uint32_t found = count;
+                for (std::uint32_t face = 0; face < count; ++face)
+                {
+                    if (handles[face].index == font.index && handles[face].generation == font.generation)
+                    {
+                        found = face;
+                        break;
+                    }
+                }
+                if (found == count)
+                {
+                    if (false == library.Acquire(font, views[count]))
+                    {
+                        continue;
+                    }
+                    handles[count] = font;
+                    ++count;
+                }
+                *targets[slot - 1] = static_cast<std::uint16_t>(found);
+            }
+        }
         // 나머지 프로젝트 폰트가 폴백이다. 기본 폰트와 같은 것은 건너뛰고, 열리지 않는 것은 빼고 간다.
         for (std::size_t index = 0; index < project.Size() && count < MaxFaces; ++index)
         {
             const AssetHandle fallback = project[index];
-            if (fallback.index == primary.index && fallback.generation == primary.generation)
+            bool already = false;
+            for (std::uint32_t face = 0; face < count; ++face)
+            {
+                already = already || (handles[face].index == fallback.index && handles[face].generation == fallback.generation);
+            }
+            if (already)
             {
                 continue;
             }
@@ -83,7 +136,8 @@ namespace JBro
         AssetHandle handles[MaxFaces];
         FontView views[MaxFaces];
         std::uint32_t count = 0;
-        if (false == GatherFonts(library, settings, handles, views, count))
+        StyleFaces styles;
+        if (false == GatherFonts(library, settings, handles, views, count, styles))
         {
             // 폰트가 돌아오면 face 수가 달라 다시 레이아웃된다.
             m_fontCount = 0;
@@ -96,7 +150,8 @@ namespace JBro
             || m_text.generation != settings.text.generation
             || m_textRevision != store.GetRevision(settings.text)
             || m_fontCount != count
-            || m_optionsKey != MakeOptionsKey(settings);
+            || m_optionsKey != MakeOptionsKey(settings)
+            || m_styles.bold != styles.bold || m_styles.italic != styles.italic || m_styles.boldItalic != styles.boldItalic;
         for (std::uint32_t face = 0; false == stale && face < count; ++face)
         {
             stale = m_fonts[face].index != handles[face].index
@@ -108,12 +163,12 @@ namespace JBro
         {
             return UpdateResult::Unchanged;
         }
-        Relayout(settings, handles, views, count);
+        Relayout(settings, handles, views, count, styles);
         return UpdateResult::Relaid;
     }
 
     void TextBlock::Relayout(const TextBlockSettings& settings, const AssetHandle* handles, const FontView* views,
-        std::uint32_t count)
+        std::uint32_t count, const StyleFaces& styles)
     {
         const FontView& font = views[0];
         // **SDF 는 크기를 반올림하지 않는다**(4 단계). 거리장 한 벌을 키우고 줄이므로 크기가 조금씩 바뀌는 연출(트윈)에 새 글리프가
@@ -138,6 +193,10 @@ namespace JBro
         options.richText = settings.richText;
         // 비트맵은 정수 크기마다 뜨므로 `<size>` 도 정수로 잰다.
         options.wholePixelMarkup = false == sdf;
+        options.boldFace = styles.bold;
+        options.italicFace = styles.italic;
+        options.boldItalicFace = styles.boldItalic;
+        m_styles = styles;
 
         m_text = settings.text;
         m_textRevision = TextStore::Get().GetRevision(settings.text);
