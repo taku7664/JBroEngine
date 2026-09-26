@@ -37,6 +37,28 @@ namespace JBro
         Color tint{1.0f, 1.0f, 1.0f, 1.0f};
     };
 
+    // 3D 텍스트의 글자 하나다(D-218). 사각형은 **오브젝트 로컬 XY 평면의 유닛**이고(왼쪽 위와 크기, y 위쪽), 월드 자리·회전·크기는 오브젝트의
+    // 것이다. 빌보드면 브리지가 회전을 뷰의 카메라 것으로 바꾼다. 뒤→앞 정렬도 뷰마다 브리지가 한다.
+    struct WorldTextRenderItem
+    {
+        GameObject* owner = nullptr;
+        Vec3 position;
+        Quaternion rotation;
+        Vec3 scale{1.0f, 1.0f, 1.0f};
+        bool billboard = false;
+        float left = 0.0f;
+        float top = 0.0f;
+        float width = 0.0f;
+        float height = 0.0f;
+        AssetHandle texture;
+        float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+        Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+        bool linearFilter = true;
+        bool sdf = false;
+        std::uint16_t outlineEdge = 32768;
+        std::uint8_t outlineColor[4] = {0, 0, 0, 0};
+    };
+
     // 2D 의 `RenderWorld2D` 와 같은 자리다. 시스템이 채우고 브리지가 렌더러에 넘긴다.
     // 정렬은 아직 없다 - 불투명 메시만 있고 깊이 버퍼가 순서를 대신한다.
     class RenderWorld3D
@@ -46,6 +68,9 @@ namespace JBro
         void BeginFrame();
         void SetCamera(const RenderCamera3D& camera);
         bool SubmitMesh(const MeshRenderItem& item);
+        // 3D 텍스트의 글자다. 용량(`ReserveTexts`)을 넘으면 세고 버린다.
+        bool ReserveTexts(std::size_t capacity);
+        bool SubmitText(const WorldTextRenderItem& item);
         void EndFrame();
 
         const RenderCamera3D* GetCamera() const;
@@ -53,11 +78,19 @@ namespace JBro
         std::size_t GetMeshCapacity() const;
         std::size_t GetDroppedMeshCount() const;
         const MeshRenderItem& GetMesh(std::size_t index) const;
+        std::size_t GetTextCount() const;
+        std::size_t GetDroppedTextCount() const;
+        const WorldTextRenderItem& GetText(std::size_t index) const;
+        // 뷰마다 뒤→앞으로 늘어놓는 번호 배열이다. 브리지가 쓴다 - 용량은 `ReserveTexts` 가 잡아 매 프레임 할당하지 않는다.
+        Array<std::uint32_t>& GetTextOrderScratch() const;
 
     private:
         RenderCamera3D m_camera;
         bool m_hasCamera = false;
         Array<MeshRenderItem> m_meshes;
         std::size_t m_droppedMeshCount = 0;
+        Array<WorldTextRenderItem> m_texts;
+        std::size_t m_droppedTextCount = 0;
+        mutable Array<std::uint32_t> m_textOrder;
     };
 }

@@ -72,6 +72,7 @@ namespace
         Check(Table("Component::Transform3D").count == 7, "Transform3D declares seven fields");
         Check(Table("Component::Camera3D").count == 7, "Camera3D declares seven fields");
         Check(Table("Component::MeshRenderer3D").count == 6, "MeshRenderer3D declares six fields");
+        Check(Table("Component::Text3D").count == 18, "Text3D declares eighteen fields");
         Check(Table("Component::Rigidbody3D").count == 2, "Rigidbody3D declares two fields");
         Check(Table("Component::Collider3D").count == 1, "Collider3D declares one field");
 
@@ -361,6 +362,7 @@ namespace
             "Component::MeshRenderer3D",
             "Component::Rigidbody3D",
             "Component::Collider3D",
+            "Component::Text3D",
         };
         for (const char* name : components)
         {
