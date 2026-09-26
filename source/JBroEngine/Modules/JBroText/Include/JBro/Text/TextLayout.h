@@ -66,6 +66,13 @@ namespace JBro::Text
         float    letterSpacing = 0.0f; // 글자 사이에 더하는 픽셀
         // 탭 멈춤 자리의 간격이다(기본 폰트의 공백 폭 몇 개인가). 탭은 줄 머리에서 센 다음 멈춤 자리까지 나아간다. 0 이하면 공백 하나다.
         float    tabSize = 4.0f;
+        // **리치 텍스트**(D-217). 켜면 `<color=#RRGGBB>`·`<color=#RRGGBBAA>` ... `</color>` 와 `<size=픽셀>` ... `</size>` 를 태그로 읽고
+        // 글자로 내지 않는다. `<<` 는 `<` 한 글자다. 모르는 태그·틀린 태그·짝 없는 닫는 태그·여덟 겹을 넘는 태그는 글자 그대로 보인다.
+        bool     richText = false;
+        // `<size>` 에 곱하는 배율이다. 자동 크기(BuildToFit)가 고른 크기 / fontSize 로 둔다.
+        float    markupScale = 1.0f;
+        // `<size>` 를 정수 픽셀로 반올림한다. 비트맵 폰트는 정수 크기마다 뜨므로 레이아웃도 그 크기로 재야 한다.
+        bool     wholePixelMarkup = false;
     };
 
     // 그릴 글리프 하나다. 공백과 개행은 들어오지 않는다. (x, y) 는 기준선 위의 글리프 원점이다.
@@ -80,6 +87,9 @@ namespace JBro::Text
         std::uint16_t face = 0;         // faces 안의 번호
         std::uint16_t line = 0;
         std::uint32_t sourceOffset = 0; // 이 글자가 시작하는 UTF-8 바이트 위치
+        float         size = 0.0f;      // 이 글자의 em 크기(픽셀). 리치 텍스트의 `<size>` 밖이면 fontSize 다
+        std::uint32_t color = 0;        // hasColor 이면 `<color>` 의 RGBA8(R 이 가장 낮은 바이트)
+        bool          hasColor = false;
     };
 
     struct LineInfo
@@ -88,6 +98,8 @@ namespace JBro::Text
         std::uint32_t glyphCount = 0;
         float         width = 0.0f;    // 줄 끝 공백을 뺀 폭
         float         baseline = 0.0f; // 기준선의 y
+        float         size = 0.0f;     // 줄에서 가장 큰 글자의 em 크기(픽셀). 줄 높이와 기준선은 이 크기로 잰다
+        float         height = 0.0f;   // 줄 높이(픽셀, 줄 간격 배율을 곱한 것)
         std::uint32_t sourceBegin = 0;
         std::uint32_t sourceEnd = 0;
     };
@@ -146,6 +158,9 @@ namespace JBro::Text
         {
             char32_t      value = 0;
             std::uint32_t offset = 0;
+            float         size = 0.0f;
+            std::uint32_t color = 0;
+            bool          hasColor = false;
         };
 
         struct Item
@@ -161,6 +176,9 @@ namespace JBro::Text
             std::uint32_t markBase = 0;           // Mark 이면 붙는 받침 글자의 번호
             float         markX = 0.0f;           // Mark 이면 받침 원점에서 표시 원점까지(픽셀, y 위쪽)
             float         markY = 0.0f;
+            float         size = 0.0f;            // em 크기(픽셀)
+            std::uint32_t color = 0;
+            bool          hasColor = false;
         };
 
         void Reset();
