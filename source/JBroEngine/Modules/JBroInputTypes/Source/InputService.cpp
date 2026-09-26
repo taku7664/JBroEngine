@@ -137,7 +137,7 @@ namespace JBro::Service
             out.clear();
             return false;
         }
-        out.resize(size);
+        // 두 번의 부름 사이에 표가 바뀌지 않으므로(메인 스레드) 크기는 처음에 물은 그대로다.
         return true;
     }
 

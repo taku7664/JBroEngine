@@ -322,7 +322,6 @@ namespace JBro::System
             desc->bindings[at] = desc->bindings[at + 1];
         }
         --desc->bindingCount;
-        desc->bindings[desc->bindingCount] = InputBinding{};
         return true;
     }
 

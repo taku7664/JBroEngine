@@ -631,7 +631,56 @@ namespace
         Check(service.ReadBindingOverrides(String("Move: \"GamepadStick Right @0, Key W Up\"")), "a stick with a pad reads");
         Check(service.GetActionBinding(MakeNameId("Move"), 0, read) && read.source == InputBindingSource::GamepadStick
                 && read.code == 1 && read.gamepad == 0, "as the right stick of pad 0");
+
+        // 한 줄씩 따로 본다 - 다른 줄의 실패가 가리지 않게.
+        service.ResetAllActionBindings();
+        Check(false == service.ReadBindingOverrides(String("Kept \"Key Z\"")), "a line without a colon alone fails the read");
+        Check(service.ReadBindingOverrides(String("# only a comment\nJump: \"Key J\"\n")), "a comment is not a bad line");
+        Check(service.ReadBindingOverrides(String("Removed: \"Key A\"")), "an action the game dropped is not a failure");
+
+        // 방향만, 패드만 바뀐 것도 바뀐 것이다. 되돌려 놓은 것은 바뀐 것이 아니다.
+        service.ResetAllActionBindings();
+        service.SetActionBinding(MakeNameId("Move"), 1, KeyBinding(Key::S, InputComposite::Left));
+        service.SetActionBinding(MakeNameId("Fire"), 0, KeyBinding(Key::G));
+        service.SetActionBinding(MakeNameId("Fire"), 0, KeyBinding(Key::F));
+        service.SetActionBinding(MakeNameId("Kept"), 0, PadBinding(GamepadButton::South, 0));
+        Check(service.WriteBindingOverrides(text), "writes");
+        Check(text.find("Move: \"Key W Up, Key S Left\"") != String::npos, "a changed direction alone is written");
+        Check(text.find("Fire") == String::npos, "an action set back to what it was is not written");
+        Check(text.find("Kept: \"GamepadButton South @0\"") != String::npos, "a pad binding is written with its pad");
+        InputBinding anyPad = PadBinding(GamepadButton::South, 0);
+        anyPad.gamepad = -1;
+        service.SetActionBinding(MakeNameId("Kept"), 0, anyPad);
+        String anyText;
+        Check(service.WriteBindingOverrides(anyText) && anyText.find("Kept: \"GamepadButton South\"") != String::npos,
+            "and a change of pad alone is a change");
+
+        // 호스트는 모자란 버퍼에 쓰지 않고 필요한 크기를 알린다.
+        char small[4] = {'x', 'x', 'x', 'x'};
+        std::size_t needed = 0;
+        Check(false == input.WriteBindingOverrides(small, sizeof(small), needed) && needed == anyText.size(),
+            "a buffer too small is refused with the size it needs");
+        Check(small[0] == 'x', "and left as it was");
         BindInputSystemContext({});
+    }
+
+    void TestTheServiceCapturesFromTheResidualView()
+    {
+        System::InputSystem input;
+        BindInputSystemContext(input.GetSystemContext());
+        const Service::InputService service;
+        const InputEvent key[] = { KeyEvent(InputEventKind::KeyDown, Key::M) };
+        input.BeginFrame(View(key));
+        InputBinding captured;
+        Check(service.CaptureBinding(captured) == InputCaptureResult::Captured && captured.code == static_cast<std::uint16_t>(Key::M),
+            "the service captures what the game sees");
+        Check(false == IsSameBinding(PadBinding(GamepadButton::South, 0), PadBinding(GamepadButton::South, 1)),
+            "two pads are two bindings");
+        Check(false == IsSameBinding(KeyBinding(Key::W, InputComposite::Up), KeyBinding(Key::W, InputComposite::Down)),
+            "two directions are two bindings");
+        Check(IsSameBinding(PadBinding(GamepadButton::South, 0), PadBinding(GamepadButton::South, 0)), "the same is the same");
+        BindInputSystemContext({});
+        Check(service.CaptureBinding(captured) == InputCaptureResult::None, "an unbound service captures nothing");
     }
 
     ProjectInputAction ProjectAction(const char* name, const char* set, Key key)
@@ -766,6 +815,7 @@ int RunInputActionTests()
     TestBindingsChangeAtRuntime();
     TestTheNextPressIsCaptured();
     TestBindingOverridesWriteAndReadAsText();
+    TestTheServiceCapturesFromTheResidualView();
     TestActionSetsHaveALimit();
     TestTheSetIsWrittenOnlyWhenNamed();
     Log::SetEchoToConsole(echo);

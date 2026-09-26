@@ -392,10 +392,11 @@ namespace JBro::System
                     lineNumber, name);
                 continue;
             }
+            // 수 뒤의 칸은 읽는 곳이 없다(평가·쓰기·되돌리기 모두 수까지만 본다).
             action->bindingCount = static_cast<std::uint8_t>(count);
-            for (std::uint32_t index = 0; index < MaxInputBindingsPerAction; ++index)
+            for (std::uint32_t index = 0; index < count; ++index)
             {
-                action->bindings[index] = index < count ? bindings[index] : InputBinding{};
+                action->bindings[index] = bindings[index];
             }
         }
         return complete;

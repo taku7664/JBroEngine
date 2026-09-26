@@ -9,8 +9,8 @@ namespace JBro::System
 {
     // 리바인딩을 글자로 쓰고 읽는다(D-218). 모양은 `<JBro/InputTypes/InputRebinding.h>` 의 주석에 있다.
     //
-    // **호스트에서 돈다.** 액션 이름의 원문은 호스트의 이름표에만 있다 - 게임 DLL 은 제 사본의 이름표를 가져 호스트가 넣은 이름을 모른다.
-    // 그래서 서비스는 바이트만 나르고, 이름과 번호를 잇는 일은 여기서 한다.
+    // **호스트에서 돈다.** 견줄 프로젝트의 표와 고칠 살아 있는 표가 둘 다 입력 시스템(호스트)에 있다. 서비스는 바이트만 나르고,
+    // 표를 게임 DLL 로 복사해 오지 않는다.
 
     // `live` 에서 `project` 와 바인딩이 다른 액션만 적는다. 이름을 모르는 액션(이름표에 없다)은 적지 않는다.
     void WriteBindingOverrides(const InputActionMap& live, const InputActionMap& project, String& out);
