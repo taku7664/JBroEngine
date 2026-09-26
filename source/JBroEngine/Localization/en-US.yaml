@@ -23,6 +23,10 @@ Entries:
   menu.simulation_pause: Pause
   menu.save_canvas: Save Canvas
   menu.save_project: Save Project
+  menu.build_game: Build Game
+  notify.game_built: The game was built
+  notify.game_build_failed: The game could not be built
+  notify.game_build_warnings: The game was built with warnings
   dock.main: Main
   popup.save_blocked_while_playing: stop the simulation before saving
   menu.settings: Settings
@@ -182,6 +186,7 @@ Entries:
   project_settings.audio_send_help: "Also sends this bus to another bus, e.g. a shared reverb bus with Dry 0"
   stats.audio_solo: "Solo - hear only this bus while mixing"
   stats.audio_buses: "Buses"
+  stats.audio_saved: "skipped %llu inaudible play(s), held back %llu by instance limit or cooldown, replaced %llu"
   stats.audio_voices: "voices %u / %u, peak %.2f"
   stats.audio_device: "audio device %s"
   stats.audio_no_device: "no audio device - sounds are mixed but not heard"
@@ -334,3 +339,21 @@ Entries:
   inspector.pick_frame_no_sprite: set a sprite first
   inspector.text_no_font: "No usable font, so this text is not drawn. Set fontId or add a font in Project Settings."
   hierarchy.paste_as_child: Paste As Child
+  panel.editor_settings: Editor Settings
+  menu.settings_editor: Editor Settings
+  editor_settings.shortcuts: Shortcuts
+  editor_settings.search_hint: Search by name or key
+  editor_settings.press_key: Press a key
+  editor_settings.capture_hint: Press Esc to cancel
+  editor_settings.clear_binding: Clear
+  editor_settings.empty_binding: "(none)"
+  editor_settings.reset: Default
+  editor_settings.reset_tooltip: Restore the default keys
+  editor_settings.reset_all: Reset All
+  editor_settings.reset_all_title: Reset Shortcuts
+  editor_settings.reset_all_message: Every shortcut goes back to its default keys. Your changes are lost.
+  editor_settings.reset_all_confirm: Reset
+  editor_settings.clash: "Another shortcut uses the same keys: %s"
+  editor_settings.shadows: "In this panel this shortcut runs instead of: %s"
+  editor_settings.shadowed: "A focused panel runs its own shortcut instead: %s"
+  editor_settings.no_match: No shortcuts match

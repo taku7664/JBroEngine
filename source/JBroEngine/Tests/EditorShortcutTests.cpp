@@ -479,6 +479,41 @@ namespace
         Check(std::strcmp(EditorShortcutManager::Describe(captured).value, "Space") == 0, "and reads Space");
         ImGui::Render();
     }
+
+    // 검색은 번역된 이름·무리·저장 이름·지금 조합 글자를 본다. 영문은 대소문자를 가리지 않는다.
+    void TestSearchLooksAtNamesAndKeys()
+    {
+        EditorShortcutManager shortcuts;
+        int calls = 0;
+        Add(shortcuts, "editor.undo", Key(ImGuiKey_Z, true), calls);
+        shortcuts.SetBinding("editor.undo", 1, Key(ImGuiKey_Backspace, false, false, true));
+        const JBro::EditorShortcutView view = shortcuts.Find("editor.undo");
+        const char* label = "실행 취소";
+        const char* category = "편집";
+        Check(EditorShortcutManager::MatchesSearch("", label, category, view), "an empty search matches everything");
+        Check(EditorShortcutManager::MatchesSearch(nullptr, label, category, view), "so does no search");
+        Check(EditorShortcutManager::MatchesSearch("취소", label, category, view), "a piece of the translated name matches");
+        Check(EditorShortcutManager::MatchesSearch("편집", label, category, view), "the category matches");
+        Check(EditorShortcutManager::MatchesSearch("UNDO", label, category, view), "the saved name matches without case");
+        Check(EditorShortcutManager::MatchesSearch("ctrl+z", label, category, view), "the first combination matches");
+        Check(EditorShortcutManager::MatchesSearch("Alt+Back", label, category, view), "the second combination matches");
+        Check(false == EditorShortcutManager::MatchesSearch("저장", label, category, view), "something else does not");
+        Check(false == EditorShortcutManager::MatchesSearch("Ctrl+Y", label, category, view), "nor another combination");
+    }
+
+    // 키매핑 칸이 새 키를 잡는 동안은 아무 단축키도 돌지 않는다.
+    void TestASuspendedManagerRunsNothing()
+    {
+        Stage stage;
+        EditorShortcutManager shortcuts;
+        int save = 0;
+        Add(shortcuts, "file.save", Key(ImGuiKey_S, true), save);
+        shortcuts.SetSuspended(true);
+        Check(shortcuts.IsSuspended(), "it says it is suspended");
+        Check(stage.Press(shortcuts, Key(ImGuiKey_S, true)) == 0 && save == 0, "a suspended manager runs nothing");
+        shortcuts.SetSuspended(false);
+        Check(stage.Press(shortcuts, Key(ImGuiKey_S, true)) == 1 && save == 1, "and runs again once released");
+    }
 }
 
 int RunEditorShortcutTests()
@@ -496,6 +531,8 @@ int RunEditorShortcutTests()
     TestAPanelShortcutThatCannotRunFallsThrough();
     TestTypingAndGameInputSilenceShortcutsUnlessAllowed();
     TestCapturingAKeyReadsTheCombination();
+    TestSearchLooksAtNamesAndKeys();
+    TestASuspendedManagerRunsNothing();
     std::cout << "Editor shortcut tests passed.\n";
     return 0;
 }

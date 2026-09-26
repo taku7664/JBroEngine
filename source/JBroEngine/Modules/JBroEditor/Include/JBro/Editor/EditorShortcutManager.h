@@ -177,6 +177,9 @@ namespace JBro
         //
         // 이번 프레임에 포커스를 가진 패널의 `GetTitle()`. 없으면 nullptr.
         void SetFocusedScope(const char* scope);
+        // **멈춤.** 키매핑 설정이 새 키를 잡는 동안 참이다 - 그 사이 누른 Ctrl+S 가 저장하면 안 되고 새 조합이 되어야 한다.
+        void SetSuspended(bool suspended);
+        bool IsSuspended() const;
         // 눌린 것을 찾아 한다. 포커스 범위의 것이 먼저 돌고, 그것이 실행되면(`blocksGlobal`) 같은 조합의 전역 것은 돌지 않는다.
         // 범위마다 한 프레임에 하나다. 실행한 것의 수를 돌려준다.
         std::uint32_t ProcessInput(EditorApplication& editor, bool typing, bool gameInput);
@@ -187,6 +190,9 @@ namespace JBro
         static EditorShortcutText Describe(const EditorShortcutBinding& binding);
         // `Describe` 의 거꾸로. 빈 글자는 빈 조합이고 참이다. 모르는 키 이름이면 거짓이다.
         static bool Parse(const char* text, EditorShortcutBinding& out);
+        // **검색.** `query` 가 번역된 이름·무리 이름·저장 이름·지금 조합 글자(`Ctrl+Z`) 어디에든 들어 있으면 참이다. 영문은 대소문자를
+        // 가리지 않는다. 빈 검색어는 모두 맞는다. 설정 화면이 줄마다 부른다.
+        static bool MatchesSearch(const char* query, const char* label, const char* category, const EditorShortcutView& view);
         // **이번 프레임에 눌린 키를 조합으로 잡는다** - 키매핑 설정에서 "키를 누르세요" 칸이 쓴다. 조합키만 눌렸으면 거짓이다.
         static bool CaptureBinding(EditorShortcutBinding& out);
 
@@ -225,5 +231,6 @@ namespace JBro
         const char* m_focusedScope = nullptr;
         ShortcutHandle m_nextHandle = 1;
         std::uint64_t m_revision = 0;
+        bool m_suspended = false;
     };
 }

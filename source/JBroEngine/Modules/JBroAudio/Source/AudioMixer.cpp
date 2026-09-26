@@ -1185,6 +1185,9 @@ namespace JBro
             AudioClipDesc desc;
             std::uint32_t generation = 1;
             bool used = false;
+            // 마지막으로 시작한 믹서 시각(PCM 프레임)이다. 쿨다운이 본다(D-231).
+            bool started = false;
+            std::uint64_t lastStartFrame = 0;
         };
 
         AudioMixerDesc desc;
@@ -1203,6 +1206,9 @@ namespace JBro
         std::uint64_t voicesStarted = 0;
         std::uint64_t voicesStolen = 0;
         std::uint64_t voicesRejected = 0;
+        std::uint64_t voicesCulled = 0;
+        std::uint64_t voicesThrottled = 0;
+        std::uint64_t voicesReplaced = 0;
         std::atomic<float> peak{0.0f};
         std::atomic<std::uint64_t> renderedFrames{0};
         float masterVolume = 1.0f;
@@ -1252,6 +1258,11 @@ namespace JBro
                 bool opened = desc.openStream != nullptr && desc.openStream(desc.openStreamUser, slot.path, slot.decoder);
                 if (opened)
                 {
+                    // 클립이 채널 1 을 말하면 모노 에셋이다(D-231) - 평균해 읽는다.
+                    if (slot.channels == 1)
+                    {
+                        slot.decoder.SetMono();
+                    }
                     const AudioFormat format = slot.decoder.GetFormat();
                     opened = format.channels == slot.channels && format.sampleRate == slot.sampleRate;
                 }
@@ -1601,6 +1612,42 @@ namespace JBro
                     target.effectiveGain = gain;
                 }
             }
+        }
+
+        // 시작하는 자리에서 들리지 않는가(D-231). miniaudio 의 감쇠 공식(`ma_attenuation_*`)을 그대로 따른다 - 최대 거리
+        // 밖은 최대 거리의 값이므로 역·지수 감쇠는 멀어도 0 이 되지 않는다. 원뿔은 더 줄일 뿐이라 보지 않는다(보수적).
+        bool IsInaudibleAtStart(const AudioPlayDesc& play, float trim, float minDistance, float maxDistance) const
+        {
+            static constexpr float CullGain = 0.001f;
+            if (false == play.spatial || play.loop || play.attenuation == AudioAttenuation::None)
+            {
+                return false;
+            }
+            const ma_vec3f listener = ma_engine_listener_get_position(&engine, 0);
+            const float dx = play.position[0] - listener.x;
+            const float dy = play.position[1] - listener.y;
+            const float dz = play.position[2] - listener.z;
+            const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
+            if (false == std::isfinite(distance) || minDistance >= maxDistance)
+            {
+                return false;
+            }
+            const float rolloff = SafePositive(play.rolloff, 1.0f);
+            const float clamped = distance < minDistance ? minDistance : (distance > maxDistance ? maxDistance : distance);
+            float gain = 1.0f;
+            if (play.attenuation == AudioAttenuation::Linear)
+            {
+                gain = 1.0f - rolloff * (clamped - minDistance) / (maxDistance - minDistance);
+            }
+            else if (play.attenuation == AudioAttenuation::Exponential)
+            {
+                gain = std::pow(clamped / minDistance, -rolloff);
+            }
+            else
+            {
+                gain = minDistance / (minDistance + rolloff * (clamped - minDistance));
+            }
+            return Clamp01(play.volume) * trim * gain < CullGain;
         }
 
         // 훔칠 보이스다. 우선순위가 가장 낮은 것, 같으면 작게 들리는 것, 같으면 가장 오래된 것이다. 새 보이스보다
@@ -2505,6 +2552,62 @@ namespace JBro
             return {};
         }
         const AudioBusId bus = state.IsBusValid(desc.bus) ? desc.bus : AudioMasterBus;
+        const float trim = std::isfinite(clip->desc.gain) && clip->desc.gain > 0.0f ? (clip->desc.gain > 4.0f ? 4.0f : clip->desc.gain) : 1.0f;
+        const float minDistance = SafePositive(desc.minDistance, 1.0f);
+        float maxDistance = SafePositive(desc.maxDistance, 50.0f);
+        if (maxDistance < minDistance)
+        {
+            maxDistance = minDistance;
+        }
+
+        // 보이스를 잡기 전에 거른다(D-231). 걸러진 재생은 아무것도 훔치지 않고 쿨다운 시계도 건드리지 않는다.
+        if (state.IsInaudibleAtStart(desc, trim, minDistance, maxDistance))
+        {
+            ++state.voicesCulled;
+            return {};
+        }
+        const std::uint64_t now = ma_engine_get_time_in_pcm_frames(&state.engine);
+        if (clip->desc.cooldownSeconds > 0.0f && std::isfinite(clip->desc.cooldownSeconds) && clip->started)
+        {
+            const std::uint64_t cooldown = static_cast<std::uint64_t>(clip->desc.cooldownSeconds
+                * static_cast<float>(state.desc.sampleRate));
+            if (now - clip->lastStartFrame < cooldown)
+            {
+                ++state.voicesThrottled;
+                return {};
+            }
+        }
+        if (clip->desc.maxInstances > 0)
+        {
+            // 줄여 끄는 중인 것은 세지 않는다 - 곧 비고, 세면 연타 때 새것이 계속 버려진다.
+            std::uint32_t instances = 0;
+            std::uint32_t oldest = static_cast<std::uint32_t>(-1);
+            for (std::uint32_t candidate = 0; candidate < state.voices.Size(); ++candidate)
+            {
+                const State::Voice& other = state.voices[candidate];
+                const bool live = other.state == State::VoiceState::Playing || other.state == State::VoiceState::Paused;
+                if (false == live || other.clip.index != desc.clip.index || other.clip.generation != desc.clip.generation)
+                {
+                    continue;
+                }
+                ++instances;
+                if (other.priority <= desc.priority
+                    && (oldest == static_cast<std::uint32_t>(-1) || other.startSerial < state.voices[oldest].startSerial))
+                {
+                    oldest = candidate;
+                }
+            }
+            if (instances >= clip->desc.maxInstances)
+            {
+                if (oldest == static_cast<std::uint32_t>(-1))
+                {
+                    ++state.voicesThrottled;
+                    return {};
+                }
+                Stop({oldest, state.voices[oldest].generation}, 0.02f);
+                ++state.voicesReplaced;
+            }
+        }
 
         std::uint32_t index = 0;
         if (false == state.freeVoices.IsEmpty())
@@ -2598,7 +2701,8 @@ namespace JBro
         }
         else
         {
-            ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
+            // 클립의 채널로 푼다 - 모노 에셋(D-231)이면 1 이고, 아니면 등록 때 읽은 파일의 채널이다.
+            ma_decoder_config config = ma_decoder_config_init(ma_format_f32, clip->desc.channels <= 8 ? clip->desc.channels : 0, 0);
             config.allocationCallbacks = state.callbacks;
             if (ma_decoder_init_memory(clip->desc.bytes, clip->desc.byteCount, &config, &voice.decoder) != MA_SUCCESS)
             {
@@ -2642,7 +2746,7 @@ namespace JBro
             state.RouteVoice(voice, bus, true);
         }
         voice.volume = Clamp01(desc.volume);
-        voice.trim = std::isfinite(clip->desc.gain) && clip->desc.gain > 0.0f ? (clip->desc.gain > 4.0f ? 4.0f : clip->desc.gain) : 1.0f;
+        voice.trim = trim;
         voice.looping = desc.loop;
         voice.priority = desc.priority;
         voice.bus = bus;
@@ -2654,12 +2758,6 @@ namespace JBro
         ma_sound_set_looping(&voice.sound, desc.loop ? MA_TRUE : MA_FALSE);
         if (desc.spatial)
         {
-            const float minDistance = SafePositive(desc.minDistance, 1.0f);
-            float maxDistance = SafePositive(desc.maxDistance, 50.0f);
-            if (maxDistance < minDistance)
-            {
-                maxDistance = minDistance;
-            }
             ma_sound_set_attenuation_model(&voice.sound, ToMiniaudio(desc.attenuation));
             ma_sound_set_min_distance(&voice.sound, minDistance);
             ma_sound_set_max_distance(&voice.sound, maxDistance);
@@ -2686,6 +2784,9 @@ namespace JBro
         }
         voice.state = State::VoiceState::Playing;
         ++state.voicesStarted;
+        State::Clip& started = state.clips[desc.clip.index];
+        started.started = true;
+        started.lastStartFrame = now;
         return {index, voice.generation};
     }
 
@@ -3062,6 +3163,9 @@ namespace JBro
         stats.voicesStarted = state.voicesStarted;
         stats.voicesStolen = state.voicesStolen;
         stats.voicesRejected = state.voicesRejected;
+        stats.voicesCulled = state.voicesCulled;
+        stats.voicesThrottled = state.voicesThrottled;
+        stats.voicesReplaced = state.voicesReplaced;
         stats.allocatorGrowths = state.allocator.GetGrowths();
         stats.lastPeak = state.peak.load(std::memory_order_relaxed);
         stats.renderedFrames = state.renderedFrames.load(std::memory_order_relaxed);

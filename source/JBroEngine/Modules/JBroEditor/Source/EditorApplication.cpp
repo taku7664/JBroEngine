@@ -24,6 +24,7 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Host/GameBuild.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
@@ -51,6 +52,7 @@
 #include "Panel/ProfilerPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
+#include "Panel/EditorSettingsPanel.h"
 #include "Panel/StatsPanel.h"
 
 #include <imgui.h>
@@ -2016,6 +2018,79 @@ namespace JBro
         return localization != nullptr ? localization->GetLocaleName() : String();
     }
 
+    String EditorApplication::FindGameHostExecutable() const
+    {
+        const bool is3D = m_frameworkKind == FrameworkKind::Framework3D;
+        const String folder = m_platform.Get() != nullptr ? m_platform->GetExecutableFolder() : String();
+        if (folder.empty())
+        {
+            return String();
+        }
+        String base = folder;
+        if (base.back() != '/' && base.back() != '\\')
+        {
+            base.push_back('/');
+        }
+        // 설치본은 에디터 옆에 둘을 둔다. 개발 빌드는 구성마다 폴더가 다르다(`Build/x64/Debug_Game2D`).
+        const char* const candidates[] = {
+            is3D ? "JBroGameHost3D.exe" : "JBroGameHost2D.exe",
+            is3D ? "../Debug_Game3D/JBroGameHost.exe" : "../Debug_Game2D/JBroGameHost.exe",
+            is3D ? "../Release_Game3D/JBroGameHost.exe" : "../Release_Game2D/JBroGameHost.exe",
+        };
+        for (const char* candidate : candidates)
+        {
+            String path = base;
+            path.append(candidate);
+            if (m_platform->FileExists(path.c_str()))
+            {
+                return path;
+            }
+        }
+        return String();
+    }
+
+    bool EditorApplication::BuildGameForProject(GameBuildReport& report)
+    {
+        report = {};
+        if (m_projectFilePath.empty() || m_platform.Get() == nullptr)
+        {
+            report.error = "only a project opened from a file can be built";
+            m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyGameBuildFailed, "The game could not be built"),
+                report.error.c_str());
+            return false;
+        }
+        GameBuildOptions options;
+        options.gameHostPath = FindGameHostExecutable();
+        // 게임은 패키지에서 캔버스를 세어 볼 수 없으므로 물리 워커 수는 여기서 정해 적는다(D-223).
+        if (m_frameworkKind == FrameworkKind::Framework2D)
+        {
+            options.physicsWorkers = static_cast<std::int32_t>(
+                ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
+        }
+        const bool built = BuildGame(*m_platform, GetProjectFile(), m_projectFilePath.c_str(), options, report);
+        if (false == built)
+        {
+            m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyGameBuildFailed, "The game could not be built"),
+                report.error.c_str());
+            return false;
+        }
+        for (const String& warning : report.warnings)
+        {
+            Log::Write(LogLevel::Warning, "build", "%s", warning.c_str());
+        }
+        if (options.gameHostPath.empty())
+        {
+            Log::Write(LogLevel::Warning, "build", "no game host was found; the folder has the package and the project but no executable");
+            report.warnings.Add(String("no game host was found; the folder has no executable"));
+        }
+        const bool warned = false == report.warnings.IsEmpty();
+        m_notifications.Notify(warned ? NotificationLevel::Warning : NotificationLevel::Success,
+            warned ? Loc::TextOr(LocKeys::NotifyGameBuildWarnings, "The game was built with warnings")
+                   : Loc::TextOr(LocKeys::NotifyGameBuilt, "The game was built"),
+            report.outputFolder.c_str());
+        return true;
+    }
+
     const Array<String>& EditorApplication::GetStringKeys()
     {
         const GameLocalization* localization = m_engine.Get() != nullptr ? m_engine->GetLocalization() : nullptr;
@@ -2267,7 +2342,8 @@ namespace JBro
                 || false == AddPanel(MakeOwnerPtr<LogPanel>())
                 || false == AddPanel(MakeOwnerPtr<ProjectSettingsPanel>())
                 || false == AddPanel(MakeOwnerPtr<ProfilerPanel>())
-                || false == AddPanel(MakeOwnerPtr<ShortcutPanel>()))
+                || false == AddPanel(MakeOwnerPtr<ShortcutPanel>())
+                || false == AddPanel(MakeOwnerPtr<EditorSettingsPanel>()))
             {
                 ReleaseEditorUi();
                 return false;
@@ -3007,6 +3083,12 @@ namespace JBro
                 {
                     RequestSaveProject();
                 }
+                // **게임 빌드**(D-232). 저장된 프로젝트로 빌드한다 - 같은 까닭으로 파일이 있어야 하고 돌고 있지 않아야 한다.
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuBuildGame, "Build Game"), nullptr, false == (noFile || playing), why))
+                {
+                    GameBuildReport report;
+                    BuildGameForProject(report);
+                }
             }
             ImGui::Separator();
             if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
@@ -3072,6 +3154,9 @@ namespace JBro
         {
             DrawPanelMenuItem("ProjectSettings",
                 Loc::TextOr(LocKeys::MenuSettingsProject, "Project Settings"));
+            // 프로젝트가 아니라 이 사람의 에디터에 대한 설정이다(단축키 등, D-230).
+            DrawPanelMenuItem("EditorSettings",
+                Loc::TextOr(LocKeys::MenuSettingsEditor, "Editor Settings"));
             Widget::EndMenu();
         }
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuDebug, "Debug")))

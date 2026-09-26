@@ -2,6 +2,7 @@
 
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetMetaFile.h>
+#include <JBro/Asset/AssetSource.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -11,6 +12,7 @@
 #include <JBro/Types/Table.h>
 
 #include <cstddef>
+#include <string_view>
 
 namespace JBro
 {
@@ -66,8 +68,14 @@ namespace JBro
     {
         FontImportOptions options;
         Array<std::byte> bytes;
+        // 게임 빌드가 미리 떠 둔 아틀라스다(D-232). 패키지로 연 게임에만 있고, 텍스트 라이브러리가 표지를 보고 되살린다.
+        Array<std::byte> bakedAtlas;
         std::uint32_t dataGeneration = 1;
     };
+
+    // 폰트 임포트 옵션을 쓰는 쪽이 보는 값으로 정리한다(D-119·D-215): `Default` 샘플러는 프로젝트 것, 0 이하 PPU 는 기본, SDF 는 Linear,
+    // SDF 크기 8~256·퍼짐 1~32. 에셋 시스템이 로드 때 부르고, 게임 빌드가 아틀라스를 미리 뜰 때도 같은 값을 쓴다.
+    void NormalizeFontOptions(FontImportOptions& options, TextureFilter projectDefault);
 
     // 로드된 폰트 패밀리다(D-225). 칸마다 Font 핸들을 참조 수로 잡고 있다(스프라이트가 텍스처를 잡는 것과 같다). 빈 칸이나
     // Font 가 아닌 아이디는 빈 핸들이다. 칸 순서는 `FontFamilySlot` 이다. `dataGeneration` 은 in-place 재로드마다 오른다.
@@ -110,6 +118,12 @@ namespace JBro
 
         // 프로젝트를 열 때 레지스트리·플랫폼·에셋 폴더(UTF-8 절대경로)를 잇는다. 닫을 때 `Unbind` 가 전부 내린다.
         void Bind(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot);
+        // 바이트를 `source` 에서 받는다(패키지로 여는 게임, D-232). `source` 는 `Unbind` 까지 살아야 한다. 에셋 폴더는 없다 - `GetAssetRoot` 가 빈다.
+        void Bind(IPlatform& platform, const AssetRegistry& registry, const IAssetSource& source);
+        // 지금 바이트를 주는 곳이다. 잇지 않았으면 null 이다. 스트리밍 오디오를 여는 쪽(믹서의 스트리머)이 `OpenStream` 을 부른다.
+        const IAssetSource* GetSource() const;
+        // 경로로 찾은 에셋의 원본 바이트다. 게임 호스트가 시작 캔버스를 읽는 길이다 - 패키지로 열어도 같다.
+        bool ReadSourceByPath(std::string_view relativePath, Array<std::byte>& out) const;
         void Unbind();
         bool IsBound() const;
 
@@ -146,6 +160,9 @@ namespace JBro
         const StringTableData* GetStringTable(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
+        // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
+        // 이미 로드된 자료는 바꾸지 않는다 - 다음 로드부터다.
+        void SetAudioDecodeSampleRate(std::uint32_t sampleRate);
         // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
         bool ComputeAudioPeaks(AssetHandle handle, std::uint32_t buckets, Array<float>& peaks);
 
@@ -216,6 +233,8 @@ namespace JBro
         String SourcePathOf(const AssetRecord& record) const;
 
         IPlatform* m_platform = nullptr;
+        LooseAssetSource m_looseSource;
+        const IAssetSource* m_source = nullptr;
         TextureFilter m_defaultTextureFilter = TextureFilter::Nearest;
         Array<AssetId> m_projectFonts;
         std::uint32_t m_projectFontsRevision = 0;
@@ -228,6 +247,7 @@ namespace JBro
         Pool<FontFamilyData> m_fontFamilies;
         Pool<StringTableData> m_stringTables;
         AudioReleaseCallback m_audioRelease = nullptr;
+        std::uint32_t m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;
         Table<AssetId, AssetHandle> m_loaded;
     };

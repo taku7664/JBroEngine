@@ -14,6 +14,7 @@ namespace JBro
     class AssetSystem;
     class Renderer;
     class TaskManager;
+    struct FontData;
 
     // 폰트 에셋과 글리프 아틀라스, 그리고 아틀라스 페이지의 GPU 텍스처를 잇는다(D-200, text-plan §4.4). `SpriteLibrary` 와 같은 자리다.
     //
@@ -77,6 +78,14 @@ namespace JBro
         // 지금까지 올린 페이지 수(등록과 다시 쓰기를 모두 센다)와 살아 있는 페이지 텍스처 수다. 테스트가 "새 글자가 없는 프레임에는
         // 올리지 않는다" 를 이것으로 잰다 - 렌더러에는 올린 횟수를 세는 자리가 없다.
         std::uint64_t GetUploadCount() const;
+        // 미리 뜬 아틀라스(D-232)를 되살린 횟수다. 테스트가 "뜨지 않고 되살렸다" 를 이것으로 본다.
+        std::uint64_t GetBakedRestoreCount() const;
+
+        // **미리 뜬 아틀라스를 만든다**(D-232). 폰트를 열어 라이브러리가 열 때와 같은 벌·크기로 뜨고 표지와 함께 싼다. 게임 빌드가 부른다.
+        // 미리 뜨기가 꺼진 폰트이거나 폰트를 열지 못하면 거짓이다. `data.options` 는 정리된 값이어야 한다(`NormalizeFontOptions`).
+        static bool BakeFontAtlas(const FontData& data, Array<std::byte>& out);
+        // 위의 표지다. 라이브러리가 되살릴 때 같은 것을 만들어 맞춰 본다.
+        static Text::BakedAtlasStamp PrewarmStampOf(const FontImportOptions& options, std::uint64_t sourceHash);
         // 지금까지 GPU 로 보낸 아틀라스 바이트다. 새 칸만 올리는지 테스트가 이것으로 잰다.
         std::uint64_t GetUploadedBytes() const;
         // 이 폰트를 (다시) 열 때 미리 뜬 칸 수다. 연 적이 없으면 0 이다. 워커에서 뜨는 중이면 지금까지 들어간 수다.
@@ -123,6 +132,8 @@ namespace JBro
             std::uint32_t         prewarmTasksPending = 0; // 워커에서 도는 미리 뜨기 태스크 수
             FontPrewarm           prewarm = FontPrewarm::None;
             std::uint32_t         prewarmSize = 32;
+            // 폰트 원본의 해시다. 미리 뜬 아틀라스의 표지와 맞춰 본다(열 때 한 번 잰다).
+            std::uint64_t         sourceHash = 0;
         };
 
         void ReleasePages(FontEntry& entry);
@@ -142,6 +153,7 @@ namespace JBro
         // 폰트 에셋의 슬롯 번호로 찍는다. 원소가 옮겨 다니지 않게 따로 잡는다(FontView 가 face·atlas 를 가리킨다).
         Array<OwnerPtr<FontEntry>> m_fonts;
         std::uint64_t m_uploadCount = 0;
+        std::uint64_t m_bakedRestores = 0;
         std::uint64_t m_uploadedBytes = 0;
         std::uint32_t m_pageLimit = DefaultPageLimit;
         std::uint32_t m_trimCount = 0;

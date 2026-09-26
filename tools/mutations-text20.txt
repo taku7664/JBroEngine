@@ -1,0 +1,8 @@
+Modules\JBroPackage\Source\PackageReader.cpp	reader:order-unchecked	if (false == entries.IsEmpty() && false == EntryLess(entries[entries.Size() - 1], entry))	if (false)
+Modules\JBroPackage\Source\PackageReader.cpp	reader:bounds-unchecked	&& entry.size <= indexOffset - entry.offset;	;
+Modules\JBroPackage\Source\PackageFormat.cpp	obfuscate:position-ignored	std::uint64_t z = key + (block + 1) * 0x9E3779B97F4A7C15ull;	std::uint64_t z = key + 0x9E3779B97F4A7C15ull;
+Modules\JBroPackage\Source\PackageCollect.cpp	collect:owned-skipped	                visit(child);	                (void)child;
+Modules\JBroPackage\Source\PackageCollect.cpp	collect:owner-skipped	                visit(record.owner);	                (void)0;
+Modules\JBroHost\Source\EngineInstance.cpp	engine:stream-by-platform	        if (source != nullptr)\n        {\n            return source->OpenStream(path);	        if (false)\n        {\n            return source->OpenStream(path);
+Modules\JBroHost\Source\GameHostArguments.cpp	beside:first-not-by-name	&& (found.best.empty() || name < std::string_view(found.best)))	&& found.best.empty())
+Modules\JBroHost\Source\GameHostArguments.cpp	beside:descends	            return false;\n        }, &search);	            return true;\n        }, &search);

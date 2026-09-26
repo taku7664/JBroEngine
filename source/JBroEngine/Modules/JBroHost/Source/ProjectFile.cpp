@@ -901,6 +901,7 @@ namespace JBro
                 }
             }
             else if (key == "AssetDirectory") { parsed.assetDirectory = value; }
+            else if (key == "AssetPackage") { parsed.assetPackage = value; }
             else if (key == "InputLayers")
             {
                 parsed.inputLayers.Clear();
@@ -1070,6 +1071,7 @@ namespace JBro
                 value = FormatFloat(project.canvasViewCameraSize);
             }
             else if (key == "AssetDirectory") { value = project.assetDirectory; }
+            else if (key == "AssetPackage") { value = project.assetPackage; }
             else if (key == "DefaultLocale") { value = project.defaultLocale; }
             else if (key == "FallbackLocale") { value = project.fallbackLocale; }
             else
@@ -1083,7 +1085,8 @@ namespace JBro
         bool IsUnwrittenTopLevelDefault(const ProjectFile& project, const String& key)
         {
             return (key == "DefaultLocale" && project.defaultLocale.empty())
-                || (key == "FallbackLocale" && project.fallbackLocale.empty());
+                || (key == "FallbackLocale" && project.fallbackLocale.empty())
+                || (key == "AssetPackage" && project.assetPackage.empty());
         }
 
         bool BuildValue(const ProjectFile& project, const String& key, String& value)
@@ -1117,7 +1120,7 @@ namespace JBro
             "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
             "AssetDirectory", "EditorLocale",
             "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize",
-            "AudioOutputDevice", "AudioMuteWhenUnfocused", "DefaultLocale", "FallbackLocale"};
+            "AudioOutputDevice", "AudioMuteWhenUnfocused", "DefaultLocale", "FallbackLocale", "AssetPackage"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
             "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath", "PhysicsThreads"};
@@ -1156,12 +1159,21 @@ namespace JBro
             out.append("\n", 1);
         }
 
+        // 빈 값은 `""` 로 적는다. `Key: ` 는 "아래에 블록이 온다" 로 읽혀 기본값이 되돌아온다 - 설정 창에서 비운 칸이 저장 뒤 기본값으로
+        // 돌아왔고, 게임 빌드의 프로젝트 사본이 비운 스크립트 경로가 개발 경로로 되살았다(D-232).
         void AppendPair(String& out, const char* indent, const String& key, const String& value)
         {
             String line(indent);
             line.append(key.c_str(), key.size());
             line.append(": ", 2);
-            line.append(value.c_str(), value.size());
+            if (value.empty())
+            {
+                line.append("\"\"", 2);
+            }
+            else
+            {
+                line.append(value.c_str(), value.size());
+            }
             AppendLine(out, line);
         }
     }
@@ -1741,7 +1753,12 @@ namespace JBro
                     // 조용히 덮는다 - 값이 다르면 무엇이 맞는지 파일만 보고 알 수 없다.
                     // 매핑에 같은 키가 두 번 있을 수 없으니 지우는 것이 고치는 것이다.
                     dropped = MarkWritten(wroteTopLevel, TopLevelKeys, key);
-                    if (false == dropped)
+                    // 원문도 비어 있던 줄(`Key: `)은 그대로 둔다 - 고친 것 없는 저장은 바이트 하나 바꾸지 않는다(D-189).
+                    if (false == dropped && value.empty() && false == hasValue)
+                    {
+                        AppendLine(result, line);
+                    }
+                    else if (false == dropped)
                     {
                         AppendPair(result, "", key, value);
                     }
@@ -1750,7 +1767,11 @@ namespace JBro
                 else if (indent == 2 && inBuild && BuildValue(project, key, value))
                 {
                     dropped = MarkWritten(wroteBuild, BuildKeys, key);
-                    if (false == dropped)
+                    if (false == dropped && value.empty() && false == hasValue)
+                    {
+                        AppendLine(result, line);
+                    }
+                    else if (false == dropped)
                     {
                         AppendPair(result, "  ", key, value);
                     }

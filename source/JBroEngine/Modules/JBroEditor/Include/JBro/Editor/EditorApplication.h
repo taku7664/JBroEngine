@@ -41,6 +41,7 @@ namespace JBro
     class GameObject;
     class Renderer;
     class EngineInstance;
+    struct GameBuildReport;
     class IFramework;
     class IPlatform;
     struct AudioDeviceInfo;
@@ -515,6 +516,11 @@ namespace JBro
         bool SetPreviewLocale(const char* locale);
         // 프로젝트의 문자열 표에 있는 키 전부다(D-226, 이름 차례). 인스펙터의 `textKey` 고르기가 쓴다. 표가 바뀔 때만 다시 모은다.
         const Array<String>& GetStringKeys();
+        // **게임을 빌드한다**(D-232). 파일 메뉴의 "게임 빌드" 가 부른다. 저장된 프로젝트 파일(원본)로 빌드하고, 결과를 알림으로 보인다.
+        // 게임 호스트는 차원에 맞는 것을 실행 파일 옆(`JBroGameHost2D.exe`/`3D`)이나 개발 빌드 폴더(`../Debug_Game2D/JBroGameHost.exe` 따위)에서 찾는다.
+        bool BuildGameForProject(GameBuildReport& report);
+        // 위가 쓰는 게임 호스트 경로다. 찾지 못하면 빈 글자다.
+        String FindGameHostExecutable() const;
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
         void AnswerCanvasSwitch(int choice);

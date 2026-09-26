@@ -21,6 +21,10 @@
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Package/PackageAssetSource.h>
+#include <JBro/Package/PackageCook.h>
+#include <JBro/Package/PackageReader.h>
+#include <JBro/Package/PackageWriter.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/LocalizationTypes/Internal/SystemContext.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
@@ -40,6 +44,9 @@
 #include <thread>
 #include <cstring>
 #include <filesystem>
+#include <string>
+
+#include <process.h>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -210,6 +217,16 @@ namespace
         Check(TextStore::Get().GetLiveCount() == baseline, "tearing the canvas down returns the rest");
     }
 
+    // 시험 폴더는 프로세스마다 다르다. 여러 세션의 시험이 한 기계에서 함께 돌면 같은 이름의 임시 폴더를 서로 지우고 덮어썼다(메타를 못 읽는
+    // 실패가 운으로 났다).
+    fs::path ProcessTempFolder(const wchar_t* name)
+    {
+        std::wstring folder(name);
+        folder += L"-";
+        folder += std::to_wstring(_getpid());
+        return fs::temp_directory_path() / folder;
+    }
+
     struct FontProject
     {
         WindowsPlatform platform;
@@ -232,7 +249,7 @@ namespace
 
         void Open(float pixelsPerUnit)
         {
-            root = fs::temp_directory_path() / L"JBroTextProbe·글자";
+            root = ProcessTempFolder(L"JBroTextProbe·글자");
             fs::remove_all(root);
             WriteBytes(root / "Fonts" / "sans.otf", TestFontNotoSansKR, sizeof(TestFontNotoSansKR));
             WriteBytes(root / "Fonts" / "latin.otf", TestFontNotoSansKRLatin, sizeof(TestFontNotoSansKRLatin));
@@ -895,6 +912,105 @@ namespace
                 "and the prewarmed pages are not counted against the page limit");
             framework.Shutdown();
         }
+        gpu.Close();
+        project.Close();
+    }
+
+    // **패키지의 미리 뜬 아틀라스**(D-232, package-plan 4 단계). 게임 빌드가 미리 떠 싼 아틀라스를 게임의 라이브러리가 뜨지 않고 되살린다 -
+    // 미리 뜬 칸 수와 첫 업로드가 느슨한 파일로 뜬 것과 같고, 그려진 글자도 픽셀까지 같다.
+    void TestBakedAtlasesRestoreFromAPackage()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads");
+            meta.hasFontOptions = true;
+            meta.fontOptions.prewarm = FontPrewarm::Ksx1001;
+            meta.fontOptions.prewarmSize = 40;
+            Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves with a prewarm set");
+        }
+        Array<AssetId> ids;
+        ids.Add(project.fontId);
+        Package::PackageWriter writer(0xA71A5ull);
+        Package::CookReport cooked;
+        Check(Package::CookAssets(project.platform, project.registry, Utf8(project.root).c_str(),
+                  ArrayView<const AssetId>(ids.Data(), ids.Size()), writer, cooked) && cooked.bakedAtlases == 1,
+            "a prewarmed font cooks with its atlas");
+        const String packagePath = Utf8(project.root / "game.jpak");
+        String error;
+        Check(writer.Save(project.platform, packagePath.c_str(), error), "the package is written");
+        Package::PackageReader package;
+        Check(package.Open(project.platform, packagePath.c_str(), error) && package.Find(project.fontId, Package::BlobKind::FontAtlas) != nullptr,
+            "the package holds the atlas beside the font");
+        AssetRegistry packedRegistry;
+        Package::FillRegistry(package, packedRegistry);
+        Package::PackageAssetSource source(package);
+        AssetSystem packed;
+        Check(packed.Initialize(project.memory), "the packaged asset system initializes");
+        packed.Bind(project.platform, packedRegistry, source);
+        const FontData* font = packed.GetFont(packed.Load(project.fontId));
+        Check(font != nullptr && false == font->bakedAtlas.IsEmpty(), "the packaged font carries its baked atlas");
+
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; baked atlases not verified" << std::endl;
+            packed.Shutdown();
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        // 느슨한 파일로 뜬 것과 패키지로 되살린 것을 같은 장면으로 그려 본다.
+        const auto draw = [&](AssetSystem& assets, std::uint64_t& restores, std::uint32_t& prewarmed, std::uint64_t& uploads) {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+            gpu.Paint(framework);
+            restores = texts->GetLibrary().GetBakedRestoreCount();
+            prewarmed = texts->GetLibrary().GetPrewarmedGlyphCount(label->font);
+            uploads = texts->GetLibrary().GetUploadCount();
+            const DarkBox dark = FindDark(gpu);
+            framework.Shutdown();
+            return dark;
+        };
+        std::uint64_t looseRestores = 0;
+        std::uint32_t loosePrewarmed = 0;
+        std::uint64_t looseUploads = 0;
+        const DarkBox loose = draw(project.assets, looseRestores, loosePrewarmed, looseUploads);
+        std::uint64_t packedRestores = 0;
+        std::uint32_t packedPrewarmed = 0;
+        std::uint64_t packedUploads = 0;
+        const DarkBox fromPackage = draw(packed, packedRestores, packedPrewarmed, packedUploads);
+        Check(looseRestores == 0 && loosePrewarmed == 95 + 29, "the loose font prewarms at run time");
+        Check(packedRestores == 1 && packedPrewarmed == loosePrewarmed, "the packaged font restores the same cells instead");
+        Check(packedUploads == looseUploads, "and uploads its pages the same way");
+        Check(fromPackage.count == loose.count && fromPackage.count > 40 && fromPackage.minX == loose.minX && fromPackage.maxY == loose.maxY,
+            "the letter drawn from the restored atlas is the letter drawn from the warmed one");
+        packed.Shutdown();
+        package.Close();
         gpu.Close();
         project.Close();
     }
@@ -2030,6 +2146,7 @@ int RunTextRenderTests()
         TestSdfTextKeepsItsOutlineInProportion();
         TestPrewarmedFontsUploadOnce();
         TestPrewarmRunsOnWorkers();
+        TestBakedAtlasesRestoreFromAPackage();
         TestPixelSnapLandsGlyphsOnWholePixels();
         TestRichTextDrawsTaggedColourAndSize();
         TestText3DDrawsInTheWorld();
