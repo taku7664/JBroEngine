@@ -551,6 +551,44 @@ namespace
         Check(thirdProbe->collisionExit == 1, "and one moved to a layer the ground does not take lets go");
     }
 
+    // **찌그러지거나 뒤집힌 부모 아래의 몸은 가만히 있으면 제 로컬 회전을 지킨다(physics-plan §4 의 4 (3)).** 물리의 각도는
+    // `Transform2D` 의 `worldRotation` 과 같이 회전의 합이다 - 캔버스 뷰가 콜라이더를 그리는 규칙이고, 되쓰기가 그 역이다.
+    // 전에는 월드 행렬 첫 행의 각도를 써서, 회전 + 비균등 크기인 부모 아래에서는 첫 스텝에 로컬 회전이 저절로 바뀌고
+    // 뒤집힌 부모 아래에서는 부호가 뒤집혔다.
+    void TestABodyUnderASkewedOrMirroredParentKeepsItsRotation()
+    {
+        Scene scene;
+        scene.physics.SetGravity({ 0, 0 });
+        JBro::GameObject* skewed = scene.Object("skewed", { 0, 0 });
+        scene.TransformOf(skewed)->rotation = 0.5f;
+        scene.TransformOf(skewed)->scale = { 2, 1 };
+        JBro::GameObject* mirrored = scene.Object("mirrored", { 10, 0 });
+        scene.TransformOf(mirrored)->scale = { -1, 1 };
+
+        JBro::GameObject* children[2] = {};
+        JBro::GameObject* parents[2] = { skewed, mirrored };
+        for (int i = 0; i < 2; ++i)
+        {
+            children[i] = scene.canvas.CreateObject(i == 0 ? "skewedChild" : "mirroredChild");
+            children[i]->SetParent(parents[i]);
+            Transform2D* local = scene.canvas.AttachComponent<Transform2D>(children[i]);
+            local->position = { 1, 0.5f };
+            local->rotation = 0.3f;
+            scene.Box(children[i], { 1, 0.5f });
+            scene.Dynamic(children[i]);
+        }
+        scene.Run(0.5f);
+
+        for (int i = 0; i < 2; ++i)
+        {
+            const Transform2D* local = scene.TransformOf(children[i]);
+            Check(Near(local->rotation, 0.3f, 1.0e-4f), i == 0
+                ? "a body at rest under a rotated, stretched parent keeps its local rotation"
+                : "and one under a mirrored parent keeps its sign");
+            Check(Near(local->position.x, 1.0f, 1.0e-4f) && Near(local->position.y, 0.5f, 1.0e-4f), "and its local place");
+        }
+    }
+
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
     // 것도 캡슐로 남고, 질의는 둥근 끝 옆의 빈 곳을 캡슐로 보지 않는다.
     void TestCapsuleColliders()
@@ -681,6 +719,7 @@ int RunPhysics2DSystemTests()
     TestCapsuleColliders();
     TestAnAnimatedColliderKeepsItsContact();
     TestTheFixedStepDoesNotAllocate();
+    TestABodyUnderASkewedOrMirroredParentKeepsItsRotation();
     TestAnEmptyPolygonCollidesAsItsSizeBox();
     TestScaleGrowsTheShape();
     TestAnOffCenterBodyTurnsAboutItsCenterOfMass();

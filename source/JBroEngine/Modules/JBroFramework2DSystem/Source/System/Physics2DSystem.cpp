@@ -979,7 +979,7 @@ namespace JBro::System
             Internal::ObjectPose parentPose;
             if (parent != nullptr && Internal::CalculateObjectPose(canvas, parent, parentPose))
             {
-                // 월드 자리를 부모 로컬로 되돌린다(찌그러짐 없는 부모 행렬을 전제한다).
+                // 월드 자리를 부모 행렬의 역으로 로컬에 되돌린다(찌그러진 행렬에도 맞다). 각도는 회전의 합이므로 부모 각도를 빼면 된다.
                 const Matrix3x2& m = parentPose.matrix;
                 const float determinant = m.m11 * m.m22 - m.m12 * m.m21;
                 if (determinant != 0.0f)
