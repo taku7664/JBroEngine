@@ -116,7 +116,7 @@ namespace JBro::System
                 { collider.size.x * 0.5f * scale.x, collider.size.y * 0.5f * scale.y });
         }
 
-        // 체인의 점들(D-228). 포인트가 없으면 `size.x` 폭의 가로 선분이다.
+        // 체인의 점들(D-229). 포인트가 없으면 `size.x` 폭의 가로 선분이다.
         void BakeChain(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
         {
             outline.Clear();

@@ -84,7 +84,7 @@ namespace
         Check(false == JBro::PolygonEditModel::RemoveVertex(points, 9), "a point past the last is refused");
     }
 
-    // **체인의 포인트 편집(D-228).** 열린 체인은 끝과 처음 사이에 변이 없고 두 점까지 지울 수 있으며, 빈 체인은 가로 선분 두 점에서 시작한다.
+    // **체인의 포인트 편집(D-229).** 열린 체인은 끝과 처음 사이에 변이 없고 두 점까지 지울 수 있으며, 빈 체인은 가로 선분 두 점에서 시작한다.
     void TestChainPointEditing()
     {
         JBro::Component::Collider2D chain;

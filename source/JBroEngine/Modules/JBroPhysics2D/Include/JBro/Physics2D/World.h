@@ -72,7 +72,7 @@ namespace JBro::Physics2D
         // 축 고정(D-227). 그 축으로는 움직이지 않는다 - 중력·힘·접촉 어느 것도 그 축의 속도를 만들지 못한다.
         bool          freezePositionX = false;
         bool          freezePositionY = false;
-        // 잠들 수 있는가(D-228). 거짓이면 멈춰 있어도 늘 깨어 있다.
+        // 잠들 수 있는가(D-229). 거짓이면 멈춰 있어도 늘 깨어 있다.
         bool          canSleep = true;
         std::uint64_t userData = 0;
     };
@@ -111,7 +111,7 @@ namespace JBro::Physics2D
         std::uint32_t positionIterations = 3;
         // 다가오는 속도가 이보다 느리면 반발하지 않는다. 쌓인 물체가 떨며 튀지 않게 한다.
         float         restitutionThreshold = 1.0f;
-        // 수면(D-228). 접촉으로 이어진 몸들(섬)이 모두 이 속도 아래로 timeToSleep 동안 머물면 함께 잠든다. 잠든 몸은
+        // 수면(D-229). 접촉으로 이어진 몸들(섬)이 모두 이 속도 아래로 timeToSleep 동안 머물면 함께 잠든다. 잠든 몸은
         // 적분과 솔버에서 빠진다. 섬 안의 하나라도 빨라지면 섬이 함께 깬다.
         bool          enableSleep = true;
         float         timeToSleep = 0.5f;
@@ -126,7 +126,7 @@ namespace JBro::Physics2D
         std::uint32_t candidates = 0;
         // 좁은 판정을 워커와 나눠 돈 서브스텝 수. 워커가 없거나 후보가 적으면 0 이다.
         std::uint32_t parallelSubSteps = 0;
-        // Step 이 끝났을 때 깨어 있는·잠든 동적 몸의 수(D-228).
+        // Step 이 끝났을 때 깨어 있는·잠든 동적 몸의 수(D-229).
         std::uint32_t awakeBodies = 0;
         std::uint32_t sleepingBodies = 0;
     };
@@ -154,7 +154,7 @@ namespace JBro::Physics2D
         ShapeId CreateCircleShape(BodyId body, const Circle& localCircle, const ShapeDef& def);
         // 선분 a-b(바디 로컬)에 반지름을 두른 캡슐. 조각 하나(두 점 + radius)로 든다. 두 점이 LinearSlop 안이면 원이다.
         ShapeId CreateCapsuleShape(BodyId body, Vec2 localA, Vec2 localB, float radius, const ShapeDef& def);
-        // 체인(D-228): 점을 이은 선분 모음이고 조각마다 선분 하나다. 두께와 질량이 없고 두 면 모두에서 부딪힌다. loop 면 끝과 처음을
+        // 체인(D-229): 점을 이은 선분 모음이고 조각마다 선분 하나다. 두께와 질량이 없고 두 면 모두에서 부딪힌다. loop 면 끝과 처음을
         // 잇는다. LinearSlop 안의 이웃 점은 합친다. 선분이 하나도 남지 않으면 만들지 않고 빈 번호를 돌려준다.
         ShapeId CreateChainShape(BodyId body, ArrayView<const Vec2> localPoints, bool loop, const ShapeDef& def);
         void    DestroyShape(ShapeId shape);
@@ -187,7 +187,7 @@ namespace JBro::Physics2D
         // 몸의 성질을 제자리에서 바꾼다(D-227): 질량·중력 배율·감쇠·회전 고정·축 고정. 종류·자세·속도·userData 는 두고,
         // 번호가 그대로라 닿아 있던 쌍은 이어진다.
         void SetBodyProperties(BodyId body, const BodyDef& def);
-        // 수면(D-228). 깨우면 섬이 다음 Step 에 함께 깬다. 순간 이동·속도·힘·충격량·성질·도형을 바꾸면 저절로 깬다.
+        // 수면(D-229). 깨우면 섬이 다음 Step 에 함께 깬다. 순간 이동·속도·힘·충격량·성질·도형을 바꾸면 저절로 깬다.
         void SetAwake(BodyId body, bool awake);
         bool IsAwake(BodyId body) const;
 

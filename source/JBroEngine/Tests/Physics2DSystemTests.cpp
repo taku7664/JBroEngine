@@ -701,7 +701,7 @@ namespace
         Check(probe->collisionEnter == 1 && probe->collisionExit == 0, "changing its mass and damping keeps the one contact");
     }
 
-    // **체인 콜라이더와 수면 API(D-228).** 체인 바닥에 떨어진 상자가 서서 잠들고, 레이가 체인에 맞으며, WakeUp 으로 깬다.
+    // **체인 콜라이더와 수면 API(D-229).** 체인 바닥에 떨어진 상자가 서서 잠들고, 레이가 체인에 맞으며, WakeUp 으로 깬다.
     void TestChainCollidersAndSleep()
     {
         Scene scene;

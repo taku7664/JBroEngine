@@ -860,7 +860,7 @@ namespace
             "a ball locked in x bounces off a 45 degree slope as fast as it fell");
     }
 
-    // **체인 바닥에서는 미끄러지는 상자가 걸리지 않는다(D-228).** 1 유닛 선분 40 개를 이은 마찰 없는 바닥에서 5 m/s 로 민 상자가 2 초 뒤에도
+    // **체인 바닥에서는 미끄러지는 상자가 걸리지 않는다(D-229).** 1 유닛 선분 40 개를 이은 마찰 없는 바닥에서 5 m/s 로 민 상자가 2 초 뒤에도
     // 같은 속력이고 튀지 않는다.
     void TestABoxSlidesAcrossAChainWithoutSnagging()
     {
@@ -894,7 +894,7 @@ namespace
         Check(false == world.IsValid(world.CreateChainShape(ground, tooFew.View(), false, {})), "one point is no chain");
     }
 
-    // **수면(D-228).** 서 있는 상자는 0.5 초쯤 뒤 잠들고, 충격량·다른 몸의 충돌·바닥을 옮기기로 깬다. 잠들 수 없는 몸은 깨어 있다.
+    // **수면(D-229).** 서 있는 상자는 0.5 초쯤 뒤 잠들고, 충격량·다른 몸의 충돌·바닥을 옮기기로 깬다. 잠들 수 없는 몸은 깨어 있다.
     void TestBodiesFallAsleepAndWake()
     {
         World world;
@@ -939,7 +939,7 @@ namespace
         Check(world.GetPosition(box).y < -2.0f, "moving the floor away wakes them and they fall");
     }
 
-    // **잠든 더미는 풀지 않는다(D-228).** 10 층 상자 더미가 잠들면 스텝마다 풀 접촉이 없고 자리를 지킨다.
+    // **잠든 더미는 풀지 않는다(D-229).** 10 층 상자 더미가 잠들면 스텝마다 풀 접촉이 없고 자리를 지킨다.
     void TestAStackSleeps()
     {
         World world;
@@ -958,7 +958,7 @@ namespace
         Check(world.GetPosition(boxes[9]).y == top, "and stays exactly where it slept");
     }
 
-    // **무엇이 잠든 몸을 깨우는가(D-228).** 잠든 두 층 더미에서: 밑 상자를 쳐올리면 같은 스텝에 위 상자도 깨어 함께 오르고(풀기 전에 깨운다),
+    // **무엇이 잠든 몸을 깨우는가(D-229).** 잠든 두 층 더미에서: 밑 상자를 쳐올리면 같은 스텝에 위 상자도 깨어 함께 오르고(풀기 전에 깨운다),
     // 중력을 뒤집으면 깨어 오르며, 잠든 상자를 순간 이동하면 그 자리에서 떨어지고, 잠든 상자에 겹쳐 새 벽을 세우면 깨어 밀려난다.
     void TestWhatWakesASleepingBody()
     {

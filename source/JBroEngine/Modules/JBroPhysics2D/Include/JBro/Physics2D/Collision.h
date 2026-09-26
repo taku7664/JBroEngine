@@ -68,7 +68,7 @@ namespace JBro::Physics2D
     Manifold CollidePolygons(
         const ConvexPolygon& a, const Pose& poseA, const ConvexPolygon& b, const Pose& poseB);
 
-    // 체인의 선분 하나다(D-228). 두 면 모두에서 부딪히고, 이웃 선분의 먼 끝(유령 꼭짓점)을 알아 이음매에서 옆으로 걸리지 않는다:
+    // 체인의 선분 하나다(D-229). 두 면 모두에서 부딪히고, 이웃 선분의 먼 끝(유령 꼭짓점)을 알아 이음매에서 옆으로 걸리지 않는다:
     // 모서리 영역의 법선은 평평하거나 오목한 꼭짓점이면 선분의 면 법선으로 바로잡고, 볼록한 꼭짓점이면 두 면 사이만 받되 그
     // 꼭짓점을 끝(p2)으로 가진 선분만 맡는다. has* 가 거짓이면 체인의 끝이라 모서리를 그대로 받는다.
     struct ChainSegment
