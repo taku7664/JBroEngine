@@ -72,10 +72,13 @@ namespace JBro
         // 쌓인 더미의 바닥에서 이 상자의 바닥까지 거리(px). 새 알림이 오면 부드럽게 올라간다.
         float offsetY = 0.0f;
         float alpha = 1.0f;
+        // 더미에서 차지하는 높이의 몫(0~1). 사라지는 동안 **곧게** 줄어 위의 것들이 고르게 내려온다 -
+        // 투명도의 곡선을 쓰면 절반이 지나도 거의 다 남아, 끝에 가서 한꺼번에 내려온다.
+        float space = 1.0f;
         // 시간이 흐르는 중인가(올려 두거나 끄는 동안은 멈춘다). 0~1 로 남은 몫.
         float remainingFraction = 1.0f;
         bool timed = true;
-        // 사라지는 중이다. 누를 수 없고, 차지하던 높이가 `alpha` 만큼 줄어 위의 것들이 내려온다.
+        // 사라지는 중이다. 누를 수 없다.
         bool leaving = false;
     };
 
@@ -107,7 +110,7 @@ namespace JBro
         // 흔한 모양의 줄임이다.
         NotificationHandle Notify(NotificationLevel level, const char* title, const char* message = nullptr);
 
-        // 닫기 요청. 떠 있으면 사라지는 애니메이션을 거치고, 기다리던 것은 곧바로 빠진다.
+        // 닫기 요청. 떠 있으면 사라지는 애니메이션을 거치고, 기다리던 것은 다음 `Update` 에서 빠진다.
         // 모르는 핸들은 무시한다.
         void Dismiss(NotificationHandle handle);
         void DismissAll();

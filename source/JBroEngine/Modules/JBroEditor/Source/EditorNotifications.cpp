@@ -134,38 +134,22 @@ namespace JBro
         return handle;
     }
 
+    // 뜨지 않고 기다리던 것도 같은 길로 간다: 투명한 채(`presence` 0) 사라지는 중이 되어 다음 `Update` 에서 빠진다.
+    // 곧바로 빼는 갈래를 따로 두었는데, 그리기 전에 늘 `Update` 가 돌아 화면에 차이가 없었다(뮤테이션에서 살아남았다).
     void EditorNotifications::Dismiss(NotificationHandle handle)
     {
-        for (std::size_t index = 0; index < m_entries.Size(); ++index)
+        Entry* entry = Find(handle);
+        if (entry != nullptr)
         {
-            Entry& entry = *m_entries[index];
-            if (entry.handle != handle)
-            {
-                continue;
-            }
-            // 뜨지 않은 것은 그릴 것이 없으니 곧바로 뺀다.
-            if (entry.phase == Phase::Waiting)
-            {
-                m_entries.RemoveAt(index);
-                return;
-            }
-            StartLeaving(entry, 1.0f);
-            return;
+            StartLeaving(*entry, 1.0f);
         }
     }
 
     void EditorNotifications::DismissAll()
     {
-        for (std::size_t index = 0; index < m_entries.Size();)
+        for (OwnerPtr<Entry>& owned : m_entries)
         {
-            Entry& entry = *m_entries[index];
-            if (entry.phase == Phase::Waiting)
-            {
-                m_entries.RemoveAt(index);
-                continue;
-            }
-            StartLeaving(entry, 1.0f);
-            ++index;
+            StartLeaving(*owned, 1.0f);
         }
     }
 
@@ -291,6 +275,7 @@ namespace JBro
             view.timed = entry.duration > 0.0f;
             view.remainingFraction = view.timed ? entry.remaining / entry.duration : 1.0f;
             view.leaving = entry.phase == Phase::Leaving;
+            view.space = view.leaving ? entry.presence : 1.0f;
             return view;
         }
         return view;

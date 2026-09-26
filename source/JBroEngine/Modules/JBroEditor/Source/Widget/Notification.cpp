@@ -83,7 +83,7 @@ namespace JBro::Widget
             const NotificationView measured = notifications.GetVisible(index);
             const float height = NotificationHeight(measured, style);
             notifications.ReportLayout(measured.handle, style.width, stacked);
-            stacked += (height + style.spacing) * (measured.leaving ? measured.alpha : 1.0f);
+            stacked += (height + style.spacing) * measured.space;
 
             const NotificationView view = notifications.GetVisible(index);
             const ImVec2 position(right - style.width + view.offsetX, bottom - view.offsetY - height);

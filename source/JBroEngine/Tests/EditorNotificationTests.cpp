@@ -101,6 +101,21 @@ namespace
         return notifications.Notify(std::move(desc));
     }
 
+    // 번호가 아니라 핸들로 찾는다. 앞의 것이 빠지면 번호가 밀린다(처음에 번호로 재다 엉뚱한 상자를 쟀다).
+    JBro::NotificationView ViewOf(const EditorNotifications& notifications, NotificationHandle handle)
+    {
+        for (std::uint32_t index = 0; index < notifications.GetVisibleCount(); ++index)
+        {
+            const JBro::NotificationView view = notifications.GetVisible(index);
+            if (view.handle == handle)
+            {
+                return view;
+            }
+        }
+        Check(false, "the notification this test names must be on screen");
+        return {};
+    }
+
     // ── 더미의 판단 ─────────────────────────────────────────────────────
 
     // **큐다.** 다섯까지 뜨고 나머지는 기다리며, 하나가 빠지면 다음이 온 차례대로 들어온다.
@@ -122,6 +137,8 @@ namespace
         Check(notifications.GetVisible(0).handle == handles[0], "the oldest comes first");
         Check(notifications.GetVisible(4).handle == handles[4], "and the fifth is the newest on screen");
 
+        // **다 들어온 뒤에 닫는다.** 막 들어오던 것을 닫으면 한 프레임 만에 사라져, 사라지는 동안 자리를 쥐는지 가를 수 없다.
+        Run(notifications, EditorNotifications::FadeSeconds + Frame);
         notifications.Dismiss(handles[1]);
         Check(false == notifications.IsAlive(handles[1]), "a dismissed one is closed at once");
         notifications.Update(Frame);
@@ -228,21 +245,23 @@ namespace
         notifications.Drag(left, -Width * 0.5f);
         notifications.Release(left);
         Check(false == notifications.IsAlive(left), "dragged half its width and let go, it must leave");
-        const float before = notifications.GetVisible(0).offsetX;
+        const float before = ViewOf(notifications, left).offsetX;
         notifications.Update(Frame);
-        Check(notifications.GetVisible(0).offsetX < before, "and fly off to the left, the way it was pushed");
+        Check(ViewOf(notifications, left).offsetX < before, "and fly off to the left, the way it was pushed");
 
         notifications.Drag(right, Width * 0.5f);
         notifications.Release(right);
         notifications.Update(Frame);
         Check(false == notifications.IsAlive(right), "to the right works the same");
-        Check(notifications.GetVisible(2).offsetX > Width * 0.5f, "and flies off to the right");
+        Check(ViewOf(notifications, right).offsetX > Width * 0.5f, "and flies off to the right");
 
         notifications.Drag(shortOne, Width * EditorNotifications::SwipeDismissFraction * 0.5f);
         notifications.Release(shortOne);
         Check(notifications.IsAlive(shortOne), "a short drag must not dismiss");
+        notifications.Update(Frame);
+        Check(ViewOf(notifications, shortOne).offsetX > 1.0f, "let go, it starts from where it was dragged to");
         Run(notifications, 0.5f);
-        Check(std::fabs(notifications.GetVisible(1).offsetX) < 0.5f, "it must snap back to its place");
+        Check(std::fabs(ViewOf(notifications, shortOne).offsetX) < 0.5f, "and snaps back to its place");
     }
 
     // 같은 Id 는 새로 쌓지 않고 떠 있는 것을 고쳐 쓴다.
@@ -312,7 +331,10 @@ namespace
         notifications.Update(Frame);
         Check(notifications.GetPendingCount() == 1, "the sixth must wait");
         notifications.Dismiss(last);
-        Check(notifications.GetPendingCount() == 0, "dismissing a waiting one removes it at once");
+        Check(notifications.GetPendingCount() == 0, "a dismissed waiting one no longer waits");
+        Check(false == notifications.IsAlive(last), "and is closed");
+        notifications.Update(Frame);
+        Check(notifications.GetVisibleCount() == EditorNotifications::MaxVisible, "it never shows - it is gone by the next update");
         notifications.DismissAll();
         Check(notifications.GetPendingCount() == 0, "dismiss all empties the queue");
         Run(notifications, EditorNotifications::FadeSeconds + Frame * 2.0f);
@@ -459,6 +481,27 @@ namespace
         Check(newer->Size.y > older->Size.y, "a box with a message is taller than one without");
     }
 
+    // 아래 상자가 사라지는 동안 위의 상자가 **미리** 내려온다. 사라진 뒤에 한꺼번에 내려오면 빈자리가 번쩍인다.
+    void TestTheBoxAboveComesDownWhileTheOneBelowLeaves()
+    {
+        QuietLog quiet;
+        Stage stage;
+        EditorNotifications notifications;
+        const NotificationHandle upper = notifications.Notify(NotificationLevel::Info, "upper");
+        const NotificationHandle lower = notifications.Notify(NotificationLevel::Info, "lower");
+        Settle(stage, notifications, 1.0f);
+        const float raisedY = BoxOf(upper)->Pos.y;
+        notifications.Dismiss(lower);
+        // 사라지는 데 걸리는 시간의 절반. 아직 아래 상자가 남아 있다.
+        const int half = static_cast<int>(EditorNotifications::FadeSeconds / Frame / 2.0f);
+        for (int frame = 0; frame < half; ++frame)
+        {
+            stage.Step(notifications);
+        }
+        Check(notifications.GetVisibleCount() == 2, "the lower box is still fading");
+        Check(BoxOf(upper)->Pos.y > raisedY + 2.0f, "and the upper one is already on its way down");
+    }
+
     // 도크의 창을 눌러 앞으로 가져와도 알림은 그 위에 있다.
     void TestBoxesStayInFrontOfOtherWindows()
     {
@@ -505,6 +548,30 @@ namespace
         JBro::EditorApplication editor;
         notifications.Activate(clicked, editor);
         Check(calls == 1, "and activating it calls its action");
+    }
+
+    // 누른 채 상자 밖으로 나가 떼면 누른 것이 아니다 - 보통 단추와 같다. 끌기 문턱 아래로만 움직여 끌기와 가른다.
+    void TestReleasingOutsideTheBoxIsNotAClick()
+    {
+        QuietLog quiet;
+        Stage stage;
+        EditorNotifications notifications;
+        int calls = 0;
+        const NotificationHandle handle = NotifyWithAction(notifications, calls, 0.0f);
+        Settle(stage, notifications, 0.5f);
+        ImGuiWindow* box = BoxOf(handle);
+        const float threshold = ImGui::GetIO().MouseDragThreshold;
+        const float x = box->Pos.x + box->Size.x * 0.4f;
+        const float edgeY = box->Pos.y + 1.0f;
+        stage.MoveMouse(x, edgeY);
+        stage.Step(notifications);
+        stage.Button(true);
+        stage.Step(notifications);
+        stage.MoveMouse(x, edgeY - threshold * 0.6f);
+        stage.Step(notifications);
+        stage.Button(false);
+        Check(stage.Step(notifications) == JBro::InvalidNotificationHandle, "letting go outside the box must not click it");
+        Check(notifications.IsAlive(handle), "and must leave it open");
     }
 
     // 누른 채 옆으로 끌면 상자가 따라오고, 멀리 끌어 놓으면 사라진다. 누른 것으로 치지 않는다.
@@ -674,8 +741,10 @@ int RunEditorNotificationTests()
     TestNotificationsAreWrittenToTheLog();
     TestTheStackFollowsItsTargetSmoothly();
     TestBoxesStackUpFromTheBottomRight();
+    TestTheBoxAboveComesDownWhileTheOneBelowLeaves();
     TestBoxesStayInFrontOfOtherWindows();
     TestClickingABoxHandsBackItsHandle();
+    TestReleasingOutsideTheBoxIsNotAClick();
     TestDraggingABoxSidewaysSwipesItAway();
     TestTheCloseMarkDismisses();
     TestTheEditorShowsAndActivatesNotifications();
