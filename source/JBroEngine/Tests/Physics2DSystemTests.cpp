@@ -383,6 +383,12 @@ namespace
             && Near(hits[2].distance, 5.0f, 1.0e-4f) && hits[2].other.GetInstanceId() == b->GetInstanceId()
             && Near(hits[3].distance, 8.5f, 1.0e-4f) && hits[3].other.GetInstanceId() == c->GetInstanceId(),
             "sorted by distance: A's box, A's circle, B, C");
+        // 거꾸로 쏘면 콜라이더를 도는 순서와 거리 순서가 어긋난다. 정렬이 없으면 여기서 드러난다.
+        queries.RaycastAll({ 15, 0 }, { -1, 0 }, 15, hits, all);
+        Check(hits.Size() == 4 && Near(hits[0].distance, 5.5f, 1.0e-4f) && hits[0].other.GetInstanceId() == c->GetInstanceId()
+            && Near(hits[1].distance, 8.0f, 1.0e-4f) && Near(hits[2].distance, 11.0f, 1.0e-4f)
+            && Near(hits[3].distance, 11.5f, 1.0e-4f),
+            "a ray shot back along x is sorted too: C, B, A's box, A's circle");
         queries.RaycastAll({ 0, 0 }, { 1, 0 }, 15, hits, 0x1u);
         Check(hits.Size() == 3 && hits[2].other.GetInstanceId() == c->GetInstanceId(), "masking layer 1 skips B");
         JBro::RaycastHit2D hit;
@@ -405,6 +411,9 @@ namespace
         Check(found.Size() == 2, "a circle between the walls reaching both finds A and B, A once");
         queries.OverlapCircle({ 4.5f, 0 }, 0.4f, found, all);
         Check(found.IsEmpty(), "a smaller one reaches neither");
+        queries.OverlapCircle({ 3, 0 }, 1.0f, found, all);
+        Check(found.Size() == 1 && found[0].GetInstanceId() == a->GetInstanceId(),
+            "a circle over both of A's colliders finds A once");
         queries.OverlapBox({ { 2.5f, -0.5f }, { 3.5f, 0.5f } }, found, 0x2u);
         Check(found.IsEmpty(), "a box over A on layer 2 finds nothing");
 
