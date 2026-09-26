@@ -232,10 +232,7 @@ namespace
     {
         EditorShortcutManager shortcuts;
         int calls = 0;
-        Add(shortcuts, "g.one", Key(ImGuiKey_K, true), calls);
-        Add(shortcuts, "g.two", Key(ImGuiKey_J), calls, nullptr, Key(ImGuiKey_K, true));
-        Add(shortcuts, "p.view", Key(ImGuiKey_K, true), calls, "CanvasView");
-        Add(shortcuts, "p.other", Key(ImGuiKey_K, true), calls, "Hierarchy");
+        // 막지 않는 패널 것을 **맨 앞에** 둔다 - 겹침을 찾는 두 겹 반복에서 그것이 앞자리에도 뒷자리에도 서야 두 방향을 다 잰다.
         EditorShortcutDesc passes;
         passes.id = "p.passes";
         passes.scope = "Inspector";
@@ -243,6 +240,17 @@ namespace
         passes.blocksGlobal = false;
         passes.handler = JBro::MakeOwnerPtr<Counter>(calls);
         shortcuts.Register(std::move(passes));
+        Add(shortcuts, "g.one", Key(ImGuiKey_K, true), calls);
+        Add(shortcuts, "g.two", Key(ImGuiKey_J), calls, nullptr, Key(ImGuiKey_K, true));
+        Add(shortcuts, "p.view", Key(ImGuiKey_K, true), calls, "CanvasView");
+        Add(shortcuts, "p.other", Key(ImGuiKey_K, true), calls, "Hierarchy");
+        EditorShortcutDesc passesLate;
+        passesLate.id = "p.passes_late";
+        passesLate.scope = "Stats";
+        passesLate.primary = Key(ImGuiKey_K, true);
+        passesLate.blocksGlobal = false;
+        passesLate.handler = JBro::MakeOwnerPtr<Counter>(calls);
+        shortcuts.Register(std::move(passesLate));
 
         JBro::Array<JBro::ShortcutConflict> conflicts;
         shortcuts.FindConflicts(conflicts);
@@ -264,7 +272,7 @@ namespace
                 ++shadows;
                 Check(std::strncmp(first, "p.", 2) == 0 && std::strncmp(second, "g.", 2) == 0,
                     "a shadow names the panel one first and the global one second");
-                Check(std::strcmp(first, "p.passes") != 0, "a panel shortcut that lets the global one run shadows nothing");
+                Check(std::strncmp(first, "p.passes", 8) != 0, "a panel shortcut that lets the global one run shadows nothing");
             }
         }
         Check(clashes == 1, "exactly one clash");

@@ -26,6 +26,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -10797,6 +10798,111 @@ namespace
         focus("CanvasView");
         press('T');
         Check(spaceLocked(), "the remapped T does");
+
+        // **UI 를 껐다 켜면 패널이 새로 선다.** 옛 패널이 등록을 풀지 않았으면 새 패널의 등록이 이름 겹침으로 거절되고
+        // 키는 사라진 옛 패널을 부른다.
+        editor.DisableEditorUi();
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on again");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle again");
+        }
+        focus("CanvasView");
+        Check(false == spaceLocked(), "the new canvas view starts in move mode");
+        focus("CanvasView");
+        press('T');
+        Check(spaceLocked(), "the gizmo key must reach the new canvas view");
+        editor.Shutdown();
+    }
+
+    // 타자를 받는 칸 하나짜리 패널. 처음 그릴 때 그 칸에 키보드 포커스를 준다.
+    class TypingProbePanel final : public JBro::EditorPanel
+    {
+    public:
+        const char* GetTitle() const override
+        {
+            return "Typing Probe";
+        }
+        void OnDraw() override
+        {
+            if (m_focusField)
+            {
+                ImGui::SetKeyboardFocusHere();
+                m_focusField = false;
+            }
+            JBro::Widget::TextField("##typing_probe", m_text).Draw();
+        }
+        void FocusField()
+        {
+            m_focusField = true;
+        }
+
+    private:
+        JBro::String m_text;
+        bool m_focusField = false;
+    };
+
+    // **글자 칸에 타자를 치는 중에는 Ctrl+Z 가 씬을 되돌리지 않고, Ctrl+S 는 저장한다**(D-132, 관리자로 옮긴 뒤에도).
+    void TestTypingKeepsEditorShortcutsOutOfTheField()
+    {
+        DialogProbe dialog;
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; shortcuts while typing not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "TypingShortcutProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(JBro::EditorActions::CreateObject(editor, nullptr) != nullptr, "an object must be created so there is an undo");
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+
+        auto owned = JBro::MakeOwnerPtr<TypingProbePanel>();
+        TypingProbePanel* probe = owned.Get();
+        Check(editor.AddPanel(std::move(owned)), "the typing probe must be taken");
+        probe->RequestFocus();
+        probe->FocusField();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while focusing the field");
+        }
+        Check(ImGui::GetIO().WantTextInput, "the field must be taking the keyboard");
+
+        const auto chord = [&](ImGuiKey key) {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddKeyEvent(ImGuiMod_Ctrl, true);
+            io.AddKeyEvent(key, true);
+            Check(editor.Tick(Frame), "the editor must tick with the chord down");
+            io.AddKeyEvent(key, false);
+            io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            Check(editor.Tick(Frame), "the editor must tick with the chord up");
+        };
+        chord(ImGuiKey_Z);
+        Check(editor.GetCommands().GetUndoCount() == undoBefore, "Ctrl+Z while typing must not undo the canvas");
+        chord(ImGuiKey_S);
+        Check(dialog.calls == 1, "Ctrl+S while typing must still save");
+
+        // 칸을 떠나면 같은 Ctrl+Z 가 되돌린다 - 앞의 검사가 키가 안 닿아서 통과한 것이 아니라는 뜻이다.
+        JBro::EditorPanel* hierarchy = editor.FindPanel("Hierarchy");
+        hierarchy->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while leaving the field");
+        }
+        Check(false == ImGui::GetIO().WantTextInput, "the field must have let go of the keyboard");
+        chord(ImGuiKey_Z);
+        Check(editor.GetCommands().GetUndoCount() + 1 == undoBefore, "outside the field Ctrl+Z undoes");
         editor.Shutdown();
     }
 
@@ -11574,6 +11680,7 @@ int RunEditorApplicationTests()
     TestTheGizmoCanWorkInWorldAxes();
     TestRemappedShortcutsAreSavedAndReadBack();
     TestGizmoKeysFollowTheCanvasViewFocus();
+    TestTypingKeepsEditorShortcutsOutOfTheField();
     TestThePathHelpersAgreeOnOneAnswer();
     TestTheEditorMakesAndOpensCanvases();
     TestTheEditorMakesFontFamilies();
