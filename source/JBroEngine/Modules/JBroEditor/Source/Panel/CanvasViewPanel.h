@@ -212,7 +212,7 @@ namespace JBro
         float m_pitchDegrees = -25.0f;
 
         GizmoMode m_gizmoMode = GizmoMode::Translate;
-        // W·E·R 을 누르면 모드를 바꾸는 할 일(D-227). 패널이 `OnDestroy` 에서 등록을 풀므로 패널보다 오래 살지 않는다.
+        // W·E·R 을 누르면 모드를 바꾸는 할 일(D-228). 패널이 `OnDestroy` 에서 등록을 풀므로 패널보다 오래 살지 않는다.
         class GizmoModeShortcut final : public IEditorShortcutHandler
         {
         public:

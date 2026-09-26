@@ -10640,7 +10640,7 @@ namespace
         editor.Shutdown();
     }
 
-    // ── 단축키 관리자(D-227) ──────────────────────────────────────────
+    // ── 단축키 관리자(D-228) ──────────────────────────────────────────
 
     std::string ReadWholeText(const JBro::String& path)
     {
@@ -10718,7 +10718,7 @@ namespace
         std::filesystem::remove_all(TempPath("JBroShortcutProbe").c_str(), ignored);
     }
 
-    // **기즈모 모드 키 W·E·R 은 캔버스 뷰에 포커스가 있을 때만 돈다**(D-227). 크기 모드에서는 로컬·월드 단추가 잠기므로
+    // **기즈모 모드 키 W·E·R 은 캔버스 뷰에 포커스가 있을 때만 돈다**(D-228). 크기 모드에서는 로컬·월드 단추가 잠기므로
     // 그 잠김으로 모드를 읽는다.
     void TestGizmoKeysFollowTheCanvasViewFocus()
     {

@@ -105,7 +105,7 @@ namespace JBro
         // 대화상자와 같은 까닭이다 - 테스트가 진짜로 메모장을 띄울 수는 없다.
         bool (*openPath)(const char* utf8Path, void* user) = nullptr;
         void* openPathUser = nullptr;
-        // **에디터 환경설정 파일**(사용자가 바꾼 단축키 등, D-227). 실제 에디터만 참이다 - `%LOCALAPPDATA%/JBroEngine/Editor/
+        // **에디터 환경설정 파일**(사용자가 바꾼 단축키 등, D-228). 실제 에디터만 참이다 - `%LOCALAPPDATA%/JBroEngine/Editor/
         // EditorPreferences.yaml` 을 읽고 쓴다. 테스트는 사람의 설정을 읽거나 덮으면 안 되므로 거짓이 기본이다.
         bool userPreferences = false;
         // 설정 파일 경로를 직접 준다. 있으면 `userPreferences` 보다 앞선다(테스트가 제 임시 파일을 주는 자리).
@@ -374,7 +374,7 @@ namespace JBro
         // 막는 팝업과 달리 하던 일을 멈추지 않는다. UI 가 꺼져 있어도 쌓이고, 켜지면 뜬다.
         EditorNotifications& GetNotifications();
         const EditorNotifications& GetNotifications() const;
-        // 단축키 관리자다(D-227). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
+        // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
         // 다음 틱이 끝날 때 환경설정 파일에 적힌다.
         EditorShortcutManager& GetShortcuts();
         const EditorShortcutManager& GetShortcuts() const;

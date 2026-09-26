@@ -121,7 +121,7 @@ namespace JBro
         // 폴리곤 포인트 편집을 콜라이더의 우클릭 메뉴에서도 켠다. 콜라이더가 여럿이면 누른 것을 고친다.
         editor.GetComponentMenus().Register(MakeStableTypeId(Component::Collider2D::StaticTypeName()),
             &CanvasViewPanel::DrawEditPointsItem, this, this);
-        // **기즈모 모드 단축키는 이 패널에 포커스가 있을 때만 돈다**(D-227). 기본 조합은 기존 기즈모와 같은 W·E·R 이다.
+        // **기즈모 모드 단축키는 이 패널에 포커스가 있을 때만 돈다**(D-228). 기본 조합은 기존 기즈모와 같은 W·E·R 이다.
         // 조합키 없는 글자라 글자 칸에 타자를 치는 중에는 돌지 않는다(`whileTyping` 기본 거짓).
         struct Row
         {

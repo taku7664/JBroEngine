@@ -244,7 +244,7 @@ namespace JBro
         m_lastFrameStatus = FrameStatus::Ready;
         m_initialized = true;
 
-        // 단축키: 전역 아홉을 올리고 사용자가 바꿔 둔 것을 덮는다(D-227). 패널의 것은 패널이 만들어질 때 올라온다.
+        // 단축키: 전역 아홉을 올리고 사용자가 바꿔 둔 것을 덮는다(D-228). 패널의 것은 패널이 만들어질 때 올라온다.
         EditorShortcuts::RegisterBuiltins(*m_shortcuts);
         if (config.preferencesPath != nullptr && config.preferencesPath[0] != '\0')
         {
@@ -3367,7 +3367,7 @@ namespace JBro
         // **단축키는 한 표에서 온다**(D-132). 누르는 자리와 메뉴에 보이는 글자와
         // 할 수 있는지 재는 자리가 갈리지 않게, 셋 다 `EditorShortcuts` 가 안다.
         //
-        // **포커스를 가진 패널의 단축키가 먼저 돈다**(D-227). 패널의 포커스는 지난 프레임에 그리며 적은 값이다 - 이번 프레임의
+        // **포커스를 가진 패널의 단축키가 먼저 돈다**(D-228). 패널의 포커스는 지난 프레임에 그리며 적은 값이다 - 이번 프레임의
         // 입력은 패널을 그리기 전에 처리해야 같은 키가 패널 안의 칸에 먼저 가지 않는다.
         const char* focusedScope = nullptr;
         for (const OwnerPtr<EditorPanel>& panel : m_panels)
@@ -3694,7 +3694,7 @@ namespace JBro
         // 저장은 UI 프레임이 닫힌 뒤, 엔진 프레임이 열리기 전이다. 대화상자가 막혀 있는 동안
         // 어느 프레임도 열려 있지 않다.
         PerformSaveRequest();
-        // 사용자가 단축키를 바꿨으면 환경설정 파일에 적는다(D-227). 프레임 밖이다 - 디스크 쓰기가 UI 프레임을 붙잡지 않는다.
+        // 사용자가 단축키를 바꿨으면 환경설정 파일에 적는다(D-228). 프레임 밖이다 - 디스크 쓰기가 UI 프레임을 붙잡지 않는다.
         if (m_shortcuts->GetRevision() != m_savedShortcutRevision)
         {
             SavePreferences();

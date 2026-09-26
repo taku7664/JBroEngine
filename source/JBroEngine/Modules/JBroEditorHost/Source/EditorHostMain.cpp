@@ -256,7 +256,7 @@ int main(int argumentCount, char** arguments)
     config.audioDevice = true;
     config.localizationDirectory = localizationDirectory.c_str();
     config.iconFontPath = iconFontPath.c_str();
-    // 사람의 에디터 환경설정(바꾼 단축키 등)을 읽고 쓴다(D-227). 테스트는 이것을 켜지 않는다.
+    // 사람의 에디터 환경설정(바꾼 단축키 등)을 읽고 쓴다(D-228). 테스트는 이것을 켜지 않는다.
     config.userPreferences = true;
     if (false == editor.Initialize(config))
     {

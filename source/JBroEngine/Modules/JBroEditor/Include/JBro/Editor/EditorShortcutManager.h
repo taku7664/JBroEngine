@@ -130,7 +130,7 @@ namespace JBro
         EditorShortcutBinding binding;
     };
 
-    // 에디터의 단축키 관리자다(todo "에디터 공용 기반" 2 번, D-227). 기존 엔진 `CEditorShortcutManager` 자리지만 그쪽은
+    // 에디터의 단축키 관리자다(todo "에디터 공용 기반" 2 번, D-228). 기존 엔진 `CEditorShortcutManager` 자리지만 그쪽은
     // 고정 열거 아홉 개였다. 여기는 **에디터(패널·도구·외부 에디터)가 제 단축키를 이름으로 등록**하고, 관리자가 이름 → 조합
     // 매핑을 든다. 사용자가 바꾼 조합은 이름으로 설정 파일에 남는다.
     //
