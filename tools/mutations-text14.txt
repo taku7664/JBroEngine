@@ -1,0 +1,5 @@
+Modules\JBroFramework2D\Source\Service\Text2DService.cpp	svc:2d-slot-null	return GetFramework2DSystems().Text2D;	return nullptr;
+Modules\JBroFramework3D\Source\Service\Text3DService.cpp	svc:3d-slot-null	return GetFramework3DSystems().Text3D;	return nullptr;
+Modules\JBroFramework3DSystem\Source\Framework3D.cpp	svc:3d-not-bound	m_scriptSystems.Text3D = m_canvas->GetSystems().FindSystem<System::Text3DSystem>();	m_scriptSystems.Text3D = nullptr;
+Modules\JBroTextRendering\Source\TextSystemBase.cpp	svc:copy-dropped	std::memcpy(buffer, source.Data(), count);	;
+Modules\JBroFramework3DSystem\Source\Framework3D.cpp	svc:3d-unbind-kept	BindFramework3DSystemContext({});\n            BindFramework3DServiceContext({});	;
