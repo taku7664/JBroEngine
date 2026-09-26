@@ -325,3 +325,21 @@ Entries:
   inspector.pick_frame_no_sprite: set a sprite first
   inspector.text_no_font: "No usable font, so this text is not drawn. Set fontId or add a font in Project Settings."
   hierarchy.paste_as_child: Paste As Child
+  panel.editor_settings: Editor Settings
+  menu.settings_editor: Editor Settings
+  editor_settings.shortcuts: Shortcuts
+  editor_settings.search_hint: Search by name or key
+  editor_settings.press_key: Press a key
+  editor_settings.capture_hint: Press Esc to cancel
+  editor_settings.clear_binding: Clear
+  editor_settings.empty_binding: "(none)"
+  editor_settings.reset: Default
+  editor_settings.reset_tooltip: Restore the default keys
+  editor_settings.reset_all: Reset All
+  editor_settings.reset_all_title: Reset Shortcuts
+  editor_settings.reset_all_message: Every shortcut goes back to its default keys. Your changes are lost.
+  editor_settings.reset_all_confirm: Reset
+  editor_settings.clash: "Another shortcut uses the same keys: %s"
+  editor_settings.shadows: "In this panel this shortcut runs instead of: %s"
+  editor_settings.shadowed: "A focused panel runs its own shortcut instead: %s"
+  editor_settings.no_match: No shortcuts match
