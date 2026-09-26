@@ -1,6 +1,7 @@
 ﻿#include <JBro/Input/InputSystem.h>
 
 #include <JBro/Core/Log.h>
+#include <JBro/Input/InputBindingText.h>
 
 #include <algorithm>
 #include <cmath>
@@ -262,6 +263,110 @@ namespace JBro::System
     {
         const int index = m_actions.FindSet(set);
         return index >= 0 && m_actions.IsSetActive(static_cast<std::uint32_t>(index));
+    }
+
+    InputActionDesc* InputSystem::FindLiveAction(InputActionId action)
+    {
+        for (std::uint32_t index = 0; index < m_actions.count && index < MaxInputActions; ++index)
+        {
+            if (m_actions.actions[index].name == action)
+            {
+                return &m_actions.actions[index];
+            }
+        }
+        return nullptr;
+    }
+
+    std::uint32_t InputSystem::GetActionBindingCount(InputActionId action) const noexcept
+    {
+        const InputActionDesc* desc = m_actions.Find(action);
+        return desc != nullptr ? desc->bindingCount : 0;
+    }
+
+    bool InputSystem::GetActionBinding(InputActionId action, std::uint32_t index, InputBinding& out) const noexcept
+    {
+        const InputActionDesc* desc = m_actions.Find(action);
+        if (desc == nullptr || index >= desc->bindingCount)
+        {
+            return false;
+        }
+        out = desc->bindings[index];
+        return true;
+    }
+
+    bool InputSystem::SetActionBinding(InputActionId action, std::uint32_t index, const InputBinding& binding) noexcept
+    {
+        InputActionDesc* desc = FindLiveAction(action);
+        if (desc == nullptr || index > desc->bindingCount || index >= MaxInputBindingsPerAction)
+        {
+            return false;
+        }
+        desc->bindings[index] = binding;
+        if (index == desc->bindingCount)
+        {
+            ++desc->bindingCount;
+        }
+        return true;
+    }
+
+    bool InputSystem::RemoveActionBinding(InputActionId action, std::uint32_t index) noexcept
+    {
+        InputActionDesc* desc = FindLiveAction(action);
+        if (desc == nullptr || index >= desc->bindingCount)
+        {
+            return false;
+        }
+        // 뒤의 것을 당긴다. 설정 화면이 보이는 차례를 지킨다.
+        for (std::uint32_t at = index; at + 1 < desc->bindingCount; ++at)
+        {
+            desc->bindings[at] = desc->bindings[at + 1];
+        }
+        --desc->bindingCount;
+        desc->bindings[desc->bindingCount] = InputBinding{};
+        return true;
+    }
+
+    bool InputSystem::ResetActionBindings(InputActionId action) noexcept
+    {
+        InputActionDesc* desc = FindLiveAction(action);
+        const InputActionDesc* original = m_projectActions.Find(action);
+        if (desc == nullptr || original == nullptr)
+        {
+            return false;
+        }
+        desc->bindingCount = original->bindingCount;
+        std::memcpy(desc->bindings, original->bindings, sizeof(desc->bindings));
+        return true;
+    }
+
+    void InputSystem::ResetAllActionBindings() noexcept
+    {
+        for (std::uint32_t index = 0; index < m_actions.count && index < MaxInputActions; ++index)
+        {
+            ResetActionBindings(m_actions.actions[index].name);
+        }
+    }
+
+    bool InputSystem::WriteBindingOverrides(char* buffer, std::size_t capacity, std::size_t& outSize) const noexcept
+    {
+        // 설정 화면에서 저장할 때 부르는 콜드 경로다. 글자를 만들고 그 바이트만 넘긴다.
+        String text;
+        System::WriteBindingOverrides(m_actions, m_projectActions, text);
+        outSize = text.size();
+        if (text.size() > capacity || (buffer == nullptr && false == text.empty()))
+        {
+            return false;
+        }
+        if (false == text.empty())
+        {
+            std::memcpy(buffer, text.data(), text.size());
+        }
+        return true;
+    }
+
+    bool InputSystem::ReadBindingOverrides(const char* text, std::size_t length) noexcept
+    {
+        return System::ReadBindingOverrides(text, length, m_actions);
     }
 
     const InputActionMap& InputSystem::GetActionMap() const

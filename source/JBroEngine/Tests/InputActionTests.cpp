@@ -3,6 +3,8 @@
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Input/InputSystem.h>
 #include <JBro/InputTypes/InputBuffer.h>
+#include <JBro/InputTypes/InputRebinding.h>
+#include <JBro/InputTypes/Service/InputService.h>
 
 #include <cmath>
 #include <cstdio>
@@ -428,6 +430,210 @@ namespace
         Check(false == blocked.Peek(1000.0f), "a press the UI blocked never reaches the buffer");
     }
 
+    InputBinding PadBinding(GamepadButton button, int pad)
+    {
+        InputBinding binding;
+        binding.source = InputBindingSource::GamepadButton;
+        binding.code = static_cast<std::uint16_t>(button);
+        binding.gamepad = static_cast<std::int8_t>(pad);
+        return binding;
+    }
+
+    // 게임이 바인딩을 바꾸고 되돌린다(D-218). 서비스로 부른다 - 스크립트가 보는 길 그대로다.
+    void TestBindingsChangeAtRuntime()
+    {
+        System::InputSystem input;
+        InputActionMap map;
+        AddAction(map, "Jump", InputActionType::Bool, {KeyBinding(Key::Space)});
+        AddAction(map, "Fire", InputActionType::Bool, {KeyBinding(Key::F), KeyBinding(Key::G)});
+        input.SetActionMap(map);
+        BindInputSystemContext(input.GetSystemContext());
+        const Service::InputService service;
+        const InputActionId jump = MakeNameId("Jump");
+        const InputActionId fire = MakeNameId("Fire");
+
+        Check(service.GetActionBindingCount(jump) == 1, "the project's binding is there");
+        InputBinding read;
+        Check(service.GetActionBinding(jump, 0, read) && IsSameBinding(read, KeyBinding(Key::Space)), "and reads back");
+        Check(false == service.GetActionBinding(jump, 1, read), "a place past the end has nothing");
+        Check(service.SetActionBinding(jump, 0, KeyBinding(Key::Enter)), "a binding is replaced");
+        const InputEvent enter[] = { KeyEvent(InputEventKind::KeyDown, Key::Enter), KeyEvent(InputEventKind::KeyDown, Key::Space) };
+        input.BeginFrame(View(enter));
+        Check(input.GetResidualView().IsActionPressed(jump), "the new key presses the action at once");
+        Check(service.SetActionBinding(jump, 1, PadBinding(GamepadButton::South, 1)) && service.GetActionBindingCount(jump) == 2,
+            "the place after the last appends");
+        Check(false == service.SetActionBinding(jump, 3, KeyBinding(Key::A)), "a place further out is refused");
+        Check(false == service.SetActionBinding(MakeNameId("Nope"), 0, KeyBinding(Key::A)), "an unknown action is refused");
+        for (std::uint32_t index = 2; index < MaxInputBindingsPerAction; ++index)
+        {
+            Check(service.SetActionBinding(jump, index, KeyBinding(Key::A)), "an action holds eight");
+        }
+        Check(false == service.SetActionBinding(jump, MaxInputBindingsPerAction, KeyBinding(Key::B)), "and no ninth");
+
+        Check(service.RemoveActionBinding(fire, 0) && service.GetActionBindingCount(fire) == 1, "a binding is removed");
+        Check(service.GetActionBinding(fire, 0, read) && IsSameBinding(read, KeyBinding(Key::G)), "and the one behind it moves up");
+        Check(false == service.RemoveActionBinding(fire, 1), "removing past the end is refused");
+
+        Check(service.ResetActionBindings(jump) && service.GetActionBindingCount(jump) == 1, "one action goes back");
+        Check(service.GetActionBinding(jump, 0, read) && IsSameBinding(read, KeyBinding(Key::Space)), "to the project's binding");
+        Check(service.GetActionBindingCount(fire) == 1, "the other action keeps its change");
+        service.ResetAllActionBindings();
+        Check(service.GetActionBindingCount(fire) == 2, "resetting all puts it back too");
+        Check(false == service.ResetActionBindings(MakeNameId("Nope")), "an unknown action has nothing to reset");
+
+        // 에디터가 재생을 멈출 때의 되돌리기에 리바인딩도 든다.
+        service.SetActionBinding(jump, 0, KeyBinding(Key::Enter));
+        input.ResetActions();
+        Check(service.GetActionBinding(jump, 0, read) && IsSameBinding(read, KeyBinding(Key::Space)), "stopping play undoes a rebind");
+        BindInputSystemContext({});
+        Check(false == service.SetActionBinding(jump, 0, KeyBinding(Key::A)) && service.GetActionBindingCount(jump) == 0,
+            "an unbound service does nothing");
+    }
+
+    // 키 설정 화면의 "다음에 누르는 키" 다.
+    void TestTheNextPressIsCaptured()
+    {
+        System::InputSystem input;
+        InputBinding captured;
+        input.BeginFrame({});
+        Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::None, "nothing pressed, nothing captured");
+
+        const InputEvent keys[] = { KeyEvent(InputEventKind::KeyDown, Key::K), KeyEvent(InputEventKind::KeyDown, Key::B) };
+        input.BeginFrame(View(keys));
+        Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::Captured, "a new key press is captured");
+        Check(captured.source == InputBindingSource::Key && captured.code == static_cast<std::uint16_t>(Key::B),
+            "the lower-numbered key of two wins");
+        Check(captured.gamepad == -1 && captured.composite == InputComposite::None, "with no pad and no direction");
+        input.BeginFrame({});
+        Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::None, "a key still held is not a new press");
+
+        const InputEvent escape[] = { KeyEvent(InputEventKind::KeyDown, Key::Escape), KeyEvent(InputEventKind::KeyDown, Key::A) };
+        input.BeginFrame(View(escape));
+        Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::Cancelled, "Escape cancels, even with another key");
+
+        const InputEvent click[] = { ButtonEvent(InputEventKind::MouseButtonDown, MouseButton::Right) };
+        input.BeginFrame(View(click));
+        Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::Captured
+                && captured.source == InputBindingSource::MouseButton && captured.code == static_cast<std::uint16_t>(MouseButton::Right),
+            "a mouse button is captured");
+
+        input.BeginFrame({});
+        GamepadRawState raw[MaxGamepads] = {};
+        raw[2].connected = true;
+        raw[2].buttons = static_cast<std::uint16_t>(1u << static_cast<std::uint32_t>(GamepadButton::East));
+        raw[2].axes[static_cast<std::size_t>(GamepadAxis::LeftTrigger)] = 1.0f;
+        input.FoldGamepads(raw);
+        Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::Captured
+                && captured.source == InputBindingSource::GamepadButton && captured.code == static_cast<std::uint16_t>(GamepadButton::East)
+                && captured.gamepad == -1,
+            "a pad button is captured for any pad");
+
+        // 위의 레이어가 막은 누름은 잡지 않는다.
+        const InputEvent key[] = { KeyEvent(InputEventKind::KeyDown, Key::Q) };
+        input.BeginFrame(View(key));
+        struct Blocker final : IInputHandler
+        {
+            InputResult OnInput(InputView&) override
+            {
+                return InputResult::Block;
+            }
+        } blocker;
+        input.BeginDispatch();
+        input.Deliver(blocker);
+        input.EndDispatch();
+        Check(CaptureBinding(input.GetResidualView(), captured) == InputCaptureResult::None, "a press the UI took is not captured");
+        const InputBinding untouched = captured;
+        Check(untouched.source == InputBindingSource::Key && untouched.code == 0, "and the output is left empty");
+    }
+
+    // 바꾼 것만 이름으로 적고, 읽으면 같은 바인딩이 된다.
+    void TestBindingOverridesWriteAndReadAsText()
+    {
+        Log::Clear();
+        System::InputSystem input;
+        InputActionMap map;
+        AddAction(map, "Jump", InputActionType::Bool, {KeyBinding(Key::Space)});
+        AddAction(map, "Move", InputActionType::Vector2, {
+            KeyBinding(Key::W, InputComposite::Up), KeyBinding(Key::S, InputComposite::Down)});
+        AddAction(map, "Fire", InputActionType::Bool, {KeyBinding(Key::F)});
+        AddAction(map, "Kept", InputActionType::Bool, {KeyBinding(Key::K)});
+        input.SetActionMap(map);
+        BindInputSystemContext(input.GetSystemContext());
+        const Service::InputService service;
+
+        String text;
+        Check(service.WriteBindingOverrides(text) && text.empty(), "nothing changed, nothing written");
+
+        service.SetActionBinding(MakeNameId("Jump"), 0, KeyBinding(Key::Enter));
+        service.SetActionBinding(MakeNameId("Jump"), 1, PadBinding(GamepadButton::South, 1));
+        service.SetActionBinding(MakeNameId("Move"), 0, KeyBinding(Key::I, InputComposite::Up));
+        service.RemoveActionBinding(MakeNameId("Fire"), 0);
+        Check(service.WriteBindingOverrides(text), "the changes are written");
+        const char* expected =
+            "Jump: \"Key Enter, GamepadButton South @1\"\n"
+            "Move: \"Key I Up, Key S Down\"\n"
+            "Fire: \"\"\n";
+        if (text != expected)
+        {
+            std::cout << "  wrote:\n" << text.c_str();
+        }
+        Check(text == expected, "only the changed actions, by name, in the project's words");
+
+        service.ResetAllActionBindings();
+        Check(service.ReadBindingOverrides(text), "the text reads back");
+        String again;
+        Check(service.WriteBindingOverrides(again) && again == text, "and gives the same bindings");
+        const InputEvent keys[] = { KeyEvent(InputEventKind::KeyDown, Key::I) };
+        input.BeginFrame(View(keys));
+        const InputVector2 move = input.GetResidualView().GetActionVector(MakeNameId("Move"));
+        Check(move.y == 1.0f, "the read binding moves up");
+
+        // 틀린 줄은 그 액션만 그대로 두고, 나머지는 읽는다. 옛 키 이름·주석·빈 줄·CRLF·지운 액션을 견딘다.
+        service.ResetAllActionBindings();
+        const String mixed(
+            "# key settings\r\n"
+            "\r\n"
+            "Jump: \"Key Num1\"\r\n"
+            "Move: \"Key NoSuchKey Up\"\r\n"
+            "Removed: \"Key A\"\r\n"
+            "Fire:\r\n"
+            "Kept \"Key Z\"\r\n");
+        Check(false == service.ReadBindingOverrides(mixed), "a text with a bad line says so");
+        InputBinding read;
+        Check(service.GetActionBinding(MakeNameId("Jump"), 0, read) && read.code == static_cast<std::uint16_t>(Key::Digit1),
+            "a good line is read, old key names too");
+        Check(service.GetActionBinding(MakeNameId("Move"), 0, read) && read.code == static_cast<std::uint16_t>(Key::W),
+            "the action on a bad line keeps its bindings");
+        Check(service.GetActionBindingCount(MakeNameId("Fire")) == 0, "an empty value clears the action");
+        Check(service.GetActionBinding(MakeNameId("Kept"), 0, read) && read.code == static_cast<std::uint16_t>(Key::K),
+            "a line without a colon changes nothing");
+        Check(CountWarnings("line 4 of the binding overrides") == 1 && CountWarnings("line 7 of the binding overrides") == 1,
+            "each bad line is reported by number");
+        Check(CountWarnings("Removed") == 0, "an action the game no longer has is skipped quietly");
+
+        const char* broken[] = {
+            "Jump: \"Space\"",
+            "Jump: \"Key Space Sideways\"",
+            "Jump: \"Key Space @4\"",
+            "Jump: \"Key Space @1 Up\"",
+            "Jump: \"Key A, , Key B\"",
+            "Jump: \"Key A, Key A, Key A, Key A, Key A, Key A, Key A, Key A, Key A\"",
+            "Jump: \"GamepadStick Middle\"",
+        };
+        for (const char* line : broken)
+        {
+            service.ResetAllActionBindings();
+            Check(false == service.ReadBindingOverrides(String(line)), "a malformed binding is refused");
+            Check(service.GetActionBinding(MakeNameId("Jump"), 0, read) && read.code == static_cast<std::uint16_t>(Key::Space)
+                    && service.GetActionBindingCount(MakeNameId("Jump")) == 1,
+                "and the action keeps what it had");
+        }
+        Check(service.ReadBindingOverrides(String("Move: \"GamepadStick Right @0, Key W Up\"")), "a stick with a pad reads");
+        Check(service.GetActionBinding(MakeNameId("Move"), 0, read) && read.source == InputBindingSource::GamepadStick
+                && read.code == 1 && read.gamepad == 0, "as the right stick of pad 0");
+        BindInputSystemContext({});
+    }
+
     ProjectInputAction ProjectAction(const char* name, const char* set, Key key)
     {
         ProjectInputAction action;
@@ -557,6 +763,9 @@ int RunInputActionTests()
     TestBadInputBlocksAreRefused();
     TestActionSetsChooseWhatAKeyMeans();
     TestTheInputBufferRemembersASignalForAWhile();
+    TestBindingsChangeAtRuntime();
+    TestTheNextPressIsCaptured();
+    TestBindingOverridesWriteAndReadAsText();
     TestActionSetsHaveALimit();
     TestTheSetIsWrittenOnlyWhenNamed();
     Log::SetEchoToConsole(echo);

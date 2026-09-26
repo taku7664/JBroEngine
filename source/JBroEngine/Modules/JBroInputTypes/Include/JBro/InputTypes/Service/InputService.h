@@ -1,6 +1,10 @@
 ﻿#pragma once
 
+#include <JBro/InputTypes/InputRebinding.h>
 #include <JBro/InputTypes/InputView.h>
+#include <JBro/Types/String.h>
+
+#include <cstdint>
 
 namespace JBro::Service
 {
@@ -37,5 +41,20 @@ namespace JBro::Service
         bool EnableActionSet(NameId set) const;
         bool DisableActionSet(NameId set) const;
         bool IsActionSetEnabled(NameId set) const;
+
+        // ── 리바인딩 (D-218, `<JBro/InputTypes/InputRebinding.h>` 의 주석) ──
+        // 키 설정 화면이 쓴다. 바꾼 것은 곧바로 걸리고, 에디터에서는 재생을 멈추면 되돌아간다. 없는 액션·자리면 거짓이다.
+        std::uint32_t GetActionBindingCount(InputActionId action) const;
+        bool GetActionBinding(InputActionId action, std::uint32_t index, InputBinding& out) const;
+        // `index` 가 바인딩 수와 같으면 뒤에 붙인다(8 개까지).
+        bool SetActionBinding(InputActionId action, std::uint32_t index, const InputBinding& binding) const;
+        bool RemoveActionBinding(InputActionId action, std::uint32_t index) const;
+        bool ResetActionBindings(InputActionId action) const;
+        void ResetAllActionBindings() const;
+        // 남은 입력에서 이번 프레임에 새로 누른 키·버튼 하나를 잡는다(`CaptureBinding`).
+        InputCaptureResult CaptureBinding(InputBinding& out) const;
+        // 프로젝트와 다른 바인딩을 글자로 쓰고 읽는다. 저장은 게임이 `SaveService` 로 한다.
+        bool WriteBindingOverrides(String& out) const;
+        bool ReadBindingOverrides(const String& text) const;
     };
 }
