@@ -217,6 +217,8 @@ namespace
         AssetId latinId;
         // 폰트 패밀리(D-225)다. 칸은 비어 있고 테스트가 `WriteFamily` 로 채운다.
         AssetId familyId;
+        // 둘째 패밀리다. 패밀리의 칸에 패밀리를 넣으면 비는지 본다.
+        AssetId otherFamilyId;
         String metaPath;
         String familyMetaPath;
 
@@ -228,6 +230,7 @@ namespace
             WriteBytes(root / "Fonts" / "latin.otf", TestFontNotoSansKRLatin, sizeof(TestFontNotoSansKRLatin));
             constexpr char familyBody[] = "# JBro font family\n";
             WriteBytes(root / "Fonts" / "family.jfontfamily", familyBody, sizeof(familyBody) - 1);
+            WriteBytes(root / "Fonts" / "other.jfontfamily", familyBody, sizeof(familyBody) - 1);
             Check(platform.Initialize(memory), "the platform initializes");
             AssetScanOptions options;
             options.createMissingMeta = true;
@@ -242,6 +245,9 @@ namespace
             const AssetRecord* family = registry.FindByPath("Fonts/family.jfontfamily");
             Check(family != nullptr && family->type == AssetType::FontFamily, "a .jfontfamily registers as a FontFamily");
             familyId = family->id;
+            const AssetRecord* other = registry.FindByPath("Fonts/other.jfontfamily");
+            Check(other != nullptr && other->type == AssetType::FontFamily, "a second family registers");
+            otherFamilyId = other->id;
             familyMetaPath = Utf8(root / "Fonts" / "family.jfontfamily.jmeta");
             metaPath = Utf8(root / "Fonts" / "sans.otf.jmeta");
             WriteOptions(pixelsPerUnit, TextureFilter::Default);
@@ -332,6 +338,7 @@ namespace
         slots.regularFontId = project.fontId;
         slots.boldFontId = project.latinId;
         slots.italicFontId = project.familyId;
+        slots.boldItalicFontId = project.otherFamilyId;
         project.WriteFamily(slots);
 
         const AssetHandle family = assets.Load(project.familyId);
@@ -342,11 +349,12 @@ namespace
         Check(assets.GetFont(regular) != nullptr && assets.GetFont(bold) != nullptr, "its regular and bold slots are fonts");
         Check(data->fonts[static_cast<std::size_t>(FontFamilySlot::Italic)].generation == 0
                 && data->fonts[static_cast<std::size_t>(FontFamilySlot::BoldItalic)].generation == 0,
-            "a slot naming the family itself and an empty slot stay empty");
+            "a slot naming the family itself and a slot naming another family stay empty");
         Check(assets.GetReferenceCount(regular) == 1 && assets.GetReferenceCount(bold) == 1, "the family holds each font once");
         Check(assets.GetFont(family) == nullptr, "a family handle is not a font");
 
         // 굵게 칸을 기울임 칸으로 옮긴다.
+        slots.boldItalicFontId = {};
         slots.boldFontId = {};
         slots.italicFontId = project.latinId;
         project.WriteFamily(slots);
@@ -360,7 +368,8 @@ namespace
             "and each font is still held once - the old slots were released after the new ones loaded");
 
         assets.Release(family);
-        Check(assets.CollectUnused() == 3 && assets.GetFontFamily(family) == nullptr && assets.GetFont(regular) == nullptr,
+        // 칸에 넣었던 다른 패밀리도 싣고 곧 놓았으므로(참조 수 0) 함께 내려간다: 패밀리 둘과 폰트 둘이다.
+        Check(assets.CollectUnused() == 4 && assets.GetFontFamily(family) == nullptr && assets.GetFont(regular) == nullptr,
             "an unused family goes first and takes its two fonts with it");
         project.Close();
     }
@@ -1382,6 +1391,23 @@ namespace
             gpu.Paint(framework);
             Check(texts->GetLibrary().GetPageTextureCount() == 2, "a bold letter comes from the bold font's atlas");
             Check(FindDark(gpu).count > 40, "and still draws");
+
+            // 폰트 목록은 같고 스타일 번호만 바뀌어도 다시 레이아웃한다: 굵게(라틴)와 기울임(없음 → 한글)을 맞바꾸면 face 는 여전히
+            // 한글·라틴 둘이고, 굵게가 한글, 기울임이 라틴이 된다.
+            {
+                const std::uint64_t swapped = texts->GetRelayoutCount();
+                FontFamilyOptions swap = slots;
+                swap.boldFontId = project.fontId;
+                swap.italicFontId = project.latinId;
+                project.WriteFamily(swap);
+                Check(project.assets.ReloadInPlace(project.familyId), "the swapped family reloads");
+                gpu.Paint(framework);
+                Check(texts->GetRelayoutCount() == swapped + 1, "swapping bold and italic between the same fonts lays out again");
+                Check(texts->GetLibrary().GetPageTextureCount() == 2, "and the bold letter now comes from the regular font's atlas");
+                project.WriteFamily(slots);
+                Check(project.assets.ReloadInPlace(project.familyId), "the family goes back");
+                gpu.Paint(framework);
+            }
 
             // 칸을 바꾸면 다시 레이아웃한다.
             const std::uint64_t relayouts = texts->GetRelayoutCount();

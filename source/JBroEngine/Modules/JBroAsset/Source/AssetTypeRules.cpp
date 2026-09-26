@@ -151,6 +151,45 @@ namespace JBro
             return AssetType::Unknown;
         }
 
+        AssetType TypeOfIdFieldName(std::string_view fieldName) noexcept
+        {
+            char buffer[32] = {};
+            if (fieldName.size() <= 2 || fieldName.size() - 2 >= sizeof(buffer))
+            {
+                return AssetType::Unknown;
+            }
+            const std::size_t length = fieldName.size() - 2;
+            for (std::size_t index = 0; index < length; ++index)
+            {
+                buffer[index] = fieldName[index];
+            }
+            // 소리는 흔히 "클립" 이라 부른다(`AudioSource::clipId`). 타입 이름과 다른 유일한 별명이다.
+            if (std::string_view(buffer, length) == "clip")
+            {
+                return AssetType::Audio;
+            }
+            if (buffer[0] >= 'a' && buffer[0] <= 'z')
+            {
+                buffer[0] = static_cast<char>(buffer[0] - 'a' + 'A');
+            }
+            const AssetType whole = ParseTypeName(std::string_view(buffer, length));
+            if (whole != AssetType::Unknown)
+            {
+                return whole;
+            }
+            // 이름의 마지막 낱말이 타입이면 그것이다(`regularFontId`·`boldItalicFontId` 는 Font).
+            std::size_t last = length;
+            while (last > 1 && false == (buffer[last - 1] >= 'A' && buffer[last - 1] <= 'Z'))
+            {
+                --last;
+            }
+            if (last <= 1)
+            {
+                return AssetType::Unknown;
+            }
+            return ParseTypeName(std::string_view(buffer + last - 1, length - last + 1));
+        }
+
         bool IsImageType(AssetType type) noexcept
         {
             return type == AssetType::Texture;

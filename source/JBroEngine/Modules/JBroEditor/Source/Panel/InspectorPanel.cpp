@@ -86,38 +86,7 @@ namespace JBro
         // `spriteId` → `Sprite`. 앞부분이 에셋 타입 이름이면 그 타입만 보이고, 아니면 전부다.
         AssetType AssetTypeOfIdName(const char* name)
         {
-            char buffer[32] = {};
-            const std::size_t length = std::strlen(name) - 2;
-            if (length == 0 || length >= sizeof(buffer))
-            {
-                return AssetType::Unknown;
-            }
-            std::memcpy(buffer, name, length);
-            // 소리는 흔히 "클립" 이라 부른다(`AudioSource::clipId`). 타입 이름과 다른 유일한 별명이다.
-            if (length == 4 && std::memcmp(buffer, "clip", 4) == 0)
-            {
-                return AssetType::Audio;
-            }
-            if (buffer[0] >= 'a' && buffer[0] <= 'z')
-            {
-                buffer[0] = static_cast<char>(buffer[0] - 'a' + 'A');
-            }
-            const AssetType whole = AssetTypeRules::ParseTypeName(std::string_view(buffer, length));
-            if (whole != AssetType::Unknown)
-            {
-                return whole;
-            }
-            // 이름의 마지막 낱말이 타입이면 그것이다(`regularFontId`·`boldItalicFontId` 는 Font, D-225).
-            std::size_t last = length;
-            while (last > 1 && false == (buffer[last - 1] >= 'A' && buffer[last - 1] <= 'Z'))
-            {
-                --last;
-            }
-            if (last <= 1)
-            {
-                return AssetType::Unknown;
-            }
-            return AssetTypeRules::ParseTypeName(std::string_view(buffer + last - 1, length - last + 1));
+            return AssetTypeRules::TypeOfIdFieldName(name != nullptr ? std::string_view(name) : std::string_view());
         }
 
         using EditorNames::DisplayTypeName;

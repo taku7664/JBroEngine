@@ -1,0 +1,11 @@
+Modules\JBroAsset\Source\Asset.cpp	family:non-font-kept	if (font.generation != 0 && GetHandleType(font) != AssetType::Font)	if (false)
+Modules\JBroAsset\Source\Asset.cpp	family:self-loaded	if (ids[slot].IsNull() || ids[slot] == record.id)	if (ids[slot].IsNull())
+Modules\JBroAsset\Source\Asset.cpp	family:reload-keeps-old	            ReleaseFamilyFonts(family->data);\n            fresh.dataGeneration	            fresh.dataGeneration
+Modules\JBroAsset\Source\Asset.cpp	family:collect-keeps-fonts	                ReleaseFamilyFonts(slot.data);\n                Vacate(m_fontFamilies, index);	                Vacate(m_fontFamilies, index);
+Modules\JBroText\Source\TextLayout.cpp	style:bold-tag-ignored	if (Matches(body, bodyLength, "b") || Matches(body, bodyLength, "i"))	if (false)
+Modules\JBroText\Source\TextLayout.cpp	style:bolditalic-no-bold-fallback	if ((style & GlyphStyleBold) != 0 && valid(options.boldFace))	if (false)
+Modules\JBroText\Source\TextLayout.cpp	style:face-ignored	const std::uint16_t styleFace = item.style != 0 ? StyleFaceOf(options, item.style, faces.Size()) : LayoutOptions::NoStyleFace;	const std::uint16_t styleFace = LayoutOptions::NoStyleFace;
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:family-not-unpacked	const bool isFamily = library.GetFamilyFonts(primary, family);	const bool isFamily = false;
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:styles-not-keyed	 || m_styles.bold != styles.bold || m_styles.italic != styles.italic || m_styles.boldItalic != styles.boldItalic;	;
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:first-slot-not-taken	                if (slot.generation != 0)\n                {\n                    primary = slot;\n                    break;	                if (false)\n                {\n                    primary = slot;\n                    break;
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	editor:last-word-ignored	            if (whole != AssetType::Unknown)\n            {\n                return whole;\n            }	            if (true)\n            {\n                return whole;\n            }

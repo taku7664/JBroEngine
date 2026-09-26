@@ -16,6 +16,10 @@ namespace JBro
         // 이름에서 타입을 읽는다. 모르는 이름은 `Unknown` 이다.
         AssetType ParseTypeName(std::string_view name) noexcept;
 
+        // 에셋 아이디 필드(`xxxId`) 이름이 가리키는 타입이다(D-116·D-225). `spriteId` → Sprite, `clipId` → Audio(별명),
+        // `regularFontId` 처럼 앞부분 전체가 타입이 아니면 마지막 낱말(`Font`)로 본다. 어느 쪽도 아니면 `Unknown`(모든 타입)이다.
+        AssetType TypeOfIdFieldName(std::string_view fieldName) noexcept;
+
         // 확장자로 타입을 추정한다(대소문자 무관). 이미지(`.png .jpg .jpeg .bmp .tga`)는 `Texture` 다 -
         // 그 파일이 Sprite 도 되는 것은 레지스트리가 안다. 모르는 확장자는 `Unknown` 이다.
         AssetType DetectTypeFromPath(std::string_view path) noexcept;
