@@ -406,6 +406,18 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
        조인트 그림은 실제 에디터 화면으로 확인하지 않았다. 목록·구조체 안의
        오브젝트 참조는 붙여넣을 때 옮기지 않는다(맨 위 필드만). 한 방향 발판은 한 발판 안에서 조각을 건너갈 때 새 조각을 다시 잰다. 스크립트가
        레이어를 이름으로 찾는 API(`LayerMask("Enemy")`)는 없다. 조인트는 끊어짐(break force)과 반작용 힘 읽기가 없다.
+   - ~~**9-4. CCD·솔버 병렬·질의 경계 거르기(D-234)**~~ → 2026-09-27 · `099af29`·`34fbc1b`·`74547b8`·`204594c`·`85298f2` ·
+     `JBroPhysics2D/Source/World.cpp`(`ClampToFirstHit`·`coreExtent`·`ColorContacts`·`ForEachColor`·`PushVelocity`/`PushPosition`),
+     `Physics2DSystem.cpp`(`ForEachQueryShape` 의 영역과 경계 원, `SweptArea`).
+     - 테스트: `Physics2DWorldTests`(`TestFastBodiesDoNotTunnel` - 서브스텝마다 0.8 m 가는 5 cm 공·상자가 10 cm 벽과 체인에서 섬, 바닥을 60 m/s 로
+       미끄러지는 상자는 서지 않음, 한 방향 발판은 밑에서 지나감, `TestColoredContactsSolveTheSameOnAnyWorkerCount` - 상자 600 개가 워커 0 과 3 에서
+       비트까지 같음), `Physics2DSystemTests`(`TestQueriesSkipFarColliders` - 격자 100 개에서 짧은 반직선·작은 원·먼 질의가 들여다본 수, 원의 가장자리와
+       늘린 상자의 먼 끝).
+     - 실측(스크래치 `/O2`, 16 스레드, 다른 워크트리가 빌드하던 중이라 잡음이 크다): 스텝 시간 상자 200 1.29→0.95ms, 600 3.69→1.61~2.97ms,
+       2000 13.1→6.5~6.8ms(워커 2~3), 3000 21.3→12.5ms. 좁은 판정만 나누던 D-223 의 20% 에서 약 2 배가 되었다.
+     - 뮤테이션(`tools/mutations-physics13.txt`): 첫 판 17 개 가운데 넷이 살아남았다. 바닥을 미끄러지는 상자 검사가 60 m/s 라 서브스텝 이동(0.25 m)이 문턱(반폭의 절반, 0.25 m)과 같아 이어지는 판정이 아예 돌지 않았다 - 90 m/s 로 잡았다. 원 스윕 영역의 반지름은 선 옆의 콜라이더를 미는 검사가 없어 더해 잡았다. 남은 둘은 잡지 않았다: 닿는 자리에서 LinearSlop 앞에 세우기를 빼는 것(정확히 닿는 자리에 서도 다음 서브스텝의 접촉이 같은 일을 해 드러나는 차이가 없다), 동적 몸을 대상에서 빼는 것(의도한 제외이고 검사가 없다 - 아래 `[열림]`). 최종 15/17.
+     - 남긴 것 `[열림]`: CCD 는 동적 몸끼리와 도는 몸의 모서리를 보지 않는다. 색칠은 서브스텝마다 다시 한다(접촉 수에 비례). 조인트 풀이는 병렬이
+       아니다. 질의는 여전히 콜라이더를 모두 훑는다(경계만 싸게 본다) - 공간 나눔(브로드페이즈 재사용)은 뒤의 일이다.
 
 ## 5. 결정 (2026-09-25 확인, D-199)
 
