@@ -38,7 +38,7 @@ namespace JBro::Physics2D
 
 
         // 움직이는 몸만 쓴다. 정적·키네마틱 몸은 역질량이 0 이라 바뀔 것이 없고, 색 하나 안의 접촉 여럿이 같은 정적 몸을
-        // 함께 쓰므로 쓰면 워커끼리 겹쳐 쓴다(D-233).
+        // 함께 쓰므로 쓰면 워커끼리 겹쳐 쓴다(D-234).
         template <typename TBody>
         void PushVelocity(TBody& a, TBody& b, Vec2 rA, Vec2 rB, Vec2 impulse)
         {
@@ -1126,7 +1126,7 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            // collideConnected 가 거짓인 조인트로 이은 두 몸은 서로 부딪히지 않는다(D-232).
+            // collideConnected 가 거짓인 조인트로 이은 두 몸은 서로 부딪히지 않는다(D-233).
             if (false == m_jointFilters.IsEmpty() && m_jointFilters.Contains(JointPairKey(shapeA->body, shapeB->body)))
             {
                 continue;
@@ -1861,7 +1861,7 @@ namespace JBro::Physics2D
             }
         }
 
-        // 조인트로 이은 움직이는 몸도 한 섬이다(D-232) - 매달린 몸 하나만 잠들면 조인트가 잠든 몸을 끌지 못한다.
+        // 조인트로 이은 움직이는 몸도 한 섬이다(D-233) - 매달린 몸 하나만 잠들면 조인트가 잠든 몸을 끌지 못한다.
         for (const Joint& joint : m_joints)
         {
             if (false == joint.alive || joint.bodyB == InvalidIndex)

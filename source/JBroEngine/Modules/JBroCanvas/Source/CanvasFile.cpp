@@ -126,7 +126,7 @@ namespace JBro
             indexOf.TryAdd(ordered[i], i);
         }
 
-        // **오브젝트 참조 필드는 파일 안 번호로 적는다**(D-232). 오브젝트 번호는 실행마다 달라 파일에 남길 수 없다.
+        // **오브젝트 참조 필드는 파일 안 번호로 적는다**(D-233). 오브젝트 번호는 실행마다 달라 파일에 남길 수 없다.
         Table<InstanceId, std::int64_t> fileIndexOf;
         for (std::size_t i = 0; i < ordered.Size(); ++i)
         {
@@ -302,7 +302,7 @@ namespace JBro
             layerOf.TryAdd(static_cast<std::uint64_t>(fileId), layer->GetId());
         }
 
-        // **오브젝트를 모두 만든 뒤 컴포넌트를 읽는다**(D-232). 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다.
+        // **오브젝트를 모두 만든 뒤 컴포넌트를 읽는다**(D-233). 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다.
         const std::uint32_t objects = document.Find(root, "Objects");
         Array<GameObject*> created;
         for (std::size_t i = 0; i < document.GetCount(objects); ++i)

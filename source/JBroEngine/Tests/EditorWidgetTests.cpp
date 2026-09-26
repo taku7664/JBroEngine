@@ -832,7 +832,7 @@ namespace
     }
 
 
-    // **레이어 칸은 이름으로 켜고 끈다(D-232).** 펼치면 이름 있는 레이어마다 켜기 칸이 있고 누르면 그 비트가 켜지며 팝업은
+    // **레이어 칸은 이름으로 켜고 끈다(D-233).** 펼치면 이름 있는 레이어마다 켜기 칸이 있고 누르면 그 비트가 켜지며 팝업은
     // 열린 채다. 이름 없는 비트는 켜져 있을 때만 `#번호` 로 보인다. "없음" 은 모두 끈다.
     void TestTheLayerMaskFieldTogglesNamedBits()
     {
@@ -907,7 +907,7 @@ namespace
         Check(mask == 0u && changedFrames == 2, "and Nothing turns every bit off");
     }
 
-    // **오브젝트 칸은 이름으로 고른다(D-232).** 검색해 Enter 로 고르면 그 번호가 되고, 끌어 놓은 것이 없으면 dropped 는 0 이다.
+    // **오브젝트 칸은 이름으로 고른다(D-233).** 검색해 Enter 로 고르면 그 번호가 되고, 끌어 놓은 것이 없으면 dropped 는 0 이다.
     void TestTheObjectFieldPicksByName()
     {
         Stage stage;

@@ -137,9 +137,9 @@ namespace JBro
         // 오디오 버스 필드(`JBro.AudioBusName`, D-197). 프로젝트의 버스 목록을 고르는 드롭다운이다 - 이름을 손으로 치면
         // 틀린 이름이 조용히 Master 로 떨어진다.
         void DrawAudioBusField(const TypeDescriptor& type, void* address, Context& context);
-        // 물리 레이어 비트 묶음을 프로젝트의 레이어 이름으로 고른다(D-232).
+        // 물리 레이어 비트 묶음을 프로젝트의 레이어 이름으로 고른다(D-233).
         void DrawLayerMaskField(const TypeDescriptor& type, void* address, Context& context);
-        // 캔버스의 오브젝트를 고르는 칸이다(D-232). 하이어라키의 줄을 끌어 놓아도 된다.
+        // 캔버스의 오브젝트를 고르는 칸이다(D-233). 하이어라키의 줄을 끌어 놓아도 된다.
         void DrawObjectField(const TypeDescriptor& type, void* address, Context& context);
         // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
         void DrawTextBody(const TypeDescriptor& type, void* address, bool editable, bool multiline, Context& context);
@@ -221,7 +221,7 @@ namespace JBro
         bool m_audioDrawn = false;
         // 버스 칸의 항목(첫째가 Master)이다. 프레임마다 프로젝트 목록에서 짓는다 - 설정 창에서 더한 버스가 곧바로 보인다.
         Array<String> m_busNames;
-        // 오브젝트 칸의 목록이다(D-232). 0 번은 "없음" 이다.
+        // 오브젝트 칸의 목록이다(D-233). 0 번은 "없음" 이다.
         Array<String> m_objectNames;
         Array<const char*> m_objectNamePointers;
         Array<InstanceId> m_objectIds;

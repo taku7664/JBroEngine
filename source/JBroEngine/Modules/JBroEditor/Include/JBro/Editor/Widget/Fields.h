@@ -103,11 +103,11 @@ namespace JBro::Widget
     // 켜기 칸. 인스펙터의 bool 잎사귀와 컴포넌트 `사용` 칸이 이것이다(§11.1).
     bool Checkbox(const char* id, bool& value);
 
-    // 레이어 비트 묶음을 이름으로 고르는 칸이다(D-232). `names` 는 비트마다 하나(32 개)이고 빈 이름의 비트는 켜져 있을 때만
+    // 레이어 비트 묶음을 이름으로 고르는 칸이다(D-233). `names` 는 비트마다 하나(32 개)이고 빈 이름의 비트는 켜져 있을 때만
     // `#번호` 로 보인다. 펼치면 "모두"·"없음" 과 레이어마다 켜기 칸이 있다. 닫힌 칸은 켜진 이름들을 잇는다.
     bool LayerMaskField(const char* id, ArrayView<const char* const> names, std::uint32_t& mask);
 
-    // 오브젝트 하나를 고르는 칸이다(D-232). 검색되는 목록에서 고르거나, 하이어라키의 줄을 끌어 놓는다. `dropType` 끌기로
+    // 오브젝트 하나를 고르는 칸이다(D-233). 검색되는 목록에서 고르거나, 하이어라키의 줄을 끌어 놓는다. `dropType` 끌기로
     // 놓이면 그 페이로드(8 바이트 번호)를 `dropped` 에 담고 참을 돌려준다 - 고른 번호(`chosen`)는 그대로다.
     bool ObjectField(const char* id, ArrayView<const char* const> names, int& chosen, const char* dropType,
         std::uint64_t& dropped);

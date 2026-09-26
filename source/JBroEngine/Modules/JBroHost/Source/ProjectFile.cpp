@@ -163,7 +163,7 @@ namespace JBro
             return String(std::to_string(build.physicsWorkers).c_str());
         }
 
-        // `0 3` 처럼 공백으로 가른 두 레이어 번호다(D-232). 작은 번호가 앞에 오게 맞춘다.
+        // `0 3` 처럼 공백으로 가른 두 레이어 번호다(D-233). 작은 번호가 앞에 오게 맞춘다.
         bool ParseLayerPair(const String& value, ProjectLayerPair& result)
         {
             const std::size_t space = value.find(' ');
@@ -412,7 +412,7 @@ namespace JBro
         // `Fonts:` 의 항목은 글자로 모았다가 끝에서 아이디로 읽는다. 읽지 못하는 아이디는 파일 오류다.
         Array<String>  fontTexts;
         std::size_t    fontsLine = 0;
-        // `PhysicsIgnoredLayerPairs:` 의 항목도 글자로 모았다가 끝에서 두 번호로 읽는다(D-232).
+        // `PhysicsIgnoredLayerPairs:` 의 항목도 글자로 모았다가 끝에서 두 번호로 읽는다(D-233).
         Array<String>  layerPairTexts;
         std::size_t    layerPairsLine = 0;
         // `InputActions:` 아래에 있는가(D-214). 액션 항목의 들여쓰기와 `Bindings:` 아래에 있는지를 함께 든다.
@@ -1468,7 +1468,7 @@ namespace JBro
         }
 
         // `Fonts` 를 적는다. 비어 있으면 `[]` 다(`AssetIgnorePatterns` 와 같은 까닭).
-        // 물리 레이어 이름은 끝의 빈 칸을 빼고 적는다(D-232). 앞의 번호가 비트 번호라 가운데 빈 칸은 `""` 로 남긴다.
+        // 물리 레이어 이름은 끝의 빈 칸을 빼고 적는다(D-233). 앞의 번호가 비트 번호라 가운데 빈 칸은 `""` 로 남긴다.
         std::size_t NamedLayerCount(const ProjectFile& project)
         {
             std::size_t count = std::min<std::size_t>(project.physicsLayers.Size(), 32);
@@ -1652,7 +1652,7 @@ namespace JBro
             bool dropped = false;
             if (pair && indent == 0 && (key == "PhysicsLayers" || key == "PhysicsIgnoredLayerPairs"))
             {
-                // 로케일과 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다(D-232).
+                // 로케일과 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다(D-233).
                 const bool layers = key == "PhysicsLayers";
                 bool& saw = layers ? sawPhysicsLayers : sawLayerPairs;
                 dropped = saw;
@@ -1875,7 +1875,7 @@ namespace JBro
         {
             AppendNameSequence(result, "Locales", project.locales, true);
         }
-        // 물리 레이어도 같다(D-232): 적힌 적 없고 비어 있으면 적지 않는다.
+        // 물리 레이어도 같다(D-233): 적힌 적 없고 비어 있으면 적지 않는다.
         if (false == sawPhysicsLayers && NamedLayerCount(project) > 0)
         {
             AppendPhysicsLayers(result, project);

@@ -32,7 +32,7 @@ namespace JBro::Physics2D
     // 물리 일감에 맞는 워커 수(D-223). work 는 콜라이더 조각 수의 합이다. 처음(D-223)에는 좁은 판정만 나눠 이득이 작았다 - 실측에서
     // 1000 조각 아래는 잡음보다 나은 것이 없었고 2000 에서 약 20% 빨랐으며 워커 2~4 에서 멈췄다(physics-plan §4 의 8). 그래서 1024
     // 미만이면 0(메인 한 스레드), 1024 에 1 을 주고 1024 마다 하나씩 더하며, hardwareThreads - 1 과 4 를 넘지 않는다.
-    // 접촉 풀이의 색 묶음도 나누면서(D-233, 풀 접촉 512 이상) 상자 2000 에서 약 2 배가 되었지만, 기준은 그대로 둔다.
+    // 접촉 풀이의 색 묶음도 나누면서(D-234, 풀 접촉 512 이상) 상자 2000 에서 약 2 배가 되었지만, 기준은 그대로 둔다.
     std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads);
 
     enum class BodyType : std::uint8_t
@@ -62,7 +62,7 @@ namespace JBro::Physics2D
         std::uint32_t generation = 0;
     };
 
-    // **두 몸 사이의 거리를 지킨다**(D-232). bodyB 가 빈 번호면 몸 하나를 월드의 점(localAnchorB)에 잇는다.
+    // **두 몸 사이의 거리를 지킨다**(D-233). bodyB 가 빈 번호면 몸 하나를 월드의 점(localAnchorB)에 잇는다.
     struct DistanceJointDef
     {
         BodyId bodyA;
@@ -80,7 +80,7 @@ namespace JBro::Physics2D
         bool   collideConnected = false;
     };
 
-    // **한 점을 함께 쓰고 그 둘레로 돈다**(D-232). 각도는 라디안이다.
+    // **한 점을 함께 쓰고 그 둘레로 돈다**(D-233). 각도는 라디안이다.
     struct HingeJointDef
     {
         BodyId bodyA;
@@ -131,7 +131,7 @@ namespace JBro::Physics2D
         std::uint32_t layer = 0x00000001u;
         std::uint32_t mask = 0xFFFFFFFFu;
         std::uint64_t userData = 0;
-        // 한 방향 발판(D-232). 몸의 로컬 위(+y) 쪽에서 오는 것만 막는다: 접촉이 시작될 때 발판에서 상대로 향하는 법선이
+        // 한 방향 발판(D-233). 몸의 로컬 위(+y) 쪽에서 오는 것만 막는다: 접촉이 시작될 때 발판에서 상대로 향하는 법선이
         // 그 위와 60° 안이면 막고, 아니면(아래나 옆에서 왔다) 그 접촉이 끝날 때까지 없는 것으로 본다.
         bool          oneWay = false;
     };
@@ -154,7 +154,7 @@ namespace JBro::Physics2D
     struct WorldSettings
     {
         Vec2          gravity{ 0.0f, -9.81f };
-        // 레이어 충돌 표(D-232). 비트 j 가 선 행 i 는 레이어 i 와 j 가 서로 지나간다(대칭으로 채운다). 두 도형은 한쪽 레이어 비트
+        // 레이어 충돌 표(D-233). 비트 j 가 선 행 i 는 레이어 i 와 j 가 서로 지나간다(대칭으로 채운다). 두 도형은 한쪽 레이어 비트
         // i 와 다른 쪽 비트 j 가운데 떼어 두지 않은 쌍이 하나라도 있으면 만난다. 비어 있으면 모두 만난다.
         std::uint32_t ignoredLayers[32] = {};
         std::uint32_t subSteps = 4;
@@ -179,7 +179,7 @@ namespace JBro::Physics2D
         std::uint32_t parallelSubSteps = 0;
         // 이어지는 판정이 몸을 멈춰 세운 횟수(서브스텝마다 몸 하나에 한 번).
         std::uint32_t continuousHits = 0;
-        // 접촉 풀이의 색 묶음을 워커로 나눠 푼 횟수(D-233). 반복마다 센다.
+        // 접촉 풀이의 색 묶음을 워커로 나눠 푼 횟수(D-234). 반복마다 센다.
         std::uint32_t parallelColors = 0;
         // Step 이 끝났을 때 깨어 있는·잠든 동적 몸의 수(D-229).
         std::uint32_t awakeBodies = 0;
@@ -263,7 +263,7 @@ namespace JBro::Physics2D
         std::uint32_t GetWorkerCount() const;
         StepStats     GetLastStepStats() const;
 
-        // **조인트**(D-232). 몸이 없거나 두 몸이 같으면 빈 번호다. 몸을 지우면 그 몸에 걸린 조인트도 사라진다.
+        // **조인트**(D-233). 몸이 없거나 두 몸이 같으면 빈 번호다. 몸을 지우면 그 몸에 걸린 조인트도 사라진다.
         JointId CreateDistanceJoint(const DistanceJointDef& def);
         JointId CreateHingeJoint(const HingeJointDef& def);
         // 같은 두 몸의 조인트 성질을 제자리에서 바꾼다(쌓인 임펄스를 이어받는다). 몸이나 종류가 다르면 거짓이다 - 새로 만든다.
@@ -278,7 +278,7 @@ namespace JBro::Physics2D
         // 마지막 Step 의 이벤트. 다음 Step 이 비운다.
         ArrayView<const ContactEvent> GetBeginEvents() const;
         ArrayView<const ContactEvent> GetEndEvents() const;
-        // 지난 Step 에도 닿아 있었고 이번에도 닿아 있는 쌍(D-232). 점과 법선은 이번 것이다. 시작한 Step 에는 시작만 있다.
+        // 지난 Step 에도 닿아 있었고 이번에도 닿아 있는 쌍(D-233). 점과 법선은 이번 것이다. 시작한 Step 에는 시작만 있다.
         // 두 몸이 모두 잠들었거나 멈춰 있으면(정적·잠든 동적) 싣지 않는다 - 잠든 더미가 매 스텝 알림을 쏟지 않게 한다.
         ArrayView<const ContactEvent> GetStayEvents() const;
 
@@ -311,7 +311,7 @@ namespace JBro::Physics2D
             bool          canSleep = true;
             float         sleepTime = 0.0f;
             // 도형이 품은 가장 얇은 두께의 절반(원은 반지름, 조각은 중심에서 가장 가까운 변까지). 한 서브스텝에 이것보다 멀리 가면
-            // 이어지는 판정(CCD)으로 정적인 도형을 뚫지 않게 한다(D-233). 도형이 없으면 0 이다.
+            // 이어지는 판정(CCD)으로 정적인 도형을 뚫지 않게 한다(D-234). 도형이 없으면 0 이다.
             float         coreExtent = 0.0f;
             float         inertia = 0.0f;
             float         inverseInertia = 0.0f;
@@ -429,7 +429,7 @@ namespace JBro::Physics2D
         std::uint32_t FindIsland(std::uint32_t body);
         // 깨어 있는 동적 몸이 끼어야 접촉을 푼다. 둘 다 잠들었거나 멈춘 몸이면 풀 것이 없다.
         bool IsSolved(const Contact& contact) const;
-        // **접촉 색칠**(D-233). 움직이는 몸을 함께 쓰지 않는 접촉끼리 한 색으로 묶는다. 한 색 안의 접촉은 서로 모르고 풀 수
+        // **접촉 색칠**(D-234). 움직이는 몸을 함께 쓰지 않는 접촉끼리 한 색으로 묶는다. 한 색 안의 접촉은 서로 모르고 풀 수
         // 있어 워커로 나눈다. 워커 수와 관계없이 늘 이 순서로 푼다 - 결과가 워커 수에 따라 달라지지 않는다.
         void ColorContacts();
         using ContactJob = void (*)(void* context, std::uint32_t begin, std::uint32_t end);
@@ -442,7 +442,7 @@ namespace JBro::Physics2D
         static void SolveVelocityJob(void* context, std::uint32_t begin, std::uint32_t end);
         static void RestitutionJob(void* context, std::uint32_t begin, std::uint32_t end);
         static void SolvePositionJob(void* context, std::uint32_t begin, std::uint32_t end);
-        // 빠른 몸을 정적·키네마틱 도형 앞에서 멈춘다(D-233). startCenter 는 이 서브스텝이 시작할 때의 질량 중심이다.
+        // 빠른 몸을 정적·키네마틱 도형 앞에서 멈춘다(D-234). startCenter 는 이 서브스텝이 시작할 때의 질량 중심이다.
         void ClampToFirstHit(Body& body, std::uint32_t bodyIndex, Vec2 startCenter);
 
         enum class JointType : std::uint8_t

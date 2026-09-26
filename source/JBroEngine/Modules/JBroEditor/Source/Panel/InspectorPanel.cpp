@@ -1757,13 +1757,13 @@ namespace JBro
             DrawAudioBusField(type, address, context);
             return;
         }
-        // 물리 레이어는 프로젝트의 레이어 이름으로 고른다(D-232).
+        // 물리 레이어는 프로젝트의 레이어 이름으로 고른다(D-233).
         if (context.element == nullptr && SameName(type.typeName, "JBro.PhysicsLayerMask"))
         {
             DrawLayerMaskField(type, address, context);
             return;
         }
-        // 오브젝트 참조는 캔버스의 오브젝트 목록이다(D-232).
+        // 오브젝트 참조는 캔버스의 오브젝트 목록이다(D-233).
         if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.GameObjectHandle"))
         {
             DrawObjectField(type, address, context);

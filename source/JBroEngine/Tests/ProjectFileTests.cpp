@@ -835,7 +835,7 @@ namespace
             && back.find("  PhysicsThreads: Auto\n") != JBro::String::npos, "turning it back to Auto rewrites the line");
     }
 
-    // **물리 레이어 이름과 충돌 표(D-232).** 이름은 자리가 비트 번호라 가운데 빈 칸이 `""` 로 남고 끝의 빈 칸은 적지 않는다.
+    // **물리 레이어 이름과 충돌 표(D-233).** 이름은 자리가 비트 번호라 가운데 빈 칸이 `""` 로 남고 끝의 빈 칸은 적지 않는다.
     // 쌍은 작은 번호가 앞으로 맞춰지고, 틀린 쌍은 거절된다. 둘 다 비면 키를 적지 않는다.
     void TestThePhysicsLayerSettings()
     {

@@ -386,7 +386,7 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      - 알아낸 것: 따뜻한 시작 병합에서 짝을 찾은 뒤 이전 목록을 넘기지 않아, 새로 넣은 "사라진 접촉은 깨운다" 가 매 스텝 모두를 깨웠다(잠이 오지 않았다).
      - 남긴 것 `[열림]`: 체인은 양면이라 닫힌 체인 안쪽에서도 막는다(Box2D 는 한면이다). 체인끼리의 충돌은 없다. 잠든 섬이 크면 한 몸만 깨워도 다음
        스텝에 섬 전체가 깬다.
-   - ~~**9-3. Stay 훅·한 방향 발판·레이어 이름과 충돌 표·거리와 경첩 조인트(D-232)**~~ → 2026-09-27 · `9e7bbba`·`c14ebfe`·`ec97c00`·`ab61b29`·`7d538ff`·`d4997be` ·
+   - ~~**9-3. Stay 훅·한 방향 발판·레이어 이름과 충돌 표·거리와 경첩 조인트(D-233)**~~ → 2026-09-27 · `9e7bbba`·`c14ebfe`·`ec97c00`·`ab61b29`·`7d538ff`·`d4997be` ·
      `JBroPhysics2D/Source/Joints.cpp`, `World.cpp`(`GetStayEvents`·`PassesOneWay`·`LayersMeet`·조인트 거르기와 섬), `Physics2DSystem.cpp`(3.5 조인트·
      Stay 발송·표 복사), `Framework2D/Component/Physics2D.h`(`PhysicsLayerMask`·`DistanceJoint2D`·`HingeJoint2D`), `Runtime/GameObjectHandleReflection.h`,
      `Canvas/Source/CanvasFile.cpp`(두 패스), `Editor/Source/Command/ObjectTreeSnapshot.cpp`(옛 번호로 되살리기·`RetargetReferences`), `Host/ProjectFile.cpp`,
