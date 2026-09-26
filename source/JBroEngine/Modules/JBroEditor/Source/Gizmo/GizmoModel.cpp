@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/Gizmo/GizmoModel.h>
 
+#include <algorithm>
 #include <cmath>
 
 namespace JBro
@@ -327,6 +328,29 @@ namespace JBro
             *depth = cz / cw;
         }
         return std::isfinite(x) && std::isfinite(y);
+    }
+
+    bool GizmoModel::ProjectPlaneRect(const GizmoCamera& camera, const Vec3& origin, const Vec3& axisX, const Vec3& axisY,
+        float minX, float minY, float maxX, float maxY, float& screenMinX, float& screenMinY, float& screenMaxX,
+        float& screenMaxY)
+    {
+        const float cornersX[4] = {minX, maxX, maxX, minX};
+        const float cornersY[4] = {minY, minY, maxY, maxY};
+        for (int corner = 0; corner < 4; ++corner)
+        {
+            const Vec3 world = Add(origin, Add(Scale(axisX, cornersX[corner]), Scale(axisY, cornersY[corner])));
+            float x = 0.0f;
+            float y = 0.0f;
+            if (false == Project(camera, world, x, y))
+            {
+                return false;
+            }
+            screenMinX = corner == 0 ? x : std::min(screenMinX, x);
+            screenMinY = corner == 0 ? y : std::min(screenMinY, y);
+            screenMaxX = corner == 0 ? x : std::max(screenMaxX, x);
+            screenMaxY = corner == 0 ? y : std::max(screenMaxY, y);
+        }
+        return true;
     }
 
     bool GizmoModel::Unproject(const GizmoCamera& camera, float x, float y, float ndcDepth, Vec3& world)
