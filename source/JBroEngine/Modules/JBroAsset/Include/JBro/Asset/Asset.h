@@ -104,7 +104,7 @@ namespace JBro
         std::uint32_t dataGeneration = 1;
     };
 
-    // 워커에서 디코드할 에셋 하나다(D-233). `AssetSystem::PrepareDecode`(메인)가 경로와 옵션을 채우고, `DecodeAssetFile`
+    // 워커에서 디코드할 에셋 하나다(D-236). `AssetSystem::PrepareDecode`(메인)가 경로와 옵션을 채우고, `DecodeAssetFile`
     // (어느 스레드든)이 파일을 읽어 자료를 채우며, `AssetSystem::AdoptDecoded`(메인)가 풀에 넣는다. 텍스처와 오디오만 이 길로
     // 간다 - 스프라이트는 주인 텍스처가 무거운 몫이라 그 텍스처가 대신 가고, 폰트·문자열 표는 파일을 한 번 읽을 뿐이라 동기
     // `Load` 에 둔다. 워커는 로그를 남기지 않는다(`Log` 는 메인 스레드 전용) - 실패 사유는 `failure` 에 적고 메인이 남긴다.
@@ -133,7 +133,7 @@ namespace JBro
     //
     // **타입별 풀과 index+generation 핸들이다.** `IAsset` 가상 기반이 없다. 핸들의 `index` 상위 4 비트가 타입이고
     // 나머지가 풀의 자리다. 타입이 다른 핸들로 물으면 `nullptr` 다. `Load` 는 동기이고 메인 스레드다(무거운 디코드만 워커로
-    // 보내는 길은 `PrepareDecode`·`DecodeAssetFile`·`AdoptDecoded`, D-233). **프레임 경로에서
+    // 보내는 길은 `PrepareDecode`·`DecodeAssetFile`·`AdoptDecoded`, D-236). **프레임 경로에서
     // 부르지 않는다** - 해석 패스(`BindComponentAssets`)가 캔버스 로드 뒤와 편집 뒤에만 돈다(asset-plan §2.6).
     // 참조 수가 0 이 되어도 곧 내려가지 않는다. `CollectUnused` 가 프로젝트 닫기·캔버스 전환 뒤에 내린다.
     class AssetSystem final : public IModule
@@ -171,7 +171,7 @@ namespace JBro
         // 로드돼 있으면 참조 수만 올리고 같은 핸들을 준다. 레지스트리에 없거나 이 판이 아직 싣지 못하는 타입
         // (Mesh·Material·Shader·Canvas·...)이거나 읽기·디코드가 실패하면 빈 핸들이다.
         AssetHandle Load(AssetId id);
-        // 워커 디코드를 준비한다(D-233). 텍스처·오디오면 그것을, 스프라이트면 주인 텍스처를 `job` 에 채운다. 이미 실렸거나
+        // 워커 디코드를 준비한다(D-236). 텍스처·오디오면 그것을, 스프라이트면 주인 텍스처를 `job` 에 채운다. 이미 실렸거나
         // 이 길로 가지 않는 타입·없는 레코드·읽히지 않는 메타·워커에서 읽을 수 없는 소스(패키지)·빌드가 디코드해 둔 텍스처면 거짓이다 -
         // 그런 것은 `Load` 가 동기로 다룬다(디코드해 둔 텍스처는 복사뿐이다). 메인 스레드다.
         bool PrepareDecode(AssetId id, AssetDecodeJob& job);
@@ -211,7 +211,7 @@ namespace JBro
         // 빈 아이디와 실패는 핸들을 비운다. 얻은 핸들은 `acquired` 에 쌓인다 - 캔버스를 닫을 때 `ReleaseAll` 로 놓는다.
         // 채운 핸들 수를 돌려준다.
         std::uint32_t BindComponentAssets(const PropertyTable& table, void* component, Array<AssetHandle>& acquired);
-        // 해석 패스가 볼 아이디만 모은다(D-233). 싣지 않고 핸들도 건드리지 않는다. 빈 아이디는 빼고, 이미 `ids` 에 있는 것은 더하지 않는다.
+        // 해석 패스가 볼 아이디만 모은다(D-236). 싣지 않고 핸들도 건드리지 않는다. 빈 아이디는 빼고, 이미 `ids` 에 있는 것은 더하지 않는다.
         // 워커 로드가 캔버스를 열기 전에 무엇을 읽을지 알려고 쓴다.
         static void CollectComponentAssetIds(const PropertyTable& table, const void* component, Array<AssetId>& ids);
         void ReleaseAll(Array<AssetHandle>& acquired);

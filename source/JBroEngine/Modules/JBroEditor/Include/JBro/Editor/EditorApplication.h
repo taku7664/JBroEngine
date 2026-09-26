@@ -467,7 +467,7 @@ namespace JBro
         // 열려 있는 캔버스로 `.jcanvas` 를 읽고 쓴다.
         // 읽기는 **빈 캔버스에만** 들어간다 — 이미 내용이 있으면 거절한다.
         bool LoadCanvas(const char* path, CanvasFileError& error);
-        // **워커로 여는 캔버스**(D-233). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
+        // **워커로 여는 캔버스**(D-236). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
         // 다음 틱에 바인딩한다 - 그동안 화면은 멈추지 않고 상태 표시줄에 진행이 보인다. 프로젝트를 열 때와 에셋 브라우저에서
         // 캔버스를 열 때 이 길로 간다. 앞서 돌던 캔버스 로드는 거두고(취소하고 기다린다) 시작한다. 읽지 못하면 거짓이다.
         bool LoadCanvasAsync(const char* path, CanvasFileError& error);
@@ -639,7 +639,8 @@ namespace JBro
         // 그림·외곽선 캐시를 지금 프로젝트의 에셋 시스템에 잇는다. 프로젝트가 없으면 끊는다(D-165).
         void BindAssetTools();
         // 프로젝트의 물리 스레드 설정을 풀어 2D 프레임워크에 먹인다(D-223). 열 때와 설정을 저장할 때 부른다.
-        void ApplyPhysicsThreads();
+        // 물리 스레드(D-223)와 레이어 충돌 표(D-233)를 프로젝트 설정대로 프레임워크에 넘긴다.
+        void ApplyPhysicsSettings();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
         bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();
@@ -675,7 +676,7 @@ namespace JBro
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
         std::uint64_t m_trashCounter = 0;
         String m_canvasPath;
-        // 워커로 여는 캔버스의 로드(D-233). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
+        // 워커로 여는 캔버스의 로드(D-236). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
         TaskGroupId m_canvasLoadGroup = InvalidTaskGroupId;
         OwnerPtr<AssetLoadResult> m_canvasLoad;
         // 상태 표시줄에서 태스크 목록을 펼쳤다.

@@ -634,7 +634,7 @@ namespace
         Check(SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the meta saves");
     }
 
-    // 워커 로드(D-233)도 동기 로드와 같은 모양으로 클립을 푼다(D-231): 미리 푸는 소리는 믹서의 레이트와 모노로, 압축한 채 두는
+    // 워커 로드(D-236)도 동기 로드와 같은 모양으로 클립을 푼다(D-231): 미리 푸는 소리는 믹서의 레이트와 모노로, 압축한 채 두는
     // 소리는 채널 1 로 알린다. 믹서의 레이트는 메인 스레드가 작업을 만들 때 떠 간다 - 워커는 에셋 시스템을 보지 않는다.
     void TestWorkerLoadShapesClipsLikeTheSyncLoad()
     {

@@ -10,6 +10,11 @@ namespace JBro
 {
     class GameObject;
 
+    namespace Internal
+    {
+        struct GameObjectHandleAccess;
+    }
+
     // 스크립트에 노출하는 GameObject 전용 16B 핸들. 포인터 연산자는 의도적으로 없다.
     class GameObjectHandle final
     {
@@ -30,6 +35,7 @@ namespace JBro
 
     private:
         friend class GameObject;
+        friend struct Internal::GameObjectHandleAccess;
 
         explicit GameObjectHandle(const GameObject* object);
         GameObject* Resolve() const;

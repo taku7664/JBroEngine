@@ -264,7 +264,7 @@ namespace JBro
             data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
             return true;
         }
-        // 원본은 워커 로드와 같은 디코드를 부른다(D-233). 동기 로드는 메인에서 부를 뿐이다.
+        // 원본은 워커 로드와 같은 디코드를 부른다(D-236). 동기 로드는 메인에서 부를 뿐이다.
         AssetDecodeJob job;
         job.type = AssetType::Texture;
         job.record = record;
@@ -441,7 +441,7 @@ namespace JBro
         {
             return false;
         }
-        // 워커 로드와 같은 디코드를 부른다(D-233).
+        // 워커 로드와 같은 디코드를 부른다(D-236).
         AssetDecodeJob job;
         job.type = AssetType::Audio;
         job.record = record;

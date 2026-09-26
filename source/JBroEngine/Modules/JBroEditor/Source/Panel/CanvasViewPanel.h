@@ -90,6 +90,7 @@ namespace JBro
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);
+        void DrawJoints(const ViewRect& rect);
 
         // ── 폴리곤 콜라이더 편집(physics-plan §4 의 5, 기존 `CCanvasViewTool` 의 버텍스 편집) ─────────
         //
@@ -197,6 +198,8 @@ namespace JBro
         std::uint32_t m_menuVertex = 0;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
+        Array<Component::DistanceJoint2D*> m_distanceJointScratch;
+        Array<Component::HingeJoint2D*> m_hingeJointScratch;
         Array<Vec2> m_screenScratch;
         Array<Vec2> m_outlineScratch;
         Table<InstanceId, PieceCache> m_pieceCache;

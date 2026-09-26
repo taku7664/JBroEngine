@@ -474,7 +474,7 @@ namespace
         return desc;
     }
 
-    // **캔버스를 열 때의 워커 로드**(D-233). 아이디를 모으고, 워커가 주인 텍스처를 디코드하고, 메인이 풀에 넣은 뒤
+    // **캔버스를 열 때의 워커 로드**(D-236). 아이디를 모으고, 워커가 주인 텍스처를 디코드하고, 메인이 풀에 넣은 뒤
     // 바인딩은 실린 것을 찾아 참조만 올린다. 모으기는 겹친 것과 빈 아이디를 뺀다.
     void TestTheCanvasAssetsLoadOnWorkersThenBind()
     {
@@ -594,7 +594,7 @@ namespace
         const JBro::LooseAssetSource& m_inner;
     };
 
-    // 워커에서 읽을 수 없는 소스면 워커로 보내지 않고, 바인딩이 동기로 싣는다(D-233). 폴더 소스는 워커에서 읽는다.
+    // 워커에서 읽을 수 없는 소스면 워커로 보내지 않고, 바인딩이 동기로 싣는다(D-236). 폴더 소스는 워커에서 읽는다.
     void TestASourceThatCannotReadOnWorkersLoadsInPlace()
     {
         Fixture fixture;

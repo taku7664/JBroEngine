@@ -1,5 +1,7 @@
 ﻿#include <JBro/Canvas/CanvasFile.h>
 
+#include <JBro/Runtime/GameObjectHandleReflection.h>
+
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Canvas/Layer.h>
@@ -123,6 +125,20 @@ namespace JBro
         {
             indexOf.TryAdd(ordered[i], i);
         }
+
+        // **오브젝트 참조 필드는 파일 안 번호로 적는다**(D-233). 오브젝트 번호는 실행마다 달라 파일에 남길 수 없다.
+        Table<InstanceId, std::int64_t> fileIndexOf;
+        for (std::size_t i = 0; i < ordered.Size(); ++i)
+        {
+            fileIndexOf.TryAdd(ordered[i]->GetInstanceId(), static_cast<std::int64_t>(i));
+        }
+        Internal::ObjectRefRemap remap;
+        remap.user = &fileIndexOf;
+        remap.toIndex = [](void* user, InstanceId objectId) -> std::int64_t {
+            const std::int64_t* found = static_cast<Table<InstanceId, std::int64_t>*>(user)->Find(objectId);
+            return found != nullptr ? *found : -1;
+        };
+        ObjectRefRemapScope remapScope(remap);
 
         YamlWriter writer;
         writer.WriteInt("Version", static_cast<std::int64_t>(CanvasFileVersion));
@@ -286,6 +302,7 @@ namespace JBro
             layerOf.TryAdd(static_cast<std::uint64_t>(fileId), layer->GetId());
         }
 
+        // **오브젝트를 모두 만든 뒤 컴포넌트를 읽는다**(D-233). 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다.
         const std::uint32_t objects = document.Find(root, "Objects");
         Array<GameObject*> created;
         for (std::size_t i = 0; i < document.GetCount(objects); ++i)
@@ -336,6 +353,22 @@ namespace JBro
                 }
                 canvas.SetObjectLayer(object, *mapped);
             }
+        }
+
+        Internal::ObjectRefRemap remap;
+        remap.user = &created;
+        remap.toObjectId = [](void* user, std::int64_t index) -> InstanceId {
+            const Array<GameObject*>& objects = *static_cast<Array<GameObject*>*>(user);
+            return index >= 0 && static_cast<std::size_t>(index) < objects.Size()
+                ? objects[static_cast<std::size_t>(index)]->GetInstanceId()
+                : InvalidInstanceId;
+        };
+        ObjectRefRemapScope remapScope(remap);
+        for (std::size_t i = 0; i < created.Size(); ++i)
+        {
+            const std::uint32_t entry = document.GetElement(objects, i);
+            GameObject* object = created[i];
+            error.objectName = object->GetTag();
 
             const std::uint32_t components = document.Find(entry, "Components");
             for (std::size_t c = 0; c < document.GetCount(components); ++c)

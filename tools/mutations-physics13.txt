@@ -1,0 +1,17 @@
+Modules\JBroPhysics2D\Source\World.cpp	ccd:off	ClampToFirstHit(body, static_cast<std::uint32_t>(&body - m_bodies.Data()), startCenter);	(void)startCenter;
+Modules\JBroPhysics2D\Source\World.cpp	ccd:start-overlap-stops	if (found && distance > 0.0f && distance < best)	if (found && distance < best)
+Modules\JBroPhysics2D\Source\World.cpp	ccd:oneway-not-skipped	target.isTrigger || target.oneWay || target.body == bodyIndex	target.isTrigger || target.body == bodyIndex
+Modules\JBroPhysics2D\Source\World.cpp	ccd:chain-skipped	static_cast<std::uint32_t>(target.isChain ? target.segments.Size() : target.pieces.Size())	static_cast<std::uint32_t>(target.isChain ? 0u : target.pieces.Size())
+Modules\JBroPhysics2D\Source\World.cpp	ccd:no-backoff	std::fmax(best - LinearSlop, 0.0f)	best
+Modules\JBroPhysics2D\Source\World.cpp	ccd:threshold-high	> 0.5f * body.coreExtent	> 50.0f * body.coreExtent
+Modules\JBroPhysics2D\Source\World.cpp	ccd:circle-extent-zero	keep(shape.circle.radius);	keep(0.0f);
+Modules\JBroPhysics2D\Source\World.cpp	ccd:dynamic-targets	if (other.type == BodyType::Dynamic)\n                    {\n                        continue;	if (false)\n                    {\n                        continue;
+Modules\JBroPhysics2D\Source\World.cpp	color:always	const bool colored = solved >= ColoredSolveThreshold;	const bool colored = true;
+Modules\JBroPhysics2D\Source\World.cpp	color:never	const bool colored = solved >= ColoredSolveThreshold;	const bool colored = false;
+Modules\JBroPhysics2D\Source\World.cpp	color:ignores-body-a	used |= m_bodyColors[contact.bodyA];	(void)0;
+Modules\JBroPhysics2D\Source\World.cpp	color:overflow-parallel	workers > 0 && color < OverflowColor && count	workers > 0 && count
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	cull:off	if (middle.x + reach < area.min.x	if (false && middle.x + reach < area.min.x
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	cull:circle-reach	reach = collider.radius * largest;	reach = 0.0f;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	cull:scale-ignored	const Vec2 magnitude{ std::fabs(objectPose.scale.x), std::fabs(objectPose.scale.y) };	const Vec2 magnitude{ 1.0f, 1.0f };
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	cull:points-ignored	reach = std::fmax(reach, std::sqrt(point.x * point.x * magnitude.x * magnitude.x	reach = std::fmax(reach, 0.0f * std::sqrt(point.x * point.x * magnitude.x * magnitude.x
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	cull:cast-radius	SweptArea(origin, direction, distance, radius)	SweptArea(origin, direction, distance, 0.0f)
