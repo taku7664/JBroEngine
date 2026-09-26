@@ -244,7 +244,8 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      드러나지 않아 검사를 더했고 8/8. `[열림]`: 모양을 바꿀 때마다 분해(`DecomposePolygon` 안의 임시 배열)와 `UpdateMass` 가 할당한다 -
      크기를 움직이는 동안은 스텝마다다. 도형을 새로 만들던 전보다 늘지는 않았다. ~~(2) 캡슐은 충돌하지 않는다~~(§4 의 7 에서 섰다). (3) 부모가 회전과 비균등 크기를 함께 가지면
      되쓰기가 찌그러짐을 무시한다. (4) 부모에 Transform 이 있는데 꺼져 있으면 그 아래 콜라이더는 물리에서 빠진다(ProjectRule 의
-     규칙대로다. 옛 질의 코드는 그런 부모를 루트로 보았다). (5) 실제 에디터에서 재생해 본 확인은 아직 없다.
+     규칙대로다. 옛 질의 코드는 그런 부모를 루트로 보았다). ~~(5) 실제 에디터에서 재생해 본 확인은 아직 없다~~ → `e6f43c5` · `EditorApplicationTests::TestPlayingRunsPhysicsAndStoppingPutsItBack`
+     (에디터 호스트와 같은 `EditorApplication` 의 재생 경로로 상자와 캡슐이 떨어져 서고, 정지하면 제자리). 호스트 실행 파일을 손으로 띄워 본 것은 아니다.
 5. ~~**에디터.** 인스펙터의 `points` 편집(커맨드), 캔버스 뷰의 폴리곤과 조각 그리기, 거절된 폴리곤 표시, 포인트 끌기 도구~~
    → 2026-09-26 · `1d66967`·`e018275` · `JBroEditor/Source/Panel/CanvasViewPanel.cpp`(`DrawColliders`·`DrawPolygonEditor`·
    `DrawVertexMenu`), `JBro/Editor/Gizmo/PolygonEditModel.h`.
