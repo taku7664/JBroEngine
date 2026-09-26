@@ -10634,6 +10634,7 @@ namespace
         Spot item;
         Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "Probe Item"), item),
             "the hook's item stands in the header menu itself, not in a submenu");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "component_menu_inspector");
         // 항목을 누르면 메뉴가 닫힌다(창에 포커스가 없어 Esc 는 닿지 않는다).
         ClickAt(editor, hwnd, item);
         for (int frame = 0; frame < 2; ++frame)
@@ -10751,6 +10752,7 @@ namespace
         Spot item;
         ImGuiWindow* menu = nullptr;
         ImGuiWindow* submenu = nullptr;
+        bool shot = false;
         const auto pickSecond = [&]() {
             Check(FindHierarchyRow(editor, hwnd, cup, row), "the cup's row must be in the hierarchy");
             RightClickAt(editor, hwnd, row);
@@ -10767,6 +10769,11 @@ namespace
             Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
                 "the collider's submenu must offer to edit its points");
             Check(false == ImGui::GetCurrentContext()->HoveredIdIsDisabled, "a polygon's points can be edited");
+            if (false == shot)
+            {
+                // `JBRO_EDITOR_SHOT` 이 있을 때만 찍는다. 하위 메뉴가 열린 모양을 사람이 본다.
+                SaveScreenshot(*editor.GetRenderer(), 1280, 720, "component_menu_submenu");
+            }
             ClickAt(editor, hwnd, item);
             for (int frame = 0; frame < 2; ++frame)
             {
@@ -10774,6 +10781,11 @@ namespace
             }
             Check(hoveredAt(rightCorner) == vertex, "the collider picked from the menu is the one edited");
             Check(hoveredAt(leftCorner) != vertex, "not the first one");
+            if (false == shot)
+            {
+                SaveScreenshot(*editor.GetRenderer(), 1280, 720, "component_menu_editing_second");
+                shot = true;
+            }
         };
         pickSecond();
 
