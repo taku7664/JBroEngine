@@ -30,6 +30,8 @@ namespace JBro::System
         {
             AudioClipDesc desc;
             desc.gain = data.options.gain;
+            desc.maxInstances = data.options.maxInstances > 0 ? static_cast<std::uint32_t>(data.options.maxInstances) : 0;
+            desc.cooldownSeconds = Finite(data.options.cooldown, 0.0f);
             desc.frameCount = data.frameCount;
             desc.sampleRate = data.sampleRate;
             desc.channels = data.channels;
@@ -75,6 +77,8 @@ namespace JBro::System
         if (m_assets != nullptr)
         {
             m_assets->SetAudioReleaseListener(&AudioSystem::OnAudioReleased, this);
+            // 미리 푸는 소리는 믹서의 레이트로 풀어 둔다 - 재생 때 보이스마다 리샘플하지 않는다(D-231).
+            m_assets->SetAudioDecodeSampleRate(mixer.GetSampleRate());
         }
         m_systemContext = {};
         m_systemContext.Audio = this;
@@ -94,6 +98,7 @@ namespace JBro::System
         if (m_assets != nullptr)
         {
             m_assets->SetAudioReleaseListener(nullptr, nullptr);
+            m_assets->SetAudioDecodeSampleRate(0);
         }
         for (auto it = m_clips.begin(); it != m_clips.end(); ++it)
         {

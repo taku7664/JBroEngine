@@ -258,7 +258,8 @@ namespace JBro
                 }
                 const AudioFormat format = decoder.GetFormat();
                 read.sampleRate = format.sampleRate;
-                read.channels = format.channels;
+                // 모노면 믹서의 스트리머가 연 디코더에 `SetMono` 를 건다 - 클립의 채널 1 이 그 신호다(D-231).
+                read.channels = read.options.mono ? 1 : format.channels;
                 read.frameCount = format.frameCount;
                 read.streamPath = job.sourcePath;
                 job.decoded = true;
@@ -274,9 +275,12 @@ namespace JBro
             view.data = encoded.Data();
             view.size = static_cast<std::uint32_t>(encoded.Size());
             AudioFormat format;
+            AudioDecodeTarget target;
+            target.sampleRate = job.audioSampleRate;
+            target.mono = read.options.mono;
             const bool decoded = read.options.mode == AudioImportMode::Streaming
                 ? ProbeAudio(view, format)
-                : DecodeAudio(view, format, read.pcm);
+                : DecodeAudio(view, format, read.pcm, target);
             if (false == decoded)
             {
                 job.failure = job.sourcePath + ": not an audio file this engine can decode";
@@ -287,7 +291,8 @@ namespace JBro
                 read.encoded = std::move(encoded);
             }
             read.sampleRate = format.sampleRate;
-            read.channels = format.channels;
+            // `Streaming` 은 보이스마다 여는 디코더가 클립의 채널로 푼다 - 모노면 1 로 알린다(D-231).
+            read.channels = read.options.mono ? 1 : format.channels;
             read.frameCount = format.frameCount;
             job.decoded = true;
             return true;
@@ -390,6 +395,7 @@ namespace JBro
         job.type = AssetType::Audio;
         job.sourcePath = SourcePathOf(record);
         job.audio.options = meta.hasAudioOptions ? meta.audioOptions : AudioImportOptions{};
+        job.audioSampleRate = m_audioDecodeSampleRate;
         if (false == DecodeAssetFile(*m_platform, job))
         {
             // 파일이 없는 것은 조용히 둔다(전과 같다). 풀지 못한 것만 말한다.
@@ -445,6 +451,7 @@ namespace JBro
             return false;
         }
         job.audio.options = meta.hasAudioOptions ? meta.audioOptions : AudioImportOptions{};
+        job.audioSampleRate = m_audioDecodeSampleRate;
         return true;
     }
 
@@ -663,6 +670,11 @@ namespace JBro
     {
         m_audioRelease = callback;
         m_audioReleaseUser = callback != nullptr ? user : nullptr;
+    }
+
+    void AssetSystem::SetAudioDecodeSampleRate(std::uint32_t sampleRate)
+    {
+        m_audioDecodeSampleRate = sampleRate;
     }
 
     const AudioData* AssetSystem::GetAudio(AssetHandle handle) const

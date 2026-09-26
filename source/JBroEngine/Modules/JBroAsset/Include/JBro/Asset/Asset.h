@@ -107,6 +107,8 @@ namespace JBro
         String sourcePath;
         TextureData texture;
         AudioData audio;
+        // `Decompressed` 오디오를 풀 샘플 레이트다(0 이면 파일 그대로, D-231). 에셋 시스템의 값을 준비할 때 떠 온다 - 워커는 에셋 시스템을 보지 않는다.
+        std::uint32_t audioSampleRate = 0;
         bool decoded = false;
         String failure;
     };
@@ -172,6 +174,9 @@ namespace JBro
         const StringTableData* GetStringTable(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
+        // `Decompressed` 오디오를 이 샘플 레이트로 풀어 둔다(0 이면 파일 그대로, D-231). 오디오 시스템이 믹서의 레이트를 건다.
+        // 이미 로드된 자료는 바꾸지 않는다 - 다음 로드부터다.
+        void SetAudioDecodeSampleRate(std::uint32_t sampleRate);
         // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
         bool ComputeAudioPeaks(AssetHandle handle, std::uint32_t buckets, Array<float>& peaks);
 
@@ -257,6 +262,7 @@ namespace JBro
         Pool<FontFamilyData> m_fontFamilies;
         Pool<StringTableData> m_stringTables;
         AudioReleaseCallback m_audioRelease = nullptr;
+        std::uint32_t m_audioDecodeSampleRate = 0;
         void* m_audioReleaseUser = nullptr;
         Table<AssetId, AssetHandle> m_loaded;
     };

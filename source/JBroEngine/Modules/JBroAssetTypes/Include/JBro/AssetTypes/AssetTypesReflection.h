@@ -90,8 +90,11 @@ namespace JBro
             {
                 MakeFieldEntry<&AudioImportOptions::mode>(),
                 MakeFieldEntry<&AudioImportOptions::gain>(Attribute::Range(0, 4)),
+                MakeFieldEntry<&AudioImportOptions::mono>(),
+                MakeFieldEntry<&AudioImportOptions::maxInstances>(Attribute::Range(0, 64)),
+                MakeFieldEntry<&AudioImportOptions::cooldown>(Attribute::Range(0, 5)),
             };
-            static const StaticPropertyTable<2> fields { entries };
+            static const StaticPropertyTable<5> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<AudioImportOptions>("JBro.AudioImportOptions", fields.Get());
             return descriptor;
