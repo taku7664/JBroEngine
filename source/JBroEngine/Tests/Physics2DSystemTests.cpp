@@ -438,6 +438,33 @@ namespace
             "a box passing above everything misses");
     }
 
+    // **크기를 움직이는 콜라이더는 닿아 있는 동안 훅을 되풀이하지 않는다.** 전에는 모양이 바뀔 때마다 도형을 지우고 만들어
+    // 스텝마다 끝·시작이 불렸다. 트리거로 바꾸는 것은 훅의 종류가 바뀌므로 끝나고 새로 시작한다.
+    void TestAnAnimatedColliderKeepsItsContact()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
+        Collider2D* collider = scene.Box(box, { 1, 1 });
+        scene.Dynamic(box);
+        ContactProbe* probe = scene.Probe(box);
+        scene.Run(0.5f);
+        Check(probe->collisionEnter == 1, "the box lands once");
+
+        for (int i = 0; i < 60; ++i)
+        {
+            collider->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
+            scene.physics.FixedUpdate(scene.canvas, Frame);
+        }
+        Check(probe->collisionEnter == 1 && probe->collisionExit == 0, "resizing it every step keeps the one contact");
+        Check(Near(scene.TransformOf(box)->position.y, 0.5f, 2.0f * Slop), "and it stays on the ground");
+
+        collider->isTrigger = true;
+        scene.Run(0.2f);
+        Check(probe->collisionExit == 1 && probe->triggerEnter == 1, "turning it into a trigger ends the collision");
+    }
+
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
     // 것도 캡슐로 남고, 질의는 둥근 끝 옆의 빈 곳을 캡슐로 보지 않는다.
     void TestCapsuleColliders()
@@ -566,6 +593,7 @@ int RunPhysics2DSystemTests()
     TestTheWiderQueries();
     TestAStaticBodyFollowsItsTransform();
     TestCapsuleColliders();
+    TestAnAnimatedColliderKeepsItsContact();
     TestAnEmptyPolygonCollidesAsItsSizeBox();
     TestScaleGrowsTheShape();
     TestAnOffCenterBodyTurnsAboutItsCenterOfMass();

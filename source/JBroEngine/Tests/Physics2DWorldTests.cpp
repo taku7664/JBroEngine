@@ -515,6 +515,49 @@ namespace
         Check(Near(mass.mass, 1.0f, 0.0f) && Near(mass.inertia, unit.inertia / unit.mass, 1.0e-5f),
             "the requested mass spreads over the capsule's shape");
     }
+
+    // **모양을 제자리에서 바꾸면 닿아 있던 쌍이 이어진다(physics-plan §4 의 4 (1)).** 크기를 움직이는 상자가 바닥에 서 있는
+    // 동안 끝·시작 이벤트가 나지 않고, 틀린 외곽선은 모양을 그대로 두고, 레이어를 바꿔 거르면 그제야 끝난다.
+    void TestReshapingKeepsTheContact()
+    {
+        World world;
+        AddGround(world);
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        const ShapeId shape = AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        Run(world, 0.5f);
+        Check(world.GetBeginEvents().IsEmpty() && world.GetEndEvents().IsEmpty(), "the box has settled");
+
+        int begins = 0;
+        int ends = 0;
+        for (int i = 0; i < 60; ++i)
+        {
+            const float half = 0.5f + 0.02f * static_cast<float>(i % 5);
+            Check(world.SetPolygonGeometry(shape, BoxOutline(half, 0.5f).View()) == JBro::Physics2D::PolygonError::None,
+                "a wider box is accepted");
+            world.Step(Frame);
+            begins += static_cast<int>(world.GetBeginEvents().Size());
+            ends += static_cast<int>(world.GetEndEvents().Size());
+        }
+        Check(world.IsValid(shape) && begins == 0 && ends == 0, "growing and shrinking it in place never ends the contact");
+        Check(Near(world.GetPosition(box).y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "and it stays on the ground");
+
+        const Array<Vec2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
+        Check(world.SetPolygonGeometry(shape, bowTie.View()) == JBro::Physics2D::PolygonError::SelfIntersecting
+            && world.GetChildCount(shape) == 1, "a wrong outline is refused and the old box stays");
+
+        Check(world.SetCapsuleGeometry(shape, { -0.5f, 0 }, { 0.5f, 0 }, 0.5f) && world.GetPolygonChild(shape, 0)->count == 2,
+            "the same shape can turn into a capsule");
+        Check(world.SetCapsuleGeometry(shape, { 0, 0 }, { 0, 0.001f }, 0.5f) && world.GetPolygonChild(shape, 0) == nullptr,
+            "or, too short, a circle");
+        Run(world, 0.5f);
+
+        ShapeDef apart;
+        apart.layer = 0x2u;
+        apart.mask = 0x2u;
+        world.SetSurface(shape, apart);
+        world.Step(Frame);
+        Check(world.GetEndEvents().Size() == 1, "filtering it out by layer ends the contact");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -534,6 +577,7 @@ int RunPhysics2DWorldTests()
     TestAKinematicBodyPushesADynamicOne();
     TestHandlesAndMassUpdates();
     TestCapsulesRestOnTheGround();
+    TestReshapingKeepsTheContact();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

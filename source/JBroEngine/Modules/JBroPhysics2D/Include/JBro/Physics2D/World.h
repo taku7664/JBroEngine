@@ -113,6 +113,15 @@ namespace JBro::Physics2D
         // 선분 a-b(바디 로컬)에 반지름을 두른 캡슐. 조각 하나(두 점 + radius)로 든다. 두 점이 LinearSlop 안이면 원이다.
         ShapeId CreateCapsuleShape(BodyId body, Vec2 localA, Vec2 localB, float radius, const ShapeDef& def);
         void    DestroyShape(ShapeId shape);
+
+        // 도형의 모양만 바꾼다(크기 애니메이션, physics-plan §4 의 4 (1)). 번호와 표면 성질은 그대로라 닿아 있던 쌍이 계속 닿아
+        // 있으면 끝·시작 이벤트가 나지 않는다. 모양의 종류(원·폴리곤·캡슐)도 바뀔 수 있다. 틀린 외곽선이면 모양을 두고 오류를 돌려준다.
+        PolygonError SetPolygonGeometry(ShapeId shape, ArrayView<const Vec2> localOutline);
+        bool         SetCircleGeometry(ShapeId shape, const Circle& localCircle);
+        bool         SetCapsuleGeometry(ShapeId shape, Vec2 localA, Vec2 localB, float radius);
+        // 마찰·반발·레이어·마스크를 바꾼다. 트리거 여부와 userData 는 도형을 새로 만들어야 바뀐다 - 트리거가 되면 훅의 종류가
+        // 달라지므로 끝나고 새로 시작하는 것이 맞다.
+        void         SetSurface(ShapeId shape, const ShapeDef& def);
         bool    IsValid(ShapeId shape) const;
         std::uint32_t GetChildCount(ShapeId shape) const;
         const ConvexPolygon* GetPolygonChild(ShapeId shape, std::uint32_t child) const;
@@ -258,6 +267,8 @@ namespace JBro::Physics2D
         Array<TouchingPair>  m_touching;
         Array<TouchingPair>  m_previousTouching;
         Array<ContactEvent>  m_beginEvents;
+        // 모양 바꾸기의 분해 결과. 도형의 조각 배열과 맞바꿔 두 배열 모두 용량이 남는다.
+        Array<ConvexPolygon> m_scratchPieces;
         Array<ContactEvent>  m_endEvents;
     };
 }
