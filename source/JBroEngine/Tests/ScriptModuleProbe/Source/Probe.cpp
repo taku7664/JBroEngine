@@ -6,6 +6,7 @@
 #include <JBro/LocalizationTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
+#include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/NameTable.h>
 
@@ -241,6 +242,27 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRevision() noe
 extern "C" __declspec(dllexport) bool JBroScriptProbe_IsKeyDown(std::uint16_t key) noexcept
 {
     return JBro::GetInputServices().Input.Keyboard().IsDown(static_cast<JBro::Key>(key));
+}
+
+// 시간과 난수가 DLL 까지 닿는다(D-231). 공통 컨텍스트는 `BindScriptModuleContexts` 가 묶는다 - 확장 블록이 필요 없다.
+extern "C" __declspec(dllexport) float JBroScriptProbe_GetDeltaTime() noexcept
+{
+    return JBro::GetServiceContext().Time.DeltaTime();
+}
+
+extern "C" __declspec(dllexport) std::uint64_t JBroScriptProbe_GetFrameCount() noexcept
+{
+    return JBro::GetServiceContext().Time.FrameCount();
+}
+
+extern "C" __declspec(dllexport) void JBroScriptProbe_SetRandomSeed(std::uint64_t seed) noexcept
+{
+    JBro::GetServiceContext().Random.SetSeed(seed);
+}
+
+extern "C" __declspec(dllexport) std::int32_t JBroScriptProbe_RandomRange(std::int32_t min, std::int32_t max) noexcept
+{
+    return JBro::GetServiceContext().Random.Range(min, max);
 }
 
 // DLL 안의 스크립트가 세이브를 쓰고 되읽는다(D-218). 읽은 바이트는 이 DLL 의 힙에 놓인다 - 호스트가 DLL 의 컨테이너를 키우지 않는지 본다.

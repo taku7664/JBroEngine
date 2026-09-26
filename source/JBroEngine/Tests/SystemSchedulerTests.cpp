@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestClock.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Core/Profiler.h>
 
@@ -71,34 +72,39 @@ namespace
     {
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
-        context.fixedDeltaTime = 0.0f;
-        Check(false == framework.Initialize(context), "zero fixed step must be rejected");
-        context.fixedDeltaTime = (std::numeric_limits<float>::infinity)();
-        Check(false == framework.Initialize(context), "nonfinite fixed step must be rejected");
-        context.fixedDeltaTime = 0.25f;
-        context.maxFixedStepsPerFrame = 2;
+        Check(false == framework.Initialize(context), "a framework without the host clock must be rejected (D-231)");
+        // 틀린 고정 스텝은 이제 시계가 거절한다(TimeTests). 여기서는 상한이 스텝 수를 자르고 빚이 남지 않는지를 본다 -
+        // 델타 상한을 넉넉히 두어 3 초 프레임이 잘리지 않고 스텝 상한에 닿게 한다.
+        JBro::TimeSettings settings;
+        settings.fixedDeltaTime = 0.25f;
+        settings.maxFixedSteps = 2;
+        settings.maxDeltaTime = 10.0f;
+        JBro::Testing::AttachClock(context, settings);
         Check(framework.Initialize(context), "valid fixed step configuration must initialize");
         auto* canvas = framework.GetCanvas();
         auto* object = canvas->CreateObject("body");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         auto* body = canvas->AttachComponent<JBro::Component::Rigidbody2D>(object);
-        framework.Update(3.0f);
+        JBro::Testing::Tick(framework, 3.0f);
         Check(std::fabs(body->linearVelocity.y + 4.905f) < 0.0001f, "long frame must execute at most two physics steps");
         Check(std::fabs(transform->worldPosition.y - transform->position.y) < 0.0001f
             && transform->worldValid,
             "transform propagation must follow the fixed physics steps");
         const float position = transform->position.y;
-        framework.Update(0.125f);
+        JBro::Testing::Tick(framework, 0.125f);
         Check(transform->position.y == position, "excess whole-step debt must not leak into later frames");
-        framework.Update((std::numeric_limits<float>::quiet_NaN)());
-        Check(transform->position.y == position, "invalid frame time must not enter the physics accumulator");
+        Check(false == JBro::Testing::SharedClock().BeginFrame((std::numeric_limits<float>::quiet_NaN)()),
+            "invalid frame time must be refused before it reaches the accumulator");
+        Check(transform->position.y == position, "and the body must not move");
         framework.Shutdown();
+        // 새 프로젝트의 게임 시간은 호스트가 처음으로 되돌린다(`RestartGameTime`). 누산기가 시계에 있으므로 여기서 같은 일을 한다.
+        JBro::Testing::AttachClock(context, settings);
         Check(framework.Initialize(context), "framework must reopen");
         canvas = framework.GetCanvas();
         object = canvas->CreateObject("reopened body");
         canvas->AttachComponent<JBro::Component::Transform2D>(object);
         body = canvas->AttachComponent<JBro::Component::Rigidbody2D>(object);
-        framework.Update(0.125f);
+        JBro::Testing::Tick(framework, 0.125f);
         Check(body->linearVelocity.y == 0.0f, "project reopening must reset the fractional fixed-step accumulator");
     }
 

@@ -132,6 +132,14 @@ namespace JBro
         // 2D 픽셀 아트가 기본 대상이라 `Nearest` 다. `Default` 는 파일에 적을 수 없다.
         TextureFilter textureFilter = TextureFilter::Nearest;
         bool          debugModeEnabled = false;
+        // 시간(D-231). 고정 스텝 하나의 길이(`FixedDeltaTime`, 0.001~1 초)·한 프레임의 스텝 상한(`MaxFixedSteps`, 1~64)·한 프레임 델타의
+        // 상한(`MaxDeltaTime`, 0 초과 10 이하)이다. 범위를 벗어나면 파일이 거절된다. 기본값이면 파일에 적지 않는다.
+        float         fixedDeltaTime = 1.0f / 60.0f;
+        std::uint32_t maxFixedSteps = 4;
+        float         maxDeltaTime = 0.25f;
+        // 엔진 난수 흐름의 씨앗(`RandomSeed`, D-231)이다. 0 이면 재생마다 새로 뽑고 그 수를 로그에 남긴다 - 그 수를 여기 적으면 같은
+        // 수열을 다시 본다. 0 이면 적지 않는다.
+        std::uint64_t randomSeed = 0;
         // 에디터가 스크립트를 빌드해 내놓는 자리다. 프로젝트 루트 기준 상대경로다.
         String        scriptSourceDirectory = "Contents";
         String        scriptOutputLibraryPath = "x64/Debug/GameScript.dll";

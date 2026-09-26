@@ -40,12 +40,18 @@ namespace
             return JBro::MakeStableTypeId(StaticTypeName());
         }
 
-        void OnUpdate(float deltaTime) override
+        void OnUpdate() override
         {
-            elapsed += deltaTime;
+            ++updates;
         }
 
-        float elapsed = 0.0f;
+        void OnFixedUpdate() override
+        {
+            ++fixedUpdates;
+        }
+
+        int updates = 0;
+        int fixedUpdates = 0;
     };
 
     static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::GameScriptBase>);
@@ -101,12 +107,12 @@ int RunGameScriptTests()
     JBro::GameScriptBase& base = *script;
     base.OnCreate();
     base.OnStart();
-    base.OnFixedUpdate(0.25f);
-    base.OnUpdate(0.5f);
+    base.OnFixedUpdate();
+    base.OnUpdate();
     script->OnCollisionEnter({});
     script->OnCollisionExit({});
     base.OnDestroy();
-    if (script->elapsed != 0.5f)
+    if (script->updates != 1 || script->fixedUpdates != 1)
     {
         throw std::runtime_error("common script hook must dispatch through the Runtime base");
     }

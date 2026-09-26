@@ -1,4 +1,10 @@
-﻿#include <JBro/Core/Log.h>
+﻿#include "TestClock.h"
+
+#include <JBro/Canvas/Canvas.h>
+#include <JBro/Core/Log.h>
+#include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Core/RandomStream.h>
 #include <JBro/Host/RandomSystem.h>
 #include <JBro/Host/TimeSystem.h>
@@ -375,6 +381,122 @@ namespace
         Check(services.Random.UInt32() == reference.NextUInt32(), "an unbound random service draws from its own seeded stream");
     }
 
+    // ── 프레임워크 ───────────────────────────────────────────────────────
+
+    // 훅은 인자 없이 서비스에서 시간을 읽는다(D-231).
+    class ClockProbe final : public JBro::GameScript2D
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Tests::ClockProbe";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        void OnUpdate() override
+        {
+            const JBro::Service::TimeService& time = JBro::GetServiceContext().Time;
+            ++updates;
+            updateDelta = time.DeltaTime();
+            updateInFixedStep = time.IsInFixedStep();
+        }
+
+        void OnFixedUpdate() override
+        {
+            const JBro::Service::TimeService& time = JBro::GetServiceContext().Time;
+            ++fixedUpdates;
+            fixedDelta = time.DeltaTime();
+            fixedInFixedStep = time.IsInFixedStep();
+            fixedTime = time.Time();
+        }
+
+        void Reset()
+        {
+            updates = 0;
+            fixedUpdates = 0;
+            updateDelta = -1.0f;
+            fixedDelta = -1.0f;
+        }
+
+        int updates = 0;
+        int fixedUpdates = 0;
+        float updateDelta = -1.0f;
+        float fixedDelta = -1.0f;
+        bool updateInFixedStep = true;
+        bool fixedInFixedStep = false;
+        double fixedTime = -1.0;
+    };
+
+    void TestScriptsReadTheClockThroughTheService()
+    {
+        JBro::Framework2D framework;
+        JBro::FrameworkContext context;
+        Check(false == framework.Initialize(context), "a framework must refuse to start without the host clock");
+        JBro::Testing::AttachClock(context);
+        Check(framework.Initialize(context), "the framework starts with the clock");
+        JBro::Canvas* canvas = framework.GetCanvas();
+        ClockProbe* probe = canvas->AttachComponent<ClockProbe>(canvas->CreateObject("clock"));
+        Check(probe != nullptr, "the probe script must attach");
+
+        // 첫 프레임은 스크립트가 시작하는 프레임이다. 고정 스텝은 시작한 스크립트만 받으므로 한 프레임을 먼저 돈다.
+        JBro::Testing::Tick(framework, Sixtieth);
+        probe->Reset();
+        JBro::Testing::Tick(framework, 0.04f);
+        Check(probe->updates == 1 && Near(probe->updateDelta, 0.04), "OnUpdate reads the frame delta from the service");
+        Check(false == probe->updateInFixedStep, "and knows it is outside a fixed step");
+        Check(probe->fixedUpdates == 2, "0.04 s after an exact step is two fixed steps");
+        Check(Near(probe->fixedDelta, Sixtieth) && probe->fixedInFixedStep, "OnFixedUpdate reads the fixed delta, inside a step");
+        Check(Near(probe->fixedTime, 3.0 * Sixtieth), "and the fixed time of its own step");
+
+        Check(JBro::GetServiceContext().Time.SetTimeScale(0.5f), "a script may slow the game down");
+        probe->Reset();
+        JBro::Testing::Tick(framework, 0.04f);
+        Check(Near(probe->updateDelta, 0.02), "half speed halves the delta a script reads");
+
+        // 멈춤: 호스트는 프레임워크와 시계를 함께 세운다(`EngineInstance::SetSimulationEnabled`).
+        framework.SetSimulationEnabled(false);
+        JBro::Testing::SharedClock().SetPaused(true);
+        probe->Reset();
+        JBro::Testing::Tick(framework, 0.04f);
+        Check(probe->updates == 0 && probe->fixedUpdates == 0, "a paused game runs no hooks");
+
+        JBro::Testing::SharedClock().RequestStep();
+        JBro::Testing::Tick(framework, 0.5f);
+        Check(probe->updates == 1 && probe->fixedUpdates == 1, "a single-frame step runs one fixed step and one update");
+        Check(Near(probe->fixedDelta, Sixtieth) && Near(probe->updateDelta, Sixtieth), "and both read one fixed delta");
+        probe->Reset();
+        JBro::Testing::Tick(framework, 0.04f);
+        Check(probe->updates == 0 && probe->fixedUpdates == 0, "after the step the scripts are stopped again");
+
+        framework.SetSimulationEnabled(true);
+        JBro::Testing::SharedClock().SetPaused(false);
+        probe->Reset();
+        JBro::Testing::Tick(framework, 0.04f);
+        Check(probe->updates == 1, "resuming runs the hooks again");
+        framework.Shutdown();
+    }
+
+    // 3D 도 멈추면 고정 스텝을 돌리지 않는다. 전에는 3D 만 제 누산기로 멈춘 동안에도 스텝을 돌렸다(time-plan T4).
+    void TestThreeDimensionalFrameworkHonoursPause()
+    {
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        Check(framework.Initialize(context), "the 3D framework starts with the clock");
+        framework.SetSimulationEnabled(false);
+        const double before = JBro::Testing::SharedClock().GetFrameTime().fixedTime;
+        JBro::Testing::Tick(framework, 0.1f);
+        Check(JBro::Testing::SharedClock().GetFrameTime().fixedTime == before, "a stopped 3D game must not run fixed steps");
+        framework.SetSimulationEnabled(true);
+        JBro::Testing::Tick(framework, 0.1f);
+        Check(JBro::Testing::SharedClock().GetFrameTime().fixedTime > before, "a running one must");
+        framework.Shutdown();
+    }
+
     void TestRandomServiceUsesTheEngineStream()
     {
         const bool echo = JBro::Log::GetEchoToConsole();
@@ -433,6 +555,8 @@ int RunTimeTests()
         TestServiceReadsFixedStepValuesInsideSteps();
         TestUnboundServicesAreHarmless();
         TestRandomServiceUsesTheEngineStream();
+        TestScriptsReadTheClockThroughTheService();
+        TestThreeDimensionalFrameworkHonoursPause();
     }
     catch (const std::exception&)
     {

@@ -3,6 +3,9 @@
 #include <JBro/Host/EngineInstance.h>
 
 #include <JBro/Input/InputSystem.h>
+#include <JBro/Host/RandomSystem.h>
+#include <JBro/Runtime/ServiceContext.h>
+#include <JBro/Runtime/SystemContext.h>
 #include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Host/SaveStorage.h>
@@ -85,8 +88,7 @@ namespace JBro
     bool EngineInstance::Initialize(const EngineConfig& config, IPlatform& platform,
         IRHIModule& rhi)
     {
-        if (m_state != State::Stopped || false == std::isfinite(config.fixedDeltaTime)
-            || config.fixedDeltaTime <= 0.0f || config.maxFixedStepsPerFrame == 0)
+        if (m_state != State::Stopped || false == System::TimeSystem::IsValid(config.time))
         {
             return false;
         }
@@ -130,6 +132,20 @@ namespace JBro
                 }
                 m_frameworkContext.memory.frame = m_frameMemory->GetInterface();
             }
+            // 시계와 난수(D-231). 엔진 수명이다. 이 모듈 사본의 공통 시스템 컨텍스트에 묶는다 - 호스트 안에서 붙인 스크립트도 같은 것을
+            // 읽고, 스크립트 DLL 은 로더가 이 컨텍스트를 넘긴다(`ScriptDLLLoader` 가 `GetSystemContext()` 를 준다).
+            m_time = MakeOwnerPtr<System::TimeSystem>();
+            m_time->Configure(config.time);
+            m_time->SetPaused(false == m_simulationEnabled);
+            m_random = MakeOwnerPtr<System::RandomSystem>();
+            {
+                SystemContext systems;
+                systems.Time = m_time.Get();
+                systems.Random = m_random.Get();
+                BindSystemContext(systems);
+                BindServiceContext({});
+            }
+            m_frameworkContext.time = m_time.Get();
             // 네트워크(D-122). 소켓은 플랫폼이 내어 주고, 없는 플랫폼이면 null 인 채로 선다 - 그때 모든 연결 시도는 거짓이다.
             if (config.networkEnabled)
             {
@@ -204,10 +220,8 @@ namespace JBro
             }
             m_frameworkContext.renderer = m_renderer.Get();
             m_frameworkContext.tasks = m_tasks.Get();
-            m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
             m_watchAssetDirectory = config.watchAssetDirectory;
-            m_frameworkContext.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
             if (m_exitRequested)
             {
                 ReleaseResources();
@@ -263,6 +277,9 @@ namespace JBro
         m_project = project;
         ApplyAudioBuses();
         ApplyInputSettings();
+        ApplyTimeSettings();
+        // 게임의 시간은 여기서 처음이고 씨앗도 여기서 걸린다(D-231). 에디터는 재생을 누를 때 한 번 더 건다.
+        RestartGameTime();
         OpenSaveFolder();
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
@@ -779,7 +796,8 @@ namespace JBro
             m_lastFrameStatus = FrameStatus::DeviceLost;
             return false;
         }
-        if (false == std::isfinite(deltaTime) || deltaTime < 0.0f)
+        // 프레임의 시간을 연다(D-231). 무효한 델타(NaN·음수)는 시계가 거절한다. 프레임워크·스크립트·서비스가 이번 프레임 내내 이 값을 읽는다.
+        if (false == m_time->BeginFrame(deltaTime))
         {
             m_lastFrameStatus = FrameStatus::InvalidState;
             return false;
@@ -795,7 +813,7 @@ namespace JBro
         if (m_framework != nullptr && false == m_projectCloseRequested)
         {
             const ProfileScope scope("Update");
-            m_framework->Update(deltaTime);
+            m_framework->Update();
         }
         // 끝난 보이스를 거둔다. 프레임워크 갱신이 이번 프레임의 재생 요청을 다 낸 뒤다.
         if (m_audio.Get() != nullptr)
@@ -949,10 +967,29 @@ namespace JBro
         ApplyAudioBuses();
         // 입력도 같다(D-214). 설정 창에서 저장한 바인딩으로 곧바로 움직인다.
         ApplyInputSettings();
+        // 고정 스텝·상한도 다음 프레임부터다(D-231). 씨앗은 다음 재생에 걸린다.
+        ApplyTimeSettings();
         // 제품명을 고치면 세이브 폴더도 옮긴다(D-218).
         OpenSaveFolder();
         // 폴백 로케일은 지금 적용한다. 지금 로케일은 그대로다 - 에디터가 미리보기로 고른 로케일을 설정 저장이 되돌리지 않는다.
         ApplyLocaleSettings(false);
+    }
+
+    void EngineInstance::ApplyTimeSettings()
+    {
+        if (m_time.Get() == nullptr)
+        {
+            return;
+        }
+        TimeSettings settings;
+        settings.fixedDeltaTime = m_project.fixedDeltaTime;
+        settings.maxFixedSteps = m_project.maxFixedSteps;
+        settings.maxDeltaTime = m_project.maxDeltaTime;
+        // 파일은 읽을 때 범위를 검사했다. 코드로 채운 프로젝트(시험·설정 창)가 틀린 값을 주면 전 설정을 그대로 둔다.
+        if (false == m_time->Configure(settings))
+        {
+            Log::Write(LogLevel::Warning, "engine", "the project's time settings are out of range; the clock keeps its previous settings");
+        }
     }
 
     void EngineInstance::ApplyLocaleSettings(bool resetLocale)
@@ -1233,6 +1270,11 @@ namespace JBro
     void EngineInstance::SetSimulationEnabled(bool enabled)
     {
         m_simulationEnabled = enabled;
+        // 멈춤은 시계가 든다(D-231). 멈춘 동안 게임 델타가 0 이고 고정 스텝이 돌지 않는다 - 두 프레임워크가 같은 규칙을 본다.
+        if (m_time.Get() != nullptr)
+        {
+            m_time->SetPaused(false == enabled);
+        }
         if (m_framework != nullptr)
         {
             m_framework->SetSimulationEnabled(enabled);
@@ -1247,6 +1289,36 @@ namespace JBro
     bool EngineInstance::IsSimulationEnabled() const
     {
         return m_simulationEnabled;
+    }
+
+    void EngineInstance::StepSimulation()
+    {
+        if (m_time.Get() != nullptr)
+        {
+            m_time->RequestStep();
+        }
+    }
+
+    void EngineInstance::RestartGameTime()
+    {
+        if (m_time.Get() != nullptr)
+        {
+            m_time->ResetGameTime();
+        }
+        if (m_random.Get() != nullptr)
+        {
+            m_random->Reseed(m_project.randomSeed);
+        }
+    }
+
+    System::TimeSystem* EngineInstance::GetTime()
+    {
+        return m_time.Get();
+    }
+
+    System::RandomSystem* EngineInstance::GetRandom()
+    {
+        return m_random.Get();
     }
 
     void EngineInstance::RequestExit()
@@ -1354,6 +1426,12 @@ namespace JBro
             m_frameworkContext.input = nullptr;
             m_input.Reset();
         }
+        // 시계와 난수도 DLL 뒤에 내린다(D-231). DLL 이 그 주소를 들고 있었다.
+        BindSystemContext({});
+        BindServiceContext({});
+        m_frameworkContext.time = nullptr;
+        m_time.Reset();
+        m_random.Reset();
         // 세이브도 DLL 뒤에 내린다. 닫으면서 한 번 민다 - 게임이 `Flush` 를 잊어도 정상 종료면 남는다(기존 엔진과 같다).
         if (m_save)
         {

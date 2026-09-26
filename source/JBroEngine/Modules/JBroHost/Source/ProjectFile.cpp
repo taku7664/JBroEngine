@@ -1,5 +1,7 @@
 ﻿#include <JBro/Host/ProjectFile.h>
 
+#include <JBro/Host/TimeSystem.h>
+
 #include <JBro/Platform/Platform.h>
 
 #include <cstdio>
@@ -121,6 +123,22 @@ namespace JBro
                 return false;
             }
             result = static_cast<std::uint32_t>(parsed);
+            return true;
+        }
+
+        bool ParseUInt64(const String& value, std::uint64_t& result)
+        {
+            if (value.empty() || value[0] == '-')
+            {
+                return false;
+            }
+            char* end = nullptr;
+            const unsigned long long parsed = std::strtoull(value.c_str(), &end, 10);
+            if (end == nullptr || *end != '\0')
+            {
+                return false;
+            }
+            result = static_cast<std::uint64_t>(parsed);
             return true;
         }
 
@@ -838,6 +856,31 @@ namespace JBro
                 }
             }
             else if (key == "DebugModeEnabled") { recognized = ParseBool(value, parsed.debugModeEnabled); }
+            else if (key == "FixedDeltaTime" || key == "MaxFixedSteps" || key == "MaxDeltaTime")
+            {
+                // 범위는 시계의 것을 그대로 쓴다(D-231) - 다른 두 값은 기본값인 채로 이 하나만 재 본다.
+                TimeSettings probe;
+                const bool number = key == "MaxFixedSteps" ? ParseUInt(value, probe.maxFixedSteps)
+                    : ParseFloat(value, key == "FixedDeltaTime" ? probe.fixedDeltaTime : probe.maxDeltaTime);
+                if (false == number || false == System::TimeSystem::IsValid(probe))
+                {
+                    return Fail(error, lineNumber,
+                        "FixedDeltaTime is 0.001..1, MaxFixedSteps is 1..64 and MaxDeltaTime is above 0 and at most 10");
+                }
+                if (key == "FixedDeltaTime")
+                {
+                    parsed.fixedDeltaTime = probe.fixedDeltaTime;
+                }
+                else if (key == "MaxFixedSteps")
+                {
+                    parsed.maxFixedSteps = probe.maxFixedSteps;
+                }
+                else
+                {
+                    parsed.maxDeltaTime = probe.maxDeltaTime;
+                }
+            }
+            else if (key == "RandomSeed") { recognized = ParseUInt64(value, parsed.randomSeed); }
             else if (key == "ScriptSourceDirectory") { parsed.scriptSourceDirectory = value; }
             else if (key == "ScriptOutputLibraryPath") { parsed.scriptOutputLibraryPath = value; }
             else if (key == "LastOpenedCanvasPath") { parsed.lastOpenedCanvasPath = value; }
@@ -995,6 +1038,18 @@ namespace JBro
             {
                 value = project.debugModeEnabled ? "true" : "false";
             }
+            else if (key == "FixedDeltaTime") { value = FormatFloat(project.fixedDeltaTime); }
+            else if (key == "MaxFixedSteps")
+            {
+                std::snprintf(number, sizeof(number), "%u", project.maxFixedSteps);
+                value = number;
+            }
+            else if (key == "MaxDeltaTime") { value = FormatFloat(project.maxDeltaTime); }
+            else if (key == "RandomSeed")
+            {
+                std::snprintf(number, sizeof(number), "%llu", static_cast<unsigned long long>(project.randomSeed));
+                value = number;
+            }
             else if (key == "ScriptSourceDirectory") { value = project.scriptSourceDirectory; }
             else if (key == "ScriptOutputLibraryPath") { value = project.scriptOutputLibraryPath; }
             else if (key == "LastOpenedCanvasPath") { value = project.lastOpenedCanvasPath; }
@@ -1023,8 +1078,14 @@ namespace JBro
         // 파일에 없던 최상위 키 가운데 비어 있는 로케일은 새로 적지 않는다(D-226) - 로컬라이징을 쓰지 않는 프로젝트가 저장만으로 길어지지 않게 한다.
         bool IsUnwrittenTopLevelDefault(const ProjectFile& project, const String& key)
         {
+            const ProjectFile defaults;
             return (key == "DefaultLocale" && project.defaultLocale.empty())
-                || (key == "FallbackLocale" && project.fallbackLocale.empty());
+                || (key == "FallbackLocale" && project.fallbackLocale.empty())
+                // 시간도 기본값이면 새로 적지 않는다(D-231).
+                || (key == "FixedDeltaTime" && project.fixedDeltaTime == defaults.fixedDeltaTime)
+                || (key == "MaxFixedSteps" && project.maxFixedSteps == defaults.maxFixedSteps)
+                || (key == "MaxDeltaTime" && project.maxDeltaTime == defaults.maxDeltaTime)
+                || (key == "RandomSeed" && project.randomSeed == 0);
         }
 
         bool BuildValue(const ProjectFile& project, const String& key, String& value)
@@ -1058,7 +1119,8 @@ namespace JBro
             "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
             "AssetDirectory", "EditorLocale",
             "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize",
-            "AudioOutputDevice", "AudioMuteWhenUnfocused", "DefaultLocale", "FallbackLocale"};
+            "AudioOutputDevice", "AudioMuteWhenUnfocused", "DefaultLocale", "FallbackLocale",
+            "FixedDeltaTime", "MaxFixedSteps", "MaxDeltaTime", "RandomSeed"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
             "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath", "PhysicsThreads"};

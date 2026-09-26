@@ -1,4 +1,5 @@
-﻿#include <JBro/Graphics/Renderer.h>
+﻿#include "TestClock.h"
+#include <JBro/Graphics/Renderer.h>
 
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Host/EngineInstance.h>
@@ -573,7 +574,7 @@ namespace
             contextsBound = false;
             ++contextUnbinds;
         }
-        void Update(float) override
+        void Update() override
         {
             ++updates;
             if (closeDuringUpdate)
@@ -901,9 +902,10 @@ namespace
         framework.engine = &engine;
         JBro::EngineConfig config;
         config.window.visible = false;
-        config.fixedDeltaTime = 0.02f;
+        config.time.fixedDeltaTime = 0.02f;
         Check(InitializeHost(engine, config, platform, module, framework), "host must initialize");
-        Check(framework.context.fixedDeltaTime == 0.02f, "host must forward fixed-step policy");
+        Check(framework.context.time != nullptr && framework.context.time->GetSettings().fixedDeltaTime == 0.02f,
+            "host must hand the framework its clock with the fixed-step policy (D-231)");
         Check(false == InitializeHost(engine, config, platform, module, framework), "double init must reject without teardown");
         for (int frame = 0; frame < 3; ++frame)
         {
@@ -1028,7 +1030,7 @@ namespace
             "failed acquisition must not call framework rendering");
         module.device.beginStatus = JBro::FrameStatus::Ready;
         const auto beforeInvalidConfig = module.createDeviceCount;
-        config.fixedDeltaTime = 0.0f;
+        config.time.fixedDeltaTime = 0.0f;
         Check(false == InitializeHost(engine, config, platform, module, framework)
             && module.createDeviceCount == beforeInvalidConfig, "invalid config must fail before native resource creation");
     }
@@ -1044,6 +1046,7 @@ namespace
         Check(renderer.Initialize(module, config), "integration renderer must initialize");
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         context.renderer = &renderer;
         Check(framework.Initialize(context), "framework must bind a ready renderer");
         auto* canvas = framework.GetCanvas();
@@ -1070,7 +1073,7 @@ namespace
             FrameAllocationProbe allocationProbe;
 #endif
             JBro::Diagnostics::ComponentLookupCounters::Reset();
-            framework.Update(0.0f);
+            JBro::Testing::Tick(framework, 0.0f);
             Check(framework.GetRenderWorld()->GetSpriteCount() == 70, "default systems must collect all sprites");
             Check(framework.GetRenderWorld()->GetSprite(0).renderOrder == 0, "collection must be sorted before submission");
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "host must open the renderer frame");
@@ -1111,16 +1114,16 @@ namespace
             "camera projection must use half-height, aspect ratio and inverse translation");
         Check(module.device.waitIdleCount == 0, "framework frame must not wait for GPU idle");
 
-        // 무효한 dt 는 프레임을 새로 열지 않는다. 지난 프레임 내용이 그대로 남아야 한다.
-        framework.Update(std::numeric_limits<float>::quiet_NaN());
+        // 무효한 dt 는 시계가 거절한다(D-231). 프레임워크까지 오지 않으므로 지난 프레임 내용이 그대로 남는다.
+        Check(false == JBro::Testing::SharedClock().BeginFrame(std::numeric_limits<float>::quiet_NaN()),
+            "a non-finite delta time must be refused by the clock");
+        Check(false == JBro::Testing::SharedClock().BeginFrame(-1.0f),
+            "a negative delta time must be refused by the clock");
         Check(framework.GetRenderWorld()->GetSpriteCount() == 70,
-            "a non-finite delta time must not blank the collected frame");
-        framework.Update(-1.0f);
-        Check(framework.GetRenderWorld()->GetSpriteCount() == 70,
-            "a negative delta time must not blank the collected frame");
+            "a refused delta must not blank the collected frame"); 
 
         Check(renderer.ResizeSurface({100, 200}), "integration surface must resize");
-        framework.Update(0.0f);
+        JBro::Testing::Tick(framework, 0.0f);
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready
             && framework.Render() == JBro::RenderResult::Submitted, "framework must render at resized extent");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "resized frame must finish");
@@ -1128,7 +1131,7 @@ namespace
             && close(module.device.commands.viewport.height, 200.0f), "resize must refresh projection and viewport");
 
         Check(canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object) != nullptr, "overflow sprite must attach");
-        framework.Update(0.0f);
+        JBro::Testing::Tick(framework, 0.0f);
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "overflow frame must begin");
         Check(framework.Render() == JBro::RenderResult::Failed, "collection overflow must reach the host");
         renderer.AbortFrame();
@@ -1139,7 +1142,7 @@ namespace
         Check(framework.GetCanvas() == nullptr && framework.GetRenderWorld()->GetSpriteCount() == 0,
             "shutdown must discard both canvas and stale frame packets");
         Check(framework.Initialize(context), "framework must support project reopening");
-        framework.Update(0.0f);
+        JBro::Testing::Tick(framework, 0.0f);
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready
             && framework.Render() == JBro::RenderResult::NothingToSubmit,
             "empty reopened project must report nothing to submit, not success");

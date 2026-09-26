@@ -16,6 +16,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Host/TimeSystem.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/SafePtr.h>
@@ -81,8 +82,8 @@ namespace JBro
     struct EditorApplicationConfig
     {
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
-        float fixedDeltaTime = 1.0f / 60.0f;
-        std::uint32_t maxFixedStepsPerFrame = 4;
+        // 시계의 처음 설정이다(D-231). 프로젝트를 열면 그 파일의 값이 이긴다.
+        TimeSettings time;
         std::uint32_t windowWidth = 1280;
         std::uint32_t windowHeight = 720;
         bool windowVisible = true;

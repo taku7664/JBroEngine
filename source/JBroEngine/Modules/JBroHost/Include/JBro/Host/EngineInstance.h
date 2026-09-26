@@ -6,6 +6,7 @@
 #include <JBro/Platform/Platform.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
+#include <JBro/Host/TimeSystem.h>
 #include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
 #include <JBro/RHI/RHI.h>
@@ -30,6 +31,7 @@ namespace JBro
     {
         // 게임 입력(D-214). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
         class InputSystem;
+        class RandomSystem;
     }
 
     namespace Network
@@ -42,8 +44,9 @@ namespace JBro
     struct EngineConfig
     {
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
-        float fixedDeltaTime = 1.0f / 60.0f;
-        std::uint32_t maxFixedStepsPerFrame = 4;
+        // 시계의 처음 설정이다(D-231). 프로젝트 파일을 열면 그 파일의 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime` 이 이긴다.
+        // 틀린 설정이면 `Initialize` 가 거절한다.
+        TimeSettings time;
         // 프레임 임시 메모리 예산이다(D-52). memory.frame 을 직접 채워 주면 그것을 그대로 쓰고,
         // 비어 있으면 호스트가 이 크기로 선형 할당기를 만들어 채운다. 0 이면 만들지 않는다.
         std::size_t frameMemoryBytes = 1u << 20;
@@ -152,6 +155,14 @@ namespace JBro
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         bool DidGameSubmitLastFrame() const;
         bool IsSimulationEnabled() const;
+        // 멈춘 게임을 다음 프레임 하나만 돌린다(D-231): 고정 스텝 하나와 `OnUpdate` 하나다. 멈추지 않았으면 아무 일도 없다.
+        void StepSimulation();
+        // 재생의 처음으로 되돌린다(D-231): 게임 시간과 타임스케일을 되돌리고 난수 씨앗을 다시 건다(프로젝트의 `RandomSeed`, 0 이면
+        // 새로 뽑아 로그에 남긴다). 에디터가 재생을 시작하고 멈출 때 부른다. 게임 실행은 프로젝트를 열 때 한 번 불린다.
+        void RestartGameTime();
+        // 엔진의 시계와 난수 흐름(D-231). 초기화 전이거나 내린 뒤에는 null 이다.
+        System::TimeSystem* GetTime();
+        System::RandomSystem* GetRandom();
 
         bool Tick(float deltaTime);
         void RequestExit();
@@ -235,6 +246,8 @@ namespace JBro
         void ApplyAudioBuses();
         // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-214).
         void ApplyInputSettings();
+        // 프로젝트의 고정 스텝·상한을 시계에 건다(D-231).
+        void ApplyTimeSettings();
         // 프로젝트의 폴백 로케일을 건다. `resetLocale` 이면 지금 로케일도 프로젝트의 기본으로 되돌린다(D-226).
         void ApplyLocaleSettings(bool resetLocale);
         // 프로젝트의 제품명으로 세이브 폴더를 정한다(D-218). 폴더는 처음 쓸 때 만든다.
@@ -269,6 +282,9 @@ namespace JBro
         float m_audioRetrySeconds = 0.0f;
         OwnerPtr<System::IAudioDeviceControl> m_audioDevices;
         OwnerPtr<System::InputSystem> m_input;
+        // 시계와 난수(D-231). 엔진 수명이고 공통 시스템 컨텍스트가 가리킨다. 스크립트 DLL 이 내려간 뒤에 내린다.
+        OwnerPtr<System::TimeSystem> m_time;
+        OwnerPtr<System::RandomSystem> m_random;
         // 게임의 세이브(D-218). 엔진 수명이고, 폴더만 프로젝트마다 바뀐다.
         OwnerPtr<SaveStorage> m_save;
         SaveSystemContext m_saveSystemContext;

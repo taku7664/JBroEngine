@@ -4,6 +4,7 @@
 #include <JBro/Core/Profiler.h>
 #include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Host/TimeSystem.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
@@ -40,8 +41,7 @@ namespace JBro
 
     bool Framework2D::Initialize(const FrameworkContext& context)
     {
-        if (m_initialized || false == std::isfinite(context.fixedDeltaTime)
-            || context.fixedDeltaTime <= 0.0f || context.maxFixedStepsPerFrame == 0
+        if (m_initialized || context.time == nullptr
             || (context.renderer != nullptr && false == context.renderer->IsInitialized()))
         {
             return false;
@@ -136,22 +136,27 @@ namespace JBro
         }
     }
 
-    void Framework2D::Update(float deltaTime)
+    void Framework2D::Update()
     {
-        // dt 검증이 BeginFrame 보다 앞선다. 뒤에 두면 무효한 dt 한 번이
-        // 수집된 프레임을 비운 채로 남겨, 호스트가 빈 화면을 제시한다.
-        if (false == m_initialized
-            || false == std::isfinite(deltaTime)
-            || deltaTime < 0.0f)
+        // 무효한 델타는 호스트의 `TimeSystem::BeginFrame` 이 이미 거절했다 - 여기 오는 델타는 늘 유한하고 0 이상이다.
+        if (false == m_initialized)
         {
             return;
         }
+        const FrameTime& time = m_context.time->GetFrameTime();
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
+        // **한 프레임 진행**(D-231). 멈춘 동안 이 프레임만 게임이 돈다: 스크립트·물리를 켰다가 끝에 다시 끈다.
+        const bool stepping = false == m_simulationEnabled && m_context.time->IsStepFrame();
+        const bool simulating = m_simulationEnabled || stepping;
+        if (stepping)
+        {
+            SetSteppedSystemsEnabled(true);
+        }
         // **입력 체인은 고정 스텝보다 먼저다**(D-214). `OnFixedUpdate` 가 폴링하는 입력에도 위 레이어의 블로킹이
         // 걸려야 한다 - 시스템 갱신 안(`ScriptSystem::OnUpdate`)에 두면 그보다 앞서 도는 고정 스텝이 막히기 전의 입력을 본다.
         // 멈춰 있으면 스크립트가 돌지 않으니 체인도 돌지 않는다. 그때 폴링은 이번 프레임 전체를 보지만 읽는 스크립트가 없다.
-        if (m_simulationEnabled)
+        if (simulating)
         {
             if (System::ScriptSystem* scripts = m_canvas->GetSystems().FindSystem<System::ScriptSystem>())
             {
@@ -163,16 +168,20 @@ namespace JBro
         // 넘긴다 - 스크립트·물리는 `SetSimulationEnabled` 가 이미 세워 두었고, 남은 것은
         // 트랜스폼과 추출이라 시간이 필요 없다. 그래도 **돌리기는 한다**: 편집 중에도
         // 화면은 나와야 하고, 그림은 추출한 것에서 나온다.
-        if (m_simulationEnabled)
+        if (simulating)
         {
             const ProfileScope scope("FixedSteps");
-            RunFixedSteps(deltaTime);
+            RunFixedSteps();
         }
         {
             const ProfileScope scope("Systems");
-            m_canvas->GetSystems().Update(*m_canvas, m_simulationEnabled ? deltaTime : 0.0f);
+            m_canvas->GetSystems().Update(*m_canvas, simulating ? time.deltaTime : 0.0f);
         }
         m_canvas->FlushPendingDestroy();
+        if (stepping)
+        {
+            SetSteppedSystemsEnabled(false);
+        }
         m_renderWorld.EndFrame();
     }
 
@@ -301,7 +310,6 @@ namespace JBro
         m_spriteLibrary.Shutdown();
         m_renderWorld = {};
         m_context     = {};
-        m_fixedAccumulator = 0.0;
         m_initialized = false;
     }
 
@@ -426,22 +434,31 @@ namespace JBro
         // 꺼 두었으면 첫 프레임부터 꺼져 있어야 한다.
         ApplySimulationEnabled();
     }
-    void Framework2D::RunFixedSteps(float deltaTime)
+    void Framework2D::RunFixedSteps()
     {
-        m_fixedAccumulator += deltaTime;
-        std::uint32_t steps = 0;
-        while (m_fixedAccumulator >= m_context.fixedDeltaTime && steps < m_context.maxFixedStepsPerFrame)
+        // 몇 스텝을 돌지는 시계가 정했다(누산·상한·타임스케일·한 프레임 진행, D-231).
+        System::TimeSystem& time = *m_context.time;
+        const FrameTime& frame = time.GetFrameTime();
+        for (std::uint32_t step = 0; step < frame.fixedStepCount; ++step)
         {
-            m_canvas->GetSystems().FixedUpdate(*m_canvas, m_context.fixedDeltaTime);
+            time.BeginFixedStep();
+            m_canvas->GetSystems().FixedUpdate(*m_canvas, frame.fixedDeltaTime);
             // 고정 스텝 묶음의 각 스텝 뒤가 첫 안전 지점이다(D-45).
             m_canvas->FlushPendingDestroy();
-            m_fixedAccumulator -= m_context.fixedDeltaTime;
-            ++steps;
         }
-        if (m_fixedAccumulator >= m_context.fixedDeltaTime)
+        time.EndFixedSteps();
+    }
+
+    void Framework2D::SetSteppedSystemsEnabled(bool enabled)
+    {
+        SystemScheduler& systems = m_canvas->GetSystems();
+        if (System::ScriptSystem* scripts = systems.FindSystem<System::ScriptSystem>())
         {
-            // Drop excess whole steps after a long stall; preserve the fractional step.
-            m_fixedAccumulator = std::fmod(m_fixedAccumulator, m_context.fixedDeltaTime);
+            scripts->SetEnabled(enabled);
+        }
+        if (System::Physics2DSystem* physics = systems.FindSystem<System::Physics2DSystem>())
+        {
+            physics->SetEnabled(enabled);
         }
     }
 

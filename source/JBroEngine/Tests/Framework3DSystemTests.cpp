@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestClock.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
@@ -282,6 +283,7 @@ namespace
     {
         JBro::Framework3D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         Check(framework.Initialize(context), "the 3D framework must initialize without a renderer");
         JBro::Canvas* canvas = framework.GetCanvas();
         Check(canvas != nullptr, "and own a canvas");
@@ -294,7 +296,7 @@ namespace
         auto* boxMesh = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(box);
         boxMesh->meshId = JBro::MeshLibrary::BuiltinCubeId();
 
-        framework.Update(1.0f / 60.0f);
+        JBro::Testing::Tick(framework, 1.0f / 60.0f);
         const JBro::RenderWorld3D* world = framework.GetRenderWorld();
         Check(world->GetCamera() != nullptr && world->GetCamera()->owner == eye,
             "one update must extract the camera");

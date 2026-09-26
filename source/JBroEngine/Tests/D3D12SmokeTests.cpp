@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D12RHI/D3D12RHI.h>
+﻿#include "TestClock.h"
+#include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -71,7 +72,11 @@ namespace
             "opening a real project must bind its physics service without manual wiring");
         {
             JBro::Framework2D preview;
-            Check(preview.Initialize({}), "an independent preview must initialize");
+            // 미리보기도 시계는 있어야 한다(D-231). 활성 프로젝트의 것을 빌리지 않고 제 것을 준다.
+            JBro::System::TimeSystem previewClock;
+            JBro::FrameworkContext previewContext;
+            previewContext.time = &previewClock;
+            Check(preview.Initialize(previewContext), "an independent preview must initialize");
             Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
                 && hit.other.GetInstanceId() == sprite->GetInstanceId(),
                 "preview initialization must not replace the active project's binding");
@@ -305,6 +310,7 @@ namespace
         {
             JBro::Framework2D framework;
             JBro::FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.renderer = &renderer;
             Check(framework.Initialize(context), "D3D12 framework must initialize");
             auto* canvas = framework.GetCanvas();
@@ -316,7 +322,7 @@ namespace
             sprite->size = {5.0f, 5.0f};
             for (int frame = 0; frame < 6; ++frame)
             {
-                framework.Update(1.0f / 60.0f);
+                JBro::Testing::Tick(framework, 1.0f / 60.0f);
                 Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "D3D12 framework frame must begin");
                 Check(framework.Render() == JBro::RenderResult::Submitted, "D3D12 framework must submit its extracted sprite");
                 Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "D3D12 framework frame must present");

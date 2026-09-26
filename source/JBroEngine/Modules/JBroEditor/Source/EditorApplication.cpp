@@ -113,8 +113,7 @@ namespace JBro
     bool EditorApplication::Initialize(const EditorApplicationConfig& config)
     {
         if (m_initialized || config.windowWidth == 0 || config.windowHeight == 0
-            || false == std::isfinite(config.fixedDeltaTime) || config.fixedDeltaTime <= 0.0f
-            || config.maxFixedStepsPerFrame == 0
+            || false == System::TimeSystem::IsValid(config.time)
             || (config.graphicsApi != GraphicsApi::D3D12 && config.graphicsApi != GraphicsApi::D3D11
                 && config.graphicsApi != GraphicsApi::Vulkan))
         {
@@ -204,8 +203,7 @@ namespace JBro
 
             EngineConfig engineConfig;
             engineConfig.graphicsApi = config.graphicsApi;
-            engineConfig.fixedDeltaTime = config.fixedDeltaTime;
-            engineConfig.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
+            engineConfig.time = config.time;
             engineConfig.enableValidation = config.enableValidation;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
@@ -2646,6 +2644,8 @@ namespace JBro
         m_simulationLocale = GetPreviewLocale();
         m_simulationPlaying = true;
         m_simulationPaused = false;
+        // 게임 시간·타임스케일을 처음으로 두고 난수 씨앗을 건다(D-231). 씨앗은 로그에 남는다 - 같은 재생을 다시 보려면 그 수를 적는다.
+        m_engine->RestartGameTime();
         m_engine->SetSimulationEnabled(true);
         // **게임 뷰를 앞으로 가져온다**(D-178, 기존도 재생에서 그랬다). 캔버스 뷰와 탭으로
         // 겹쳐 있으면 재생을 눌러도 화면이 그대로라 아무 일도 없는 것처럼 보인다.
@@ -2667,6 +2667,8 @@ namespace JBro
         if (m_engine.Get() != nullptr)
         {
             m_engine->SetSimulationEnabled(false);
+            // 게임이 바꾼 타임스케일과 게임 시간을 되돌린다(D-231). 다음 재생도 처음 상태로 시작한다.
+            m_engine->RestartGameTime();
             // 게임이 켜고 끈 액션 세트를 되돌린다. 캔버스를 되살리는 것과 같은 까닭이다 - 다음 재생은 처음 상태로 시작한다.
             m_engine->ResetGameInput();
             // 게임이 바꾼 로케일도 되돌린다(D-226).

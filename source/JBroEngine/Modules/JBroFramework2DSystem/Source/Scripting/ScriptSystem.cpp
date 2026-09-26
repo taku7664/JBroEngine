@@ -288,7 +288,7 @@ namespace JBro::System
         m_input->EndDispatch();
     }
 
-    void ScriptSystem::OnUpdate(Canvas& canvas, float deltaTime)
+    void ScriptSystem::OnUpdate(Canvas& canvas, float)
     {
         EnsureOrder(canvas);
         m_lastUpdateCount = 0;
@@ -324,12 +324,12 @@ namespace JBro::System
             {
                 continue;
             }
-            entry.script->OnUpdate(deltaTime);
+            entry.script->OnUpdate();
             ++m_lastUpdateCount;
         }
     }
 
-    void ScriptSystem::OnFixedUpdate(Canvas& canvas, float fixedDeltaTime)
+    void ScriptSystem::OnFixedUpdate(Canvas& canvas, float)
     {
         // 고정 스텝은 세워 둔 순서를 그대로 쓴다. 다만 **헌 목록은 쓰지 않는다** -
         // Framework 가 스텝마다 파괴를 흘리므로(D-45), 앞 스텝에서 지운 스크립트를
@@ -340,7 +340,7 @@ namespace JBro::System
         {
             if (entry.started && entry.script->IsActiveComponent())
             {
-                entry.script->OnFixedUpdate(fixedDeltaTime);
+                entry.script->OnFixedUpdate();
             }
         }
     }
