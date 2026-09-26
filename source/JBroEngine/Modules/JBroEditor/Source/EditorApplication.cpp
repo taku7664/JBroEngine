@@ -201,6 +201,8 @@ namespace JBro
             engineConfig.enableValidation = config.enableValidation;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
+            // 에디터에서 재생한 게임의 세이브는 실제 게임의 것과 다른 폴더다(D-218).
+            engineConfig.editorSaves = true;
             engineConfig.watchAssetDirectory = true;
             engineConfig.audioDeviceEnabled = config.audioDevice;
             engineConfig.window.title = {"JBro Editor", 11};
@@ -2465,6 +2467,8 @@ namespace JBro
         if (m_engine.Get() != nullptr)
         {
             m_engine->SetSimulationEnabled(false);
+            // 게임이 켜고 끈 액션 세트를 되돌린다. 캔버스를 되살리는 것과 같은 까닭이다 - 다음 재생은 처음 상태로 시작한다.
+            m_engine->ResetGameInput();
         }
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr)

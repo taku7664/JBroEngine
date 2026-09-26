@@ -180,6 +180,7 @@
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
   | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-214) |
+  | Tier S | `JBroSaveTypes` | `System::ISaveStorage`(POD 인자만)·`Service::SaveService`·세이브 컨텍스트. 구현 `SaveStorage` 는 `JBroHost` 에 있다 (D-218) |
   | Tier E | `JBroInput` | `System::InputSystem` - 플랫폼 이벤트를 프레임 상태로 접고 레이어 체인의 소비를 나른다 (D-214) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216) |
@@ -509,6 +510,13 @@
   바인딩은 액션에서도 빠진다. 액션·레이어의 원본은 `.jproject` 의 `InputActions`·`InputLayers` 이고 모양은 기존 엔진과 같다. (MUST) (D-214)
 - **게임패드는 플랫폼이 날 상태만 준다.** 데드존·누름 세기·빈 자리 재확인·진동 만료는 입력 시스템이 한다 - 플랫폼마다 같은 규칙이어야 한다.
   게임이 입력을 받지 않게 되면(포커스·게임 뷰·내려감) 모터를 멈춘다. 진동을 끄려고 워커 스레드를 쓰지 않는다. (MUST) (D-214)
+- **액션 세트는 뜻을 고르고, 막지 않는다.** 꺼진 세트의 액션은 0 으로 읽힐 뿐 장치를 소비하지 않는다. 막는 것은 레이어 체인뿐이다.
+  세트 전환을 두 번째 스택으로 만들지 않는다. 에디터는 재생을 멈출 때 세트를 프로젝트 상태로 되돌린다. (MUST) (D-218)
+- **리바인딩은 프로젝트 표 위에 얹는다.** 프로젝트의 `InputActions` 는 고치지 않고, 바꾼 것은 이름으로 적은 글자로만 나간다(키 번호로 적지 않는다).
+  입력 모듈은 세이브를 부르지 않는다 - 게임이 글자를 `SaveService` 에 둔다. 호스트는 게임 DLL 의 컨테이너를 키우지 않는다. (MUST) (D-218)
+- **게임이 쓰는 파일은 세이브 저장소뿐이다.** 뿌리는 `<앱 데이터>/<제품명>/Saves`(에디터의 재생은 `EditorSaves`)이고, 슬롯은 납작한 파일 이름이다.
+  쓰기는 옆 파일에 다 쓴 뒤 바꿔 넣는다 - 제자리에 덮어쓰지 않는다. 인자는 POD 이고 호스트는 게임 DLL 의 컨테이너를 키우지 않는다. (MUST) (D-218)
+- **엔진은 지난 프레임의 입력을 들지 않는다.** 선입력은 스크립트가 뷰에서 읽어 `InputBuffer` 에 넣는다 - 막힌 입력이 되살아나지 않는다. (MUST) (D-218)
 - **뗀 손가락은 한 프레임 더 보인다.** 뗀 자리가 사라지면 탭을 클릭으로 판정할 수 없다. 포커스를 잃은 손가락은 뗌이 아니라 취소다. (MUST) (D-214)
 
 ## 8. 오브젝트-컴포넌트 모델

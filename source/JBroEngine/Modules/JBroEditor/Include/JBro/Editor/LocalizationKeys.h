@@ -330,6 +330,7 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsInputAddBinding = "project_settings.input_add_binding";
     inline constexpr const char* ProjectSettingsInputRemoveBinding = "project_settings.input_remove_binding";
     inline constexpr const char* ProjectSettingsInputAnyGamepad = "project_settings.input_any_gamepad";
+    inline constexpr const char* ProjectSettingsInputSetHelp = "project_settings.input_set_help";
     inline constexpr const char* ProjectSettingsInputTooMany = "project_settings.input_too_many";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";

@@ -184,6 +184,7 @@ Entries:
   project_settings.input_add_binding: "바인딩 추가"
   project_settings.input_remove_binding: "바인딩 삭제"
   project_settings.input_any_gamepad: "-1 이면 연결된 아무 게임패드입니다"
+  project_settings.input_set_help: "스크립트가 액션 세트를 켜고 끕니다. 게임을 시작하면 Default 만 켜져 있습니다"
   project_settings.input_too_many: "엔진은 액션 64개, 액션마다 바인딩 8개까지 씁니다. 나머지는 파일에만 남습니다"
   inspector.sprite_import_options: 스프라이트 임포트 옵션
   common.ok: 확인

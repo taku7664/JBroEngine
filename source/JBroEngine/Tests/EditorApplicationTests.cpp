@@ -45,6 +45,7 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <JBro/InputTypes/ServiceContext.h>
+#include <JBro/InputTypes/Service/InputService.h>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -3732,6 +3733,7 @@ namespace
             "        Code: Left\n"
             "  - Name: Jump\n"
             "    Type: Bool\n"
+            "    Set: Vehicle\n"
             "    Bindings:\n"
             "      - Source: GamepadButton\n"
             "        Code: South\n"
@@ -3804,7 +3806,7 @@ namespace
             std::fclose(file);
             text.assign(buffer, read);
         }
-        Check(text.find("  - Name: Jump\n    Type: Bool\n    Bindings:\n      - Source: GamepadButton\n        Code: South\n"
+        Check(text.find("  - Name: Jump\n    Type: Bool\n    Set: Vehicle\n    Bindings:\n      - Source: GamepadButton\n        Code: South\n"
                         "      - Source: Key\n        Code: Space\n") != JBro::String::npos,
             "the edited bindings reach the file, and a pad index of -1 is not written");
         Check(text.find("InputLayers:\n  - UI\n  - Game\n") != JBro::String::npos, "the layer order stays");
@@ -3812,6 +3814,18 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must draw the saved settings");
         }
+
+        // 게임이 켠 액션 세트는 재생을 멈추면 꺼진다 - 다음 재생은 `Default` 만 켜진 채로 시작한다.
+        const JBro::NameId vehicle = JBro::MakeNameId("Vehicle");
+        const JBro::Service::InputService input;
+        Check(false == input.IsActionSetEnabled(vehicle), "a set other than Default starts off");
+        Check(editor.StartSimulation(), "play must start");
+        Check(input.EnableActionSet(vehicle), "the game turns on the set the project names");
+        Check(editor.Tick(Frame), "the editor must tick while playing");
+        Check(input.IsActionSetEnabled(vehicle), "and it stays on while the game runs");
+        editor.StopSimulation();
+        Check(false == input.IsActionSetEnabled(vehicle), "stopping play turns it back off");
+        Check(input.IsActionSetEnabled(JBro::DefaultInputActionSet), "and leaves Default on");
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }

@@ -23,8 +23,10 @@
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/AudioTypes/ServiceContext.h>
 // 게임 입력(D-214). 키 이름·장치 상태와 `GetInputServices().Input` 이다. 이것도 두 프렐류드가 같은 줄을 공유한다.
+#include <JBro/InputTypes/InputBuffer.h>
 #include <JBro/InputTypes/InputHandler.h>
 #include <JBro/InputTypes/ServiceContext.h>
+#include <JBro/SaveTypes/ServiceContext.h>
 
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>

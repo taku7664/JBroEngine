@@ -92,11 +92,13 @@ namespace JBro
         InputComposite composite = InputComposite::None;
     };
 
-    // 입력 액션 하나다(D-214). `InputActions` 아래 `- Name:`·`Type:`·`Bindings:` 의 맵 시퀀스다.
+    // 입력 액션 하나다(D-214). `InputActions` 아래 `- Name:`·`Type:`·`Set:`·`Bindings:` 의 맵 시퀀스다.
     struct ProjectInputAction
     {
         String name;
         InputActionType type = InputActionType::Bool;
+        // 액션 세트다. 비어 있으면 `Default` 이고 파일에 적지 않는다 - 기존 엔진 파일에는 이 키가 없다.
+        String set;
         Array<ProjectInputBinding> bindings;
     };
 
@@ -211,6 +213,11 @@ namespace JBro
     bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
         FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
         ProjectFileError& error);
+
+    // 프로젝트의 액션을 입력 시스템의 고정 표로 옮긴다(D-214). 이름과 세트 이름은 이름표에 넣는다 - 없는 이름의 경고가 이름으로 말한다.
+    // 표는 고정 크기다: 액션 64·바인딩 8·세트 32 를 넘는 것은 버리고 거짓을 돌려준다(파일은 그대로라 되살릴 수 있다).
+    // 세트가 넘친 액션은 통째로 버린다 - `Default` 에 넣으면 끄려던 액션이 늘 켜져 있다.
+    bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out);
 
     // 프로젝트 루트와 합쳐 실제로 로드할 스크립트 DLL 경로를 만든다.
     // 절대경로면 그대로 두고, 상대경로면 프로젝트 파일이 있는 폴더 기준으로 붙인다.

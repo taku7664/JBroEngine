@@ -4,6 +4,8 @@
 
 #include <JBro/Input/InputSystem.h>
 #include <JBro/InputTypes/Internal/ScriptModuleContext.h>
+#include <JBro/Host/SaveStorage.h>
+#include <JBro/SaveTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Network/Internal/ScriptModuleContext.h>
 #include <JBro/Network/SteadyClock.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
@@ -141,6 +143,13 @@ namespace JBro
             BindInputSystemContext(m_input->GetSystemContext());
             BindInputServiceContext(m_input->GetServiceContext());
             m_frameworkContext.input = m_input.Get();
+            // 세이브(D-218). 입력처럼 호스트가 소유하고 이 모듈 사본에도 묶는다. 폴더는 프로젝트를 열 때 정한다.
+            m_save = MakeOwnerPtr<SaveStorage>(platform);
+            m_saveFolderOverride = config.saveFolder;
+            m_editorSaves = config.editorSaves;
+            m_saveSystemContext.Storage = m_save.Get();
+            BindSaveSystemContext(m_saveSystemContext);
+            BindSaveServiceContext(m_saveServiceContext);
             m_frameworkContext.network = m_network.Get();
             // 오디오(D-197). 장치를 먼저 열어 그 형식으로 믹서를 만든다. 장치가 없으면 믹서만 선다 - 같은 API 가 소리 없이 돈다.
             if (config.audioEnabled)
@@ -248,6 +257,7 @@ namespace JBro
         m_project = project;
         ApplyAudioBuses();
         ApplyInputSettings();
+        OpenSaveFolder();
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
@@ -524,6 +534,8 @@ namespace JBro
         {
             return false;
         }
+        // 스크립트가 로드되자마자 세이브를 읽을 수 있게 먼저 정한다. 프로젝트 파일로 열면 제품명을 안 뒤에 다시 정한다.
+        OpenSaveFolder();
         m_state = State::OpeningProject;
         m_lastFrameStatus = FrameStatus::InvalidState;
         m_scriptModuleLoaded = false;
@@ -571,12 +583,17 @@ namespace JBro
                         // 프레임워크의 블록 뒤에 호스트의 네트워크 블록을 잇는다(D-122). 네트워크는 호스트 것이고
                         // 두 차원이 같은 것을 쓰므로 프레임워크가 아니라 여기서 낸다.
                         Array<ScriptContextBlock> blocks;
-                        blocks.Reserve(frameworkBlocks.size + 4);
+                        blocks.Reserve(frameworkBlocks.size + 8);
                         blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
                         if (m_input)
                         {
                             blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));
                             blocks.Add(MakeInputServiceContextBlock(m_input->GetServiceContext()));
+                        }
+                        if (m_save)
+                        {
+                            blocks.Add(MakeSaveSystemContextBlock(m_saveSystemContext));
+                            blocks.Add(MakeSaveServiceContextBlock(m_saveServiceContext));
                         }
                         if (m_network)
                         {
@@ -909,6 +926,24 @@ namespace JBro
         ApplyAudioBuses();
         // 입력도 같다(D-214). 설정 창에서 저장한 바인딩으로 곧바로 움직인다.
         ApplyInputSettings();
+        // 제품명을 고치면 세이브 폴더도 옮긴다(D-218).
+        OpenSaveFolder();
+    }
+
+    void EngineInstance::OpenSaveFolder()
+    {
+        if (m_save.Get() == nullptr || m_platform == nullptr)
+        {
+            return;
+        }
+        const String folder = false == m_saveFolderOverride.empty()
+            ? m_saveFolderOverride
+            : SaveStorage::MakeFolder(m_platform->GetUserDataFolder().c_str(), m_project.build.productName.c_str(), m_editorSaves);
+        if (folder == m_save->GetFolder() && m_save->IsReady())
+        {
+            return;
+        }
+        m_save->Open(folder.c_str());
     }
 
     void EngineInstance::ApplyInputSettings()
@@ -928,41 +963,21 @@ namespace JBro
 
         // 액션 표는 고정 크기다. 넘치는 액션과 바인딩은 버리고 한 번 말한다 - 파일은 그대로 두어 되살릴 수 있다.
         InputActionMap map;
-        bool truncated = false;
-        for (const ProjectInputAction& action : m_project.inputActions)
+        if (false == MakeInputActionMap(m_project.inputActions, map))
         {
-            if (map.count >= MaxInputActions)
-            {
-                truncated = true;
-                break;
-            }
-            InputActionDesc& desc = map.actions[map.count];
-            // 이름표에 넣어 두어야 없는 액션을 물었을 때의 경고가 이름으로 말한다.
-            desc.name = NameTable::Get().Intern(action.name.c_str());
-            desc.type = action.type;
-            desc.bindingCount = 0;
-            for (const ProjectInputBinding& binding : action.bindings)
-            {
-                if (desc.bindingCount >= MaxInputBindingsPerAction)
-                {
-                    truncated = true;
-                    break;
-                }
-                InputBinding& target = desc.bindings[desc.bindingCount];
-                target.source = binding.source;
-                target.code = binding.code;
-                target.gamepad = static_cast<std::int8_t>(binding.gamepad);
-                target.composite = binding.composite;
-                ++desc.bindingCount;
-            }
-            ++map.count;
-        }
-        if (truncated)
-        {
-            Log::Write(LogLevel::Warning, "input", "the project has more than %u input actions or %u bindings in one action; the rest is ignored",
-                MaxInputActions, MaxInputBindingsPerAction);
+            Log::Write(LogLevel::Warning, "input",
+                "the project has more than %u input actions, %u bindings in one action or %u action sets; the rest is ignored",
+                MaxInputActions, MaxInputBindingsPerAction, MaxInputActionSets);
         }
         m_input->SetActionMap(map);
+    }
+
+    void EngineInstance::ResetGameInput()
+    {
+        if (m_input.Get() != nullptr)
+        {
+            m_input->ResetActions();
+        }
     }
 
     void EngineInstance::ApplyAudioBuses()
@@ -1283,6 +1298,15 @@ namespace JBro
             BindInputServiceContext({});
             m_frameworkContext.input = nullptr;
             m_input.Reset();
+        }
+        // 세이브도 DLL 뒤에 내린다. 닫으면서 한 번 민다 - 게임이 `Flush` 를 잊어도 정상 종료면 남는다(기존 엔진과 같다).
+        if (m_save)
+        {
+            m_save->Close();
+            m_saveSystemContext.Storage = nullptr;
+            BindSaveSystemContext({});
+            BindSaveServiceContext({});
+            m_save.Reset();
         }
         // 네트워크는 프로젝트 뒤, 플랫폼 앞에 내린다 - 소켓은 플랫폼의 것이다.
         if (m_network)
