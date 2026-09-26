@@ -379,6 +379,11 @@ namespace JBro::System
         return m_state->world.GetWorkerCount();
     }
 
+    std::size_t Physics2DSystem::GetLastQueryColliderCount() const
+    {
+        return m_lastQueryColliders;
+    }
+
     std::size_t Physics2DSystem::GetJointCount() const
     {
         return m_state->world.GetJointCount();
@@ -428,8 +433,9 @@ namespace JBro::System
     }
 
     template<typename Fn>
-    void Physics2DSystem::ForEachQueryShape(std::uint32_t layerMask, Fn&& visit) const
+    void Physics2DSystem::ForEachQueryShape(std::uint32_t layerMask, const Rect& area, Fn&& visit) const
     {
+        m_lastQueryColliders = 0;
         if (m_canvas == nullptr)
         {
             return;
@@ -452,6 +458,47 @@ namespace JBro::System
             shape.owner = owner;
             shape.collider = &collider;
             shape.pose = ToPose(objectPose);
+            // **경계로 먼저 거른다**(D-231). 도형을 굽고(폴리곤은 분해 캐시를 찾고) 조각마다 판정하기 전에, 콜라이더를 감싸는 원이
+            // 질의 영역과 겹치는지만 본다. 콜라이더가 많은 캔버스에서 먼 것들이 값을 치르지 않는다.
+            {
+                const Vec2 magnitude{ std::fabs(objectPose.scale.x), std::fabs(objectPose.scale.y) };
+                const float largest = std::fmax(magnitude.x, magnitude.y);
+                const auto halfDiagonal = [&](Vec2 size) {
+                    return 0.5f * std::sqrt(size.x * size.x * magnitude.x * magnitude.x + size.y * size.y * magnitude.y * magnitude.y);
+                };
+                float reach = 0.0f;
+                switch (collider.shape)
+                {
+                case Component::ColliderShape2D::Circle:
+                    reach = collider.radius * largest;
+                    break;
+                case Component::ColliderShape2D::Polygon:
+                case Component::ColliderShape2D::Chain:
+                    if (collider.points.IsEmpty())
+                    {
+                        reach = collider.shape == Component::ColliderShape2D::Chain
+                            ? 0.5f * std::fabs(collider.size.x) * magnitude.x
+                            : halfDiagonal(collider.size);
+                    }
+                    for (const Vec2& point : collider.points)
+                    {
+                        reach = std::fmax(reach, std::sqrt(point.x * point.x * magnitude.x * magnitude.x
+                            + point.y * point.y * magnitude.y * magnitude.y));
+                    }
+                    break;
+                default:
+                    reach = halfDiagonal(collider.size);
+                    break;
+                }
+                const Vec2 middle = Physics2D::TransformPoint(shape.pose,
+                    { collider.offset.x * objectPose.scale.x, collider.offset.y * objectPose.scale.y });
+                if (middle.x + reach < area.min.x || middle.x - reach > area.max.x
+                    || middle.y + reach < area.min.y || middle.y - reach > area.max.y)
+                {
+                    return;
+                }
+            }
+            ++m_lastQueryColliders;
             if (collider.shape == Component::ColliderShape2D::Circle)
             {
                 const Physics2D::Circle circle = BakeCircle(collider, objectPose.scale);
@@ -506,6 +553,14 @@ namespace JBro::System
 
     namespace
     {
+        // 원(반지름 radius)을 from 에서 direction 으로 distance 만큼 민 자리를 감싸는 상자다. 반직선은 반지름 0 이다.
+        Rect SweptArea(Vec2 from, Vec2 direction, float distance, float radius)
+        {
+            const Vec2 to{ from.x + direction.x * distance, from.y + direction.y * distance };
+            return { { std::fmin(from.x, to.x) - radius, std::fmin(from.y, to.y) - radius },
+                { std::fmax(from.x, to.x) + radius, std::fmax(from.y, to.y) + radius } };
+        }
+
         RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vec2 point, Vec2 normal, float distance)
         {
             RaycastHit2D hit;
@@ -548,7 +603,7 @@ namespace JBro::System
             return false;
         }
         bool found = false;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;
@@ -574,7 +629,7 @@ namespace JBro::System
         // 콜라이더마다 한 번이다. 폴리곤의 조각 여럿에 걸려도 그 콜라이더의 가장 가까운 것 하나다 - 조각은 우리 사정이다.
         const Component::Collider2D* current = nullptr;
         std::size_t currentIndex = 0;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;
@@ -613,7 +668,7 @@ namespace JBro::System
         box.points[3] = { area.min.x, area.max.y };
         box.count = 4;
         const Physics2D::Pose identity;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, area, [&](const QueryShape& shape)
         {
             const bool overlaps = shape.circle != nullptr
                 ? Physics2D::OverlapPolygonAndCircle(box, identity, *shape.circle, shape.pose)
@@ -628,7 +683,7 @@ namespace JBro::System
     GameObjectHandle Physics2DSystem::OverlapPoint(Vec2 point, std::uint32_t layerMask) const
     {
         GameObjectHandle found;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, Rect{ point, point }, [&](const QueryShape& shape)
         {
             if (found.GetInstanceId() != InvalidInstanceId)
             {
@@ -657,7 +712,7 @@ namespace JBro::System
         probe.center = center;
         probe.radius = radius;
         const Physics2D::Pose identity;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(center, { 1.0f, 0.0f }, 0.0f, radius), [&](const QueryShape& shape)
         {
             const bool overlaps = shape.circle != nullptr
                 ? Physics2D::OverlapCircles(probe, identity, *shape.circle, shape.pose)
@@ -678,7 +733,7 @@ namespace JBro::System
             return false;
         }
         bool found = false;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, radius), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;
@@ -716,7 +771,7 @@ namespace JBro::System
         box.count = 4;
         const Physics2D::Pose start{ center, Physics2D::Rotation::FromAngle(angle) };
         bool found = false;
-        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        ForEachQueryShape(layerMask, SweptArea(center, direction, distance, std::sqrt(halfExtents.x * halfExtents.x + halfExtents.y * halfExtents.y)), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
             Vec2 normal;

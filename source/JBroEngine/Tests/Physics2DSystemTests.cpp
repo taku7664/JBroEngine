@@ -1134,6 +1134,41 @@ namespace
             "and it reads back to the same object");
         Check(false == type.codec->FromText(&parsed, "3", 1), "a bare file index means nothing outside a canvas file");
     }
+
+    // **질의는 경계로 먼저 거른다(D-231).** 3 m 간격 격자의 콜라이더 100 개 가운데 짧은 반직선과 작은 원은 곁의 몇 개만 들여다보고,
+    // 멀리 떨어진 질의는 하나도 보지 않는다. 결과는 거르기 전과 같다.
+    void TestQueriesSkipFarColliders()
+    {
+        Scene scene;
+        for (int x = 0; x < 10; ++x)
+        {
+            for (int y = 0; y < 10; ++y)
+            {
+                JBro::GameObject* object = scene.Object("cell", { 3.0f * static_cast<float>(x), 3.0f * static_cast<float>(y) });
+                if ((x + y) % 2 == 0)
+                {
+                    scene.Box(object, { 1, 1 });
+                }
+                else
+                {
+                    Collider2D* round = scene.canvas.AttachComponent<Collider2D>(object);
+                    round->shape = ColliderShape2D::Circle;
+                    round->radius = 0.5f;
+                }
+            }
+        }
+        const JBro::System::IPhysics2DSystem& queries = scene.physics;
+        JBro::RaycastHit2D hit;
+        Check(queries.Raycast({ 7, 6 }, { 1, 0 }, 3, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 1.5f, 1.0e-4f),
+            "a short ray still hits the circle next to it");
+        Check(scene.physics.GetLastQueryColliderCount() <= 2, "and looks at no more than the colliders along it");
+        Array<JBro::GameObjectHandle> found;
+        queries.OverlapCircle({ 12, 12 }, 0.2f, found, JBro::AllPhysicsLayers);
+        Check(found.Size() == 1 && scene.physics.GetLastQueryColliderCount() == 1, "a small circle looks at one collider");
+        Check(false == queries.Raycast({ 100, 100 }, { 0, 1 }, 5, hit, JBro::AllPhysicsLayers)
+                && scene.physics.GetLastQueryColliderCount() == 0,
+            "a query far away looks at none");
+    }
 }
 
 int RunPhysics2DSystemTests()
@@ -1151,6 +1186,7 @@ int RunPhysics2DSystemTests()
     TestRestartingDoesNotReplayOldContacts();
     TestQueriesSeePolygonsAndRotatedBoxes();
     TestTheWiderQueries();
+    TestQueriesSkipFarColliders();
     TestAStaticBodyFollowsItsTransform();
     TestCapsuleColliders();
     TestTheWorkerCountReachesTheKernel();

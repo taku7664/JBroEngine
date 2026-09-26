@@ -54,6 +54,8 @@ namespace JBro::System
         std::size_t GetBodyCount() const;
         std::size_t GetShapeCount() const;
         std::size_t GetJointCount() const;
+        // 마지막 질의가 경계를 지나 조각을 들여다본 콜라이더 수(D-231). 경계 거르기를 테스트가 붙잡는 손잡이다.
+        std::size_t GetLastQueryColliderCount() const;
 
     protected:
         void OnInitialize (Canvas& canvas) override;
@@ -67,11 +69,13 @@ namespace JBro::System
         void DispatchEvents(Canvas& canvas);
         // 켜진 콜라이더의 도형마다(폴리곤은 볼록 조각마다) 부른다. 모든 질의가 이 한 길로 도형을 본다 - 충돌과 같은 조각이다.
         template<typename Fn>
-        void ForEachQueryShape(std::uint32_t layerMask, Fn&& visit) const;
+        // 질의 영역(area, 월드 축 정렬 상자)과 겹칠 수 있는 콜라이더의 조각만 부른다(D-231). 경계는 도형을 굽기 전에 원으로 어림한다.
+        void ForEachQueryShape(std::uint32_t layerMask, const Rect& area, Fn&& visit) const;
 
         Canvas*         m_canvas = nullptr;
         Vec2            m_gravity{ 0.0f, -9.81f };
         std::uint32_t   m_workerCount = 0;
+        mutable std::size_t m_lastQueryColliders = 0;
         std::uint32_t   m_ignoredLayers[PhysicsLayerCount] = {};
         OwnerPtr<State> m_state;
     };
