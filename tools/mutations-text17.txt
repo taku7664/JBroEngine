@@ -1,0 +1,22 @@
+Modules\JBroHost\Source\GameLocalization.cpp	loc:no-fallback	        return m_fallback != m_locale && FindIn(m_fallback, name, text, textLength);	        return false;
+Modules\JBroHost\Source\GameLocalization.cpp	loc:locale-ignored	if (data == nullptr || data->options.locale != locale)	if (data == nullptr)
+Modules\JBroHost\Source\GameLocalization.cpp	loc:reload-silent	        if (changed)\n        {\n            ++m_revision;	        if (false)\n        {\n            ++m_revision;
+Modules\JBroHost\Source\GameLocalization.cpp	loc:set-silent	            m_locale = locale;\n            ++m_revision;	            m_locale = locale;
+Modules\JBroHost\Source\GameLocalization.cpp	loc:registry-ignored	if (false == m_gathered || m_registryRevision != m_registry->GetRevision())	if (false == m_gathered)
+Modules\JBroHost\Source\GameLocalization.cpp	loc:attach-keeps	        ReleaseTables();\n        m_assets = assets;	        m_assets = assets;
+Modules\JBroHost\Source\GameLocalization.cpp	loc:empty-locale-accepted	        if (locale == nullptr || locale[0] == 0)	        if (locale == nullptr)
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:revision-not-keyed	            || m_localizationRevision != LocalizationRevision(settings)\n	
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:key-ignored	        if (key.Size() == 0)\n        {\n            return store.GetText(settings.text);	        if (true)\n        {\n            return store.GetText(settings.text);
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:missing-key-empty	빈 글자로 두면 무엇이 빠졌는지 화면에서 알 수 없다.\n        return key;	빈 글자로 두면 무엇이 빠졌는지 화면에서 알 수 없다.\n        return {};
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:keyless-follows-locale	        if (TextStore::Get().GetText(settings.textKey).Size() == 0)\n        {\n            return 0;	        if (false)\n        {\n            return 0;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	2d:key-not-copied	        settings.textKey = text.textKey;\n	
+Modules\JBroFramework3DSystem\Source\System\Text3DSystem.cpp	3d:key-not-copied	        settings.textKey = text.textKey;\n	
+Modules\JBroLocalizationTypes\Source\LocalizationService.cpp	service:missing-empty	        return key != nullptr ? String(key) : String();	        return String();
+Modules\JBroLocalizationTypes\Source\LocalizationService.cpp	service:locale-truncated	        if (length < sizeof(small))	        if (true)
+Modules\JBroHost\Source\EngineInstance.cpp	engine:default-not-set	            m_localization->SetLocale(locale.c_str());	            (void)locale;
+Modules\JBroHost\Source\EngineInstance.cpp	engine:tick-no-refresh	        if (m_localization)\n        {\n            m_localization->Refresh();\n        }\n        {\n            const ProfileScope scope("Platform");	        {\n            const ProfileScope scope("Platform");
+Modules\JBroHost\Source\ProjectFile.cpp	project:empty-defaults-written	            return (key == "DefaultLocale" && project.defaultLocale.empty())\n                || (key == "FallbackLocale" && project.fallbackLocale.empty());	            return false;
+Modules\JBroHost\Source\ProjectFile.cpp	project:empty-rows-written	                if (skipEmpty && layer.empty())	                if (false)
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:play-keeps-locale	                SetPreviewLocale(m_simulationLocale.c_str());	                (void)0;
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:table-no-locale	                SaveAssetMetaFile(*m_platform, metaPath.c_str(), meta);	                (void)meta;
+Modules\JBroFramework2D\Source\Text2D.cpp	2d:key-slot-leaks	        TextStore::Get().Destroy(textKey);\n	

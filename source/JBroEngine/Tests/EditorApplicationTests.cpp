@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/EditorApplication.h>
+﻿#include <JBro/LocalizationTypes/ServiceContext.h>
+#include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
 #include <JBro/Core/Version.h>
 
@@ -10238,6 +10239,21 @@ namespace
         const JBro::AssetMetaFile* meta = editor.GetSelectedAssetMeta();
         Check(meta != nullptr && meta->hasStringTableOptions && meta->stringTableOptions.locale == "en-US",
             "a new table is written in the project's default language");
+        // 엔진은 틱마다 레지스트리를 보고 새 표를 모은다. 본문을 채운 새 표를 하나 더 만들고 틱 하나 뒤에 그 키가 찾히는지 본다.
+        const JBro::AssetId tableId = record->id;
+        const JBro::String filled = editor.CreateStringTableAsset("Text");
+        {
+            std::ofstream file(root / "Assets" / filled.c_str(), std::ios::binary);
+            file << "probe.key: Hello\n";
+        }
+        Check(editor.Tick(Frame), "the editor ticks after the new table");
+        Check(JBro::GetLocalizationServices().Localization.GetText("probe.key") == "Hello",
+            "a table made while the project is open is found on the next tick");
+        editor.SetSelectedAsset(tableId);
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the first table again");
+        }
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
         const ImGuiID localeField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"), 0), "##value");

@@ -200,10 +200,12 @@ namespace
             Check(codec.Equals(&first->text, &first->text), "a text equals itself");
             Check(false == codec.Equals(&first->text, &second->text), "different texts are not equal");
 
-            Check(TextStore::Get().GetLiveCount() == baseline + 2, "two texts hold two slots");
+            // 키(D-226)도 제 칸이다.
+            TextStore::Get().Assign(first->textKey, "menu.start", 10);
+            Check(TextStore::Get().GetLiveCount() == baseline + 3, "two texts and a key hold three slots");
             canvas.DestroyObject(a);
             canvas.FlushPendingDestroy();
-            Check(TextStore::Get().GetLiveCount() == baseline + 1, "destroying an object returns its text slot");
+            Check(TextStore::Get().GetLiveCount() == baseline + 1, "destroying an object returns its text and key slots");
         }
         Check(TextStore::Get().GetLiveCount() == baseline, "tearing the canvas down returns the rest");
     }
@@ -1549,6 +1551,15 @@ namespace
             Check(widthOf(keyed) == widthOf(plain), "with no localization bound a key draws itself");
             framework.Shutdown();
         }
+        // 레지스트리에서 빠진 표는 다음 `Refresh` 에서 놓고, 그 표의 키는 더 찾히지 않는다.
+        BindLocalizationSystemContext(localization.GetSystemContext());
+        Check(service.GetText("en.only") == "WWWWWWWW", "the English table still answers");
+        Check(project.registry.Unregister(project.englishTableId), "the English table leaves the registry");
+        localization.Refresh();
+        Check(localization.GetTableCount() == 1 && service.GetText("en.only") == "en.only",
+            "a table gone from the registry is let go");
+        Check(project.assets.GetReferenceCount(project.assets.Find(project.englishTableId)) == 0, "and no longer held");
+        BindLocalizationSystemContext({});
         localization.Attach(nullptr, nullptr);
         Check(project.assets.GetReferenceCount(project.assets.Find(project.koreanTableId)) == 0, "detaching lets the tables go");
         gpu.Close();
