@@ -30,6 +30,7 @@
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/AudioBusName.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
@@ -646,6 +647,63 @@ namespace JBro
         {
             CommitEdit(type, address, before, context);
         }
+    }
+
+    void InspectorPanel::DrawObjectField(const TypeDescriptor& type, void* address, Context& context)
+    {
+        GameObjectHandle& handle = *static_cast<GameObjectHandle*>(address);
+        m_objectNames.Clear();
+        m_objectIds.Clear();
+        m_objectNames.Add(String(Loc::TextOr(LocKeys::InspectorObjectNone, "None")));
+        m_objectIds.Add(InvalidInstanceId);
+        int current = handle.GetInstanceId() == InvalidInstanceId ? 0 : -1;
+        if (Canvas* canvas = m_editor->GetCanvas())
+        {
+            canvas->ForEachObject([&](GameObject& object) {
+                if (object.GetInstanceId() == handle.GetInstanceId())
+                {
+                    current = static_cast<int>(m_objectIds.Size());
+                }
+                const char* name = object.GetTag();
+                m_objectNames.Add(String(name != nullptr ? name : ""));
+                m_objectIds.Add(object.GetInstanceId());
+            });
+        }
+        m_objectNamePointers.Clear();
+        for (const String& name : m_objectNames)
+        {
+            m_objectNamePointers.Add(name.c_str());
+        }
+        String before;
+        const bool snapped = ToText(type, address, before);
+        int chosen = current;
+        std::uint64_t dropped = 0;
+        // 하이어라키의 끌기 페이로드는 에디터 오브젝트 번호다(주소를 담지 않는다).
+        const bool changed = Widget::ObjectField("##value",
+            ArrayView<const char* const>(m_objectNamePointers.Data(), m_objectNamePointers.Size()), chosen,
+            "JBRO_HIERARCHY_MOVE", dropped);
+        if (false == changed || false == snapped)
+        {
+            return;
+        }
+        if (dropped != 0)
+        {
+            GameObject* object = m_editor->GetObjectIds().Resolve(static_cast<EditorObjectId>(dropped));
+            if (object == nullptr)
+            {
+                return;
+            }
+            handle = object->GetScriptHandle();
+        }
+        else if (chosen >= 0 && static_cast<std::size_t>(chosen) < m_objectIds.Size())
+        {
+            handle = chosen == 0 ? GameObjectHandle{} : Internal::GameObjectHandleAccess::FromId(m_objectIds[static_cast<std::size_t>(chosen)]);
+        }
+        else
+        {
+            return;
+        }
+        CommitEdit(type, address, before, context);
     }
 
     void InspectorPanel::DrawAudioPreview(const AssetMetaFile& meta)
@@ -1703,6 +1761,12 @@ namespace JBro
         if (context.element == nullptr && SameName(type.typeName, "JBro.PhysicsLayerMask"))
         {
             DrawLayerMaskField(type, address, context);
+            return;
+        }
+        // 오브젝트 참조는 캔버스의 오브젝트 목록이다(D-230).
+        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.GameObjectHandle"))
+        {
+            DrawObjectField(type, address, context);
             return;
         }
         // **`AssetId` 는 드롭다운이다**(D-116). 원소 안의 아이디는 아직 글자 칸이다 - 목록 원소

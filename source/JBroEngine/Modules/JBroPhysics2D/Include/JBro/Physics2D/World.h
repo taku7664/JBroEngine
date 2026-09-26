@@ -7,6 +7,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
 #include <JBro/Types/SafePtr.h>
+#include <JBro/Types/Table.h>
 
 #include <cstdint>
 
@@ -52,6 +53,49 @@ namespace JBro::Physics2D
     {
         std::uint32_t index = InvalidIndex;
         std::uint32_t generation = 0;
+    };
+
+    struct JointId
+    {
+        std::uint32_t index = InvalidIndex;
+        std::uint32_t generation = 0;
+    };
+
+    // **두 몸 사이의 거리를 지킨다**(D-230). bodyB 가 빈 번호면 몸 하나를 월드의 점(localAnchorB)에 잇는다.
+    struct DistanceJointDef
+    {
+        BodyId bodyA;
+        BodyId bodyB;
+        // 몸의 로컬 점(트랜스폼 원점 기준, 크기를 곱한 값).
+        Vec2   localAnchorA;
+        Vec2   localAnchorB;
+        float  length = 1.0f;
+        // 참이면 밧줄이다: length 보다 멀어지지만 않게 하고 가까워지는 것은 막지 않는다.
+        bool   maxLengthOnly = false;
+        // 0 보다 크면 용수철이다(초당 떨림 수). 0 이면 단단하다. 밧줄에는 쓰지 않는다.
+        float  hertz = 0.0f;
+        float  dampingRatio = 0.0f;
+        // 거짓이면 두 몸의 도형이 서로 부딪히지 않는다.
+        bool   collideConnected = false;
+    };
+
+    // **한 점을 함께 쓰고 그 둘레로 돈다**(D-230). 각도는 라디안이다.
+    struct HingeJointDef
+    {
+        BodyId bodyA;
+        BodyId bodyB;
+        Vec2   localAnchorA;
+        Vec2   localAnchorB;
+        // 만들 때의 상대 각도(B - A). 한계는 이것을 0 으로 잰다.
+        float  referenceAngle = 0.0f;
+        bool   enableLimit = false;
+        float  lowerAngle = 0.0f;
+        float  upperAngle = 0.0f;
+        bool   enableMotor = false;
+        // B 가 A 에 대해 도는 목표 속도(라디안/초)와, 그것을 위해 쓸 수 있는 가장 큰 토크.
+        float  motorSpeed = 0.0f;
+        float  maxMotorTorque = 0.0f;
+        bool   collideConnected = false;
     };
 
     struct BodyDef
@@ -214,6 +258,18 @@ namespace JBro::Physics2D
         std::uint32_t GetWorkerCount() const;
         StepStats     GetLastStepStats() const;
 
+        // **조인트**(D-230). 몸이 없거나 두 몸이 같으면 빈 번호다. 몸을 지우면 그 몸에 걸린 조인트도 사라진다.
+        JointId CreateDistanceJoint(const DistanceJointDef& def);
+        JointId CreateHingeJoint(const HingeJointDef& def);
+        // 같은 두 몸의 조인트 성질을 제자리에서 바꾼다(쌓인 임펄스를 이어받는다). 몸이나 종류가 다르면 거짓이다 - 새로 만든다.
+        bool SetDistanceJoint(JointId id, const DistanceJointDef& def);
+        bool SetHingeJoint(JointId id, const HingeJointDef& def);
+        void DestroyJoint(JointId id);
+        bool IsValid(JointId id) const;
+        std::size_t GetJointCount() const;
+        // 경첩의 지금 상대 각도(B - A - 기준 각)다.
+        float GetHingeAngle(JointId id) const;
+
         // 마지막 Step 의 이벤트. 다음 Step 이 비운다.
         ArrayView<const ContactEvent> GetBeginEvents() const;
         ArrayView<const ContactEvent> GetEndEvents() const;
@@ -365,6 +421,60 @@ namespace JBro::Physics2D
         std::uint32_t FindIsland(std::uint32_t body);
         // 깨어 있는 동적 몸이 끼어야 접촉을 푼다. 둘 다 잠들었거나 멈춘 몸이면 풀 것이 없다.
         bool IsSolved(const Contact& contact) const;
+
+        enum class JointType : std::uint8_t
+        {
+            Distance,
+            Hinge,
+        };
+
+        struct Joint
+        {
+            bool             alive = false;
+            std::uint32_t    generation = 0;
+            JointType        type = JointType::Distance;
+            // B 가 InvalidIndex 면 월드다(움직이지 않는 빈 몸 m_ground 로 푼다).
+            std::uint32_t    bodyA = InvalidIndex;
+            std::uint32_t    bodyB = InvalidIndex;
+            // 정의. 몸 번호 칸은 bodyA·bodyB 가 대신한다.
+            DistanceJointDef distance;
+            HingeJointDef    hinge;
+            bool             collideConnected = false;
+            // 준비 단계가 채운다.
+            Vec2             rA;
+            Vec2             rB;
+            Vec2             axis;
+            float            currentLength = 0.0f;
+            float            mass = 0.0f;
+            float            softMass = 0.0f;
+            float            gamma = 0.0f;
+            float            bias = 0.0f;
+            float            k11 = 0.0f;
+            float            k12 = 0.0f;
+            float            k22 = 0.0f;
+            float            axialMass = 0.0f;
+            float            angle = 0.0f;
+            // 쌓인 임펄스. Step 을 넘어 이어진다(따뜻한 시작).
+            float            impulse = 0.0f;
+            float            lowerImpulse = 0.0f;
+            float            upperImpulse = 0.0f;
+            float            motorImpulse = 0.0f;
+            Vec2             linearImpulse;
+        };
+
+        JointId      AddJoint(JointType type, BodyId bodyA, BodyId bodyB, bool collideConnected);
+        Joint*       FindJoint(JointId id);
+        const Joint* FindJoint(JointId id) const;
+        Body&        JointBody(std::uint32_t index);
+        bool         IsJointSolved(const Joint& joint) const;
+        void         PrepareJoints(float h);
+        void         WarmStartJoints();
+        void         SolveJoints(float h);
+        void         SolveJointPositions();
+        // collideConnected 가 거짓인 조인트가 이은 몸 쌍. 값은 그런 조인트의 수다.
+        static std::uint64_t JointPairKey(std::uint32_t bodyA, std::uint32_t bodyB);
+        void         AddJointFilter(const Joint& joint);
+        void         RemoveJointFilter(const Joint& joint);
         bool PassesOneWay(const Contact& contact) const;
         bool LayersMeet(std::uint32_t layerA, std::uint32_t layerB) const;
 
@@ -402,5 +512,10 @@ namespace JBro::Physics2D
         Array<MassData>      m_massParts;
         Array<ContactEvent>  m_endEvents;
         Array<ContactEvent>  m_stayEvents;
+        Array<Joint>         m_joints;
+        Array<std::uint32_t> m_freeJoints;
+        Table<std::uint64_t, std::uint32_t> m_jointFilters;
+        // 월드에 거는 조인트의 상대다. 정적이고 질량이 없다.
+        Body                 m_ground;
     };
 }

@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/TextField.h>
 
 #include <imgui_internal.h>
@@ -302,6 +303,27 @@ namespace JBro::Widget
                 ImGui::PopID();
             }
             ImGui::EndCombo();
+        }
+        return changed;
+    }
+
+    bool ObjectField(const char* id, ArrayView<const char* const> names, int& chosen, const char* dropType,
+        std::uint64_t& dropped)
+    {
+        dropped = 0;
+        bool changed = FilterCombo(id != nullptr ? id : "##object", names, chosen)
+            .EmptyText(Loc::TextOr(LocKeys::InspectorObjectMissing, "Missing object"))
+            .ShowFilter(true)
+            .Draw();
+        if (dropType != nullptr && ImGui::BeginDragDropTarget())
+        {
+            const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(dropType);
+            if (payload != nullptr && payload->DataSize == static_cast<int>(sizeof(std::uint64_t)))
+            {
+                std::memcpy(&dropped, payload->Data, sizeof(std::uint64_t));
+                changed = true;
+            }
+            ImGui::EndDragDropTarget();
         }
         return changed;
     }

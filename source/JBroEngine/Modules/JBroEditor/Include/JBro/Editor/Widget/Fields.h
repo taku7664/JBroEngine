@@ -107,6 +107,11 @@ namespace JBro::Widget
     // `#번호` 로 보인다. 펼치면 "모두"·"없음" 과 레이어마다 켜기 칸이 있다. 닫힌 칸은 켜진 이름들을 잇는다.
     bool LayerMaskField(const char* id, ArrayView<const char* const> names, std::uint32_t& mask);
 
+    // 오브젝트 하나를 고르는 칸이다(D-230). 검색되는 목록에서 고르거나, 하이어라키의 줄을 끌어 놓는다. `dropType` 끌기로
+    // 놓이면 그 페이로드(8 바이트 번호)를 `dropped` 에 담고 참을 돌려준다 - 고른 번호(`chosen`)는 그대로다.
+    bool ObjectField(const char* id, ArrayView<const char* const> names, int& chosen, const char* dropType,
+        std::uint64_t& dropped);
+
     // 색 하나. 견본과 고르개가 붙는다 - 숫자 네 개가 아니라 색이다(§11.3).
     bool ColorField(const char* id, float rgba[4]);
 

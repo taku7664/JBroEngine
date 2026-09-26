@@ -10,6 +10,17 @@
 
 namespace JBro::Internal
 {
+    // 오브젝트 참조 필드의 글자를 파일 안 번호와 오가게 하는 문맥이다(D-230). 캔버스 파일이 쓰고 읽는 동안에만 선다.
+    // 레지스트리가 들고 있는 까닭은 레지스트리가 호스트와 스크립트 DLL 이 함께 보는 유일한 것이기 때문이다(D-44).
+    struct ObjectRefRemap
+    {
+        void* user = nullptr;
+        // 쓰기: 오브젝트 번호를 파일 안 번호로. 이 캔버스에 없으면 -1.
+        std::int64_t (*toIndex)(void* user, InstanceId objectId) = nullptr;
+        // 읽기: 파일 안 번호를 오브젝트 번호로. 없으면 InvalidInstanceId.
+        InstanceId (*toObjectId)(void* user, std::int64_t index) = nullptr;
+    };
+
     // 프로세스에서 활성화된 실 객체를 슬롯·세대로 찾는 메인 스레드 전용 레지스트리.
     class InstanceRegistry final
     {
@@ -42,6 +53,17 @@ namespace JBro::Internal
         void ResetDiagnostics();
         std::size_t GetPersistentLookupCount() const;
 
+        // 지금 선 오브젝트 참조 문맥이다(D-230). `ObjectRefRemapScope` 가 세우고 거둔다.
+        void SetObjectRefRemap(const ObjectRefRemap* remap)
+        {
+            m_objectRefRemap = remap;
+        }
+
+        const ObjectRefRemap* GetObjectRefRemap() const
+        {
+            return m_objectRefRemap;
+        }
+
     private:
         struct Entry
         {
@@ -66,5 +88,7 @@ namespace JBro::Internal
         Table<InstanceId, std::uint32_t> m_idToSlot;
         std::size_t m_liveCount = 0;
         mutable std::size_t m_persistentLookupCount = 0;
+        // 맨 뒤에 둔다 - 옛 DLL 이 앞 멤버의 자리를 그대로 본다.
+        const ObjectRefRemap* m_objectRefRemap = nullptr;
     };
 }

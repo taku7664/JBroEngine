@@ -1144,6 +1144,187 @@ namespace
         Run(same, 1.5f);
         Check(Near(same.GetPosition(top).y, 0.5f, 0.02f), "one row of the table is enough to separate them");
     }
+
+    JBro::Physics2D::Circle MakeBall(float radius)
+    {
+        JBro::Physics2D::Circle ball;
+        ball.radius = radius;
+        return ball;
+    }
+
+    float DistanceBetween(Vec2 a, Vec2 b)
+    {
+        const float dx = b.x - a.x;
+        const float dy = b.y - a.y;
+        return std::sqrt(dx * dx + dy * dy);
+    }
+
+    // **거리 조인트(D-230).** 단단하면 월드의 점에서 늘 같은 거리로 흔들리고, 밧줄은 그 거리 안에서는 자유롭게 떨어지다가
+    // 거기서 멈추며, 용수철은 중력에 늘어난 채 선다. 밧줄·용수철로 바꾸면 쌓인 임펄스를 비운다.
+    void TestDistanceJoints()
+    {
+        using JBro::Physics2D::DistanceJointDef;
+        using JBro::Physics2D::JointId;
+        {
+            World world;
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2, 0 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef def;
+            def.bodyA = ball;
+            def.localAnchorB = { 0, 0 };
+            def.length = 2.0f;
+            const JointId joint = world.CreateDistanceJoint(def);
+            Check(world.IsValid(joint) && world.GetJointCount() == 1, "a distance joint to the world is made");
+            float worst = 0.0f;
+            for (int i = 0; i < 120; ++i)
+            {
+                world.Step(Frame);
+                worst = std::fmax(worst, std::fabs(DistanceBetween(world.GetPosition(ball), { 0, 0 }) - 2.0f));
+            }
+            Check(worst < 0.02f, "a rigid distance joint keeps the ball two metres from the pin");
+            Check(world.GetPosition(ball).y < -0.5f, "and the ball swings down");
+        }
+        {
+            World world;
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, -1 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef rope;
+            rope.bodyA = ball;
+            rope.length = 2.0f;
+            rope.maxLengthOnly = true;
+            world.CreateDistanceJoint(rope);
+            Run(world, 0.2f);
+            Check(world.GetPosition(ball).y < -1.1f, "inside its length a rope lets the ball fall freely");
+            Run(world, 1.5f);
+            const float hanging = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            Check(hanging > 1.95f && hanging < 2.02f, "and it stops the ball at its length");
+        }
+        {
+            World world;
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, -1 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef spring;
+            spring.bodyA = ball;
+            spring.length = 1.0f;
+            spring.hertz = 1.0f;
+            spring.dampingRatio = 0.5f;
+            world.CreateDistanceJoint(spring);
+            Run(world, 4.0f);
+            // 고유 진동수 1 Hz 인 질량-용수철은 g / ω² ≈ 0.248 m 늘어나 선다.
+            const float stretched = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            Check(stretched > 1.2f && stretched < 1.3f, "a spring stretches under gravity by about g over omega squared");
+        }
+    }
+
+    // **경첩(D-230).** 월드에 건 막대는 핀 둘레로만 돌고, 한계를 주면 그 각을 넘지 않으며, 모터는 목표 속도로 돌린다.
+    // 이은 두 몸은 collideConnected 가 거짓이면 겹쳐도 밀지 않고, 참이면 떨어진다. 몸을 지우면 조인트도 사라진다.
+    void TestHingeJoints()
+    {
+        using JBro::Physics2D::HingeJointDef;
+        using JBro::Physics2D::JointId;
+        const float degree = 3.14159265f / 180.0f;
+        {
+            World world;
+            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1, 0 });
+            AddPolygon(world, rod, BoxOutline(1.0f, 0.1f));
+            HingeJointDef def;
+            def.bodyA = rod;
+            def.localAnchorA = { -1, 0 };
+            def.localAnchorB = { 0, 0 };
+            def.enableLimit = true;
+            def.lowerAngle = -30.0f * degree;
+            def.upperAngle = 30.0f * degree;
+            const JointId hinge = world.CreateHingeJoint(def);
+            float highest = 0.0f;
+            float pinDrift = 0.0f;
+            for (int i = 0; i < 120; ++i)
+            {
+                world.Step(Frame);
+                highest = std::fmax(highest, world.GetHingeAngle(hinge));
+                const Vec2 end = world.GetPosition(rod);
+                const float angle = world.GetAngle(rod);
+                const Vec2 pin{ end.x - std::cos(angle), end.y - std::sin(angle) };
+                pinDrift = std::fmax(pinDrift, DistanceBetween(pin, { 0, 0 }));
+            }
+            Check(pinDrift < 0.02f, "a hinged rod keeps its end on the pin");
+            // A 가 막대이고 B 가 월드라 막대가 아래로 돌면 상대 각(B - A)이 커진다 - 위 한계가 막는다.
+            Check(highest < 31.5f * degree && highest > 28.0f * degree, "and the upper limit stops it at thirty degrees");
+            // 한계를 끄면 막대가 아래로 늘어진다. 같은 조인트를 제자리에서 바꾼다.
+            def.enableLimit = false;
+            Check(world.SetHingeJoint(hinge, def), "the hinge changes in place");
+            Run(world, 3.0f);
+            Check(world.GetHingeAngle(hinge) > 60.0f * degree, "without the limit the rod hangs down");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId wheel = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            world.CreateCircleShape(wheel, MakeBall(0.5f), {});
+            HingeJointDef def;
+            def.bodyA = wheel;
+            def.enableMotor = true;
+            def.motorSpeed = 2.0f;
+            def.maxMotorTorque = 100.0f;
+            const JointId motor = world.CreateHingeJoint(def);
+            Run(world, 0.5f);
+            // A 가 바퀴이고 B 가 월드라 상대 각속도(B - A)가 목표다: 바퀴는 거꾸로 돈다.
+            Check(Near(world.GetAngularVelocity(wheel), -2.0f, 0.01f), "a motor spins the wheel at its speed");
+            def.maxMotorTorque = 0.0f;
+            world.SetHingeJoint(motor, def);
+            Run(world, 0.5f);
+            Check(Near(world.GetAngularVelocity(wheel), -2.0f, 0.05f), "with no torque the motor stops driving and the wheel coasts");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId first = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            AddPolygon(world, first, BoxOutline(0.5f, 0.5f));
+            const BodyId second = AddBody(world, BodyType::Dynamic, { 0.5f, 0 });
+            AddPolygon(world, second, BoxOutline(0.5f, 0.5f));
+            HingeJointDef def;
+            def.bodyA = first;
+            def.bodyB = second;
+            def.localAnchorA = { 0.25f, 0 };
+            def.localAnchorB = { -0.25f, 0 };
+            const JointId hinge = world.CreateHingeJoint(def);
+            Run(world, 0.5f);
+            Check(Near(world.GetPosition(second).x - world.GetPosition(first).x, 0.5f, 0.01f),
+                "hinged boxes that overlap do not push each other apart");
+            def.collideConnected = true;
+            world.SetHingeJoint(hinge, def);
+            Run(world, 0.5f);
+            Check(world.GetPosition(second).x - world.GetPosition(first).x > 0.52f
+                    || std::fabs(world.GetAngle(second) - world.GetAngle(first)) > 0.2f,
+                "with collideConnected they do");
+            world.DestroyBody(first);
+            Check(false == world.IsValid(hinge) && world.GetJointCount() == 0, "destroying a body removes its joints");
+            HingeJointDef stray = def;
+            Check(false == world.IsValid(world.CreateHingeJoint(stray)), "a joint to a destroyed body is not made");
+        }
+    }
+
+    // **조인트로 이은 몸은 한 섬이다(D-230).** 잠든 상자에 매달린 공을 깨우면 상자도 깬다.
+    void TestJointedBodiesSleepTogether()
+    {
+        using JBro::Physics2D::DistanceJointDef;
+        World world;
+        AddGround(world);
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        const BodyId ball = AddBody(world, BodyType::Dynamic, { 3, 0.25f });
+        world.CreateCircleShape(ball, MakeBall(0.25f), {});
+        DistanceJointDef def;
+        def.bodyA = box;
+        def.bodyB = ball;
+        def.localAnchorB = { 0, 0 };
+        def.length = 3.0f;
+        world.CreateDistanceJoint(def);
+        Run(world, 2.0f);
+        Check(false == world.IsAwake(box) && false == world.IsAwake(ball), "a box and the ball tied to it sleep together");
+        world.ApplyLinearImpulseToCenter(ball, { 0, 3 });
+        world.Step(Frame);
+        Check(world.IsAwake(box), "waking the ball wakes the box it is tied to");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -1178,6 +1359,9 @@ int RunPhysics2DWorldTests()
     TestWhatWakesASleepingBody();
     TestOneWayPlatforms();
     TestTheLayerTableSeparatesLayers();
+    TestDistanceJoints();
+    TestHingeJoints();
+    TestJointedBodiesSleepTogether();
     TestStayEventsFollowTouchingPairs();
     std::cout << "Physics2D world tests passed.\n";
     return 0;

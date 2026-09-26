@@ -156,6 +156,8 @@ Entries:
   inspector.audio_bus_missing: "프로젝트 오디오 버스에 없는 이름입니다. Master 로 재생됩니다"
   inspector.layers_everything: "모두"
   inspector.layers_nothing: "없음"
+  inspector.object_none: "없음"
+  inspector.object_missing: "없는 오브젝트"
   project_settings.audio: "오디오"
   project_settings.audio_effect_ratio_off: "1 이면 꺼집니다"
   project_settings.audio_duck_help: "고른 버스에서 소리가 나는 동안 이 버스의 소리를 줄입니다. 예: 대사가 나오면 배경음을 줄입니다"

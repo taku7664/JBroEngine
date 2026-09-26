@@ -59,14 +59,21 @@ namespace JBro
 
     GameObject* Canvas::CreateObject(const char* name)
     {
+        return CreateObject(name, InvalidInstanceId);
+    }
+
+    GameObject* Canvas::CreateObject(const char* name, InstanceId preferredId)
+    {
         GameObject* object = m_objects->Create();
         if (object == nullptr)
         {
             return nullptr;
         }
 
-        const InstanceId instanceId = GenerateCanvasInstanceId();
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
+        const bool reuse = preferredId != InvalidInstanceId
+            && registry.Resolve(preferredId, InvalidInstanceId, RefCategory::Object).Pointer == nullptr;
+        const InstanceId instanceId = reuse ? preferredId : GenerateCanvasInstanceId();
         const InstanceHandle handle = registry.Register(
             instanceId,
             InvalidInstanceId,

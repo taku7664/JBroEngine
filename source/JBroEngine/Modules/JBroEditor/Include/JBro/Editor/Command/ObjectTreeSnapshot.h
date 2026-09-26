@@ -33,6 +33,12 @@ namespace JBro
         LayerId layer = InvalidLayerId;
         // 이 배열 안에서의 부모 위치다. -1 이면 뜬 나무의 뿌리다.
         std::int64_t parentIndex = -1;
+        // **오브젝트 번호다**(D-230). 되살릴 때 이 번호를 다시 쓴다 - 지운 오브젝트를 가리키던 참조 필드(조인트의 상대 등)가
+        // 되돌리기 뒤에도 이어진다. 붙여넣기는 첫 실행에서 새 번호를 받아 적는다.
+        InstanceId instanceId = InvalidInstanceId;
+        // 뜰 때의 번호다. 떠 둔 컴포넌트 글자 안의 참조는 이 번호를 가리키므로, 붙여넣은 나무 안의 참조를 새 오브젝트로 옮기는
+        // 열쇠다. 지우기 되돌리기에서는 instanceId 와 같다.
+        InstanceId sourceInstanceId = InvalidInstanceId;
         Array<ComponentSnapshot> components;
     };
 
@@ -52,6 +58,9 @@ namespace JBro
             EditorObjectRegistry& registry,
             GameObject* outerParent,
             bool rebind);
+
+        // 붙여넣은 나무 안을 가리키는 오브젝트 참조를 새 오브젝트로 옮긴다(D-230).
+        void RetargetReferences(const Array<GameObject*>& created) const;
 
         // 뿌리를 번호로 찾아 나무째 지운다. 자식은 캔버스가 함께 지운다.
         bool DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const;

@@ -156,6 +156,8 @@ Entries:
   inspector.audio_bus_missing: "Not one of the project's audio buses - it plays on Master"
   inspector.layers_everything: "Everything"
   inspector.layers_nothing: "Nothing"
+  inspector.object_none: "None"
+  inspector.object_missing: "Missing object"
   project_settings.audio: "Audio"
   project_settings.audio_effect_ratio_off: "1 turns it off"
   project_settings.audio_duck_help: "While that bus sounds, this one steps back (e.g. music under dialogue)"

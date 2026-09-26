@@ -70,7 +70,12 @@ namespace JBro::Physics2D
         return std::min(work / 1024, cap);
     }
 
-    World::World() = default;
+    World::World()
+    {
+        // 월드에 거는 조인트의 상대다. 정적이고 역질량이 0 이라 풀이가 움직이지 못한다.
+        m_ground.type = BodyType::Static;
+        m_ground.alive = true;
+    }
 
     World::~World() = default;
 
@@ -209,6 +214,15 @@ namespace JBro::Physics2D
             m_freeShapes.Add(shapeIndex);
         }
         body->shapes.Clear();
+        // 이 몸에 걸린 조인트는 함께 사라진다. 상대 몸은 깨운다(DestroyJoint 가 한다).
+        for (std::uint32_t j = 0; j < m_joints.Size(); ++j)
+        {
+            const Joint& joint = m_joints[j];
+            if (joint.alive && (joint.bodyA == id.index || joint.bodyB == id.index))
+            {
+                DestroyJoint({ j, joint.generation });
+            }
+        }
         body->alive = false;
         ++body->generation;
         m_freeBodies.Add(id.index);
@@ -845,15 +859,20 @@ namespace JBro::Physics2D
             IntegrateVelocities(h);
             Collide();
             PrepareContacts();
+            PrepareJoints(h);
             WarmStart();
+            WarmStartJoints();
             for (std::uint32_t i = 0; i < m_settings.velocityIterations; ++i)
             {
+                // 조인트를 먼저 푼다. 접촉이 나중에 풀려야 조인트가 몸을 벽 속으로 끌어들이지 못한다.
+                SolveJoints(h);
                 SolveVelocities(h);
             }
             ApplyRestitution();
             IntegratePositions(h);
             for (std::uint32_t i = 0; i < m_settings.positionIterations; ++i)
             {
+                SolveJointPositions();
                 SolvePositions();
             }
             for (Body& body : m_bodies)
@@ -1019,6 +1038,11 @@ namespace JBro::Physics2D
                 continue;
             }
             if (false == LayersMeet(shapeA->layer, shapeB->layer))
+            {
+                continue;
+            }
+            // collideConnected 가 거짓인 조인트로 이은 두 몸은 서로 부딪히지 않는다(D-230).
+            if (false == m_jointFilters.IsEmpty() && m_jointFilters.Contains(JointPairKey(shapeA->body, shapeB->body)))
             {
                 continue;
             }
@@ -1508,6 +1532,25 @@ namespace JBro::Physics2D
             }
             const std::uint32_t rootA = FindIsland(contact.bodyA);
             const std::uint32_t rootB = FindIsland(contact.bodyB);
+            if (rootA != rootB)
+            {
+                m_islandParent[std::max(rootA, rootB)] = std::min(rootA, rootB);
+            }
+        }
+
+        // 조인트로 이은 움직이는 몸도 한 섬이다(D-230) - 매달린 몸 하나만 잠들면 조인트가 잠든 몸을 끌지 못한다.
+        for (const Joint& joint : m_joints)
+        {
+            if (false == joint.alive || joint.bodyB == InvalidIndex)
+            {
+                continue;
+            }
+            if (m_bodies[joint.bodyA].type == BodyType::Static || m_bodies[joint.bodyB].type == BodyType::Static)
+            {
+                continue;
+            }
+            const std::uint32_t rootA = FindIsland(joint.bodyA);
+            const std::uint32_t rootB = FindIsland(joint.bodyB);
             if (rootA != rootB)
             {
                 m_islandParent[std::max(rootA, rootB)] = std::min(rootA, rootB);
