@@ -737,6 +737,33 @@ namespace
         const float d = std::sqrt(0.5f);
         Check(byTop.count == 1 && NearVector(byTop.normal, { d, d }, 1.0e-4f), "the flat segment owns the corner, pushing along the diagonal");
         Check(byWall.count == 0, "and the wall below lets it go, so the corner pushes once");
+
+        // 뾰족한 모서리(벽이 왼쪽 아래로 눕는다) 오른쪽 아래의 공: 윗면은 그 쪽에서 모서리를 오목하게 보고 놓으니, 벽이 맡아
+        // 모서리에서 공 쪽으로 민다. 벽이 만난 면 쪽에서는 윗면의 바깥 법선을 등지므로 받는 근거는 벽의 면이다.
+        ChainSegment sharpTop = top;
+        sharpTop.next = { -3, -5 };
+        ChainSegment slant;
+        slant.p1 = { 0, 0 };
+        slant.p2 = { -3, -5 };
+        slant.previous = { -5, 0 };
+        slant.hasPrevious = true;
+        const Pose below = At(0.4f, -0.1f);
+        const Manifold belowTop = JBro::Physics2D::CollideChainSegmentAndCircle(sharpTop, At(0, 0), ball, below);
+        const Manifold belowSlant = JBro::Physics2D::CollideChainSegmentAndCircle(slant, At(0, 0), ball, below);
+        const float reach = std::sqrt(0.4f * 0.4f + 0.1f * 0.1f);
+        Check(belowTop.count == 0 && belowSlant.count == 1 && NearVector(belowSlant.normal, { 0.4f / reach, -0.1f / reach }, 1.0e-4f),
+            "below a sharp corner the slanted wall owns it, and it still pushes once");
+
+        // 모서리에 면으로 기댄 가파른 판자: 판자의 면 법선은 윗면보다 아래로 기울었지만 맞는 법선이다. 윗면이 받는다.
+        // (판자 아래 끝은 벽 면에도 닿는다. 그것은 다른 곳의 접촉이라 여기서 보지 않는다.)
+        const float angle = -0.20135792f;
+        const Vec2 facing{ std::cos(angle), std::sin(angle) };
+        const Vec2 along{ -std::sin(angle), std::cos(angle) };
+        const Pose leaning = At(0.04f * facing.x + 0.3f * along.x, 0.04f * facing.y + 0.3f * along.y, angle);
+        const ConvexPolygon plank = MakeBox(0.05f, 0.5f);
+        const Manifold plankTop = JBro::Physics2D::CollideChainSegmentAndPolygon(top, At(0, 0), plank, leaning);
+        Check(plankTop.count >= 1 && NearVector(plankTop.normal, facing, 1.0e-3f),
+            "a steep plank leaning on the corner keeps its own face normal");
     }
 }
 

@@ -984,6 +984,11 @@ namespace
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
             Run(world, 2.0f);
             Check(false == world.IsAwake(box), "the box sleeps");
+            world.Settings().gravity = { 0, -5.0f };
+            world.Step(Frame);
+            Check(world.IsAwake(box), "changing gravity wakes it");
+            Run(world, 2.0f);
+            Check(false == world.IsAwake(box), "and it sleeps again once gravity stays put");
             world.Settings().gravity = { 0, 9.81f };
             Run(world, 0.5f);
             Check(world.GetPosition(box).y > 1.0f, "turning gravity over wakes it and it rises");
@@ -993,6 +998,9 @@ namespace
             AddGround(world);
             const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 2.0f);
+            world.SetTransform(box, { 0, 0.5f }, 0.0f);
+            Check(world.IsAwake(box), "moving a sleeping body wakes it, even in place");
             Run(world, 2.0f);
             world.SetTransform(box, { 0, 5 }, 0.0f);
             Run(world, 0.3f);

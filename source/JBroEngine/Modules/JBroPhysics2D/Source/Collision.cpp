@@ -1091,12 +1091,7 @@ namespace JBro::Physics2D
             {
                 return ChainVerdict::Keep;
             }
-            // 만난 쪽의 반대로 미는 법선은 뜻이 없다(깊이 박혔다). 면으로 본다.
-            if (Dot(normal, face) <= 0.0f)
-            {
-                return ChainVerdict::UseFace;
-            }
-            // 모서리 영역이다. 접촉점에 가까운 끝의 이웃을 본다.
+            // 모서리 영역이다. 접촉점에 가까운 끝의 이웃을 본다. 이웃이 없는 끝은 진짜 모서리다.
             const bool atEnd = Dot(Subtract(point, segment.p1), tangent) > 0.5f * length;
             if (false == (atEnd ? segment.hasNext : segment.hasPrevious))
             {
@@ -1109,24 +1104,36 @@ namespace JBro::Physics2D
             {
                 return ChainVerdict::UseFace;
             }
-            // 이웃이 만난 쪽에서 멀어지면 볼록한 꼭짓점이다. 꼭짓점은 그것을 끝으로 가진 선분이 맡는다.
-            if (Dot(toGhost, face) < -LinearSlop * ghostLength)
+            // 이웃이 만난 쪽에서 멀어지면(내 쪽에서) 볼록한 꼭짓점이다. 아니면 평평하거나 오목해서 누구의 모서리도 아니다.
+            if (Dot(toGhost, face) >= -LinearSlop * ghostLength)
             {
-                if (false == atEnd)
-                {
-                    return ChainVerdict::Drop;
-                }
-                Vec2 neighbor{ toGhost.y / ghostLength, -toGhost.x / ghostLength };
-                if (Dot(neighbor, tangent) < 0.0f)
-                {
-                    neighbor = Scale(neighbor, -1.0f);
-                }
-                // 두 면 법선 사이의 부채꼴이면 받는다. 밖이면 이웃 선분의 면 영역이다.
-                const float turn = Cross(face, neighbor);
-                const bool inside = Cross(face, normal) * turn >= 0.0f && Cross(normal, neighbor) * turn >= 0.0f;
-                return inside ? ChainVerdict::Keep : ChainVerdict::Drop;
+                return ChainVerdict::UseFace;
             }
-            // 평평하거나 오목하다. 그 꼭짓점은 누구의 모서리도 아니다.
+            // 이웃도 자기가 만난 쪽에서 볼록하게 보면 둘 중 그 꼭짓점을 끝(p2)으로 가진 선분만 맡는다. 이웃이 오목하게 보면
+            // 이웃은 면으로 보고 놓으니 내가 맡는다 - 양면 체인이라 두 선분이 고른 쪽이 다를 수 있다.
+            const Vec2 ghostDirection = Scale(toGhost, 1.0f / ghostLength);
+            Vec2 neighborFace{ ghostDirection.y, -ghostDirection.x };
+            if (Dot(Subtract(otherCenter, vertex), neighborFace) < 0.0f)
+            {
+                neighborFace = Scale(neighborFace, -1.0f);
+            }
+            const Vec2 toMine = Subtract(atEnd ? segment.p1 : segment.p2, vertex);
+            const bool neighborConvex = Dot(toMine, neighborFace) < -LinearSlop * length;
+            if (neighborConvex && false == atEnd)
+            {
+                return ChainVerdict::Drop;
+            }
+            // 맡은 꼭짓점에서는 상대의 법선을 그대로 받는다(다각형 면이 꼭짓점에 닿으면 내 면보다 기울어도 그 면 법선이 맞다).
+            // 내 면도, 이웃의 바깥 법선(내 선분에서 멀어지는 쪽)도 등지면 쐐기 안으로 박힌 것이라 내 면으로 민다.
+            Vec2 neighborOut{ ghostDirection.y, -ghostDirection.x };
+            if (Dot(neighborOut, toMine) > 0.0f)
+            {
+                neighborOut = Scale(neighborOut, -1.0f);
+            }
+            if (Dot(normal, face) > 0.0f || Dot(normal, neighborOut) > 0.0f)
+            {
+                return ChainVerdict::Keep;
+            }
             return ChainVerdict::UseFace;
         }
     }
