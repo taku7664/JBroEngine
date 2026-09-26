@@ -218,7 +218,7 @@ namespace JBro
 
     void ProjectSettingsPanel::DrawPhysicsSettings()
     {
-        // **물리 레이어**(D-230). 이름은 자리가 비트 번호라 서른두 칸이 늘 있고, 충돌 표는 이름을 붙인 레이어끼리만 보인다.
+        // **물리 레이어**(D-232). 이름은 자리가 비트 번호라 서른두 칸이 늘 있고, 충돌 표는 이름을 붙인 레이어끼리만 보인다.
         Widget::SectionHeader(Loc::TextOr(LocKeys::ProjectSettingsPhysics, "Physics")).SpacingBefore().Draw();
         while (m_draft.physicsLayers.Size() < PhysicsLayerCount)
         {

@@ -2246,7 +2246,7 @@ namespace
         Check(canvas.GetLayerCount() == 1, "and must still be there");
     }
 
-    // **오브젝트 참조와 되돌리기·붙여넣기(D-230).** 지운 오브젝트를 되돌리면 옛 번호로 돌아와, 그것을 가리키던 조인트가 다시 잡는다.
+    // **오브젝트 참조와 되돌리기·붙여넣기(D-232).** 지운 오브젝트를 되돌리면 옛 번호로 돌아와, 그것을 가리키던 조인트가 다시 잡는다.
     // 참조를 가진 나무를 붙여넣으면 나무 안을 가리키던 참조는 붙여넣은 사본을, 나무 밖을 가리키던 것은 그대로 원본을 잡는다.
     void TestObjectReferencesFollowDeleteAndPaste()
     {

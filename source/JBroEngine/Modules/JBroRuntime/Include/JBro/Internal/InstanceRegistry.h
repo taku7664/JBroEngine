@@ -10,7 +10,7 @@
 
 namespace JBro::Internal
 {
-    // 오브젝트 참조 필드의 글자를 파일 안 번호와 오가게 하는 문맥이다(D-230). 캔버스 파일이 쓰고 읽는 동안에만 선다.
+    // 오브젝트 참조 필드의 글자를 파일 안 번호와 오가게 하는 문맥이다(D-232). 캔버스 파일이 쓰고 읽는 동안에만 선다.
     // 레지스트리가 들고 있는 까닭은 레지스트리가 호스트와 스크립트 DLL 이 함께 보는 유일한 것이기 때문이다(D-44).
     struct ObjectRefRemap
     {
@@ -53,7 +53,7 @@ namespace JBro::Internal
         void ResetDiagnostics();
         std::size_t GetPersistentLookupCount() const;
 
-        // 지금 선 오브젝트 참조 문맥이다(D-230). `ObjectRefRemapScope` 가 세우고 거둔다.
+        // 지금 선 오브젝트 참조 문맥이다(D-232). `ObjectRefRemapScope` 가 세우고 거둔다.
         void SetObjectRefRemap(const ObjectRefRemap* remap)
         {
             m_objectRefRemap = remap;

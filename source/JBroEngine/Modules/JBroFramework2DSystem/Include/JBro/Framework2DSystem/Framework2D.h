@@ -44,7 +44,7 @@ namespace JBro
 
         // 물리의 좁은 판정을 나눌 워커 수(D-223). 호스트가 프로젝트를 연 뒤 `ResolvePhysicsWorkerCount` 로 푼 값을 넘긴다.
         void           SetPhysicsWorkerCount(std::uint32_t count);
-        // 물리 레이어 충돌 표를 캔버스의 물리에 넘긴다(D-230). 행 i 의 비트 j 는 레이어 i 와 j 가 서로 지나간다.
+        // 물리 레이어 충돌 표를 캔버스의 물리에 넘긴다(D-232). 행 i 의 비트 j 는 레이어 i 와 j 가 서로 지나간다.
         void           SetPhysicsIgnoredLayers(const std::uint32_t (&rows)[32]);
         std::uint32_t  GetPhysicsWorkerCount();
         Canvas*        GetCanvas();

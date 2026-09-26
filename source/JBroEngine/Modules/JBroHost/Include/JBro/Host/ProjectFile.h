@@ -116,7 +116,7 @@ namespace JBro
         Array<ProjectInputBinding> bindings;
     };
 
-    // 서로 지나가는 물리 레이어 한 쌍이다(D-230). 파일에는 `PhysicsIgnoredLayerPairs` 아래 `- 0 3` 처럼 두 번호로 적힌다.
+    // 서로 지나가는 물리 레이어 한 쌍이다(D-232). 파일에는 `PhysicsIgnoredLayerPairs` 아래 `- 0 3` 처럼 두 번호로 적힌다.
     // 읽을 때 작은 번호가 앞에 오게 맞춘다.
     struct ProjectLayerPair
     {
@@ -181,7 +181,7 @@ namespace JBro
         // 비어 있으면 적지 않는다 - 기본이 비면 목록의 첫 로케일이고, 폴백이 비면 찾아보지 않는다.
         String        defaultLocale;
         String        fallbackLocale;
-        // 물리 레이어 이름이다(`PhysicsLayers`, D-230). i 번째가 콜라이더 `layer`·`mask` 의 비트 i 다(32 개까지). 이름 없는 칸은
+        // 물리 레이어 이름이다(`PhysicsLayers`, D-232). i 번째가 콜라이더 `layer`·`mask` 의 비트 i 다(32 개까지). 이름 없는 칸은
         // 빈 글자이고 파일에는 `""` 로 적힌다. 끝의 빈 칸들은 적지 않고, 모두 비면 키를 적지 않는다.
         Array<String> physicsLayers;
         // 서로 부딪히지 않는 레이어 쌍이다(`PhysicsIgnoredLayerPairs`). 비어 있으면 모든 레이어가 서로 부딪히고 키를 적지 않는다.

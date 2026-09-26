@@ -887,7 +887,7 @@ namespace
         Check(Near(body->angularVelocity, 3.14159265f, 1.0e-4f), "keeping its spin");
     }
 
-    // **이어지는 접촉은 고정 스텝마다 Stay 로 온다(D-230).** 시작한 스텝은 Enter 만이고, 몸이 잠들면 멈춘다. 잠들지 않는 공을
+    // **이어지는 접촉은 고정 스텝마다 Stay 로 온다(D-232).** 시작한 스텝은 Enter 만이고, 몸이 잠들면 멈춘다. 잠들지 않는 공을
     // 트리거 안에 띄워 두면 스텝마다 양쪽이 받고, 트리거의 Stay 에는 법선이 없다.
     void TestStayHooksComeEveryStepWhileTouching()
     {
@@ -937,7 +937,7 @@ namespace
         }
     }
 
-    // **한 방향 발판 콜라이더(D-230).** 밑에서 뛰어올라 뚫고 지나가는 동안에는 훅이 없고, 위에 얹힐 때 시작을 한 번 받는다.
+    // **한 방향 발판 콜라이더(D-232).** 밑에서 뛰어올라 뚫고 지나가는 동안에는 훅이 없고, 위에 얹힐 때 시작을 한 번 받는다.
     void TestAOneWayColliderLetsThingsUpThrough()
     {
         Scene scene;
@@ -975,7 +975,7 @@ namespace
         Check(scene.TransformOf(jumper)->position.y > 0.3f, "switching oneWay on lets the next jump through onto it");
     }
 
-    // **레이어 충돌 표가 시스템을 거쳐 커널에 간다(D-230).** 떼어 둔 두 레이어의 상자는 서로 지나간다.
+    // **레이어 충돌 표가 시스템을 거쳐 커널에 간다(D-232).** 떼어 둔 두 레이어의 상자는 서로 지나간다.
     void TestTheLayerTableReachesTheKernel()
     {
         Scene scene;
@@ -995,7 +995,7 @@ namespace
         Check(Near(scene.TransformOf(upper)->position.y, 0.5f, 0.03f), "a box on a separated layer falls through the other onto the ground");
     }
 
-    // **조인트 컴포넌트(D-230).** 경첩은 처음 이어질 때 핀 자리를 월드로 적고 그 둘레로 흔들린다. 한계와 모터는 "이 오브젝트가
+    // **조인트 컴포넌트(D-232).** 경첩은 처음 이어질 때 핀 자리를 월드로 적고 그 둘레로 흔들린다. 한계와 모터는 "이 오브젝트가
     // 상대에 대해" 의 반시계 양수 각도다. 거리 조인트는 처음 거리를 적어 그만큼 매달고, 거리를 바꾸면 제자리에서 바뀌며,
     // 상대 오브젝트가 사라지면 조인트도 없어진다.
     void TestJointComponents()
@@ -1087,7 +1087,7 @@ namespace
         }
     }
 
-    // **오브젝트 참조는 캔버스 파일에 파일 안 번호로 적힌다(D-230).** 뒤에 오는 오브젝트를 가리켜도 읽힌 뒤 그 오브젝트를 잡고,
+    // **오브젝트 참조는 캔버스 파일에 파일 안 번호로 적힌다(D-232).** 뒤에 오는 오브젝트를 가리켜도 읽힌 뒤 그 오브젝트를 잡고,
     // 빈 참조는 빈 채로 온다. 파일 밖(되돌리기 글자)에서는 이번 실행의 번호다.
     void TestAnObjectReferenceSurvivesTheCanvasFile()
     {
@@ -1142,7 +1142,7 @@ namespace
         Check(false == type.codec->FromText(&parsed, "3", 1), "a bare file index means nothing outside a canvas file");
     }
 
-    // **질의는 경계로 먼저 거른다(D-231).** 3 m 간격 격자의 콜라이더 100 개 가운데 짧은 반직선과 작은 원은 곁의 몇 개만 들여다보고,
+    // **질의는 경계로 먼저 거른다(D-233).** 3 m 간격 격자의 콜라이더 100 개 가운데 짧은 반직선과 작은 원은 곁의 몇 개만 들여다보고,
     // 멀리 떨어진 질의는 하나도 보지 않는다. 결과는 거르기 전과 같다.
     void TestQueriesSkipFarColliders()
     {

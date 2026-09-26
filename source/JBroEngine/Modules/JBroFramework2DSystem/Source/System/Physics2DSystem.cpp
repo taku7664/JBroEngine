@@ -270,7 +270,7 @@ namespace JBro::System
             bool               seen = false;
         };
 
-        // 조인트 컴포넌트 하나의 연결이다(D-230). 두 몸의 오브젝트가 바뀌면 새로 만들고, 성질만 바뀌면 제자리에서 바꾼다.
+        // 조인트 컴포넌트 하나의 연결이다(D-232). 두 몸의 오브젝트가 바뀌면 새로 만들고, 성질만 바뀌면 제자리에서 바꾼다.
         struct JointLink
         {
             Physics2D::JointId joint;
@@ -458,7 +458,7 @@ namespace JBro::System
             shape.owner = owner;
             shape.collider = &collider;
             shape.pose = ToPose(objectPose);
-            // **경계로 먼저 거른다**(D-231). 도형을 굽고(폴리곤은 분해 캐시를 찾고) 조각마다 판정하기 전에, 콜라이더를 감싸는 원이
+            // **경계로 먼저 거른다**(D-233). 도형을 굽고(폴리곤은 분해 캐시를 찾고) 조각마다 판정하기 전에, 콜라이더를 감싸는 원이
             // 질의 영역과 겹치는지만 본다. 콜라이더가 많은 캔버스에서 먼 것들이 값을 치르지 않는다.
             {
                 const Vec2 magnitude{ std::fabs(objectPose.scale.x), std::fabs(objectPose.scale.y) };
@@ -1159,7 +1159,7 @@ namespace JBro::System
             state.bodies.Remove(id);
         }
 
-        // ── 3.5 조인트(D-230) ───────────────────────────────────────────────────────
+        // ── 3.5 조인트(D-232) ───────────────────────────────────────────────────────
         // 몸을 모두 맞추고 사라진 몸을 지운 뒤라야 두 몸의 번호가 확정된다. 몸을 지우면 커널이 그 조인트도 지우므로 연결은
         // 번호가 죽은 것을 보고 다시 만든다.
         for (auto& entry : state.joints)

@@ -134,7 +134,7 @@ namespace JBro
 
     void ObjectTreeSnapshot::RetargetReferences(const Array<GameObject*>& created) const
     {
-        // **나무 안의 참조는 나무 안의 새 오브젝트로 옮긴다**(D-230). 붙여넣은 조인트가 원본의 상대를 붙잡지 않고 함께 붙여넣은
+        // **나무 안의 참조는 나무 안의 새 오브젝트로 옮긴다**(D-232). 붙여넣은 조인트가 원본의 상대를 붙잡지 않고 함께 붙여넣은
         // 상대를 잡는다. 나무 밖을 가리키는 참조는 그대로 둔다. 맨 위 필드만 본다 - 참조 필드를 가진 컴포넌트가 그렇게 선언한다.
         bool moved = false;
         for (std::size_t index = 0; index < objects.Size(); ++index)

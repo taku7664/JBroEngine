@@ -31,7 +31,7 @@ namespace JBro::Component
             all = RegisterComponentType<Rigidbody2D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider2D>(ComponentCategory::Physics) && all;
-            // 조인트는 한 오브젝트에 여럿 붙는다(사슬의 양쪽 고리, D-230).
+            // 조인트는 한 오브젝트에 여럿 붙는다(사슬의 양쪽 고리, D-232).
             all = RegisterComponentType<DistanceJoint2D>(ComponentCategory::Physics) && all;
             all = RegisterComponentType<HingeJoint2D>(ComponentCategory::Physics) && all;
             // 소스는 한 오브젝트에 여럿 붙는다(발소리와 숨소리). 리스너는 하나다(D-197).
