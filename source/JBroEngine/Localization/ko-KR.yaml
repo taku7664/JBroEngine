@@ -324,3 +324,21 @@ Entries:
   inspector.pick_frame_no_sprite: 스프라이트를 먼저 지정하세요
   inspector.text_no_font: "쓸 수 있는 폰트가 없어 이 텍스트는 그려지지 않습니다. fontId 를 지정하거나 프로젝트 설정에서 폰트를 추가하세요."
   hierarchy.paste_as_child: 자식으로 붙여넣기
+  panel.editor_settings: 에디터 설정
+  menu.settings_editor: 에디터 설정
+  editor_settings.shortcuts: 단축키
+  editor_settings.search_hint: 이름이나 키로 검색
+  editor_settings.press_key: 키를 누르세요
+  editor_settings.capture_hint: Esc 를 누르면 취소합니다
+  editor_settings.clear_binding: 비우기
+  editor_settings.empty_binding: "(없음)"
+  editor_settings.reset: 기본값
+  editor_settings.reset_tooltip: 기본 조합으로 되돌립니다
+  editor_settings.reset_all: 모두 기본값으로
+  editor_settings.reset_all_title: 단축키 초기화
+  editor_settings.reset_all_message: 모든 단축키를 기본 조합으로 되돌립니다. 바꾼 키는 사라집니다.
+  editor_settings.reset_all_confirm: 초기화
+  editor_settings.clash: "같은 키를 쓰는 단축키가 있습니다: %s"
+  editor_settings.shadows: "이 창에서는 이 단축키가 먼저 실행됩니다: %s"
+  editor_settings.shadowed: "포커스가 있는 창의 단축키가 먼저 실행됩니다: %s"
+  editor_settings.no_match: 찾는 단축키가 없습니다

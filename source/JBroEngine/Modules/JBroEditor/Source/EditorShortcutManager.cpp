@@ -321,8 +321,68 @@ namespace JBro
         m_focusedScope = IsBlank(scope) ? nullptr : scope;
     }
 
+    void EditorShortcutManager::SetSuspended(bool suspended)
+    {
+        m_suspended = suspended;
+    }
+
+    bool EditorShortcutManager::IsSuspended() const
+    {
+        return m_suspended;
+    }
+
+    bool EditorShortcutManager::MatchesSearch(
+        const char* query, const char* label, const char* category, const EditorShortcutView& view)
+    {
+        if (IsBlank(query))
+        {
+            return true;
+        }
+        const auto contains = [query](const char* text) {
+            if (IsBlank(text))
+            {
+                return false;
+            }
+            const std::size_t needle = std::strlen(query);
+            for (const char* at = text; *at != '\0'; ++at)
+            {
+                std::size_t matched = 0;
+                while (matched < needle && at[matched] != '\0')
+                {
+                    char a = at[matched];
+                    char b = query[matched];
+                    // 영문만 대소문자를 접는다. 한글 같은 UTF-8 바이트는 그대로 견준다.
+                    if (a >= 'A' && a <= 'Z')
+                    {
+                        a = static_cast<char>(a - 'A' + 'a');
+                    }
+                    if (b >= 'A' && b <= 'Z')
+                    {
+                        b = static_cast<char>(b - 'A' + 'a');
+                    }
+                    if (a != b)
+                    {
+                        break;
+                    }
+                    ++matched;
+                }
+                if (matched == needle)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        return contains(label) || contains(category) || contains(view.id) || contains(Describe(view.primary).value)
+            || contains(Describe(view.secondary).value);
+    }
+
     std::uint32_t EditorShortcutManager::ProcessInput(EditorApplication& editor, bool typing, bool gameInput)
     {
+        if (m_suspended)
+        {
+            return 0;
+        }
         std::uint32_t executed = 0;
         // 포커스 범위의 것이 실행되며 막은 조합. 그 프레임의 전역 것은 이 조합을 건너뛴다.
         EditorShortcutBinding blocked;

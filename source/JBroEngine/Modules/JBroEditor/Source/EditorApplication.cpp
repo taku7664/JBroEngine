@@ -51,6 +51,7 @@
 #include "Panel/ProfilerPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
 #include "Panel/ShortcutPanel.h"
+#include "Panel/EditorSettingsPanel.h"
 #include "Panel/StatsPanel.h"
 
 #include <imgui.h>
@@ -2264,7 +2265,8 @@ namespace JBro
                 || false == AddPanel(MakeOwnerPtr<LogPanel>())
                 || false == AddPanel(MakeOwnerPtr<ProjectSettingsPanel>())
                 || false == AddPanel(MakeOwnerPtr<ProfilerPanel>())
-                || false == AddPanel(MakeOwnerPtr<ShortcutPanel>()))
+                || false == AddPanel(MakeOwnerPtr<ShortcutPanel>())
+                || false == AddPanel(MakeOwnerPtr<EditorSettingsPanel>()))
             {
                 ReleaseEditorUi();
                 return false;
@@ -3069,6 +3071,9 @@ namespace JBro
         {
             DrawPanelMenuItem("ProjectSettings",
                 Loc::TextOr(LocKeys::MenuSettingsProject, "Project Settings"));
+            // 프로젝트가 아니라 이 사람의 에디터에 대한 설정이다(단축키 등, D-229).
+            DrawPanelMenuItem("EditorSettings",
+                Loc::TextOr(LocKeys::MenuSettingsEditor, "Editor Settings"));
             Widget::EndMenu();
         }
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuDebug, "Debug")))

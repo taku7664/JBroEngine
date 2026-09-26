@@ -385,4 +385,22 @@ namespace JBro::LocKeys
     inline constexpr const char* LogInfo = "log.info";
     inline constexpr const char* LogWarning = "log.warning";
     inline constexpr const char* LogError = "log.error";
+    inline constexpr const char* PanelEditorSettings = "panel.editor_settings";
+    inline constexpr const char* MenuSettingsEditor = "menu.settings_editor";
+    inline constexpr const char* EditorSettingsShortcuts = "editor_settings.shortcuts";
+    inline constexpr const char* EditorSettingsSearchHint = "editor_settings.search_hint";
+    inline constexpr const char* EditorSettingsPressKey = "editor_settings.press_key";
+    inline constexpr const char* EditorSettingsCaptureHint = "editor_settings.capture_hint";
+    inline constexpr const char* EditorSettingsClearBinding = "editor_settings.clear_binding";
+    inline constexpr const char* EditorSettingsEmptyBinding = "editor_settings.empty_binding";
+    inline constexpr const char* EditorSettingsReset = "editor_settings.reset";
+    inline constexpr const char* EditorSettingsResetTooltip = "editor_settings.reset_tooltip";
+    inline constexpr const char* EditorSettingsResetAll = "editor_settings.reset_all";
+    inline constexpr const char* EditorSettingsResetAllTitle = "editor_settings.reset_all_title";
+    inline constexpr const char* EditorSettingsResetAllMessage = "editor_settings.reset_all_message";
+    inline constexpr const char* EditorSettingsResetAllConfirm = "editor_settings.reset_all_confirm";
+    inline constexpr const char* EditorSettingsClash = "editor_settings.clash";
+    inline constexpr const char* EditorSettingsShadows = "editor_settings.shadows";
+    inline constexpr const char* EditorSettingsShadowed = "editor_settings.shadowed";
+    inline constexpr const char* EditorSettingsNoMatch = "editor_settings.no_match";
 }

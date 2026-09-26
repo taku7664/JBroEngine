@@ -10823,6 +10823,91 @@ namespace
         editor.Shutdown();
     }
 
+    // **에디터 설정에서 조합 칸을 누르고 키를 누르면 그 키가 된다**(D-229). 잡는 동안 누른 Ctrl+S 는 저장하지 않고 조합이 되며,
+    // Esc 는 취소하고, 창을 닫으면 잡기가 풀린다. 기본값 단추가 되돌린다.
+    void TestEditorSettingsRemapsAShortcutByPressingAKey()
+    {
+        DialogProbe dialog;
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1100;
+        config.windowHeight = 760;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; editor settings not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "EditorSettingsProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        JBro::EditorPanel* settings = editor.FindPanel("EditorSettings");
+        Check(settings != nullptr, "the editor settings panel must exist");
+        Check(false == settings->IsOpen(), "it starts closed");
+        settings->RequestFocus();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while opening the settings");
+        }
+        JBro::EditorShortcutManager& shortcuts = editor.GetShortcuts();
+        const char* undo = JBro::EditorShortcuts::ActionId(JBro::EditorShortcut::Undo);
+
+        const auto button = [&](const char* action, const char* slot) {
+            ImGuiWindow* page = FindActiveWindowContaining("/##settings_page_");
+            Check(page != nullptr, "the shortcut page must be drawn");
+            Spot spot;
+            Check(FindItemAnywhereInWindow(editor, hwnd, page, LabelId(LabelId(page->ID, action), slot), spot),
+                "the shortcut row must offer the button");
+            return spot;
+        };
+        const auto chord = [&](ImGuiKey key, bool control) {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddKeyEvent(ImGuiMod_Ctrl, control);
+            io.AddKeyEvent(key, true);
+            Check(editor.Tick(Frame), "the editor must tick with the key down");
+            io.AddKeyEvent(key, false);
+            io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            Check(editor.Tick(Frame), "the editor must tick with the key up");
+        };
+
+        ClickAt(editor, hwnd, button(undo, "###slot0"));
+        Check(shortcuts.IsSuspended(), "clicking a combination starts listening and holds the other shortcuts");
+        chord(ImGuiKey_S, true);
+        Check(shortcuts.Find(undo).primary == JBro::EditorShortcutBinding{ImGuiKey_S, true}, "the pressed Ctrl+S becomes the undo keys");
+        Check(dialog.calls == 0, "and it did not save while listening");
+        Check(false == shortcuts.IsSuspended(), "listening ends after one key");
+
+        ClickAt(editor, hwnd, button(undo, "###slot0"));
+        chord(ImGuiKey_Escape, false);
+        Check(shortcuts.Find(undo).primary == JBro::EditorShortcutBinding{ImGuiKey_S, true}, "Esc cancels and keeps the keys");
+        Check(false == shortcuts.IsSuspended(), "and stops listening");
+
+        ClickAt(editor, hwnd, button(undo, "###slot1"));
+        Check(shortcuts.IsSuspended(), "the second slot listens too");
+        settings->SetOpen(false);
+        Check(editor.Tick(Frame), "the editor must tick with the settings closed");
+        Check(false == shortcuts.IsSuspended(), "closing the settings lets go of the keys");
+
+        settings->RequestFocus();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while reopening the settings");
+        }
+        ClickAt(editor, hwnd, button(undo, "###reset"));
+        Check(shortcuts.Find(undo).primary == JBro::EditorShortcutBinding{ImGuiKey_Z, true}, "the default button brings Ctrl+Z back");
+        editor.Shutdown();
+    }
+
     // 타자를 받는 칸 하나짜리 패널. 처음 그릴 때 그 칸에 키보드 포커스를 준다.
     class TypingProbePanel final : public JBro::EditorPanel
     {
@@ -11689,6 +11774,7 @@ int RunEditorApplicationTests()
     TestRemappedShortcutsAreSavedAndReadBack();
     TestGizmoKeysFollowTheCanvasViewFocus();
     TestTypingKeepsEditorShortcutsOutOfTheField();
+    TestEditorSettingsRemapsAShortcutByPressingAKey();
     TestThePathHelpersAgreeOnOneAnswer();
     TestTheEditorMakesAndOpensCanvases();
     TestTheEditorMakesFontFamilies();
