@@ -10801,8 +10801,16 @@ namespace
 
         // **UI 를 껐다 켜면 패널이 새로 선다.** 옛 패널이 등록을 풀지 않았으면 새 패널의 등록이 이름 겹침으로 거절되고
         // 키는 사라진 옛 패널을 부른다.
+        const JBro::ShortcutHandle oldScale = editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle;
         editor.DisableEditorUi();
+        Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle == JBro::InvalidShortcutHandle,
+            "a destroyed canvas view must take its gizmo keys with it");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on again");
+        // 새 패널이 옛 패널의 주소에 설 수 있어 키가 "닿는지" 만으로는 옛 할 일을 부르는 것과 구분되지 않는다 - 등록 자체를 본다.
+        const JBro::ShortcutHandle newScale = editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle;
+        Check(newScale != JBro::InvalidShortcutHandle && newScale != oldScale, "the new canvas view must register its own gizmo keys");
+        Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").primary == JBro::EditorShortcutBinding{ImGuiKey_T},
+            "and the user's remap must carry over to them");
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle again");
