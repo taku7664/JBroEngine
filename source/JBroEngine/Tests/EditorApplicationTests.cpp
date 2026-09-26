@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorNames.h>
 #include <JBro/Core/Version.h>
 
 #include <JBro/Asset/Asset.h>
@@ -17,6 +18,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Localization.h>
@@ -10333,6 +10335,220 @@ namespace
     // **캔버스 뷰에서 오브젝트를 우클릭하면 그 오브젝트의 메뉴가 뜬다**(D-170).
     // 기존 캔버스 뷰도 그 자리에서 추가·복사·붙여넣기·삭제를 냈는데, 우리는 무엇을
     // 눌러도 빈자리 메뉴(`오브젝트 추가`·`붙여넣기`)만 나왔다.
+    // ── 컴포넌트별 우클릭 항목(D-220) ─────────────────────────────────────
+
+    // 훅이 무엇을 받았는지 적는다. 훅은 함수 포인터라 상태를 전역에 둔다.
+    struct ComponentHookProbe
+    {
+        int calls = 0;
+        JBro::ComponentAddress last;
+        bool componentMatches = false;
+        bool placementSeen = false;
+        bool returnValue = true;
+    };
+    ComponentHookProbe g_componentHook;
+
+    bool ProbeComponentHook(const JBro::ComponentMenuContext& context)
+    {
+        ++g_componentHook.calls;
+        g_componentHook.last = context.address;
+        g_componentHook.componentMatches = context.editor != nullptr
+            && context.component != nullptr
+            && context.component == JBro::ResolveComponent(context.editor->GetObjectIds(), context.address);
+        g_componentHook.placementSeen = context.placement.hasPosition;
+        JBro::Widget::MenuItem("Probe Item");
+        return g_componentHook.returnValue;
+    }
+
+    // 오브젝트 메뉴를 팝업으로 열어 두고 결과를 받는 패널이다. 우클릭 자리를 찾지 않고 메뉴만 잰다.
+    class ObjectMenuProbePanel final : public JBro::EditorPanel
+    {
+    public:
+        explicit ObjectMenuProbePanel(JBro::GameObject* target)
+            : m_target(target)
+        {
+        }
+
+        const char* GetTitle() const override
+        {
+            return "Object Menu Probe";
+        }
+        bool OnCreate(JBro::EditorApplication& editor) override
+        {
+            m_editor = &editor;
+            return true;
+        }
+        void OnDraw() override
+        {
+            if (m_open)
+            {
+                ImGui::OpenPopup("##objectMenuProbe");
+                m_open = false;
+            }
+            if (ImGui::BeginPopup("##objectMenuProbe"))
+            {
+                if (m_close)
+                {
+                    ImGui::CloseCurrentPopup();
+                    m_close = false;
+                }
+                ++draws;
+                // 캔버스 뷰처럼 누른 자리를 넘긴다. 훅까지 가는지 본다.
+                JBro::ObjectPlacement placement;
+                placement.hasPosition = true;
+                lastResult = JBro::EditorActions::DrawObjectMenu(*m_editor, *m_target, placement);
+                ImGui::EndPopup();
+            }
+        }
+
+        void Open()
+        {
+            m_open = true;
+        }
+        void Close()
+        {
+            m_close = true;
+        }
+
+        int draws = 0;
+        bool lastResult = true;
+
+    private:
+        JBro::EditorApplication* m_editor = nullptr;
+        JBro::GameObject* m_target = nullptr;
+        bool m_open = false;
+        bool m_close = false;
+    };
+
+    const char* ComponentLine(JBro::ComponentTypeId typeId)
+    {
+        return JBro::EditorNames::DisplayTypeName(JBro::NameTable::Get().Resolve(typeId));
+    }
+
+    // **훅은 인스턴스마다 하위 메뉴로 서고, 그 인스턴스의 주소를 받는다**(D-220). 같은 타입이 둘이면
+    // 둘째에 번호가 붙고, 훅이 없는 타입은 줄이 없고, 여럿을 고르면 줄이 없다. 훅이 거짓이면 메뉴도 거짓이다.
+    void TestComponentHooksAreSubmenusPerInstance()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; component menu hooks not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ComponentMenuProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(probe);
+        auto* first = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        auto* second = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        Check(transform != nullptr && first != nullptr && second != nullptr && first != second,
+            "the probe needs a transform and two colliders");
+        JBro::GameObject* other = canvas->CreateObject("Other");
+        Check(canvas->AttachComponent<JBro::Component::Collider2D>(other) != nullptr, "the other object has a collider");
+        const JBro::ComponentTypeId colliderType = first->GetTypeId();
+
+        int owner = 0;
+        g_componentHook = {};
+        Check(editor.GetComponentMenus().Register(colliderType, &ProbeComponentHook, &owner),
+            "the probe hook must be taken");
+        auto panel = JBro::MakeOwnerPtr<ObjectMenuProbePanel>(probe);
+        ObjectMenuProbePanel* menuProbe = panel.Get();
+        Check(editor.AddPanel(std::move(panel)), "the menu probe panel must be taken");
+        JBro::GameObject* one[] = {probe};
+        editor.SelectObjects({one, 1});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        menuProbe->Open();
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must open");
+        }
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr && menuProbe->draws > 0, "the object menu must be on screen");
+
+        const char* colliderLine = ComponentLine(colliderType);
+        char secondLine[128] = {};
+        std::snprintf(secondLine, sizeof(secondLine), "%s (2)", colliderLine);
+        Spot spot;
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu,
+                LabelId(menu->ID, ComponentLine(transform->GetTypeId())), spot),
+            "a component type without hooks must not get a line");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), spot),
+            "the second collider must get its own line, numbered");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        Check(g_componentHook.calls > 0, "hovering the line must draw its hooks");
+        Check(g_componentHook.last.ordinal == 1, "the second line's hooks must get the second collider");
+        Check(g_componentHook.last.objectId == editor.GetObjectIds().Track(probe),
+            "and the object they belong to, by editor id");
+        Check(g_componentHook.componentMatches, "the pointer handed along must be the component the address names");
+        Check(g_componentHook.placementSeen, "the spot the menu was opened at must reach the hooks");
+
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), spot),
+            "the first collider line carries the bare type name");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        Check(g_componentHook.last.ordinal == 0, "the first line's hooks must get the first collider");
+        Check(menuProbe->lastResult, "the menu stays true while the hooks keep their target");
+
+        g_componentHook.returnValue = false;
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with a failing hook");
+        }
+        Check(false == menuProbe->lastResult,
+            "a hook that may have removed its target must make the object menu say so");
+        g_componentHook.returnValue = true;
+
+        // 여럿을 고르면 공통 항목만 선다.
+        JBro::GameObject* both[] = {probe, other};
+        editor.SelectObjects({both, 2});
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after selecting both");
+        }
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "the probe menu is still open");
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), spot),
+            "with more than one object chosen, no component line");
+
+        // 실제 계층의 우클릭 메뉴도 같은 줄을 세운다.
+        menuProbe->Close();
+        editor.SelectObjects({one, 1});
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the probe menu must close");
+        }
+        Spot row;
+        Check(FindHierarchyRow(editor, hwnd, probe, row), "the probe's row must be in the hierarchy");
+        RightClickAt(editor, hwnd, row);
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the row must open the object menu");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), spot),
+            "the hierarchy's object menu must carry the component line too");
+
+        Check(editor.GetComponentMenus().Unregister(&owner) == 1, "the probe hook comes off");
+        editor.Shutdown();
+    }
+
     void TestRightClickingAnObjectInTheCanvasViewOpensItsMenu()
     {
         JBro::EditorApplication editor;
@@ -10592,6 +10808,7 @@ int RunEditorApplicationTests()
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
+    TestComponentHooksAreSubmenusPerInstance();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestTheGizmoCanWorkInWorldAxes();
     TestThePathHelpersAgreeOnOneAnswer();
