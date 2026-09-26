@@ -98,12 +98,18 @@ namespace JBro
         UpdateCapture();
         EditorShortcutManager& shortcuts = m_editor->GetShortcuts();
 
+        // 검색 칸은 `모두 기본값으로` 단추를 뺀 남은 폭을 다 쓴다. (`SearchBox` 는 음수 폭을 "남은 폭 빼기" 로 읽지 않는다 - 처음에
+        // 음수를 줬다가 칸이 1 픽셀이 되었다.)
+        const char* resetAllLabel = Loc::TextOr(LocKeys::EditorSettingsResetAll, "Reset All");
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const float resetAllWidth = ImGui::CalcTextSize(resetAllLabel).x + style.FramePadding.x * 2.0f;
+        const float searchWidth = ImGui::GetContentRegionAvail().x - resetAllWidth - style.ItemSpacing.x;
         Widget::SearchBox("##shortcut_search", m_search)
             .Hint(Loc::TextOr(LocKeys::EditorSettingsSearchHint, "Search by name or key"))
-            .Width(-PageListWidth)
+            .Width(searchWidth > 60.0f ? searchWidth : 60.0f)
             .Draw();
         ImGui::SameLine();
-        if (Widget::ActionButton(Loc::TextOr(LocKeys::EditorSettingsResetAll, "Reset All"), Widget::Severity::Warning))
+        if (Widget::ActionButton(resetAllLabel, Widget::Severity::Warning))
         {
             m_editor->OpenPopup(MakeOwnerPtr<ConfirmPopup>(
                 Loc::TextOr(LocKeys::EditorSettingsResetAllTitle, "Reset Shortcuts"),

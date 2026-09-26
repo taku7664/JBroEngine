@@ -10862,7 +10862,15 @@ namespace
         JBro::EditorShortcutManager& shortcuts = editor.GetShortcuts();
         const char* undo = JBro::EditorShortcuts::ActionId(JBro::EditorShortcut::Undo);
 
+        // **훑기 전에 마우스를 치운다.** 훑기 도우미는 `GetHoveredID()` 를 보는데 그것은 지난 프레임에 가리킨 것으로 물러난다 -
+        // 방금 누른 단추 위에서 시작하면 첫 자리에서 "찾았다" 고 하고 엉뚱한 곳을 누른다(두 번째 클릭이 그렇게 빗나갔다).
+        const auto moveAway = [&]() {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(2, 2));
+            Check(editor.Tick(Frame), "the editor must tick with the mouse moved away");
+            Check(editor.Tick(Frame), "the editor must tick twice so the old hover is gone");
+        };
         const auto button = [&](const char* action, const char* slot) {
+            moveAway();
             ImGuiWindow* page = FindActiveWindowContaining("/##settings_page_");
             Check(page != nullptr, "the shortcut page must be drawn");
             Spot spot;
@@ -10888,6 +10896,7 @@ namespace
         Check(false == shortcuts.IsSuspended(), "listening ends after one key");
 
         ClickAt(editor, hwnd, button(undo, "###slot0"));
+        Check(shortcuts.IsSuspended(), "clicking again listens again");
         chord(ImGuiKey_Escape, false);
         Check(shortcuts.Find(undo).primary == JBro::EditorShortcutBinding{ImGuiKey_S, true}, "Esc cancels and keeps the keys");
         Check(false == shortcuts.IsSuspended(), "and stops listening");
@@ -10905,6 +10914,51 @@ namespace
         }
         ClickAt(editor, hwnd, button(undo, "###reset"));
         Check(shortcuts.Find(undo).primary == JBro::EditorShortcutBinding{ImGuiKey_Z, true}, "the default button brings Ctrl+Z back");
+
+        // ── 모두 기본값으로: 묻고, 그만두면 그대로, 확인하면 되돌린다. ─────────
+        const char* redo = JBro::EditorShortcuts::ActionId(JBro::EditorShortcut::Redo);
+        Check(shortcuts.SetBinding(redo, 0, JBro::EditorShortcutBinding{ImGuiKey_R, true}), "a shortcut must be changed first");
+        const auto answerResetAll = [&](const char* choiceLabel) {
+            moveAway();
+            ImGuiWindow* page = FindActiveWindowContaining("/##settings_page_");
+            Spot resetAll;
+            Check(FindItemAnywhereInWindow(editor, hwnd, page,
+                      LabelId(page->ID, JBro::Loc::TextOr(JBro::LocKeys::EditorSettingsResetAll, "Reset All")), resetAll),
+                "the page must offer reset all");
+            ClickAt(editor, hwnd, resetAll);
+            Check(editor.Tick(Frame), "the editor must tick while the question opens");
+            Check(editor.IsPopupOpenById("editor_settings.reset_all"), "reset all must ask first");
+            moveAway();
+            ImGuiWindow* popup = FindActiveWindowContaining("###popup_");
+            Check(popup != nullptr, "the question must be drawn");
+            Spot choice;
+            Check(FindItemAnywhereInWindow(editor, hwnd, popup, LabelId(popup->ID, choiceLabel), choice),
+                "the question must offer the answer");
+            ClickAt(editor, hwnd, choice);
+            Check(editor.Tick(Frame), "the editor must tick after answering");
+        };
+        answerResetAll(JBro::Loc::TextOr(JBro::LocKeys::CommonCancel, "Cancel"));
+        Check(shortcuts.Find(redo).customized, "cancelling keeps the changed shortcut");
+        answerResetAll(JBro::Loc::TextOr(JBro::LocKeys::EditorSettingsResetAllConfirm, "Reset"));
+        Check(false == shortcuts.Find(redo).customized, "confirming resets every shortcut");
+
+        // ── 검색: 걸린 줄만 남는다. 줄이 줄어든 만큼 목록의 높이가 준다. ─────
+        moveAway();
+        ImGuiWindow* page = FindActiveWindowContaining("/##settings_page_");
+        const float fullHeight = page->ContentSize.y;
+        Spot search;
+        Check(FindItemAnywhereInWindow(editor, hwnd, page,
+                  LabelId(LabelId(page->ID, "##shortcut_search"), "##input"), search),
+            "the page must offer a search box");
+        ClickAt(editor, hwnd, search);
+        ImGui::GetIO().AddInputCharactersUTF8("F5");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while searching");
+        }
+        page = FindActiveWindowContaining("/##settings_page_");
+        Check(page->ContentSize.y < fullHeight * 0.5f, "searching F5 must leave only a few rows");
+        Check(page->ContentSize.y > ImGui::GetFrameHeight() * 2.0f, "but not none - the play shortcut matches");
         editor.Shutdown();
     }
 
