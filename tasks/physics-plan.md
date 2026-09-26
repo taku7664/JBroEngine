@@ -170,6 +170,16 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
 - 기존 질의 중 `RaycastAll`·`OverlapPoint`·`OverlapCircle`·`CircleCast`·`BoxCast`·레이어 마스크는 서비스 표면을 넓히는 일이라
   §5 의 결정을 따른다.
 
+### 3.7 스레드
+
+- **물리는 메인 스레드 전용이다.** 커널 `World` 와 어댑터 `Physics2DSystem` 은 스레드를 만들지도 태스크를 등록하지도 않는다(2026-09-26 확인).
+  스텝·되쓰기·훅 발송·질의가 모두 캔버스의 고정 스텝(`EngineInstance::Tick` → Framework2D → 시스템 목록) 안에서 돈다. 그래서 훅과
+  질의가 스크립트에 건네는 `GameObjectHandle` 은 메인 스레드 전용 규약(ProjectRule, D-54)에 맞는다. 기존 엔진 물리도 스레드를 쓰지 않았다.
+- 병렬화가 필요해지면 따로 스레드를 두지 않고 `JBroTask` 의 `TaskManager` 에 태스크로 넣는다(ProjectRule, D-209·D-212). 커널은 캔버스를
+  모르고 값만 다루므로 워커 계약(값과 raw 포인터만, `SafePtr`·`Ref<T>`·`GameObjectHandle` 을 만지지 않음)에 맞는다. 나눌 자리는 좁은 판정
+  (쌍마다)과 섬 단위 솔버이고, 되쓰기와 훅 발송은 컴포넌트를 만지므로 메인 스레드에 남는다. `[열림]` 방향을 바꾸는 판단이라 필요해질 때
+  사용자 확인 뒤 정한다 - 지금은 측정한 병목이 없다.
+
 ## 4. 단계 (D-199)
 
 각 단계는 테스트가 먼저이고, 단계마다 커밋한다. 뮤테이션은 기존 관례대로 단계 끝에 잰다.
@@ -244,7 +254,8 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      드러나지 않아 검사를 더했고 8/8. `[열림]`: 모양을 바꿀 때마다 분해(`DecomposePolygon` 안의 임시 배열)와 `UpdateMass` 가 할당한다 -
      크기를 움직이는 동안은 스텝마다다. 도형을 새로 만들던 전보다 늘지는 않았다. ~~(2) 캡슐은 충돌하지 않는다~~(§4 의 7 에서 섰다). (3) 부모가 회전과 비균등 크기를 함께 가지면
      되쓰기가 찌그러짐을 무시한다. (4) 부모에 Transform 이 있는데 꺼져 있으면 그 아래 콜라이더는 물리에서 빠진다(ProjectRule 의
-     규칙대로다. 옛 질의 코드는 그런 부모를 루트로 보았다). (5) 실제 에디터에서 재생해 본 확인은 아직 없다.
+     규칙대로다. 옛 질의 코드는 그런 부모를 루트로 보았다). ~~(5) 실제 에디터에서 재생해 본 확인은 아직 없다~~ → `e6f43c5` · `EditorApplicationTests::TestPlayingRunsPhysicsAndStoppingPutsItBack`
+     (에디터 호스트와 같은 `EditorApplication` 의 재생 경로로 상자와 캡슐이 떨어져 서고, 정지하면 제자리). 호스트 실행 파일을 손으로 띄워 본 것은 아니다.
 5. ~~**에디터.** 인스펙터의 `points` 편집(커맨드), 캔버스 뷰의 폴리곤과 조각 그리기, 거절된 폴리곤 표시, 포인트 끌기 도구~~
    → 2026-09-26 · `1d66967`·`e018275` · `JBroEditor/Source/Panel/CanvasViewPanel.cpp`(`DrawColliders`·`DrawPolygonEditor`·
    `DrawVertexMenu`), `JBro/Editor/Gizmo/PolygonEditModel.h`.

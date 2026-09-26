@@ -20,7 +20,7 @@
   ~~캡슐 콜라이더 - `size` 상자에 꼭 맞는 알약, 커널의 둥근 조각(`ConvexPolygon::radius`)~~ → 2026-09-26 · `f16b79b` ·
   `JBroPhysics2D/Source/Collision.cpp`, `Physics2DSystem.cpp`(`BakeCapsule`). 계획서 §4 의 7.
   ~~크기 애니메이션의 도형 재생성 - 커널의 제자리 모양 바꾸기로 접촉 유지~~ → 2026-09-26 · `1294c43` · `World::SetPolygonGeometry` 외.
-  `[열림]` 4 단계가 남긴 것 셋(부모의 찌그러짐, 꺼진 부모, 실제 에디터 확인) - 계획서 §4 의 4.
+  `[열림]` 4 단계가 남긴 것 둘(부모의 찌그러짐, 꺼진 부모). 에디터 재생 확인은 `e6f43c5` 의 창 테스트로 섰다 - 계획서 §4 의 4.
 
 ## 오디오 (audio-plan §3-3, D-197)
 
