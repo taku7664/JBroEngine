@@ -1019,6 +1019,131 @@ namespace
             Check(world.GetPosition(box).x < -0.05f, "a new wall overlapping it wakes it and pushes it out");
         }
     }
+
+    // **한 방향 발판(D-230).** 위에서 떨어진 상자는 얹히고, 밑에서 뛰어오른 상자는 뚫고 올라가 위에 얹히며, 옆에서 미끄러져
+    // 들어온 상자는 지나간다. 뒤집은 발판(180°)은 위가 아래라 위에서 떨어진 상자가 지나간다. 흘려보내는 동안에는 닿은 것이
+    // 아니라 시작 이벤트가 없다.
+    void TestOneWayPlatforms()
+    {
+        ShapeDef oneWay;
+        oneWay.oneWay = true;
+        {
+            World world;
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 2 });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 1.5f);
+            Check(Near(world.GetPosition(box).y, 0.75f, 0.02f), "a box dropped from above rests on the platform");
+        }
+        {
+            World world;
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, -1.5f });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            world.SetLinearVelocity(box, { 0, 8 });
+            bool beganWhileBelow = false;
+            for (int i = 0; i < 90; ++i)
+            {
+                world.Step(Frame);
+                if (world.GetPosition(box).y < 0.7f && false == world.GetBeginEvents().IsEmpty())
+                {
+                    beganWhileBelow = true;
+                }
+            }
+            Check(false == beganWhileBelow, "passing up through it is not a contact");
+            Check(Near(world.GetPosition(box).y, 0.75f, 0.02f), "a box jumping from below goes through and lands on top");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            AddPolygon(world, platform, BoxOutline(1.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -3, 0 });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            world.SetLinearVelocity(box, { 4, 0 });
+            Run(world, 1.5f);
+            Check(world.GetPosition(box).x > 2.5f, "a box sliding in from the side passes through");
+        }
+        {
+            World world;
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 }, 3.14159265f);
+            AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 2 });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 1.0f);
+            Check(world.GetPosition(box).y < -1.0f, "an upside-down platform lets a box from above fall through");
+        }
+    }
+
+    // **이어지는 접촉은 Stay 로 온다(D-230).** 시작한 스텝은 시작만, 그 뒤는 스텝마다 이어짐이다. 몸이 잠들면 이어짐이 멈춘다.
+    void TestStayEventsFollowTouchingPairs()
+    {
+        World world;
+        AddGround(world);
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.52f });
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        int begins = 0;
+        int beganAt = -1;
+        int staysBefore = 0;
+        int staysAfter = 0;
+        for (int i = 0; i < 20; ++i)
+        {
+            world.Step(Frame);
+            begins += static_cast<int>(world.GetBeginEvents().Size());
+            if (beganAt < 0 && false == world.GetBeginEvents().IsEmpty())
+            {
+                beganAt = i;
+            }
+            const int stays = static_cast<int>(world.GetStayEvents().Size());
+            if (beganAt < 0 || beganAt == i)
+            {
+                staysBefore += stays;
+            }
+            else
+            {
+                staysAfter += stays;
+            }
+        }
+        Check(begins == 1 && beganAt >= 0 && staysBefore == 0, "no stay comes before or with the step that begins the contact");
+        Check(staysAfter == 19 - beganAt, "every later step reports the pair as staying once");
+        Run(world, 2.0f);
+        Check(false == world.IsAwake(box), "the box sleeps");
+        world.Step(Frame);
+        Check(world.GetStayEvents().IsEmpty(), "and a sleeping pair reports nothing");
+    }
+
+    // **레이어 충돌 표(D-230).** 레이어 1 과 2 를 떼어 두면 둘은 서로 지나가고, 둘 다 여전히 바닥(레이어 0)에는 선다.
+    // 표의 한 행만 채워도 된다 - 두 쪽 비트 쌍 가운데 떼지 않은 것이 있는지를 본다.
+    void TestTheLayerTableSeparatesLayers()
+    {
+        World world;
+        world.Settings().ignoredLayers[1] = 1u << 2;
+        world.Settings().ignoredLayers[2] = 1u << 1;
+        AddGround(world);
+        ShapeDef first;
+        first.layer = 1u << 1;
+        ShapeDef second;
+        second.layer = 1u << 2;
+        const BodyId lower = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(world, lower, BoxOutline(0.5f, 0.5f), first);
+        const BodyId upper = AddBody(world, BodyType::Dynamic, { 0, 3 });
+        AddPolygon(world, upper, BoxOutline(0.5f, 0.5f), second);
+        Run(world, 1.5f);
+        Check(Near(world.GetPosition(lower).y, 0.5f, 0.02f) && Near(world.GetPosition(upper).y, 0.5f, 0.02f),
+            "boxes on separated layers fall into each other and both stand on the ground");
+
+        World same;
+        AddGround(same);
+        const BodyId bottom = AddBody(same, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(same, bottom, BoxOutline(0.5f, 0.5f), first);
+        const BodyId top = AddBody(same, BodyType::Dynamic, { 0, 3 });
+        AddPolygon(same, top, BoxOutline(0.5f, 0.5f), second);
+        same.Settings().ignoredLayers[1] = 1u << 2;
+        Run(same, 1.5f);
+        Check(Near(same.GetPosition(top).y, 0.5f, 0.02f), "one row of the table is enough to separate them");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -1051,6 +1176,9 @@ int RunPhysics2DWorldTests()
     TestBodiesFallAsleepAndWake();
     TestAStackSleeps();
     TestWhatWakesASleepingBody();
+    TestOneWayPlatforms();
+    TestTheLayerTableSeparatesLayers();
+    TestStayEventsFollowTouchingPairs();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

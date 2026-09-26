@@ -33,6 +33,8 @@ namespace JBro::System
         // 좁은 판정을 나눌 물리 전용 워커 수(D-223). 다음 고정 스텝에서 커널에 먹인다. 0 이면 메인 한 스레드다.
         void          SetWorkerCount(std::uint32_t count);
         std::uint32_t GetWorkerCount() const;
+        // 레이어 충돌 표(D-230). 비트 j 가 선 행 i 는 레이어 i 와 j 가 서로 지나간다. 다음 고정 스텝부터 먹는다.
+        void SetIgnoredLayers(const std::uint32_t (&rows)[PhysicsLayerCount]);
 
         bool Raycast(Vec2 origin, Vec2 direction, float distance, RaycastHit2D& hit,
             std::uint32_t layerMask) const override;
@@ -69,6 +71,7 @@ namespace JBro::System
         Canvas*         m_canvas = nullptr;
         Vec2            m_gravity{ 0.0f, -9.81f };
         std::uint32_t   m_workerCount = 0;
+        std::uint32_t   m_ignoredLayers[PhysicsLayerCount] = {};
         OwnerPtr<State> m_state;
     };
 }

@@ -2,6 +2,7 @@
 
 #include <JBro/Platform/Platform.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -160,6 +161,26 @@ namespace JBro
                 return String("Single");
             }
             return String(std::to_string(build.physicsWorkers).c_str());
+        }
+
+        // `0 3` 처럼 공백으로 가른 두 레이어 번호다(D-230). 작은 번호가 앞에 오게 맞춘다.
+        bool ParseLayerPair(const String& value, ProjectLayerPair& result)
+        {
+            const std::size_t space = value.find(' ');
+            if (space == String::npos)
+            {
+                return false;
+            }
+            std::uint32_t first = 0;
+            std::uint32_t second = 0;
+            if (false == ParseUInt(value.substr(0, space), first) || false == ParseUInt(value.substr(space + 1), second)
+                || first >= 32 || second >= 32)
+            {
+                return false;
+            }
+            result.first = static_cast<std::uint8_t>(std::min(first, second));
+            result.second = static_cast<std::uint8_t>(std::max(first, second));
+            return true;
         }
 
         bool ParseFloat(const String& value, float& result)
@@ -391,6 +412,9 @@ namespace JBro
         // `Fonts:` 의 항목은 글자로 모았다가 끝에서 아이디로 읽는다. 읽지 못하는 아이디는 파일 오류다.
         Array<String>  fontTexts;
         std::size_t    fontsLine = 0;
+        // `PhysicsIgnoredLayerPairs:` 의 항목도 글자로 모았다가 끝에서 두 번호로 읽는다(D-230).
+        Array<String>  layerPairTexts;
+        std::size_t    layerPairsLine = 0;
         // `InputActions:` 아래에 있는가(D-214). 액션 항목의 들여쓰기와 `Bindings:` 아래에 있는지를 함께 든다.
         bool           inInputActions = false;
         bool           inInputBindings = false;
@@ -779,6 +803,17 @@ namespace JBro
                     parsed.locales.Clear();
                     currentSequence = &parsed.locales;
                 }
+                else if (indent == 0 && key == "PhysicsLayers")
+                {
+                    parsed.physicsLayers.Clear();
+                    currentSequence = &parsed.physicsLayers;
+                }
+                else if (indent == 0 && key == "PhysicsIgnoredLayerPairs")
+                {
+                    layerPairTexts.Clear();
+                    layerPairsLine = lineNumber;
+                    currentSequence = &layerPairTexts;
+                }
                 else if (indent == 0 && key == "InputActions")
                 {
                     parsed.inputActions.Clear();
@@ -876,6 +911,16 @@ namespace JBro
                 parsed.locales.Clear();
                 recognized = value == "[]";
             }
+            else if (key == "PhysicsLayers")
+            {
+                parsed.physicsLayers.Clear();
+                recognized = value == "[]";
+            }
+            else if (key == "PhysicsIgnoredLayerPairs")
+            {
+                layerPairTexts.Clear();
+                recognized = value == "[]";
+            }
             else if (key == "DefaultLocale") { parsed.defaultLocale = value; }
             else if (key == "FallbackLocale") { parsed.fallbackLocale = value; }
             else if (key == "InputActions")
@@ -916,6 +961,20 @@ namespace JBro
                 return Fail(error, fontsLine, "Fonts must list font asset ids");
             }
             parsed.fonts.Add(font);
+        }
+        if (parsed.physicsLayers.Size() > 32)
+        {
+            return Fail(error, 0, "PhysicsLayers can name at most 32 layers");
+        }
+        parsed.physicsIgnoredLayerPairs.Clear();
+        for (const String& pairText : layerPairTexts)
+        {
+            ProjectLayerPair pair;
+            if (false == ParseLayerPair(pairText, pair))
+            {
+                return Fail(error, layerPairsLine, "PhysicsIgnoredLayerPairs items must be two layer numbers from 0 to 31");
+            }
+            parsed.physicsIgnoredLayerPairs.Add(pair);
         }
         if (parsed.version == 0)
         {
@@ -1397,6 +1456,45 @@ namespace JBro
         }
 
         // `Fonts` 를 적는다. 비어 있으면 `[]` 다(`AssetIgnorePatterns` 와 같은 까닭).
+        // 물리 레이어 이름은 끝의 빈 칸을 빼고 적는다(D-230). 앞의 번호가 비트 번호라 가운데 빈 칸은 `""` 로 남긴다.
+        std::size_t NamedLayerCount(const ProjectFile& project)
+        {
+            std::size_t count = std::min<std::size_t>(project.physicsLayers.Size(), 32);
+            while (count > 0 && project.physicsLayers[count - 1].empty())
+            {
+                --count;
+            }
+            return count;
+        }
+
+        void AppendPhysicsLayers(String& result, const ProjectFile& project)
+        {
+            Array<String> names;
+            const std::size_t count = NamedLayerCount(project);
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                names.Add(project.physicsLayers[index]);
+            }
+            AppendNameSequence(result, "PhysicsLayers", names);
+        }
+
+        void AppendIgnoredLayerPairs(String& result, const ProjectFile& project)
+        {
+            if (project.physicsIgnoredLayerPairs.IsEmpty())
+            {
+                result.append("PhysicsIgnoredLayerPairs: []\n");
+                return;
+            }
+            result.append("PhysicsIgnoredLayerPairs:\n");
+            char line[32];
+            for (const ProjectLayerPair& pair : project.physicsIgnoredLayerPairs)
+            {
+                const int length = std::snprintf(line, sizeof(line), "  - %u %u\n",
+                    static_cast<unsigned>(pair.first), static_cast<unsigned>(pair.second));
+                result.append(line, static_cast<std::size_t>(length));
+            }
+        }
+
         void AppendFonts(String& result, const ProjectFile& project)
         {
             // 고르지 않은 줄(빈 아이디, 설정 창의 "폰트 추가" 직후)은 적지 않는다. 읽을 때 빈 아이디는 오류다.
@@ -1483,6 +1581,8 @@ namespace JBro
         bool sawInputLayers = false;
         bool sawInputActions = false;
         bool sawLocales = false;
+        bool sawPhysicsLayers = false;
+        bool sawLayerPairs = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
         std::size_t buildEnd = String::npos;
 
@@ -1538,7 +1638,28 @@ namespace JBro
             String value;
             bool replaced = false;
             bool dropped = false;
-            if (pair && indent == 0 && key == "Locales")
+            if (pair && indent == 0 && (key == "PhysicsLayers" || key == "PhysicsIgnoredLayerPairs"))
+            {
+                // 로케일과 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다(D-230).
+                const bool layers = key == "PhysicsLayers";
+                bool& saw = layers ? sawPhysicsLayers : sawLayerPairs;
+                dropped = saw;
+                if (false == dropped)
+                {
+                    if (layers)
+                    {
+                        AppendPhysicsLayers(result, project);
+                    }
+                    else
+                    {
+                        AppendIgnoredLayerPairs(result, project);
+                    }
+                    saw = true;
+                }
+                skippingSequence = false == hasValue;
+                replaced = true;
+            }
+            else if (pair && indent == 0 && key == "Locales")
             {
                 // 입력 레이어와 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다.
                 dropped = sawLocales;
@@ -1732,6 +1853,15 @@ namespace JBro
         if (false == sawLocales && HasNamedEntry(project.locales))
         {
             AppendNameSequence(result, "Locales", project.locales, true);
+        }
+        // 물리 레이어도 같다(D-230): 적힌 적 없고 비어 있으면 적지 않는다.
+        if (false == sawPhysicsLayers && NamedLayerCount(project) > 0)
+        {
+            AppendPhysicsLayers(result, project);
+        }
+        if (false == sawLayerPairs && false == project.physicsIgnoredLayerPairs.IsEmpty())
+        {
+            AppendIgnoredLayerPairs(result, project);
         }
         if (false == sawInputActions && false == project.inputActions.IsEmpty())
         {

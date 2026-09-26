@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <limits>
 #include <utility>
 
@@ -198,7 +199,8 @@ namespace JBro::System
             print.Mix(collider.size);
             print.Mix(collider.radius);
             print.Mix(scale);
-            const std::uint8_t trigger = static_cast<std::uint8_t>((collider.isTrigger ? 1 : 0) | (collider.loop ? 2 : 0));
+            const std::uint8_t trigger = static_cast<std::uint8_t>(
+                (collider.isTrigger ? 1 : 0) | (collider.loop ? 2 : 0) | (collider.oneWay ? 4 : 0));
             print.Mix(&trigger, sizeof(trigger));
             print.Mix(collider.friction);
             print.Mix(collider.restitution);
@@ -351,6 +353,11 @@ namespace JBro::System
     void Physics2DSystem::SetWorkerCount(std::uint32_t count)
     {
         m_workerCount = count;
+    }
+
+    void Physics2DSystem::SetIgnoredLayers(const std::uint32_t (&rows)[PhysicsLayerCount])
+    {
+        std::memcpy(m_ignoredLayers, rows, sizeof(m_ignoredLayers));
     }
 
     std::uint32_t Physics2DSystem::GetWorkerCount() const
@@ -974,6 +981,7 @@ namespace JBro::System
             def.isTrigger = collider.isTrigger;
             def.layer = collider.layer;
             def.mask = collider.mask;
+            def.oneWay = collider.oneWay;
             def.userData = colliderId;
 
             // 같은 오브젝트의 살아 있는 도형이면 제자리에서 바꾼다. 스텝마다 지우고 만들면 크기를 움직이는 콜라이더가
@@ -1079,6 +1087,8 @@ namespace JBro::System
 
         // ── 4. 스텝 ─────────────────────────────────────────────────────────────────
         world.Settings().gravity = m_gravity;
+        static_assert(sizeof(world.Settings().ignoredLayers) == sizeof(m_ignoredLayers), "one row per layer on both sides");
+        std::memcpy(world.Settings().ignoredLayers, m_ignoredLayers, sizeof(m_ignoredLayers));
         world.Step(fixedDeltaTime);
 
         // ── 5. 되쓰기 ───────────────────────────────────────────────────────────────
@@ -1138,7 +1148,8 @@ namespace JBro::System
         State& state = *m_state;
         const ArrayView<const Physics2D::ContactEvent> begins = state.world.GetBeginEvents();
         const ArrayView<const Physics2D::ContactEvent> ends = state.world.GetEndEvents();
-        if (begins.IsEmpty() && ends.IsEmpty())
+        const ArrayView<const Physics2D::ContactEvent> stays = state.world.GetStayEvents();
+        if (begins.IsEmpty() && ends.IsEmpty() && stays.IsEmpty())
         {
             return;
         }
@@ -1176,7 +1187,7 @@ namespace JBro::System
             return nullptr;
         };
 
-        enum class Phase : std::uint8_t { Enter, Exit };
+        enum class Phase : std::uint8_t { Enter, Stay, Exit };
 
         // 훅이 오브젝트를 지워도 지나간 객체 위에서 다음 훅이 불리지 않게, 발송 내내 파괴를 미룬다(§8).
         Canvas::IterationGuard guard(canvas);
@@ -1205,6 +1216,10 @@ namespace JBro::System
                     {
                         script->OnTriggerEnter(hit);
                     }
+                    else if (phase == Phase::Stay)
+                    {
+                        script->OnTriggerStay(hit);
+                    }
                     else
                     {
                         script->OnTriggerExit(hit);
@@ -1213,6 +1228,10 @@ namespace JBro::System
                 else if (phase == Phase::Enter)
                 {
                     script->OnCollisionEnter(hit);
+                }
+                else if (phase == Phase::Stay)
+                {
+                    script->OnCollisionStay(hit);
                 }
                 else
                 {
@@ -1252,6 +1271,10 @@ namespace JBro::System
         for (const Physics2D::ContactEvent& event : begins)
         {
             dispatch(event, Phase::Enter);
+        }
+        for (const Physics2D::ContactEvent& event : stays)
+        {
+            dispatch(event, Phase::Stay);
         }
     }
 }

@@ -86,6 +86,9 @@ namespace JBro::Physics2D
         std::uint32_t layer = 0x00000001u;
         std::uint32_t mask = 0xFFFFFFFFu;
         std::uint64_t userData = 0;
+        // 한 방향 발판(D-230). 몸의 로컬 위(+y) 쪽에서 오는 것만 막는다: 접촉이 시작될 때 발판에서 상대로 향하는 법선이
+        // 그 위와 60° 안이면 막고, 아니면(아래나 옆에서 왔다) 그 접촉이 끝날 때까지 없는 것으로 본다.
+        bool          oneWay = false;
     };
 
     // 도형 쌍이 닿기 시작했거나 떨어졌다. 한 도형의 조각 여럿에 닿아도 쌍의 이벤트는 하나다.
@@ -106,6 +109,9 @@ namespace JBro::Physics2D
     struct WorldSettings
     {
         Vec2          gravity{ 0.0f, -9.81f };
+        // 레이어 충돌 표(D-230). 비트 j 가 선 행 i 는 레이어 i 와 j 가 서로 지나간다(대칭으로 채운다). 두 도형은 한쪽 레이어 비트
+        // i 와 다른 쪽 비트 j 가운데 떼어 두지 않은 쌍이 하나라도 있으면 만난다. 비어 있으면 모두 만난다.
+        std::uint32_t ignoredLayers[32] = {};
         std::uint32_t subSteps = 4;
         std::uint32_t velocityIterations = 8;
         std::uint32_t positionIterations = 3;
@@ -211,6 +217,9 @@ namespace JBro::Physics2D
         // 마지막 Step 의 이벤트. 다음 Step 이 비운다.
         ArrayView<const ContactEvent> GetBeginEvents() const;
         ArrayView<const ContactEvent> GetEndEvents() const;
+        // 지난 Step 에도 닿아 있었고 이번에도 닿아 있는 쌍(D-230). 점과 법선은 이번 것이다. 시작한 Step 에는 시작만 있다.
+        // 두 몸이 모두 잠들었거나 멈춰 있으면(정적·잠든 동적) 싣지 않는다 - 잠든 더미가 매 스텝 알림을 쏟지 않게 한다.
+        ArrayView<const ContactEvent> GetStayEvents() const;
 
     private:
         struct Body
@@ -268,6 +277,7 @@ namespace JBro::Physics2D
             std::uint32_t        layer = 1;
             std::uint32_t        mask = 0xFFFFFFFFu;
             std::uint64_t        userData = 0;
+            bool                 oneWay = false;
         };
 
         struct Proxy
@@ -286,6 +296,8 @@ namespace JBro::Physics2D
             std::uint32_t bodyA = 0;
             std::uint32_t bodyB = 0;
             bool          isTrigger = false;
+            // 한 방향 발판이 이 접촉을 흘려보낸다. 시작할 때 정하고, 같은 열쇠의 접촉이 이어지는 동안 물려받는다.
+            bool          disabled = false;
             float         friction = 0.0f;
             float         restitution = 0.0f;
             Manifold      manifold;
@@ -353,6 +365,8 @@ namespace JBro::Physics2D
         std::uint32_t FindIsland(std::uint32_t body);
         // 깨어 있는 동적 몸이 끼어야 접촉을 푼다. 둘 다 잠들었거나 멈춘 몸이면 풀 것이 없다.
         bool IsSolved(const Contact& contact) const;
+        bool PassesOneWay(const Contact& contact) const;
+        bool LayersMeet(std::uint32_t layerA, std::uint32_t layerB) const;
 
         WorldSettings        m_settings;
         Array<Body>          m_bodies;
@@ -387,5 +401,6 @@ namespace JBro::Physics2D
         // 질량을 모으는 자리. 모양을 바꿀 때마다 부르므로 용량을 남겨 둔다.
         Array<MassData>      m_massParts;
         Array<ContactEvent>  m_endEvents;
+        Array<ContactEvent>  m_stayEvents;
     };
 }

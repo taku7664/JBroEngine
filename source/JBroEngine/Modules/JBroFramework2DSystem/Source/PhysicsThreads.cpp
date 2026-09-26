@@ -85,4 +85,21 @@ namespace JBro
             return RecommendProjectPhysicsWorkers(platform, project, projectFilePath);
         }
     }
+
+    void ResolvePhysicsIgnoredLayers(const ProjectFile& project, std::uint32_t (&rows)[32])
+    {
+        for (std::uint32_t& row : rows)
+        {
+            row = 0u;
+        }
+        for (const ProjectLayerPair& pair : project.physicsIgnoredLayerPairs)
+        {
+            if (pair.first >= 32 || pair.second >= 32)
+            {
+                continue;
+            }
+            rows[pair.first] |= 1u << pair.second;
+            rows[pair.second] |= 1u << pair.first;
+        }
+    }
 }

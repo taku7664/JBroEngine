@@ -56,8 +56,8 @@ namespace
         Check(Table("Component::Text2D").count == 22, "Text2D declares twenty-two fields");
         Check(Table("Component::Rigidbody2D").count == 11,
             "Rigidbody2D declares eleven fields - the seven of D-199, then angular damping, the axis locks of D-227 and canSleep of D-229");
-        Check(Table("Component::Collider2D").count == 11,
-            "Collider2D declares eleven fields - shape, size and trigger, then points, the chain loop of D-229, and the surface and filter of D-199");
+        Check(Table("Component::Collider2D").count == 12,
+            "Collider2D declares twelve fields - shape, size and trigger, then points, the chain loop of D-229, oneWay of D-230, and the surface and filter of D-199");
 
         // 두 번 불러도 된다. 부르는 쪽이 순서를 신경 쓰지 않아도 되게 한다.
         Check(JBro::Component::RegisterBuiltinComponentProperties2D(),

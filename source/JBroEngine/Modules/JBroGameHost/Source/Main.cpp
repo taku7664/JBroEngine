@@ -129,6 +129,10 @@ namespace
                         // 물리 스레드는 게임이 시작할 때 한 번 정한다(D-223). Auto 면 빌드 캔버스의 콜라이더로 고른다.
                         framework.SetPhysicsWorkerCount(
                             JBro::ResolvePhysicsWorkerCount(platform, engine.GetProjectFile(), arguments.projectFile.c_str()));
+                        // 레이어 충돌 표도 프로젝트 설정대로다(D-230).
+                        std::uint32_t ignoredLayers[32] = {};
+                        JBro::ResolvePhysicsIgnoredLayers(engine.GetProjectFile(), ignoredLayers);
+                        framework.SetPhysicsIgnoredLayers(ignoredLayers);
 #endif
                         LoadStartupCanvas(framework, platform,
                             JBro::ResolveStartupCanvasPath(arguments, engine.GetProjectFile(), arguments.projectFile.c_str()));

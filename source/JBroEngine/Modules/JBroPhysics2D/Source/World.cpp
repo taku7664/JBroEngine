@@ -4,6 +4,7 @@
 #include "WorkerPool.h"
 
 #include <algorithm>
+#include <bit>
 #include <cfloat>
 #include <cmath>
 
@@ -20,6 +21,8 @@ namespace JBro::Physics2D
         // 한 서브스텝에 움직일 수 있는 거리와 각도. 넘으면 속도를 줄인다 - 폭주를 막는 안전망이지 판정이 아니다.
         constexpr float MaxTranslationPerSubStep = 2.0f;
         constexpr float MaxRotationPerSubStep = 0.25f * Pi;
+        // 한 방향 발판이 막는 법선의 부채꼴(위에서 60° 안, cos 60°).
+        constexpr float OneWayCosine = 0.5f;
 
         Vec2 Tangent(Vec2 normal)
         {
@@ -248,6 +251,7 @@ namespace JBro::Physics2D
         shape.restitution = def.restitution;
         shape.layer = def.layer;
         shape.mask = def.mask;
+        shape.oneWay = def.oneWay;
         shape.userData = def.userData;
         m_bodies[bodyIndex].shapes.Add(index);
         return { index, shape.generation };
@@ -469,6 +473,7 @@ namespace JBro::Physics2D
         shape->restitution = def.restitution;
         shape->layer = def.layer;
         shape->mask = def.mask;
+        shape->oneWay = def.oneWay;
     }
 
     void World::DestroyShape(ShapeId id)
@@ -805,10 +810,16 @@ namespace JBro::Physics2D
         return m_endEvents.View();
     }
 
+    ArrayView<const ContactEvent> World::GetStayEvents() const
+    {
+        return m_stayEvents.View();
+    }
+
     void World::Step(float deltaTime)
     {
         m_beginEvents.Clear();
         m_endEvents.Clear();
+        m_stayEvents.Clear();
         m_lastStats = {};
         if (deltaTime <= 0.0f)
         {
@@ -1007,6 +1018,10 @@ namespace JBro::Physics2D
             {
                 continue;
             }
+            if (false == LayersMeet(shapeA->layer, shapeB->layer))
+            {
+                continue;
+            }
 
             // 체인끼리는 부딪히지 않는다(둘 다 두께가 없다).
             if (shapeA->isChain && shapeB->isChain)
@@ -1103,12 +1118,14 @@ namespace JBro::Physics2D
             }
             if (previous >= m_previousContacts.Size() || byKey(contact, m_previousContacts[previous]))
             {
+                contact.disabled = PassesOneWay(contact);
                 WakeSleepingIn(contact);
                 continue;
             }
             const Contact& old = m_previousContacts[previous];
             // 맞춘 것은 지나간다. 남겨 두면 다음 접촉이 그것을 "사라진 접촉" 으로 본다.
             ++previous;
+            contact.disabled = old.disabled;
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
                 for (std::uint32_t j = 0; j < old.manifold.count; ++j)
@@ -1130,7 +1147,7 @@ namespace JBro::Physics2D
 
     void World::WakeSleepingIn(const Contact& contact)
     {
-        if (contact.isTrigger)
+        if (contact.isTrigger || contact.disabled)
         {
             return;
         }
@@ -1379,8 +1396,46 @@ namespace JBro::Physics2D
         }
     }
 
+    bool World::LayersMeet(std::uint32_t layerA, std::uint32_t layerB) const
+    {
+        for (std::uint32_t bits = layerA; bits != 0u; bits &= bits - 1u)
+        {
+            const std::uint32_t i = static_cast<std::uint32_t>(std::countr_zero(bits));
+            if ((layerB & ~m_settings.ignoredLayers[i]) != 0u)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool World::PassesOneWay(const Contact& contact) const
+    {
+        if (contact.isTrigger)
+        {
+            return false;
+        }
+        // 법선은 A → B 다. 발판에서 상대로 향하게 돌려 발판의 위와 잰다.
+        const auto passes = [this, &contact](std::uint32_t shapeIndex, bool isA)
+        {
+            const Shape& shape = m_shapes[shapeIndex];
+            if (false == shape.oneWay)
+            {
+                return false;
+            }
+            const Vec2 up = RotateVector(m_bodies[shape.body].rotation, Vec2{ 0.0f, 1.0f });
+            const Vec2 outward = isA ? contact.manifold.normal : Scale(contact.manifold.normal, -1.0f);
+            return Dot(outward, up) < OneWayCosine;
+        };
+        return passes(contact.shapeA, true) || passes(contact.shapeB, false);
+    }
+
     bool World::IsSolved(const Contact& contact) const
     {
+        if (contact.disabled)
+        {
+            return false;
+        }
         if (contact.isTrigger)
         {
             return false;
@@ -1441,7 +1496,7 @@ namespace JBro::Physics2D
         // 2. 단단한 접촉으로 이어진 움직이는 몸들을 한 섬으로 묶는다. 멈춘 몸은 섬을 잇지 않는다.
         for (const Contact& contact : m_contacts)
         {
-            if (contact.isTrigger || contact.manifold.count == 0)
+            if (contact.isTrigger || contact.disabled || contact.manifold.count == 0)
             {
                 continue;
             }
@@ -1511,6 +1566,11 @@ namespace JBro::Physics2D
 
         for (const Contact& contact : m_contacts)
         {
+            // 한 방향 발판이 흘려보내는 접촉은 닿은 것이 아니다.
+            if (contact.disabled)
+            {
+                continue;
+            }
             std::uint32_t deepestIndex = 0;
             for (std::uint32_t i = 1; i < contact.manifold.count; ++i)
             {
@@ -1597,7 +1657,15 @@ namespace JBro::Physics2D
             return event;
         };
 
-        // 두 정렬된 목록을 맞대어 새로 생긴 것은 시작, 사라진 것은 끝이다. 지워진 도형은 generation 이 달라
+        // 이어지는 쌍은 한쪽이라도 깨어 움직이는 몸이 있을 때만 알린다.
+        const auto moving = [this](const TouchingPair& pair)
+        {
+            const Body& a = m_bodies[m_shapes[pair.shapeA].body];
+            const Body& b = m_bodies[m_shapes[pair.shapeB].body];
+            return (a.type != BodyType::Static && a.awake) || (b.type != BodyType::Static && b.awake);
+        };
+
+        // 두 정렬된 목록을 맞대어 새로 생긴 것은 시작, 사라진 것은 끝, 둘 다 있으면 이어짐이다. 지워진 도형은 generation 이 달라
         // 새 목록에 같은 열쇠로 나오지 않으므로 끝으로 잡힌다.
         std::size_t i = 0;
         std::size_t j = 0;
@@ -1619,6 +1687,10 @@ namespace JBro::Physics2D
             }
             else
             {
+                if (moving(m_touching[i]))
+                {
+                    m_stayEvents.Add(toEvent(m_touching[i]));
+                }
                 ++i;
                 ++j;
             }

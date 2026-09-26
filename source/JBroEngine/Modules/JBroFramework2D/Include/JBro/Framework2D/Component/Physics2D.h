@@ -4,6 +4,8 @@
 #include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Reflection/ScalarCodec.h>
+#include <JBro/Reflection/TypeDescriptorOf.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObjectHandle.h>
 #include <JBro/Types/Array.h>
@@ -29,6 +31,50 @@ namespace JBro
         { Component::ColliderShape2D::Capsule, "Capsule" },
         { Component::ColliderShape2D::Polygon, "Polygon" },
         { Component::ColliderShape2D::Chain,   "Chain" });
+}
+
+namespace JBro
+{
+    // 물리 레이어 비트 묶음이다(D-230). 메모리와 파일은 부호 없는 32 비트 정수 그대로이고(옛 파일과 같은 글자), 이름은
+    // 프로젝트 설정의 `PhysicsLayers` 가 준다 - 비트 i 가 그 목록의 i 번째 이름이다. 에디터는 이 타입 이름을 보고 이름을
+    // 고르는 칸을 그린다. 정수와 저절로 오가므로 스크립트는 `collider->layer = 1u << 3;` 처럼 쓴다.
+    struct PhysicsLayerMask
+    {
+        std::uint32_t bits = 0;
+
+        constexpr PhysicsLayerMask() = default;
+        constexpr PhysicsLayerMask(std::uint32_t value)
+            : bits(value)
+        {
+        }
+
+        constexpr operator std::uint32_t() const
+        {
+            return bits;
+        }
+    };
+
+    // 잎사귀다. 정수 코덱을 그대로 쓴다(구조체의 첫 멤버가 그 정수다).
+    template <>
+    struct TypeDescriptorOf<PhysicsLayerMask>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const TypeDescriptor descriptor = [] {
+                TypeDescriptor made;
+                made.typeName = NameTable::Get().Intern("JBro.PhysicsLayerMask");
+                made.size = static_cast<std::uint32_t>(sizeof(PhysicsLayerMask));
+                made.alignment = static_cast<std::uint32_t>(alignof(PhysicsLayerMask));
+                made.triviallyCopyable = true;
+                made.codec = &GetScalarCodec<std::uint32_t>();
+                return made;
+            }();
+            return descriptor;
+        }
+    };
+
+    // 프로젝트가 담는 물리 레이어 수다. 비트 하나가 레이어 하나다.
+    inline constexpr std::uint32_t PhysicsLayerCount = 32;
 }
 
 namespace JBro::System
@@ -165,12 +211,16 @@ namespace JBro::Component
         // Chain 이 끝과 처음을 잇는가(D-229). Chain 은 points 를 이은 선분 모음이고 두께와 질량이 없으며 두 면 모두에서 부딪힌다 -
         // 오목 폴리곤을 조각으로 나눈 바닥과 달리 이음매에서 걸리지 않는다. 포인트가 없으면 `size.x` 폭의 가로 선분이다.
         JBRO_FIELD(bool, loop) = false;
+        // 한 방향 발판(D-230). 오브젝트의 위(+y) 쪽에서 오는 것만 막는다 - 밑에서 뛰어오르거나 옆에서 들어오면 지나가고, 지나가는
+        // 동안에는 닿은 것도 아니다(훅이 없다). 닿기 시작할 때 방향을 보고 떨어질 때까지 그대로다.
+        JBRO_FIELD(bool, oneWay) = false;
         // 표면 성질과 충돌 거르기는 도형의 것이다(D-199 (4)). 두 도형의 마찰은 기하 평균, 반발은 큰 쪽으로 섞는다.
         JBRO_FIELD(float, friction, Range(0, 2)) = 0.6f;
         JBRO_FIELD(float, restitution, Range(0, 1)) = 0.0f;
-        // 두 콜라이더는 (A.layer & B.mask) 와 (B.layer & A.mask) 가 모두 0 이 아닐 때만 만난다.
-        JBRO_FIELD(std::uint32_t, layer) = 0x00000001u;
-        JBRO_FIELD(std::uint32_t, mask) = 0xFFFFFFFFu;
+        // 두 콜라이더는 (A.layer & B.mask) 와 (B.layer & A.mask) 가 모두 0 이 아니고, 프로젝트의 레이어 충돌 표가 두 레이어를
+        // 떼어 두지 않았을 때만 만난다(D-230). 비트 i 의 이름은 프로젝트 설정의 물리 레이어 i 번째다.
+        JBRO_FIELD(PhysicsLayerMask, layer) = 0x00000001u;
+        JBRO_FIELD(PhysicsLayerMask, mask) = 0xFFFFFFFFu;
     };
 }
 

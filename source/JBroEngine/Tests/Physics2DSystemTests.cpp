@@ -64,10 +64,22 @@ namespace
             lastEnter = hit;
         }
 
+        void OnCollisionStay(const JBro::Collision2D& hit) override
+        {
+            ++collisionStay;
+            lastStay = hit;
+        }
+
         void OnCollisionExit(const JBro::Collision2D& hit) override
         {
             ++collisionExit;
             lastExit = hit;
+        }
+
+        void OnTriggerStay(const JBro::Collision2D& hit) override
+        {
+            ++triggerStay;
+            lastStay = hit;
         }
 
         void OnTriggerEnter(const JBro::Collision2D& hit) override
@@ -82,10 +94,13 @@ namespace
         }
 
         int collisionEnter = 0;
+        int collisionStay = 0;
         int collisionExit = 0;
         int triggerEnter = 0;
+        int triggerStay = 0;
         int triggerExit = 0;
         JBro::Collision2D lastEnter;
+        JBro::Collision2D lastStay;
         JBro::Collision2D lastExit;
     };
 
@@ -867,6 +882,79 @@ namespace
             "and the origin lands across the center of mass");
         Check(Near(body->angularVelocity, 3.14159265f, 1.0e-4f), "keeping its spin");
     }
+
+    // **이어지는 접촉은 고정 스텝마다 Stay 로 온다(D-230).** 시작한 스텝은 Enter 만이고, 몸이 잠들면 멈춘다. 잠들지 않는 공을
+    // 트리거 안에 띄워 두면 스텝마다 양쪽이 받고, 트리거의 Stay 에는 법선이 없다.
+    void TestStayHooksComeEveryStepWhileTouching()
+    {
+        {
+            Scene scene;
+            JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+            scene.Box(ground, { 40, 1 });
+            JBro::GameObject* box = scene.Object("box", { 0, 0.6f });
+            scene.Box(box, { 1, 1 });
+            scene.Dynamic(box);
+            ContactProbe* boxProbe = scene.Probe(box);
+            scene.Run(0.2f);
+            Check(boxProbe->collisionEnter == 1, "the box lands");
+            const int staysAfterLanding = boxProbe->collisionStay;
+            scene.Run(0.2f);
+            Check(boxProbe->collisionStay >= staysAfterLanding + 10, "while it settles it hears a stay every fixed step");
+            Check(Near(boxProbe->lastStay.normal.y, -1.0f, 1.0e-3f), "each stay carries the box's own normal");
+            scene.Run(2.0f);
+            const int staysAsleep = boxProbe->collisionStay;
+            scene.Run(0.5f);
+            Check(boxProbe->collisionStay == staysAsleep, "once it sleeps the stays stop");
+            Check(boxProbe->collisionExit == 0, "and it never left");
+        }
+        {
+            Scene scene;
+            JBro::GameObject* zone = scene.Object("zone", { 0, 0 });
+            Collider2D* sensor = scene.Box(zone, { 4, 4 });
+            sensor->isTrigger = true;
+            ContactProbe* zoneProbe = scene.Probe(zone);
+            JBro::GameObject* ball = scene.Object("ball", { 0, 0 });
+            Collider2D* round = scene.canvas.AttachComponent<Collider2D>(ball);
+            round->shape = ColliderShape2D::Circle;
+            round->radius = 0.25f;
+            Rigidbody2D* body = scene.Dynamic(ball);
+            body->gravityScale = 0.0f;
+            body->canSleep = false;
+            ContactProbe* ballProbe = scene.Probe(ball);
+            for (int i = 0; i < 10; ++i)
+            {
+                scene.physics.FixedUpdate(scene.canvas, Frame);
+            }
+            Check(zoneProbe->triggerEnter == 1 && zoneProbe->triggerStay == 9, "the zone hears one enter, then a stay each step");
+            Check(ballProbe->triggerEnter == 1 && ballProbe->triggerStay == 9, "and so does the ball");
+            Check(ballProbe->lastStay.other.GetInstanceId() == zone->GetInstanceId(), "a stay names the other object");
+            Check(zoneProbe->lastStay.normal.x == 0.0f && zoneProbe->lastStay.normal.y == 0.0f, "a trigger stay carries no normal");
+            Check(zoneProbe->collisionStay == 0, "and no collision stay is called");
+        }
+    }
+
+    // **한 방향 발판 콜라이더(D-230).** 밑에서 뛰어올라 뚫고 지나가는 동안에는 훅이 없고, 위에 얹힐 때 시작을 한 번 받는다.
+    void TestAOneWayColliderLetsThingsUpThrough()
+    {
+        Scene scene;
+        JBro::GameObject* platform = scene.Object("platform", { 0, 0 });
+        Collider2D* ledge = scene.Box(platform, { 6, 0.5f });
+        ledge->oneWay = true;
+        ContactProbe* platformProbe = scene.Probe(platform);
+        JBro::GameObject* box = scene.Object("box", { 0, -1.5f });
+        scene.Box(box, { 1, 1 });
+        Rigidbody2D* body = scene.Dynamic(box);
+        body->linearVelocity = { 0, 8 };
+        scene.Run(0.12f);
+        Check(scene.TransformOf(box)->position.y > -1.0f && platformProbe->collisionEnter == 0,
+            "jumping up through the ledge is heard by no one");
+        scene.Run(1.5f);
+        Check(Near(scene.TransformOf(box)->position.y, 0.75f, 0.02f), "the box ends on top of the ledge");
+        Check(platformProbe->collisionEnter == 1, "and the ledge hears it land once");
+        ledge->oneWay = false;
+        scene.Run(0.1f);
+        Check(Near(scene.TransformOf(box)->position.y, 0.75f, 0.02f), "turning oneWay off leaves it standing there");
+    }
 }
 
 int RunPhysics2DSystemTests()
@@ -874,6 +962,8 @@ int RunPhysics2DSystemTests()
     TestAFallingBoxLandsAndBothScriptsHearIt();
     TestAConcavePolygonColliderHoldsWhatFallsOnAndIntoIt();
     TestATriggerReportsWithoutPushing();
+    TestStayHooksComeEveryStepWhileTouching();
+    TestAOneWayColliderLetsThingsUpThrough();
     TestLosingAPartnerEndsTheContact();
     TestSwitchingOffAMovingBodysColliderLetsItFall();
     TestRestartingDoesNotReplayOldContacts();
