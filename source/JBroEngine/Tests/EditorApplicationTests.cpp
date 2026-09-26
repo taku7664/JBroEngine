@@ -17,6 +17,7 @@
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/Command/CanvasCommands.h>
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/ComponentMenuTable.h>
@@ -25,6 +26,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -2366,7 +2368,7 @@ namespace
 
         // 메뉴에 적히는 글자와 회색 여부는 단축키 표 한 곳에서 나온다(§11.2).
         const JBro::EditorShortcutText combination
-            = JBro::EditorShortcuts::Describe(JBro::EditorShortcut::PasteAsChild);
+            = JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::PasteAsChild);
         Check(std::strcmp(combination.value, "Ctrl+Shift+V") == 0,
             "paste as child must read Ctrl+Shift+V");
         editor.ClearSelection();
@@ -10638,6 +10640,280 @@ namespace
         editor.Shutdown();
     }
 
+    // ── 단축키 관리자(D-227) ──────────────────────────────────────────
+
+    std::string ReadWholeText(const JBro::String& path)
+    {
+        std::ifstream in(path.c_str(), std::ios::binary);
+        return std::string((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    }
+
+    // 사람이 바꾼 단축키는 틱이 끝날 때 환경설정 파일에 적히고, 다음에 켠 에디터가 그것을 읽는다. 메뉴 글자도 따라간다.
+    void TestRemappedShortcutsAreSavedAndReadBack()
+    {
+        const JBro::String path = TempPath("JBroShortcutProbe\\EditorPreferences.yaml");
+        std::error_code ignored;
+        std::filesystem::remove_all(TempPath("JBroShortcutProbe").c_str(), ignored);
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.preferencesPath = path.c_str();
+            if (false == editor.Initialize(config))
+            {
+                std::cout << "  [skip] no D3D12 device; shortcut preferences not verified" << std::endl;
+                return;
+            }
+            Check(editor.GetPreferencesPath() == path, "the given preferences path must be used");
+            Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::PasteAsChild).value, "Ctrl+Shift+V") == 0,
+                "the built-in shortcuts must be registered with their defaults");
+            Check(editor.GetShortcuts().SetBinding(JBro::EditorShortcuts::ActionId(JBro::EditorShortcut::PasteAsChild), 0,
+                      JBro::EditorShortcutBinding{ImGuiKey_V, true, false, true}),
+                "a built-in shortcut must be remappable by its name");
+            Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::PasteAsChild).value, "Ctrl+Alt+V") == 0,
+                "the menu text must follow the new combination");
+            Check(false == std::filesystem::exists(path.c_str(), ignored), "nothing is written until the frame ends");
+            Check(editor.Tick(Frame), "the editor must tick");
+            const std::string written = ReadWholeText(path);
+            Check(written.find("editor.paste_as_child") != std::string::npos && written.find("Ctrl+Alt+V") != std::string::npos,
+                "the tick must write the remapped shortcut to the preferences file");
+            editor.Shutdown();
+        }
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.preferencesPath = path.c_str();
+            Check(editor.Initialize(config), "the second editor must start");
+            Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::PasteAsChild).value, "Ctrl+Alt+V") == 0,
+                "the next editor must read the remapped shortcut back");
+            editor.Shutdown();
+        }
+        // 읽지 못한 파일은 덮어쓰지 않는다 - 손으로 고치다 틀린 파일을 에디터가 지우면 그 사람의 설정이 통째로 사라진다.
+        const char broken[] = "Shortcuts: [not a map\n";
+        Check(WriteTextFile(path, broken), "the test must be able to break the preferences file");
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            config.preferencesPath = path.c_str();
+            Check(editor.Initialize(config), "a broken preferences file must not stop the editor");
+            Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::PasteAsChild).value, "Ctrl+Shift+V") == 0,
+                "a broken file leaves the defaults");
+            editor.GetShortcuts().SetBinding(JBro::EditorShortcuts::ActionId(JBro::EditorShortcut::Undo), 0,
+                JBro::EditorShortcutBinding{ImGuiKey_U, true});
+            Check(editor.Tick(Frame), "the editor must tick");
+            Check(ReadWholeText(path) == broken, "and the broken file must not be overwritten");
+            editor.Shutdown();
+        }
+        // 설정 파일을 주지 않은 에디터(테스트)는 사람의 파일을 건드리지 않는다.
+        {
+            JBro::EditorApplication editor;
+            JBro::EditorApplicationConfig config;
+            config.windowVisible = false;
+            Check(editor.Initialize(config), "a plain editor must start");
+            Check(editor.GetPreferencesPath().IsEmpty(), "without a path or user preferences nothing is read or written");
+            editor.Shutdown();
+        }
+        std::filesystem::remove_all(TempPath("JBroShortcutProbe").c_str(), ignored);
+    }
+
+    // **기즈모 모드 키 W·E·R 은 캔버스 뷰에 포커스가 있을 때만 돈다**(D-227). 크기 모드에서는 로컬·월드 단추가 잠기므로
+    // 그 잠김으로 모드를 읽는다.
+    void TestGizmoKeysFollowTheCanvasViewFocus()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; gizmo keys not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GizmoKeyProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다(게임 입력 테스트와 같다).
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const JBro::EditorShortcutView rotate = editor.GetShortcuts().Find("canvas_view.gizmo_rotate");
+        Check(rotate.handle != JBro::InvalidShortcutHandle, "the canvas view must register its gizmo keys");
+        Check(rotate.scope != nullptr && std::strcmp(rotate.scope, "CanvasView") == 0, "scoped to the canvas view");
+        Check(rotate.primary == JBro::EditorShortcutBinding{ImGuiKey_E}, "with the old gizmo's E");
+
+        const auto focus = [&](const char* title) {
+            JBro::EditorPanel* panel = editor.FindPanel(title);
+            Check(panel != nullptr, "the panel to focus must exist");
+            panel->RequestFocus();
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while focusing");
+            }
+            Check(panel->IsFocused(), "the panel must have taken the focus");
+        };
+        // 창 메시지로 누른다 - 플랫폼을 거쳐 ImGui 에 가는 실제 길이다(게임 입력 테스트와 같다).
+        const auto press = [&](WPARAM key) {
+            PostMessageW(hwnd, WM_KEYDOWN, key, 0);
+            Check(editor.Tick(Frame), "the editor must tick with the key down");
+            PostMessageW(hwnd, WM_KEYUP, key, static_cast<LPARAM>(0xC0000001u));
+            Check(editor.Tick(Frame), "the editor must tick with the key up");
+        };
+        const auto spaceLocked = [&]() {
+            ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+            const char* localLabel = JBro::Loc::TextOr(JBro::LocKeys::GizmoSpaceLocal, "Local");
+            Spot button;
+            Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, localLabel), button),
+                "the toolbar must offer the local/world toggle");
+            // 잠긴 항목도 가리키면 hover id 는 서고, 잠겼는지는 따로 적힌다.
+            return ImGui::GetCurrentContext()->HoveredIdIsDisabled;
+        };
+
+        focus("CanvasView");
+        Check(false == spaceLocked(), "in move mode the space toggle is live");
+        focus("CanvasView");
+        press('R');
+        Check(spaceLocked(), "R with the canvas view focused must switch to scale");
+        focus("Hierarchy");
+        press('W');
+        Check(spaceLocked(), "W with another panel focused must not touch the gizmo");
+        focus("CanvasView");
+        press('W');
+        Check(false == spaceLocked(), "W back in the canvas view must switch to move");
+
+        // 사람이 바꾼 키로도 돈다 - 기즈모가 키를 제 안에서 읽지 않는다는 뜻이다.
+        Check(editor.GetShortcuts().SetBinding("canvas_view.gizmo_scale", 0, JBro::EditorShortcutBinding{ImGuiKey_T}),
+            "the gizmo key must be remappable");
+        focus("CanvasView");
+        press('R');
+        Check(false == spaceLocked(), "the old R no longer switches");
+        focus("CanvasView");
+        press('T');
+        Check(spaceLocked(), "the remapped T does");
+
+        // **UI 를 껐다 켜면 패널이 새로 선다.** 옛 패널이 등록을 풀지 않았으면 새 패널의 등록이 이름 겹침으로 거절되고
+        // 키는 사라진 옛 패널을 부른다.
+        const JBro::ShortcutHandle oldScale = editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle;
+        editor.DisableEditorUi();
+        Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle == JBro::InvalidShortcutHandle,
+            "a destroyed canvas view must take its gizmo keys with it");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on again");
+        // 새 패널이 옛 패널의 주소에 설 수 있어 키가 "닿는지" 만으로는 옛 할 일을 부르는 것과 구분되지 않는다 - 등록 자체를 본다.
+        const JBro::ShortcutHandle newScale = editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle;
+        Check(newScale != JBro::InvalidShortcutHandle && newScale != oldScale, "the new canvas view must register its own gizmo keys");
+        Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").primary == JBro::EditorShortcutBinding{ImGuiKey_T},
+            "and the user's remap must carry over to them");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle again");
+        }
+        focus("CanvasView");
+        Check(false == spaceLocked(), "the new canvas view starts in move mode");
+        focus("CanvasView");
+        press('T');
+        Check(spaceLocked(), "the gizmo key must reach the new canvas view");
+        editor.Shutdown();
+    }
+
+    // 타자를 받는 칸 하나짜리 패널. 처음 그릴 때 그 칸에 키보드 포커스를 준다.
+    class TypingProbePanel final : public JBro::EditorPanel
+    {
+    public:
+        const char* GetTitle() const override
+        {
+            return "Typing Probe";
+        }
+        void OnDraw() override
+        {
+            if (m_focusField)
+            {
+                ImGui::SetKeyboardFocusHere();
+                m_focusField = false;
+            }
+            JBro::Widget::TextField("##typing_probe", m_text).Draw();
+        }
+        void FocusField()
+        {
+            m_focusField = true;
+        }
+
+    private:
+        JBro::String m_text;
+        bool m_focusField = false;
+    };
+
+    // **글자 칸에 타자를 치는 중에는 Ctrl+Z 가 씬을 되돌리지 않고, Ctrl+S 는 저장한다**(D-132, 관리자로 옮긴 뒤에도).
+    void TestTypingKeepsEditorShortcutsOutOfTheField()
+    {
+        DialogProbe dialog;
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.fileDialog = &DialogProbe::Answer;
+        config.fileDialogUser = &dialog;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; shortcuts while typing not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "TypingShortcutProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        Check(JBro::EditorActions::CreateObject(editor, nullptr) != nullptr, "an object must be created so there is an undo");
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+
+        auto owned = JBro::MakeOwnerPtr<TypingProbePanel>();
+        TypingProbePanel* probe = owned.Get();
+        Check(editor.AddPanel(std::move(owned)), "the typing probe must be taken");
+        probe->RequestFocus();
+        probe->FocusField();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while focusing the field");
+        }
+        Check(ImGui::GetIO().WantTextInput, "the field must be taking the keyboard");
+
+        const auto chord = [&](ImGuiKey key) {
+            ImGuiIO& io = ImGui::GetIO();
+            io.AddKeyEvent(ImGuiMod_Ctrl, true);
+            io.AddKeyEvent(key, true);
+            Check(editor.Tick(Frame), "the editor must tick with the chord down");
+            io.AddKeyEvent(key, false);
+            io.AddKeyEvent(ImGuiMod_Ctrl, false);
+            Check(editor.Tick(Frame), "the editor must tick with the chord up");
+        };
+        chord(ImGuiKey_Z);
+        Check(editor.GetCommands().GetUndoCount() == undoBefore, "Ctrl+Z while typing must not undo the canvas");
+        chord(ImGuiKey_S);
+        Check(dialog.calls == 1, "Ctrl+S while typing must still save");
+
+        // 칸을 떠나면 같은 Ctrl+Z 가 되돌린다 - 앞의 검사가 키가 안 닿아서 통과한 것이 아니라는 뜻이다.
+        JBro::EditorPanel* hierarchy = editor.FindPanel("Hierarchy");
+        hierarchy->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while leaving the field");
+        }
+        Check(false == ImGui::GetIO().WantTextInput, "the field must have let go of the keyboard");
+        chord(ImGuiKey_Z);
+        Check(editor.GetCommands().GetUndoCount() + 1 == undoBefore, "outside the field Ctrl+Z undoes");
+        editor.Shutdown();
+    }
+
     // **캔버스 뷰에서 오브젝트를 우클릭하면 그 오브젝트의 메뉴가 뜬다**(D-170).
     // 기존 캔버스 뷰도 그 자리에서 추가·복사·붙여넣기·삭제를 냈는데, 우리는 무엇을
     // 눌러도 빈자리 메뉴(`오브젝트 추가`·`붙여넣기`)만 나왔다.
@@ -11410,6 +11686,9 @@ int RunEditorApplicationTests()
     TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestTheGizmoCanWorkInWorldAxes();
+    TestRemappedShortcutsAreSavedAndReadBack();
+    TestGizmoKeysFollowTheCanvasViewFocus();
+    TestTypingKeepsEditorShortcutsOutOfTheField();
     TestThePathHelpersAgreeOnOneAnswer();
     TestTheEditorMakesAndOpensCanvases();
     TestTheEditorMakesFontFamilies();
