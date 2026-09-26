@@ -303,7 +303,7 @@ namespace JBro
         {
             return false;
         }
-        // 워커 로드와 같은 디코드를 부른다(D-227). 동기 로드는 메인에서 부를 뿐이다.
+        // 워커 로드와 같은 디코드를 부른다(D-232). 동기 로드는 메인에서 부를 뿐이다.
         AssetDecodeJob job;
         job.type = AssetType::Texture;
         job.sourcePath = SourcePathOf(record);
@@ -385,7 +385,7 @@ namespace JBro
         {
             return false;
         }
-        // 워커 로드와 같은 디코드를 부른다(D-227).
+        // 워커 로드와 같은 디코드를 부른다(D-232).
         AssetDecodeJob job;
         job.type = AssetType::Audio;
         job.sourcePath = SourcePathOf(record);

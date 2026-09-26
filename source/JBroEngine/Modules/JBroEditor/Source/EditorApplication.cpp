@@ -3917,7 +3917,7 @@ namespace JBro
                     "the asset folder could not be rescanned; the registry keeps its previous contents");
             }
         }
-        // 워커로 여는 캔버스가 끝났으면 여기서 바인딩한다(D-227). UI 보다 먼저라 이 프레임부터 그림이 붙는다.
+        // 워커로 여는 캔버스가 끝났으면 여기서 바인딩한다(D-232). UI 보다 먼저라 이 프레임부터 그림이 붙는다.
         PollCanvasLoad();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
         if (m_thumbnails.Get() != nullptr)

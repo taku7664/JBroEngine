@@ -466,7 +466,7 @@ namespace JBro
         // 열려 있는 캔버스로 `.jcanvas` 를 읽고 쓴다.
         // 읽기는 **빈 캔버스에만** 들어간다 — 이미 내용이 있으면 거절한다.
         bool LoadCanvas(const char* path, CanvasFileError& error);
-        // **워커로 여는 캔버스**(D-227). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
+        // **워커로 여는 캔버스**(D-232). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
         // 다음 틱에 바인딩한다 - 그동안 화면은 멈추지 않고 상태 표시줄에 진행이 보인다. 프로젝트를 열 때와 에셋 브라우저에서
         // 캔버스를 열 때 이 길로 간다. 앞서 돌던 캔버스 로드는 거두고(취소하고 기다린다) 시작한다. 읽지 못하면 거짓이다.
         bool LoadCanvasAsync(const char* path, CanvasFileError& error);
@@ -669,7 +669,7 @@ namespace JBro
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
         std::uint64_t m_trashCounter = 0;
         String m_canvasPath;
-        // 워커로 여는 캔버스의 로드(D-227). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
+        // 워커로 여는 캔버스의 로드(D-232). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
         TaskGroupId m_canvasLoadGroup = InvalidTaskGroupId;
         OwnerPtr<AssetLoadResult> m_canvasLoad;
         // 상태 표시줄에서 태스크 목록을 펼쳤다.

@@ -6028,7 +6028,7 @@ namespace
         Check(false == editor.IsSelected(far_), "and not the one outside it");
 
         // **끌지 않고 누른 것은 상자가 아니다.** 빈 곳을 한 번 누르면 선택이 풀린다.
-        // 빈 곳은 뷰 크기에서 고른다. 가운데에서 고정 150 px 위였는데, 창 바닥에 상태 표시줄이 서며(D-227) 뷰가 짧아지자
+        // 빈 곳은 뷰 크기에서 고른다. 가운데에서 고정 150 px 위였는데, 창 바닥에 상태 표시줄이 서며(D-232) 뷰가 짧아지자
         // 그 점이 탭 줄 위로 올라가 뷰를 누르지 못했다. 오른쪽 가장자리 가까이, 오브젝트 줄보다 조금 아래는 늘 비어 있다.
         Spot empty;
         empty.x = static_cast<int>(centerX + view->Size.x * 0.4f);
@@ -7680,7 +7680,7 @@ namespace
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
         // 월드 원점과 배율은 캔버스 뷰에게 묻는다. 창 가운데를 원점으로, 창 높이로 배율을 어림하던 것은 탭 줄과
-        // 도구 줄 몫만큼 어긋나 여유가 몇 px 뿐이었고, 창 바닥에 상태 표시줄이 서며(D-227) 뷰가 짧아지자 그림 밖을 눌렀다.
+        // 도구 줄 몫만큼 어긋나 여유가 몇 px 뿐이었고, 창 바닥에 상태 표시줄이 서며(D-232) 뷰가 짧아지자 그림 밖을 눌렀다.
         float centerX = 0.0f;
         float centerY = 0.0f;
         float unitX = 0.0f;
