@@ -5,6 +5,8 @@
 #include <JBro/Input/InputSystem.h>
 #include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Host/GameLocalization.h>
+#include <JBro/Package/PackageAssetSource.h>
+#include <JBro/Package/PackageReader.h>
 #include <JBro/Host/SaveStorage.h>
 #include <JBro/LocalizationTypes/Internal/ScriptModuleContext.h>
 #include <JBro/SaveTypes/Internal/ScriptModuleContext.h>
@@ -164,10 +166,11 @@ namespace JBro
                 mixerDesc.maxVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
                 // 디스크 스트리밍의 파일은 플랫폼이 연다(D-203). 스트리머 스레드에서 불린다 - `OpenFileStream` 은 어느
                 // 스레드에서 불러도 된다.
+                // 패키지로 연 프로젝트는 패키지의 창 스트림이다(D-232) - 에셋 시스템의 바이트 출처가 연다.
                 mixerDesc.openStream = [](void* user, const char* path, AudioFileDecoder& decoder) {
-                    return decoder.Open(static_cast<IPlatform*>(user)->OpenFileStream(path), path);
+                    return decoder.Open(static_cast<EngineInstance*>(user)->OpenAudioStream(path), path);
                 };
-                mixerDesc.openStreamUser = &platform;
+                mixerDesc.openStreamUser = this;
                 if (config.audioDeviceEnabled)
                 {
                     m_audioOutput = platform.CreateAudioOutput(AudioOutputDesc{});
@@ -267,6 +270,40 @@ namespace JBro
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
+        // **패키지로 연다**(D-232). 에셋 폴더를 스캔하지 않고 패키지의 색인이 레지스트리다. 감시도 없다.
+        if (false == project.assetPackage.empty())
+        {
+            const String packagePath = ResolveProjectRelativePath(project.assetPackage.c_str(), projectFilePath);
+            m_package = MakeOwnerPtr<Package::PackageReader>();
+            String packageError;
+            if (false == m_package->Open(*m_platform, packagePath.c_str(), packageError))
+            {
+                m_package.Reset();
+                error.line = 0;
+                error.message = "the asset package could not be opened: ";
+                error.message.append(packageError);
+                CloseProject();
+                return false;
+            }
+            m_packageSource = MakeOwnerPtr<Package::PackageAssetSource>(*m_package);
+            m_assetRoot.clear();
+            m_assetScanReport = {};
+            Package::FillRegistry(*m_package, m_assetRegistry);
+            m_pendingReloads.Clear();
+            m_assetRescanPending = false;
+            m_assetOverflowPending = false;
+            m_assetQuietFrames = 0;
+            m_assets->SetDefaultTextureFilter(project.textureFilter);
+            m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));
+            m_assets->Bind(*m_platform, m_assetRegistry, *m_packageSource);
+            if (m_localization)
+            {
+                m_localization->Attach(m_assets.Get(), &m_assetRegistry);
+                ApplyLocaleSettings(true);
+                m_localization->Refresh();
+            }
+            return true;
+        }
         m_assetRoot = ResolveProjectRelativePath(project.assetDirectory.c_str(), projectFilePath);
         ScanAssets(true);
         m_pendingReloads.Clear();
@@ -324,7 +361,7 @@ namespace JBro
 
     bool EngineInstance::RescanAssets()
     {
-        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound())
+        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound() || m_package)
         {
             return false;
         }
@@ -497,7 +534,7 @@ namespace JBro
     EngineInstance::AssetChangeSummary EngineInstance::PollAssetChanges()
     {
         AssetChangeSummary summary;
-        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound())
+        if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound() || m_package)
         {
             return summary;
         }
@@ -980,6 +1017,21 @@ namespace JBro
         return m_localization.Get();
     }
 
+    bool EngineInstance::IsRunningFromPackage() const
+    {
+        return m_package.Get() != nullptr;
+    }
+
+    OwnerPtr<IFileStream> EngineInstance::OpenAudioStream(const char* path)
+    {
+        const IAssetSource* source = m_assets.Get() != nullptr ? m_assets->GetSource() : nullptr;
+        if (source != nullptr)
+        {
+            return source->OpenStream(path);
+        }
+        return m_platform != nullptr ? m_platform->OpenFileStream(path) : OwnerPtr<IFileStream>{};
+    }
+
     void EngineInstance::OpenSaveFolder()
     {
         if (m_save.Get() == nullptr || m_platform == nullptr)
@@ -1323,6 +1375,9 @@ namespace JBro
             m_assets.Reset();
         }
         m_frameworkContext.assets = nullptr;
+        // 패키지는 에셋 시스템 뒤에 내린다 - 바이트 출처가 패키지를 가리킨다.
+        m_packageSource.Reset();
+        m_package.Reset();
         m_projectCloseRequested = false;
         m_scriptModuleLoaded = false;
         m_scriptModuleError.clear();

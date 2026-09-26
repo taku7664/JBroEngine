@@ -23,7 +23,7 @@
 5. **에디터에 에셋 필드와 에셋 브라우저가 없다.** 인스펙터의 에셋 참조는 규칙상 글자 칸이 아니라 에셋 필드여야
    하는데(ProjectRule §11) 지금은 `AssetId` 숫자다.
 6. **렌더 패스 구조가 고정이다.** 후처리·라이팅을 얹을 자리가 없다(framework3d-plan §2.11 뒤 검토).
-7. **게임 익스포트가 에셋을 싸 갈 길이 없다.** 기존 엔진의 `.jpak` 에 해당하는 것이 없다.
+7. ~~**게임 익스포트가 에셋을 싸 갈 길이 없다.**~~ → 섰다(D-232, [package-plan.md](./package-plan.md)): 패키지 `.jpak`·게임 빌드·패키지로 여는 엔진.
 
 이 문서는 1·2·3 을 다룬다. 4 는 사용자 결정 뒤 별도 계획, 5 는 3 뒤에 에디터 계획으로, 6·7 은 `[열림]` 으로 둔다.
 
@@ -126,7 +126,7 @@ CTextureAsset 의 역할도 통합"). 새 엔진은 `Asset::TextureAsset` 과 `A
 - **자료는 CPU 것만.** `TextureData { extent, format, Array<byte> pixels, uint32 pixelGeneration }`,
   `SpriteData { AssetHandle texture; Array<SpriteFrame> frames; float pixelsPerUnit; ... }`. GPU 핸들은 없다.
 - **로드는 동기이고 메인 스레드다.** 첫 판은 워커를 두지 않는다. 기존 엔진의 P4 는 워커가 있어서 생긴 문제였고,
-  지금 필요한 것은 캔버스 열 때 그 캔버스의 에셋을 올리는 것이다. 비동기로 올리는 것은 공용 todo 의 `[열림]` 캔버스 비동기 로드다. 에디터 쪽은 2026-09-27 에 섰다(D-232): 텍스처·오디오의 디코드만 워커로 가고(`PrepareDecode` → `DecodeAssetFile` → `AdoptDecoded`), 풀에 넣는 것과 바인딩은 메인이다.
+  지금 필요한 것은 캔버스 열 때 그 캔버스의 에셋을 올리는 것이다. 비동기로 올리는 것은 공용 todo 의 `[열림]` 캔버스 비동기 로드다. 에디터 쪽은 2026-09-27 에 섰다(D-233): 텍스처·오디오의 디코드만 워커로 가고(`PrepareDecode` → `DecodeAssetFile` → `AdoptDecoded`), 풀에 넣는 것과 바인딩은 메인이다.
 - **API**: `AssetHandle Load(AssetId)`(로드돼 있으면 참조 수만 올림), `void Release(AssetHandle)`, `bool IsLoaded`,
   `AssetHandle Find(AssetId)`(로드 안 돼 있으면 빈 핸들, 참조 수 안 올림), `bool ReloadInPlace(AssetId)`.
   `LoadTexture/LoadSprite/...` 다섯 함수는 없앤다 - 타입은 레지스트리가 알고, 결과 핸들의 풀이 타입을 말한다.

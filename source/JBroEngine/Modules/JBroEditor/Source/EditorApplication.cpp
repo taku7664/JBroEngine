@@ -26,6 +26,7 @@
 #include <JBro/Host/AssetLoad.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Task/TaskManager.h>
+#include <JBro/Host/GameBuild.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
@@ -1353,7 +1354,7 @@ namespace JBro
         Array<AssetId> ids;
         m_framework->CollectCanvasAssetIds(ids);
         m_canvasLoad = MakeOwnerPtr<AssetLoadResult>();
-        m_canvasLoadGroup = SubmitAssetLoad(*tasks, *assets, *m_platform,
+        m_canvasLoadGroup = SubmitAssetLoad(*tasks, *assets,
             ArrayView<const AssetId>(ids.Data(), ids.Size()), LocKeys::TaskLoadCanvas, *m_canvasLoad);
         if (m_canvasLoadGroup == InvalidTaskGroupId)
         {
@@ -2166,6 +2167,79 @@ namespace JBro
     {
         const GameLocalization* localization = m_engine.Get() != nullptr ? m_engine->GetLocalization() : nullptr;
         return localization != nullptr ? localization->GetLocaleName() : String();
+    }
+
+    String EditorApplication::FindGameHostExecutable() const
+    {
+        const bool is3D = m_frameworkKind == FrameworkKind::Framework3D;
+        const String folder = m_platform.Get() != nullptr ? m_platform->GetExecutableFolder() : String();
+        if (folder.empty())
+        {
+            return String();
+        }
+        String base = folder;
+        if (base.back() != '/' && base.back() != '\\')
+        {
+            base.push_back('/');
+        }
+        // 설치본은 에디터 옆에 둘을 둔다. 개발 빌드는 구성마다 폴더가 다르다(`Build/x64/Debug_Game2D`).
+        const char* const candidates[] = {
+            is3D ? "JBroGameHost3D.exe" : "JBroGameHost2D.exe",
+            is3D ? "../Debug_Game3D/JBroGameHost.exe" : "../Debug_Game2D/JBroGameHost.exe",
+            is3D ? "../Release_Game3D/JBroGameHost.exe" : "../Release_Game2D/JBroGameHost.exe",
+        };
+        for (const char* candidate : candidates)
+        {
+            String path = base;
+            path.append(candidate);
+            if (m_platform->FileExists(path.c_str()))
+            {
+                return path;
+            }
+        }
+        return String();
+    }
+
+    bool EditorApplication::BuildGameForProject(GameBuildReport& report)
+    {
+        report = {};
+        if (m_projectFilePath.empty() || m_platform.Get() == nullptr)
+        {
+            report.error = "only a project opened from a file can be built";
+            m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyGameBuildFailed, "The game could not be built"),
+                report.error.c_str());
+            return false;
+        }
+        GameBuildOptions options;
+        options.gameHostPath = FindGameHostExecutable();
+        // 게임은 패키지에서 캔버스를 세어 볼 수 없으므로 물리 워커 수는 여기서 정해 적는다(D-223).
+        if (m_frameworkKind == FrameworkKind::Framework2D)
+        {
+            options.physicsWorkers = static_cast<std::int32_t>(
+                ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
+        }
+        const bool built = BuildGame(*m_platform, GetProjectFile(), m_projectFilePath.c_str(), options, report);
+        if (false == built)
+        {
+            m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyGameBuildFailed, "The game could not be built"),
+                report.error.c_str());
+            return false;
+        }
+        for (const String& warning : report.warnings)
+        {
+            Log::Write(LogLevel::Warning, "build", "%s", warning.c_str());
+        }
+        if (options.gameHostPath.empty())
+        {
+            Log::Write(LogLevel::Warning, "build", "no game host was found; the folder has the package and the project but no executable");
+            report.warnings.Add(String("no game host was found; the folder has no executable"));
+        }
+        const bool warned = false == report.warnings.IsEmpty();
+        m_notifications.Notify(warned ? NotificationLevel::Warning : NotificationLevel::Success,
+            warned ? Loc::TextOr(LocKeys::NotifyGameBuildWarnings, "The game was built with warnings")
+                   : Loc::TextOr(LocKeys::NotifyGameBuilt, "The game was built"),
+            report.outputFolder.c_str());
+        return true;
     }
 
     const Array<String>& EditorApplication::GetStringKeys()
@@ -3160,6 +3234,12 @@ namespace JBro
                 {
                     RequestSaveProject();
                 }
+                // **게임 빌드**(D-232). 저장된 프로젝트로 빌드한다 - 같은 까닭으로 파일이 있어야 하고 돌고 있지 않아야 한다.
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuBuildGame, "Build Game"), nullptr, false == (noFile || playing), why))
+                {
+                    GameBuildReport report;
+                    BuildGameForProject(report);
+                }
             }
             ImGui::Separator();
             if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
@@ -3917,7 +3997,7 @@ namespace JBro
                     "the asset folder could not be rescanned; the registry keeps its previous contents");
             }
         }
-        // 워커로 여는 캔버스가 끝났으면 여기서 바인딩한다(D-232). UI 보다 먼저라 이 프레임부터 그림이 붙는다.
+        // 워커로 여는 캔버스가 끝났으면 여기서 바인딩한다(D-233). UI 보다 먼저라 이 프레임부터 그림이 붙는다.
         PollCanvasLoad();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
         if (m_thumbnails.Get() != nullptr)

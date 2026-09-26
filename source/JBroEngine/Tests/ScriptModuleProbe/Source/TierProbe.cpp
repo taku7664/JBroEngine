@@ -71,6 +71,12 @@
 using ProbeLocalizationInterface = JBro::System::ILocalization;
 #endif
 
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Package
+#if defined(JBRO_TIER_PROBE_PACKAGE)
+// 에셋 패키지는 Tier E 다(D-232). 스크립트는 패키지를 모르고 에셋 서비스만 본다.
+#include <JBro/Package/PackageReader.h>
+#endif
+
 #if defined(JBRO_TIER_PROBE_GAME_OBJECT)
 // 프렐류드를 거치지 않고 직접 집는 모양을 흉내낸다. 표식이 없으므로 #error 여야 한다.
 #undef JBRO_SCRIPT_PRELUDE

@@ -8,7 +8,7 @@
 
 #include <cstdint>
 
-// 에셋을 워커에서 디코드해 싣는 로드 묶음이다(D-232). 캔버스를 열 때 그 캔버스가 쓰는 에셋을 여기로 보내면, 파일 읽기와
+// 에셋을 워커에서 디코드해 싣는 로드 묶음이다(D-233). 캔버스를 열 때 그 캔버스가 쓰는 에셋을 여기로 보내면, 파일 읽기와
 // 디코드는 워커가 하고 풀에 넣는 것은 메인 스레드의 콜백이 한다(`Log`·`SafePtr` 는 메인 전용). 끝나면 부르는 쪽이 바인딩한다 -
 // 그때 `Load` 는 이미 실린 것을 찾아 참조만 올린다.
 //
@@ -16,7 +16,7 @@
 namespace JBro
 {
     class AssetSystem;
-    class IPlatform;
+    class IAssetSource;
     class TaskManager;
 
     // 로드 묶음의 결과다. **묶음이 끝날 때까지 부르는 쪽이 살려 둔다** - 먼저 내려야 하면 묶음을 `RequestCancel` 하고 `Wait` 한다.
@@ -37,6 +37,7 @@ namespace JBro
     // 이미 실린 것과 이 길로 가지 않는 것은 건너뛴다 - 바인딩이 동기로 싣는다. 보낼 것이 없어도 빈 묶음을 제출해 다음 `Update`
     // 에서 끝난다. 묶음 이름은 로컬라이징 키 `groupNameKey`, 태스크 이름은 에셋 파일 이름이다.
     // 초기화되지 않은 관리자면 `InvalidTaskGroupId` 이고 `result.finished` 가 곧바로 참이다.
-    TaskGroupId SubmitAssetLoad(TaskManager& tasks, AssetSystem& assets, IPlatform& platform,
+    // 파일은 에셋 시스템의 소스(`AssetSystem::GetSource`)로 읽는다. 워커에서 읽을 수 없는 소스(패키지)면 보낼 것이 없다(D-233).
+    TaskGroupId SubmitAssetLoad(TaskManager& tasks, AssetSystem& assets,
         ArrayView<const AssetId> ids, const char* groupNameKey, AssetLoadResult& result);
 }

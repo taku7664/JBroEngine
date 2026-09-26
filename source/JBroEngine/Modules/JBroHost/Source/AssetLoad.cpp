@@ -19,11 +19,11 @@ namespace JBro
         class AssetDecodeTask final : public Task
         {
         public:
-            AssetDecodeTask(AssetDecodeJob&& job, AssetSystem& assets, IPlatform& platform, AssetLoadResult& result)
-                : Task(FileNameOf(job.sourcePath))
+            AssetDecodeTask(AssetDecodeJob&& job, AssetSystem& assets, const IAssetSource& source, AssetLoadResult& result)
+                : Task(FileNameOf(job.record.relativePath))
                 , m_job(std::move(job))
                 , m_assets(assets)
-                , m_platform(platform)
+                , m_source(source)
                 , m_result(result)
             {
             }
@@ -31,7 +31,7 @@ namespace JBro
         protected:
             void Run() override
             {
-                if (false == DecodeAssetFile(m_platform, m_job))
+                if (false == DecodeAssetFile(m_source, m_job))
                 {
                     FailSubTask(0, m_job.failure.c_str());
                 }
@@ -52,7 +52,7 @@ namespace JBro
                 }
                 if (m_result.failed == 0)
                 {
-                    m_result.firstFailure = m_job.failure.empty() ? m_job.sourcePath : m_job.failure;
+                    m_result.firstFailure = m_job.failure.empty() ? m_job.record.relativePath : m_job.failure;
                 }
                 ++m_result.failed;
             }
@@ -60,7 +60,7 @@ namespace JBro
         private:
             AssetDecodeJob m_job;
             AssetSystem& m_assets;
-            IPlatform& m_platform;
+            const IAssetSource& m_source;
             AssetLoadResult& m_result;
         };
 
@@ -85,7 +85,7 @@ namespace JBro
         };
     }
 
-    TaskGroupId SubmitAssetLoad(TaskManager& tasks, AssetSystem& assets, IPlatform& platform,
+    TaskGroupId SubmitAssetLoad(TaskManager& tasks, AssetSystem& assets,
         ArrayView<const AssetId> ids, const char* groupNameKey, AssetLoadResult& result)
     {
         result = AssetLoadResult{};
@@ -95,17 +95,18 @@ namespace JBro
             return InvalidTaskGroupId;
         }
         OwnerPtr<AssetLoadGroup> group = MakeOwnerPtr<AssetLoadGroup>(groupNameKey, result);
+        const IAssetSource* source = assets.GetSource();
         // 스프라이트 둘이 한 텍스처를 쓰면 준비한 아이디가 겹친다. 한 번만 보낸다.
         Array<AssetId> prepared;
         for (std::size_t index = 0; index < ids.Size(); ++index)
         {
             AssetDecodeJob job;
-            if (false == assets.PrepareDecode(ids[index], job) || prepared.Contains(job.id))
+            if (source == nullptr || false == assets.PrepareDecode(ids[index], job) || prepared.Contains(job.id))
             {
                 continue;
             }
             prepared.Add(job.id);
-            group->Add(MakeOwnerPtr<AssetDecodeTask>(std::move(job), assets, platform, result));
+            group->Add(MakeOwnerPtr<AssetDecodeTask>(std::move(job), assets, *source, result));
         }
         return tasks.Submit(std::move(group));
     }

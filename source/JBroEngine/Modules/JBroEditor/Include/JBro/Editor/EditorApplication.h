@@ -44,6 +44,7 @@ namespace JBro
     class GameObject;
     class Renderer;
     class EngineInstance;
+    struct GameBuildReport;
     class IFramework;
     class IPlatform;
     struct AudioDeviceInfo;
@@ -466,7 +467,7 @@ namespace JBro
         // 열려 있는 캔버스로 `.jcanvas` 를 읽고 쓴다.
         // 읽기는 **빈 캔버스에만** 들어간다 — 이미 내용이 있으면 거절한다.
         bool LoadCanvas(const char* path, CanvasFileError& error);
-        // **워커로 여는 캔버스**(D-232). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
+        // **워커로 여는 캔버스**(D-233). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
         // 다음 틱에 바인딩한다 - 그동안 화면은 멈추지 않고 상태 표시줄에 진행이 보인다. 프로젝트를 열 때와 에셋 브라우저에서
         // 캔버스를 열 때 이 길로 간다. 앞서 돌던 캔버스 로드는 거두고(취소하고 기다린다) 시작한다. 읽지 못하면 거짓이다.
         bool LoadCanvasAsync(const char* path, CanvasFileError& error);
@@ -533,6 +534,11 @@ namespace JBro
         bool SetPreviewLocale(const char* locale);
         // 프로젝트의 문자열 표에 있는 키 전부다(D-226, 이름 차례). 인스펙터의 `textKey` 고르기가 쓴다. 표가 바뀔 때만 다시 모은다.
         const Array<String>& GetStringKeys();
+        // **게임을 빌드한다**(D-232). 파일 메뉴의 "게임 빌드" 가 부른다. 저장된 프로젝트 파일(원본)로 빌드하고, 결과를 알림으로 보인다.
+        // 게임 호스트는 차원에 맞는 것을 실행 파일 옆(`JBroGameHost2D.exe`/`3D`)이나 개발 빌드 폴더(`../Debug_Game2D/JBroGameHost.exe` 따위)에서 찾는다.
+        bool BuildGameForProject(GameBuildReport& report);
+        // 위가 쓰는 게임 호스트 경로다. 찾지 못하면 빈 글자다.
+        String FindGameHostExecutable() const;
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
         void AnswerCanvasSwitch(int choice);
@@ -669,7 +675,7 @@ namespace JBro
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
         std::uint64_t m_trashCounter = 0;
         String m_canvasPath;
-        // 워커로 여는 캔버스의 로드(D-232). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
+        // 워커로 여는 캔버스의 로드(D-233). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
         TaskGroupId m_canvasLoadGroup = InvalidTaskGroupId;
         OwnerPtr<AssetLoadResult> m_canvasLoad;
         // 상태 표시줄에서 태스크 목록을 펼쳤다.

@@ -63,6 +63,7 @@ int RunInputSystemTests();
 int RunInputChainTests();
 int RunInputActionTests();
 int RunSaveStorageTests();
+int RunPackageTests();
 int RunInputGamepadTests();
 int RunInputTouchTests();
 int RunContextBoundaryTests();
@@ -166,6 +167,10 @@ int main()
         {
             return 1;
         }
+        if (RunPackageTests() != 0)
+        {
+            return 1;
+        }
         if (RunInputGamepadTests() != 0)
         {
             return 1;
@@ -200,12 +205,12 @@ int main()
         {
             return 1;
         }
-        // 에디터 로딩과 상태 표시줄(D-232). 에디터를 두 번 띄울 뿐이라 앞에 둔다.
+        // 에디터 로딩과 상태 표시줄(D-233). 에디터를 두 번 띄울 뿐이라 앞에 둔다.
         if (RunEditorLoadingTests() != 0)
         {
             return 1;
         }
-        // 에셋 시스템도 몇 초다. 워커 로드(D-232)의 뮤테이션이 스위트 끝까지 기다리지 않게 여기로 당겼다.
+        // 에셋 시스템도 몇 초다. 워커 로드(D-233)의 뮤테이션이 스위트 끝까지 기다리지 않게 여기로 당겼다.
         if (RunAssetSystemTests() != 0)
         {
             return 1;

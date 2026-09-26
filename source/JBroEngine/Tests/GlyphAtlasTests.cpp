@@ -4,6 +4,7 @@
 #include "TestFontNotoSansKR.generated.h"
 
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 
@@ -250,6 +251,85 @@ namespace
     }
 }
 
+namespace
+{
+    // **미리 뜬 아틀라스를 싸고 되살린다**(D-232). 되살린 것은 뜬 것과 페이지·칸이 같고, 새 글자는 같은 자리에 이어 들어간다.
+    // 표지가 다르거나 잘린 것은 되살리지 않고 지금 것을 건드리지 않는다.
+    void TestABakedAtlasRestores()
+    {
+        const FontFace face = LoadTestFont();
+        const std::uint64_t hash = GlyphAtlas::HashFontSource(reinterpret_cast<const std::byte*>(TestFontNotoSansKR), sizeof(TestFontNotoSansKR));
+        BakedAtlasStamp stamp;
+        stamp.sourceHash = hash;
+        stamp.set = PrewarmSet::Ksx1001;
+        stamp.pixelSize = 48;
+        stamp.sdfSpread = 8;
+        GlyphAtlas warmed;
+        warmed.Prewarm(face, PrewarmSet::Ksx1001, 48, 8);
+        Array<std::byte> baked;
+        warmed.Bake(stamp, baked);
+        const std::uint32_t bakedGlyphs = warmed.GetGlyphCount();
+        Check(baked.Size() < static_cast<std::size_t>(warmed.GetPageCount()) * warmed.GetPageSize() * warmed.GetPageSize() * 2,
+            "a baked page keeps one channel, not four");
+
+        GlyphAtlas restored;
+        Check(restored.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size()), stamp), "a baked atlas restores");
+        Check(restored.GetPageCount() == warmed.GetPageCount() && restored.GetGlyphCount() == warmed.GetGlyphCount(),
+            "with the same pages and cells");
+        bool samePixels = true;
+        for (std::uint32_t page = 0; page < warmed.GetPageCount(); ++page)
+        {
+            const ArrayView<const std::byte> a = warmed.GetPagePixels(page);
+            const ArrayView<const std::byte> b = restored.GetPagePixels(page);
+            samePixels = samePixels && a.Size() == b.Size() && std::memcmp(a.Data(), b.Data(), a.Size()) == 0;
+            Check(restored.IsPageDirty(page), "every restored page waits to be uploaded");
+        }
+        Check(samePixels, "the restored pages are pixel for pixel the warmed ones");
+        AtlasGlyph fromWarm;
+        AtlasGlyph fromRestored;
+        const GlyphIndex han = face.FindGlyph(U'\uD55C');
+        Check(warmed.EnsureSdf(face, 48, 8, han, fromWarm) == AtlasError::None
+                && restored.EnsureSdf(face, 48, 8, han, fromRestored) == AtlasError::None
+                && fromWarm.page == fromRestored.page && fromWarm.x == fromRestored.x && fromWarm.y == fromRestored.y,
+            "a prewarmed cell is found where it was baked");
+        // 벌 밖의 새 글자(다른 크기)는 두 아틀라스에서 같은 자리에 선다 - 선반 자리가 함께 싸였다.
+        Check(warmed.EnsureSdf(face, 20, 8, han, fromWarm) == AtlasError::None
+                && restored.EnsureSdf(face, 20, 8, han, fromRestored) == AtlasError::None
+                && fromWarm.page == fromRestored.page && fromWarm.x == fromRestored.x && fromWarm.y == fromRestored.y,
+            "a new cell after restoring goes where it would have gone");
+
+        // 표지·잘림·겹친 칸.
+        const std::uint32_t kept = restored.GetGlyphCount();
+        BakedAtlasStamp other = stamp;
+        other.sourceHash ^= 1;
+        Check(false == restored.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size()), other) && restored.GetGlyphCount() == kept,
+            "another font's bake is refused and the atlas is left alone");
+        other = stamp;
+        other.pixelSize = 32;
+        Check(false == restored.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size()), other), "another size is refused");
+        other = stamp;
+        other.set = PrewarmSet::Ascii;
+        Check(false == restored.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size()), other), "another set is refused");
+        Check(false == restored.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size() - 1), stamp), "a cut bake is refused");
+        GlyphAtlas small(256);
+        Check(false == small.Restore(ArrayView<const std::byte>(baked.Data(), baked.Size()), stamp), "another page size is refused");
+        Array<std::byte> damaged = baked;
+        // 그릴 것이 있는 첫 칸(빈 칸 표시가 0)의 페이지 번호를 페이지 수 밖으로 돌린다.
+        const std::size_t firstGlyph = baked.Size() - static_cast<std::size_t>(bakedGlyphs) * 24;
+        std::size_t drawn = firstGlyph;
+        while (drawn < baked.Size() && baked[drawn + 22] != std::byte{ 0 })
+        {
+            drawn += 24;
+        }
+        Check(drawn < baked.Size(), "the bake has a drawn cell");
+        const std::uint16_t badPage = 60000;
+        std::memcpy(damaged.Data() + drawn + 8, &badPage, sizeof(badPage));
+        GlyphAtlas fresh;
+        Check(false == fresh.Restore(ArrayView<const std::byte>(damaged.Data(), damaged.Size()), stamp) && fresh.GetPageCount() == 0,
+            "a cell outside the pages is refused");
+    }
+}
+
 int RunGlyphAtlasTests()
 {
     try
@@ -260,6 +340,7 @@ int RunGlyphAtlasTests()
         TestPrewarmFillsTheAtlasOnce();
         TestPagesDoNotMoveCells();
         TestErrors();
+        TestABakedAtlasRestores();
     }
     catch (const std::exception&)
     {

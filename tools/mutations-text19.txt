@@ -1,0 +1,29 @@
+Modules\JBroPackage\Source\PackageReader.cpp	reader:index-hash-ignored	if (Hash(index.Data(), index.Size()) != indexHash)	if (false)
+Modules\JBroPackage\Source\PackageReader.cpp	reader:blob-hash-ignored	if (Hash(out.Data(), out.Size()) != entry.hash)	if (false)
+Modules\JBroPackage\Source\PackageReader.cpp	reader:order-unchecked	if (false == entries.IsEmpty() && false == EntryLess(entries[entries.Size() - 1], entry))	if (false)
+Modules\JBroPackage\Source\PackageReader.cpp	reader:bounds-unchecked	&& entry.size <= indexOffset - entry.offset;	;
+Modules\JBroPackage\Source\PackageReader.cpp	stream:no-clamp	const std::size_t wanted = static_cast<std::size_t>(bytes < left ? bytes : left);	const std::size_t wanted = bytes;
+Modules\JBroPackage\Source\PackageReader.cpp	stream:seek-unchecked	if (target < 0 || target > static_cast<std::int64_t>(m_size))	if (target < 0)
+Modules\JBroPackage\Source\PackageWriter.cpp	writer:dup-accepted	if (existing.id == entry.id && existing.kind == entry.kind)	if (false)
+Modules\JBroPackage\Source\PackageWriter.cpp	writer:no-align	const std::uint64_t at = Align(file.Size());	const std::uint64_t at = file.Size();
+Modules\JBroPackage\Source\PackageFormat.cpp	obfuscate:position-ignored	std::uint64_t z = key + (block + 1) * 0x9E3779B97F4A7C15ull;	std::uint64_t z = key + 0x9E3779B97F4A7C15ull;
+Modules\JBroPackage\Source\PackageCook.cpp	cook:texture-as-source	if (record->type == AssetType::Texture)	if (false)
+Modules\JBroPackage\Source\PackageCook.cpp	cook:no-atlas	if (record->type == AssetType::Font)	if (false)
+Modules\JBroPackage\Source\PackageCollect.cpp	collect:owned-skipped	                visit(child);	                (void)child;
+Modules\JBroPackage\Source\PackageCollect.cpp	collect:owner-skipped	                visit(record.owner);	                (void)0;
+Modules\JBroPackage\Source\PackageCollect.cpp	collect:canvas-not-read	if (record.type == AssetType::Canvas && loose.Read(record, AssetBlob::Source, bytes))	if (false)
+Modules\JBroAsset\Source\Asset.cpp	asset:cooked-ignored	if (m_source->Has(record, AssetBlob::CookedTexture))	if (false)
+Modules\JBroAsset\Source\Asset.cpp	asset:sprite-own-meta	const AssetRecord& metaRecord = owner != nullptr ? *owner : record;	const AssetRecord& metaRecord = record;
+Modules\JBroHost\Source\EngineInstance.cpp	engine:rescan-in-package	if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound() || m_package)\n        {\n            return false;	if (m_platform == nullptr || m_assets.Get() == nullptr || false == m_assets->IsBound())\n        {\n            return false;
+Modules\JBroHost\Source\EngineInstance.cpp	engine:stream-by-platform	        if (source != nullptr)\n        {\n            return source->OpenStream(path);	        if (false)\n        {\n            return source->OpenStream(path);
+Modules\JBroHost\Source\GameBuild.cpp	build:strings-not-seeded	if (registry.GetRecord(index).type == AssetType::StringTable)	if (false)
+Modules\JBroHost\Source\GameBuild.cpp	build:canvas-not-relative	exported.build.startupCanvas = ToAssetRelativePath(project, projectFilePath, project.build.startupCanvas);	exported.build.startupCanvas = project.build.startupCanvas;
+Modules\JBroHost\Source\GameBuild.cpp	build:physics-not-written	        if (options.physicsWorkers >= 0)	        if (false)
+Modules\JBroHost\Source\GameHostArguments.cpp	beside:nested-seen	if (false == isDirectory && name.find('/') == std::string_view::npos && name.size() > extension.size()	if (false == isDirectory && name.size() > extension.size()
+Modules\JBroHost\Source\GameHostArguments.cpp	beside:first-not-by-name	&& (found.best.empty() || name < std::string_view(found.best)))	&& found.best.empty())
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:stamp-unchecked	if (version != BakedVersion || sourceHash != expected.sourceHash || set != static_cast<std::uint8_t>(expected.set)	if (version != BakedVersion
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:cursor-lost	            page.cursorX = TakeValue<std::uint32_t>(at);	            page.cursorX = 1;\n            (void)TakeValue<std::uint32_t>(at);
+Modules\JBroText\Source\GlyphAtlas.cpp	atlas:page-bounds-unchecked	&& (glyph.page >= pageCount || glyph.x + glyph.width > pageSize || glyph.y + glyph.height > pageSize))	&& false)
+Modules\JBroTextRendering\Source\TextLibrary.cpp	library:restore-skipped	            if (entry.atlas.Restore(	            if (false && entry.atlas.Restore(
+Modules\JBroHost\Source\ProjectFile.cpp	project:empty-unquoted	            if (value.empty())\n            {\n                line.append(	            if (false)\n            {\n                line.append(
+Modules\JBroHost\Source\ProjectFile.cpp	project:empty-line-rewritten	                    if (false == dropped && value.empty() && false == hasValue)\n                    {\n                        AppendLine(result, line);\n                    }\n                    else if (false == dropped)\n                    {\n                        AppendPair(result, "", key, value);	                    if (false)\n                    {\n                        AppendLine(result, line);\n                    }\n                    else if (false == dropped)\n                    {\n                        AppendPair(result, "", key, value);

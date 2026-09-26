@@ -2,6 +2,7 @@
 
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetMetaFile.h>
+#include <JBro/Asset/AssetSource.h>
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/PropertyInfo.h>
@@ -11,6 +12,7 @@
 #include <JBro/Types/Table.h>
 
 #include <cstddef>
+#include <string_view>
 
 namespace JBro
 {
@@ -66,8 +68,14 @@ namespace JBro
     {
         FontImportOptions options;
         Array<std::byte> bytes;
+        // 게임 빌드가 미리 떠 둔 아틀라스다(D-232). 패키지로 연 게임에만 있고, 텍스트 라이브러리가 표지를 보고 되살린다.
+        Array<std::byte> bakedAtlas;
         std::uint32_t dataGeneration = 1;
     };
+
+    // 폰트 임포트 옵션을 쓰는 쪽이 보는 값으로 정리한다(D-119·D-215): `Default` 샘플러는 프로젝트 것, 0 이하 PPU 는 기본, SDF 는 Linear,
+    // SDF 크기 8~256·퍼짐 1~32. 에셋 시스템이 로드 때 부르고, 게임 빌드가 아틀라스를 미리 뜰 때도 같은 값을 쓴다.
+    void NormalizeFontOptions(FontImportOptions& options, TextureFilter projectDefault);
 
     // 로드된 폰트 패밀리다(D-225). 칸마다 Font 핸들을 참조 수로 잡고 있다(스프라이트가 텍스처를 잡는 것과 같다). 빈 칸이나
     // Font 가 아닌 아이디는 빈 핸들이다. 칸 순서는 `FontFamilySlot` 이다. `dataGeneration` 은 in-place 재로드마다 오른다.
@@ -96,7 +104,7 @@ namespace JBro
         std::uint32_t dataGeneration = 1;
     };
 
-    // 워커에서 디코드할 에셋 하나다(D-232). `AssetSystem::PrepareDecode`(메인)가 경로와 옵션을 채우고, `DecodeAssetFile`
+    // 워커에서 디코드할 에셋 하나다(D-233). `AssetSystem::PrepareDecode`(메인)가 경로와 옵션을 채우고, `DecodeAssetFile`
     // (어느 스레드든)이 파일을 읽어 자료를 채우며, `AssetSystem::AdoptDecoded`(메인)가 풀에 넣는다. 텍스처와 오디오만 이 길로
     // 간다 - 스프라이트는 주인 텍스처가 무거운 몫이라 그 텍스처가 대신 가고, 폰트·문자열 표는 파일을 한 번 읽을 뿐이라 동기
     // `Load` 에 둔다. 워커는 로그를 남기지 않는다(`Log` 는 메인 스레드 전용) - 실패 사유는 `failure` 에 적고 메인이 남긴다.
@@ -104,7 +112,10 @@ namespace JBro
     {
         AssetId id;
         AssetType type = AssetType::Unknown;
-        String sourcePath;
+        // 레코드는 값으로 든다. 로드가 도는 동안 메인이 레지스트리를 다시 스캔하면 포인터가 죽는다.
+        AssetRecord record;
+        // 디스크 스트리밍 오디오의 이름이다(`IAssetSource::MakeStreamPath`, 메인에서 떠 온다).
+        String streamPath;
         TextureData texture;
         AudioData audio;
         // `Decompressed` 오디오를 풀 샘플 레이트다(0 이면 파일 그대로, D-231). 에셋 시스템의 값을 준비할 때 떠 온다 - 워커는 에셋 시스템을 보지 않는다.
@@ -113,15 +124,16 @@ namespace JBro
         String failure;
     };
 
-    // 워커에서 불러도 된다. 플랫폼의 파일 읽기(`ReadWholeFile`·`OpenFileStream`)와 디코더만 쓰고 에셋 시스템을 보지 않는다.
-    // `job.type` 과 `sourcePath`, 옵션(`texture.options`·`audio.options`)이 채워져 있어야 한다. 실패하면 거짓이고 `failure` 가 채워진다.
-    bool DecodeAssetFile(IPlatform& platform, AssetDecodeJob& job);
+    // 소스의 `Read`·`OpenStream` 과 디코더만 쓰고 에셋 시스템을 보지 않는다. 워커에서 부를 때는 `source.CanReadOnWorkers()` 가 참이어야 한다 -
+    // `PrepareDecode` 가 그런 소스에서만 작업을 만든다. `job.type`·`record`·옵션(`texture.options`·`audio.options`)과, 디스크 스트리밍이면
+    // `streamPath` 가 채워져 있어야 한다. 실패하면 거짓이고 `failure` 가 채워진다.
+    bool DecodeAssetFile(const IAssetSource& source, AssetDecodeJob& job);
 
     // 프로젝트 수명 동안 에셋 로드와 캐시를 소유한다(D-50·D-111). 사용자 호출 표면은 값형 Service::AssetService 다.
     //
     // **타입별 풀과 index+generation 핸들이다.** `IAsset` 가상 기반이 없다. 핸들의 `index` 상위 4 비트가 타입이고
     // 나머지가 풀의 자리다. 타입이 다른 핸들로 물으면 `nullptr` 다. `Load` 는 동기이고 메인 스레드다(무거운 디코드만 워커로
-    // 보내는 길은 `PrepareDecode`·`DecodeAssetFile`·`AdoptDecoded`, D-232). **프레임 경로에서
+    // 보내는 길은 `PrepareDecode`·`DecodeAssetFile`·`AdoptDecoded`, D-233). **프레임 경로에서
     // 부르지 않는다** - 해석 패스(`BindComponentAssets`)가 캔버스 로드 뒤와 편집 뒤에만 돈다(asset-plan §2.6).
     // 참조 수가 0 이 되어도 곧 내려가지 않는다. `CollectUnused` 가 프로젝트 닫기·캔버스 전환 뒤에 내린다.
     class AssetSystem final : public IModule
@@ -132,6 +144,12 @@ namespace JBro
 
         // 프로젝트를 열 때 레지스트리·플랫폼·에셋 폴더(UTF-8 절대경로)를 잇는다. 닫을 때 `Unbind` 가 전부 내린다.
         void Bind(IPlatform& platform, const AssetRegistry& registry, const char* assetRoot);
+        // 바이트를 `source` 에서 받는다(패키지로 여는 게임, D-232). `source` 는 `Unbind` 까지 살아야 한다. 에셋 폴더는 없다 - `GetAssetRoot` 가 빈다.
+        void Bind(IPlatform& platform, const AssetRegistry& registry, const IAssetSource& source);
+        // 지금 바이트를 주는 곳이다. 잇지 않았으면 null 이다. 스트리밍 오디오를 여는 쪽(믹서의 스트리머)이 `OpenStream` 을 부른다.
+        const IAssetSource* GetSource() const;
+        // 경로로 찾은 에셋의 원본 바이트다. 게임 호스트가 시작 캔버스를 읽는 길이다 - 패키지로 열어도 같다.
+        bool ReadSourceByPath(std::string_view relativePath, Array<std::byte>& out) const;
         void Unbind();
         bool IsBound() const;
 
@@ -153,8 +171,9 @@ namespace JBro
         // 로드돼 있으면 참조 수만 올리고 같은 핸들을 준다. 레지스트리에 없거나 이 판이 아직 싣지 못하는 타입
         // (Mesh·Material·Shader·Canvas·...)이거나 읽기·디코드가 실패하면 빈 핸들이다.
         AssetHandle Load(AssetId id);
-        // 워커 디코드를 준비한다(D-232). 텍스처·오디오면 그것을, 스프라이트면 주인 텍스처를 `job` 에 채운다. 이미 실렸거나
-        // 이 길로 가지 않는 타입·없는 레코드·읽히지 않는 메타면 거짓이다 - 그런 것은 `Load` 가 동기로 다룬다. 메인 스레드다.
+        // 워커 디코드를 준비한다(D-233). 텍스처·오디오면 그것을, 스프라이트면 주인 텍스처를 `job` 에 채운다. 이미 실렸거나
+        // 이 길로 가지 않는 타입·없는 레코드·읽히지 않는 메타·워커에서 읽을 수 없는 소스(패키지)·빌드가 디코드해 둔 텍스처면 거짓이다 -
+        // 그런 것은 `Load` 가 동기로 다룬다(디코드해 둔 텍스처는 복사뿐이다). 메인 스레드다.
         bool PrepareDecode(AssetId id, AssetDecodeJob& job);
         // 디코드한 자료를 풀에 넣고 참조 하나를 잡은 핸들을 준다. 그사이 누가 실었으면 자료는 버리고 그 핸들의 참조를 올린다.
         // 디코드가 실패했거나 묶이지 않았으면 빈 핸들이고, 실패 사유는 로그에 남는다. 메인 스레드다.
@@ -192,7 +211,7 @@ namespace JBro
         // 빈 아이디와 실패는 핸들을 비운다. 얻은 핸들은 `acquired` 에 쌓인다 - 캔버스를 닫을 때 `ReleaseAll` 로 놓는다.
         // 채운 핸들 수를 돌려준다.
         std::uint32_t BindComponentAssets(const PropertyTable& table, void* component, Array<AssetHandle>& acquired);
-        // 해석 패스가 볼 아이디만 모은다(D-232). 싣지 않고 핸들도 건드리지 않는다. 빈 아이디는 빼고, 이미 `ids` 에 있는 것은 더하지 않는다.
+        // 해석 패스가 볼 아이디만 모은다(D-233). 싣지 않고 핸들도 건드리지 않는다. 빈 아이디는 빼고, 이미 `ids` 에 있는 것은 더하지 않는다.
         // 워커 로드가 캔버스를 열기 전에 무엇을 읽을지 알려고 쓴다.
         static void CollectComponentAssetIds(const PropertyTable& table, const void* component, Array<AssetId>& ids);
         void ReleaseAll(Array<AssetHandle>& acquired);
@@ -250,6 +269,8 @@ namespace JBro
         String SourcePathOf(const AssetRecord& record) const;
 
         IPlatform* m_platform = nullptr;
+        LooseAssetSource m_looseSource;
+        const IAssetSource* m_source = nullptr;
         TextureFilter m_defaultTextureFilter = TextureFilter::Nearest;
         Array<AssetId> m_projectFonts;
         std::uint32_t m_projectFontsRevision = 0;

@@ -149,6 +149,9 @@ namespace JBro
         // 에셋 폴더다(`AssetDirectory`). 프로젝트 루트 기준 상대경로이고 레지스트리가 이 아래를 스캔한다(D-111).
         // 기존 엔진에는 이 키가 없었다 - 코드 기본값 `Assets` 였다.
         String        assetDirectory = "Contents/Assets";
+        // 에셋 패키지(`AssetPackage`, 프로젝트 기준 상대경로, D-232)다. 있으면 엔진이 에셋 폴더를 스캔하지 않고 패키지에서 싣는다 - 게임 빌드가 내놓은
+        // 프로젝트 사본이 이것을 적는다. 비어 있으면 적지 않는다.
+        String        assetPackage;
         // 스캔과 파일 감시가 건너뛸 이름 패턴이다(`AssetIgnorePatterns`, `*`·`?`). 숨김 폴더는 패턴과 무관하게 건너뛴다.
         Array<String> assetIgnorePatterns;
         // 새 프로젝트는 흔한 둘(`Music`·`SFX`)로 시작한다. 파일에 키가 없으면 빈 목록이다(Master 하나).

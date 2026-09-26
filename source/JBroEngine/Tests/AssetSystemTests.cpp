@@ -1,6 +1,7 @@
 ﻿#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
+#include <JBro/Asset/AssetSource.h>
 #include <JBro/Asset/ImageDecoder.h>
 #include <JBro/Asset/SpriteFrames.h>
 #include <JBro/Canvas/Canvas.h>
@@ -473,7 +474,7 @@ namespace
         return desc;
     }
 
-    // **캔버스를 열 때의 워커 로드**(D-232). 아이디를 모으고, 워커가 주인 텍스처를 디코드하고, 메인이 풀에 넣은 뒤
+    // **캔버스를 열 때의 워커 로드**(D-233). 아이디를 모으고, 워커가 주인 텍스처를 디코드하고, 메인이 풀에 넣은 뒤
     // 바인딩은 실린 것을 찾아 참조만 올린다. 모으기는 겹친 것과 빈 아이디를 뺀다.
     void TestTheCanvasAssetsLoadOnWorkersThenBind()
     {
@@ -505,7 +506,7 @@ namespace
         // 프로젝트 기본을 기본값(Nearest)과 다르게 둔다. 풀에 넣을 때 적용되는지가 드러난다.
         fixture.assets.SetDefaultTextureFilter(JBro::TextureFilter::Linear);
         JBro::AssetLoadResult result;
-        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets,
             JBro::ArrayView<const JBro::AssetId>(ids.Data(), ids.Size()), "editor.task.load_canvas", result);
         Check(id != JBro::InvalidTaskGroupId, "the load is submitted");
         Check(fixture.assets.GetLoadedCount() == 0, "submitting loads nothing on the main thread");
@@ -532,7 +533,7 @@ namespace
 
         // 다시 보내면 이미 실린 것이라 보낼 것이 없다. 빈 묶음도 끝난다.
         JBro::AssetLoadResult again;
-        const JBro::TaskGroupId second = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+        const JBro::TaskGroupId second = JBro::SubmitAssetLoad(tasks, fixture.assets,
             JBro::ArrayView<const JBro::AssetId>(ids.Data(), ids.Size()), "editor.task.load_canvas", again);
         Check(tasks.FindGroup(second)->GetTaskCount() == 0, "what is already loaded is not sent again");
         tasks.Update();
@@ -551,11 +552,72 @@ namespace
         Check(tasks.Initialize(LoadOnMainThread()), "the task manager starts");
         const JBro::AssetId ids[] = { fixture.spriteId, fixture.textureId };
         JBro::AssetLoadResult result;
-        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets,
             JBro::ArrayView<const JBro::AssetId>(ids, 2), "editor.task.load_canvas", result);
         Check(tasks.FindGroup(id)->GetTaskCount() == 1, "a sprite and its own texture send one decode");
         Check(tasks.Wait(id) && result.held.Size() == 1, "and hold one texture");
         fixture.assets.ReleaseAll(result.held);
+        tasks.Shutdown();
+        fixture.Close();
+    }
+
+    // 폴더 소스에 넘기되 워커에서 읽을 수 있다고 말하지 않는 소스다(패키지의 모양, D-232).
+    class SerialSource final : public JBro::IAssetSource
+    {
+    public:
+        explicit SerialSource(const JBro::LooseAssetSource& inner)
+            : m_inner(inner)
+        {
+        }
+
+        bool Read(const JBro::AssetRecord& record, JBro::AssetBlob blob, JBro::Array<std::byte>& out) const override
+        {
+            return m_inner.Read(record, blob, out);
+        }
+
+        bool Has(const JBro::AssetRecord& record, JBro::AssetBlob blob) const override
+        {
+            return m_inner.Has(record, blob);
+        }
+
+        JBro::String MakeStreamPath(const JBro::AssetRecord& record) const override
+        {
+            return m_inner.MakeStreamPath(record);
+        }
+
+        JBro::OwnerPtr<JBro::IFileStream> OpenStream(const char* streamPath) const override
+        {
+            return m_inner.OpenStream(streamPath);
+        }
+
+    private:
+        const JBro::LooseAssetSource& m_inner;
+    };
+
+    // 워커에서 읽을 수 없는 소스면 워커로 보내지 않고, 바인딩이 동기로 싣는다(D-233). 폴더 소스는 워커에서 읽는다.
+    void TestASourceThatCannotReadOnWorkersLoadsInPlace()
+    {
+        Fixture fixture;
+        fixture.Open();
+        JBro::LooseAssetSource loose;
+        loose.Bind(&fixture.platform, Utf8(fixture.root).c_str());
+        Check(loose.CanReadOnWorkers(), "the folder source reads on workers");
+        SerialSource serial(loose);
+        Check(false == serial.CanReadOnWorkers(), "a source says nothing about workers by default, so it does not");
+        fixture.assets.Bind(fixture.platform, fixture.registry, serial);
+        JBro::TaskManager tasks;
+        Check(tasks.Initialize(LoadOnMainThread()), "the task manager starts");
+        JBro::AssetLoadResult result;
+        const JBro::AssetId ids[] = { fixture.spriteId };
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets,
+            JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", result);
+        Check(tasks.FindGroup(id) != nullptr && tasks.FindGroup(id)->GetTaskCount() == 0,
+            "nothing goes to a worker from a source that cannot be read there");
+        tasks.Update();
+        Check(result.finished && result.held.IsEmpty(), "the empty load finishes and holds nothing");
+        const JBro::AssetHandle sprite = fixture.assets.Load(fixture.spriteId);
+        Check(sprite.generation != 0 && fixture.assets.GetSprite(sprite) != nullptr, "the sync load still reads it");
+        fixture.assets.Release(sprite);
         tasks.Shutdown();
         fixture.Close();
     }
@@ -571,7 +633,7 @@ namespace
         Check(tasks.Initialize(LoadWorkers()), "the task manager starts");
         JBro::AssetLoadResult result;
         const JBro::AssetId ids[] = { fixture.textureId };
-        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets,
             JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", result);
         Check(tasks.Wait(id), "waiting works");
         Check(result.finished && result.failed == 1 && result.held.IsEmpty(), "the bad file is one failure and nothing is held");
@@ -591,7 +653,7 @@ namespace
         Check(tasks.Initialize(LoadOnMainThread()), "the task manager starts without workers");
         const JBro::AssetId ids[] = { fixture.textureId };
         JBro::AssetLoadResult raced;
-        JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+        JBro::SubmitAssetLoad(tasks, fixture.assets,
             JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", raced);
         const JBro::AssetHandle loaded = fixture.assets.Load(fixture.textureId);
         tasks.Update();
@@ -605,7 +667,7 @@ namespace
         fixture.assets.CollectUnused();
 
         JBro::AssetLoadResult canceled;
-        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets, fixture.platform,
+        const JBro::TaskGroupId id = JBro::SubmitAssetLoad(tasks, fixture.assets,
             JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", canceled);
         tasks.FindGroup(id)->RequestCancel();
         Check(tasks.Wait(id), "a canceled load still finishes");
@@ -616,7 +678,7 @@ namespace
 
         JBro::TaskManager down;
         JBro::AssetLoadResult refused;
-        Check(JBro::SubmitAssetLoad(down, fixture.assets, fixture.platform,
+        Check(JBro::SubmitAssetLoad(down, fixture.assets,
             JBro::ArrayView<const JBro::AssetId>(ids, 1), "editor.task.load_canvas", refused) == JBro::InvalidTaskGroupId,
             "a manager that has not started refuses the load");
         Check(refused.finished, "and says it is finished so nobody waits for it");
@@ -636,6 +698,7 @@ int RunAssetSystemTests()
     TestASpriteAndItsTextureDecodeOnce();
     TestAFailedDecodeIsCountedAndNotAdopted();
     TestTheLoadYieldsToASyncLoadAndCancels();
+    TestASourceThatCannotReadOnWorkersLoadsInPlace();
     std::cout << "Asset system tests passed.\n";
     return 0;
 }
