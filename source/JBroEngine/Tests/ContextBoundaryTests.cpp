@@ -4,6 +4,8 @@
 #include <JBro/Framework2D/Internal/SystemContext.h>
 #include <JBro/Framework2D/Service/Physics2DService.h>
 #include <JBro/Framework2D/ServiceContext.h>
+#include <JBro/Framework3D/Internal/SystemContext.h>
+#include <JBro/Framework3D/ServiceContext.h>
 
 #include <cstddef>
 #include <iostream>
@@ -36,6 +38,18 @@ namespace
         static_assert(std::is_standard_layout_v<JBro::Framework2DSystemContext>);
         static_assert(std::is_trivially_copyable_v<JBro::Framework2DSystemContext>);
         static_assert(offsetof(JBro::Framework2DSystemContext, AbiVersion) == 0);
+        static_assert(std::is_standard_layout_v<JBro::Framework3DServiceContext>);
+        static_assert(std::is_trivially_copyable_v<JBro::Framework3DServiceContext>);
+        static_assert(offsetof(JBro::Framework3DServiceContext, AbiVersion) == 0);
+        static_assert(std::is_same_v<decltype(JBro::Framework3DServiceContext::Text3D), JBro::Service::Text3DService>);
+        // 텍스트 서비스는 차원마다 따로지만 몸통은 하나다(D-223): 둘 다 공용 틀에서 나오고 가상 함수가 없다.
+        static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Component::Text2D, JBro::Service::Text2DService>,
+            JBro::Service::Text2DService>);
+        static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Component::Text3D, JBro::Service::Text3DService>,
+            JBro::Service::Text3DService>);
+        static_assert(false == std::is_polymorphic_v<JBro::Service::Text3DService>);
+        static_assert(std::is_same_v<decltype(JBro::Framework2DSystemContext::Text2D), JBro::System::ITextSystem*>);
+        static_assert(std::is_same_v<decltype(JBro::Framework3DSystemContext::Text3D), JBro::System::ITextSystem*>);
         // 공통 SystemContext 는 차원별 시스템 슬롯을 갖지 않는다(D-43).
         static_assert(sizeof(JBro::SystemContext) == sizeof(std::uint32_t));
 

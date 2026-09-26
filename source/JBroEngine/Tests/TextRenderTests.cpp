@@ -16,6 +16,7 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
@@ -1237,6 +1238,22 @@ namespace
             gpu.Paint(framework);
             Check(texts->IsMissingFont(lost->GetInstanceId()) && false == texts->IsMissingFont(label->GetInstanceId()),
                 "a Text3D whose font is missing is reported, the others are not");
+
+            // 스크립트 서비스(D-223): 3D 컨텍스트를 묶으면 `Text3DService` 가 호스트의 텍스트 시스템으로 글자를 바꾸고 읽는다.
+            Check(framework.BindScriptContexts() && framework.GetScriptContextBlocks().size == 2,
+                "the 3D framework hands out its system and service contexts");
+            const Service::Text3DService& service = GetFramework3DServices().Text3D;
+            const Ref<Component::Text3D> ref = labelObject->GetScriptHandle().GetComponent<Component::Text3D>();
+            Check(service.SetText(ref, "Hi"), "a script sets a 3D text");
+            char copied[8] = {};
+            Check(service.GetTextLength(ref) == 2 && service.CopyText(ref, copied, sizeof(copied)) == 2
+                    && copied[0] == 'H' && copied[1] == 'i',
+                "and reads it back through the host");
+            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() > relayouts, "the next frame lays the new text out");
+            framework.UnbindScriptContexts();
+            Check(false == service.SetText(ref, "No"), "without the contexts the service does nothing");
             framework.Shutdown();
         }
         gpu.Close();

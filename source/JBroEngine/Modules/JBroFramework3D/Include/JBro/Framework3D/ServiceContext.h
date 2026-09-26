@@ -1,0 +1,23 @@
+﻿#pragma once
+
+#include <JBro/Framework3D/Service/Text3DService.h>
+
+#include <cstdint>
+
+namespace JBro
+{
+    // 3D 스크립트 DLL 과의 약속의 판번호다(D-223). 2D 의 `Framework2DServiceContext` 와 같은 모양이다.
+    // 1: `Text3DService` 가 첫 서비스다.
+    inline constexpr std::uint32_t Framework3DServiceContextAbiVersion = 1;
+
+    // Non-owning value services. Kept outside Runtime's dimension-independent context.
+    struct Framework3DServiceContext
+    {
+        std::uint32_t AbiVersion = Framework3DServiceContextAbiVersion;
+        Service::Text3DService Text3D;
+    };
+
+    // Main-thread only. Copy the host's context into this module at load/rebind time.
+    void BindFramework3DServiceContext(const Framework3DServiceContext& context);
+    const Framework3DServiceContext& GetFramework3DServices();
+}

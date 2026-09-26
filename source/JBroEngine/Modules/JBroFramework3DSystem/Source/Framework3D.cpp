@@ -3,6 +3,7 @@
 #include "Rendering/RenderBridge3D.h"
 
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
+#include <JBro/Framework3D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework3DSystem/System/Audio3DSystem.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
@@ -70,11 +71,41 @@ namespace JBro
 
     bool Framework3D::BindScriptContexts() noexcept
     {
-        return m_initialized;
+        if (false == m_initialized)
+        {
+            return false;
+        }
+        m_scriptSystems = {};
+        // 텍스트 시스템은 늘 선다(CreateDefaultSystems). 없으면 서비스가 아무것도 하지 않을 뿐이다.
+        m_scriptSystems.Text3D = m_canvas->GetSystems().FindSystem<System::Text3DSystem>();
+        m_scriptServices = {};
+        BindFramework3DSystemContext(m_scriptSystems);
+        BindFramework3DServiceContext(m_scriptServices);
+        // 같은 값을 블록으로도 내어 준다. 호스트가 그대로 DLL 에 건넨다.
+        m_scriptBlocks[0] = MakeFramework3DSystemContextBlock(m_scriptSystems);
+        m_scriptBlocks[1] = MakeFramework3DServiceContextBlock(m_scriptServices);
+        m_scriptBlockCount = 2;
+        return true;
+    }
+
+    JArrayView<ScriptContextBlock> Framework3D::GetScriptContextBlocks() const noexcept
+    {
+        return {m_scriptBlocks, m_scriptBlockCount};
     }
 
     void Framework3D::UnbindScriptContexts() noexcept
     {
+        m_scriptBlockCount = 0;
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        auto* texts = m_canvas->GetSystems().FindSystem<System::Text3DSystem>();
+        if (texts != nullptr && GetFramework3DSystems().Text3D == texts)
+        {
+            BindFramework3DSystemContext({});
+            BindFramework3DServiceContext({});
+        }
     }
 
     void Framework3D::Update(float deltaTime)

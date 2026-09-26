@@ -3,10 +3,10 @@
 #include <JBro/Canvas/GameSystem.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Component/Text2D.h>
-#include <JBro/Framework2D/System/IText2DSystem.h>
 #include <JBro/TextRendering/GlyphMesh.h>
 #include <JBro/TextRendering/TextBlock.h>
 #include <JBro/TextRendering/TextLibrary.h>
+#include <JBro/TextRendering/TextSystemBase.h>
 #include <JBro/Text/TextLayout.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Table.h>
@@ -30,7 +30,7 @@ namespace JBro::System
     //
     // 레이아웃과 경계는 이 시스템의 캐시가 든다(키는 컴포넌트의 InstanceId). **컴포넌트에 되쓰지 않는다**(text-plan §1.2 의 6 번).
     // 이 시스템이 `TextLibrary` 를 소유하므로 페이지 텍스처는 캔버스의 시스템이 내려갈 때(렌더러보다 먼저) 풀린다.
-    class Text2DSystem final : public GameSystem, public IText2DSystem
+    class Text2DSystem final : public GameSystem, public TextSystemBase
     {
     public:
         static constexpr int ExecutionOrder = 410; // 스프라이트(400) 뒤, 오디오(450) 앞
@@ -43,10 +43,7 @@ namespace JBro::System
         // tasks 가 있으면 폰트의 미리 뜨기가 워커에서 돈다(없어도 된다).
         void SetResources(AssetSystem* assets, Renderer* renderer, TaskManager* tasks = nullptr);
 
-        // IText2DSystem - 스크립트 서비스가 부른다. 호스트의 저장소에 쓴다.
-        void SetText(Component::Text2D& text, const char* utf8, std::uint32_t length) override;
-        std::uint32_t GetTextLength(const Component::Text2D& text) const override;
-        std::uint32_t CopyText(const Component::Text2D& text, char* buffer, std::uint32_t capacity) const override;
+        // 스크립트 서비스(`Text2DService`)가 부르는 글자 읽기·쓰기는 공용 `TextSystemBase` 가 한다(D-223).
 
         // 마지막으로 레이아웃한 블록 사각형이다(유닛, 오브젝트 로컬). 에디터의 선택과 외곽선이 쓴다. 아직 없으면 거짓이다.
         bool GetLocalBounds(InstanceId text, float& minX, float& minY, float& maxX, float& maxY) const;

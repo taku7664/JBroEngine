@@ -37,32 +37,6 @@ namespace JBro::System
         m_library.Initialize(assets, renderer, tasks);
     }
 
-    void Text2DSystem::SetText(Component::Text2D& text, const char* utf8, std::uint32_t length)
-    {
-        TextStore::Get().Assign(text.text, utf8, utf8 != nullptr ? length : 0);
-    }
-
-    std::uint32_t Text2DSystem::GetTextLength(const Component::Text2D& text) const
-    {
-        return static_cast<std::uint32_t>(TextStore::Get().GetText(text.text).Size());
-    }
-
-    std::uint32_t Text2DSystem::CopyText(const Component::Text2D& text, char* buffer, std::uint32_t capacity) const
-    {
-        if (buffer == nullptr || capacity == 0)
-        {
-            return 0;
-        }
-        const ArrayView<const char> source = TextStore::Get().GetText(text.text);
-        const std::uint32_t count = static_cast<std::uint32_t>(std::min<std::size_t>(source.Size(), capacity - 1));
-        if (count > 0)
-        {
-            std::memcpy(buffer, source.Data(), count);
-        }
-        buffer[count] = '\0';
-        return count;
-    }
-
     bool Text2DSystem::GetLocalBounds(InstanceId text, float& minX, float& minY, float& maxX, float& maxY) const
     {
         const Entry* entry = m_entries.Find(text);

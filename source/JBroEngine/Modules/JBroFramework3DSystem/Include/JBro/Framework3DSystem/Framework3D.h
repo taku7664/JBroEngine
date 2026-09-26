@@ -5,6 +5,8 @@
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/Internal/SystemContext.h>
+#include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Framework3DSystem/System/Camera3DSystem.h>
@@ -23,6 +25,7 @@ namespace JBro
         bool Initialize(const FrameworkContext& context) override;
         bool BindScriptContexts() noexcept override;
         void UnbindScriptContexts() noexcept override;
+        JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept override;
         void Update(float deltaTime) override;
         // 3D 에 스크립트·물리 시스템은 아직 없다. 지금 세우는 것은 소리뿐이다(D-197).
         void SetSimulationEnabled(bool enabled) override;
@@ -48,6 +51,11 @@ namespace JBro
         double m_fixedAccumulator = 0.0;
         bool m_initialized = false;
         bool m_simulationEnabled = true;
+        // 스크립트에 건네는 3D 컨텍스트다(D-223). 2D 의 `Framework2D` 와 같은 자리다.
+        Framework3DSystemContext m_scriptSystems;
+        Framework3DServiceContext m_scriptServices;
+        ScriptContextBlock m_scriptBlocks[2] = {};
+        std::uint32_t m_scriptBlockCount = 0;
     };
 
     IFramework* CreateFramework3D();

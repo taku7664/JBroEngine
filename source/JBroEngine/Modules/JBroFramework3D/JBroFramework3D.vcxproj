@@ -20,9 +20,8 @@
   <Import Project="$(SolutionDir)JBro.Common.props" Condition="Exists('$(SolutionDir)JBro.Common.props')" />
   <Import Project="$(MSBuildThisFileDirectory)..\..\JBro.Common.props" Condition="!Exists('$(SolutionDir)JBro.Common.props')" />
   <PropertyGroup Label="Configuration">
-    <!-- 실행 계층이 JBroFramework3DSystem 으로 빠진 뒤 남은 것은 헤더뿐이다.
-         라이브러리를 만들지 않으므로 링커 입력에도 넣지 않는다(JBroAssetTypes 와 같다). -->
-    <ConfigurationType>Utility</ConfigurationType>
+    <!-- 헤더만 남았다가 스크립트 서비스·시스템 컨텍스트가 생겨 다시 라이브러리다(D-223). 2D 의 JBroFramework2D 와 같은 자리다. -->
+    <ConfigurationType>StaticLibrary</ConfigurationType>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
