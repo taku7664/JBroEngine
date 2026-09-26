@@ -1,6 +1,9 @@
 ﻿#include <JBro/Host/GameHostArguments.h>
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Platform/WindowsPlatform.h>
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 
@@ -64,10 +67,54 @@ namespace
     }
 }
 
+namespace
+{
+    // **실행 파일 옆의 프로젝트**(D-227). 게임 빌드가 내놓은 폴더는 인자 없이 띄워도 제 프로젝트를 연다. 여럿이면 이름 차례로 첫 것이고,
+    // 아래 폴더의 것은 보지 않는다. 패키지로 연 프로젝트의 시작 캔버스는 에셋 폴더 기준 경로 그대로다.
+    void TestTheProjectBesideTheExecutableIsFound()
+    {
+        namespace fs = std::filesystem;
+        JBro::WindowsPlatform platform;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "the platform initializes");
+        const JBro::String folderText = platform.GetExecutableFolder();
+        const fs::path folder(std::u8string(reinterpret_cast<const char8_t*>(folderText.c_str()), folderText.size()));
+        Check(false == folderText.empty() && fs::is_directory(folder), "the test binary has a folder");
+        const fs::path zeta = folder / "Zeta.jproject";
+        const fs::path alpha = folder / "Alpha.jproject";
+        const fs::path nested = folder / "JBroBesideProbe" / "Aardvark.jproject";
+        std::error_code ignored;
+        fs::remove(zeta, ignored);
+        fs::remove(alpha, ignored);
+        // 옆에 아무 프로젝트도 없어야 이 시험이 뜻이 있다(빌드 폴더에는 없다).
+        const JBro::String before = JBro::FindProjectBesideExecutable(platform);
+        Check(before.empty(), "a folder with no project gives nothing");
+        fs::create_directories(nested.parent_path(), ignored);
+        std::ofstream(nested) << "Version: 1\n";
+        std::ofstream(zeta) << "Version: 1\n";
+        std::ofstream(alpha) << "Version: 1\n";
+        const JBro::String found = JBro::FindProjectBesideExecutable(platform);
+        fs::remove(zeta, ignored);
+        fs::remove(alpha, ignored);
+        fs::remove_all(nested.parent_path(), ignored);
+        Check(found.size() > 15 && found.compare(found.size() - 15, 15, "/Alpha.jproject") == 0,
+            "the first project by name beside the executable is found, not one in a subfolder");
+
+        JBro::ProjectFile project;
+        project.build.startupCanvas = "Canvases/Main.jcanvas";
+        JBro::GameHostArguments arguments;
+        Check(JBro::ResolvePackagedStartupCanvas(arguments, project) == "Canvases/Main.jcanvas", "a packaged game starts on its build canvas");
+        arguments.canvasFile = "Canvases/Other.jcanvas";
+        Check(JBro::ResolvePackagedStartupCanvas(arguments, project) == "Canvases/Other.jcanvas", "and --canvas overrides it");
+        platform.Shutdown();
+    }
+}
+
 int RunGameHostArgumentTests()
 {
     TestArgumentsAreParsedStrictly();
     TestTheStartupCanvasComesFromTheArgumentsOrTheProject();
+    TestTheProjectBesideTheExecutableIsFound();
     std::cout << "Game host argument tests passed.\n";
     return 0;
 }
