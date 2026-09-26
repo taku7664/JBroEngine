@@ -260,6 +260,7 @@ namespace JBro::System
         // 질의용 폴리곤 조각. 질의는 지금의 컴포넌트를 보지만 분해는 꼭짓점이 바뀔 때 한 번만 한다.
         Table<InstanceId, PieceCache> pieces;
         Array<Vec2>                   outline;
+        Physics2D::DecomposeScratch   decompose;
 
         // 오브젝트의 컴포넌트 중 스크립트를 가려내는 표(주소 정렬). ScriptSystem 과 같은 방식이고, 실행 순서 판번호가
         // 움직였을 때만 다시 만든다 - 프레임 경로에 dynamic_cast 를 두지 않는다(§9).
@@ -284,7 +285,7 @@ namespace JBro::System
                 cache->built = true;
                 BakeOutline(collider, scale, outline);
                 // 틀린 외곽선이면 조각이 비고, 질의에 걸리지 않는다. 충돌과 같은 판단이다.
-                Physics2D::DecomposePolygon(outline.View(), cache->pieces);
+                Physics2D::DecomposePolygon(outline.View(), cache->pieces, decompose);
             }
             return cache->pieces;
         }

@@ -269,6 +269,9 @@ namespace JBro::Physics2D
         Array<ContactEvent>  m_beginEvents;
         // 모양 바꾸기의 분해 결과. 도형의 조각 배열과 맞바꿔 두 배열 모두 용량이 남는다.
         Array<ConvexPolygon> m_scratchPieces;
+        DecomposeScratch     m_decompose;
+        // 질량을 모으는 자리. 모양을 바꿀 때마다 부르므로 용량을 남겨 둔다.
+        Array<MassData>      m_massParts;
         Array<ContactEvent>  m_endEvents;
     };
 }

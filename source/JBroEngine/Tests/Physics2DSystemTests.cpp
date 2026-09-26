@@ -7,6 +7,9 @@
 #include <JBro/Types/Array.h>
 
 #include <cmath>
+#if defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
 #include <iostream>
 #include <stdexcept>
 
@@ -438,6 +441,66 @@ namespace
             "a box passing above everything misses");
     }
 
+#if defined(_MSC_VER) && defined(_DEBUG)
+    int g_allocations = 0;
+    int CountAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
+    {
+        if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
+        {
+            ++g_allocations;
+        }
+        return 1;
+    }
+#endif
+
+    // **어댑터의 고정 스텝도 힙을 건드리지 않는다.** 동기화·되쓰기·훅 발송(닿아 있는 동안)·크기를 움직이는 콜라이더·질의를 함께 돈다.
+    void TestTheFixedStepDoesNotAllocate()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* cup = scene.Object("cup", { 6, 0 });
+        Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
+        polygon->shape = ColliderShape2D::Polygon;
+        polygon->points = UOutline();
+        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
+        Collider2D* animated = scene.Box(box, { 1, 1 });
+        scene.Dynamic(box);
+        scene.Probe(box);
+        JBro::GameObject* pill = scene.Object("pill", { -3, 0.5f });
+        scene.Box(pill, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        scene.Dynamic(pill);
+        const JBro::System::IPhysics2DSystem& queries = scene.physics;
+        JBro::RaycastHit2D hit;
+        JBro::Array<JBro::RaycastHit2D> hits;
+        JBro::Array<JBro::GameObjectHandle> found;
+        hits.Reserve(16);
+        found.Reserve(16);
+        const auto step = [&](int i)
+        {
+            animated->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
+            scene.physics.FixedUpdate(scene.canvas, Frame);
+            queries.Raycast({ -10, 0.25f }, { 1, 0 }, 30, hit, JBro::AllPhysicsLayers);
+            queries.RaycastAll({ -10, 0.25f }, { 1, 0 }, 30, hits, JBro::AllPhysicsLayers);
+            queries.OverlapCircle({ 6, 1 }, 1.5f, found, JBro::AllPhysicsLayers);
+        };
+        for (int i = 0; i < 120; ++i)
+        {
+            step(i);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_allocations = 0;
+        const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
+        for (int i = 0; i < 120; ++i)
+        {
+            step(i);
+        }
+        _CrtSetAllocHook(previous);
+        std::cout << "  CRT allocations during 120 fixed steps with an animated collider and queries: " << g_allocations << '\n';
+        Check(g_allocations == 0, "the physics fixed step, an animated collider and queries do not touch the heap");
+#endif
+    }
+
     // **크기를 움직이는 콜라이더는 닿아 있는 동안 훅을 되풀이하지 않는다.** 전에는 모양이 바뀔 때마다 도형을 지우고 만들어
     // 스텝마다 끝·시작이 불렸다. 트리거로 바꾸는 것은 훅의 종류가 바뀌므로 끝나고 새로 시작한다.
     void TestAnAnimatedColliderKeepsItsContact()
@@ -617,6 +680,7 @@ int RunPhysics2DSystemTests()
     TestAStaticBodyFollowsItsTransform();
     TestCapsuleColliders();
     TestAnAnimatedColliderKeepsItsContact();
+    TestTheFixedStepDoesNotAllocate();
     TestAnEmptyPolygonCollidesAsItsSizeBox();
     TestScaleGrowsTheShape();
     TestAnOffCenterBodyTurnsAboutItsCenterOfMass();

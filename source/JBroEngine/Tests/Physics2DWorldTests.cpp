@@ -1,6 +1,9 @@
 ﻿#include <JBro/Physics2D/World.h>
 
 #include <cmath>
+#if defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -90,6 +93,18 @@ namespace
             world.Step(Frame);
         }
     }
+
+#if defined(_MSC_VER) && defined(_DEBUG)
+    int g_allocations = 0;
+    int CountAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
+    {
+        if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
+        {
+            ++g_allocations;
+        }
+        return 1;
+    }
+#endif
 
     void TestABoxFallsAndRestsOnTheGround()
     {
@@ -564,6 +579,54 @@ namespace
         world.Step(Frame);
         Check(world.GetEndEvents().Size() == 1, "filtering it out by layer ends the contact");
     }
+
+    // **스텝은 힙을 건드리지 않는다(ProjectRule §9).** 쌓인 상자·U 에 든 조약돌이 서 있는 스텝과, 모양을 스텝마다 바꾸는 스텝을 잰다.
+    // 스크래치 배열은 처음 몇 스텝에 용량이 차고 그 뒤로는 자라지 않아야 한다.
+    void TestSteppingDoesNotAllocate()
+    {
+        World world;
+        AddGround(world);
+        for (int i = 0; i < 5; ++i)
+        {
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -4.0f, 0.5f + static_cast<float>(i) });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        }
+        const BodyId cup = AddBody(world, BodyType::Static, { 4, 0 });
+        AddPolygon(world, cup, UOutline());
+        const BodyId pebble = AddBody(world, BodyType::Dynamic, { 5.5f, 2 });
+        JBro::Physics2D::Circle round;
+        round.radius = 0.3f;
+        world.CreateCircleShape(pebble, round, {});
+        const BodyId pill = AddBody(world, BodyType::Dynamic, { 0, 1 });
+        world.CreateCapsuleShape(pill, { -0.5f, 0 }, { 0.5f, 0 }, 0.4f, {});
+        const BodyId growing = AddBody(world, BodyType::Dynamic, { 8, 0.5f });
+        const ShapeId growingShape = AddPolygon(world, growing, BoxOutline(0.5f, 0.5f));
+        Array<Array<Vec2>> outlines;
+        for (int i = 0; i < 5; ++i)
+        {
+            outlines.Add(BoxOutline(0.5f + 0.02f * static_cast<float>(i), 0.5f));
+        }
+        const auto step = [&](int i)
+        {
+            world.SetPolygonGeometry(growingShape, outlines[static_cast<std::size_t>(i % 5)].View());
+            world.Step(Frame);
+        };
+        for (int i = 0; i < 120; ++i)
+        {
+            step(i);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_allocations = 0;
+        const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
+        for (int i = 0; i < 120; ++i)
+        {
+            step(i);
+        }
+        _CrtSetAllocHook(previous);
+        std::cout << "  CRT allocations during 120 physics steps (one shape reshaped each step): " << g_allocations << '\n';
+        Check(g_allocations == 0, "a physics step, reshaping included, does not touch the heap");
+#endif
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -584,6 +647,7 @@ int RunPhysics2DWorldTests()
     TestHandlesAndMassUpdates();
     TestCapsulesRestOnTheGround();
     TestReshapingKeepsTheContact();
+    TestSteppingDoesNotAllocate();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }
