@@ -219,6 +219,9 @@ namespace
         AssetId familyId;
         // 둘째 패밀리다. 패밀리의 칸에 패밀리를 넣으면 비는지 본다.
         AssetId otherFamilyId;
+        // 게임 문자열 표 둘(D-226): 한국어와 영어. 로케일은 `WriteLocale` 로 메타에 적는다.
+        AssetId koreanTableId;
+        AssetId englishTableId;
         String metaPath;
         String familyMetaPath;
 
@@ -231,6 +234,10 @@ namespace
             constexpr char familyBody[] = "# JBro font family\n";
             WriteBytes(root / "Fonts" / "family.jfontfamily", familyBody, sizeof(familyBody) - 1);
             WriteBytes(root / "Fonts" / "other.jfontfamily", familyBody, sizeof(familyBody) - 1);
+            constexpr char korean[] = "menu.start: \"\xEC\x8B\x9C\xEC\x9E\x91\"\nmenu.quit: \"\xEB\x81\x9D\"\nnested:\n  skip: 1\n";
+            constexpr char english[] = "menu.start: Start\nmenu.quit: Quit\nmenu.only: English only\n";
+            WriteBytes(root / "Text" / "ui.ko-KR.jstrings", korean, sizeof(korean) - 1);
+            WriteBytes(root / "Text" / "ui.en-US.jstrings", english, sizeof(english) - 1);
             Check(platform.Initialize(memory), "the platform initializes");
             AssetScanOptions options;
             options.createMissingMeta = true;
@@ -248,6 +255,14 @@ namespace
             const AssetRecord* other = registry.FindByPath("Fonts/other.jfontfamily");
             Check(other != nullptr && other->type == AssetType::FontFamily, "a second family registers");
             otherFamilyId = other->id;
+            const AssetRecord* koreanTable = registry.FindByPath("Text/ui.ko-KR.jstrings");
+            const AssetRecord* englishTable = registry.FindByPath("Text/ui.en-US.jstrings");
+            Check(koreanTable != nullptr && koreanTable->type == AssetType::StringTable && englishTable != nullptr,
+                "a .jstrings registers as a string table");
+            koreanTableId = koreanTable->id;
+            englishTableId = englishTable->id;
+            WriteLocale(Utf8(root / "Text" / "ui.ko-KR.jstrings.jmeta"), "ko-KR");
+            WriteLocale(Utf8(root / "Text" / "ui.en-US.jstrings.jmeta"), "en-US");
             familyMetaPath = Utf8(root / "Fonts" / "family.jfontfamily.jmeta");
             metaPath = Utf8(root / "Fonts" / "sans.otf.jmeta");
             WriteOptions(pixelsPerUnit, TextureFilter::Default);
@@ -255,6 +270,20 @@ namespace
             WriteOptionsAt(Utf8(root / "Fonts" / "latin.otf.jmeta"), pixelsPerUnit, TextureFilter::Default);
             Check(assets.Initialize(memory), "the asset system initializes");
             assets.Bind(platform, registry, Utf8(root).c_str());
+        }
+
+        void WriteLocale(const String& tableMetaPath, const char* locale)
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(platform, tableMetaPath.c_str(), meta, error), "the table meta reads");
+            meta.hasStringTableOptions = true;
+            meta.stringTableOptions.locale = locale;
+            Check(SaveAssetMetaFile(platform, tableMetaPath.c_str(), meta), "the table meta saves");
+            AssetMetaFile reread;
+            Check(LoadAssetMetaFile(platform, tableMetaPath.c_str(), reread, error) && reread.hasStringTableOptions
+                    && reread.stringTableOptions.locale == locale,
+                "the StringTable block round-trips");
         }
 
         void WriteFamily(const FontFamilyOptions& slots)
@@ -323,6 +352,30 @@ namespace
         assets.Release(font);
         assets.Release(font);
         Check(assets.CollectUnused() == 1 && assets.GetFont(font) == nullptr, "an unused font is collected");
+        project.Close();
+    }
+
+    // **문자열 표 에셋**(D-226). 최상위 맵의 `키: 값` 이 그대로 들고(맵 값은 건너뛴다), 로케일은 메타의 것이다. 본문을 고쳐 제자리
+    // 재로드하면 같은 핸들에 새 값과 새 세대다.
+    void TestStringTableAssetsLoadAndReload()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        AssetSystem& assets = project.assets;
+        const AssetHandle table = assets.Load(project.koreanTableId);
+        const StringTableData* data = assets.GetStringTable(table);
+        Check(data != nullptr && data->options.locale == "ko-KR", "a string table loads with its meta's locale");
+        const String* start = data->entries.Find(String("menu.start"));
+        Check(start != nullptr && *start == "\xEC\x8B\x9C\xEC\x9E\x91", "and its entries");
+        Check(data->entries.Size() == 2, "a nested map is not an entry");
+        Check(assets.GetFont(table) == nullptr, "a table handle is only a table");
+        constexpr char changed[] = "menu.start: \"\xEA\xB2\x8C\xEC\x9E\x84 \xEC\x8B\x9C\xEC\x9E\x91\"\n";
+        WriteBytes(project.root / "Text" / "ui.ko-KR.jstrings", changed, sizeof(changed) - 1);
+        Check(assets.ReloadInPlace(project.koreanTableId), "a loaded table reloads in place");
+        data = assets.GetStringTable(table);
+        Check(data != nullptr && data->dataGeneration == 2 && data->entries.Size() == 1, "with the new entries and generation");
+        assets.Release(table);
+        Check(assets.CollectUnused() == 1 && assets.GetStringTable(table) == nullptr, "an unused table is collected");
         project.Close();
     }
 
@@ -1791,6 +1844,7 @@ int RunTextRenderTests()
         TestCopiesGetTheirOwnSlot();
         TestFontAssetsLoadAndReload();
         TestFontFamilyAssetsHoldTheirFonts();
+        TestStringTableAssetsLoadAndReload();
         TestFontFamiliesDrawBoldFromTheBoldFace();
         TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
         TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();

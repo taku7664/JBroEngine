@@ -50,6 +50,9 @@ namespace JBro
         // `FontFamily` 일 때만 뜻이 있다(`FontFamily.ImportOptions`, D-225).
         bool hasFontFamilyOptions = false;
         FontFamilyOptions fontFamilyOptions;
+        // `StringTable` 일 때만 뜻이 있다(`StringTable.ImportOptions`, D-226).
+        bool hasStringTableOptions = false;
+        StringTableOptions stringTableOptions;
     };
 
     struct AssetMetaError

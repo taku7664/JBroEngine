@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Reflection/StringTypeDescriptor.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
 #include <JBro/Reflection/Field.h>
@@ -116,6 +117,23 @@ namespace JBro
             static const StaticPropertyTable<7> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeStructTypeDescriptor<FontImportOptions>("JBro.FontImportOptions", fields.Get());
+            return descriptor;
+        }
+    };
+
+    // `.jmeta` 의 `StringTable.ImportOptions` 가 이 표로 읽히고 쓰인다(D-226).
+    template <>
+    struct TypeDescriptorOf<StringTableOptions>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&StringTableOptions::locale>(),
+            };
+            static const StaticPropertyTable<1> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeStructTypeDescriptor<StringTableOptions>("JBro.StringTableOptions", fields.Get());
             return descriptor;
         }
     };

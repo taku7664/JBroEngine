@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Types/String.h>
 #include <JBro/Types/Uuid.h>
 
 // 에셋을 가리키는 값 타입만 둔다. 로드·캐시를 소유하는 `AssetSystem` 은 엔진 계층(JBroAsset)이며
@@ -36,7 +37,9 @@ namespace JBro
         Audio,
         Font,
         // 굵게·기울임 face 를 묶는 폰트 패밀리다(D-225). 본문(`.jfontfamily`)은 표지뿐이고 네 칸은 `.jmeta` 의 `FontFamily` 블록에 있다.
-        FontFamily
+        FontFamily,
+        // 게임 문자열 표다(D-226). 파일 하나가 로케일 하나이고(`키: 값` YAML), 로케일은 `.jmeta` 의 `StringTable` 블록에 있다.
+        StringTable
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반
@@ -155,6 +158,12 @@ namespace JBro
         AssetId boldFontId;
         AssetId italicFontId;
         AssetId boldItalicFontId;
+    };
+
+    // 문자열 표의 옵션이다(D-226). 이 표가 어느 로케일의 것인가(`ko-KR`·`en-US` 처럼 프로젝트의 `Locales` 에 적은 이름).
+    struct StringTableOptions
+    {
+        String locale;
     };
 
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.

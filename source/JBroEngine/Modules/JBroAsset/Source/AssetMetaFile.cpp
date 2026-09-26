@@ -142,6 +142,12 @@ namespace JBro
             {
                 return false;
             }
+            const std::uint32_t strings = document.Find(root, "StringTable");
+            if (false == ReadOptions(document, strings, TypeDescriptorOf<StringTableOptions>::Get(),
+                    &parsed.stringTableOptions, parsed.hasStringTableOptions, error))
+            {
+                return false;
+            }
 
             result = parsed;
             return true;
@@ -211,6 +217,16 @@ namespace JBro
             writer.BeginMap("Font");
             if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<FontImportOptions>::Get(),
                     &meta.fontOptions, error))
+            {
+                return false;
+            }
+            writer.EndMap();
+        }
+        if (meta.hasStringTableOptions && meta.type == AssetType::StringTable)
+        {
+            writer.BeginMap("StringTable");
+            if (false == WriteReflectedValue(writer, "ImportOptions", TypeDescriptorOf<StringTableOptions>::Get(),
+                    &meta.stringTableOptions, error))
             {
                 return false;
             }

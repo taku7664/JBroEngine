@@ -64,6 +64,7 @@ namespace JBro
         }
         m_audio = {};
         m_fontFamilies = {};
+        m_stringTables = {};
         m_fonts = {};
         m_textures = {};
         m_sprites = {};
@@ -401,6 +402,50 @@ namespace JBro
         }
     }
 
+    bool AssetSystem::ReadStringTable(const AssetRecord& record, StringTableData& data)
+    {
+        AssetMetaFile meta;
+        if (false == ReadMeta(record, meta))
+        {
+            return false;
+        }
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), bytes))
+        {
+            return false;
+        }
+        StringTableData read;
+        read.options = meta.hasStringTableOptions ? meta.stringTableOptions : StringTableOptions{};
+        YamlDocument document;
+        YamlError error;
+        if (false == document.Parse(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), error))
+        {
+            Log::Write(LogLevel::Warning, "asset", "a string table could not be read (line %zu): %s", error.line, error.message.c_str());
+            return false;
+        }
+        const std::uint32_t root = document.GetRoot();
+        if (document.GetKind(root) == YamlKind::Map)
+        {
+            for (std::size_t index = 0; index < document.GetCount(root); ++index)
+            {
+                const std::uint32_t value = document.GetValue(root, index);
+                if (document.GetKind(value) != YamlKind::Scalar)
+                {
+                    continue;
+                }
+                read.entries.FindOrAdd(String(document.GetKey(root, index))) = String(document.GetText(value));
+            }
+        }
+        data = std::move(read);
+        return true;
+    }
+
+    const StringTableData* AssetSystem::GetStringTable(AssetHandle handle) const
+    {
+        const Slot<StringTableData>* slot = FindSlot(m_stringTables, handle, AssetType::StringTable);
+        return slot != nullptr ? &slot->data : nullptr;
+    }
+
     const FontFamilyData* AssetSystem::GetFontFamily(AssetHandle handle) const
     {
         const Slot<FontFamilyData>* slot = FindSlot(m_fontFamilies, handle, AssetType::FontFamily);
@@ -575,6 +620,13 @@ namespace JBro
                     return handle;
                 }
                 break;
+            case AssetType::StringTable:
+                if (Slot<StringTableData>* slot = FindSlot(m_stringTables, handle, AssetType::StringTable))
+                {
+                    ++slot->referenceCount;
+                    return handle;
+                }
+                break;
             default:
                 break;
             }
@@ -652,6 +704,16 @@ namespace JBro
             }
             break;
         }
+        case AssetType::StringTable:
+        {
+            StringTableData data;
+            if (false == ReadStringTable(*record, data))
+            {
+                return {};
+            }
+            handle = Occupy(m_stringTables, AssetType::StringTable, id, std::move(data));
+            break;
+        }
         default:
             // 이 판이 아직 싣지 못하는 타입이다(asset-plan §3). 조용히 빈 핸들이다.
             return {};
@@ -703,6 +765,14 @@ namespace JBro
             {
                 --family->referenceCount;
             }
+            return;
+        }
+        if (Slot<StringTableData>* table = FindSlot(m_stringTables, handle, AssetType::StringTable))
+        {
+            if (table->referenceCount != 0)
+            {
+                --table->referenceCount;
+            }
         }
     }
 
@@ -718,7 +788,8 @@ namespace JBro
             || FindSlot(m_sprites, handle, AssetType::Sprite) != nullptr
             || FindSlot(m_audio, handle, AssetType::Audio) != nullptr
             || FindSlot(m_fonts, handle, AssetType::Font) != nullptr
-            || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr;
+            || FindSlot(m_fontFamilies, handle, AssetType::FontFamily) != nullptr
+            || FindSlot(m_stringTables, handle, AssetType::StringTable) != nullptr;
     }
 
     std::uint32_t AssetSystem::GetReferenceCount(AssetHandle handle) const
@@ -742,6 +813,10 @@ namespace JBro
         if (const Slot<FontFamilyData>* family = FindSlot(m_fontFamilies, handle, AssetType::FontFamily))
         {
             return family->referenceCount;
+        }
+        if (const Slot<StringTableData>* table = FindSlot(m_stringTables, handle, AssetType::StringTable))
+        {
+            return table->referenceCount;
         }
         return 0;
     }
@@ -842,6 +917,17 @@ namespace JBro
             family->data = std::move(fresh);
             return true;
         }
+        if (Slot<StringTableData>* table = FindSlot(m_stringTables, *loaded, AssetType::StringTable))
+        {
+            StringTableData fresh;
+            if (false == ReadStringTable(*record, fresh))
+            {
+                return false;
+            }
+            fresh.dataGeneration = table->data.dataGeneration + 1;
+            table->data = std::move(fresh);
+            return true;
+        }
         return false;
     }
 
@@ -915,6 +1001,15 @@ namespace JBro
             if (slot.occupied && slot.referenceCount == 0)
             {
                 Vacate(m_fonts, index);
+                ++freed;
+            }
+        }
+        for (std::uint32_t index = 0; index < m_stringTables.slots.Size(); ++index)
+        {
+            Slot<StringTableData>& slot = m_stringTables.slots[index];
+            if (slot.occupied && slot.referenceCount == 0)
+            {
+                Vacate(m_stringTables, index);
                 ++freed;
             }
         }

@@ -87,6 +87,15 @@ namespace JBro
         std::uint32_t dataGeneration = 1;
     };
 
+    // 로드된 문자열 표다(D-226). 파일의 최상위 맵(`키: 값`)이 그대로 들고, 로케일은 메타의 것이다. 값이 글자가 아닌 줄(맵·시퀀스)은
+    // 건너뛴다. `dataGeneration` 은 in-place 재로드마다 오른다 - 게임 로컬라이징이 그것을 보고 다시 모은다.
+    struct StringTableData
+    {
+        StringTableOptions options;
+        Table<String, String> entries;
+        std::uint32_t dataGeneration = 1;
+    };
+
     // 프로젝트 수명 동안 에셋 로드와 캐시를 소유한다(D-50·D-111). 사용자 호출 표면은 값형 Service::AssetService 다.
     //
     // **타입별 풀과 index+generation 핸들이다.** `IAsset` 가상 기반이 없다. 핸들의 `index` 상위 4 비트가 타입이고
@@ -134,6 +143,7 @@ namespace JBro
         const AudioData* GetAudio(AssetHandle handle) const;
         const FontData* GetFont(AssetHandle handle) const;
         const FontFamilyData* GetFontFamily(AssetHandle handle) const;
+        const StringTableData* GetStringTable(AssetHandle handle) const;
         // 오디오 자료를 풀기 전에 부를 곳이다(하나). 오디오 시스템이 프로젝트를 열 때 걸고 닫을 때 null 로 푼다.
         void SetAudioReleaseListener(AudioReleaseCallback callback, void* user);
         // 파형 그림용 봉우리다(에디터의 미리 듣기). 세 디코드 방식을 다 다룬다 - 디스크 스트리밍이면 파일을 한 번 흘려 읽는다.
@@ -193,6 +203,7 @@ namespace JBro
         // 메타의 네 칸을 읽고 칸마다 Font 를 싣는다. 실패한 칸은 비운다(패밀리는 선다).
         bool ReadFontFamily(const AssetRecord& record, FontFamilyData& data);
         void ReleaseFamilyFonts(FontFamilyData& data);
+        bool ReadStringTable(const AssetRecord& record, StringTableData& data);
         void NotifyAudioRelease(std::uint32_t slotIndex);
         // 메타를 한 번만 파싱한다. 이미지의 Texture 와 Sprite 는 같은 파일이라 주인(Texture) 아이디로 캐시한다.
         // `ReloadInPlace` 가 그 자리를 비워 다음 읽기가 디스크를 본다 - 로드되지 않은 에셋의 옵션을 고쳐도 다음 로드가
@@ -215,6 +226,7 @@ namespace JBro
         Pool<AudioData> m_audio;
         Pool<FontData> m_fonts;
         Pool<FontFamilyData> m_fontFamilies;
+        Pool<StringTableData> m_stringTables;
         AudioReleaseCallback m_audioRelease = nullptr;
         void* m_audioReleaseUser = nullptr;
         Table<AssetId, AssetHandle> m_loaded;
