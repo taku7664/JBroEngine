@@ -32,6 +32,7 @@ namespace JBro
         // 게임 입력(D-214). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
         class InputSystem;
         class RandomSystem;
+        class DebugDrawSystem;
     }
 
     namespace Network
@@ -47,6 +48,10 @@ namespace JBro
         // 시계의 처음 설정이다(D-231). 프로젝트 파일을 열면 그 파일의 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime` 이 이긴다.
         // 틀린 설정이면 `Initialize` 가 거절한다.
         TimeSettings time;
+        // 디버그 선 저장소의 용량이다(D-232). 넘친 선은 버리고 센다.
+        std::uint32_t maxDebugLines = 16384;
+        // 참이면 게임 뷰의 디버그 선을 프로젝트의 `DebugModeEnabled` 로 정한다(게임 실행). 에디터는 거짓으로 두고 제 토글로 정한다.
+        bool gameDebugDrawFromProject = true;
         // 프레임 임시 메모리 예산이다(D-52). memory.frame 을 직접 채워 주면 그것을 그대로 쓰고,
         // 비어 있으면 호스트가 이 크기로 선형 할당기를 만들어 채운다. 0 이면 만들지 않는다.
         std::size_t frameMemoryBytes = 1u << 20;
@@ -163,6 +168,11 @@ namespace JBro
         // 엔진의 시계와 난수 흐름(D-231). 초기화 전이거나 내린 뒤에는 null 이다.
         System::TimeSystem* GetTime();
         System::RandomSystem* GetRandom();
+        // 디버그 선 저장소(D-232). 초기화 전이거나 내린 뒤에는 null 이다.
+        System::DebugDrawSystem* GetDebugDraw();
+        // 게임 뷰에 디버그 선을 그릴지다. 캔버스 뷰는 `EditorViewDesc::debugDraw` 가 정한다.
+        void SetGameDebugDrawVisible(bool visible);
+        bool IsGameDebugDrawVisible() const;
 
         bool Tick(float deltaTime);
         void RequestExit();
@@ -285,6 +295,8 @@ namespace JBro
         // 시계와 난수(D-231). 엔진 수명이고 공통 시스템 컨텍스트가 가리킨다. 스크립트 DLL 이 내려간 뒤에 내린다.
         OwnerPtr<System::TimeSystem> m_time;
         OwnerPtr<System::RandomSystem> m_random;
+        OwnerPtr<System::DebugDrawSystem> m_debugDraw;
+        bool m_gameDebugDrawFromProject = true;
         // 게임의 세이브(D-218). 엔진 수명이고, 폴더만 프로젝트마다 바뀐다.
         OwnerPtr<SaveStorage> m_save;
         SaveSystemContext m_saveSystemContext;

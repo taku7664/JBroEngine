@@ -256,7 +256,7 @@ namespace JBro
         {
             return RenderResult::Failed;
         }
-        return Internal::SubmitRenderWorld2D(m_renderWorld, *m_context.renderer);
+        return Internal::SubmitRenderWorld2D(m_renderWorld, *m_context.renderer, m_context.debugDraw);
     }
 
     RenderResult Framework2D::RenderEditorView(const EditorViewDesc& view)
@@ -265,7 +265,7 @@ namespace JBro
         {
             return RenderResult::Failed;
         }
-        return Internal::SubmitEditorView2D(m_renderWorld, *m_context.renderer, view);
+        return Internal::SubmitEditorView2D(m_renderWorld, *m_context.renderer, view, m_context.debugDraw);
     }
 
     namespace

@@ -15,6 +15,7 @@ namespace JBro
         class AudioSystem;
         class InputSystem;
         class TimeSystem;
+        class DebugDrawSystem;
     }
     class Renderer;
 
@@ -47,6 +48,8 @@ namespace JBro
         // 두 화면의 배율을 같은 수로 견줄 수 있다.
         float orthographicSize = 5.0f;
         float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
+        // 스크립트의 디버그 선을 이 뷰에 그릴지다(D-232). 캔버스 뷰는 기본으로 그린다.
+        bool debugDraw = true;
 
         // ── 3D 만 쓰는 값 ────────────────────────────────────────────
         //
@@ -70,6 +73,8 @@ namespace JBro
         // 호스트가 소유하는 시계(D-231). **없으면 `Initialize` 가 거절한다.** 프레임 델타·고정 스텝 수·멈춤·한 프레임 진행이 모두
         // 여기서 온다 - 프레임워크는 누산기를 들지 않는다(두 프레임워크가 따로 들어 3D 만 멈춤을 무시했다, time-plan T4).
         System::TimeSystem* time = nullptr;
+        // 호스트가 소유하는 디버그 선 저장소(D-232). 있으면 렌더 브리지가 뷰마다 선을 사각형으로 그린다. 없으면(시험) 그리지 않는다.
+        const System::DebugDrawSystem* debugDraw = nullptr;
         // 호스트가 소유하는 네트워크(D-122). 있으면 프레임워크가 캔버스를 묶고 복제 풀과 수신·송신 시스템을 세운다.
         // 없으면(테스트의 가짜, 네트워크를 끈 호스트) 아무것도 세우지 않는다.
         NetworkHost* network = nullptr;

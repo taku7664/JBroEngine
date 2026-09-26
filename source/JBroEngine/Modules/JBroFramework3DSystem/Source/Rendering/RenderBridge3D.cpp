@@ -3,6 +3,7 @@
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/Rendering/RenderWorld3D.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <algorithm>
@@ -174,8 +175,93 @@ namespace JBro::Internal
         }
     }
 
+    namespace
+    {
+        // 디버그 선을 월드 텍스트 사각형으로 낸다(D-232). 그 경로는 메시 뒤에 깊이를 보되 쓰지 않고 그리므로 선이 메시에 가려지고,
+        // 텍스처가 비면 흰색이라 틴트가 선의 색이다. 사각형의 x 축은 선(길이만큼), y 축은 선과 시선에 모두 수직인 쪽(그 거리에서
+        // 픽셀 두께만큼)이다 - 그래서 어느 쪽에서 봐도 선이 납작해지지 않는다.
+        void PushDebugLines3D(const System::DebugDrawSystem& debugDraw, Renderer& renderer, const RenderCamera3D& camera,
+            float viewportHeight)
+        {
+            const bool perspective = camera.projection == Component::CameraProjection3D::Perspective;
+            const float halfFieldTangent = std::tan(camera.verticalFieldOfView * (3.14159265f / 180.0f) * 0.5f);
+            const Vec3 forward = Rotate(camera.rotation, Vec3{0.0f, 0.0f, -1.0f});
+            constexpr std::uint32_t BatchSize = 64;
+            WorldTextSubmit batch[BatchSize];
+            std::uint32_t count = 0;
+            const std::uint32_t lineCount = debugDraw.GetLineCount();
+            for (std::uint32_t index = 0; index < lineCount; ++index)
+            {
+                const DebugLine& line = debugDraw.GetLine(index);
+                const Vec3 from{line.from[0], line.from[1], line.from[2]};
+                const Vec3 to{line.to[0], line.to[1], line.to[2]};
+                const Vec3 along = Subtract(to, from);
+                const float length = Length(along);
+                if (false == (length > 0.0f))
+                {
+                    continue;
+                }
+                const Vec3 center = Scale(Add(from, to), 0.5f);
+                const Vec3 toCenter = Subtract(center, camera.position);
+                float worldPerPixel = 2.0f * camera.orthographicSize / viewportHeight;
+                if (perspective)
+                {
+                    const float depth = Dot(toCenter, forward);
+                    // 카메라 뒤나 가까운 면 안쪽의 선은 그리지 않는다 - 두께가 정해지지 않는다.
+                    if (depth <= camera.nearPlane)
+                    {
+                        continue;
+                    }
+                    worldPerPixel = 2.0f * depth * halfFieldTangent / viewportHeight;
+                }
+                const Vec3 sight = perspective ? toCenter : forward;
+                Vec3 side = Cross(along, sight);
+                if (Length(side) <= length * 1e-4f)
+                {
+                    // 선이 시선과 나란하다. 아무 수직이나 쓴다 - 점으로 보인다.
+                    side = Cross(along, std::fabs(along.y) < 0.9f * length ? Vec3{0.0f, 1.0f, 0.0f} : Vec3{1.0f, 0.0f, 0.0f});
+                }
+                side = Scale(Normalize(side), line.thickness * worldPerPixel);
+                const Vec3 normal = Normalize(Cross(along, side));
+                WorldTextSubmit& quad = batch[count];
+                quad = WorldTextSubmit{};
+                float* matrix = quad.world.values;
+                matrix[0] = along.x;
+                matrix[4] = along.y;
+                matrix[8] = along.z;
+                matrix[1] = side.x;
+                matrix[5] = side.y;
+                matrix[9] = side.z;
+                matrix[2] = normal.x;
+                matrix[6] = normal.y;
+                matrix[10] = normal.z;
+                matrix[3] = center.x;
+                matrix[7] = center.y;
+                matrix[11] = center.z;
+                matrix[12] = 0.0f;
+                matrix[13] = 0.0f;
+                matrix[14] = 0.0f;
+                matrix[15] = 1.0f;
+                for (int channel = 0; channel < 4; ++channel)
+                {
+                    quad.tint[channel] = static_cast<float>(line.color[channel]) / 255.0f;
+                }
+                ++count;
+                if (count == BatchSize)
+                {
+                    renderer.SubmitWorldTexts({batch, count});
+                    count = 0;
+                }
+            }
+            if (count > 0)
+            {
+                renderer.SubmitWorldTexts({batch, count});
+            }
+        }
+    }
+
     RenderResult SubmitEditorView3D(
-        const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view)
+        const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view, const System::DebugDrawSystem* debugDraw)
     {
         if (false == view.target.IsValid() || view.extent.width == 0 || view.extent.height == 0)
         {
@@ -215,12 +301,16 @@ namespace JBro::Internal
         }
         const bool meshes = PushMeshes(world, renderer, true);
         const bool texts = PushWorldTexts(world, renderer, true, editor.position, editor.rotation);
+        if (debugDraw != nullptr && view.debugDraw)
+        {
+            PushDebugLines3D(*debugDraw, renderer, editor, static_cast<float>(view.extent.height));
+        }
         const bool accepted = meshes && texts;
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
 
-    RenderResult SubmitRenderWorld3D(const RenderWorld3D& world, Renderer& renderer)
+    RenderResult SubmitRenderWorld3D(const RenderWorld3D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw)
     {
         const RenderCamera3D* camera = world.GetCamera();
         if (camera == nullptr)
@@ -235,6 +325,10 @@ namespace JBro::Internal
         }
         const bool meshes = PushMeshes(world, renderer, false);
         const bool texts = PushWorldTexts(world, renderer, false, camera->position, camera->rotation);
+        if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
+        {
+            PushDebugLines3D(*debugDraw, renderer, *camera, static_cast<float>(renderer.GetFrameExtent().height));
+        }
         const bool accepted = meshes && texts;
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;

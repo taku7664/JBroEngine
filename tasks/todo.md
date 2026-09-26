@@ -2888,6 +2888,17 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-232. 디버그 드로는 호스트의 고정 용량 선 저장소이고, 스크립트는 차원별 서비스로 그리기만 하며, 렌더 브리지가 뷰마다 픽셀 두께의 사각형으로 그린다.**
+  (2026-09-27, [time-plan.md](./time-plan.md) §2.4. 사용자 요청은 D-231 과 같다) 기존 엔진에 3D 디버그 드로는 없었다.
+  (1) `DebugLine`(36 B: 양 끝·RGBA8·픽셀 두께·게임 시간)과 `IDebugDrawSystem::AddLines` 는 `JBroRuntime`, 저장소 `System::DebugDrawSystem` 은
+  `JBroHost` 다. 공통 `SystemContext` 5 에 `DebugDraw` 슬롯. 용량은 엔진이 설 때 한 번 잡고(`EngineConfig::maxDebugLines`, 16384) 넘치면 버리고 센다.
+  (2) 수명: 0 초짜리는 한 프레임, 0 초 초과는 게임 시간으로 줄고, 고정 스텝에서 그린 0 초짜리는 다음 고정 스텝까지 남는다. 멈춘 프레임에는 거두지
+  않는다. 재생을 시작하고 멈출 때 비운다.
+  (3) 서비스 `DebugDraw2DService`(Line·Ray·Arrow·Rect·Circle·Polygon·Cross)와 `DebugDraw3DService`(Line·Ray·Arrow·Box·Sphere·Circle·Axes·Cross)가
+  차원별 서비스 컨텍스트(2D 4, 3D 2)에 있다. 도형을 선으로 펴 64 개씩 `AddLines` 한 번으로 넘긴다(`Internal::DebugLineBatch`, 힙 없음).
+  (4) 그리기는 새 파이프라인 없이 2D 는 흰 스프라이트, 3D 는 월드 텍스트 사각형이다(메시 뒤 깊이 테스트, 컬링 없음). 두께는 뷰의 배율로 바꾼 픽셀이다.
+  제출 상한에 걸린 선은 프레임을 실패로 만들지 않는다. 게임 뷰는 게임 실행이 프로젝트의 `DebugModeEnabled`(전에는 읽기만 했다), 에디터가 제 토글로,
+  캔버스 뷰는 `EditorViewDesc::debugDraw` 로 정한다.
 - **D-231. 시간과 난수는 엔진이 소유한 `TimeSystem`·`RandomSystem` 이고, 스크립트는 공통 `ServiceContext` 의 `Time`·`Random` 으로 읽으며, 훅은 델타를 인자로 받지 않는다.**
   (2026-09-27, [time-plan.md](./time-plan.md). 사용자 요청: "스크립트 인자에 델타를 받는건 뭐냐 - 기존 엔진과 비교해 재설계해서 완전히 이식하고
   추가 기능과 구조 개선까지") Updates: D-43(공통 `SystemContext` 가 처음으로 차원 무관 슬롯을 갖는다), D-131(멈춤은 시계가 든다).

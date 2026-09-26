@@ -80,6 +80,7 @@ int RunGlyphAtlasTests();
 int RunTextRenderTests();
 int RunTaskManagerTests();
 int RunTimeTests();
+int RunDebugDrawTests();
 
 int main()
 {
@@ -297,6 +298,11 @@ int main()
             return 1;
         }
         if (RunMeshPixelTests() != 0)
+        {
+            return 1;
+        }
+        // 디버그 드로는 GPU 를 쓰므로 다른 픽셀 시험 옆이다. 앞에 두면 `InputTouchTests` 의 포인터 시험이 깨진다(time-plan §4).
+        if (RunDebugDrawTests() != 0)
         {
             return 1;
         }
