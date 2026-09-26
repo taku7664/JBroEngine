@@ -370,6 +370,22 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      - 뮤테이션(`tools/mutations-physics10.txt`): 첫 판 13/14. 살아남은 것은 유효 질량을 축 고정 없이 재는 변이였다 - 쉬는 접촉은 반복이
        수렴해 가려진다. 반발은 한 번만 풀므로 x 고정 공의 튐으로 재어 잡았다(절반 속력으로만 튄다). 최종 14/14.
      - 남긴 것 `[열림]`: 힘을 여러 고정 스텝이 도는 프레임에서 주면 첫 스텝에만 먹는다(유니티와 같다).
+   - ~~**9-2. 체인 콜라이더와 수면(D-229)**~~ → 2026-09-27 · `0f6c39c`·`4c6563e`·`d21da32` ·
+     `JBroPhysics2D/Source/Collision.cpp`(`ChainSegment`·`JudgeChainNormal`·`CollideChainSegmentAnd*`), `World.cpp`(`CreateChainShape`·`UpdateSleep`·
+     `WakeBody`·`WakeSleepingIn`), `Physics2DSystem.cpp`(`BakeChain`·깨우기와 `m_sleeping`), `PolygonEditModel.cpp`(`EditsPoints`·`MinPointCount`).
+     - 테스트: `Physics2DCollisionTests`(`TestChainSegmentsHaveNoGhostCollisions` - 이음매 앞의 공과 상자를 면이 떠받침, 자유 끝은 모서리로 돎,
+       `TestAConvexChainCornerIsOwnedOnce` - 볼록 모서리는 한 번만, 뾰족한 모서리 아래는 비스듬한 벽이 맡음, 모서리에 기댄 판자는 자기 면 법선),
+       `Physics2DWorldTests`(`TestABoxSlidesAcrossAChainWithoutSnagging`, `TestBodiesFallAsleepAndWake`, `TestAStackSleeps`,
+       `TestWhatWakesASleepingBody` - 밑 상자를 쳐올리면 같은 스텝에 위 상자도 오름·중력을 바꾸면 깨고 멈추면 다시 잠듦·제자리 이동도 깨움·
+       새 벽이 겹치면 밀려남), `Physics2DSystemTests`(`TestChainCollidersAndSleep` - 닫은 삼각형 체인의 닫는 변에 레이가 맞고 공이 얹힘),
+       `PolygonEditModelTests`(`TestChainPointEditing`).
+     - 뮤테이션(`tools/mutations-physics11.txt`): 첫 판 21/25. 살아남은 넷 중 둘(볼록 모서리의 주인·부채꼴)은 코드가 틀려서였다 - 부채꼴이
+       모서리에 기댄 판자의 맞는 법선을 버렸고, 한 선분만 볼록하게 보는 쪽(모서리 아래)은 두 선분이 다 놓았다. 주인 규칙을 위 (2)로 고치고
+       검사를 더했다. 나머지 둘(중력·순간 이동 깨우기)은 다른 깨우기(사라진 접촉, 늘 다른 중력)에 가려졌다 - 제자리 이동과 중력을 멈춘 뒤 다시 잠드는지로
+       잡았다. 최종 28/28(변이 셋을 더했다).
+     - 알아낸 것: 따뜻한 시작 병합에서 짝을 찾은 뒤 이전 목록을 넘기지 않아, 새로 넣은 "사라진 접촉은 깨운다" 가 매 스텝 모두를 깨웠다(잠이 오지 않았다).
+     - 남긴 것 `[열림]`: 체인은 양면이라 닫힌 체인 안쪽에서도 막는다(Box2D 는 한면이다). 체인끼리의 충돌은 없다. 잠든 섬이 크면 한 몸만 깨워도 다음
+       스텝에 섬 전체가 깬다.
 
 ## 5. 결정 (2026-09-25 확인, D-199)
 
