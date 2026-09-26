@@ -360,6 +360,16 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      다른 세션의 입력과 겹치면 흔들리던 테스트다.
    - 남긴 것 `[열림]`: 솔버 병렬(접촉 그래프 색칠, Box2D v3) - 좁은 판정만으로는 20% 가 한계다. 웹 빌드에서 워커 0 이 되는지 실제 확인.
      Auto 는 게임이 시작할 때마다 빌드 캔버스를 한 번 더 읽는다(캔버스가 크면 시작이 늦어진다 - 익스포트가 생기면 빌드 때 적어 둔다).
+9. **추천순 전부(2026-09-27, 사용자 확인 "방금 추천순 제안한거 전부 해줘")** - 네 묶음을 차례로 세운다.
+   - ~~**9-1. 힘·충격량·토크, 축 고정, 각 감쇠(D-227)**~~ → 2026-09-27 · `38bd2f4`·`0aa1cd0`·`35c1dd8` ·
+     `Framework2D/Component/Physics2D.h`(`PendingForces2D`·`Add*`), `World.cpp`(`inverseMassAxes`·`Apply*`·`SetBodyProperties`), `Physics2DSystem.cpp`.
+     - 테스트: `Physics2DWorldTests`(`TestForcesAndImpulses` - 힘은 한 스텝만, 충격량은 바로, 토크·위치를 준 충격량의 회전, 정적인 몸은 안 받음,
+       `TestAxisLocks` - y 고정은 떨어지지 않고 x 로는 밀림, x 고정은 마찰 없는 비탈에서도 제자리, `TestBodyPropertiesChangeInPlace`,
+       `TestALockedBodyBouncesWithItsRealMass` - x 고정 공이 45° 비탈에서 떨어진 속력으로 튐), `Physics2DSystemTests`(`TestRigidbodyForcesLocksAndDamping` -
+       원점에서 떨어진 상자의 위치 준 충격량이 질량 중심으로 풀림·각 감쇠·x 고정, `TestChangingTheMassKeepsTheContact`).
+     - 뮤테이션(`tools/mutations-physics10.txt`): 첫 판 13/14. 살아남은 것은 유효 질량을 축 고정 없이 재는 변이였다 - 쉬는 접촉은 반복이
+       수렴해 가려진다. 반발은 한 번만 풀므로 x 고정 공의 튐으로 재어 잡았다(절반 속력으로만 튄다). 최종 14/14.
+     - 남긴 것 `[열림]`: 힘을 여러 고정 스텝이 도는 프레임에서 주면 첫 스텝에만 먹는다(유니티와 같다).
 
 ## 5. 결정 (2026-09-25 확인, D-199)
 

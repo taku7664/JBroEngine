@@ -2870,6 +2870,16 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-227. `Rigidbody2D` 에 힘·충격량·토크 API, 축 고정, 각 감쇠를 두고, 몸의 성질은 제자리에서 바꾼다.**
+  (2026-09-27, physics-plan §4 의 9-1. 사용자 확인: "추천순 제안한거 전부" - 기존 엔진 `Rigidbody2D` 의 `Force`·`Torque`·`FreezePositionX/Y`·
+  `AngularDamping` 이식) Updates: D-199.
+  (1) `AddForce`·`AddForceAtPosition`·`AddTorque`·`AddImpulse`·`AddImpulseAtPosition`·`AddAngularImpulse` 은 컴포넌트 안의 한 스텝짜리 기록
+  (`PendingForces2D`, 저장하지 않고 인스펙터에 없다)에 쌓고, 물리가 고정 스텝마다 `TakePendingForces` 로 가져간다. 힘·토크는 그 스텝 한 번 동안,
+  충격량은 그 스텝이 시작할 때 먹는다. 위치를 준 것은 월드 원점에 대한 모멘트로 모아 두었다가 그 스텝의 질량 중심으로 토크를 푼다 - 컴포넌트는
+  질량 중심을 모른다. 월드 좌표다. Dynamic 이 아니면 버린다. (2) `freezePositionX/Y`: 커널은 축마다의 역질량을 두고 중력·힘·접촉 임펄스·위치
+  보정·유효 질량이 모두 그것을 쓴다 - 고정한 축으로는 무엇으로도 움직이지 않는다. `fixedRotation` 은 그대로다. (3) `angularDamping` 을 커널에
+  넘긴다. (4) 질량·중력 배율·감쇠·고정이 바뀌면 `World::SetBodyProperties` 로 제자리에서 바꾼다 - 전에는 바디를 다시 만들어 닿아 있던 쌍이 끝나고
+  다시 시작했다. 종류(Static·Kinematic·Dynamic)가 바뀔 때만 다시 만든다.
 - **D-226. 게임 로컬라이징은 로케일마다 문자열 표 에셋(`.jstrings`)이고, 텍스트의 `textKey` 가 표의 글자를 보이며, 조회는 새 Tier S 모듈 `JBroLocalizationTypes` 를 거친다.**
   (2026-09-26, text-plan §5 의 8 단계. 사용자 확인: "로케일마다 파일", "textKey 필드, 없으면 키를 보임", "공용 LocalizationService", "프로젝트 로케일 설정 + 미리보기 전환")
   Updates: D-200 (5 단계의 "남긴 것"), D-218(세이브 모듈의 모양을 따른다), D-224.
