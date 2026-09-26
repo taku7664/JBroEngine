@@ -233,6 +233,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsSortTooltip = "assets.sort_tooltip";
     inline constexpr const char* AssetsRescan = "assets.rescan";
     inline constexpr const char* AssetsNewCanvas = "assets.new_canvas";
+    inline constexpr const char* AssetsNewFontFamily = "assets.new_font_family";
     inline constexpr const char* AssetsDuplicate = "assets.duplicate";
     inline constexpr const char* AssetsCopyPath = "assets.copy_path";
     // 파일 클립보드(D-182). 오브젝트 쪽의 복사·붙여넣기와 **다른 키**다 - 같은 말이라도
@@ -282,6 +283,7 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorTextureImportOptions = "inspector.texture_import_options";
     inline constexpr const char* InspectorAudioImportOptions = "inspector.audio_import_options";
     inline constexpr const char* InspectorFontImportOptions = "inspector.font_import_options";
+    inline constexpr const char* InspectorFontFamilyFaces = "inspector.font_family_faces";
     inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
     inline constexpr const char* InspectorAudioLength = "inspector.audio_length";
     inline constexpr const char* InspectorAudioPreview = "inspector.audio_preview";

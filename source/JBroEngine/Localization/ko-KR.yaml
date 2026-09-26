@@ -136,6 +136,7 @@ Entries:
   inspector.texture_import_options: 텍스처 임포트 옵션
   inspector.audio_import_options: "오디오 임포트 옵션"
   inspector.font_import_options: "폰트 임포트 옵션"
+  inspector.font_family_faces: "폰트 패밀리"
   inspector.audio_format: "형식"
   inspector.audio_length: "길이"
   inspector.audio_preview: "미리 듣기"
@@ -254,6 +255,7 @@ Entries:
   common.cancel: 취소
   assets.rescan: 새로 고침
   assets.new_canvas: 새 캔버스
+  assets.new_font_family: 새 폰트 패밀리
   assets.duplicate: 복제
   assets.copy_path: 경로 복사
   assets.cut: 잘라내기

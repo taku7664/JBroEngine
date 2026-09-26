@@ -10055,6 +10055,62 @@ namespace
         editor.Shutdown();
     }
 
+    // **새 폰트 패밀리**(D-224). 에셋 브라우저의 메뉴가 부르는 길이다. 겹치지 않는 이름의 `.jfontfamily` 가 FontFamily 로 등록되고
+    // 골라지며, 인스펙터가 네 칸을 에셋 옵션 블록으로 보인다(칸 필드 이름이 `...FontId` 라 고르기가 폰트만 보인다).
+    void TestTheEditorMakesFontFamilies()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; font families not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroFontFamilyProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        const JBro::String first = editor.CreateFontFamilyAsset("Fonts");
+        Check(false == first.empty() && std::filesystem::exists(root / "Assets" / first.c_str()), "a family file is written");
+        const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(first.c_str());
+        Check(record != nullptr && record->type == JBro::AssetType::FontFamily, "and registered as a font family");
+        Check(editor.GetSelectedAsset() == record->id, "and selected so its slots can be filled");
+        // 다음 만들기가 레지스트리를 다시 훑어 레코드 포인터가 옮겨진다. 아이디를 먼저 떠 둔다.
+        const JBro::AssetId firstId = record->id;
+        const JBro::String second = editor.CreateFontFamilyAsset("Fonts");
+        Check(false == second.empty() && second != first, "a second family takes another name");
+        editor.SetSelectedAsset(firstId);
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the family");
+        }
+        Check(editor.GetSelectedAssetMeta() != nullptr && editor.GetSelectedAssetMeta()->type == JBro::AssetType::FontFamily,
+            "the family's meta is the selected asset");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const JBro::TypeDescriptor& slots = JBro::TypeDescriptorOf<JBro::FontFamilyOptions>::Get();
+        const ImGuiID boldField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"),
+            static_cast<int>(FieldIndexOf(*slots.fields, "boldFontId"))), "##value");
+        Spot boldSpot;
+        Check(FindInspectorItem(editor, hwnd, boldField, boldSpot), "the family's bold slot is a row in the inspector");
+        editor.Shutdown();
+    }
+
     // **캔버스를 새로 만들고 다른 것을 연다**(D-174, 기존 `에셋 추가 ▸ 캔버스` 와 더블클릭).
     // 프로젝트 파일에 적힌 캔버스 하나만 편집할 수 있었다 - 새로 만들 길도 다른 것을 열 길도
     // 에디터 안에 없었다.
@@ -10674,6 +10730,7 @@ int RunEditorApplicationTests()
     TestTheGizmoCanWorkInWorldAxes();
     TestThePathHelpersAgreeOnOneAnswer();
     TestTheEditorMakesAndOpensCanvases();
+    TestTheEditorMakesFontFamilies();
     TestTheEditorSaysWhatIsChosen();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();

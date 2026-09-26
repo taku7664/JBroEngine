@@ -69,6 +69,7 @@ namespace JBro
             bool spriteBlock = false;
             bool audioBlock = false;
             bool fontBlock = false;
+            bool fontFamilyBlock = false;
         };
 
         struct Context
@@ -118,13 +119,15 @@ namespace JBro
         struct AssetChoices
         {
             AssetType type = AssetType::Unknown;
+            // 함께 보이는 둘째 타입이다(`fontId` 가 폰트와 폰트 패밀리를 다 받는다, D-224). 없으면 Unknown.
+            AssetType also = AssetType::Unknown;
             std::uint64_t revision = 0;
             bool built = false;
             Array<String> names;
             Array<const char*> namePointers;
             Array<AssetId> ids;
         };
-        const AssetChoices& ChoicesFor(AssetType type);
+        const AssetChoices& ChoicesFor(AssetType type, AssetType also = AssetType::Unknown);
         Array<AssetChoices> m_assetChoices;
 
         // 고른 에셋의 임포트 옵션(D-120). 오브젝트가 골라져 있지 않을 때만 온다.

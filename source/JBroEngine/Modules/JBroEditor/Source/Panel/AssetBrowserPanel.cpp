@@ -803,6 +803,11 @@ namespace JBro
         }
         // **새 캔버스**(D-174, 기존 `에셋 추가 ▸ 캔버스`). 만들고 바로 연다 - 만들어 놓고
         // 열리지 않으면 방금 만든 것이 어디 있는지 목록에서 찾아야 한다.
+        // **새 폰트 패밀리**(D-224). 만들고 브라우저에서 고른다 - 네 칸은 인스펙터에서 채운다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFontFamily, "New Font Family")))
+        {
+            m_editor->CreateFontFamilyAsset(m_openFolder.c_str());
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewCanvas, "New Canvas")))
         {
             const String created = m_editor->CreateCanvasAsset(m_openFolder.c_str());

@@ -1796,19 +1796,28 @@ namespace JBro
         }
 
         // 겹치지 않는 이름을 고른다. `NewCanvas.jcanvas`, `NewCanvas1.jcanvas`, ...
+        return WriteNewAssetFile(folder, "NewCanvas", ".jcanvas", text);
+    }
+
+    String EditorApplication::WriteNewAssetFile(const char* folder, const char* stem, const char* extension, const String& text)
+    {
+        if (GetAssetRoot().empty())
+        {
+            return String();
+        }
         const String base = folder != nullptr ? folder : "";
         String relative;
         String absolute;
         for (int attempt = 0; attempt < 100; ++attempt)
         {
-            char name[64] = {};
+            char name[96] = {};
             if (attempt == 0)
             {
-                std::snprintf(name, sizeof(name), "NewCanvas.jcanvas");
+                std::snprintf(name, sizeof(name), "%s%s", stem, extension);
             }
             else
             {
-                std::snprintf(name, sizeof(name), "NewCanvas%d.jcanvas", attempt);
+                std::snprintf(name, sizeof(name), "%s%d%s", stem, attempt, extension);
             }
             relative = EditorPaths::JoinPath(base.c_str(), name);
             absolute = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
@@ -1828,7 +1837,7 @@ namespace JBro
                 {reinterpret_cast<const std::byte*>(text.c_str()),
                     static_cast<std::uint32_t>(text.size())}))
         {
-            Log::Write(LogLevel::Error, "editor", "the canvas file could not be written: %s",
+            Log::Write(LogLevel::Error, "editor", "the asset file could not be written: %s",
                 absolute.c_str());
             return String();
         }
@@ -1836,6 +1845,22 @@ namespace JBro
         RescanAssets();
         Log::Write(LogLevel::Info, "editor", "created %s", relative.c_str());
         return relative;
+    }
+
+    String EditorApplication::CreateFontFamilyAsset(const char* folder)
+    {
+        // 본문은 표지뿐이다. 네 칸은 메타의 `FontFamily` 블록에 있다(D-224) - 에셋 옵션을 고치는 길(메타 커맨드·제자리 재로드)을 그대로 쓴다.
+        const String created = WriteNewAssetFile(folder, "NewFontFamily", ".jfontfamily", String("# JBro font family\n"));
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            SetSelectedAsset(record->id);
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
     }
 
     void EditorApplication::RequestOpenCanvas(const char* assetRelativePath)

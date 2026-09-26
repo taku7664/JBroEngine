@@ -101,7 +101,22 @@ namespace JBro
             {
                 buffer[0] = static_cast<char>(buffer[0] - 'a' + 'A');
             }
-            return AssetTypeRules::ParseTypeName(std::string_view(buffer, length));
+            const AssetType whole = AssetTypeRules::ParseTypeName(std::string_view(buffer, length));
+            if (whole != AssetType::Unknown)
+            {
+                return whole;
+            }
+            // 이름의 마지막 낱말이 타입이면 그것이다(`regularFontId`·`boldItalicFontId` 는 Font, D-224).
+            std::size_t last = length;
+            while (last > 1 && false == (buffer[last - 1] >= 'A' && buffer[last - 1] <= 'Z'))
+            {
+                --last;
+            }
+            if (last <= 1)
+            {
+                return AssetType::Unknown;
+            }
+            return AssetTypeRules::ParseTypeName(std::string_view(buffer + last - 1, length - last + 1));
         }
 
         using EditorNames::DisplayTypeName;
@@ -524,13 +539,13 @@ namespace JBro
         return true;
     }
 
-    const InspectorPanel::AssetChoices& InspectorPanel::ChoicesFor(AssetType type)
+    const InspectorPanel::AssetChoices& InspectorPanel::ChoicesFor(AssetType type, AssetType also)
     {
         const AssetRegistry& registry = m_editor->GetAssetRegistry();
         AssetChoices* choices = nullptr;
         for (std::size_t index = 0; index < m_assetChoices.Size(); ++index)
         {
-            if (m_assetChoices[index].type == type)
+            if (m_assetChoices[index].type == type && m_assetChoices[index].also == also)
             {
                 choices = &m_assetChoices[index];
             }
@@ -539,6 +554,7 @@ namespace JBro
         {
             AssetChoices fresh;
             fresh.type = type;
+            fresh.also = also;
             m_assetChoices.Add(fresh);
             choices = &m_assetChoices[m_assetChoices.Size() - 1];
         }
@@ -554,7 +570,7 @@ namespace JBro
         for (std::size_t index = 0; index < registry.GetCount(); ++index)
         {
             const AssetRecord& record = registry.GetRecord(index);
-            if (type != AssetType::Unknown && record.type != type)
+            if (type != AssetType::Unknown && record.type != type && (also == AssetType::Unknown || record.type != also))
             {
                 continue;
             }
@@ -743,7 +759,10 @@ namespace JBro
     void InspectorPanel::DrawAssetField(
         const char* fieldName, const TypeDescriptor& type, void* address, Context& context)
     {
-        const AssetChoices& choices = ChoicesFor(AssetTypeOfIdName(fieldName));
+        // 텍스트의 `fontId` 는 폰트와 폰트 패밀리를 다 받는다(D-224). 패밀리 안의 칸(`regularFontId` 따위)은 폰트만이다.
+        const AssetChoices& choices = std::strcmp(fieldName, "fontId") == 0
+            ? ChoicesFor(AssetType::Font, AssetType::FontFamily)
+            : ChoicesFor(AssetTypeOfIdName(fieldName));
         String before;
         const bool snapped = ToText(type, address, before);
         const bool changed = Widget::AssetField("##value",
@@ -956,12 +975,13 @@ namespace JBro
         const bool image = AssetTypeRules::IsImageType(meta.type);
         int slot = 0;
         const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock,
-                                     bool audioBlock = false, bool fontBlock = false) {
+                                     bool audioBlock = false, bool fontBlock = false, bool fontFamilyBlock = false) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
             scope.spriteBlock = spriteBlock;
             scope.audioBlock = audioBlock;
             scope.fontBlock = fontBlock;
+            scope.fontFamilyBlock = fontFamilyBlock;
             if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
@@ -990,6 +1010,12 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorFontImportOptions, "Font Import Options"),
                 TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);
         }
+        // 폰트 패밀리의 네 칸(D-224). 고치면 제자리 재로드로 칸의 폰트가 바뀌고, 그 패밀리를 쓰는 텍스트가 다시 레이아웃된다.
+        if (meta.type == AssetType::FontFamily)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorFontFamilyFaces, "Font Family"),
+                TypeDescriptorOf<FontFamilyOptions>::Get(), &scratch.fontFamilyOptions, false, false, false, true);
+        }
     }
 
     void InspectorPanel::CommitAssetEdit(Context& context)
@@ -1014,6 +1040,10 @@ namespace JBro
         else if (context.asset->fontBlock)
         {
             scratch.hasFontOptions = true;
+        }
+        else if (context.asset->fontFamilyBlock)
+        {
+            scratch.hasFontFamilyOptions = true;
         }
         else
         {

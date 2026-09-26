@@ -478,10 +478,15 @@ namespace JBro
         // 더미가 지난 캔버스의 것이므로 함께 비우고, 시뮬레이션 중이면 먼저 멈춘다.
         // 프레임 밖에서 한다(D-93) - 파일을 읽는 동안 UI 가 그 오브젝트들을 그리고 있으면 안 된다.
         void RequestOpenCanvas(const char* assetRelativePath);
+        // 새 에셋 파일을 `folder` 에 겹치지 않는 이름(`stem.ext`, `stem1.ext`, ...)으로 쓰고 다시 훑는다. 경로이고 실패하면 빈 글자다.
+        String WriteNewAssetFile(const char* folder, const char* stem, const char* extension, const String& text);
         // **새 캔버스 파일을 만든다**(기존 `에셋 추가 ▸ 캔버스`). 에셋 폴더 아래 `folder` 에
         // 겹치지 않는 이름으로 빈 캔버스를 쓰고, 등록한 뒤 그것을 연다.
         // 만든 파일의 에셋 폴더 기준 경로를 돌려준다. 실패하면 빈 글자다.
         String CreateCanvasAsset(const char* folder);
+        // **새 폰트 패밀리를 만든다**(D-224). 에셋 폴더 아래 `folder` 에 겹치지 않는 이름의 `.jfontfamily` 를 쓰고 등록한 뒤
+        // 고르고 에셋 브라우저에서 보인다 - 네 칸은 인스펙터의 에셋 옵션으로 채운다. 만든 파일의 경로이고 실패하면 빈 글자다.
+        String CreateFontFamilyAsset(const char* folder);
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
         void AnswerCanvasSwitch(int choice);
