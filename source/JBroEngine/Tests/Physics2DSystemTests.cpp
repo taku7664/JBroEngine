@@ -1175,6 +1175,9 @@ namespace
         // 원 콜라이더(중심 (9, 6), 반지름 0.5)의 가장자리만 걸치는 질의도 찾는다 - 경계는 반지름을 품는다.
         queries.OverlapCircle({ 9.6f, 6.0f }, 0.2f, found, JBro::AllPhysicsLayers);
         Check(found.Size() == 1, "a query touching only a circle's edge still finds it");
+        // 원을 민 스윕은 반지름만큼 옆의 콜라이더도 본다 - (1.8, 0.8) 에서 반지름 0.4 로 오른쪽으로 밀면 (3, 0) 의 원(반지름 0.5)에 걸린다.
+        Check(queries.CircleCast({ 1.8f, 0.8f }, 0.4f, { 1, 0 }, 5, hit, JBro::AllPhysicsLayers) && hit.distance > 0.5f && hit.distance < 1.0f,
+            "a circle cast finds a collider beside its line within its radius");
         // 가로로 네 배 늘린 상자의 먼 끝도 찾는다 - 경계는 크기를 곱한다.
         JBro::GameObject* stretched = scene.Object("stretched", { 40, 0 });
         scene.TransformOf(stretched)->scale = { 4, 1 };

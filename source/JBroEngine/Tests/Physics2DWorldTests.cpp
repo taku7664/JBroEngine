@@ -1447,9 +1447,10 @@ namespace
             const BodyId box = AddBody(world, BodyType::Dynamic, { -15, 0.5f });
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f), slippery);
             Run(world, 0.5f);
-            world.SetLinearVelocity(box, { 60, 0 });
+            // 서브스텝마다 0.375 m - 반폭 0.5 의 절반을 넘으므로 이어지는 판정이 돈다.
+            world.SetLinearVelocity(box, { 90, 0 });
             Run(world, 0.25f);
-            Check(world.GetPosition(box).x > -2.0f, "a box sliding fast on the ground is not held back by the ground it touches");
+            Check(world.GetPosition(box).x > 5.0f, "a box sliding fast on the ground is not held back by the ground it touches");
         }
         {
             World world;
