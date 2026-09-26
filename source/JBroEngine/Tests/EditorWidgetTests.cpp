@@ -1,4 +1,6 @@
-﻿#include <JBro/Editor/Widget/AssetField.h>
+﻿#include <JBro/Editor/Localization.h>
+#include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
@@ -829,6 +831,133 @@ namespace
         Check(FindComboPopup() == nullptr, "and close the popup");
     }
 
+
+    // **레이어 칸은 이름으로 켜고 끈다(D-233).** 펼치면 이름 있는 레이어마다 켜기 칸이 있고 누르면 그 비트가 켜지며 팝업은
+    // 열린 채다. 이름 없는 비트는 켜져 있을 때만 `#번호` 로 보인다. "없음" 은 모두 끈다.
+    void TestTheLayerMaskFieldTogglesNamedBits()
+    {
+        Stage stage;
+        const char* names[32] = {};
+        names[0] = "Default";
+        names[1] = "Player";
+        names[2] = "Enemy";
+        std::uint32_t mask = (1u << 0) | (1u << 5);
+        int changedFrames = 0;
+        ImVec2 triggerMin;
+        ImVec2 triggerMax;
+        bool triggerKnown = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            if (JBro::Widget::LayerMaskField("##layers", JBro::ArrayView<const char* const>(names, 32), mask))
+            {
+                ++changedFrames;
+            }
+            if (false == triggerKnown)
+            {
+                triggerMin = ImGui::GetItemRectMin();
+                triggerMax = ImGui::GetItemRectMax();
+                triggerKnown = true;
+            }
+            stage.End();
+        };
+        ImGuiIO& io = ImGui::GetIO();
+        stage.Settle();
+        frame();
+        io.AddMousePosEvent((triggerMin.x + triggerMax.x) * 0.5f, (triggerMin.y + triggerMax.y) * 0.5f);
+        frame();
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        ImGuiWindow* popup = FindComboPopup();
+        Check(popup != nullptr, "clicking the layer field opens its list");
+        const auto idOf = [&](int bit, const char* label) {
+            return ImHashStr(label, 0, ImHashData(&bit, sizeof(bit), popup->ID));
+        };
+        const auto hover = [&](ImGuiID target) {
+            for (float at = popup->Pos.y; at < popup->Pos.y + popup->Size.y; at += 1.0f)
+            {
+                io.AddMousePosEvent(popup->Pos.x + 12.0f, at);
+                frame();
+                if (ImGui::GetHoveredID() == target)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        Check(false == hover(idOf(3, "#3")), "an unnamed layer that is off is not listed");
+        Check(hover(idOf(5, "#5")), "an unnamed layer that is on is listed by its number");
+        Check(hover(idOf(2, "Enemy")), "a named layer is listed by its name");
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        Check(mask == ((1u << 0) | (1u << 2) | (1u << 5)) && changedFrames == 1, "clicking Enemy turns its bit on once");
+        Check(FindComboPopup() != nullptr, "and the list stays open for the next one");
+        const char* nothing = JBro::Loc::TextOr(JBro::LocKeys::InspectorLayersNothing, "Nothing");
+        Check(hover(ImHashStr(nothing, 0, popup->ID)), "the list offers Nothing");
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        Check(mask == 0u && changedFrames == 2, "and Nothing turns every bit off");
+    }
+
+    // **오브젝트 칸은 이름으로 고른다(D-233).** 검색해 Enter 로 고르면 그 번호가 되고, 끌어 놓은 것이 없으면 dropped 는 0 이다.
+    void TestTheObjectFieldPicksByName()
+    {
+        Stage stage;
+        const char* const names[] = { "None", "Anchor", "Weight" };
+        int chosen = 0;
+        std::uint64_t dropped = 7;
+        int changedFrames = 0;
+        ImVec2 triggerMin;
+        ImVec2 triggerMax;
+        bool triggerKnown = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            if (JBro::Widget::ObjectField("##object", names, chosen, "JBRO_TEST_PAYLOAD", dropped))
+            {
+                ++changedFrames;
+            }
+            if (false == triggerKnown)
+            {
+                triggerMin = ImGui::GetItemRectMin();
+                triggerMax = ImGui::GetItemRectMax();
+                triggerKnown = true;
+            }
+            stage.End();
+        };
+        ImGuiIO& io = ImGui::GetIO();
+        stage.Settle();
+        frame();
+        Check(dropped == 0, "with nothing dropped the drop slot reads zero");
+        io.AddMousePosEvent((triggerMin.x + triggerMax.x) * 0.5f, (triggerMin.y + triggerMax.y) * 0.5f);
+        frame();
+        io.AddMouseButtonEvent(0, true);
+        frame();
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        frame();
+        Check(FindComboPopup() != nullptr, "clicking the object field opens its list");
+        for (const char* at = "Wei"; *at != '\0'; ++at)
+        {
+            io.AddInputCharacter(static_cast<unsigned int>(*at));
+            frame();
+        }
+        io.AddKeyEvent(ImGuiKey_Enter, true);
+        frame();
+        io.AddKeyEvent(ImGuiKey_Enter, false);
+        frame();
+        frame();
+        Check(chosen == 2 && changedFrames == 1 && dropped == 0, "typing part of a name and Enter picks that object");
+    }
+
     // **에셋 칸은 이름으로 고르고 아이디를 쓴다**(D-116). 이름을 쳐 Enter 로 고르면 짝 아이디가
     // 들어가고, 비우기 항목을 고르면 빈 아이디다. 목록에 없는 아이디는 바뀌지 않은 채 남는다.
     void TestTheAssetFieldWritesTheIdOfTheChosenName()
@@ -1085,6 +1214,8 @@ int RunEditorWidgetTests()
     TestTheFilterComboPicksByTypingAndEnter();
     TestTheFilterComboGroupsItemsAndSkipsTheDisabled();
     TestAnEmptyFilterComboDrawsAndChangesNothing();
+    TestTheLayerMaskFieldTogglesNamedBits();
+    TestTheObjectFieldPicksByName();
     TestTheEnumComboChangesTheValueWhenAnItemIsClicked();
     TestTheAssetFieldWritesTheIdOfTheChosenName();
     TestTheNameListEditKeepsTheBufferAndTheListInStep();

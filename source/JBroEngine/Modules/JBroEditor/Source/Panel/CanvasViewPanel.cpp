@@ -1,5 +1,6 @@
 ﻿#include "CanvasViewPanel.h"
 
+#include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
@@ -331,6 +332,7 @@ namespace JBro
             if (m_showColliders)
             {
                 DrawColliders(rect);
+                DrawJoints(rect);
             }
             DrawPolygonEditor(rect);
             DrawSelectionOutlines(rect);
@@ -802,6 +804,85 @@ namespace JBro
             maxY = center.y + EmptyObjectHalfSize;
         }
         return true;
+    }
+
+    void CanvasViewPanel::DrawJoints(const ViewRect& rect)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        if (canvas == nullptr)
+        {
+            return;
+        }
+        // **조인트는 앵커와 상대 앵커를 잇는 선이다**(D-233). 경첩은 핀을 원으로, 거리 조인트는 두 앵커를 선으로 잇는다.
+        // 상대가 없으면 상대 앵커는 월드의 점이다. 자동 설정은 재생이 처음 이을 때 적으므로 그 전에는 적힌 값대로 보인다.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 color = IM_COL32(255, 140, 220, 210);
+        const auto poseOf = [&](GameObject* object, PolygonPose& pose) {
+            Component::Transform2D* transform =
+                object != nullptr ? canvas->FindComponentRaw<Component::Transform2D>(object) : nullptr;
+            if (transform == nullptr)
+            {
+                return false;
+            }
+            pose.center = transform->worldValid ? transform->worldPosition : transform->position;
+            pose.scale = transform->worldValid ? transform->worldScale : transform->scale;
+            const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
+            pose.cosine = std::cos(angle);
+            pose.sine = std::sin(angle);
+            return true;
+        };
+        const auto connectedPoint = [&](const GameObjectHandle& connected, Vec2 anchor) {
+            PolygonPose other;
+            if (poseOf(Internal::GameObjectHandleAccess::Resolve(connected), other))
+            {
+                return LocalToScreen(rect, other, {}, anchor);
+            }
+            Vec2 screen;
+            WorldToScreen(rect, anchor.x, anchor.y, screen.x, screen.y);
+            return screen;
+        };
+        canvas->ForEachObject([&](GameObject& object) {
+            if (object.IsEditorHidden())
+            {
+                return;
+            }
+            PolygonPose pose;
+            if (false == poseOf(&object, pose))
+            {
+                return;
+            }
+            const float thickness = m_editor->IsSelected(&object) ? 2.0f : 1.0f;
+            canvas->FindComponentsRaw<Component::DistanceJoint2D>(&object, m_distanceJointScratch);
+            for (Component::DistanceJoint2D* joint : m_distanceJointScratch)
+            {
+                if (joint == nullptr || false == joint->IsEnabled())
+                {
+                    continue;
+                }
+                const Vec2 a = LocalToScreen(rect, pose, {}, joint->anchor);
+                const Vec2 b = connectedPoint(joint->connectedObject, joint->connectedAnchor);
+                draw->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), color, thickness);
+                draw->AddCircleFilled(ImVec2(a.x, a.y), 3.0f, color);
+                draw->AddCircleFilled(ImVec2(b.x, b.y), 3.0f, color);
+            }
+            canvas->FindComponentsRaw<Component::HingeJoint2D>(&object, m_hingeJointScratch);
+            for (Component::HingeJoint2D* joint : m_hingeJointScratch)
+            {
+                if (joint == nullptr || false == joint->IsEnabled())
+                {
+                    continue;
+                }
+                const Vec2 pin = LocalToScreen(rect, pose, {}, joint->anchor);
+                draw->AddCircle(ImVec2(pin.x, pin.y), 6.0f, color, 16, thickness);
+                // 자동이 아니면 상대 쪽 핀도 그린다 - 두 핀이 떨어져 있으면 재생할 때 그 사이를 당겨 붙인다.
+                if (false == joint->autoConnectedAnchor)
+                {
+                    const Vec2 other = connectedPoint(joint->connectedObject, joint->connectedAnchor);
+                    draw->AddLine(ImVec2(pin.x, pin.y), ImVec2(other.x, other.y), color, thickness);
+                    draw->AddCircle(ImVec2(other.x, other.y), 3.0f, color, 12, thickness);
+                }
+            }
+        });
     }
 
     void CanvasViewPanel::DrawColliders(const ViewRect& rect)

@@ -188,6 +188,19 @@ namespace JBro
         }
     }
 
+    void Framework2D::SetPhysicsIgnoredLayers(const std::uint32_t (&rows)[32])
+    {
+        static_assert(PhysicsLayerCount == 32, "the framework passes one row per physics layer");
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        if (System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>())
+        {
+            physics->SetIgnoredLayers(rows);
+        }
+    }
+
     std::uint32_t Framework2D::GetPhysicsWorkerCount()
     {
         if (m_canvas.Get() == nullptr)

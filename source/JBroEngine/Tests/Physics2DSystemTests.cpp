@@ -1,4 +1,8 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include <cstring>
+#include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
+#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
@@ -64,10 +68,22 @@ namespace
             lastEnter = hit;
         }
 
+        void OnCollisionStay(const JBro::Collision2D& hit) override
+        {
+            ++collisionStay;
+            lastStay = hit;
+        }
+
         void OnCollisionExit(const JBro::Collision2D& hit) override
         {
             ++collisionExit;
             lastExit = hit;
+        }
+
+        void OnTriggerStay(const JBro::Collision2D& hit) override
+        {
+            ++triggerStay;
+            lastStay = hit;
         }
 
         void OnTriggerEnter(const JBro::Collision2D& hit) override
@@ -82,10 +98,13 @@ namespace
         }
 
         int collisionEnter = 0;
+        int collisionStay = 0;
         int collisionExit = 0;
         int triggerEnter = 0;
+        int triggerStay = 0;
         int triggerExit = 0;
         JBro::Collision2D lastEnter;
+        JBro::Collision2D lastStay;
         JBro::Collision2D lastExit;
     };
 
@@ -867,6 +886,308 @@ namespace
             "and the origin lands across the center of mass");
         Check(Near(body->angularVelocity, 3.14159265f, 1.0e-4f), "keeping its spin");
     }
+
+    // **이어지는 접촉은 고정 스텝마다 Stay 로 온다(D-233).** 시작한 스텝은 Enter 만이고, 몸이 잠들면 멈춘다. 잠들지 않는 공을
+    // 트리거 안에 띄워 두면 스텝마다 양쪽이 받고, 트리거의 Stay 에는 법선이 없다.
+    void TestStayHooksComeEveryStepWhileTouching()
+    {
+        {
+            Scene scene;
+            JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+            scene.Box(ground, { 40, 1 });
+            JBro::GameObject* box = scene.Object("box", { 0, 0.6f });
+            scene.Box(box, { 1, 1 });
+            scene.Dynamic(box);
+            ContactProbe* boxProbe = scene.Probe(box);
+            scene.Run(0.2f);
+            Check(boxProbe->collisionEnter == 1, "the box lands");
+            const int staysAfterLanding = boxProbe->collisionStay;
+            scene.Run(0.2f);
+            Check(boxProbe->collisionStay >= staysAfterLanding + 10, "while it settles it hears a stay every fixed step");
+            Check(Near(boxProbe->lastStay.normal.y, -1.0f, 1.0e-3f), "each stay carries the box's own normal");
+            scene.Run(2.0f);
+            const int staysAsleep = boxProbe->collisionStay;
+            scene.Run(0.5f);
+            Check(boxProbe->collisionStay == staysAsleep, "once it sleeps the stays stop");
+            Check(boxProbe->collisionExit == 0, "and it never left");
+        }
+        {
+            Scene scene;
+            JBro::GameObject* zone = scene.Object("zone", { 0, 0 });
+            Collider2D* sensor = scene.Box(zone, { 4, 4 });
+            sensor->isTrigger = true;
+            ContactProbe* zoneProbe = scene.Probe(zone);
+            JBro::GameObject* ball = scene.Object("ball", { 0, 0 });
+            Collider2D* round = scene.canvas.AttachComponent<Collider2D>(ball);
+            round->shape = ColliderShape2D::Circle;
+            round->radius = 0.25f;
+            Rigidbody2D* body = scene.Dynamic(ball);
+            body->gravityScale = 0.0f;
+            body->canSleep = false;
+            ContactProbe* ballProbe = scene.Probe(ball);
+            for (int i = 0; i < 10; ++i)
+            {
+                scene.physics.FixedUpdate(scene.canvas, Frame);
+            }
+            Check(zoneProbe->triggerEnter == 1 && zoneProbe->triggerStay == 9, "the zone hears one enter, then a stay each step");
+            Check(ballProbe->triggerEnter == 1 && ballProbe->triggerStay == 9, "and so does the ball");
+            Check(ballProbe->lastStay.other.GetInstanceId() == zone->GetInstanceId(), "a stay names the other object");
+            Check(zoneProbe->lastStay.normal.x == 0.0f && zoneProbe->lastStay.normal.y == 0.0f, "a trigger stay carries no normal");
+            Check(zoneProbe->collisionStay == 0, "and no collision stay is called");
+        }
+    }
+
+    // **한 방향 발판 콜라이더(D-233).** 밑에서 뛰어올라 뚫고 지나가는 동안에는 훅이 없고, 위에 얹힐 때 시작을 한 번 받는다.
+    void TestAOneWayColliderLetsThingsUpThrough()
+    {
+        Scene scene;
+        JBro::GameObject* platform = scene.Object("platform", { 0, 0 });
+        Collider2D* ledge = scene.Box(platform, { 6, 0.5f });
+        ledge->oneWay = true;
+        ContactProbe* platformProbe = scene.Probe(platform);
+        JBro::GameObject* box = scene.Object("box", { 0, -1.5f });
+        scene.Box(box, { 1, 1 });
+        Rigidbody2D* body = scene.Dynamic(box);
+        body->linearVelocity = { 0, 8 };
+        scene.Run(0.12f);
+        Check(scene.TransformOf(box)->position.y > -1.0f && platformProbe->collisionEnter == 0,
+            "jumping up through the ledge is heard by no one");
+        scene.Run(1.5f);
+        Check(Near(scene.TransformOf(box)->position.y, 0.75f, 0.02f), "the box ends on top of the ledge");
+        Check(platformProbe->collisionEnter == 1, "and the ledge hears it land once");
+        ledge->oneWay = false;
+        scene.Run(0.1f);
+        Check(Near(scene.TransformOf(box)->position.y, 0.75f, 0.02f), "turning oneWay off leaves it standing there");
+
+        // 막는 발판에 밑에서 쳐올리면 튕겨 떨어지고, 그 자리에서 oneWay 를 켜면 같은 도형이 흘려보낸다.
+        JBro::GameObject* jumper = scene.Object("jumper", { 5, -1.5f });
+        scene.Box(jumper, { 0.5f, 0.5f });
+        Rigidbody2D* jumperBody = scene.Dynamic(jumper);
+        JBro::GameObject* ceiling = scene.Object("ceiling", { 5, 0 });
+        Collider2D* roof = scene.Box(ceiling, { 2, 0.5f });
+        jumperBody->linearVelocity = { 0, 8 };
+        scene.Run(0.3f);
+        Check(scene.TransformOf(jumper)->position.y < -0.4f, "a solid ceiling stops a jump from below");
+        roof->oneWay = true;
+        scene.Run(0.5f);
+        jumperBody->linearVelocity = { 0, 8 };
+        scene.Run(1.0f);
+        Check(scene.TransformOf(jumper)->position.y > 0.3f, "switching oneWay on lets the next jump through onto it");
+    }
+
+    // **레이어 충돌 표가 시스템을 거쳐 커널에 간다(D-233).** 떼어 둔 두 레이어의 상자는 서로 지나간다.
+    void TestTheLayerTableReachesTheKernel()
+    {
+        Scene scene;
+        std::uint32_t rows[JBro::PhysicsLayerCount] = {};
+        rows[1] = 1u << 2;
+        rows[2] = 1u << 1;
+        scene.physics.SetIgnoredLayers(rows);
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 20, 1 });
+        JBro::GameObject* lower = scene.Object("lower", { 0, 0.5f });
+        scene.Box(lower, { 1, 1 })->layer = 1u << 1;
+        scene.Dynamic(lower);
+        JBro::GameObject* upper = scene.Object("upper", { 0, 3 });
+        scene.Box(upper, { 1, 1 })->layer = 1u << 2;
+        scene.Dynamic(upper);
+        scene.Run(1.5f);
+        Check(Near(scene.TransformOf(upper)->position.y, 0.5f, 0.03f), "a box on a separated layer falls through the other onto the ground");
+    }
+
+    // **조인트 컴포넌트(D-233).** 경첩은 처음 이어질 때 핀 자리를 월드로 적고 그 둘레로 흔들린다. 한계와 모터는 "이 오브젝트가
+    // 상대에 대해" 의 반시계 양수 각도다. 거리 조인트는 처음 거리를 적어 그만큼 매달고, 거리를 바꾸면 제자리에서 바뀌며,
+    // 상대 오브젝트가 사라지면 조인트도 없어진다.
+    void TestJointComponents()
+    {
+        using JBro::Component::DistanceJoint2D;
+        using JBro::Component::HingeJoint2D;
+        const float degree = 3.14159265f / 180.0f;
+        {
+            // 막대는 크기 (2, 1) 의 상자 하나이고 왼쪽 끝(로컬 -0.5, 크기를 곱해 -1)을 (2, 1) 의 핀에 건다. 20° 기울어 시작하므로
+            // 한계 [-30°, 10°] 는 그 자리를 0 으로 잰다 - 떨어지면 20 - 30 = -10° 에서 선다. 한계가 비대칭이라 부호가 뒤집히면
+            // 다른 각에서 선다.
+            Scene scene;
+            const float start = 20.0f * degree;
+            JBro::GameObject* rod = scene.Object("rod", { 2.0f + std::cos(start), 1.0f + std::sin(start) });
+            scene.TransformOf(rod)->rotation = start;
+            scene.TransformOf(rod)->scale = { 2, 1 };
+            scene.Box(rod, { 1.0f, 0.2f });
+            scene.Dynamic(rod);
+            HingeJoint2D* hinge = scene.canvas.AttachComponent<HingeJoint2D>(rod);
+            hinge->anchor = { -0.5f, 0 };
+            hinge->useLimits = true;
+            hinge->lowerAngle = -30.0f;
+            hinge->upperAngle = 10.0f;
+            scene.Run(1.5f);
+            Check(scene.physics.GetJointCount() == 1, "a hinge on a body becomes one kernel joint");
+            Check(Near(hinge->connectedAnchor.x, 2.0f, 1.0e-3f) && Near(hinge->connectedAnchor.y, 1.0f, 1.0e-3f),
+                "with no partner the pin is written as the scaled anchor's world point");
+            Check(Near(scene.TransformOf(rod)->rotation, -10.0f * degree, 2.0f * degree),
+                "the falling rod turns clockwise and the lower limit, measured from where it started, holds it");
+            const Vec2 end = scene.TransformOf(rod)->position;
+            const float angle = scene.TransformOf(rod)->rotation;
+            Check(Near(end.x - std::cos(angle), 2.0f, 0.02f) && Near(end.y - std::sin(angle), 1.0f, 0.02f),
+                "and its end stays on the pin");
+            // 모터로 반시계로 들어 올리면 위 한계(시작에서 +10°)에서 선다.
+            hinge->useMotor = true;
+            hinge->motorSpeed = 180.0f;
+            hinge->maxMotorTorque = 1000.0f;
+            scene.Run(1.5f);
+            Check(Near(scene.TransformOf(rod)->rotation, 30.0f * degree, 2.0f * degree),
+                "a motor lifting it counterclockwise stops at the upper limit");
+        }
+        {
+            Scene scene;
+            scene.physics.SetGravity({ 0, 0 });
+            JBro::GameObject* wheel = scene.Object("wheel", { 0, 0 });
+            Collider2D* round = scene.canvas.AttachComponent<Collider2D>(wheel);
+            round->shape = ColliderShape2D::Circle;
+            Rigidbody2D* body = scene.Dynamic(wheel);
+            HingeJoint2D* hinge = scene.canvas.AttachComponent<HingeJoint2D>(wheel);
+            hinge->useMotor = true;
+            hinge->motorSpeed = 90.0f;
+            scene.Run(0.5f);
+            Check(Near(body->angularVelocity, 90.0f * degree, 0.01f), "a motor turns the object counterclockwise at its speed");
+        }
+        {
+            Scene scene;
+            JBro::GameObject* hook = scene.Object("hook", { 0, 5 });
+            scene.Box(hook, { 0.2f, 0.2f });
+            JBro::GameObject* weight = scene.Object("weight", { 0, 3 });
+            scene.Box(weight, { 0.5f, 0.5f });
+            scene.Dynamic(weight);
+            DistanceJoint2D* joint = scene.canvas.AttachComponent<DistanceJoint2D>(weight);
+            joint->connectedObject = hook->GetScriptHandle();
+            scene.Run(1.0f);
+            Check(Near(joint->distance, 2.0f, 1.0e-4f), "the first distance is written from the two anchors");
+            Check(Near(scene.TransformOf(weight)->position.y, 3.0f, 0.02f), "and the weight hangs there");
+            joint->distance = 1.0f;
+            scene.Run(1.5f);
+            Check(scene.physics.GetJointCount() == 1 && Near(scene.TransformOf(weight)->position.y, 4.0f, 0.03f),
+                "a shorter distance pulls it up with the same joint");
+            joint->maxDistanceOnly = true;
+            joint->distance = 3.0f;
+            scene.Run(1.5f);
+            Check(Near(scene.TransformOf(weight)->position.y, 2.0f, 0.03f), "as a rope it falls to its length");
+            joint->SetEnabled(false);
+            scene.Run(0.2f);
+            Check(scene.physics.GetJointCount() == 0 && scene.TransformOf(weight)->position.y < 1.9f,
+                "switching the joint off removes it and the weight falls");
+            joint->SetEnabled(true);
+            JBro::GameObject* stand = scene.Object("stand", { 0, -3 });
+            scene.Box(stand, { 4, 1 });
+            scene.Run(2.0f);
+            Check(scene.physics.GetJointCount() == 1, "switching it on joins them again");
+            Check(scene.canvas.DestroyObject(hook), "the hook is destroyed");
+            scene.canvas.FlushPendingDestroy();
+            scene.Run(0.5f);
+            Check(scene.physics.GetJointCount() == 0 && scene.TransformOf(weight)->position.y < 1.5f,
+                "without its partner the joint is gone and the weight falls");
+        }
+    }
+
+    // **오브젝트 참조는 캔버스 파일에 파일 안 번호로 적힌다(D-233).** 뒤에 오는 오브젝트를 가리켜도 읽힌 뒤 그 오브젝트를 잡고,
+    // 빈 참조는 빈 채로 온다. 파일 밖(되돌리기 글자)에서는 이번 실행의 번호다.
+    void TestAnObjectReferenceSurvivesTheCanvasFile()
+    {
+        using JBro::Component::DistanceJoint2D;
+        Check(JBro::Component::RegisterBuiltinComponentTypes2D() && JBro::Component::RegisterBuiltinComponentProperties2D(),
+            "the 2D components register");
+        JBro::Canvas canvas{ JBro::CreateDefaultAllocator() };
+        JBro::GameObject* first = canvas.CreateObject("first");
+        JBro::GameObject* second = canvas.CreateObject("second");
+        DistanceJoint2D* forward = canvas.AttachComponent<DistanceJoint2D>(first);
+        forward->connectedObject = second->GetScriptHandle();
+        DistanceJoint2D* empty = canvas.AttachComponent<DistanceJoint2D>(second);
+        (void)empty;
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(canvas, text, error), "the canvas is written");
+        Check(text.find("connectedObject: 1") != JBro::String::npos, "the reference is written as the file index of its object");
+        Check(text.find("connectedObject: \"\"") != JBro::String::npos || text.find("connectedObject: \n") != JBro::String::npos
+                || text.find("connectedObject:\n") != JBro::String::npos,
+            "and an empty one as nothing");
+
+        JBro::Canvas read{ JBro::CreateDefaultAllocator() };
+        Check(JBro::ReadCanvasText(read, text.c_str(), text.size(), error), "the canvas reads back");
+        JBro::GameObject* readFirst = nullptr;
+        JBro::GameObject* readSecond = nullptr;
+        read.ForEachObject([&](JBro::GameObject& object) {
+            if (std::strcmp(object.GetTag(), "first") == 0)
+            {
+                readFirst = &object;
+            }
+            if (std::strcmp(object.GetTag(), "second") == 0)
+            {
+                readSecond = &object;
+            }
+        });
+        Check(readFirst != nullptr && readSecond != nullptr, "both objects come back");
+        DistanceJoint2D* readForward = read.FindComponentRaw<DistanceJoint2D>(readFirst);
+        DistanceJoint2D* readEmpty = read.FindComponentRaw<DistanceJoint2D>(readSecond);
+        Check(readForward != nullptr && readForward->connectedObject.GetInstanceId() == readSecond->GetInstanceId(),
+            "a reference to a later object finds the new copy of it");
+        Check(readForward->connectedObject.GetInstanceId() != second->GetInstanceId(), "not the object it was written from");
+        Check(readEmpty != nullptr && false == readEmpty->connectedObject.IsValid(), "an empty reference stays empty");
+
+        const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<JBro::GameObjectHandle>::Get();
+        char buffer[64];
+        std::size_t required = 0;
+        Check(type.codec->ToText(&forward->connectedObject, buffer, sizeof(buffer), required) && buffer[0] == '@',
+            "outside a canvas file the text is this run's object number");
+        JBro::GameObjectHandle parsed;
+        Check(type.codec->FromText(&parsed, buffer, std::strlen(buffer)) && parsed.GetInstanceId() == second->GetInstanceId(),
+            "and it reads back to the same object");
+        Check(false == type.codec->FromText(&parsed, "3", 1), "a bare file index means nothing outside a canvas file");
+    }
+
+    // **질의는 경계로 먼저 거른다(D-234).** 3 m 간격 격자의 콜라이더 100 개 가운데 짧은 반직선과 작은 원은 곁의 몇 개만 들여다보고,
+    // 멀리 떨어진 질의는 하나도 보지 않는다. 결과는 거르기 전과 같다.
+    void TestQueriesSkipFarColliders()
+    {
+        Scene scene;
+        for (int x = 0; x < 10; ++x)
+        {
+            for (int y = 0; y < 10; ++y)
+            {
+                JBro::GameObject* object = scene.Object("cell", { 3.0f * static_cast<float>(x), 3.0f * static_cast<float>(y) });
+                if ((x + y) % 2 == 0)
+                {
+                    scene.Box(object, { 1, 1 });
+                }
+                else
+                {
+                    Collider2D* round = scene.canvas.AttachComponent<Collider2D>(object);
+                    round->shape = ColliderShape2D::Circle;
+                    round->radius = 0.5f;
+                }
+            }
+        }
+        const JBro::System::IPhysics2DSystem& queries = scene.physics;
+        JBro::RaycastHit2D hit;
+        Check(queries.Raycast({ 7, 6 }, { 1, 0 }, 3, hit, JBro::AllPhysicsLayers) && Near(hit.distance, 1.5f, 1.0e-4f),
+            "a short ray still hits the circle next to it");
+        Check(scene.physics.GetLastQueryColliderCount() <= 2, "and looks at no more than the colliders along it");
+        Array<JBro::GameObjectHandle> found;
+        queries.OverlapCircle({ 12, 12 }, 0.2f, found, JBro::AllPhysicsLayers);
+        Check(found.Size() == 1 && scene.physics.GetLastQueryColliderCount() == 1, "a small circle looks at one collider");
+        // 원 콜라이더(중심 (9, 6), 반지름 0.5)의 가장자리만 걸치는 질의도 찾는다 - 경계는 반지름을 품는다.
+        queries.OverlapCircle({ 9.6f, 6.0f }, 0.2f, found, JBro::AllPhysicsLayers);
+        Check(found.Size() == 1, "a query touching only a circle's edge still finds it");
+        // 원을 민 스윕은 반지름만큼 옆의 콜라이더도 본다 - (1.8, 0.8) 에서 반지름 0.4 로 오른쪽으로 밀면 (3, 0) 의 원(반지름 0.5)에 걸린다.
+        Check(queries.CircleCast({ 1.8f, 0.8f }, 0.4f, { 1, 0 }, 5, hit, JBro::AllPhysicsLayers) && hit.distance > 0.5f && hit.distance < 1.0f,
+            "a circle cast finds a collider beside its line within its radius");
+        // 가로로 네 배 늘린 상자의 먼 끝도 찾는다 - 경계는 크기를 곱한다.
+        JBro::GameObject* stretched = scene.Object("stretched", { 40, 0 });
+        scene.TransformOf(stretched)->scale = { 4, 1 };
+        scene.Box(stretched, { 1, 1 });
+        Check(queries.OverlapPoint({ 41.8f, 0.0f }, JBro::AllPhysicsLayers).GetInstanceId() == stretched->GetInstanceId(),
+            "the far end of a scaled box is still found");
+        Check(false == queries.Raycast({ 100, 100 }, { 0, 1 }, 5, hit, JBro::AllPhysicsLayers)
+                && scene.physics.GetLastQueryColliderCount() == 0,
+            "a query far away looks at none");
+    }
 }
 
 int RunPhysics2DSystemTests()
@@ -874,11 +1195,17 @@ int RunPhysics2DSystemTests()
     TestAFallingBoxLandsAndBothScriptsHearIt();
     TestAConcavePolygonColliderHoldsWhatFallsOnAndIntoIt();
     TestATriggerReportsWithoutPushing();
+    TestStayHooksComeEveryStepWhileTouching();
+    TestAOneWayColliderLetsThingsUpThrough();
+    TestJointComponents();
+    TestTheLayerTableReachesTheKernel();
+    TestAnObjectReferenceSurvivesTheCanvasFile();
     TestLosingAPartnerEndsTheContact();
     TestSwitchingOffAMovingBodysColliderLetsItFall();
     TestRestartingDoesNotReplayOldContacts();
     TestQueriesSeePolygonsAndRotatedBoxes();
     TestTheWiderQueries();
+    TestQueriesSkipFarColliders();
     TestAStaticBodyFollowsItsTransform();
     TestCapsuleColliders();
     TestTheWorkerCountReachesTheKernel();
