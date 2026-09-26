@@ -2888,6 +2888,22 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-231. 시간과 난수는 엔진이 소유한 `TimeSystem`·`RandomSystem` 이고, 스크립트는 공통 `ServiceContext` 의 `Time`·`Random` 으로 읽으며, 훅은 델타를 인자로 받지 않는다.**
+  (2026-09-27, [time-plan.md](./time-plan.md). 사용자 요청: "스크립트 인자에 델타를 받는건 뭐냐 - 기존 엔진과 비교해 재설계해서 완전히 이식하고
+  추가 기능과 구조 개선까지") Updates: D-43(공통 `SystemContext` 가 처음으로 차원 무관 슬롯을 갖는다), D-131(멈춤은 시계가 든다).
+  (1) `GameScriptBase::OnUpdate()`·`OnFixedUpdate()` 는 인자가 없다. §7 의 "매 호출마다 delta time 을 전달하는 구조를 기본으로 삼지 않는다" 를
+  어기고 있었다. 기존 엔진도 인자가 없었다. 엔진 시스템의 `GameSystem::OnUpdate(Canvas&, float)` 는 엔진 레이어라 그대로 받는다.
+  (2) 인터페이스(`ITimeSystem`·`FrameTime`·`IRandomSystem`)와 값 서비스(`TimeService`·`RandomService`)는 `JBroRuntime` 에, 구현은
+  `JBroHost` 에 둔다. 텍스트(`ITextSystem`)가 남긴 길이다. 새 Tier S 모듈을 만들지 않는다 - 공통 블록은 `BindScriptModuleContexts` 가 이미 묶는다.
+  판번호: 공통 `SystemContext` 4, `ServiceContext` 2.
+  (3) **시간은 한 자리다.** 프레임 델타 상한(0.25 초)·타임스케일(0~100, 스크립트가 바꿀 수 있는 유일한 값)·멈춤·한 프레임 진행·고정 스텝
+  누산(상한 4)이 모두 `TimeSystem` 에 있고 두 프레임워크의 누산기를 지웠다. `IFramework::Update()` 는 인자가 없고 `FrameworkContext::time` 이
+  필수다. 상한을 넘어 버린 스텝만큼 게임 델타도 줄여 `Time()` 과 `FixedTime()` 이 어긋나지 않는다. 고정 스텝 안에서 서비스의 `DeltaTime()`·
+  `Time()` 은 고정 델타·고정 시간이다. 누적 시간은 double 이다.
+  (4) **난수는 PCG32 `RandomStream`(`JBroCore`, 16 B 값)** 이고 정수 구간(Lemire 거절)·실수 [0, 1) 매핑까지 우리 코드라 같은 씨앗이면 컴파일러와
+  무관하게 같은 수열이다. 엔진 흐름은 잠그지 않고(메인 스레드 전용), 게임은 `MakeStream` 으로 제 흐름을 든다. 씨앗은 프로젝트 `RandomSeed`
+  (0 이면 재생마다 새로 뽑아 로그에 남긴다).
+  (5) 프로젝트 파일 최상위 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime`·`RandomSeed` 를 둔다. 에디터에 한 프레임 진행이 생긴다(기존 엔진에 없었다).
 - **D-229. 체인 콜라이더는 이웃 꼭짓점(유령)을 아는 두 점 선분들이고, 몸은 섬 단위로 잠든다.**
   (2026-09-27, physics-plan §4 의 9-2. 사용자 확인: "추천순 제안한거 전부" - 기존 엔진에 없던 것) Updates: D-199.
   (1) `Collider2D` 에 `ColliderShape2D::Chain` 과 `loop` 를 둔다. 점은 폴리곤과 같은 `points` 이고, 비었으면 `size.x` 폭의 평평한 선이다. 커널은
