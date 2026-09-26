@@ -23,7 +23,9 @@
 #include <JBro/Framework2DSystem/PhysicsThreads.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Host/RandomSystem.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
@@ -204,6 +206,8 @@ namespace JBro
             EngineConfig engineConfig;
             engineConfig.graphicsApi = config.graphicsApi;
             engineConfig.time = config.time;
+            // 게임 뷰의 디버그 선은 에디터의 토글이 정한다(D-232). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
+            engineConfig.gameDebugDrawFromProject = false;
             engineConfig.enableValidation = config.enableValidation;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
@@ -223,6 +227,7 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
+            m_engine->SetGameDebugDrawVisible(m_gameViewDebugDraw);
             // **입력은 에디터가 꺼내 간다**(D-177). 엔진이 프레임마다 비우면 UI 가 그것을
             // 보지 못한다 - 에디터는 한 프레임에 펌프를 두 번 돌기 때문이다.
             m_engine->SetInputOwnedByHost(true);
@@ -2739,6 +2744,59 @@ namespace JBro
         return m_simulationPaused;
     }
 
+    void EditorApplication::StepSimulation()
+    {
+        if (false == m_simulationPlaying || false == m_simulationPaused || m_engine.Get() == nullptr)
+        {
+            return;
+        }
+        m_engine->StepSimulation();
+    }
+
+    void EditorApplication::SetGameViewDebugDraw(bool visible)
+    {
+        m_gameViewDebugDraw = visible;
+        if (m_engine.Get() != nullptr)
+        {
+            m_engine->SetGameDebugDrawVisible(visible);
+        }
+    }
+
+    bool EditorApplication::IsGameViewDebugDrawVisible() const
+    {
+        return m_gameViewDebugDraw;
+    }
+
+    void EditorApplication::SetCanvasViewDebugDraw(bool visible)
+    {
+        m_canvasViewDebugDraw = visible;
+    }
+
+    bool EditorApplication::IsCanvasViewDebugDrawVisible() const
+    {
+        return m_canvasViewDebugDraw;
+    }
+
+    const FrameTime* EditorApplication::GetFrameTime() const
+    {
+        EngineInstance* engine = m_engine.Get();
+        const System::TimeSystem* time = engine != nullptr ? engine->GetTime() : nullptr;
+        return time != nullptr ? &time->GetFrameTime() : nullptr;
+    }
+
+    const System::DebugDrawSystem* EditorApplication::GetDebugDraw() const
+    {
+        EngineInstance* engine = m_engine.Get();
+        return engine != nullptr ? engine->GetDebugDraw() : nullptr;
+    }
+
+    std::uint64_t EditorApplication::GetRandomSeed() const
+    {
+        EngineInstance* engine = m_engine.Get();
+        const System::RandomSystem* random = engine != nullptr ? engine->GetRandom() : nullptr;
+        return random != nullptr ? random->GetSeed() : 0;
+    }
+
     bool EditorApplication::EnsureCanvasViewTexture(const Extent2D& extent)
     {
         if (m_canvasView.IsValid()
@@ -2815,6 +2873,7 @@ namespace JBro
         m_canvasViewRequest.centerX = centerX;
         m_canvasViewRequest.centerY = centerY;
         m_canvasViewRequest.orthographicSize = orthographicSize;
+        m_canvasViewRequest.debugDraw = m_canvasViewDebugDraw;
         // **캔버스가 지우는 색을 쓴다**(D-186). 편집하는 배경이 게임에서 보일 배경과
         // 달라 보이면, 색을 고르는 일 자체를 화면에서 판단할 수 없다.
         if (const Canvas* canvas = GetCanvas())
@@ -3045,6 +3104,20 @@ namespace JBro
                 : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"));
             DrawShortcutItem(EditorShortcut::TogglePause,
                 Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"));
+            DrawShortcutItem(EditorShortcut::StepFrame,
+                Loc::TextOr(LocKeys::MenuSimulationStep, "Step One Frame"));
+            ImGui::Separator();
+            bool gameDebugDraw = m_gameViewDebugDraw;
+            if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationGameDebugDraw, "Debug Lines in Game View"), gameDebugDraw))
+            {
+                SetGameViewDebugDraw(gameDebugDraw);
+            }
+            // 두 뷰의 토글을 한 메뉴에 둔다(D-232). 캔버스 뷰 도구 모음에 단추로 두면 도구 모음이 넓어져 좁은 창에서 줄이 바뀐다.
+            bool canvasDebugDraw = m_canvasViewDebugDraw;
+            if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationCanvasDebugDraw, "Debug Lines in Canvas View"), canvasDebugDraw))
+            {
+                SetCanvasViewDebugDraw(canvasDebugDraw);
+            }
             Widget::EndMenu();
         }
 

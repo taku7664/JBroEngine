@@ -555,6 +555,55 @@ namespace JBro
             layout.Row(
                 [] { Widget::Text("DebugModeEnabled"); },
                 [&] { Widget::Checkbox("##debug", m_draft.debugModeEnabled); });
+            // 시간(D-231). 범위는 파일을 읽을 때와 같다(`TimeSystem::IsValid`).
+            layout.Row(
+                [] { Widget::Text("FixedDeltaTime"); },
+                [&]
+                {
+                    Widget::DragFloat("##fixedDelta").Range(0.001f, 1.0f).Speed(0.0005f).Format("%.4f").Draw(m_draft.fixedDeltaTime);
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsFixedDeltaTime,
+                        "the length of one fixed step in seconds; physics and OnFixedUpdate run at this interval"));
+                });
+            layout.Row(
+                [] { Widget::Text("MaxFixedSteps"); },
+                [&]
+                {
+                    int value = static_cast<int>(m_draft.maxFixedSteps);
+                    if (Widget::DragInt("##maxFixedSteps").Range(1, 64).Draw(value))
+                    {
+                        m_draft.maxFixedSteps = static_cast<std::uint32_t>(value);
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsMaxFixedSteps,
+                        "the most fixed steps one frame runs; past it the game slows down instead of catching up"));
+                });
+            layout.Row(
+                [] { Widget::Text("MaxDeltaTime"); },
+                [&]
+                {
+                    Widget::DragFloat("##maxDelta").Range(0.001f, 10.0f).Speed(0.005f).Format("%.3f").Draw(m_draft.maxDeltaTime);
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsMaxDeltaTime,
+                        "the longest frame delta in seconds; a frame after a window drag or a breakpoint is cut to this"));
+                });
+            layout.Row(
+                [] { Widget::Text("RandomSeed"); },
+                [&]
+                {
+                    // 64 비트라 끌기 칸으로는 담지 못한다. 글자로 받고 숫자로 읽히는 것만 받는다.
+                    char digits[24] = {};
+                    std::snprintf(digits, sizeof(digits), "%llu", static_cast<unsigned long long>(m_draft.randomSeed));
+                    String seed(digits);
+                    if (Widget::TextField("##randomSeed", seed).Draw())
+                    {
+                        char* end = nullptr;
+                        const unsigned long long parsed = std::strtoull(seed.c_str(), &end, 10);
+                        if (false == seed.empty() && seed[0] != '-' && end != nullptr && *end == '\0')
+                        {
+                            m_draft.randomSeed = parsed;
+                        }
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsRandomSeed,
+                        "the random seed; 0 draws a new one on every play and logs it"));
+                });
         }
 
         // **에디터 언어**(D-146). 기존 엔진도 설정 창에서 골랐고, 고른 값은 프로젝트에 남는다.

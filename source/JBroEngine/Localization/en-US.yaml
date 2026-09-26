@@ -21,6 +21,9 @@ Entries:
   menu.simulation_play: Play
   menu.simulation_stop: Stop
   menu.simulation_pause: Pause
+  menu.simulation_step: Step One Frame
+  menu.simulation_game_debug_draw: Debug Lines in Game View
+  menu.simulation_canvas_debug_draw: Debug Lines in Canvas View
   menu.save_canvas: Save Canvas
   menu.save_project: Save Project
   dock.main: Main
@@ -102,6 +105,11 @@ Entries:
   stats.frame_time: frame %.2f ms
   stats.per_second: %.0f per second
   stats.frame_count: frames %llu
+  stats.game_time: game time %.2f s at scale %.2f
+  stats.fixed_steps: fixed steps this frame %u
+  stats.random_seed: random seed %llu
+  stats.debug_lines: debug lines %u / %u
+  stats.debug_lines_dropped: dropped %u debug line(s) - the store is full
   stats.views: views %u
   stats.sprites: sprites %u
   stats.dropped: dropped %u view(s), %u sprite(s)
@@ -126,6 +134,7 @@ Entries:
   blocked.nothing_to_redo: there is nothing to redo
   blocked.clipboard_empty: nothing has been copied
   blocked.not_playing: the simulation is not running
+  blocked.not_paused: pause the simulation to step one frame
   blocked.project_has_no_file: only a project opened from a file can be saved
   blocked.pick_an_image: pick an image asset first
   blocked.last_layer: a canvas needs at least one layer
@@ -239,6 +248,10 @@ Entries:
   project_settings.revert: Revert
   project_settings.saved: saved
   project_settings.linear_filter: linear sampling; off is nearest, which is the pixel-art default
+  project_settings.fixed_delta_time: the length of one fixed step in seconds; physics and OnFixedUpdate run at this interval
+  project_settings.max_fixed_steps: the most fixed steps one frame runs; past it the game slows down instead of catching up
+  project_settings.max_delta_time: the longest frame delta in seconds; a frame after a window drag or a breakpoint is cut to this
+  project_settings.random_seed: the random seed; 0 draws a new one on every play and logs it
   project_settings.ignore_patterns: one pattern a line; the scan and the watcher skip what matches
   panel.profiler: Profiler
   profiler.hint: measured while this window is open

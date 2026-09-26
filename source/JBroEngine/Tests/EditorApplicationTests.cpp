@@ -1,4 +1,5 @@
-﻿#include <JBro/LocalizationTypes/ServiceContext.h>
+﻿#include <JBro/Host/DebugDrawSystem.h>
+#include <JBro/LocalizationTypes/ServiceContext.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
 #include <JBro/Core/Version.h>
@@ -5884,6 +5885,78 @@ namespace
         editor.Shutdown();
     }
 
+    // **멈춘 게임을 한 프레임씩 본다**(D-231, 기존 엔진에 없던 것). 한 프레임 진행은 멈춘 동안만 되고, 떨어지는 상자를 고정 스텝
+    // 한 번만큼만 움직인다. 디버그 선의 두 토글(게임 뷰·캔버스 뷰)은 처음에 켜져 있고 게임 뷰의 것은 엔진에 닿는다(D-232).
+    void TestSteppingAPausedGameAndTheDebugLineToggles()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; single-frame steps not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "StepFrameProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* box = canvas->CreateObject("Box");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
+        transform->position = {0.0f, 3.0f};
+        canvas->AttachComponent<JBro::Component::Collider2D>(box);
+        Check(canvas->AttachComponent<JBro::Component::Rigidbody2D>(box) != nullptr, "the box needs a body to fall");
+        Check(editor.Tick(Frame), "the editor must tick before play");
+
+        const char* notPlaying = JBro::Loc::TextOr(JBro::LocKeys::BlockedNotPlaying, "");
+        Check(false == JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::StepFrame), "a stopped game cannot step");
+        Check(std::strcmp(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::StepFrame), notPlaying) == 0,
+            "and the menu says it is not running");
+        Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::StepFrame).value, "F7") == 0,
+            "stepping is F7, after F5 play and F6 pause");
+
+        Check(editor.StartSimulation(), "play must start");
+        Check(editor.GetRandomSeed() != 0, "play seeds the random stream");
+        for (int frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        Check(editor.GetFrameTime() != nullptr && editor.GetFrameTime()->time > 0.0, "game time runs while playing");
+        Check(false == JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::StepFrame), "a running game cannot step");
+        Check(std::strcmp(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::StepFrame),
+                  JBro::Loc::TextOr(JBro::LocKeys::BlockedNotPaused, "")) == 0,
+            "and the menu says to pause first");
+
+        editor.SetSimulationPaused(true);
+        Check(editor.Tick(Frame), "the editor must tick while paused");
+        const float pausedAt = transform->position.y;
+        Check(editor.Tick(Frame) && transform->position.y == pausedAt, "a paused game does not move");
+        Check(JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::StepFrame), "a paused game can step");
+        Check(JBro::EditorShortcuts::Execute(editor, JBro::EditorShortcut::StepFrame), "the step runs from the shortcut table");
+        Check(editor.Tick(Frame), "the stepped frame ticks");
+        const float steppedTo = transform->position.y;
+        Check(steppedTo < pausedAt, "one step moves the falling box");
+        Check(editor.GetFrameTime()->stepFrame && editor.GetFrameTime()->fixedStepCount == 1, "by exactly one fixed step");
+        Check(editor.Tick(Frame) && transform->position.y == steppedTo, "and the frame after it is paused again");
+        Check(editor.IsSimulationPaused(), "stepping does not resume the game");
+
+        Check(editor.IsGameViewDebugDrawVisible() && editor.IsCanvasViewDebugDrawVisible(), "both debug line toggles start on");
+        Check(editor.GetDebugDraw() != nullptr && editor.GetDebugDraw()->IsGameViewVisible(), "and the game view's reaches the engine");
+        editor.SetGameViewDebugDraw(false);
+        Check(false == editor.GetDebugDraw()->IsGameViewVisible(), "turning it off hides the lines in the game view");
+        editor.SetCanvasViewDebugDraw(false);
+        Check(false == editor.IsCanvasViewDebugDrawVisible(), "the canvas view keeps its own toggle");
+
+        editor.StopSimulation();
+        Check(editor.GetFrameTime()->time == 0.0 && editor.GetFrameTime()->timeScale == 1.0f,
+            "stopping puts the game clock back to the start");
+        editor.Shutdown();
+    }
+
     void TestPlayingAndStoppingRestoresTheCanvas()
     {
         JBro::EditorApplication editor;
@@ -11648,6 +11721,7 @@ int RunEditorApplicationTests()
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestPlayingRunsPhysicsAndStoppingPutsItBack();
+    TestSteppingAPausedGameAndTheDebugLineToggles();
     TestThePhysicsThreadsSettingReachesPlay();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();

@@ -93,6 +93,10 @@
 - [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214·D-218). 1~6 단계와 7 의 터치·액션 세트(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
   `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 게임 뷰 포커스 게이트·액션과 설정 화면·게임패드·터치)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
   전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(실기기 실측과 `[열림]`)이 §4 에 있다
+- [tasks/time-plan.md](./tasks/time-plan.md) — 시간·난수·디버그 드로(D-231·D-232). 스크립트 훅은 델타를 인자로 받지 않고 `GetServiceContext().Time` 에서 읽는다.
+  호스트의 `TimeSystem` 이 델타 상한·타임스케일·멈춤·한 프레임 진행·고정 스텝을 한 자리에 들고, 난수는 PCG32 `RandomStream`, 디버그 선은 고정 용량 저장소를
+  기존 사각형 경로로 뷰마다 픽셀 두께로 그린다. 기존 엔진 `CTime`·`CRandomService`·`CDebugDraw2D` 의 구조와 아팠던 것 T1~T5·R1~R4·D1~D5 가 §1, 설계가 §2,
+  단계와 실측·뮤테이션이 §3, `[열림]` 이 §4 에 있다
 - [tasks/save-plan.md](./tasks/save-plan.md) — 세이브 저장소(D-218 (4)). 새 Tier S 모듈 `JBroSaveTypes`(`ISaveStorage`·`SaveService`)와 호스트 구현 `SaveStorage` 가 섰다.
   기존 엔진 `CSaveStorage` 의 구조와 아팠던 것 S1~S5(제자리 덮어쓰기·DLL 경계의 `std::vector`·예약 이름·에디터와 게임이 한 폴더)가 §1, 설계가 §2, 검증이 §3, `[열림]` 이 §4 에 있다
 - [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~6 단계(커널 `JBroPhysics2D`, 어댑터 `Physics2DSystem`, 캔버스 뷰의 폴리곤 포인트 편집, 질의 확장)가 모두 섰다. 그 뒤로 캡슐 콜라이더와 제자리 모양 바꾸기(크기 애니메이션의 접촉 유지), 좁은 판정의 물리 전용 워커와 빌드 설정 `Build.PhysicsThreads`(D-223)가 섰다. 남은 뒤의 것(조인트·체인·CCD·Stay 훅)과 단계마다 남긴 `[열림]` 이 §4 에 있다.

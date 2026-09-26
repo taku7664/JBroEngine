@@ -9,6 +9,7 @@
 #include <JBro/Types/NameTable.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
 
@@ -106,6 +107,27 @@ namespace JBro
         if (m_editor == nullptr)
         {
             return;
+        }
+        // **게임의 시간과 디버그 선**(D-231, D-232). 타임스케일을 바꾼 게임이 왜 느린지, 선이 왜 안 보이는지가 여기서 보여야 한다.
+        if (const FrameTime* time = m_editor->GetFrameTime())
+        {
+            ImGui::Separator();
+            Widget::TextF(Loc::TextOr(LocKeys::StatsGameTime, "game time %.2f s at scale %.2f"), time->time,
+                static_cast<double>(time->timeScale));
+            Widget::TextF(Loc::TextOr(LocKeys::StatsFixedSteps, "fixed steps this frame %u"), time->fixedStepCount);
+            Widget::TextF(Loc::TextOr(LocKeys::StatsRandomSeed, "random seed %llu"),
+                static_cast<unsigned long long>(m_editor->GetRandomSeed()));
+        }
+        if (const System::DebugDrawSystem* debugDraw = m_editor->GetDebugDraw())
+        {
+            Widget::TextF(Loc::TextOr(LocKeys::StatsDebugLines, "debug lines %u / %u"), debugDraw->GetLineCount(),
+                debugDraw->GetCapacity());
+            if (debugDraw->GetDroppedCount() != 0)
+            {
+                Widget::SeverityTextF(Widget::Severity::Warning,
+                    Loc::TextOr(LocKeys::StatsDebugLinesDropped, "dropped %u debug line(s) - the store is full"),
+                    debugDraw->GetDroppedCount());
+            }
         }
         const Renderer* renderer = m_editor->GetRenderer();
         if (renderer == nullptr)
