@@ -49,6 +49,16 @@ namespace JBro::Text
         Ksx1001,
     };
 
+    // 미리 뜬 아틀라스의 표지다(D-232). 폰트 원본과 미리 뜨기 설정이 같을 때만 되살린다 - 폰트를 바꾸거나 설정을 고친 뒤의 옛 아틀라스를
+    // 쓰지 않는다.
+    struct BakedAtlasStamp
+    {
+        std::uint64_t sourceHash = 0; // 폰트 원본 바이트의 64 비트 FNV-1a(`HashFontSource`)
+        PrewarmSet    set = PrewarmSet::None;
+        std::uint32_t pixelSize = 0;
+        std::uint32_t sdfSpread = 0;  // 0 이면 비트맵이다
+    };
+
     class GlyphAtlas final
     {
     public:
@@ -92,6 +102,13 @@ namespace JBro::Text
         std::uint32_t GetGlyphCount() const;
         // 모든 칸과 페이지를 버린다. 폰트가 다시 로드되면 부른다(옛 글리프는 옛 바이트의 것이다).
         void Clear();
+
+        // **미리 뜬 아틀라스를 싸고 되살린다**(D-232, package-plan §2.5). 페이지(커버리지 한 채널)·칸 표·페이지마다의 선반 자리를 적는다 -
+        // 되살린 뒤 새 글자가 같은 페이지를 이어 채워도 겹치지 않는다. 게임 빌드가 싸고, 게임의 텍스트 라이브러리가 폰트를 열 때 되살린다.
+        void Bake(const BakedAtlasStamp& stamp, Array<std::byte>& out) const;
+        // 표지가 같고 모양이 맞으면 지금 것을 버리고 되살린다. 모든 페이지가 더러워진다(통째로 올린다). 틀리면 거짓이고 지금 것을 건드리지 않는다.
+        bool Restore(ArrayView<const std::byte> baked, const BakedAtlasStamp& expected);
+        static std::uint64_t HashFontSource(const std::byte* bytes, std::size_t size);
 
     private:
         struct Page

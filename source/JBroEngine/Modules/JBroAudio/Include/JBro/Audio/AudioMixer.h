@@ -55,12 +55,18 @@ namespace JBro
         const float* pcm = nullptr;
         std::uint64_t frameCount = 0;
         std::uint32_t sampleRate = 0;
+        // `Encoded`·`File` 은 이 값이 1 이고 파일이 여러 채널이면 풀면서 평균해 모노로 읽는다(D-231).
         std::uint32_t channels = 0;
         const void* bytes = nullptr;
         std::size_t byteCount = 0;
         const char* path = nullptr;
         // 파일의 크기 보정(트림, 0..4)이다(D-205). 보이스의 음량에 곱해진다 - 소리마다 다른 녹음 크기를 에셋에서 한 번 맞춘다.
         float gain = 1.0f;
+        // 이 클립이 동시에 울릴 수 있는 수다(0 이면 제한 없음, D-231). 다 찼으면 새 보이스보다 우선순위가 높지 않은 것 가운데
+        // 가장 오래된 것을 20 ms 에 줄여 끄고 새것을 튼다. 그런 것이 없으면 새것을 버린다.
+        std::uint32_t maxInstances = 0;
+        // 이 클립을 마지막으로 튼 뒤 이 초가 지나기 전의 재생은 버린다(0 이면 끔, D-231). 시계는 믹서가 섞은 시간이다.
+        float cooldownSeconds = 0.0f;
     };
 
     // 보이스를 시작할 때 한 번 정하는 값이다. **거리·감쇠·원뿔·도플러 계수는 여기에만 있다** - miniaudio 가 그것을
@@ -84,6 +90,8 @@ namespace JBro
         float position[3] = {0.0f, 0.0f, 0.0f};
         // 0..255. 보이스가 모자랄 때 낮은 것부터 훔친다. 같은 우선순위면 작게 들리는 것, 그다음 오래된 것이다.
         std::uint8_t priority = 128;
+        // 공간화한 한 번짜리 소리(루프 아님)가 시작하는 자리에서 거리 감쇠 × 음량 × 트림이 -60 dB 밑이면 보이스를 잡지 않고
+        // 버린다(D-231) - 들리지 않는 소리가 들리는 소리를 훔치지 않는다. 루프는 가까이 올 수 있으므로 거르지 않는다.
         // 0 보다 크면 그만큼 뒤에 시작한다(샘플 단위로 정확하다 - 기존 엔진의 PlayAt).
         float startDelaySeconds = 0.0f;
         float fadeInSeconds = 0.0f;
@@ -116,6 +124,10 @@ namespace JBro
             std::uint64_t voicesStarted = 0;
             std::uint64_t voicesStolen = 0;
             std::uint64_t voicesRejected = 0;
+            // D-231: 시작 자리에서 들리지 않아 버린 수, 클립의 쿨다운·동시 수로 버린 수, 동시 수 때문에 줄여 끈 옛 보이스 수.
+            std::uint64_t voicesCulled = 0;
+            std::uint64_t voicesThrottled = 0;
+            std::uint64_t voicesReplaced = 0;
             // 고정 할당기가 모자라 힙에서 새로 받은 횟수다. 초기화 뒤에 늘면 예열이 모자란 것이다.
             std::uint64_t allocatorGrowths = 0;
             // 마지막 `Render` 의 최대 절댓값(클리핑 전). 에디터 미터가 읽는다.

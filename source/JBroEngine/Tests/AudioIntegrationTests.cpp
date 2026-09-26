@@ -64,8 +64,8 @@ namespace
         file.write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
     }
 
-    // 16 비트 스테레오 WAV. 진폭 0.5, 440 Hz.
-    Array<std::uint8_t> MakeWav(std::uint32_t frames, float amplitude = 0.5f)
+    // 16 비트 스테레오 WAV. 진폭 0.5, 440 Hz. `right` 가 0 이상이면 오른쪽만 그 진폭이다.
+    Array<std::uint8_t> MakeWav(std::uint32_t frames, float amplitude = 0.5f, float right = -1.0f)
     {
         Array<std::uint8_t> bytes;
         const std::uint32_t dataBytes = frames * 4;
@@ -88,8 +88,10 @@ namespace
         {
             const float value = amplitude * std::sin(2.0f * Pi * 440.0f * static_cast<float>(frame) / Rate);
             const std::int16_t sample = static_cast<std::int16_t>(value * 32767.0f);
+            const std::int16_t rightSample = right >= 0.0f
+                ? static_cast<std::int16_t>(value / amplitude * right * 32767.0f) : sample;
             std::memcpy(bytes.Data() + 44 + frame * 4, &sample, 2);
-            std::memcpy(bytes.Data() + 44 + frame * 4 + 2, &sample, 2);
+            std::memcpy(bytes.Data() + 44 + frame * 4 + 2, &rightSample, 2);
         }
         return bytes;
     }
@@ -621,6 +623,132 @@ namespace
         float scratch[1600] = {};
     };
 
+    void EditAudioMeta(Fixture& fixture, const char* file, const AudioImportOptions& options)
+    {
+        const String metaPath = Utf8(fixture.root / "Sound" / file);
+        AssetMetaFile meta;
+        AssetMetaError metaError;
+        Check(LoadAssetMetaFile(fixture.platform, metaPath.c_str(), meta, metaError), "the meta reads");
+        meta.hasAudioOptions = true;
+        meta.audioOptions = options;
+        Check(SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the meta saves");
+    }
+
+    // 임포트가 클립을 믹서에 맞춘다(D-231): 미리 푸는 소리는 믹서의 레이트로, 모노 옵션은 세 방식 모두 채널 평균으로.
+    // 클립의 동시 수는 `.jmeta` 에서 믹서까지 간다.
+    void TestImportShapesClipsForTheMixer()
+    {
+        Fixture fixture;
+        fixture.Open();
+        // 왼쪽만 소리가 있는 파일로 바꾼다 - 평균이면 0.25, 합이면 0.5, 한쪽만 고르면 0.5 나 0 이다.
+        const Array<std::uint8_t> leftOnlyShort = MakeWav(Rate / 10, 0.5f, 0.0f);
+        const Array<std::uint8_t> leftOnlyLong = MakeWav(Rate, 0.5f, 0.0f);
+        WriteBytes(fixture.root / "Sound" / "blip.wav", leftOnlyShort.Data(), leftOnlyShort.Size());
+        WriteBytes(fixture.root / "Sound" / "theme.wav", leftOnlyLong.Data(), leftOnlyLong.Size());
+        AudioImportOptions shortOptions;
+        shortOptions.mono = true;
+        shortOptions.maxInstances = 2;
+        shortOptions.cooldown = 0.25f;
+        EditAudioMeta(fixture, "blip.wav.jmeta", shortOptions);
+        AssetMetaFile reread;
+        AssetMetaError metaError;
+        Check(LoadAssetMetaFile(fixture.platform, Utf8(fixture.root / "Sound" / "blip.wav.jmeta").c_str(), reread, metaError)
+            && reread.audioOptions.mono && reread.audioOptions.maxInstances == 2 && reread.audioOptions.cooldown == 0.25f,
+            "mono, instance limit and cooldown round-trip through the meta");
+        shortOptions.cooldown = 0.0f;
+        EditAudioMeta(fixture, "blip.wav.jmeta", shortOptions);
+        AudioImportOptions longOptions;
+        longOptions.mode = AudioImportMode::Streaming;
+        longOptions.mono = true;
+        EditAudioMeta(fixture, "theme.wav.jmeta", longOptions);
+
+        // 믹서가 44.1 kHz 다(장치가 그렇다). 오디오 시스템이 에셋에 그 레이트를 건다.
+        AudioMixerDesc desc;
+        desc.sampleRate = 44100;
+        desc.maxVoices = 16;
+        AudioMixer mixer;
+        Check(mixer.Initialize(desc), "the mixer initializes");
+        System::AudioSystem audio;
+        Check(audio.Initialize(mixer, &fixture.assets), "the audio system initializes");
+        const AssetHandle blip = fixture.assets.Load(fixture.shortId);
+        const AudioData* decoded = fixture.assets.GetAudio(blip);
+        Check(decoded != nullptr && decoded->sampleRate == 44100 && decoded->channels == 1,
+            "a decompressed clip is decoded at the mixer rate and in mono");
+        Check(decoded->frameCount >= 4408 && decoded->frameCount <= 4412 && decoded->pcm.Size() == decoded->frameCount,
+            "its length scales with the rate (0.1 s is 4410 frames)");
+        float peak = 0.0f;
+        std::uint32_t crossings = 0;
+        for (std::size_t frame = 0; frame < decoded->pcm.Size(); ++frame)
+        {
+            peak = std::fmax(peak, std::fabs(decoded->pcm[frame]));
+            if (frame > 0 && (decoded->pcm[frame - 1] < 0.0f) != (decoded->pcm[frame] < 0.0f))
+            {
+                ++crossings;
+            }
+        }
+        std::cout << "  48 kHz stereo decoded for a 44.1 kHz mixer in mono: " << decoded->frameCount << " frames, peak " << peak
+                  << ", " << crossings << " zero crossings\n";
+        Check(peak > 0.23f && peak < 0.27f, "mono is the average of the channels");
+        Check(crossings >= 86 && crossings <= 90, "the pitch survives resampling (440 Hz is 88 crossings in 0.1 s)");
+
+        // 동시 수 2 가 에셋에서 믹서까지 간다.
+        for (int burst = 0; burst < 6; ++burst)
+        {
+            audio.PlayOneShot(blip, AudioBusName{}, 1.0f, 1.0f);
+        }
+        Check(mixer.GetStats().voicesReplaced == 4, "the asset's instance limit reaches the mixer");
+        RenderPeaks(mixer, 2205);
+        audio.Update();
+        Check(mixer.GetStats().activeVoices == 2, "only two instances of the clip sound");
+        mixer.StopAll();
+
+        // 압축한 채 두는 소리도 모노로 푼다 - 보이스의 디코더가 클립의 채널로 연다.
+        const AssetHandle theme = fixture.assets.Load(fixture.longId);
+        const AudioData* streamed = fixture.assets.GetAudio(theme);
+        Check(streamed != nullptr && streamed->channels == 1 && streamed->sampleRate == Rate,
+            "a streaming clip reports one channel and keeps its file rate");
+        audio.PlayOneShot(theme, AudioBusName{}, 1.0f, 1.0f);
+        const Peaks encodedPeaks = RenderPeaks(mixer, 8820);
+        std::cout << "  mono streaming clip: left " << encodedPeaks.left << ", right " << encodedPeaks.right << '\n';
+        Check(std::fabs(encodedPeaks.left - encodedPeaks.right) < 0.01f && encodedPeaks.left > 0.22f && encodedPeaks.left < 0.28f,
+            "a mono streaming clip averages its channels and plays centred");
+
+        audio.Shutdown();
+        Check(fixture.assets.ReloadInPlace(fixture.shortId) && fixture.assets.GetAudio(blip)->sampleRate == Rate,
+            "without an audio system the file rate is kept");
+        mixer.Shutdown();
+
+        // 디스크 스트리밍도 모노로 읽는다(스트리머가 연 디코더가 평균한다).
+        longOptions.mode = AudioImportMode::StreamFromDisk;
+        EditAudioMeta(fixture, "theme.wav.jmeta", longOptions);
+        Check(fixture.assets.ReloadInPlace(fixture.longId), "the long clip reloads as a disk stream");
+        const AudioData* onDisk = fixture.assets.GetAudio(theme);
+        Check(onDisk != nullptr && onDisk->channels == 1 && false == onDisk->streamPath.empty(), "a disk stream reports one channel");
+        AudioMixerDesc streamDesc;
+        streamDesc.maxVoices = 4;
+        streamDesc.maxStreams = 1;
+        streamDesc.openStream = &OpenStreamForTest;
+        streamDesc.openStreamUser = &fixture.platform;
+        AudioMixer streamMixer;
+        Check(streamMixer.Initialize(streamDesc), "the streaming mixer initializes");
+        AudioClipDesc fileClip;
+        fileClip.encoding = AudioClipEncoding::File;
+        fileClip.path = onDisk->streamPath.c_str();
+        fileClip.frameCount = onDisk->frameCount;
+        fileClip.sampleRate = onDisk->sampleRate;
+        fileClip.channels = onDisk->channels;
+        AudioPlayDesc play;
+        play.clip = streamMixer.RegisterClip(fileClip);
+        Check(streamMixer.Play(play).IsSet(), "a mono disk stream starts");
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        const Array<float> windows = PacedWindowPeaks(streamMixer, 5, 4800);
+        std::cout << "  mono disk stream window peak " << windows[4] << '\n';
+        Check(windows[4] > 0.22f && windows[4] < 0.28f && streamMixer.GetStats().streamUnderruns == 0,
+            "a mono disk stream plays the channel average without a gap");
+        streamMixer.Shutdown();
+        fixture.Close();
+    }
+
     void TestSourcesFollowTheirLifecycle()
     {
         Scene scene;
@@ -929,6 +1057,7 @@ int RunAudioIntegrationTests()
         TestAudioAssetsLoadAndAnnounceTheirRelease();
         TestTheDevicePullsTheMixerAndStopsWhenAsked();
         TestStreamingFromDisk();
+        TestImportShapesClipsForTheMixer();
         TestSourcesFollowTheirLifecycle();
         TestBusesAndSpatialSources();
         TestTheScriptServiceReachesTheMixer();

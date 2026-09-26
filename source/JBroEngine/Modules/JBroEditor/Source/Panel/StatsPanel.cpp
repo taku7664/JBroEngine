@@ -173,6 +173,15 @@ namespace JBro
                         static_cast<unsigned long long>(sound.voicesStolen),
                         static_cast<unsigned long long>(sound.voicesRejected));
                 }
+                // 일부러 건너뛴 재생이다(D-231). 경고가 아니라 절약한 양이다.
+                if (sound.voicesCulled != 0 || sound.voicesThrottled != 0 || sound.voicesReplaced != 0)
+                {
+                    Widget::HintTextF(Loc::TextOr(LocKeys::StatsAudioSaved,
+                            "skipped %llu inaudible play(s), held back %llu by instance limit or cooldown, replaced %llu"),
+                        static_cast<unsigned long long>(sound.voicesCulled),
+                        static_cast<unsigned long long>(sound.voicesThrottled),
+                        static_cast<unsigned long long>(sound.voicesReplaced));
+                }
                 // 버스마다 미터와 솔로다(D-203). 미터는 봉우리를 잡고 초당 1.5 씩 내린다.
                 if (Widget::FoldNode(Loc::TextOr(LocKeys::StatsAudioBuses, "Buses"), ImGuiTreeNodeFlags_DefaultOpen))
                 {

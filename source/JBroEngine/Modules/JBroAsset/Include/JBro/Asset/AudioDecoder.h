@@ -11,7 +11,8 @@ namespace JBro
 {
     class IFileStream;
 
-    // 오디오 파일 바이트의 형식이다. 채널과 샘플 레이트는 파일 그대로다 - 믹서가 장치 형식으로 바꾼다.
+    // 오디오 파일 바이트의 형식이다. 채널과 샘플 레이트는 파일 그대로다 - 믹서가 장치 형식으로 바꾼다. 예외는
+    // `AudioDecodeTarget` 을 준 `DecodeAudio` 와 `SetMono` 를 부른 `AudioFileDecoder` 다.
     struct AudioFormat
     {
         std::uint32_t sampleRate = 0;
@@ -24,8 +25,18 @@ namespace JBro
     //
     // 형식과 길이만 읽는다(Streaming). 길이를 헤더가 말하지 않는 형식(MP3 일부)은 끝까지 풀어 센다.
     bool ProbeAudio(JArrayView<std::byte> encoded, AudioFormat& format);
-    // 전부 f32 인터리브 PCM 으로 푼다(Decompressed).
-    bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<float>& pcm);
+    // 풀 때 바꿀 형식이다(D-231). 0·거짓이면 파일 그대로다.
+    struct AudioDecodeTarget
+    {
+        // 믹서의 샘플 레이트로 미리 바꿔 두면 재생 때 보이스마다의 리샘플이 없다. 임포트 때라 필터 차수를 가장 높게 둔다.
+        std::uint32_t sampleRate = 0;
+        // 채널 평균으로 모노로 줄인다.
+        bool mono = false;
+    };
+
+    // 전부 f32 인터리브 PCM 으로 푼다(Decompressed). `format` 은 바꾼 뒤의 형식이다.
+    bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<float>& pcm,
+        const AudioDecodeTarget& target = {});
     // 파형 그림용 봉우리다. `buckets` 칸마다 모든 채널의 최대 절댓값(0..1)을 준다. 에디터의 미리 듣기가 쓴다.
     bool ComputeAudioPeaks(JArrayView<std::byte> encoded, std::uint32_t buckets, Array<float>& peaks);
     void ComputeAudioPeaks(const float* pcm, std::uint64_t frameCount, std::uint32_t channels, std::uint32_t buckets,
@@ -48,6 +59,8 @@ namespace JBro
         bool IsOpen() const;
         // 헤더가 길이를 말하지 않으면 `frameCount` 가 0 이다 - `CountFrames` 로 센다.
         AudioFormat GetFormat() const;
+        // 여러 채널을 평균해 한 채널로 읽는다(D-231). 연 뒤에 부르고, 그 뒤로 `GetFormat` 의 채널은 1 이다.
+        void SetMono();
         // 끝까지 풀어 세고 처음으로 돌아간다. 임포트 때 한 번 쓴다.
         std::uint64_t CountFrames();
         // f32 인터리브로 최대 `frames` 프레임을 채우고 채운 수를 돌려준다. 끝이면 0 이다.
