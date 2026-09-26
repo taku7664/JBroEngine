@@ -5712,6 +5712,77 @@ namespace
 
     // **재생을 누르기 전의 캔버스로 돌아온다**(D-131). 게임이 만든 것과 고친 값이
     // 편집 중인 캔버스에 남으면, 저장했을 때 게임이 만든 상태가 파일이 된다.
+    // **에디터에서 재생하면 물리가 돈다(physics-plan §4 의 4 가 남긴 "실제 에디터 재생").** 에디터 호스트와 같은
+    // `EditorApplication` 의 재생 경로(엔진 시뮬레이션 → Framework2D 고정 스텝 → Physics2DSystem)로 상자와 캡슐을
+    // 떨어뜨리고, 정지하면 떨어뜨리기 전 자리로 돌아오는지 본다. 물리 테스트는 시스템을 직접 부르므로 이 배선은 재지 못한다.
+    void TestPlayingRunsPhysicsAndStoppingPutsItBack()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; physics in play not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PhysicsPlayProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto place = [&](const char* tag, JBro::Vec2 position, JBro::Vec2 size,
+                               JBro::Component::ColliderShape2D shape, bool dynamic) {
+            JBro::GameObject* object = canvas->CreateObject(tag);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+            Check(transform != nullptr, "each object needs a transform");
+            transform->position = position;
+            auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(object);
+            Check(collider != nullptr, "and a collider");
+            collider->size = size;
+            collider->shape = shape;
+            if (dynamic)
+            {
+                Check(canvas->AttachComponent<JBro::Component::Rigidbody2D>(object) != nullptr, "and a body");
+            }
+            return object;
+        };
+        place("Ground", {0.0f, -0.5f}, {40.0f, 1.0f}, JBro::Component::ColliderShape2D::Box, false);
+        JBro::GameObject* box = place("Box", {0.0f, 3.0f}, {1.0f, 1.0f}, JBro::Component::ColliderShape2D::Box, true);
+        JBro::GameObject* pill =
+            place("Pill", {4.0f, 3.0f}, {2.0f, 1.0f}, JBro::Component::ColliderShape2D::Capsule, true);
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        auto* boxTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(box);
+        auto* pillTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(pill);
+        Check(boxTransform->position.y == 3.0f, "nothing falls while the editor is stopped");
+
+        Check(editor.StartSimulation(), "play must start");
+        for (int frame = 0; frame < 180; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        Check(std::fabs(boxTransform->position.y - 0.5f) < 0.02f, "in play the box falls and rests on the ground");
+        Check(std::fabs(pillTransform->position.y - 0.5f) < 0.02f, "and the capsule lies on it, a radius up");
+
+        editor.StopSimulation();
+        JBro::Array<JBro::GameObject*> roots;
+        canvas->GetRootObjects(roots);
+        bool boxBack = false;
+        for (JBro::GameObject* root : roots)
+        {
+            if (std::strcmp(root->GetTag(), "Box") == 0)
+            {
+                auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(root);
+                boxBack = restored != nullptr && std::fabs(restored->position.y - 3.0f) < 1.0e-4f;
+            }
+        }
+        Check(boxBack, "stopping puts the box back where it was before play");
+        editor.Shutdown();
+    }
+
     void TestPlayingAndStoppingRestoresTheCanvas()
     {
         JBro::EditorApplication editor;
@@ -10489,6 +10560,7 @@ int RunEditorApplicationTests()
     TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
+    TestPlayingRunsPhysicsAndStoppingPutsItBack();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
