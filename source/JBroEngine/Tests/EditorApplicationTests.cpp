@@ -10747,30 +10747,60 @@ namespace
         std::snprintf(secondLine, sizeof(secondLine), "%s (2)", colliderLine);
         const char* pointsLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditPoints, "Edit Points");
         Spot row;
-        Check(FindHierarchyRow(editor, hwnd, cup, row), "the cup's row must be in the hierarchy");
-        RightClickAt(editor, hwnd, row);
-        ImGuiWindow* menu = FindContextMenuWindow();
-        Check(menu != nullptr, "right-clicking the row must open the object menu");
         Spot line;
-        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), line),
-            "the second collider must have its line");
-        for (int frame = 0; frame < 3; ++frame)
-        {
-            Check(editor.Tick(Frame), "the submenu must open on hover");
-        }
-        ImGuiWindow* submenu = FindSubmenuWindow();
-        Check(submenu != nullptr, "hovering the line must open its submenu");
         Spot item;
-        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
-            "the collider's submenu must offer to edit its points");
-        Check(false == ImGui::GetCurrentContext()->HoveredIdIsDisabled, "a polygon's points can be edited");
-        ClickAt(editor, hwnd, item);
-        for (int frame = 0; frame < 2; ++frame)
-        {
-            Check(editor.Tick(Frame), "the menu must close");
-        }
-        Check(hoveredAt(rightCorner) == vertex, "the collider picked from the menu is the one edited");
-        Check(hoveredAt(leftCorner) != vertex, "not the first one");
+        ImGuiWindow* menu = nullptr;
+        ImGuiWindow* submenu = nullptr;
+        const auto pickSecond = [&]() {
+            Check(FindHierarchyRow(editor, hwnd, cup, row), "the cup's row must be in the hierarchy");
+            RightClickAt(editor, hwnd, row);
+            menu = FindContextMenuWindow();
+            Check(menu != nullptr, "right-clicking the row must open the object menu");
+            Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), line),
+                "the second collider must have its line");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the submenu must open on hover");
+            }
+            submenu = FindSubmenuWindow();
+            Check(submenu != nullptr, "hovering the line must open its submenu");
+            Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
+                "the collider's submenu must offer to edit its points");
+            Check(false == ImGui::GetCurrentContext()->HoveredIdIsDisabled, "a polygon's points can be edited");
+            ClickAt(editor, hwnd, item);
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the menu must close");
+            }
+            Check(hoveredAt(rightCorner) == vertex, "the collider picked from the menu is the one edited");
+            Check(hoveredAt(leftCorner) != vertex, "not the first one");
+        };
+        pickSecond();
+
+        // **고른 것을 잊는 네 경우.** 잊으면 첫 폴리곤으로 돌아가고, 고른 것이 되살아나도 다시 붙지 않는다.
+        right->SetEnabled(false);
+        Check(hoveredAt(leftCorner) == vertex, "a picked collider turned off falls back to the first polygon");
+        right->SetEnabled(true);
+        Check(hoveredAt(leftCorner) == vertex, "and it stays forgotten when it is turned back on");
+
+        pickSecond();
+        right->shape = JBro::Component::ColliderShape2D::Box;
+        Check(hoveredAt(leftCorner) == vertex, "a picked collider that stops being a polygon falls back");
+        right->shape = JBro::Component::ColliderShape2D::Polygon;
+        Check(hoveredAt(leftCorner) == vertex, "and it stays forgotten when it is a polygon again");
+
+        pickSecond();
+        JBro::GameObject* saucer = canvas->CreateObject("Saucer");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(saucer) != nullptr, "the saucer needs a transform");
+        editor.SetSelectedObject(saucer);
+        Check(hoveredAt(rightCorner) != vertex, "choosing another object stops editing the picked collider");
+        editor.SetSelectedObject(cup);
+        Check(hoveredAt(leftCorner) == vertex, "and coming back starts from the first polygon");
+
+        pickSecond();
+        ClickAt(editor, hwnd, toggle);
+        ClickAt(editor, hwnd, toggle);
+        Check(hoveredAt(leftCorner) == vertex, "turning editing off and on from the tool bar forgets the pick");
 
         // 폴리곤이 아니면 회색이다.
         left->shape = JBro::Component::ColliderShape2D::Box;
@@ -10789,7 +10819,11 @@ namespace
             "a box collider still shows the item");
         Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled, "but grey, since a box has no points to edit");
 
+        // 캔버스 뷰가 사라질 때 제 항목을 뗀다. 남으면 표가 사라진 패널을 가리킨다.
+        const JBro::ComponentTypeId colliderType = left->GetTypeId();
         editor.Shutdown();
+        Check(false == editor.GetComponentMenus().Has(colliderType),
+            "the canvas view takes its item off the table when it goes");
     }
 
     void TestRightClickingAnObjectInTheCanvasViewOpensItsMenu()
