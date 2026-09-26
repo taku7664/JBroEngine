@@ -769,6 +769,50 @@ namespace JBro
                     continue;
                 }
 
+                if (collider->shape == Component::ColliderShape2D::Capsule)
+                {
+                    // 물리와 같은 함수로 잰다: 크기를 곱한 `size` 상자에 꼭 맞는 알약이다. 상자로 그리면 둥근 끝 옆의
+                    // 빈 곳이 부딪히는 자리처럼 보인다.
+                    const Physics2D::ConvexPolygon capsule = Physics2D::MakeCapsuleInBox(
+                        { collider->offset.x * pose.scale.x, collider->offset.y * pose.scale.y },
+                        { collider->size.x * 0.5f * pose.scale.x, collider->size.y * 0.5f * pose.scale.y });
+                    const Vec2 a = capsule.points[0];
+                    const Vec2 b = capsule.points[1];
+                    const float length = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+                    const Vec2 axis = length > 0.0f ? Vec2{ (b.x - a.x) / length, (b.y - a.y) / length } : Vec2{ 1.0f, 0.0f };
+                    const Vec2 side{ -axis.y, axis.x };
+                    constexpr float HalfTurn = 3.14159265f;
+                    constexpr int ArcSegments = 16;
+                    m_screenScratch.Clear();
+                    // b 쪽 반원(옆 -side 에서 축 방향을 지나 +side), 이어서 a 쪽 반원. 두 반원 사이의 곧은 변은 닫는 선이다.
+                    for (int end = 0; end < 2; ++end)
+                    {
+                        const Vec2 cap = end == 0 ? b : a;
+                        const float start = end == 0 ? -0.5f * HalfTurn : 0.5f * HalfTurn;
+                        for (int k = 0; k <= ArcSegments; ++k)
+                        {
+                            const float turn = start + HalfTurn * static_cast<float>(k) / static_cast<float>(ArcSegments);
+                            const float c = std::cos(turn) * capsule.radius;
+                            const float s = std::sin(turn) * capsule.radius;
+                            const Vec2 local{ cap.x + axis.x * c + side.x * s, cap.y + axis.y * c + side.y * s };
+                            // 캡슐은 크기와 offset 을 이미 곱한 바디 로컬이다. 돌리고 옮기기만 한다.
+                            const float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
+                            const float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
+                            Vec2 screen;
+                            WorldToScreen(rect, worldX, worldY, screen.x, screen.y);
+                            m_screenScratch.Add(screen);
+                        }
+                    }
+                    const std::size_t count = m_screenScratch.Size();
+                    for (std::size_t index = 0; index < count; ++index)
+                    {
+                        const Vec2 from = m_screenScratch[index];
+                        const Vec2 to = m_screenScratch[(index + 1) % count];
+                        draw->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), color, thickness);
+                    }
+                    continue;
+                }
+
                 // 상자는 **돌면 기울어진다.** 외접 사각형으로 그리면 돌려 놓은 오브젝트의 충돌 칸이 실제보다
                 // 커 보인다. 폴리곤은 꼭짓점을 그대로 그리고, 꼭짓점이 없으면 물리처럼 `size` 상자다.
                 if (collider->shape == Component::ColliderShape2D::Polygon)

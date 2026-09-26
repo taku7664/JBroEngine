@@ -534,6 +534,140 @@ namespace
         Check(hit && Near(closest, 3.7f, 1.0e-4f) && NearVector(closestNormal, { 0, 1 }, 1.0e-5f),
             "a ball dropped into the notch of a U lands on the notch floor, 5 - 1 - 0.3 down");
     }
+
+    // **캡슐(physics-plan §4 의 7).** 가로 캡슐: 코어 (-1, 0)-(1, 0), 반지름 0.5. 값은 손으로 푼 것이다.
+    ConvexPolygon MakeCapsule(Vec2 a, Vec2 b, float radius)
+    {
+        ConvexPolygon capsule;
+        capsule.points[0] = a;
+        capsule.points[1] = b;
+        capsule.count = 2;
+        capsule.radius = radius;
+        return capsule;
+    }
+
+    void TestCapsuleShapeAndMass()
+    {
+        const ConvexPolygon lying = JBro::Physics2D::MakeCapsuleInBox({ 1, 2 }, { 2, 0.5f });
+        Check(lying.count == 2 && Near(lying.radius, 0.5f, 0.0f)
+            && NearVector(lying.points[0], { -0.5f, 2 }, 0.0f) && NearVector(lying.points[1], { 2.5f, 2 }, 0.0f),
+            "a wide box holds a lying capsule, its radius half the short side");
+        const ConvexPolygon standing = JBro::Physics2D::MakeCapsuleInBox({}, { -0.5f, 1.5f });
+        Check(Near(standing.radius, 0.5f, 0.0f) && NearVector(standing.points[0], { 0, -1 }, 0.0f)
+            && NearVector(standing.points[1], { 0, 1 }, 0.0f), "a tall one a standing capsule, even from a flipped size");
+        const ConvexPolygon round = JBro::Physics2D::MakeCapsuleInBox({}, { 0.5f, 0.5f });
+        Check(NearVector(round.points[0], round.points[1], 0.0f), "a square one a circle");
+
+        // 조각 질량이 캡슐 공식과 촘촘한 다각형 외곽선의 값에 맞는다(서로 독립인 두 계산).
+        const JBro::Physics2D::MassData mass = JBro::Physics2D::ComputePolygonMass(MakeCapsule({ -1, 0 }, { 1, 0 }, 0.5f), 1.0f);
+        Check(Near(mass.mass, 2.0f + 3.14159265f * 0.25f, 1.0e-5f) && NearVector(mass.center, {}, 1.0e-6f),
+            "a two-point piece weighs as a capsule: a 2 x 1 middle and a circle");
+        Array<Vec2> outline;
+        constexpr int Segments = 2000;
+        for (int end = 0; end < 2; ++end)
+        {
+            const float cx = end == 0 ? 1.0f : -1.0f;
+            const float start = end == 0 ? -1.5707963f : 1.5707963f;
+            for (int k = 0; k <= Segments; ++k)
+            {
+                const float turn = start + 3.14159265f * static_cast<float>(k) / static_cast<float>(Segments);
+                outline.Add({ cx + 0.5f * std::cos(turn), 0.5f * std::sin(turn) });
+            }
+        }
+        const JBro::Physics2D::MassData traced = JBro::Physics2D::ComputeOutlineMass(outline.View(), 1.0f);
+        Check(Near(mass.mass, traced.mass, 1.0e-4f) && Near(mass.inertia, traced.inertia, 1.0e-3f),
+            "and matches the mass and inertia of a traced outline");
+    }
+
+    void TestCapsuleContacts()
+    {
+        const ConvexPolygon capsule = MakeCapsule({ -1, 0 }, { 1, 0 }, 0.5f);
+        Circle ball;
+        ball.radius = 0.5f;
+
+        Manifold manifold = JBro::Physics2D::CollidePolygonAndCircle(capsule, At(0, 0), ball, At(0, 1.2f));
+        Check(manifold.count == 0, "a ball 0.2 above the capsule's side does not touch");
+        manifold = JBro::Physics2D::CollidePolygonAndCircle(capsule, At(0, 0), ball, At(0, 0.99f));
+        Check(manifold.count == 1 && Near(manifold.points[0].separation, -0.01f, 1.0e-5f)
+            && NearVector(manifold.normal, { 0, 1 }, 1.0e-6f) && Near(manifold.points[0].point.y, 0.495f, 1.0e-5f),
+            "one 0.01 into it touches its side, the point between the two surfaces");
+        manifold = JBro::Physics2D::CollidePolygonAndCircle(capsule, At(0, 0), ball, At(1.99f, 0));
+        Check(manifold.count == 1 && Near(manifold.points[0].separation, -0.01f, 1.0e-5f)
+            && NearVector(manifold.normal, { 1, 0 }, 1.0e-6f) && Near(manifold.points[0].point.x, 1.495f, 1.0e-5f),
+            "and its round end the same way");
+
+        // 상자 위에 누운 캡슐은 두 점으로 선다.
+        const ConvexPolygon ground = MakeBox(1.0f, 1.0f);
+        manifold = JBro::Physics2D::CollidePolygons(ground, At(0, -1), capsule, At(0, 0.49f));
+        Check(manifold.count == 2 && NearVector(manifold.normal, { 0, 1 }, 1.0e-6f)
+            && Near(manifold.points[0].separation, -0.01f, 1.0e-5f) && Near(manifold.points[1].separation, -0.01f, 1.0e-5f)
+            && Near(manifold.points[0].point.y, -0.005f, 1.0e-5f),
+            "a capsule lying on a box rests on two points, between the surfaces");
+
+        // **둥근 끝은 모서리 옆의 틈을 닿은 것으로 보지 않는다.** 면 법선만 보면 x 로 0.1 겹친 것처럼 보이지만
+        // 코어 끝 (1.3, 1.3) 과 상자 모서리 (1, 1) 사이는 0.3√2 = 0.424 로 반지름 0.4 보다 멀다.
+        const ConvexPolygon standing = MakeCapsule({ 0, 0 }, { 0, 1.7f }, 0.4f);
+        manifold = JBro::Physics2D::CollidePolygons(ground, At(0, 0), standing, At(1.3f, 1.3f));
+        Check(manifold.count == 0, "a capsule end beside a box corner, 0.024 away, does not touch");
+        manifold = JBro::Physics2D::CollidePolygons(ground, At(0, 0), standing, At(1.25f, 1.25f));
+        const float diagonal = std::sqrt(0.5f);
+        Check(manifold.count == 1 && NearVector(manifold.normal, { diagonal, diagonal }, 1.0e-5f)
+            && Near(manifold.points[0].separation, 0.25f * std::sqrt(2.0f) - 0.4f, 1.0e-5f),
+            "moved in, it touches the corner once, pushed out along the diagonal");
+        manifold = JBro::Physics2D::CollidePolygons(standing, At(1.25f, 1.25f), ground, At(0, 0));
+        Check(manifold.count == 1 && NearVector(manifold.normal, { -diagonal, -diagonal }, 1.0e-5f),
+            "and swapping the shapes flips only the normal");
+
+        // 두 캡슐이 끝끼리 닿는다.
+        manifold = JBro::Physics2D::CollidePolygons(capsule, At(0, 0), capsule, At(2.99f, 0));
+        Check(manifold.count >= 1 && NearVector(manifold.normal, { 1, 0 }, 1.0e-5f)
+            && Near(manifold.points[0].separation, -0.01f, 1.0e-5f), "two capsules touch end to end");
+        manifold = JBro::Physics2D::CollidePolygons(capsule, At(0, 0), capsule, At(0.5f, 0.99f));
+        Check(manifold.count == 2 && NearVector(manifold.normal, { 0, 1 }, 1.0e-6f)
+            && Near(manifold.points[0].separation, -0.01f, 1.0e-5f) && Near(manifold.points[1].separation, -0.01f, 1.0e-5f)
+            && Near(std::fmin(manifold.points[0].point.x, manifold.points[1].point.x), -0.5f, 1.0e-5f)
+            && Near(std::fmax(manifold.points[0].point.x, manifold.points[1].point.x), 1.0f, 1.0e-5f),
+            "one lying on another rests on two points, where they overlap");
+    }
+
+    void TestCapsuleQueries()
+    {
+        const ConvexPolygon capsule = MakeCapsule({ -1, 0 }, { 1, 0 }, 0.5f);
+        const Rect bounds = JBro::Physics2D::ComputePolygonBounds(capsule, At(0, 0));
+        Check(NearVector(bounds.min, { -1.5f, -0.5f }, 0.0f) && NearVector(bounds.max, { 1.5f, 0.5f }, 0.0f),
+            "the bounds include the thickness");
+
+        float distance = 0.0f;
+        Vec2 normal;
+        Check(JBro::Physics2D::RaycastPolygon(capsule, At(0, 0), { 0, 5 }, { 0, -1 }, 10, distance, normal)
+            && Near(distance, 4.5f, 1.0e-5f) && NearVector(normal, { 0, 1 }, 1.0e-6f), "a ray down hits the side");
+        Check(JBro::Physics2D::RaycastPolygon(capsule, At(0, 0), { 5, 0.4f }, { -1, 0 }, 10, distance, normal)
+            && Near(distance, 3.7f, 1.0e-5f) && NearVector(normal, { 0.6f, 0.8f }, 1.0e-5f),
+            "a ray along x at 0.4 hits the round end at x = 1.3");
+        Check(false == JBro::Physics2D::RaycastPolygon(capsule, At(0, 0), { 5, 0.6f }, { -1, 0 }, 10, distance, normal),
+            "one above the thickness misses");
+
+        Check(JBro::Physics2D::ContainsPoint(capsule, At(0, 0), { 1.4f, 0 }), "a point in the round end is in");
+        Check(false == JBro::Physics2D::ContainsPoint(capsule, At(0, 0), { 1.4f, 0.4f }),
+            "one in the corner of its bounds is not");
+        Check(JBro::Physics2D::OverlapPolygons(MakeBox(0.15f, 0.15f), At(1.45f, 0.45f), capsule, At(0, 0)),
+            "a box reaching within the radius of the core's end overlaps");
+        Check(false == JBro::Physics2D::OverlapPolygons(MakeBox(0.1f, 0.1f), At(1.5f, 0.5f), capsule, At(0, 0)),
+            "one in the corner beside the round end does not");
+
+        Check(JBro::Physics2D::CastCircle({ 5, 0.4f }, 0.25f, { -1, 0 }, 10, capsule, At(0, 0), distance, normal)
+            && Near(distance, 4.0f - std::sqrt(0.75f * 0.75f - 0.16f), 1.0e-4f),
+            "a ball swept at the round end stops a combined radius from the core's end");
+        Check(JBro::Physics2D::CastPolygon(MakeBox(0.5f, 0.5f), At(5, 0), { -1, 0 }, 10, capsule, At(0, 0), distance, normal)
+            && Near(distance, 3.0f, 1.0e-4f) && NearVector(normal, { 1, 0 }, 1.0e-4f),
+            "a box swept at it meets the tip of the round end");
+        const ConvexPolygon upright = MakeCapsule({ 0, -0.5f }, { 0, 0.5f }, 0.25f);
+        Check(JBro::Physics2D::CastPolygon(upright, At(5, 0), { -1, 0 }, 10, capsule, At(0, 0), distance, normal)
+            && Near(distance, 3.25f, 1.0e-4f) && NearVector(normal, { 1, 0 }, 1.0e-4f),
+            "a standing capsule swept at it stops both radii from the core");
+        Check(JBro::Physics2D::CastPolygon(upright, At(1.6f, 0), { -1, 0 }, 10, capsule, At(0, 0), distance, normal)
+            && distance == 0.0f, "one that starts touching reports zero");
+    }
 }
 
 int RunPhysics2DCollisionTests()
@@ -552,6 +686,9 @@ int RunPhysics2DCollisionTests()
     TestARotatedBoxTouchesWithItsCorner();
     TestBounds();
     TestSweepAndPruneMatchesBruteForce();
+    TestCapsuleShapeAndMass();
+    TestCapsuleContacts();
+    TestCapsuleQueries();
     std::cout << "Physics2D collision tests passed.\n";
     return 0;
 }

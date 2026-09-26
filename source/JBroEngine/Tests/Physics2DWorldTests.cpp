@@ -491,6 +491,30 @@ namespace
             "a reused slot gets a new generation");
         Check(false == world.IsValid(body), "so the old handle stays dead");
     }
+
+    // **캡슐은 누우면 반지름만큼 떠서 서고, 세우면 둥근 끝으로 선다.** 원으로 줄어든 캡슐은 원이다.
+    void TestCapsulesRestOnTheGround()
+    {
+        World world;
+        AddGround(world);
+        const BodyId lying = AddBody(world, BodyType::Dynamic, { -5, 2 });
+        const ShapeId lyingShape = world.CreateCapsuleShape(lying, { -1, 0 }, { 1, 0 }, 0.5f, {});
+        Check(world.IsValid(lyingShape) && world.GetChildCount(lyingShape) == 1, "a capsule is one piece");
+        const BodyId round = AddBody(world, BodyType::Dynamic, { 5, 2 });
+        const ShapeId roundShape = world.CreateCapsuleShape(round, { 0, 0 }, { 0, 0.001f }, 0.5f, {});
+        Check(world.GetPolygonChild(roundShape, 0) == nullptr, "two points closer than the slop make a circle");
+        Run(world, 3.0f);
+
+        Check(Near(world.GetPosition(lying).y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "the lying capsule rests a radius up");
+        Check(Near(world.GetAngle(lying), 0.0f, 1.0e-3f) && Length(world.GetLinearVelocity(lying)) < 0.01f,
+            "flat and still");
+        Check(Near(world.GetPosition(round).y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "and the round one like a ball");
+
+        const JBro::Physics2D::MassData mass = world.GetMassData(lying);
+        const JBro::Physics2D::MassData unit = JBro::Physics2D::ComputeCapsuleMass({ -1, 0 }, { 1, 0 }, 0.5f, 1.0f);
+        Check(Near(mass.mass, 1.0f, 0.0f) && Near(mass.inertia, unit.inertia / unit.mass, 1.0e-5f),
+            "the requested mass spreads over the capsule's shape");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -509,6 +533,7 @@ int RunPhysics2DWorldTests()
     TestLayersFilterContacts();
     TestAKinematicBodyPushesADynamicOne();
     TestHandlesAndMassUpdates();
+    TestCapsulesRestOnTheGround();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

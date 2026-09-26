@@ -108,6 +108,14 @@ namespace JBro::System
             return circle;
         }
 
+        // 크기를 곱한 `size` 상자에 꼭 맞는 캡슐(physics-plan §4 의 7). 긴 축으로 눕고 반지름은 짧은 쪽 반폭이라, 한 축으로만
+        // 늘여도 캡슐로 남는다. 캔버스 뷰가 같은 함수로 그린다.
+        Physics2D::ConvexPolygon BakeCapsule(const Component::Collider2D& collider, Vec2 scale)
+        {
+            return Physics2D::MakeCapsuleInBox(Bake({}, collider.offset, scale),
+                { collider.size.x * 0.5f * scale.x, collider.size.y * 0.5f * scale.y });
+        }
+
         void BakeOutline(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
         {
             outline.Clear();
@@ -335,9 +343,7 @@ namespace JBro::System
         State& state = *m_state;
         canvas.ForEach<Component::Collider2D>([&](Component::Collider2D& collider)
         {
-            // 캡슐은 아직 커널에 없어 부딪히지도 질의에 걸리지도 않는다(physics-plan §4 의 7).
-            if (false == collider.IsActiveComponent() || (collider.layer & layerMask) == 0u
-                || collider.shape == Component::ColliderShape2D::Capsule)
+            if (false == collider.IsActiveComponent() || (collider.layer & layerMask) == 0u)
             {
                 return;
             }
@@ -364,6 +370,17 @@ namespace JBro::System
                 BakeBox(collider, objectPose.scale, corners);
                 const Physics2D::ConvexPolygon box = BoxPolygon(corners);
                 shape.polygon = &box;
+                visit(shape);
+                return;
+            }
+            if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, objectPose.scale);
+                if (capsule.radius <= 0.0f)
+                {
+                    return;
+                }
+                shape.polygon = &capsule;
                 visit(shape);
                 return;
             }
@@ -784,8 +801,7 @@ namespace JBro::System
         // ── 2. 도형 ─────────────────────────────────────────────────────────────────
         canvas.ForEach<Component::Collider2D>([&](Component::Collider2D& collider)
         {
-            // 캡슐은 아직 커널에 없다(physics-plan §4 의 7). 충돌하지 않는다.
-            if (false == collider.IsActiveComponent() || collider.shape == Component::ColliderShape2D::Capsule)
+            if (false == collider.IsActiveComponent())
             {
                 return;
             }
@@ -831,6 +847,12 @@ namespace JBro::System
             if (collider.shape == Component::ColliderShape2D::Circle)
             {
                 fresh.shape = world.CreateCircleShape(body->body, BakeCircle(collider, pose.scale), def);
+            }
+            else if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, pose.scale);
+                fresh.shape = world.CreateCapsuleShape(
+                    body->body, capsule.points[0], capsule.points[1], capsule.radius, def);
             }
             else
             {

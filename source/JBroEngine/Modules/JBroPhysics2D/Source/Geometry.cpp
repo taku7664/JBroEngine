@@ -409,6 +409,10 @@ namespace JBro::Physics2D
     MassData ComputePolygonMass(const ConvexPolygon& polygon, float density)
     {
         MassData result;
+        if (polygon.count == 2)
+        {
+            return ComputeCapsuleMass(polygon.points[0], polygon.points[1], polygon.radius, density);
+        }
         if (polygon.count < 3)
         {
             return result;
@@ -493,6 +497,50 @@ namespace JBro::Physics2D
         result.center = center;
         result.inertia = 0.5f * result.mass * radius * radius;
         return result;
+    }
+
+    MassData ComputeCapsuleMass(Vec2 a, Vec2 b, float radius, float density)
+    {
+        MassData result;
+        if (radius <= 0.0f)
+        {
+            return result;
+        }
+        const float length = Length(Subtract(b, a));
+        const float circleMass = density * Pi * radius * radius;
+        const float boxMass = density * 2.0f * radius * length;
+        result.mass = circleMass + boxMass;
+        result.center = Scale(Add(a, b), 0.5f);
+
+        // 두 반원을 합치면 원 하나다. 반원마다 평행축 정리를 두 번 쓴다 - 반원의 중심(지름에서 4r/3π)으로 옮겼다가
+        // 직사각형 끝(가운데에서 h)으로 옮긴다: m·((h + c)² - c²) = m·(h² + 2hc).
+        const float half = 0.5f * length;
+        const float centroid = 4.0f * radius / (3.0f * Pi);
+        const float circleInertia = circleMass * (0.5f * radius * radius + half * half + 2.0f * half * centroid);
+        const float boxInertia = boxMass * (4.0f * radius * radius + length * length) / 12.0f;
+        result.inertia = circleInertia + boxInertia;
+        return result;
+    }
+
+    ConvexPolygon MakeCapsuleInBox(Vec2 center, Vec2 halfExtents)
+    {
+        const float halfX = std::fabs(halfExtents.x);
+        const float halfY = std::fabs(halfExtents.y);
+        ConvexPolygon capsule;
+        capsule.count = 2;
+        if (halfX >= halfY)
+        {
+            capsule.radius = halfY;
+            capsule.points[0] = { center.x - (halfX - halfY), center.y };
+            capsule.points[1] = { center.x + (halfX - halfY), center.y };
+        }
+        else
+        {
+            capsule.radius = halfX;
+            capsule.points[0] = { center.x, center.y - (halfY - halfX) };
+            capsule.points[1] = { center.x, center.y + (halfY - halfX) };
+        }
+        return capsule;
     }
 
     MassData CombineMass(ArrayView<const MassData> parts)

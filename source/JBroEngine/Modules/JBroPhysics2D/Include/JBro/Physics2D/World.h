@@ -110,6 +110,8 @@ namespace JBro::Physics2D
         PolygonError CreatePolygonShape(
             BodyId body, ArrayView<const Vec2> localOutline, const ShapeDef& def, ShapeId& out);
         ShapeId CreateCircleShape(BodyId body, const Circle& localCircle, const ShapeDef& def);
+        // 선분 a-b(바디 로컬)에 반지름을 두른 캡슐. 조각 하나(두 점 + radius)로 든다. 두 점이 LinearSlop 안이면 원이다.
+        ShapeId CreateCapsuleShape(BodyId body, Vec2 localA, Vec2 localB, float radius, const ShapeDef& def);
         void    DestroyShape(ShapeId shape);
         bool    IsValid(ShapeId shape) const;
         std::uint32_t GetChildCount(ShapeId shape) const;

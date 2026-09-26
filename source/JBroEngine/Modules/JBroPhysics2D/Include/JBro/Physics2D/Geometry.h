@@ -19,10 +19,14 @@ namespace JBro::Physics2D
     inline constexpr float LinearSlop = 0.005f;
 
     // 반시계로 감긴 엄격한 볼록 다각형이다. 일직선 꼭짓점이 없다.
+    //
+    // radius 가 0 이 아니면 둘레에 그만큼 두른 둥근 도형이다. 지금은 캡슐(두 점 = 선분에 반지름)만 이렇게 만든다
+    // (physics-plan §3·§4 의 7). 판정·질의는 radius 를 알고, 질량은 두 점 조각을 캡슐로 잰다.
     struct ConvexPolygon
     {
         Vec2          points[MaxPolygonVertices];
         std::uint32_t count = 0;
+        float         radius = 0.0f;
     };
 
     enum class PolygonError : std::uint8_t
@@ -53,7 +57,7 @@ namespace JBro::Physics2D
     // MaxPolygonVertices 이하다. 볼록한 입력이 상한 안이면 조각 하나다. 실패하면 outPieces 를 비운다.
     PolygonError DecomposePolygon(ArrayView<const Vec2> points, Array<ConvexPolygon>& outPieces);
 
-    // 볼록 조각의 질량 속성(밀도 × 넓이).
+    // 볼록 조각의 질량 속성(밀도 × 넓이). 두 점 조각은 캡슐로 잰다(ComputeCapsuleMass).
     MassData ComputePolygonMass(const ConvexPolygon& polygon, float density);
 
     // 단순 다각형(오목 가능, 반시계) 외곽선에서 바로 구한 질량 속성. 조각 합과 독립인 두 번째 계산이라
@@ -61,6 +65,13 @@ namespace JBro::Physics2D
     MassData ComputeOutlineMass(ArrayView<const Vec2> ccwPoints, float density);
 
     MassData ComputeCircleMass(Vec2 center, float radius, float density);
+
+    // 선분 a-b 에 반지름을 두른 캡슐의 질량 속성. 가운데 직사각형과 양 끝 반원 둘이다.
+    MassData ComputeCapsuleMass(Vec2 a, Vec2 b, float radius, float density);
+
+    // 가운데가 center, 반폭이 halfExtents 인 축 정렬 상자에 꼭 맞는 캡슐. 긴 축을 따라 눕고 반지름은 짧은 쪽 반폭이다.
+    // 두 반폭이 같으면 두 점이 겹친다 - 원이다. 반폭은 절댓값으로 본다.
+    ConvexPolygon MakeCapsuleInBox(Vec2 center, Vec2 halfExtents);
 
     // 여러 도형의 질량을 합친다. 관성은 합친 중심 기준으로 평행축 정리로 옮긴다.
     MassData CombineMass(ArrayView<const MassData> parts);
