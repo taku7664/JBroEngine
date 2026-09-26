@@ -2,6 +2,7 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Input/InputSystem.h>
+#include <JBro/InputTypes/InputBuffer.h>
 
 #include <cmath>
 #include <cstdio>
@@ -371,6 +372,62 @@ namespace
         }
     }
 
+    // 선입력과 코요테 타임(D-218). 60 fps 로 흘린다.
+    void TestTheInputBufferRemembersASignalForAWhile()
+    {
+        constexpr float dt = 1.0f / 60.0f;
+        InputBuffer jump;
+        Check(false == jump.Peek(1000.0f) && false == jump.Take(1000.0f), "a buffer that never saw a signal has nothing");
+        jump.Feed(false, dt);
+        Check(jump.age == InputBuffer::Never, "no signal does not start the clock");
+
+        // 땅에 닿기 네 프레임 전에 눌렀다. 0.1 초 안이면 아직 뛴다.
+        jump.Feed(true, dt);
+        Check(jump.Peek(0.0f), "a signal this frame is inside any window");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            jump.Feed(false, dt);
+        }
+        Check(jump.Peek(0.1f) && false == jump.Peek(0.05f), "four frames later it is 67 ms old");
+        Check(jump.Take(0.1f), "taking it inside the window gives it");
+        Check(false == jump.Peek(1000.0f), "and a press is used once");
+
+        // 땅을 떠난 뒤 여섯 프레임이면 0.1 초를 넘는다.
+        InputBuffer ground;
+        ground.Feed(true, dt);
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            ground.Feed(false, dt);
+        }
+        Check(ground.Peek(0.11f) && false == ground.Peek(0.09f), "six frames after leaving the ground is 100 ms");
+        ground.Feed(true, dt);
+        Check(ground.Peek(0.0f), "touching again starts over");
+        ground.Clear();
+        Check(false == ground.Peek(1000.0f), "a cleared buffer has nothing");
+        Check(false == ground.Take(1000.0f), "nothing to take either");
+
+        // 뷰로 읽은 값을 넣으므로 위에서 가져간 누름은 버퍼에도 들어가지 않는다.
+        System::InputSystem input;
+        InputActionMap map;
+        AddAction(map, "Jump", InputActionType::Bool, {KeyBinding(Key::Space)});
+        input.SetActionMap(map);
+        const InputEvent down[] = { KeyEvent(InputEventKind::KeyDown, Key::Space) };
+        input.BeginFrame(View(down));
+        struct Taker final : IInputHandler
+        {
+            InputResult OnInput(InputView&) override
+            {
+                return InputResult::Block;
+            }
+        } taker;
+        input.BeginDispatch();
+        input.Deliver(taker);
+        input.EndDispatch();
+        InputBuffer blocked;
+        blocked.Feed(input.GetResidualView().IsActionPressed(MakeNameId("Jump")), dt);
+        Check(false == blocked.Peek(1000.0f), "a press the UI blocked never reaches the buffer");
+    }
+
     ProjectInputAction ProjectAction(const char* name, const char* set, Key key)
     {
         ProjectInputAction action;
@@ -499,6 +556,7 @@ int RunInputActionTests()
     TestTheInputBlocksWriteBack();
     TestBadInputBlocksAreRefused();
     TestActionSetsChooseWhatAKeyMeans();
+    TestTheInputBufferRemembersASignalForAWhile();
     TestActionSetsHaveALimit();
     TestTheSetIsWrittenOnlyWhenNamed();
     Log::SetEchoToConsole(echo);
