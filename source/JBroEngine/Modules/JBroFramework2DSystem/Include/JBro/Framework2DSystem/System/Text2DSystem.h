@@ -43,7 +43,7 @@ namespace JBro::System
         // tasks 가 있으면 폰트의 미리 뜨기가 워커에서 돈다(없어도 된다).
         void SetResources(AssetSystem* assets, Renderer* renderer, TaskManager* tasks = nullptr);
 
-        // 스크립트 서비스(`Text2DService`)가 부르는 글자 읽기·쓰기는 공용 `TextSystemBase` 가 한다(D-223).
+        // 스크립트 서비스(`Text2DService`)가 부르는 글자 읽기·쓰기는 공용 `TextSystemBase` 가 한다(D-224).
 
         // 마지막으로 레이아웃한 블록 사각형이다(유닛, 오브젝트 로컬). 에디터의 선택과 외곽선이 쓴다. 아직 없으면 거짓이다.
         bool GetLocalBounds(InstanceId text, float& minX, float& minY, float& maxX, float& maxY) const;

@@ -35,7 +35,7 @@ namespace JBro
         Prefab,
         Audio,
         Font,
-        // 굵게·기울임 face 를 묶는 폰트 패밀리다(D-224). 본문(`.jfontfamily`)은 표지뿐이고 네 칸은 `.jmeta` 의 `FontFamily` 블록에 있다.
+        // 굵게·기울임 face 를 묶는 폰트 패밀리다(D-225). 본문(`.jfontfamily`)은 표지뿐이고 네 칸은 `.jmeta` 의 `FontFamily` 블록에 있다.
         FontFamily
     };
 
@@ -147,7 +147,7 @@ namespace JBro
         std::uint32_t  prewarmSize = 32;
     };
 
-    // 폰트 패밀리의 네 칸이다(D-224). 칸마다 Font 에셋의 아이디이고, 빈 칸은 그리는 쪽이 Regular 로 대신한다(가짜 굵게는 없다).
+    // 폰트 패밀리의 네 칸이다(D-225). 칸마다 Font 에셋의 아이디이고, 빈 칸은 그리는 쪽이 Regular 로 대신한다(가짜 굵게는 없다).
     // 필드 이름이 `...FontId` 라 인스펙터의 고르기가 Font 만 보인다.
     struct FontFamilyOptions
     {

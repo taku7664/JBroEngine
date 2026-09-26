@@ -167,7 +167,7 @@ namespace JBro::Text
             std::uint16_t face = 0;
         };
 
-        // 스타일 글자는 그 스타일의 face 를 먼저 본다(D-224). 굵은 기울임이 없으면 굵게, 기울임 순이다. 거기 글자가 없으면 보통 고르기다.
+        // 스타일 글자는 그 스타일의 face 를 먼저 본다(D-225). 굵은 기울임이 없으면 굵게, 기울임 순이다. 거기 글자가 없으면 보통 고르기다.
         std::uint16_t StyleFaceOf(const LayoutOptions& options, std::uint8_t style, std::size_t faceCount)
         {
             const auto valid = [&](std::uint16_t face) { return face != LayoutOptions::NoStyleFace && face < faceCount; };

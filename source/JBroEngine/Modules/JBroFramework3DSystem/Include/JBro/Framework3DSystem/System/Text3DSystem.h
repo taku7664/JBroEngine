@@ -26,7 +26,7 @@ namespace JBro::System
     // 월드 자리·회전·크기다 - 빌보드의 회전과 뒤→앞 정렬은 뷰마다 브리지가 한다(게임 카메라와 편집 카메라가 다르다).
     //
     // 폰트 표와 아틀라스(`TextLibrary`)는 이 시스템이 제 것으로 든다. 2D 텍스트 시스템과 나눠 쓰지 않는다 - 캔버스 하나는 한 차원이다.
-    // 스크립트 서비스(`Text3DService`)가 부르는 글자 읽기·쓰기는 공용 `TextSystemBase` 가 한다(D-223).
+    // 스크립트 서비스(`Text3DService`)가 부르는 글자 읽기·쓰기는 공용 `TextSystemBase` 가 한다(D-224).
     class Text3DSystem final : public GameSystem, public TextSystemBase
     {
     public:

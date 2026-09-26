@@ -42,7 +42,7 @@ namespace
         static_assert(std::is_trivially_copyable_v<JBro::Framework3DServiceContext>);
         static_assert(offsetof(JBro::Framework3DServiceContext, AbiVersion) == 0);
         static_assert(std::is_same_v<decltype(JBro::Framework3DServiceContext::Text3D), JBro::Service::Text3DService>);
-        // 텍스트 서비스는 차원마다 따로지만 몸통은 하나다(D-223): 둘 다 공용 틀에서 나오고 가상 함수가 없다.
+        // 텍스트 서비스는 차원마다 따로지만 몸통은 하나다(D-224): 둘 다 공용 틀에서 나오고 가상 함수가 없다.
         static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Component::Text2D, JBro::Service::Text2DService>,
             JBro::Service::Text2DService>);
         static_assert(std::is_base_of_v<JBro::Service::TextServiceBase<JBro::Component::Text3D, JBro::Service::Text3DService>,

@@ -69,7 +69,7 @@ namespace JBro
         std::uint32_t dataGeneration = 1;
     };
 
-    // 로드된 폰트 패밀리다(D-224). 칸마다 Font 핸들을 참조 수로 잡고 있다(스프라이트가 텍스처를 잡는 것과 같다). 빈 칸이나
+    // 로드된 폰트 패밀리다(D-225). 칸마다 Font 핸들을 참조 수로 잡고 있다(스프라이트가 텍스처를 잡는 것과 같다). 빈 칸이나
     // Font 가 아닌 아이디는 빈 핸들이다. 칸 순서는 `FontFamilySlot` 이다. `dataGeneration` 은 in-place 재로드마다 오른다.
     enum class FontFamilySlot : std::uint8_t
     {

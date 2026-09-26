@@ -50,7 +50,7 @@ namespace JBro
     {
         TextId           text;
         AssetId          fontId;
-        AssetHandle      font;             // fontId 에서 해석된 것(Font 또는 FontFamily, D-224). fontId 가 비면 프로젝트의 첫 폰트를 쓴다(D-213)
+        AssetHandle      font;             // fontId 에서 해석된 것(Font 또는 FontFamily, D-225). fontId 가 비면 프로젝트의 첫 폰트를 쓴다(D-213)
         float            fontSize = 32.0f; // em 크기(글자 픽셀)
         float            boxWidth = 0.0f;  // 글자 픽셀. 0 이면 그 방향으로 제한이 없다
         float            boxHeight = 0.0f;
@@ -99,7 +99,7 @@ namespace JBro
         static std::uint64_t MakeOptionsKey(const TextBlockSettings& settings);
 
     private:
-        // faces 안에서 굵게·기울임·굵은 기울임 face 의 번호다(패밀리일 때, D-224). 없으면 `Text::LayoutOptions::NoStyleFace` 다.
+        // faces 안에서 굵게·기울임·굵은 기울임 face 의 번호다(패밀리일 때, D-225). 없으면 `Text::LayoutOptions::NoStyleFace` 다.
         struct StyleFaces
         {
             std::uint16_t bold = Text::LayoutOptions::NoStyleFace;

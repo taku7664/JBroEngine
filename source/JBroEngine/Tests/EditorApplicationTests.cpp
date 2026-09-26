@@ -10055,7 +10055,7 @@ namespace
         editor.Shutdown();
     }
 
-    // **새 폰트 패밀리**(D-224). 에셋 브라우저의 메뉴가 부르는 길이다. 겹치지 않는 이름의 `.jfontfamily` 가 FontFamily 로 등록되고
+    // **새 폰트 패밀리**(D-225). 에셋 브라우저의 메뉴가 부르는 길이다. 겹치지 않는 이름의 `.jfontfamily` 가 FontFamily 로 등록되고
     // 골라지며, 인스펙터가 네 칸을 에셋 옵션 블록으로 보인다(칸 필드 이름이 `...FontId` 라 고르기가 폰트만 보인다).
     void TestTheEditorMakesFontFamilies()
     {

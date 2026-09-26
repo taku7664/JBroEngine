@@ -56,7 +56,7 @@ namespace JBro
         {
             primary = project.Size() > 0 ? project[0] : AssetHandle{};
         }
-        // **패밀리면 Regular 가 기본 face 이고 나머지 칸이 스타일 face 다**(D-224). Regular 칸이 비면 처음 찬 칸이 기본이다.
+        // **패밀리면 Regular 가 기본 face 이고 나머지 칸이 스타일 face 다**(D-225). Regular 칸이 비면 처음 찬 칸이 기본이다.
         AssetHandle family[4];
         const bool isFamily = library.GetFamilyFonts(primary, family);
         if (isFamily)

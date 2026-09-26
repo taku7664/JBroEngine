@@ -73,7 +73,7 @@ namespace JBro::Text
         float    markupScale = 1.0f;
         // `<size>` 를 정수 픽셀로 반올림한다. 비트맵 폰트는 정수 크기마다 뜨므로 레이아웃도 그 크기로 재야 한다.
         bool     wholePixelMarkup = false;
-        // **스타일 face**(D-224). 리치 텍스트의 `<b>`·`<i>` 가 붙은 글자가 먼저 볼 faces 안의 번호다(굵게·기울임·굵은 기울임 순).
+        // **스타일 face**(D-225). 리치 텍스트의 `<b>`·`<i>` 가 붙은 글자가 먼저 볼 faces 안의 번호다(굵게·기울임·굵은 기울임 순).
         // `NoStyleFace` 면 그 스타일의 face 가 없다 - 굵은 기울임은 굵게, 기울임 순으로, 모두 없으면 보통 글자와 같은 face 를 쓴다.
         // 그 face 에 글자가 없으면 폴백 순서(faces 앞에서부터)로 간다.
         static constexpr std::uint16_t NoStyleFace = 0xFFFF;

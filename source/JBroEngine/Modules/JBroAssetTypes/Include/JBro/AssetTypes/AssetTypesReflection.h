@@ -120,7 +120,7 @@ namespace JBro
         }
     };
 
-    // `.jmeta` 의 `FontFamily.ImportOptions` 가 이 표로 읽히고 쓰인다(D-224).
+    // `.jmeta` 의 `FontFamily.ImportOptions` 가 이 표로 읽히고 쓰인다(D-225).
     template <>
     struct TypeDescriptorOf<FontFamilyOptions>
     {

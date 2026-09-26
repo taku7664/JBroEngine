@@ -106,7 +106,7 @@ namespace JBro
             {
                 return whole;
             }
-            // 이름의 마지막 낱말이 타입이면 그것이다(`regularFontId`·`boldItalicFontId` 는 Font, D-224).
+            // 이름의 마지막 낱말이 타입이면 그것이다(`regularFontId`·`boldItalicFontId` 는 Font, D-225).
             std::size_t last = length;
             while (last > 1 && false == (buffer[last - 1] >= 'A' && buffer[last - 1] <= 'Z'))
             {
@@ -759,7 +759,7 @@ namespace JBro
     void InspectorPanel::DrawAssetField(
         const char* fieldName, const TypeDescriptor& type, void* address, Context& context)
     {
-        // 텍스트의 `fontId` 는 폰트와 폰트 패밀리를 다 받는다(D-224). 패밀리 안의 칸(`regularFontId` 따위)은 폰트만이다.
+        // 텍스트의 `fontId` 는 폰트와 폰트 패밀리를 다 받는다(D-225). 패밀리 안의 칸(`regularFontId` 따위)은 폰트만이다.
         const AssetChoices& choices = std::strcmp(fieldName, "fontId") == 0
             ? ChoicesFor(AssetType::Font, AssetType::FontFamily)
             : ChoicesFor(AssetTypeOfIdName(fieldName));
@@ -1010,7 +1010,7 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorFontImportOptions, "Font Import Options"),
                 TypeDescriptorOf<FontImportOptions>::Get(), &scratch.fontOptions, false, false, true);
         }
-        // 폰트 패밀리의 네 칸(D-224). 고치면 제자리 재로드로 칸의 폰트가 바뀌고, 그 패밀리를 쓰는 텍스트가 다시 레이아웃된다.
+        // 폰트 패밀리의 네 칸(D-225). 고치면 제자리 재로드로 칸의 폰트가 바뀌고, 그 패밀리를 쓰는 텍스트가 다시 레이아웃된다.
         if (meta.type == AssetType::FontFamily)
         {
             drawBlock(Loc::TextOr(LocKeys::InspectorFontFamilyFaces, "Font Family"),

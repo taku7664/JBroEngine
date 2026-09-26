@@ -119,7 +119,7 @@ namespace JBro
         struct AssetChoices
         {
             AssetType type = AssetType::Unknown;
-            // 함께 보이는 둘째 타입이다(`fontId` 가 폰트와 폰트 패밀리를 다 받는다, D-224). 없으면 Unknown.
+            // 함께 보이는 둘째 타입이다(`fontId` 가 폰트와 폰트 패밀리를 다 받는다, D-225). 없으면 Unknown.
             AssetType also = AssetType::Unknown;
             std::uint64_t revision = 0;
             bool built = false;

@@ -11,7 +11,7 @@ namespace JBro
     // 2: 텍스트 시스템이 붙었다(D-200).
     // 3: 물리 질의가 늘고(`RaycastAll`·`OverlapPoint`·`OverlapCircle`·`CircleCast`·`BoxCast`, 레이어 마스크) 반직선 결과가
     //    `RaycastHit2D` 가 되었다 - `IPhysics2DSystem` 의 가상 함수 표가 바뀌었다(physics-plan §4 의 6).
-    // 4: 텍스트 슬롯이 차원 무관 `ITextSystem`(TextId 로 받는다)이 되었다 - 가상 함수 표가 바뀌었다(D-223).
+    // 4: 텍스트 슬롯이 차원 무관 `ITextSystem`(TextId 로 받는다)이 되었다 - 가상 함수 표가 바뀌었다(D-224).
     inline constexpr std::uint32_t Framework2DSystemContextAbiVersion = 4;
 
     // 차원별 시스템 인터페이스 묶음. 공통 SystemContext 는 Framework 타입을 알지 않으므로

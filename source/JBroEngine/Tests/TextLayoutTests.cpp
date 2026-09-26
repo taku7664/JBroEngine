@@ -380,7 +380,7 @@ namespace
             "auto size shrinks the tagged letter with the rest");
     }
 
-    // **`<b>`·`<i>` 와 스타일 face**(D-224). 굵게 face 를 둘째 face 로 주면 `<b>` 안의 글자는 그 face 에서 온다. 기울임 face 가 없으면
+    // **`<b>`·`<i>` 와 스타일 face**(D-225). 굵게 face 를 둘째 face 로 주면 `<b>` 안의 글자는 그 face 에서 온다. 기울임 face 가 없으면
     // 기울임 글자는 보통 face 다. 굵은 기울임은 굵은 기울임 → 굵게 순으로 찾는다. 스타일 face 에 없는 글자(한글)는 폴백 순서로 간다.
     void TestBoldAndItalicTagsPickStyleFaces()
     {

@@ -215,7 +215,7 @@ namespace
         AssetId fontId;
         // 한글이 없는 라틴 서브셋이다. 폴백 시험이 쓴다(3 단계).
         AssetId latinId;
-        // 폰트 패밀리(D-224)다. 칸은 비어 있고 테스트가 `WriteFamily` 로 채운다.
+        // 폰트 패밀리(D-225)다. 칸은 비어 있고 테스트가 `WriteFamily` 로 채운다.
         AssetId familyId;
         String metaPath;
         String familyMetaPath;
@@ -320,7 +320,7 @@ namespace
         project.Close();
     }
 
-    // **폰트 패밀리 에셋**(D-224). 칸은 `.jmeta` 의 `FontFamily` 블록이고, 로드하면 칸마다 Font 를 참조 수로 잡는다. 빈 칸과 Font 가
+    // **폰트 패밀리 에셋**(D-225). 칸은 `.jmeta` 의 `FontFamily` 블록이고, 로드하면 칸마다 Font 를 참조 수로 잡는다. 빈 칸과 Font 가
     // 아닌 칸(자기 자신)은 빈 핸들이다. 칸을 바꿔 in-place 재로드하면 새 칸을 싣고 옛 칸을 놓는다. 쓰지 않게 되면 패밀리가 먼저
     // 내려가고 그것이 놓은 폰트가 따라 내려간다.
     void TestFontFamilyAssetsHoldTheirFonts()
@@ -1308,7 +1308,7 @@ namespace
             Check(texts->IsMissingFont(lost->GetInstanceId()) && false == texts->IsMissingFont(label->GetInstanceId()),
                 "a Text3D whose font is missing is reported, the others are not");
 
-            // 스크립트 서비스(D-223): 3D 컨텍스트를 묶으면 `Text3DService` 가 호스트의 텍스트 시스템으로 글자를 바꾸고 읽는다.
+            // 스크립트 서비스(D-224): 3D 컨텍스트를 묶으면 `Text3DService` 가 호스트의 텍스트 시스템으로 글자를 바꾸고 읽는다.
             Check(framework.BindScriptContexts() && framework.GetScriptContextBlocks().size == 2,
                 "the 3D framework hands out its system and service contexts");
             const Service::Text3DService& service = GetFramework3DServices().Text3D;
@@ -1329,7 +1329,7 @@ namespace
         project.Close();
     }
 
-    // **패밀리로 그린다**(D-224). `fontId` 가 패밀리(Regular = 한글 서브셋, Bold = 라틴 서브셋)를 가리키면 보통 글자는 Regular 의 아틀라스,
+    // **패밀리로 그린다**(D-225). `fontId` 가 패밀리(Regular = 한글 서브셋, Bold = 라틴 서브셋)를 가리키면 보통 글자는 Regular 의 아틀라스,
     // `<b>` 글자는 Bold 의 아틀라스로 간다 - 두 서브셋은 모양이 같으므로 픽셀이 아니라 **페이지를 가진 폰트 수**로 본다.
     // 패밀리의 칸을 바꾸면 다시 레이아웃한다. Regular 칸이 빈 패밀리는 처음 찬 칸을 기본으로 쓴다.
     void TestFontFamiliesDrawBoldFromTheBoldFace()

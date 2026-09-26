@@ -51,7 +51,7 @@ namespace JBro
         double m_fixedAccumulator = 0.0;
         bool m_initialized = false;
         bool m_simulationEnabled = true;
-        // 스크립트에 건네는 3D 컨텍스트다(D-223). 2D 의 `Framework2D` 와 같은 자리다.
+        // 스크립트에 건네는 3D 컨텍스트다(D-224). 2D 의 `Framework2D` 와 같은 자리다.
         Framework3DSystemContext m_scriptSystems;
         Framework3DServiceContext m_scriptServices;
         ScriptContextBlock m_scriptBlocks[2] = {};

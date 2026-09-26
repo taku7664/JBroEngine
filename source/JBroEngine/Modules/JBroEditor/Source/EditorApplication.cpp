@@ -1849,7 +1849,7 @@ namespace JBro
 
     String EditorApplication::CreateFontFamilyAsset(const char* folder)
     {
-        // 본문은 표지뿐이다. 네 칸은 메타의 `FontFamily` 블록에 있다(D-224) - 에셋 옵션을 고치는 길(메타 커맨드·제자리 재로드)을 그대로 쓴다.
+        // 본문은 표지뿐이다. 네 칸은 메타의 `FontFamily` 블록에 있다(D-225) - 에셋 옵션을 고치는 길(메타 커맨드·제자리 재로드)을 그대로 쓴다.
         const String created = WriteNewAssetFile(folder, "NewFontFamily", ".jfontfamily", String("# JBro font family\n"));
         if (created.empty())
         {

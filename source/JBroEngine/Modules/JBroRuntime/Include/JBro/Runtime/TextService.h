@@ -8,7 +8,7 @@
 
 namespace JBro::Service
 {
-    // 텍스트 서비스의 공용 부분이다(D-223). 차원별 서비스(`Text2DService`·`Text3DService`)가 물려받고, 제 컴포넌트 타입과
+    // 텍스트 서비스의 공용 부분이다(D-224). 차원별 서비스(`Text2DService`·`Text3DService`)가 물려받고, 제 컴포넌트 타입과
     // 제 시스템을 찾는 길(`TDerived::GetTextSystem()`, 차원별 시스템 컨텍스트의 슬롯)만 준다. 컴포넌트는 `text`(TextId) 필드를 든다.
     //
     // 가상 함수를 두지 않는다 - 서비스는 서비스 컨텍스트(POD) 안에 값으로 들어가 DLL 경계를 넘는다. 메인 스레드 전용이다.

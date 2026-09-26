@@ -249,8 +249,10 @@
   이전 이름 `EngineCore` / `ScriptCore` 와 호스트 네임스페이스 `Core::` 는 쓰지 않는다.
   모듈 이름 `JBroCore` 와 충돌하기 때문이다.
 - 차원별 서비스와 시스템은 선택된 Framework가 별도 값 Context로 제공한다. (MUST)
-  2D 프로젝트는 `Framework2DServiceContext`(`Physics2DService` 값)와 `Framework2DSystemContext`(`IPhysics2DSystem*`)를
-  D-37 확장 블록으로 받는다. 이 타입들을 공통 `ServiceContext`·`SystemContext`에 넣어 공통 계층이 Framework2D를
+  2D 프로젝트는 `Framework2DServiceContext`(`Physics2DService`·`Text2DService` 값)와 `Framework2DSystemContext`(`IPhysics2DSystem*`·`ITextSystem*`)를,
+  3D 프로젝트는 `Framework3DServiceContext`(`Text3DService`)와 `Framework3DSystemContext`(`ITextSystem*`)를 D-37 확장 블록으로 받는다(D-224).
+  차원을 가로지르는 기능의 몸통은 공용으로 한 번 쓰고 차원별 서비스가 물려받는다(텍스트: `TextServiceBase`·`ITextSystem`·`TextSystemBase`).
+  서비스는 가상 함수를 두지 않는다 - 컨텍스트가 POD 로 DLL 경계를 넘는다. 이 타입들을 공통 `ServiceContext`·`SystemContext`에 넣어 공통 계층이 Framework2D를
   참조하게 만들지 않는다. (D-36, D-43)
 - **Context에는 시스템과 서비스만 넣는다. 콘텐츠 단위 객체를 넣지 않는다.** (MUST)
   `Canvas`는 장면의 단위, `GameObject`는 액터의 단위이므로 Context에 들어갈 수 없다.
@@ -760,7 +762,9 @@
       ├─ SystemContext                 공통 시스템 — 게임 DLL 은 받지만 사용자에겐 보이지 않는다
       ├─ ServiceContext                공통 서비스 — 사용자에게 보인다
       ├─ Framework2DSystemContext      2D 시스템 인터페이스 — 확장 블록, 사용자에겐 보이지 않는다
-      └─ Framework2DServiceContext     2D 서비스 — 확장 블록, 2D 프로젝트에만 보인다
+      ├─ Framework2DServiceContext     2D 서비스 — 확장 블록, 2D 프로젝트에만 보인다
+      ├─ Framework3DSystemContext      3D 시스템 인터페이스 — 확장 블록(D-224)
+      └─ Framework3DServiceContext     3D 서비스 — 확장 블록, 3D 프로젝트에만 보인다
   ```
 
   `SystemContext.h` 는 프렐류드가 include 하지 않는다. 서비스 `.cpp` 만 include 한다.
