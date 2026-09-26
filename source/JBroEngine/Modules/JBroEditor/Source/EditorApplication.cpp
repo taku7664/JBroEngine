@@ -200,6 +200,8 @@ namespace JBro
             engineConfig.enableValidation = config.enableValidation;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
+            // 에디터에서 재생한 게임의 세이브는 실제 게임의 것과 다른 폴더다(D-218).
+            engineConfig.editorSaves = true;
             engineConfig.watchAssetDirectory = true;
             engineConfig.audioDeviceEnabled = config.audioDevice;
             engineConfig.window.title = {"JBro Editor", 11};
