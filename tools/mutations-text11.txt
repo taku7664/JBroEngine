@@ -1,0 +1,26 @@
+Modules\JBroText\Source\TextLayout.cpp	rich:tags-ignored	if (options.richText && text[cursor] == '<')	if (false && text[cursor] == '<')
+Modules\JBroText\Source\TextLayout.cpp	rich:double-lt-dropped	add(U'<', offset);\n                    cursor += 2;	cursor += 2;
+Modules\JBroText\Source\TextLayout.cpp	rich:unmatched-close-accepted	if (colorDepth == 0)	if (colorDepth < 0)
+Modules\JBroText\Source\TextLayout.cpp	rich:alpha-default-zero	std::uint32_t channels[4] = { 0, 0, 0, 255 };	std::uint32_t channels[4] = { 0, 0, 0, 0 };
+Modules\JBroText\Source\TextLayout.cpp	rich:size-scale-ignored	size *= markupScale;	size *= 1.0f;
+Modules\JBroText\Source\TextLayout.cpp	rich:whole-pixel-ignored	size = std::max(1.0f, std::round(size));	size = std::max(1.0f, size);
+Modules\JBroText\Source\TextLayout.cpp	rich:advance-at-base-size	item.advance = static_cast<float>(face.GetAdvance(choice.glyph)) * Scale(face, item.size);	item.advance = static_cast<float>(face.GetAdvance(choice.glyph)) * Scale(face, options.fontSize);
+Modules\JBroText\Source\TextLayout.cpp	rich:line-height-uniform	line.size = std::max(line.size, m_items[index].size);	line.size = line.size;
+Modules\JBroText\Source\TextLayout.cpp	rich:baseline-at-base-size	line.baseline = blockTop - ascentOf(line.size) - linesAbove;	line.baseline = blockTop - ascentOf(options.fontSize) - linesAbove;
+Modules\JBroText\Source\TextLayout.cpp	rich:fit-scale-ignored	trial.markupScale = options.markupScale * size / options.fontSize;	trial.markupScale = options.markupScale;
+Modules\JBroText\Source\TextLayout.cpp	rich:glyph-colour-dropped	glyph.hasColor = item.hasColor;	glyph.hasColor = false;
+Modules\JBroTextRendering\Source\GlyphMesh.cpp	mesh:tint-dropped	quad.hasTint = true;	quad.hasTint = false;
+Modules\JBroTextRendering\Source\GlyphMesh.cpp	mesh:per-glyph-size-ignored	const float glyphSize = glyph.size > 0.0f ? glyph.size : 1.0f;	const float glyphSize = layout.GetGlyphs()[0].size;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	t2d:alpha-not-multiplied	quad.tint[3] / 255.0f * text.color.A };	quad.tint[3] / 255.0f };
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	t2d:rich-not-passed	settings.richText = text.richText;	settings.richText = false;
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:rich-not-keyed	Mix(key, settings.richText ? 1u : 0u);	;
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:markup-not-rounded	options.wholePixelMarkup = false == sdf;	options.wholePixelMarkup = false;
+Modules\JBroGraphics\Source\Renderer.cpp	world:depth-test-off	pipelineDesc.depthTest = true;\n        pipelineDesc.depthWrite = false;\n        pipelineDesc.blend = BlendMode::Alpha;	pipelineDesc.depthTest = false;\n        pipelineDesc.depthWrite = false;\n        pipelineDesc.blend = BlendMode::Alpha;
+Modules\JBroGraphics\Source\Renderer.cpp	world:no-depth-for-text-only	const bool withDepth = view.runCount != 0 || view.worldTextRunCount != 0;	const bool withDepth = view.runCount != 0;
+Modules\JBroGraphics\Source\Renderer.cpp	world:sdf-flag-dropped	instance.params[1] = item.sdf ? 65535 : 0;	instance.params[1] = 0;
+Modules\JBroGraphics\Source\Renderer.cpp	world:outline-edge-dropped	instance.params[0] = item.outlineEdge;	instance.params[0] = 32768;
+Modules\JBroFramework3DSystem\Source\Rendering\RenderBridge3D.cpp	bridge:front-to-back	return leftDistance > rightDistance;	return leftDistance < rightDistance;
+Modules\JBroFramework3DSystem\Source\Rendering\RenderBridge3D.cpp	bridge:billboard-ignored	item.billboard ? cameraRotation : item.rotation	item.rotation
+Modules\JBroFramework3DSystem\Source\Rendering\RenderBridge3D.cpp	bridge:glyph-offset-dropped	Vec3{item.left + item.width * 0.5f, item.top - item.height * 0.5f, 0.0f}	Vec3{0.0f, 0.0f, 0.0f}
+Modules\JBroFramework3DSystem\Source\System\Text3DSystem.cpp	t3d:units-not-divided	item.left = quad.left / ppu;	item.left = quad.left;
+Modules\JBroFramework3DSystem\Source\System\Text3DSystem.cpp	t3d:alpha-not-multiplied	quad.tint[3] / 255.0f * text.color.A };	quad.tint[3] / 255.0f };

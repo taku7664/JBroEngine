@@ -1,0 +1,1 @@
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:markup-not-rounded	options.wholePixelMarkup = false == sdf;	options.wholePixelMarkup = false;
