@@ -2,6 +2,7 @@
 
 #include "VectorMath.h"
 
+#include <algorithm>
 #include <cfloat>
 #include <cmath>
 
@@ -419,6 +420,262 @@ namespace JBro::Physics2D
         // 닿은 것은 표면 사이가 0 이하라는 뜻이다. 미리 만드는 접촉과 같은 판정을 쓰고 거리만 0 으로 본다.
         const Manifold manifold = CollidePolygonAndCircle(a, poseA, b, poseB);
         return manifold.count > 0 && manifold.points[0].separation <= 0.0f;
+    }
+
+    namespace
+    {
+        // 점 모음의 볼록 껍질(반시계, Andrew 의 단조 사슬). 일직선 점은 뺀다. `out` 은 `count + 1` 칸이면 된다.
+        std::uint32_t ConvexHull(Vec2* points, std::uint32_t count, Vec2* out)
+        {
+            if (count < 3)
+            {
+                for (std::uint32_t i = 0; i < count; ++i)
+                {
+                    out[i] = points[i];
+                }
+                return count;
+            }
+            std::sort(points, points + count, [](Vec2 a, Vec2 b)
+            {
+                return a.x != b.x ? a.x < b.x : a.y < b.y;
+            });
+            std::uint32_t size = 0;
+            for (std::uint32_t i = 0; i < count; ++i)
+            {
+                while (size >= 2 && Cross(Subtract(out[size - 1], out[size - 2]), Subtract(points[i], out[size - 2])) <= 0.0f)
+                {
+                    --size;
+                }
+                out[size] = points[i];
+                ++size;
+            }
+            const std::uint32_t lower = size + 1;
+            for (std::uint32_t i = count - 1; i > 0; --i)
+            {
+                const Vec2 point = points[i - 1];
+                while (size >= lower && Cross(Subtract(out[size - 1], out[size - 2]), Subtract(point, out[size - 2])) <= 0.0f)
+                {
+                    --size;
+                }
+                out[size] = point;
+                ++size;
+            }
+            return size - 1;
+        }
+
+        // 반시계 볼록 껍질에 원점에서 반직선을 쏜다(Cyrus-Beck). 원점이 안이면 거리 0 이다.
+        bool RaycastHull(const Vec2* hull, std::uint32_t count, Vec2 direction, float maxDistance,
+            float& distance, Vec2& normal)
+        {
+            if (count < 3)
+            {
+                return false;
+            }
+            float lower = 0.0f;
+            float upper = maxDistance;
+            bool entered = false;
+            Vec2 enteredNormal;
+            for (std::uint32_t i = 0; i < count; ++i)
+            {
+                const Vec2 a = hull[i];
+                const Vec2 b = hull[(i + 1) % count];
+                const Vec2 edge = Subtract(b, a);
+                const float length = Length(edge);
+                if (length <= 0.0f)
+                {
+                    continue;
+                }
+                const Vec2 outward{ edge.y / length, -edge.x / length };
+                const float numerator = Dot(outward, a);
+                const float denominator = Dot(outward, direction);
+                if (denominator == 0.0f)
+                {
+                    if (numerator < 0.0f)
+                    {
+                        return false;
+                    }
+                    continue;
+                }
+                const float t = numerator / denominator;
+                if (denominator < 0.0f && t > lower)
+                {
+                    lower = t;
+                    entered = true;
+                    enteredNormal = outward;
+                }
+                else if (denominator > 0.0f && t < upper)
+                {
+                    upper = t;
+                }
+                if (upper < lower)
+                {
+                    return false;
+                }
+            }
+            distance = entered ? lower : 0.0f;
+            normal = entered ? enteredNormal : Scale(direction, -1.0f);
+            return true;
+        }
+
+        // 선분(반직선이 뒤에서 들어오지 않는 쪽)과 반직선. 맞으면 원점에서의 거리.
+        bool RaySegment(Vec2 origin, Vec2 direction, Vec2 a, Vec2 b, float& t)
+        {
+            const Vec2 edge = Subtract(b, a);
+            const float denominator = Cross(direction, edge);
+            if (denominator == 0.0f)
+            {
+                return false;
+            }
+            const Vec2 toA = Subtract(a, origin);
+            const float along = Cross(toA, edge) / denominator;
+            const float across = Cross(toA, direction) / denominator;
+            if (along < 0.0f || across < 0.0f || across > 1.0f)
+            {
+                return false;
+            }
+            t = along;
+            return true;
+        }
+    }
+
+    bool ContainsPoint(const ConvexPolygon& polygon, const Pose& pose, Vec2 point)
+    {
+        if (polygon.count < 3)
+        {
+            return false;
+        }
+        const WorldPolygon world = ToWorld(polygon, pose);
+        for (std::uint32_t i = 0; i < world.count; ++i)
+        {
+            if (Dot(world.normals[i], Subtract(point, world.points[i])) > 0.0f)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool ContainsPoint(const Circle& circle, const Pose& pose, Vec2 point)
+    {
+        return LengthSquared(Subtract(point, TransformPoint(pose, circle.center))) <= circle.radius * circle.radius;
+    }
+
+    bool OverlapCircles(const Circle& a, const Pose& poseA, const Circle& b, const Pose& poseB)
+    {
+        const float reach = a.radius + b.radius;
+        return LengthSquared(Subtract(TransformPoint(poseB, b.center), TransformPoint(poseA, a.center))) <= reach * reach;
+    }
+
+    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal)
+    {
+        if (target.count < 3 || radius < 0.0f || maxDistance < 0.0f)
+        {
+            return false;
+        }
+        // 출발부터 닿아 있는가. 원-폴리곤 판정의 틈이 0 이하면 겹친 것이다.
+        Circle probe;
+        probe.center = center;
+        probe.radius = radius;
+        const Manifold start = CollidePolygonAndCircle(target, targetPose, probe, Pose{});
+        if (start.count > 0 && start.points[0].separation <= 0.0f)
+        {
+            distance = 0.0f;
+            normal = Scale(direction, -1.0f);
+            return true;
+        }
+
+        // 폴리곤을 반지름만큼 부풀린 모양(민코프스키 합)에 원의 중심을 쏜다: 변마다 법선으로 민 선분, 꼭짓점마다 원.
+        const WorldPolygon world = ToWorld(target, targetPose);
+        bool hit = false;
+        float best = maxDistance;
+        Vec2 bestNormal;
+        for (std::uint32_t i = 0; i < world.count; ++i)
+        {
+            const Vec2 n = world.normals[i];
+            if (Dot(n, direction) >= 0.0f)
+            {
+                continue;
+            }
+            const Vec2 a = Add(world.points[i], Scale(n, radius));
+            const Vec2 b = Add(world.points[(i + 1) % world.count], Scale(n, radius));
+            float t = 0.0f;
+            if (RaySegment(center, direction, a, b, t) && t <= best)
+            {
+                hit = true;
+                best = t;
+                bestNormal = n;
+            }
+        }
+        for (std::uint32_t i = 0; i < world.count; ++i)
+        {
+            Circle corner;
+            corner.center = world.points[i];
+            corner.radius = radius;
+            float t = 0.0f;
+            Vec2 n;
+            if (radius > 0.0f && RaycastCircle(corner, Pose{}, center, direction, best, t, n) && t <= best)
+            {
+                hit = true;
+                best = t;
+                bestNormal = n;
+            }
+        }
+        if (hit)
+        {
+            distance = best;
+            normal = bestNormal;
+        }
+        return hit;
+    }
+
+    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal)
+    {
+        // 두 원은 반지름을 더한 한 원에 중심을 쏘는 것과 같다.
+        Circle grown = target;
+        grown.radius = target.radius + radius;
+        return RaycastCircle(grown, targetPose, center, direction, maxDistance, distance, normal);
+    }
+
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal)
+    {
+        if (moving.count < 3 || target.count < 3 || maxDistance < 0.0f)
+        {
+            return false;
+        }
+        // 미는 조각이 s 만큼 옮겨졌을 때 닿는 것은 s 가 (target - moving) 안에 들 때다. 그 껍질에 원점에서 쏜다.
+        const WorldPolygon a = ToWorld(moving, start);
+        const WorldPolygon b = ToWorld(target, targetPose);
+        Vec2 differences[MaxPolygonVertices * MaxPolygonVertices];
+        std::uint32_t count = 0;
+        for (std::uint32_t i = 0; i < b.count; ++i)
+        {
+            for (std::uint32_t j = 0; j < a.count; ++j)
+            {
+                differences[count] = Subtract(b.points[i], a.points[j]);
+                ++count;
+            }
+        }
+        Vec2 hull[MaxPolygonVertices * MaxPolygonVertices + 1];
+        const std::uint32_t hullCount = ConvexHull(differences, count, hull);
+        return RaycastHull(hull, hullCount, direction, maxDistance, distance, normal);
+    }
+
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal)
+    {
+        // 조각이 원 쪽으로 가는 것은 원이 거꾸로 조각 쪽으로 오는 것과 같다. 원 스윕의 법선은 조각의 바깥이므로
+        // 뒤집으면 원 표면에서 조각을 향한 법선이다.
+        const Vec2 back = Scale(direction, -1.0f);
+        if (false == CastCircle(TransformPoint(targetPose, target.center), target.radius, back, maxDistance,
+                moving, start, distance, normal))
+        {
+            return false;
+        }
+        normal = distance == 0.0f ? back : Scale(normal, -1.0f);
+        return true;
     }
 
     Rect ComputeCircleBounds(const Circle& circle, const Pose& pose)

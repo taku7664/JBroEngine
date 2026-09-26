@@ -280,12 +280,12 @@ namespace
             JBro::System::IPhysics2DSystem,
             JBro::System::Physics2DSystem>);
         JBro::System::IPhysics2DSystem& queries = system;
-        JBro::Collision2D hit;
-        Check(false == queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+        JBro::RaycastHit2D hit;
+        Check(false == queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit, JBro::AllPhysicsLayers),
             "uninitialized queries must not access a canvas");
         system.Initialize(canvas);
         Check(
-            queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+            queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit, JBro::AllPhysicsLayers),
             "ray must hit the nearest collider");
         Check(hit.other.GetInstanceId() == boxObject->GetInstanceId(),
             "ray must select the nearest object through a safe script handle");
@@ -293,19 +293,19 @@ namespace
         Check(NearlyEqual(hit.normal.x, -1.0f), "box hit normal must face the ray");
 
         JBro::Array<JBro::GameObjectHandle> overlaps;
-        queries.OverlapBox({{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps);
+        queries.OverlapBox({{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps, JBro::AllPhysicsLayers);
         Check(overlaps.Size() == 2, "overlap box must include box and circle");
 
         boxCollider->SetEnabled(false);
         secondBoxCollider->SetEnabled(false);
         Check(
-            queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+            queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit, JBro::AllPhysicsLayers),
             "ray must continue past a disabled collider");
         Check(hit.other.GetInstanceId() == circleObject->GetInstanceId(),
             "disabled collider must not participate in queries");
         Check(NearlyEqual(hit.point.x, 4.0f), "circle hit point must be on its near edge");
 
-        const JBro::Collision2D retainedHit = hit;
+        const JBro::RaycastHit2D retainedHit = hit;
         Check(canvas.DestroyObject(circleObject), "query target must be destroyed");
         Check(false == retainedHit.other.IsValid(), "retained collision handle must invalidate after destruction");
         std::size_t validOverlapCount = 0;
@@ -319,16 +319,16 @@ namespace
         Check(validOverlapCount == 1, "only the surviving overlap target must remain valid");
 
         system.Shutdown(canvas);
-        Check(false == queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit),
+        Check(false == queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit, JBro::AllPhysicsLayers),
             "physics queries must stop resolving the canvas after system shutdown");
         Check(hit.other.GetInstanceId() == JBro::InvalidInstanceId,
             "unavailable queries must clear the previous hit");
-        queries.OverlapBox({{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps);
+        queries.OverlapBox({{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps, JBro::AllPhysicsLayers);
         Check(overlaps.Size() == 0, "shutdown overlap queries must clear previous results");
 
         boxCollider->SetEnabled(true);
         system.Initialize(canvas);
-        Check(queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit)
+        Check(queries.Raycast({0.0f, 0.0f}, {1.0f, 0.0f}, 10.0f, hit, JBro::AllPhysicsLayers)
             && hit.other.GetInstanceId() == boxObject->GetInstanceId(),
             "reinitialized queries must use the newly bound canvas");
         system.Shutdown(canvas);

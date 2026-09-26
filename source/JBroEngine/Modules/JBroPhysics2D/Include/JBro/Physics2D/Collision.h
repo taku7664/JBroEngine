@@ -81,4 +81,24 @@ namespace JBro::Physics2D
     // 겹침 질의. 맞닿기만 해도 겹친 것이다.
     bool OverlapPolygons(const ConvexPolygon& a, const Pose& poseA, const ConvexPolygon& b, const Pose& poseB);
     bool OverlapPolygonAndCircle(const ConvexPolygon& a, const Pose& poseA, const Circle& b, const Pose& poseB);
+    // ── 점·겹침·스윕 질의 (physics-plan §4 의 6, 기존 엔진 `Physics2DQueryGeometry`) ─────────────────────────
+    //
+    // 스윕은 모양을 `direction`(단위 벡터)으로 `maxDistance` 까지 밀면서 **처음 닿는** 자리를 찾는다. 도형은 돌지 않는다.
+    // 닿으면 그때까지 간 거리와 상대 표면의 바깥 법선(민 쪽을 향한다)을 준다. **출발부터 겹쳐 있으면 거리 0, 법선
+    // -direction** 이다 - 파고든 상태를 감추지 않는다(기존 엔진과 같다).
+    bool ContainsPoint(const ConvexPolygon& polygon, const Pose& pose, Vec2 point);
+    bool ContainsPoint(const Circle& circle, const Pose& pose, Vec2 point);
+    bool OverlapCircles(const Circle& a, const Pose& poseA, const Circle& b, const Pose& poseB);
+
+    // 월드의 원(중심·반지름)을 민다.
+    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal);
+    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal);
+    // 볼록 조각을 `start` 자세에서 민다. 조각끼리는 민코프스키 차의 볼록 껍질에 반직선을 쏜다.
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal);
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal);
+
 }

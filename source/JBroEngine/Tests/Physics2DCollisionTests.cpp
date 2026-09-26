@@ -444,6 +444,96 @@ namespace
             "a ball near a corner but outside its reach does not overlap");
         Check(JBro::Physics2D::OverlapPolygonAndCircle(box, At(0, 0), ball, At(0, 0)), "a ball inside does");
     }
+
+    // **점·원 겹침.** 경계 위도 든다.
+    void TestPointsAndCircles()
+    {
+        const ConvexPolygon box = MakeBox(1.0f, 1.0f);
+        Check(JBro::Physics2D::ContainsPoint(box, At(3, 0), { 3.5f, 0.5f }), "a point inside a box");
+        Check(JBro::Physics2D::ContainsPoint(box, At(3, 0), { 4.0f, 0.0f }), "and one on its face");
+        Check(false == JBro::Physics2D::ContainsPoint(box, At(3, 0), { 4.1f, 0.0f }), "but not one past it");
+        Check(false == JBro::Physics2D::ContainsPoint(box, At(0, 0, 0.78539816f), { 0.9f, 0.9f }),
+            "the corner of the unrotated box is outside the diamond");
+
+        Circle ball;
+        ball.center = { 1, 0 };
+        ball.radius = 0.5f;
+        Check(JBro::Physics2D::ContainsPoint(ball, At(0, 0), { 1.4f, 0.0f }), "a point inside an offset circle");
+        Check(false == JBro::Physics2D::ContainsPoint(ball, At(0, 0), { 0.4f, 0.0f }), "and one outside it");
+        Circle other;
+        other.radius = 0.5f;
+        Check(JBro::Physics2D::OverlapCircles(ball, At(0, 0), other, At(2.0f, 0)), "touching circles overlap");
+        Check(false == JBro::Physics2D::OverlapCircles(ball, At(0, 0), other, At(2.1f, 0)), "apart ones do not");
+    }
+
+    // **스윕.** 모양을 밀면서 처음 닿는 거리와 상대 표면의 법선. 값은 손으로 푼 것이다.
+    void TestSweeps()
+    {
+        const ConvexPolygon target = MakeBox(1.0f, 1.0f);
+        float distance = 0.0f;
+        Vec2 normal;
+
+        // 원: 면, 모서리, 출발부터 겹침, 빗나감, 거리 모자람, 원 대 원.
+        Check(JBro::Physics2D::CastCircle({ 0, 0 }, 0.5f, { 1, 0 }, 10.0f, target, At(3, 0), distance, normal),
+            "a circle swept at a box hits it");
+        Check(Near(distance, 1.5f, 1.0e-4f) && NearVector(normal, { -1, 0 }, 1.0e-5f),
+            "on its near face, a radius short of it");
+        Check(JBro::Physics2D::CastCircle({ 0, 1.3f }, 0.5f, { 1, 0 }, 10.0f, target, At(3, 0), distance, normal),
+            "a circle passing the top corner clips it");
+        Check(Near(distance, 1.6f, 1.0e-4f) && NearVector(normal, { -0.8f, 0.6f }, 1.0e-4f),
+            "rounding the corner: 2 - sqrt(0.25 - 0.09), normal from the corner to the center");
+        Check(false == JBro::Physics2D::CastCircle({ 0, 1.6f }, 0.5f, { 1, 0 }, 10.0f, target, At(3, 0), distance, normal),
+            "a circle passing above the box misses");
+        Check(false == JBro::Physics2D::CastCircle({ 0, 0 }, 0.5f, { 1, 0 }, 1.0f, target, At(3, 0), distance, normal),
+            "and one that stops short misses");
+        Check(JBro::Physics2D::CastCircle({ 2.2f, 0 }, 0.5f, { 1, 0 }, 10.0f, target, At(3, 0), distance, normal)
+            && distance == 0.0f && NearVector(normal, { -1, 0 }, 0.0f),
+            "a circle that starts inside reports distance zero against its direction");
+        Circle round;
+        round.radius = 1.0f;
+        Check(JBro::Physics2D::CastCircle({ 0, 0 }, 0.5f, { 1, 0 }, 10.0f, round, At(4, 0), distance, normal)
+            && Near(distance, 2.5f, 1.0e-4f) && NearVector(normal, { -1, 0 }, 1.0e-5f),
+            "a circle swept at a circle stops when the radii touch");
+
+        // 상자: 면, 돌린 상자의 모서리, 원, 출발부터 겹침, 빗나감.
+        const ConvexPolygon mover = MakeBox(0.5f, 0.5f);
+        Check(JBro::Physics2D::CastPolygon(mover, At(0, 0), { 1, 0 }, 10.0f, target, At(3, 0), distance, normal),
+            "a box swept at a box hits it");
+        Check(Near(distance, 1.5f, 1.0e-4f) && NearVector(normal, { -1, 0 }, 1.0e-5f), "face to face");
+        Check(JBro::Physics2D::CastPolygon(mover, At(0, 0), { 1, 0 }, 10.0f, target, At(3, 0, 0.78539816f), distance, normal),
+            "a box swept at a diamond hits it");
+        Check(Near(distance, 3.0f - std::sqrt(2.0f) - 0.5f, 1.0e-4f), "at the diamond's near corner");
+        Check(JBro::Physics2D::CastPolygon(mover, At(0, 0), { 1, 0 }, 10.0f, round, At(3, 0), distance, normal)
+            && Near(distance, 1.5f, 1.0e-4f) && NearVector(normal, { -1, 0 }, 1.0e-5f),
+            "a box swept at a circle stops at the circle, with the circle's normal");
+        Check(JBro::Physics2D::CastPolygon(mover, At(1.8f, 0), { 1, 0 }, 10.0f, target, At(3, 0), distance, normal)
+            && distance == 0.0f && NearVector(normal, { -1, 0 }, 0.0f),
+            "a box that starts overlapping reports distance zero");
+        Check(false == JBro::Physics2D::CastPolygon(mover, At(0, 2), { 1, 0 }, 10.0f, target, At(3, 0), distance, normal),
+            "a box passing above misses");
+        Check(false == JBro::Physics2D::CastPolygon(mover, At(0, 0), { -1, 0 }, 10.0f, target, At(3, 0), distance, normal),
+            "and one swept away from the target misses");
+
+        // U 의 홈으로 내리꽂은 원은 홈 바닥에 선다 - 조각마다 쏘아 가장 가까운 것이다.
+        const Array<Vec2> u = {
+            { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        const Array<ConvexPolygon> pieces = Decompose(u);
+        bool hit = false;
+        float closest = 100.0f;
+        Vec2 closestNormal;
+        for (const ConvexPolygon& piece : pieces)
+        {
+            if (JBro::Physics2D::CastCircle({ 1.5f, 5.0f }, 0.3f, { 0, -1 }, 10.0f, piece, At(0, 0), distance, normal)
+                && distance < closest)
+            {
+                hit = true;
+                closest = distance;
+                closestNormal = normal;
+            }
+        }
+        Check(hit && Near(closest, 3.7f, 1.0e-4f) && NearVector(closestNormal, { 0, 1 }, 1.0e-5f),
+            "a ball dropped into the notch of a U lands on the notch floor, 5 - 1 - 0.3 down");
+    }
 }
 
 int RunPhysics2DCollisionTests()
@@ -454,6 +544,8 @@ int RunPhysics2DCollisionTests()
     TestCircleAgainstACornerAndFromInside();
     TestRaycasts();
     TestOverlaps();
+    TestPointsAndCircles();
+    TestSweeps();
     TestCircles();
     TestSpeculativeContacts();
     TestContactIdsStayWhileTheSameFacesTouch();

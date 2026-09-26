@@ -15,7 +15,8 @@
   시간에 검사). 테스트와 뮤테이션이 계획서 §4 에 있다.
   ~~5 단계 에디터 - 캔버스 뷰의 폴리곤 포인트 편집("콜라이더 편집"), 콜라이더 모두 그리기·조각·거절 표시~~ → 2026-09-26 ·
   `1d66967` · `JBroEditor/Source/Panel/CanvasViewPanel.cpp`, `JBro/Editor/Gizmo/PolygonEditModel.h`.
-  `[진행 예정]` 6 단계 질의 확장(후순위지만 구현).
+  ~~6 단계 질의 확장 - `RaycastAll`·`OverlapPoint`·`OverlapCircle`·`CircleCast`·`BoxCast`·레이어 마스크~~ → 2026-09-26 ·
+  `41a0c8f`·`7484f57` · `JBroPhysics2D/Source/Collision.cpp`, `Physics2DSystem.cpp`(`ForEachQueryShape`). 결과 타입은 `RaycastHit2D`.
   `[열림]` 4 단계가 남긴 것 다섯(크기 애니메이션의 도형 재생성, 캡슐, 부모의 찌그러짐, 꺼진 부모, 실제 에디터 확인) - 계획서 §4 의 4.
 
 ## 오디오 (audio-plan §3-3, D-197)

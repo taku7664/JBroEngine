@@ -5,6 +5,7 @@
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/EditorSpriteContours.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
@@ -359,6 +360,10 @@ namespace JBro
         void ClosePopup(PopupHandle handle);
         bool IsPopupOpen(PopupHandle handle) const;
         bool IsPopupOpenById(const char* id) const;
+        // 우측 하단의 알림 더미다(todo "에디터 공용 기반" 1 번). 패널·도구·외부 에디터가 여기에 알린다 -
+        // 막는 팝업과 달리 하던 일을 멈추지 않는다. UI 가 꺼져 있어도 쌓이고, 켜지면 뜬다.
+        EditorNotifications& GetNotifications();
+        const EditorNotifications& GetNotifications() const;
         // 제목으로 찾는다. 없으면 nullptr 이다.
         EditorPanel* FindPanel(const char* title);
         std::size_t GetPanelCount() const;
@@ -586,6 +591,7 @@ namespace JBro
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;
         PopupHandle m_nextPopupHandle = 1;
+        EditorNotifications m_notifications;
         // 브라우저가 찾아가야 할 에셋. 비어 있으면 기다리는 것이 없다(D-193).
         AssetId m_revealInBrowser;
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).

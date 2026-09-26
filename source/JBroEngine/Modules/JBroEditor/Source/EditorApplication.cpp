@@ -25,6 +25,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Notification.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Canvas/Canvas.h>
@@ -3172,6 +3173,15 @@ namespace JBro
 
         DrawPopups();
 
+        // **알림은 모든 것 위에 선다** - 팝업보다 뒤에 그린다. 누른 것의 할 일은 여기서 부른다: 할 일이
+        // 에디터를 받아야 하는데 위젯 계층은 에디터를 모른다.
+        m_notifications.Update(deltaTime);
+        const NotificationHandle clicked = Widget::NotificationStack(m_notifications);
+        if (clicked != InvalidNotificationHandle)
+        {
+            m_notifications.Activate(clicked, *this);
+        }
+
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
         return m_ui.EndFrame();
@@ -3320,6 +3330,16 @@ namespace JBro
             }
         }
         return false;
+    }
+
+    EditorNotifications& EditorApplication::GetNotifications()
+    {
+        return m_notifications;
+    }
+
+    const EditorNotifications& EditorApplication::GetNotifications() const
+    {
+        return m_notifications;
     }
 
     bool EditorApplication::IsPopupOpenById(const char* id) const
