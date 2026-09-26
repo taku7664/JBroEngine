@@ -211,8 +211,7 @@ namespace JBro::Widget
         }
     }
 
-    bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel,
-        bool hotkeys)
+    bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel)
     {
         const GizmoMode before = mode;
         const char* labels[3] = {translateLabel, rotateLabel, scaleLabel};
@@ -236,26 +235,6 @@ namespace JBro::Widget
             if (ImGui::Button(label))
             {
                 mode = modes[index];
-            }
-        }
-        // 포커스가 있거나 마우스가 이 창 위에 있으면 받는다. 글자 입력 중이거나 조합키(Ctrl+S 같은 단축키)가 눌려 있으면
-        // 받지 않는다.
-        const ImGuiIO& io = ImGui::GetIO();
-        if (hotkeys && false == io.WantTextInput && false == io.KeyCtrl && false == io.KeyAlt && false == io.KeySuper
-            && (ImGui::IsWindowFocused(ImGuiFocusedFlags_ChildWindows)
-                || ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows)))
-        {
-            if (ImGui::IsKeyPressed(ImGuiKey_W, false))
-            {
-                mode = GizmoMode::Translate;
-            }
-            else if (ImGui::IsKeyPressed(ImGuiKey_E, false))
-            {
-                mode = GizmoMode::Rotate;
-            }
-            else if (ImGui::IsKeyPressed(ImGuiKey_R, false))
-            {
-                mode = GizmoMode::Scale;
             }
         }
         return mode != before;

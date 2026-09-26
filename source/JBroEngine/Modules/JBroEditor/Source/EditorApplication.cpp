@@ -1,11 +1,13 @@
 ﻿#include <JBro/Core/Log.h>
 #include <JBro/Core/Version.h>
+#include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Command/AssetFileCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/ConfirmPopup.h>
@@ -97,7 +99,11 @@ namespace JBro
         constexpr const char* MainDockLabel = "###MainDock";
     }
 
-    EditorApplication::EditorApplication() = default;
+    // 단축키 관리자는 언제나 있다 - 켜기 전에도 패널과 테스트가 이름으로 찾을 수 있게.
+    EditorApplication::EditorApplication()
+        : m_shortcuts(MakeOwnerPtr<EditorShortcutManager>())
+    {
+    }
 
     EditorApplication::~EditorApplication()
     {
@@ -237,7 +243,86 @@ namespace JBro
         m_graphicsApi = config.graphicsApi;
         m_lastFrameStatus = FrameStatus::Ready;
         m_initialized = true;
+
+        // 단축키: 전역 아홉을 올리고 사용자가 바꿔 둔 것을 덮는다(D-227). 패널의 것은 패널이 만들어질 때 올라온다.
+        EditorShortcuts::RegisterBuiltins(*m_shortcuts);
+        if (config.preferencesPath != nullptr && config.preferencesPath[0] != '\0')
+        {
+            m_preferencesPath = config.preferencesPath;
+        }
+        else if (config.userPreferences)
+        {
+            const String folder = m_platform->GetUserDataFolder();
+            m_preferencesPath = folder.IsEmpty() ? String() : EditorPaths::JoinPath(folder.c_str(), "JBroEngine/Editor/EditorPreferences.yaml");
+        }
+        LoadPreferences();
         return true;
+    }
+
+    void EditorApplication::LoadPreferences()
+    {
+        m_savedShortcutRevision = m_shortcuts->GetRevision();
+        if (m_preferencesPath.IsEmpty() || false == m_platform->FileExists(m_preferencesPath.c_str()))
+        {
+            return;
+        }
+        Array<std::byte> bytes;
+        YamlDocument document;
+        YamlError error;
+        // **모양까지 본다.** 뿌리가 맵이 아니거나 `Shortcuts` 가 맵이 아니면 읽지 못한 것이다 - YAML 로는 읽혀도(`Shortcuts: [...`
+        // 가 한 줄 글자로 읽힌다) 그 파일을 기본값으로 덮어쓰면 손으로 고치던 사람의 설정이 사라진다.
+        bool readable = m_platform->ReadWholeFile(m_preferencesPath.c_str(), bytes)
+            && document.Parse(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), error)
+            && document.GetKind(document.GetRoot()) == YamlKind::Map;
+        if (readable)
+        {
+            const std::uint32_t shortcuts = document.Find(document.GetRoot(), "Shortcuts");
+            readable = shortcuts == YamlDocument::InvalidNode || document.GetKind(shortcuts) == YamlKind::Map;
+        }
+        if (false == readable)
+        {
+            // 못 읽었으면 기본값으로 뜬다. 설정 파일 하나 때문에 에디터가 안 뜨는 것이 더 나쁘다 - 알리고 **덮어쓰지 않는다**.
+            Log::Write(LogLevel::Warning, "editor", "could not read the editor preferences: %s", m_preferencesPath.c_str());
+            m_preferencesPath.clear();
+            return;
+        }
+        m_shortcuts->Read(document, document.GetRoot());
+        m_savedShortcutRevision = m_shortcuts->GetRevision();
+    }
+
+    void EditorApplication::SavePreferences()
+    {
+        m_savedShortcutRevision = m_shortcuts->GetRevision();
+        if (m_preferencesPath.IsEmpty())
+        {
+            return;
+        }
+        YamlWriter writer;
+        writer.WriteInt("Version", 1);
+        m_shortcuts->Write(writer);
+        const String& text = writer.GetText();
+        const String folder = EditorPaths::FolderOf(m_preferencesPath.c_str());
+        if ((false == folder.IsEmpty() && false == m_platform->CreateDirectoryAt(folder.c_str()))
+            || false == m_platform->WriteWholeFile(m_preferencesPath.c_str(),
+                JArrayView<std::byte>{reinterpret_cast<const std::byte*>(text.data()), static_cast<std::uint32_t>(text.size())}))
+        {
+            Log::Write(LogLevel::Warning, "editor", "could not write the editor preferences: %s", m_preferencesPath.c_str());
+        }
+    }
+
+    EditorShortcutManager& EditorApplication::GetShortcuts()
+    {
+        return *m_shortcuts;
+    }
+
+    const EditorShortcutManager& EditorApplication::GetShortcuts() const
+    {
+        return *m_shortcuts;
+    }
+
+    const String& EditorApplication::GetPreferencesPath() const
+    {
+        return m_preferencesPath;
     }
 
     bool EditorApplication::OpenProject(const ProjectDescriptor& project)
@@ -2863,7 +2948,7 @@ namespace JBro
         // **글자도 할 수 있는지도 단축키 표에서 온다**(D-132). 메뉴에 박아 두면
         // 키를 바꿨을 때 화면만 옛 글자로 남는다.
         const bool enabled = EditorShortcuts::CanExecute(*this, id);
-        const EditorShortcutText keys = EditorShortcuts::Describe(id);
+        const EditorShortcutText keys = EditorShortcuts::Describe(*this, id);
         // 잠긴 까닭도 같은 표에서 온다(D-181). 회색으로만 두면 무엇을 해야 켜지는지 모른다.
         const bool chosen = Widget::MenuItem(label, keys.value, enabled,
             EditorShortcuts::WhyBlocked(*this, id));
@@ -3281,7 +3366,20 @@ namespace JBro
 
         // **단축키는 한 표에서 온다**(D-132). 누르는 자리와 메뉴에 보이는 글자와
         // 할 수 있는지 재는 자리가 갈리지 않게, 셋 다 `EditorShortcuts` 가 안다.
-        EditorShortcuts::ProcessInput(*this);
+        //
+        // **포커스를 가진 패널의 단축키가 먼저 돈다**(D-227). 패널의 포커스는 지난 프레임에 그리며 적은 값이다 - 이번 프레임의
+        // 입력은 패널을 그리기 전에 처리해야 같은 키가 패널 안의 칸에 먼저 가지 않는다.
+        const char* focusedScope = nullptr;
+        for (const OwnerPtr<EditorPanel>& panel : m_panels)
+        {
+            if (panel.Get() != nullptr && panel->IsFocused())
+            {
+                focusedScope = panel->GetTitle();
+                break;
+            }
+        }
+        m_shortcuts->SetFocusedScope(focusedScope);
+        m_shortcuts->ProcessInput(*this, ImGui::GetIO().WantTextInput, IsGameReceivingInput());
 
         DrawRootDock(display);
         DrawMainDock(deltaTime);
@@ -3596,6 +3694,11 @@ namespace JBro
         // 저장은 UI 프레임이 닫힌 뒤, 엔진 프레임이 열리기 전이다. 대화상자가 막혀 있는 동안
         // 어느 프레임도 열려 있지 않다.
         PerformSaveRequest();
+        // 사용자가 단축키를 바꿨으면 환경설정 파일에 적는다(D-227). 프레임 밖이다 - 디스크 쓰기가 UI 프레임을 붙잡지 않는다.
+        if (m_shortcuts->GetRevision() != m_savedShortcutRevision)
+        {
+            SavePreferences();
+        }
         PerformOpenProjectRequest();
         PerformNewProjectRequest();
         PerformBrowseRequest();

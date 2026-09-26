@@ -31,6 +31,8 @@ namespace JBro
 
     class Canvas;
     class EditorThumbnails;
+    // 단축키 관리자는 ImGui 의 키 값을 든다. 이 헤더를 보는 쪽(에디터 호스트)은 ImGui 를 보지 않으므로 이름만 안다.
+    class EditorShortcutManager;
     // 단축키 표(`EditorShortcuts.h`)는 ImGui 를 끌어온다. 이 헤더는 에디터 호스트처럼 ImGui 를
     // 모르는 쪽도 include 하므로 **열거형만 앞선언한다**(D-158) - 헤더를 통째로 끌어오면
     // 그쪽 빌드가 `imgui.h` 를 찾지 못해 깨진다(실제로 깨져 있었다).
@@ -103,6 +105,11 @@ namespace JBro
         // 대화상자와 같은 까닭이다 - 테스트가 진짜로 메모장을 띄울 수는 없다.
         bool (*openPath)(const char* utf8Path, void* user) = nullptr;
         void* openPathUser = nullptr;
+        // **에디터 환경설정 파일**(사용자가 바꾼 단축키 등, D-227). 실제 에디터만 참이다 - `%LOCALAPPDATA%/JBroEngine/Editor/
+        // EditorPreferences.yaml` 을 읽고 쓴다. 테스트는 사람의 설정을 읽거나 덮으면 안 되므로 거짓이 기본이다.
+        bool userPreferences = false;
+        // 설정 파일 경로를 직접 준다. 있으면 `userPreferences` 보다 앞선다(테스트가 제 임시 파일을 주는 자리).
+        const char* preferencesPath = nullptr;
         JMemoryContext memory;
     };
 
@@ -367,6 +374,12 @@ namespace JBro
         // 막는 팝업과 달리 하던 일을 멈추지 않는다. UI 가 꺼져 있어도 쌓이고, 켜지면 뜬다.
         EditorNotifications& GetNotifications();
         const EditorNotifications& GetNotifications() const;
+        // 단축키 관리자다(D-227). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
+        // 다음 틱이 끝날 때 환경설정 파일에 적힌다.
+        EditorShortcutManager& GetShortcuts();
+        const EditorShortcutManager& GetShortcuts() const;
+        // 환경설정 파일의 경로. 쓰지 않는 에디터(테스트)면 빈 글자다.
+        const String& GetPreferencesPath() const;
         // 컴포넌트 타입마다 우클릭 메뉴에 더할 항목의 표다(D-220). 오브젝트 메뉴와 인스펙터 머리 메뉴가 함께 묻는다.
         ComponentMenuTable& GetComponentMenus();
         const ComponentMenuTable& GetComponentMenus() const;
@@ -611,6 +624,12 @@ namespace JBro
         EditorUI m_ui;
         // **패널보다 먼저 둔다.** 패널이 소멸자에서 제 항목을 떼므로, 표가 패널보다 늦게 사라져야 한다.
         ComponentMenuTable m_componentMenus;
+        // **패널보다 먼저 선언한다** - 패널이 제 단축키를 등록하고 떠날 때 풀므로, 패널이 사라질 때 관리자가 살아 있어야 한다.
+        OwnerPtr<EditorShortcutManager> m_shortcuts;
+        String m_preferencesPath;
+        std::uint64_t m_savedShortcutRevision = 0;
+        void LoadPreferences();
+        void SavePreferences();
         Array<OwnerPtr<EditorPanel>> m_panels;
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;
