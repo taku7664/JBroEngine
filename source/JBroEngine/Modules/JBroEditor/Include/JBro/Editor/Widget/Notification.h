@@ -11,6 +11,8 @@ namespace JBro::Widget
         float width = 340.0f;
         // 창 가장자리에서 더미까지.
         float margin = 16.0f;
+        // 바닥에서 먼저 비워 둘 높이다. 에디터는 상태 표시줄 높이를 준다 - 더미가 그 줄을 덮지 않게.
+        float bottomInset = 0.0f;
         // 상자와 상자 사이.
         float spacing = 8.0f;
         float padding = 10.0f;

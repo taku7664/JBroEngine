@@ -210,6 +210,11 @@ Entries:
   log.info: 정보
   log.warning: 경고
   log.error: 오류
+  task.load_canvas: 캔버스 에셋 불러오기
+  notify.canvas_assets_failed_title: 에셋을 불러오지 못했습니다
+  notify.canvas_assets_failed_message: "파일 %u개를 불러오지 못했습니다 - %s"
+  status_bar.show_tasks: 작업 목록을 봅니다
+  status_bar.open_log: 로그 창을 엽니다
   menu.open_project: 프로젝트 열기
   menu.window_editor: 에디터
   menu.window_importer: 임포터

@@ -210,6 +210,11 @@ Entries:
   log.info: Info
   log.warning: Warning
   log.error: Error
+  task.load_canvas: Loading canvas assets
+  notify.canvas_assets_failed_title: Some assets could not be loaded
+  notify.canvas_assets_failed_message: "%u file(s) could not be loaded - %s"
+  status_bar.show_tasks: Show the task list
+  status_bar.open_log: Open the log
   menu.open_project: Open Project
   menu.window_editor: Editor
   menu.window_importer: Importer

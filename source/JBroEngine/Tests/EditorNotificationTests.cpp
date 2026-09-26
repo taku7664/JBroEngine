@@ -707,8 +707,12 @@ namespace
         const JBro::Widget::NotificationStackStyle style;
         Check(std::fabs(box->Pos.x + box->Size.x - (viewport->WorkPos.x + viewport->WorkSize.x - style.margin)) < 1.0f,
             "at the right of the editor window");
-        Check(std::fabs(box->Pos.y + box->Size.y - (viewport->WorkPos.y + viewport->WorkSize.y - style.margin)) < 1.0f,
-            "at its bottom");
+        // 바닥은 상태 표시줄 위다(D-227). 그 줄의 마지막 알림 자리를 덮지 않게 에디터가 그 높이만큼 올려 세운다.
+        const ImGuiWindow* statusBar = ImGui::FindWindowByName("##EditorStatusBar");
+        Check(statusBar != nullptr, "the editor must have a status bar");
+        Check(std::fabs(box->Pos.y + box->Size.y
+                  - (viewport->WorkPos.y + viewport->WorkSize.y - style.margin - statusBar->Size.y)) < 1.0f,
+            "at its bottom, above the status bar");
         const ImVector<ImGuiWindow*>& windows = ImGui::GetCurrentContext()->Windows;
         Check(windows[windows.Size - 1] == box, "in front of the docked panels");
 

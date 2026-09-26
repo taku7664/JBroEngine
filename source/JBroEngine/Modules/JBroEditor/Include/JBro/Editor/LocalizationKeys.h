@@ -404,4 +404,13 @@ namespace JBro::LocKeys
     inline constexpr const char* EditorSettingsShadows = "editor_settings.shadows";
     inline constexpr const char* EditorSettingsShadowed = "editor_settings.shadowed";
     inline constexpr const char* EditorSettingsNoMatch = "editor_settings.no_match";
+
+    // ── 로딩과 상태 표시줄 (D-217·D-227) ───────────────────────────────────
+    // 캔버스를 열 때 워커로 에셋을 읽는 묶음의 이름이다. 상태 표시줄과 태스크 목록이 보인다.
+    inline constexpr const char* TaskLoadCanvas = "task.load_canvas";
+    inline constexpr const char* NotifyCanvasAssetsFailedTitle = "notify.canvas_assets_failed_title";
+    // 수와 첫 사유(파일)를 받는다.
+    inline constexpr const char* NotifyCanvasAssetsFailedMessage = "notify.canvas_assets_failed_message";
+    inline constexpr const char* StatusBarShowTasks = "status_bar.show_tasks";
+    inline constexpr const char* StatusBarOpenLog = "status_bar.open_log";
 }

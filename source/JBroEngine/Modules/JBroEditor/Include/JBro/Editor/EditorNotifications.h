@@ -116,6 +116,10 @@ namespace JBro
         void DismissAll();
         // 떠 있거나 기다리는 중이면 참이다. 사라지는 중인 것은 이미 닫힌 것으로 본다.
         bool IsAlive(NotificationHandle handle) const;
+        // 마지막으로 받은 알림의 제목과 무게다. 상자가 사라진 뒤에도 남는다 - 상태 표시줄이 거기에 둔다(13 번).
+        // 받은 것이 없으면 빈 글자다.
+        const char* GetLastTitle() const;
+        NotificationLevel GetLastLevel() const;
 
         // 매 프레임 한 번. 시간을 세고 애니메이션을 옮기고, 끝난 것을 빼고 기다리던 것을 들인다.
         void Update(float deltaTime);
@@ -182,5 +186,7 @@ namespace JBro
         // 온 차례대로다. 떠 있는 것과 기다리는 것이 섞여 있고 `phase` 가 가른다.
         Array<OwnerPtr<Entry>> m_entries;
         NotificationHandle m_nextHandle = 1;
+        String m_lastTitle;
+        NotificationLevel m_lastLevel = NotificationLevel::Info;
     };
 }
