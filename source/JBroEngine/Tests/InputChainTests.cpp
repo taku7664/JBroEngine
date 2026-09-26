@@ -610,8 +610,15 @@ namespace
         frameWith({Released(MouseButton::Left)});
         Check(probe->ups == 2 && probe->clicks == 1 && probe->exits == 1, "releasing away from it is no click");
 
+        // 눌렀다가 다른 버튼 위에서 떼면 어느 쪽도 누름이 아니다(월드 (60, 0) 버튼은 픽셀 (160, 50)).
+        frameWith({MouseAt(100.0f, 50.0f), HeldButton(MouseButton::Left)});
+        frameWith({MouseAt(160.0f, 50.0f)});
+        frameWith({Released(MouseButton::Left)});
+        Check(probe->clicks == 1 && signProbe->clicks == 0 && false == canvas->FindComponentRaw<Component::Button2D>(sign)->clicked,
+            "releasing over another button clicks neither");
+
         // 버튼 밖의 누름은 게임이 받는다.
-        frameWith({HeldButton(MouseButton::Left)});
+        frameWith({MouseAt(190.0f, 90.0f), HeldButton(MouseButton::Left)});
         Check(poller->sawMouse && false == screen.IsPointerOverButton(), "a press away from every button reaches the game");
         frameWith({Released(MouseButton::Left)});
 
@@ -632,7 +639,7 @@ namespace
         // 꺼진 버튼은 누르지 못하지만 포인터는 가져간다.
         playButton->interactable = false;
         frameWith({HeldButton(MouseButton::Left)});
-        Check(probe->downs == 3 && false == poller->sawMouse && playSprite->tint.A == playButton->disabledTint.A,
+        Check(probe->downs == 4 && false == poller->sawMouse && playSprite->tint.A == playButton->disabledTint.A,
             "a disabled button is not pressed but still hides the pointer");
         frameWith({Released(MouseButton::Left)});
         Check(probe->clicks == 2, "and it does not click");
@@ -640,9 +647,19 @@ namespace
 
         // 손가락도 같다.
         frameWith({Touch(InputEventKind::TouchBegan, 180.0f, 10.0f)});
-        Check(probe->downs == 4, "a finger presses the button");
+        Check(probe->downs == 5, "a finger presses the button");
         frameWith({Touch(InputEventKind::TouchEnded, 180.0f, 10.0f)});
         Check(probe->clicks == 3, "and lifting it there clicks");
+
+        // 누름 사각형의 가장자리: 가운데 (180, 10), 반폭 20·반높이 10.
+        frameWith({MouseAt(198.0f, 10.0f)});
+        Check(playButton->hovered, "the edge of the hit box is still the button");
+        frameWith({MouseAt(180.0f, 19.0f)});
+        Check(playButton->hovered, "and so is its top edge");
+        frameWith({MouseAt(158.0f, 10.0f)});
+        Check(false == playButton->hovered, "just past the side is not");
+        frameWith({MouseAt(180.0f, 22.0f)});
+        Check(false == playButton->hovered, "nor just past the bottom");
 
         // 역투영 서비스: 화면 레이어는 기준 픽셀, 월드 레이어는 월드 좌표다. 거꾸로도 같은 자리다.
         const auto closeTo = [](float a, float b) { return std::fabs(a - b) < 0.001f; };
