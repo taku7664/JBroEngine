@@ -1400,6 +1400,56 @@ namespace
             Check(world.GetPosition(ball).y > 6.0f, "a fast ball from below goes through a one-way ledge");
         }
     }
+
+    // **큰 장면의 접촉은 색으로 나눠 푼다(D-231).** 상자 600 개(기둥 24 개 × 25 층)는 풀 접촉이 512 를 넘어 색칠되고, 워커 셋이
+    // 색 묶음을 나눠 풀어도 워커 없이 푼 것과 비트까지 같다. 더미는 무너지지 않는다.
+    void TestColoredContactsSolveTheSameOnAnyWorkerCount()
+    {
+        const auto build = [](World& world, Array<BodyId>& boxes) {
+            ShapeDef wide;
+            AddGround(world, wide);
+            for (int column = 0; column < 24; ++column)
+            {
+                for (int row = 0; row < 25; ++row)
+                {
+                    const BodyId box = AddBody(world, BodyType::Dynamic,
+                        { -18.0f + 1.5f * static_cast<float>(column), 0.5f + static_cast<float>(row) });
+                    AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+                    boxes.Add(box);
+                }
+            }
+        };
+        World single;
+        Array<BodyId> singleBoxes;
+        build(single, singleBoxes);
+        World parallel;
+        parallel.SetWorkerCount(3);
+        Array<BodyId> parallelBoxes;
+        build(parallel, parallelBoxes);
+        std::uint32_t parallelColors = 0;
+        for (int i = 0; i < 30; ++i)
+        {
+            single.Step(Frame);
+            parallel.Step(Frame);
+            parallelColors += parallel.GetLastStepStats().parallelColors;
+        }
+        Check(single.GetLastStepStats().parallelColors == 0, "without workers every color is solved on the main thread");
+        if (parallel.GetWorkerCount() > 0)
+        {
+            Check(parallelColors > 0, "with workers the big colors are split");
+        }
+        bool same = true;
+        float lowest = 1.0e9f;
+        for (std::size_t i = 0; i < singleBoxes.Size(); ++i)
+        {
+            const Vec2 a = single.GetPosition(singleBoxes[i]);
+            const Vec2 b = parallel.GetPosition(parallelBoxes[i]);
+            same = same && a.x == b.x && a.y == b.y && single.GetAngle(singleBoxes[i]) == parallel.GetAngle(parallelBoxes[i]);
+            lowest = std::fmin(lowest, a.y);
+        }
+        Check(same, "the parallel solve matches the single-threaded one bit for bit");
+        Check(lowest > 0.45f && Near(single.GetPosition(singleBoxes[24]).y, 24.5f, 0.1f), "and the columns stand");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -1438,6 +1488,7 @@ int RunPhysics2DWorldTests()
     TestHingeJoints();
     TestJointedBodiesSleepTogether();
     TestFastBodiesDoNotTunnel();
+    TestColoredContactsSolveTheSameOnAnyWorkerCount();
     TestStayEventsFollowTouchingPairs();
     std::cout << "Physics2D world tests passed.\n";
     return 0;

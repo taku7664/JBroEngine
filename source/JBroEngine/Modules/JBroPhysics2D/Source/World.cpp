@@ -36,6 +36,48 @@ namespace JBro::Physics2D
             return d.x * d.x * body.inverseMassAxes.x + d.y * d.y * body.inverseMassAxes.y;
         }
 
+
+        // 움직이는 몸만 쓴다. 정적·키네마틱 몸은 역질량이 0 이라 바뀔 것이 없고, 색 하나 안의 접촉 여럿이 같은 정적 몸을
+        // 함께 쓰므로 쓰면 워커끼리 겹쳐 쓴다(D-231).
+        template <typename TBody>
+        void PushVelocity(TBody& a, TBody& b, Vec2 rA, Vec2 rB, Vec2 impulse)
+        {
+            if (a.type == BodyType::Dynamic)
+            {
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
+                a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
+            }
+            if (b.type == BodyType::Dynamic)
+            {
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
+                b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
+            }
+        }
+
+        template <typename TBody>
+        void PushPosition(TBody& a, TBody& b, Vec2 rA, Vec2 rB, Vec2 impulse)
+        {
+            if (a.type == BodyType::Dynamic)
+            {
+                a.center = Subtract(a.center, Multiply(impulse, a.inverseMassAxes));
+                a.angle -= a.inverseInertia * Cross(rA, impulse);
+            }
+            if (b.type == BodyType::Dynamic)
+            {
+                b.center = Add(b.center, Multiply(impulse, b.inverseMassAxes));
+                b.angle += b.inverseInertia * Cross(rB, impulse);
+            }
+        }
+
+        // 색 하나가 이보다 작으면 나누지 않는다. 워커를 깨우는 값이 푸는 값보다 크다.
+        constexpr std::uint32_t MinParallelContactsPerColor = 32;
+        constexpr std::uint32_t MinContactsPerChunk = 8;
+        constexpr std::uint32_t OverflowColor = 64;
+        // 풀 접촉이 이보다 적으면 색칠하지 않고 열쇠 순서 그대로 한 스레드에서 푼다. 색 순서는 쌓인 더미에서 수렴이 느리다
+        // (10 층 더미가 5 초 안에 잠들지 못하고 옆으로 밀렸다) - 나눠 풀 이득이 있는 큰 장면에서만 쓴다. 워커 수가 아니라 접촉
+        // 수로 정하므로 결과는 워커 수와 관계없이 같다.
+        constexpr std::uint32_t ColoredSolveThreshold = 512;
+
         // 이보다 적은 후보는 나누지 않는다. 워커를 깨우고 모으는 비용이 판정보다 크다.
         constexpr std::uint32_t MinParallelCandidates = 64;
         constexpr std::uint32_t MinCandidatesPerChunk = 16;
@@ -900,6 +942,7 @@ namespace JBro::Physics2D
         {
             IntegrateVelocities(h);
             Collide();
+            ColorContacts();
             PrepareContacts();
             PrepareJoints(h);
             WarmStart();
@@ -1279,12 +1322,12 @@ namespace JBro::Physics2D
 
     void World::WarmStart()
     {
-        for (Contact& contact : m_contacts)
+        ForEachColor(&World::WarmStartJob, true);
+    }
+
+    void World::WarmStartContact(Contact& contact)
+    {
         {
-            if (false == IsSolved(contact))
-            {
-                continue;
-            }
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
             const Vec2 normal = contact.manifold.normal;
@@ -1293,23 +1336,20 @@ namespace JBro::Physics2D
             {
                 const Vec2 impulse = Add(
                     Scale(normal, contact.normalImpulse[i]), Scale(tangent, contact.tangentImpulse[i]));
-                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
-                a.angularVelocity -= a.inverseInertia * Cross(contact.anchorA[i], impulse);
-                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
-                b.angularVelocity += b.inverseInertia * Cross(contact.anchorB[i], impulse);
+                PushVelocity(a, b, contact.anchorA[i], contact.anchorB[i], impulse);
             }
         }
     }
 
     void World::SolveVelocities(float h)
     {
-        const float inverseH = 1.0f / h;
-        for (Contact& contact : m_contacts)
+        m_solveInverseH = 1.0f / h;
+        ForEachColor(&World::SolveVelocityJob, true);
+    }
+
+    void World::SolveContactVelocity(Contact& contact, float inverseH)
+    {
         {
-            if (false == IsSolved(contact))
-            {
-                continue;
-            }
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
             const Vec2 normal = contact.manifold.normal;
@@ -1329,10 +1369,7 @@ namespace JBro::Physics2D
                 const float next = std::clamp(old - contact.tangentMass[i] * speed, -limit, limit);
                 const Vec2 impulse = Scale(tangent, next - old);
                 contact.tangentImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
-                a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
-                b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
+                PushVelocity(a, b, rA, rB, impulse);
             }
 
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
@@ -1351,22 +1388,23 @@ namespace JBro::Physics2D
                 const float next = std::fmax(old - contact.normalMass[i] * (speed + bias), 0.0f);
                 const Vec2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
-                a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
-                b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
+                PushVelocity(a, b, rA, rB, impulse);
             }
         }
     }
 
     void World::ApplyRestitution()
     {
-        for (Contact& contact : m_contacts)
+        ForEachColor(&World::RestitutionJob, true);
+    }
+
+    void World::ApplyContactRestitution(Contact& contact)
+    {
+        if (contact.restitution <= 0.0f)
         {
-            if (false == IsSolved(contact) || contact.restitution <= 0.0f)
-            {
-                continue;
-            }
+            return;
+        }
+        {
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
             const Vec2 normal = contact.manifold.normal;
@@ -1388,11 +1426,148 @@ namespace JBro::Physics2D
                     old - contact.normalMass[i] * (speed + contact.restitution * contact.approachSpeed[i]), 0.0f);
                 const Vec2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
-                a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
-                b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
+                PushVelocity(a, b, rA, rB, impulse);
             }
+        }
+    }
+
+    void World::ColorContacts()
+    {
+        const std::uint32_t contactCount = static_cast<std::uint32_t>(m_contacts.Size());
+        m_bodyColors.Resize(m_bodies.Size());
+        for (std::uint64_t& used : m_bodyColors)
+        {
+            used = 0u;
+        }
+        m_contactColors.Resize(contactCount);
+        std::uint32_t counts[OverflowColor + 1] = {};
+        std::uint32_t solved = 0;
+        for (const Contact& contact : m_contacts)
+        {
+            solved += IsSolved(contact) ? 1u : 0u;
+        }
+        const bool colored = solved >= ColoredSolveThreshold;
+        for (std::uint32_t i = 0; i < contactCount; ++i)
+        {
+            const Contact& contact = m_contacts[i];
+            if (false == IsSolved(contact))
+            {
+                m_contactColors[i] = 0xFFu;
+                continue;
+            }
+            if (false == colored)
+            {
+                m_contactColors[i] = static_cast<std::uint8_t>(OverflowColor);
+                ++counts[OverflowColor];
+                continue;
+            }
+            const bool dynamicA = m_bodies[contact.bodyA].type == BodyType::Dynamic;
+            const bool dynamicB = m_bodies[contact.bodyB].type == BodyType::Dynamic;
+            std::uint64_t used = 0u;
+            if (dynamicA)
+            {
+                used |= m_bodyColors[contact.bodyA];
+            }
+            if (dynamicB)
+            {
+                used |= m_bodyColors[contact.bodyB];
+            }
+            const std::uint32_t color = used == ~0ull ? OverflowColor : static_cast<std::uint32_t>(std::countr_one(used));
+            if (color < OverflowColor)
+            {
+                const std::uint64_t bit = 1ull << color;
+                if (dynamicA)
+                {
+                    m_bodyColors[contact.bodyA] |= bit;
+                }
+                if (dynamicB)
+                {
+                    m_bodyColors[contact.bodyB] |= bit;
+                }
+            }
+            m_contactColors[i] = static_cast<std::uint8_t>(color);
+            ++counts[color];
+        }
+        m_colorStarts[0] = 0;
+        for (std::uint32_t color = 0; color <= OverflowColor; ++color)
+        {
+            m_colorStarts[color + 1] = m_colorStarts[color] + counts[color];
+        }
+        m_colorOrder.Resize(m_colorStarts[OverflowColor + 1]);
+        std::uint32_t cursor[OverflowColor + 1];
+        for (std::uint32_t color = 0; color <= OverflowColor; ++color)
+        {
+            cursor[color] = m_colorStarts[color];
+        }
+        // 색 안에서는 접촉의 열쇠 순서를 지킨다 - 같은 입력이면 늘 같은 순서다.
+        for (std::uint32_t i = 0; i < contactCount; ++i)
+        {
+            const std::uint8_t color = m_contactColors[i];
+            if (color != 0xFFu)
+            {
+                m_colorOrder[cursor[color]++] = i;
+            }
+        }
+    }
+
+    void World::ForEachColor(ContactJob job, bool allowParallel)
+    {
+        const std::uint32_t workers = GetWorkerCount();
+        for (std::uint32_t color = 0; color <= OverflowColor; ++color)
+        {
+            const std::uint32_t begin = m_colorStarts[color];
+            const std::uint32_t count = m_colorStarts[color + 1] - begin;
+            if (count == 0)
+            {
+                continue;
+            }
+            m_colorOffset = begin;
+            if (allowParallel && workers > 0 && color < OverflowColor && count >= MinParallelContactsPerColor)
+            {
+                ++m_lastStats.parallelColors;
+                const std::uint32_t grain = std::max(MinContactsPerChunk, count / (4 * (workers + 1)));
+                m_workers->ParallelFor(count, grain, job, this);
+            }
+            else
+            {
+                job(this, 0, count);
+            }
+        }
+    }
+
+    void World::WarmStartJob(void* context, std::uint32_t begin, std::uint32_t end)
+    {
+        World& world = *static_cast<World*>(context);
+        for (std::uint32_t i = begin; i < end; ++i)
+        {
+            world.WarmStartContact(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]]);
+        }
+    }
+
+    void World::SolveVelocityJob(void* context, std::uint32_t begin, std::uint32_t end)
+    {
+        World& world = *static_cast<World*>(context);
+        for (std::uint32_t i = begin; i < end; ++i)
+        {
+            world.SolveContactVelocity(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]], world.m_solveInverseH);
+        }
+    }
+
+    void World::RestitutionJob(void* context, std::uint32_t begin, std::uint32_t end)
+    {
+        World& world = *static_cast<World*>(context);
+        for (std::uint32_t i = begin; i < end; ++i)
+        {
+            world.ApplyContactRestitution(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]]);
+        }
+    }
+
+    void World::SolvePositionJob(void* context, std::uint32_t begin, std::uint32_t end)
+    {
+        World& world = *static_cast<World*>(context);
+        for (std::uint32_t i = begin; i < end; ++i)
+        {
+            world.SolveContactPosition(world.m_contacts[world.m_colorOrder[world.m_colorOffset + i]]);
         }
     }
 
@@ -1530,12 +1705,12 @@ namespace JBro::Physics2D
 
     void World::SolvePositions()
     {
-        for (const Contact& contact : m_contacts)
+        ForEachColor(&World::SolvePositionJob, true);
+    }
+
+    void World::SolveContactPosition(const Contact& contact)
+    {
         {
-            if (false == IsSolved(contact))
-            {
-                continue;
-            }
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
             const Vec2 normal = contact.manifold.normal;
@@ -1563,10 +1738,7 @@ namespace JBro::Physics2D
                     continue;
                 }
                 const Vec2 impulse = Scale(normal, -correction / k);
-                a.center = Subtract(a.center, Multiply(impulse, a.inverseMassAxes));
-                a.angle -= a.inverseInertia * Cross(rA, impulse);
-                b.center = Add(b.center, Multiply(impulse, b.inverseMassAxes));
-                b.angle += b.inverseInertia * Cross(rB, impulse);
+                PushPosition(a, b, rA, rB, impulse);
             }
         }
     }

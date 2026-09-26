@@ -29,9 +29,10 @@ namespace JBro::Physics2D
     // 물리 전용 워커의 상한이다(D-223). 명시한 값도 여기서 자른다.
     inline constexpr std::uint32_t MaxWorkerCount = 16;
 
-    // 물리 일감에 맞는 워커 수(D-223). work 는 콜라이더 조각 수의 합이다. 좁은 판정만 나누므로(솔버는 메인) 이득이 작다 - 실측에서
+    // 물리 일감에 맞는 워커 수(D-223). work 는 콜라이더 조각 수의 합이다. 처음(D-223)에는 좁은 판정만 나눠 이득이 작았다 - 실측에서
     // 1000 조각 아래는 잡음보다 나은 것이 없었고 2000 에서 약 20% 빨랐으며 워커 2~4 에서 멈췄다(physics-plan §4 의 8). 그래서 1024
     // 미만이면 0(메인 한 스레드), 1024 에 1 을 주고 1024 마다 하나씩 더하며, hardwareThreads - 1 과 4 를 넘지 않는다.
+    // 접촉 풀이의 색 묶음도 나누면서(D-231, 풀 접촉 512 이상) 상자 2000 에서 약 2 배가 되었지만, 기준은 그대로 둔다.
     std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads);
 
     enum class BodyType : std::uint8_t
@@ -178,6 +179,8 @@ namespace JBro::Physics2D
         std::uint32_t parallelSubSteps = 0;
         // 이어지는 판정이 몸을 멈춰 세운 횟수(서브스텝마다 몸 하나에 한 번).
         std::uint32_t continuousHits = 0;
+        // 접촉 풀이의 색 묶음을 워커로 나눠 푼 횟수(D-231). 반복마다 센다.
+        std::uint32_t parallelColors = 0;
         // Step 이 끝났을 때 깨어 있는·잠든 동적 몸의 수(D-229).
         std::uint32_t awakeBodies = 0;
         std::uint32_t sleepingBodies = 0;
@@ -426,6 +429,19 @@ namespace JBro::Physics2D
         std::uint32_t FindIsland(std::uint32_t body);
         // 깨어 있는 동적 몸이 끼어야 접촉을 푼다. 둘 다 잠들었거나 멈춘 몸이면 풀 것이 없다.
         bool IsSolved(const Contact& contact) const;
+        // **접촉 색칠**(D-231). 움직이는 몸을 함께 쓰지 않는 접촉끼리 한 색으로 묶는다. 한 색 안의 접촉은 서로 모르고 풀 수
+        // 있어 워커로 나눈다. 워커 수와 관계없이 늘 이 순서로 푼다 - 결과가 워커 수에 따라 달라지지 않는다.
+        void ColorContacts();
+        using ContactJob = void (*)(void* context, std::uint32_t begin, std::uint32_t end);
+        void ForEachColor(ContactJob job, bool allowParallel);
+        void WarmStartContact(Contact& contact);
+        void SolveContactVelocity(Contact& contact, float inverseH);
+        void ApplyContactRestitution(Contact& contact);
+        void SolveContactPosition(const Contact& contact);
+        static void WarmStartJob(void* context, std::uint32_t begin, std::uint32_t end);
+        static void SolveVelocityJob(void* context, std::uint32_t begin, std::uint32_t end);
+        static void RestitutionJob(void* context, std::uint32_t begin, std::uint32_t end);
+        static void SolvePositionJob(void* context, std::uint32_t begin, std::uint32_t end);
         // 빠른 몸을 정적·키네마틱 도형 앞에서 멈춘다(D-231). startCenter 는 이 서브스텝이 시작할 때의 질량 중심이다.
         void ClampToFirstHit(Body& body, std::uint32_t bodyIndex, Vec2 startCenter);
 
@@ -519,6 +535,14 @@ namespace JBro::Physics2D
         Array<MassData>      m_massParts;
         Array<ContactEvent>  m_endEvents;
         Array<ContactEvent>  m_stayEvents;
+        // 색칠 스크래치. 색 64 는 넘친 것이라 한 스레드에서 푼다. 용량이 찬 뒤로는 할당하지 않는다.
+        Array<std::uint64_t> m_bodyColors;
+        Array<std::uint8_t>  m_contactColors;
+        Array<std::uint32_t> m_colorOrder;
+        std::uint32_t        m_colorStarts[66] = {};
+        // 색 하나를 나눠 풀 때 워커가 읽는 값. 나누기 전에 적고 도는 동안 바꾸지 않는다.
+        std::uint32_t        m_colorOffset = 0;
+        float                m_solveInverseH = 0.0f;
         Array<Joint>         m_joints;
         Array<std::uint32_t> m_freeJoints;
         Table<std::uint64_t, std::uint32_t> m_jointFilters;
