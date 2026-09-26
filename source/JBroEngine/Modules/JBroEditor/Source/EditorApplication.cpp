@@ -2464,6 +2464,8 @@ namespace JBro
         if (m_engine.Get() != nullptr)
         {
             m_engine->SetSimulationEnabled(false);
+            // 게임이 켜고 끈 액션 세트를 되돌린다. 캔버스를 되살리는 것과 같은 까닭이다 - 다음 재생은 처음 상태로 시작한다.
+            m_engine->ResetGameInput();
         }
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr)

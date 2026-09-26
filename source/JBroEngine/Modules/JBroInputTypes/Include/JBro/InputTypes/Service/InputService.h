@@ -30,5 +30,12 @@ namespace JBro::Service
         const TouchState& Touch() const;
         // 손가락을 스스로 만든다(가상 조이스틱·자동 검사). 다음 프레임에 보인다. `Stationary` 는 아무 일도 하지 않는다.
         void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) const;
+
+        // 액션 세트(걷기·차량·메뉴)를 켜고 끈다. 꺼진 세트의 액션은 0 으로 읽히고, 곧바로 걸린다.
+        // 세트는 막지 않는다 - 메뉴가 게임을 막아야 하면 레이어 체인의 `Block` 을 쓴다. 처음에는 `Default` 만 켜져 있다.
+        // 떼기 전에 세트를 끄면 그 액션의 뗌은 오지 않는다. 없는 세트면 거짓이다.
+        bool EnableActionSet(NameId set) const;
+        bool DisableActionSet(NameId set) const;
+        bool IsActionSetEnabled(NameId set) const;
     };
 }

@@ -136,6 +136,8 @@ namespace JBro
         // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-214). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
         // 꺼지면 다음 틱에 눌린 패드 버튼을 떼고 모터를 멈춘다.
         void SetHostGameInputActive(bool active);
+        // 게임이 바꾼 입력 상태(켠 액션 세트)를 프로젝트 설정으로 되돌린다(D-214). 에디터가 재생을 멈출 때 부른다.
+        void ResetGameInput();
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         bool DidGameSubmitLastFrame() const;

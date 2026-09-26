@@ -56,6 +56,24 @@ namespace JBro::Service
         }
     }
 
+    bool InputService::EnableActionSet(NameId set) const
+    {
+        System::IInputSystem* input = GetInputSystems().Input;
+        return input != nullptr && input->SetActionSetEnabled(set, true);
+    }
+
+    bool InputService::DisableActionSet(NameId set) const
+    {
+        System::IInputSystem* input = GetInputSystems().Input;
+        return input != nullptr && input->SetActionSetEnabled(set, false);
+    }
+
+    bool InputService::IsActionSetEnabled(NameId set) const
+    {
+        const System::IInputSystem* input = GetInputSystems().Input;
+        return input != nullptr && input->IsActionSetEnabled(set);
+    }
+
     void InputService::SetGamepadDeadzones(float stick, float trigger) const
     {
         if (System::IInputSystem* input = GetInputSystems().Input)

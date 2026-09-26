@@ -23,6 +23,10 @@ namespace JBro::System
         // 터치와 같은 길로 접힌다. 자리는 게임 화면 픽셀이다. 한 프레임에 16 개까지이고 넘치면 버린다.
         virtual void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept = 0;
 
+        // 액션 세트를 켜고 끈다(D-214). 곧바로 걸린다 - 이 프레임에 이 뒤로 읽는 액션부터다. 없는 세트면 거짓이고 한 번 경고한다.
+        virtual bool SetActionSetEnabled(NameId set, bool enabled) noexcept = 0;
+        virtual bool IsActionSetEnabled(NameId set) const noexcept = 0;
+
     protected:
         ~IInputSystem() = default;
     };

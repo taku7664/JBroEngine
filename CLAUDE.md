@@ -90,9 +90,9 @@
 - [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198·D-201~D-203). **일곱 단계가 섰다**(믹서·장치 출력·에셋·2D/3D 소스·스크립트·에디터·버스 이펙트·라우팅과 디스크 스트리밍과 장치 고르기). `ma_engine` 을 안에 둔 `AudioMixer`,
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건·실측이 §3, `[열림]` 이 §5 에 있다
-- [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214). 1~6 단계와 7 의 터치(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
+- [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214·D-218). 1~6 단계와 7 의 터치·액션 세트(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
   `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 게임 뷰 포커스 게이트·액션과 설정 화면·게임패드·터치)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
-  전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(액션 맵 전환·입력 버퍼·리바인딩은 논의 전)이 §4 에 있다
+  전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(선입력 도구·리바인딩, 저장은 세이브 저장소 뒤)이 §4 에 있다
 - [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~5 단계(커널 `JBroPhysics2D`, 어댑터 `Physics2DSystem`, 캔버스 뷰의 폴리곤 포인트 편집)가 섰고 6 단계(질의 확장)가 남았다.
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
   캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다

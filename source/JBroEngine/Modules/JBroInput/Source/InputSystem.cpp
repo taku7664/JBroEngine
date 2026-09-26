@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 
 namespace JBro::System
 {
@@ -214,8 +215,53 @@ namespace JBro::System
 
     void InputSystem::SetActionMap(const InputActionMap& actions)
     {
-        m_actions = actions;
-        m_actions.warnedCount = 0;
+        m_projectActions = actions;
+        m_projectActions.warnedCount = 0;
+        m_actions = m_projectActions;
+        m_warnedSets.Clear();
+    }
+
+    void InputSystem::ResetActions()
+    {
+        // 경고 기억은 남긴다 - 같은 프로젝트에서 같은 실수를 재생마다 다시 말하지 않는다.
+        const std::uint32_t warnedCount = m_actions.warnedCount;
+        InputActionId warned[8] = {};
+        static_assert(sizeof(warned) == sizeof(m_actions.warned));
+        std::memcpy(warned, m_actions.warned, sizeof(warned));
+        m_actions = m_projectActions;
+        m_actions.warnedCount = warnedCount;
+        std::memcpy(m_actions.warned, warned, sizeof(warned));
+    }
+
+    bool InputSystem::SetActionSetEnabled(NameId set, bool enabled) noexcept
+    {
+        const int index = m_actions.FindSet(set);
+        if (index < 0)
+        {
+            // 세트 이름을 잘못 적었다. 매 프레임 부르는 스크립트도 있으니 이름마다 한 번만 말한다(경고 경로, 콜드).
+            if (m_warnedSets.TryAdd(set, std::uint8_t{1}))
+            {
+                const char* text = NameTable::Get().Resolve(set);
+                Log::Write(LogLevel::Warning, "input", "the project has no input action set \"%s\"", text != nullptr ? text : "?");
+            }
+            return false;
+        }
+        const std::uint32_t bit = 1u << static_cast<std::uint32_t>(index);
+        if (enabled)
+        {
+            m_actions.activeSets |= bit;
+        }
+        else
+        {
+            m_actions.activeSets &= ~bit;
+        }
+        return true;
+    }
+
+    bool InputSystem::IsActionSetEnabled(NameId set) const noexcept
+    {
+        const int index = m_actions.FindSet(set);
+        return index >= 0 && m_actions.IsSetActive(static_cast<std::uint32_t>(index));
     }
 
     const InputActionMap& InputSystem::GetActionMap() const

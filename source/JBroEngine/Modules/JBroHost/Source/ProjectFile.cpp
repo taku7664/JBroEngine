@@ -519,6 +519,10 @@ namespace JBro
                 {
                     action.name = fieldValue;
                 }
+                else if (fieldKey == "Set")
+                {
+                    action.set = fieldValue;
+                }
                 else if (fieldKey == "Type")
                 {
                     if (false == ParseInputActionType(fieldValue, action.type))
@@ -1153,6 +1157,21 @@ namespace JBro
                 result.append("\n    Type: ", 11);
                 const char* type = NameOfEnum(InputActionTypeNames, action.type);
                 result.append(type, std::strlen(type));
+                // 세트는 적었을 때만 적는다. 세트를 쓰지 않는 프로젝트의 파일은 기존 엔진 모양 그대로다.
+                if (false == action.set.empty())
+                {
+                    result.append("\n    Set: ", 10);
+                    if (IsPlainName(action.set))
+                    {
+                        result.append(action.set.c_str(), action.set.size());
+                    }
+                    else
+                    {
+                        result.append("\"", 1);
+                        result.append(action.set.c_str(), action.set.size());
+                        result.append("\"", 1);
+                    }
+                }
                 if (action.bindings.IsEmpty())
                 {
                     result.append("\n    Bindings: []\n", 18);
@@ -1661,6 +1680,62 @@ namespace JBro
             return Fail(error, 0, "the project file could not be replaced");
         }
         return true;
+    }
+
+    bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out)
+    {
+        out = InputActionMap{};
+        bool complete = true;
+        for (const ProjectInputAction& action : actions)
+        {
+            if (out.count >= MaxInputActions)
+            {
+                complete = false;
+                break;
+            }
+            std::uint32_t set = 0;
+            if (false == action.set.empty())
+            {
+                const NameId setName = NameTable::Get().Intern(action.set.c_str());
+                const int found = out.FindSet(setName);
+                if (found >= 0)
+                {
+                    set = static_cast<std::uint32_t>(found);
+                }
+                else if (out.setCount < MaxInputActionSets)
+                {
+                    set = out.setCount;
+                    out.sets[out.setCount] = setName;
+                    ++out.setCount;
+                }
+                else
+                {
+                    complete = false;
+                    continue;
+                }
+            }
+            InputActionDesc& desc = out.actions[out.count];
+            desc.name = NameTable::Get().Intern(action.name.c_str());
+            desc.type = action.type;
+            desc.set = static_cast<std::uint8_t>(set);
+            desc.bindingCount = 0;
+            for (const ProjectInputBinding& binding : action.bindings)
+            {
+                if (desc.bindingCount >= MaxInputBindingsPerAction)
+                {
+                    complete = false;
+                    break;
+                }
+                InputBinding& target = desc.bindings[desc.bindingCount];
+                target.source = binding.source;
+                target.code = binding.code;
+                target.gamepad = static_cast<std::int8_t>(binding.gamepad);
+                target.composite = binding.composite;
+                ++desc.bindingCount;
+            }
+            ++out.count;
+        }
+        return complete;
     }
 
     bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,

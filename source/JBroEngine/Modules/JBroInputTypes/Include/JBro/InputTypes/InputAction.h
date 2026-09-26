@@ -61,11 +61,19 @@ namespace JBro
     inline constexpr std::uint32_t MaxInputBindingsPerAction = 8;
     inline constexpr std::uint32_t MaxInputActions = 64;
 
+    // 액션 세트다(D-214). 액션마다 세트 하나에 속하고, 꺼진 세트의 액션은 0 으로 읽힌다 - 걷기·차량·메뉴가 같은 키를
+    // 다른 뜻으로 쓴다. 세트는 장치를 막지도 소비하지도 않는다. 막는 것은 레이어 체인뿐이다.
+    // 세트를 적지 않은 액션은 `Default` 이고, `Default` 만 켜진 채로 시작한다.
+    inline constexpr std::uint32_t MaxInputActionSets = 32;
+    inline constexpr NameId DefaultInputActionSet = MakeNameId("Default");
+
     struct InputActionDesc
     {
         InputActionId name = InvalidNameId;
         InputActionType type = InputActionType::Bool;
         std::uint8_t bindingCount = 0;
+        // `InputActionMap::sets` 의 자리다. 0 은 `Default` 다.
+        std::uint8_t set = 0;
         InputBinding bindings[MaxInputBindingsPerAction] = {};
     };
 
@@ -74,6 +82,11 @@ namespace JBro
     {
         std::uint32_t count = 0;
         InputActionDesc actions[MaxInputActions] = {};
+        // 세트 이름이다. 0 은 늘 `Default` 다.
+        std::uint32_t setCount = 1;
+        NameId sets[MaxInputActionSets] = {DefaultInputActionSet};
+        // 켜진 세트의 비트다(자리 i 가 비트 i). 전환은 이 값 하나를 바꾸는 일이다.
+        std::uint32_t activeSets = 1;
         // 없는 이름을 물은 것을 한 번만 말하려고 기억해 둔다. 가득 차면 더는 말하지 않는다.
         std::uint32_t warnedCount = 0;
         InputActionId warned[8] = {};
@@ -88,6 +101,24 @@ namespace JBro
                 }
             }
             return nullptr;
+        }
+
+        // 세트의 자리다. 없으면 -1.
+        int FindSet(NameId name) const
+        {
+            for (std::uint32_t index = 0; index < setCount && index < MaxInputActionSets; ++index)
+            {
+                if (sets[index] == name)
+                {
+                    return static_cast<int>(index);
+                }
+            }
+            return -1;
+        }
+
+        bool IsSetActive(std::uint32_t set) const
+        {
+            return set < MaxInputActionSets && ((activeSets >> set) & 1u) != 0;
         }
     };
 

@@ -928,41 +928,21 @@ namespace JBro
 
         // 액션 표는 고정 크기다. 넘치는 액션과 바인딩은 버리고 한 번 말한다 - 파일은 그대로 두어 되살릴 수 있다.
         InputActionMap map;
-        bool truncated = false;
-        for (const ProjectInputAction& action : m_project.inputActions)
+        if (false == MakeInputActionMap(m_project.inputActions, map))
         {
-            if (map.count >= MaxInputActions)
-            {
-                truncated = true;
-                break;
-            }
-            InputActionDesc& desc = map.actions[map.count];
-            // 이름표에 넣어 두어야 없는 액션을 물었을 때의 경고가 이름으로 말한다.
-            desc.name = NameTable::Get().Intern(action.name.c_str());
-            desc.type = action.type;
-            desc.bindingCount = 0;
-            for (const ProjectInputBinding& binding : action.bindings)
-            {
-                if (desc.bindingCount >= MaxInputBindingsPerAction)
-                {
-                    truncated = true;
-                    break;
-                }
-                InputBinding& target = desc.bindings[desc.bindingCount];
-                target.source = binding.source;
-                target.code = binding.code;
-                target.gamepad = static_cast<std::int8_t>(binding.gamepad);
-                target.composite = binding.composite;
-                ++desc.bindingCount;
-            }
-            ++map.count;
-        }
-        if (truncated)
-        {
-            Log::Write(LogLevel::Warning, "input", "the project has more than %u input actions or %u bindings in one action; the rest is ignored",
-                MaxInputActions, MaxInputBindingsPerAction);
+            Log::Write(LogLevel::Warning, "input",
+                "the project has more than %u input actions, %u bindings in one action or %u action sets; the rest is ignored",
+                MaxInputActions, MaxInputBindingsPerAction, MaxInputActionSets);
         }
         m_input->SetActionMap(map);
+    }
+
+    void EngineInstance::ResetGameInput()
+    {
+        if (m_input.Get() != nullptr)
+        {
+            m_input->ResetActions();
+        }
     }
 
     void EngineInstance::ApplyAudioBuses()

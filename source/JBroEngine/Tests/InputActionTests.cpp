@@ -4,6 +4,7 @@
 #include <JBro/Input/InputSystem.h>
 
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -369,6 +370,120 @@ namespace
             Check(error.line > 0, "and the refusal names a line");
         }
     }
+
+    ProjectInputAction ProjectAction(const char* name, const char* set, Key key)
+    {
+        ProjectInputAction action;
+        action.name = name;
+        action.set = set;
+        ProjectInputBinding binding;
+        binding.code = static_cast<std::uint16_t>(key);
+        action.bindings.Add(binding);
+        return action;
+    }
+
+    // 같은 E 가 걷기 세트에서는 타기, 차량 세트에서는 내리기다. 세트를 바꾸면 그 자리에서 뜻이 바뀐다.
+    void TestActionSetsChooseWhatAKeyMeans()
+    {
+        Log::Clear();
+        Array<ProjectInputAction> actions;
+        actions.Add(ProjectAction("Jump", "", Key::Space));
+        actions.Add(ProjectAction("Board", "Walk", Key::E));
+        actions.Add(ProjectAction("Leave", "Vehicle", Key::E));
+        actions.Add(ProjectAction("Honk", "Vehicle", Key::H));
+        InputActionMap map;
+        Check(MakeInputActionMap(actions, map), "four actions fit");
+        Check(map.setCount == 3 && map.actions[3].set == map.actions[2].set, "two actions in one set share it");
+        Check(map.actions[0].set == 0, "an action without a set is in Default");
+
+        System::InputSystem input;
+        input.SetActionMap(map);
+        const NameId walk = MakeNameId("Walk");
+        const NameId vehicle = MakeNameId("Vehicle");
+        const InputActionId board = MakeNameId("Board");
+        const InputActionId leave = MakeNameId("Leave");
+        const InputEvent keys[] = { KeyEvent(InputEventKind::KeyDown, Key::E), KeyEvent(InputEventKind::KeyDown, Key::Space) };
+        input.BeginFrame(View(keys));
+        const InputView& view = input.GetResidualView();
+        Check(view.IsActionPressed(MakeNameId("Jump")), "Default is on from the start");
+        Check(false == view.IsActionDown(board) && false == view.IsActionDown(leave), "every other set starts off");
+        Check(input.IsActionSetEnabled(DefaultInputActionSet) && false == input.IsActionSetEnabled(walk),
+            "and says so");
+
+        Check(input.SetActionSetEnabled(walk, true), "a set the project names turns on");
+        Check(view.IsActionPressed(board) && false == view.IsActionDown(leave), "at once, in the same frame");
+        Check(input.SetActionSetEnabled(walk, false) && input.SetActionSetEnabled(vehicle, true), "sets switch");
+        Check(false == view.IsActionDown(board) && view.IsActionPressed(leave), "and the key means the other action");
+        Check(false == view.IsActionDown(MakeNameId("Honk")), "a set only turns its actions on, it does not press them");
+
+        Check(input.SetActionSetEnabled(DefaultInputActionSet, false), "Default can be turned off too");
+        Check(false == view.IsActionDown(MakeNameId("Jump")), "and then its actions read zero");
+        Check(CountWarnings("no input action \"") == 0, "an action in a turned off set is not an unknown action");
+
+        // 없는 세트는 거절하고 한 번만 말한다 - 매 프레임 부르는 스크립트가 로그를 채우지 않는다.
+        NameTable::Get().Intern("Boat");
+        Check(false == input.SetActionSetEnabled(MakeNameId("Boat"), true), "a set the project does not have is refused");
+        input.SetActionSetEnabled(MakeNameId("Boat"), true);
+        Check(CountWarnings("\"Boat\"") == 1, "and reported once, by name");
+        Check(false == input.IsActionSetEnabled(MakeNameId("Boat")), "an unknown set is never on");
+
+        // 되돌리면 프로젝트의 처음 상태다. 경고 기억은 남는다.
+        input.ResetActions();
+        Check(input.IsActionSetEnabled(DefaultInputActionSet) && false == input.IsActionSetEnabled(vehicle),
+            "a reset leaves only Default on");
+        Check(view.IsActionDown(MakeNameId("Jump")) && false == view.IsActionDown(leave), "and the actions read that way");
+        input.SetActionSetEnabled(MakeNameId("Boat"), true);
+        Check(CountWarnings("\"Boat\"") == 1, "a reset does not repeat a warning");
+        input.SetActionMap(map);
+        input.SetActionSetEnabled(MakeNameId("Boat"), true);
+        Check(CountWarnings("\"Boat\"") == 2, "a new action map does");
+    }
+
+    void TestActionSetsHaveALimit()
+    {
+        Array<ProjectInputAction> actions;
+        actions.Add(ProjectAction("Named", "Default", Key::A));
+        char name[16] = {};
+        for (int index = 0; index < 32; ++index)
+        {
+            std::snprintf(name, sizeof(name), "Set%d", index);
+            actions.Add(ProjectAction(name, name, Key::B));
+        }
+        actions.Add(ProjectAction("After", "Set0", Key::C));
+        InputActionMap map;
+        Check(false == MakeInputActionMap(actions, map), "a 33rd set does not fit and says so");
+        Check(map.actions[0].set == 0, "writing Default is the same as writing nothing");
+        Check(map.setCount == MaxInputActionSets, "the table holds 32 sets");
+        Check(nullptr == map.Find(MakeNameId("Set31")), "the action whose set did not fit is left out, not moved to Default");
+        const InputActionDesc* after = map.Find(MakeNameId("After"));
+        Check(after != nullptr && after->set == 1, "the actions after it still come through");
+    }
+
+    void TestTheSetIsWrittenOnlyWhenNamed()
+    {
+        const char* text =
+            "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\n"
+            "InputActions:\n"
+            "  - Name: Leave\n"
+            "    Type: Bool\n"
+            "    Set: Vehicle\n"
+            "    Bindings: []\n"
+            "  - Name: Jump\n"
+            "    Type: Bool\n"
+            "    Bindings: []\n";
+        ProjectFile project;
+        ProjectFileError error;
+        Check(ParseProjectFile(text, std::strlen(text), project, error), "a file with a set parses");
+        Check(project.inputActions[0].set == "Vehicle" && project.inputActions[1].set.empty(), "the set comes through");
+        String written;
+        Check(WriteProjectFileText(project, text, std::strlen(text), written, error), "and writes");
+        Check(written.compare(0, std::strlen(text), text) == 0, "back the same");
+        project.inputActions[1].set = "Menu Screen";
+        Check(WriteProjectFileText(project, text, std::strlen(text), written, error), "a changed set writes");
+        ProjectFile reread;
+        Check(ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.inputActions[1].set == "Menu Screen",
+            "a set name with a space comes back");
+    }
 }
 
 int RunInputActionTests()
@@ -383,6 +498,9 @@ int RunInputActionTests()
     TestTheLegacyInputBlocksRead();
     TestTheInputBlocksWriteBack();
     TestBadInputBlocksAreRefused();
+    TestActionSetsChooseWhatAKeyMeans();
+    TestActionSetsHaveALimit();
+    TestTheSetIsWrittenOnlyWhenNamed();
     Log::SetEchoToConsole(echo);
     std::cout << "Input action tests passed.\n";
     return 0;

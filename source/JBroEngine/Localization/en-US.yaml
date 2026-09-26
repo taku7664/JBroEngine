@@ -184,6 +184,7 @@ Entries:
   project_settings.input_add_binding: "Add Binding"
   project_settings.input_remove_binding: "Remove Binding"
   project_settings.input_any_gamepad: "-1 means any connected gamepad"
+  project_settings.input_set_help: "Scripts turn action sets on and off. Only Default is on when the game starts"
   project_settings.input_too_many: "The engine uses up to 64 actions and 8 bindings per action. The rest stay only in the file"
   inspector.sprite_import_options: Sprite Import Options
   common.ok: OK
