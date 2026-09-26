@@ -65,7 +65,7 @@ namespace
         canvas->AttachComponent<JBro::Component::Transform2D>(sprite);        canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(sprite);
         canvas->AttachComponent<JBro::Component::Collider2D>(sprite);
         const auto& physics = JBro::GetFramework2DServices().Physics2D;
-        JBro::Collision2D hit;
+        JBro::RaycastHit2D hit;
         Check(physics.Raycast({-2.0f, 0.0f}, {1.0f, 0.0f}, 4.0f, hit)
             && hit.other.GetInstanceId() == sprite->GetInstanceId(),
             "opening a real project must bind its physics service without manual wiring");

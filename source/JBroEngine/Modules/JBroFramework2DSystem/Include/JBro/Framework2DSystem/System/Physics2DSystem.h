@@ -31,14 +31,19 @@ namespace JBro::System
         void SetGravity(Vec2 gravity);
         Vec2 GetGravity() const;
 
-        bool Raycast(
-            Vec2 origin,
-            Vec2 direction,
-            float distance,
-            Collision2D& hit) const override;
-        void OverlapBox(
-            const Rect& area,
-            Array<GameObjectHandle>& results) const override;
+        bool Raycast(Vec2 origin, Vec2 direction, float distance, RaycastHit2D& hit,
+            std::uint32_t layerMask) const override;
+        void RaycastAll(Vec2 origin, Vec2 direction, float distance, Array<RaycastHit2D>& hits,
+            std::uint32_t layerMask) const override;
+        void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
+            std::uint32_t layerMask) const override;
+        GameObjectHandle OverlapPoint(Vec2 point, std::uint32_t layerMask) const override;
+        void OverlapCircle(Vec2 center, float radius, Array<GameObjectHandle>& results,
+            std::uint32_t layerMask) const override;
+        bool CircleCast(Vec2 origin, float radius, Vec2 direction, float distance, RaycastHit2D& hit,
+            std::uint32_t layerMask) const override;
+        bool BoxCast(Vec2 center, Vec2 halfExtents, float angle, Vec2 direction, float distance,
+            RaycastHit2D& hit, std::uint32_t layerMask) const override;
 
         // 커널에 올라간 바디와 도형의 수. 동기화가 만들고 지우는 것을 테스트가 붙잡는 손잡이다.
         std::size_t GetBodyCount() const;
@@ -54,6 +59,9 @@ namespace JBro::System
 
         // 커널의 시작·끝 이벤트를 두 오브젝트의 GameScript2D 훅으로 보낸다(D-207).
         void DispatchEvents(Canvas& canvas);
+        // 켜진 콜라이더의 도형마다(폴리곤은 볼록 조각마다) 부른다. 모든 질의가 이 한 길로 도형을 본다 - 충돌과 같은 조각이다.
+        template<typename Fn>
+        void ForEachQueryShape(std::uint32_t layerMask, Fn&& visit) const;
 
         Canvas*         m_canvas = nullptr;
         Vec2            m_gravity{ 0.0f, -9.81f };
