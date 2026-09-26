@@ -1,0 +1,28 @@
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:side-by-normal	face = Dot(Subtract(otherCenter, segment.p1), segmentNormal) >= 0.0f ? segmentNormal : Scale(segmentNormal, -1.0f);	face = Dot(normal, segmentNormal) >= 0.0f ? segmentNormal : Scale(segmentNormal, -1.0f);
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:flat-kept	if (Dot(toGhost, face) >= -LinearSlop * ghostLength)\n            {\n                return ChainVerdict::UseFace;	if (Dot(toGhost, face) >= -LinearSlop * ghostLength)\n            {\n                return ChainVerdict::Keep;
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:convex-no-owner	if (neighborConvex && false == atEnd)	if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:neighbor-concave-ignored	if (neighborConvex && false == atEnd)	if (false == atEnd)
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:owner-face-ignored	if (Dot(normal, face) > 0.0f || Dot(normal, neighborOut) > 0.0f)	if (Dot(normal, neighborOut) > 0.0f)
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:owner-out-ignored	if (Dot(normal, face) > 0.0f || Dot(normal, neighborOut) > 0.0f)	if (Dot(normal, face) > 0.0f)
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:out-not-oriented	if (Dot(neighborOut, toMine) > 0.0f)	if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:ends-not-free	if (false == (atEnd ? segment.hasNext : segment.hasPrevious))\n            {\n                return ChainVerdict::Keep;	if (false == (atEnd ? segment.hasNext : segment.hasPrevious))\n            {\n                return ChainVerdict::UseFace;
+Modules\JBroPhysics2D\Source\Collision.cpp	chain:circle-beyond-kept	if (along < 0.0f || along > length)\n        {\n            return manifold;	if (false)\n        {\n            return manifold;
+Modules\JBroPhysics2D\Source\World.cpp	world:chain-not-first	            if (rankA > rankB)\n            {\n                std::swap(proxyA, proxyB);	            if (false)\n            {\n                std::swap(proxyA, proxyB);
+Modules\JBroPhysics2D\Source\World.cpp	sleep:never	const bool asleep = m_islandSleepTime[FindIsland(i)] >= m_settings.timeToSleep;	const bool asleep = false;
+Modules\JBroPhysics2D\Source\World.cpp	sleep:no-islands	m_islandParent[std::max(rootA, rootB)] = std::min(rootA, rootB);	(void)0;
+Modules\JBroPhysics2D\Source\World.cpp	sleep:asleep-integrated	if (false == body.alive || body.type != BodyType::Dynamic || false == body.awake)	if (false == body.alive || body.type != BodyType::Dynamic)
+Modules\JBroPhysics2D\Source\World.cpp	sleep:solve-asleep	return (a.type == BodyType::Dynamic && a.awake) || (b.type == BodyType::Dynamic && b.awake);	return true;
+Modules\JBroPhysics2D\Source\World.cpp	sleep:new-contact-no-wake	                WakeSleepingIn(contact);\n                continue;	                continue;
+Modules\JBroPhysics2D\Source\World.cpp	sleep:gone-contact-no-wake	        for (; previous < m_previousContacts.Size(); ++previous)\n        {\n            WakeSleepingIn(m_previousContacts[previous]);	        for (; previous < m_previousContacts.Size(); ++previous)\n        {
+Modules\JBroPhysics2D\Source\World.cpp	sleep:touch-no-wake	                WakeBody(a.awake ? b : a);	                (void)0;
+Modules\JBroPhysics2D\Source\World.cpp	sleep:gravity-no-wake	            m_lastGravity = m_settings.gravity;	            (void)0;
+Modules\JBroPhysics2D\Source\World.cpp	sleep:teleport-no-wake	        body->center = Add(position, RotateVector(body->rotation, body->localCenter));\n        WakeBody(*body);	        body->center = Add(position, RotateVector(body->rotation, body->localCenter));
+Modules\JBroPhysics2D\Source\World.cpp	merge:no-advance	            ++previous;\n            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)	            for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:wake-not-applied	world.SetAwake(link->body, true);	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:sleeping-not-written	link.rigidbodyComponent->m_sleeping = false == world.IsAwake(link.body);	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:loop-not-reshaped	return world.SetChainGeometry(shape, outline.View(), collider.loop);	return world.SetChainGeometry(shape, outline.View(), false);
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:query-loop-ignored	const std::size_t segments = collider.loop && count > 2 ? count : (count > 0 ? count - 1 : 0);	const std::size_t segments = count > 0 ? count - 1 : 0;
+Modules\JBroFramework2DSystem\Source\PhysicsThreads.cpp	work:chain-open-always	work += points < 2 ? 1u : static_cast<std::uint32_t>(collider.loop ? points : points - 1);	work += points < 2 ? 1u : static_cast<std::uint32_t>(points - 1);
+Modules\JBroEditor\Source\Gizmo\PolygonEditModel.cpp	edit:closed-ignored	const std::uint32_t edges = closed ? count : count - 1;	const std::uint32_t edges = count;	edit
+Modules\JBroEditor\Source\Gizmo\PolygonEditModel.cpp	edit:chain-seeded-as-box	        if (collider.shape == Component::ColliderShape2D::Chain)\n        {\n            out.Add({ -halfWidth, 0.0f });	        if (false)\n        {\n            out.Add({ -halfWidth, 0.0f });	edit
+Modules\JBroEditor\Source\Gizmo\PolygonEditModel.cpp	edit:chain-min-three	return IsClosedOutline(collider) ? MinVertexCount : 2u;	return MinVertexCount;	edit

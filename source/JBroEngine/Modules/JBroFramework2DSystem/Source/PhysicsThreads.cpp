@@ -23,6 +23,12 @@ namespace JBro
                 return;
             }
             const std::size_t points = collider.points.Size();
+            if (collider.shape == Component::ColliderShape2D::Chain)
+            {
+                // 선분마다 한 조각이다. 포인트가 없으면 선분 하나.
+                work += points < 2 ? 1u : static_cast<std::uint32_t>(collider.loop ? points : points - 1);
+                return;
+            }
             const bool pieced = collider.shape == Component::ColliderShape2D::Polygon && points > 4;
             work += pieced ? static_cast<std::uint32_t>(points - 2) : 1u;
         });

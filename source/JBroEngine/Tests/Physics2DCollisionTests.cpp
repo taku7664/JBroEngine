@@ -668,6 +668,103 @@ namespace
         Check(JBro::Physics2D::CastPolygon(upright, At(1.6f, 0), { -1, 0 }, 10, capsule, At(0, 0), distance, normal)
             && distance == 0.0f, "one that starts touching reports zero");
     }
+
+    // **체인 선분은 이음매에서 옆으로 걸리지 않는다(D-229).** 체인 (-5,0)-(0,0)-(5,0). 상자(반폭 0.5)가 0.01 박힌 채 오른쪽 끝이 이음매를 0.005
+    // 넘었다. 이웃을 모르는 선분 (0,0)-(5,0) 은 상자의 옆면을 기준면으로 골라 가로로 민다(유령 충돌). 체인 선분은 평평한 꼭짓점이라 세로로 민다.
+    void TestChainSegmentsHaveNoGhostCollisions()
+    {
+        using JBro::Physics2D::ChainSegment;
+        ChainSegment right;
+        right.p1 = { 0, 0 };
+        right.p2 = { 5, 0 };
+        right.previous = { -5, 0 };
+        right.hasPrevious = true;
+        ChainSegment left;
+        left.p1 = { -5, 0 };
+        left.p2 = { 0, 0 };
+        left.next = { 5, 0 };
+        left.hasNext = true;
+        const ConvexPolygon box = MakeBox(0.5f, 0.5f);
+        const Pose boxPose = At(-0.495f, 0.49f);
+
+        ConvexPolygon bare;
+        bare.points[0] = right.p1;
+        bare.points[1] = right.p2;
+        bare.count = 2;
+        const Manifold ghost = JBro::Physics2D::CollidePolygons(bare, At(0, 0), box, boxPose);
+        Check(ghost.count > 0 && std::fabs(ghost.normal.x) > 0.9f, "a bare segment snags the box at the seam with a sideways normal");
+
+        const Manifold smooth = JBro::Physics2D::CollideChainSegmentAndPolygon(right, At(0, 0), box, boxPose);
+        Check(smooth.count > 0 && NearVector(smooth.normal, { 0, 1 }, 1.0e-5f)
+            && Near(smooth.points[0].separation, -0.01f, 1.0e-4f), "a chain segment pushes it straight up instead");
+        const Manifold beside = JBro::Physics2D::CollideChainSegmentAndPolygon(left, At(0, 0), box, boxPose);
+        Check(beside.count == 2 && NearVector(beside.normal, { 0, 1 }, 1.0e-5f), "and so does its neighbor, on two points");
+
+        // 원: 중심이 이음매 바로 앞(선분 범위 밖)이면 오른쪽 선분은 내놓고 왼쪽이 면으로 맡는다.
+        Circle ball;
+        ball.radius = 0.5f;
+        const Manifold ballRight = JBro::Physics2D::CollideChainSegmentAndCircle(right, At(0, 0), ball, At(-0.1f, 0.49f));
+        const Manifold ballLeft = JBro::Physics2D::CollideChainSegmentAndCircle(left, At(0, 0), ball, At(-0.1f, 0.49f));
+        Check(ballRight.count == 0 && ballLeft.count == 1 && NearVector(ballLeft.normal, { 0, 1 }, 1.0e-5f),
+            "a ball just before the seam is held up by the left segment's face alone");
+        // 체인의 끝(이웃 없음)은 모서리를 그대로 받는다.
+        ChainSegment lone = right;
+        lone.hasPrevious = false;
+        const Manifold corner = JBro::Physics2D::CollideChainSegmentAndCircle(lone, At(0, 0), ball, At(-0.3f, 0.3f));
+        Check(corner.count == 1 && corner.normal.x < -0.5f, "at a free end the ball rounds the corner");
+    }
+
+    // **볼록한 꼭짓점(D-229).** 평평한 선분 (-5,0)-(0,0) 뒤에 수직으로 내려가는 선분 (0,0)-(0,-5). 꼭짓점을 둘러싼 원은 끝으로 가진
+    // 앞 선분이 맡고(대각 법선), 뒤 선분은 그 꼭짓점을 내놓는다. 두 면 사이 밖의 법선은 버린다.
+    void TestAConvexChainCornerIsOwnedOnce()
+    {
+        using JBro::Physics2D::ChainSegment;
+        ChainSegment top;
+        top.p1 = { -5, 0 };
+        top.p2 = { 0, 0 };
+        top.next = { 0, -5 };
+        top.hasNext = true;
+        ChainSegment wall;
+        wall.p1 = { 0, 0 };
+        wall.p2 = { 0, -5 };
+        wall.previous = { -5, 0 };
+        wall.hasPrevious = true;
+        Circle ball;
+        ball.radius = 0.5f;
+        const Pose around = At(0.3f, 0.3f);
+        const Manifold byTop = JBro::Physics2D::CollideChainSegmentAndCircle(top, At(0, 0), ball, around);
+        const Manifold byWall = JBro::Physics2D::CollideChainSegmentAndCircle(wall, At(0, 0), ball, around);
+        const float d = std::sqrt(0.5f);
+        Check(byTop.count == 1 && NearVector(byTop.normal, { d, d }, 1.0e-4f), "the flat segment owns the corner, pushing along the diagonal");
+        Check(byWall.count == 0, "and the wall below lets it go, so the corner pushes once");
+
+        // 뾰족한 모서리(벽이 왼쪽 아래로 눕는다) 오른쪽 아래의 공: 윗면은 그 쪽에서 모서리를 오목하게 보고 놓으니, 벽이 맡아
+        // 모서리에서 공 쪽으로 민다. 벽이 만난 면 쪽에서는 윗면의 바깥 법선을 등지므로 받는 근거는 벽의 면이다.
+        ChainSegment sharpTop = top;
+        sharpTop.next = { -3, -5 };
+        ChainSegment slant;
+        slant.p1 = { 0, 0 };
+        slant.p2 = { -3, -5 };
+        slant.previous = { -5, 0 };
+        slant.hasPrevious = true;
+        const Pose below = At(0.4f, -0.1f);
+        const Manifold belowTop = JBro::Physics2D::CollideChainSegmentAndCircle(sharpTop, At(0, 0), ball, below);
+        const Manifold belowSlant = JBro::Physics2D::CollideChainSegmentAndCircle(slant, At(0, 0), ball, below);
+        const float reach = std::sqrt(0.4f * 0.4f + 0.1f * 0.1f);
+        Check(belowTop.count == 0 && belowSlant.count == 1 && NearVector(belowSlant.normal, { 0.4f / reach, -0.1f / reach }, 1.0e-4f),
+            "below a sharp corner the slanted wall owns it, and it still pushes once");
+
+        // 모서리에 면으로 기댄 가파른 판자: 판자의 면 법선은 윗면보다 아래로 기울었지만 맞는 법선이다. 윗면이 받는다.
+        // (판자 아래 끝은 벽 면에도 닿는다. 그것은 다른 곳의 접촉이라 여기서 보지 않는다.)
+        const float angle = -0.20135792f;
+        const Vec2 facing{ std::cos(angle), std::sin(angle) };
+        const Vec2 along{ -std::sin(angle), std::cos(angle) };
+        const Pose leaning = At(0.04f * facing.x + 0.3f * along.x, 0.04f * facing.y + 0.3f * along.y, angle);
+        const ConvexPolygon plank = MakeBox(0.05f, 0.5f);
+        const Manifold plankTop = JBro::Physics2D::CollideChainSegmentAndPolygon(top, At(0, 0), plank, leaning);
+        Check(plankTop.count >= 1 && NearVector(plankTop.normal, facing, 1.0e-3f),
+            "a steep plank leaning on the corner keeps its own face normal");
+    }
 }
 
 int RunPhysics2DCollisionTests()
@@ -689,6 +786,8 @@ int RunPhysics2DCollisionTests()
     TestCapsuleShapeAndMass();
     TestCapsuleContacts();
     TestCapsuleQueries();
+    TestChainSegmentsHaveNoGhostCollisions();
+    TestAConvexChainCornerIsOwnedOnce();
     std::cout << "Physics2D collision tests passed.\n";
     return 0;
 }

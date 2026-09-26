@@ -158,6 +158,11 @@ namespace JBro::Physics2D
         }
     }
 
+    namespace
+    {
+        bool RaySegment(Vec2 origin, Vec2 direction, Vec2 a, Vec2 b, float& t);
+    }
+
     Vec2 RotateVector(Rotation rotation, Vec2 local)
     {
         return { rotation.c * local.x - rotation.s * local.y, rotation.s * local.x + rotation.c * local.y };
@@ -530,6 +535,31 @@ namespace JBro::Physics2D
             // 둥근 도형에 쏘는 반직선은 반지름 0 인 원을 그 코어에 미는 것과 같다(스윕이 두께를 더한다).
             return CastCircle(origin, 0.0f, direction, maxDistance, polygon, pose, distance, normal);
         }
+        if (polygon.count == 2 && maxDistance >= 0.0f)
+        {
+            // 두께 없는 선분(체인)이다. 양면으로 맞고, 법선은 쏜 쪽을 향한다.
+            const Vec2 a = TransformPoint(pose, polygon.points[0]);
+            const Vec2 b = TransformPoint(pose, polygon.points[1]);
+            float t = 0.0f;
+            if (false == RaySegment(origin, direction, a, b, t) || t > maxDistance)
+            {
+                return false;
+            }
+            const Vec2 edge = Subtract(b, a);
+            const float length = Length(edge);
+            if (length <= 0.0f)
+            {
+                return false;
+            }
+            Vec2 n{ edge.y / length, -edge.x / length };
+            if (Dot(n, direction) > 0.0f)
+            {
+                n = Scale(n, -1.0f);
+            }
+            distance = t;
+            normal = n;
+            return true;
+        }
         if (polygon.count < 3 || maxDistance < 0.0f)
         {
             return false;
@@ -614,9 +644,9 @@ namespace JBro::Physics2D
 
     bool OverlapPolygons(const ConvexPolygon& a, const Pose& poseA, const ConvexPolygon& b, const Pose& poseB)
     {
-        if (a.radius + b.radius > 0.0f)
+        if (a.radius + b.radius > 0.0f || a.count == 2 || b.count == 2)
         {
-            // 둥근 도형은 면 법선의 SAT 만으로 모서리 옆 틈을 가르지 못한다. 접촉 판정과 같은 매니폴드로 표면 사이를 잰다.
+            // 둥근 도형은 면 법선의 SAT 만으로 모서리 옆 틈을 가르지 못한다. 두께 없는 선분(체인)도 이 길로 잰다. 접촉 판정과 같은 매니폴드로 표면 사이를 잰다.
             const Manifold manifold = CollidePolygons(a, poseA, b, poseB);
             for (std::uint32_t i = 0; i < manifold.count; ++i)
             {
@@ -891,7 +921,7 @@ namespace JBro::Physics2D
     bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
         const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal)
     {
-        if (target.count < 2 || (target.count < 3 && target.radius <= 0.0f) || radius < 0.0f || maxDistance < 0.0f)
+        if (target.count < 2 || (target.count < 3 && radius + target.radius <= 0.0f) || radius < 0.0f || maxDistance < 0.0f)
         {
             return false;
         }
@@ -966,7 +996,7 @@ namespace JBro::Physics2D
         const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal)
     {
         const float grown = moving.radius + target.radius;
-        if (moving.count < 2 || target.count < 2 || (grown <= 0.0f && (moving.count < 3 || target.count < 3))
+        if (moving.count < 2 || target.count < 2 || (grown <= 0.0f && moving.count < 3 && target.count < 3)
             || maxDistance < 0.0f)
         {
             return false;
@@ -1014,5 +1044,215 @@ namespace JBro::Physics2D
         const Vec2 center = TransformPoint(pose, circle.center);
         return { { center.x - circle.radius, center.y - circle.radius },
                  { center.x + circle.radius, center.y + circle.radius } };
+    }
+
+    namespace
+    {
+        enum class ChainVerdict
+        {
+            Keep,
+            UseFace,
+            Drop,
+        };
+
+        ChainSegment ToWorld(const ChainSegment& segment, const Pose& pose)
+        {
+            ChainSegment world = segment;
+            world.p1 = TransformPoint(pose, segment.p1);
+            world.p2 = TransformPoint(pose, segment.p2);
+            world.previous = TransformPoint(pose, segment.previous);
+            world.next = TransformPoint(pose, segment.next);
+            return world;
+        }
+
+        ConvexPolygon SegmentPolygon(const ChainSegment& segment)
+        {
+            ConvexPolygon polygon;
+            polygon.points[0] = segment.p1;
+            polygon.points[1] = segment.p2;
+            polygon.count = 2;
+            return polygon;
+        }
+
+        // 선분(월드)과 만난 법선을 받을지, 면 법선으로 바꿀지, 버릴지 정한다. face 는 만난 쪽의 면 법선이다. 어느 쪽인지는 상대의
+        // 중심으로 정한다 - 이음매의 유령 법선은 가로라 그 부호로는 위·아래를 가를 수 없다.
+        ChainVerdict JudgeChainNormal(const ChainSegment& segment, Vec2 point, Vec2 normal, Vec2 otherCenter, Vec2& face)
+        {
+            const Vec2 edge = Subtract(segment.p2, segment.p1);
+            const float length = Length(edge);
+            if (length <= 0.0f)
+            {
+                return ChainVerdict::Drop;
+            }
+            const Vec2 tangent = Scale(edge, 1.0f / length);
+            const Vec2 segmentNormal{ tangent.y, -tangent.x };
+            face = Dot(Subtract(otherCenter, segment.p1), segmentNormal) >= 0.0f ? segmentNormal : Scale(segmentNormal, -1.0f);
+            if (Dot(normal, face) >= 1.0f - 1.0e-3f)
+            {
+                return ChainVerdict::Keep;
+            }
+            // 모서리 영역이다. 접촉점에 가까운 끝의 이웃을 본다. 이웃이 없는 끝은 진짜 모서리다.
+            const bool atEnd = Dot(Subtract(point, segment.p1), tangent) > 0.5f * length;
+            if (false == (atEnd ? segment.hasNext : segment.hasPrevious))
+            {
+                return ChainVerdict::Keep;
+            }
+            const Vec2 vertex = atEnd ? segment.p2 : segment.p1;
+            const Vec2 toGhost = Subtract(atEnd ? segment.next : segment.previous, vertex);
+            const float ghostLength = Length(toGhost);
+            if (ghostLength <= 0.0f)
+            {
+                return ChainVerdict::UseFace;
+            }
+            // 이웃이 만난 쪽에서 멀어지면(내 쪽에서) 볼록한 꼭짓점이다. 아니면 평평하거나 오목해서 누구의 모서리도 아니다.
+            if (Dot(toGhost, face) >= -LinearSlop * ghostLength)
+            {
+                return ChainVerdict::UseFace;
+            }
+            // 이웃도 자기가 만난 쪽에서 볼록하게 보면 둘 중 그 꼭짓점을 끝(p2)으로 가진 선분만 맡는다. 이웃이 오목하게 보면
+            // 이웃은 면으로 보고 놓으니 내가 맡는다 - 양면 체인이라 두 선분이 고른 쪽이 다를 수 있다.
+            const Vec2 ghostDirection = Scale(toGhost, 1.0f / ghostLength);
+            Vec2 neighborFace{ ghostDirection.y, -ghostDirection.x };
+            if (Dot(Subtract(otherCenter, vertex), neighborFace) < 0.0f)
+            {
+                neighborFace = Scale(neighborFace, -1.0f);
+            }
+            const Vec2 toMine = Subtract(atEnd ? segment.p1 : segment.p2, vertex);
+            const bool neighborConvex = Dot(toMine, neighborFace) < -LinearSlop * length;
+            if (neighborConvex && false == atEnd)
+            {
+                return ChainVerdict::Drop;
+            }
+            // 맡은 꼭짓점에서는 상대의 법선을 그대로 받는다(다각형 면이 꼭짓점에 닿으면 내 면보다 기울어도 그 면 법선이 맞다).
+            // 내 면도, 이웃의 바깥 법선(내 선분에서 멀어지는 쪽)도 등지면 쐐기 안으로 박힌 것이라 내 면으로 민다.
+            Vec2 neighborOut{ ghostDirection.y, -ghostDirection.x };
+            if (Dot(neighborOut, toMine) > 0.0f)
+            {
+                neighborOut = Scale(neighborOut, -1.0f);
+            }
+            if (Dot(normal, face) > 0.0f || Dot(normal, neighborOut) > 0.0f)
+            {
+                return ChainVerdict::Keep;
+            }
+            return ChainVerdict::UseFace;
+        }
+    }
+
+    Manifold CollideChainSegmentAndPolygon(
+        const ChainSegment& segment, const Pose& poseA, const ConvexPolygon& polygon, const Pose& poseB)
+    {
+        const Manifold raw = CollidePolygons(SegmentPolygon(segment), poseA, polygon, poseB);
+        if (raw.count == 0)
+        {
+            return raw;
+        }
+        const ChainSegment world = ToWorld(segment, poseA);
+        Vec2 centroid;
+        for (std::uint32_t i = 0; i < polygon.count; ++i)
+        {
+            centroid = Add(centroid, polygon.points[i]);
+        }
+        centroid = TransformPoint(poseB, Scale(centroid, 1.0f / static_cast<float>(polygon.count)));
+        Vec2 face;
+        const ChainVerdict verdict = JudgeChainNormal(world, raw.points[0].point, raw.normal, centroid, face);
+        if (verdict == ChainVerdict::Keep)
+        {
+            return raw;
+        }
+        Manifold manifold;
+        if (verdict == ChainVerdict::Drop)
+        {
+            return manifold;
+        }
+        // 선분의 면을 기준면으로 삼아 상대의 입사면을 선분 범위로 자른다.
+        const WorldPolygon other = ToWorld(polygon, poseB);
+        std::uint32_t incidentEdge = 0;
+        float lowest = FLT_MAX;
+        for (std::uint32_t i = 0; i < other.count; ++i)
+        {
+            const float d = Dot(face, other.normals[i]);
+            if (d < lowest)
+            {
+                lowest = d;
+                incidentEdge = i;
+            }
+        }
+        const Vec2 edge = Subtract(world.p2, world.p1);
+        const Vec2 tangent = Scale(edge, 1.0f / Length(edge));
+        const std::uint32_t base = 0x4000u | (incidentEdge << 4);
+        const ClipVertex incident[2] = {
+            { other.points[incidentEdge], base | 0u },
+            { other.points[(incidentEdge + 1) % other.count], base | 1u } };
+        ClipVertex clipped1[2];
+        if (ClipSegment(clipped1, incident, Scale(tangent, -1.0f), -Dot(tangent, world.p1), base | 2u) < 2)
+        {
+            return manifold;
+        }
+        ClipVertex clipped2[2];
+        if (ClipSegment(clipped2, clipped1, tangent, Dot(tangent, world.p2), base | 3u) < 2)
+        {
+            return manifold;
+        }
+        manifold.normal = face;
+        for (const ClipVertex& vertex : clipped2)
+        {
+            const float coreGap = Dot(face, Subtract(vertex.point, world.p1));
+            const float separation = coreGap - polygon.radius;
+            if (separation > SpeculativeDistance)
+            {
+                continue;
+            }
+            ManifoldPoint& point = manifold.points[manifold.count];
+            point.point = Subtract(vertex.point, Scale(face, 0.5f * (coreGap + polygon.radius)));
+            point.separation = separation;
+            point.id = vertex.id;
+            ++manifold.count;
+        }
+        return manifold;
+    }
+
+    Manifold CollideChainSegmentAndCircle(
+        const ChainSegment& segment, const Pose& poseA, const Circle& circle, const Pose& poseB)
+    {
+        const Manifold raw = CollidePolygonAndCircle(SegmentPolygon(segment), poseA, circle, poseB);
+        if (raw.count == 0)
+        {
+            return raw;
+        }
+        const ChainSegment world = ToWorld(segment, poseA);
+        Vec2 face;
+        const ChainVerdict verdict =
+            JudgeChainNormal(world, raw.points[0].point, raw.normal, TransformPoint(poseB, circle.center), face);
+        if (verdict == ChainVerdict::Keep)
+        {
+            return raw;
+        }
+        Manifold manifold;
+        if (verdict == ChainVerdict::Drop)
+        {
+            return manifold;
+        }
+        // 중심이 선분 범위 밖이면 이웃 선분의 면이 맡는다(그쪽에서는 면 영역이다).
+        const Vec2 center = TransformPoint(poseB, circle.center);
+        const Vec2 edge = Subtract(world.p2, world.p1);
+        const float length = Length(edge);
+        const Vec2 tangent = Scale(edge, 1.0f / length);
+        const float along = Dot(Subtract(center, world.p1), tangent);
+        if (along < 0.0f || along > length)
+        {
+            return manifold;
+        }
+        const float gap = Dot(Subtract(center, world.p1), face);
+        const float separation = gap - circle.radius;
+        if (separation > SpeculativeDistance)
+        {
+            return manifold;
+        }
+        manifold.normal = face;
+        manifold.points[0].point = Subtract(center, Scale(face, 0.5f * (gap + circle.radius)));
+        manifold.points[0].separation = separation;
+        manifold.points[0].id = 0x4000u;
+        manifold.count = 1;
+        return manifold;
     }
 }

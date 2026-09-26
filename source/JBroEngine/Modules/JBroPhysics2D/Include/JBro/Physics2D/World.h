@@ -69,6 +69,11 @@ namespace JBro::Physics2D
         float         linearDamping = 0.0f;
         float         angularDamping = 0.0f;
         bool          fixedRotation = false;
+        // 축 고정(D-227). 그 축으로는 움직이지 않는다 - 중력·힘·접촉 어느 것도 그 축의 속도를 만들지 못한다.
+        bool          freezePositionX = false;
+        bool          freezePositionY = false;
+        // 잠들 수 있는가(D-229). 거짓이면 멈춰 있어도 늘 깨어 있다.
+        bool          canSleep = true;
         std::uint64_t userData = 0;
     };
 
@@ -106,6 +111,12 @@ namespace JBro::Physics2D
         std::uint32_t positionIterations = 3;
         // 다가오는 속도가 이보다 느리면 반발하지 않는다. 쌓인 물체가 떨며 튀지 않게 한다.
         float         restitutionThreshold = 1.0f;
+        // 수면(D-229). 접촉으로 이어진 몸들(섬)이 모두 이 속도 아래로 timeToSleep 동안 머물면 함께 잠든다. 잠든 몸은
+        // 적분과 솔버에서 빠진다. 섬 안의 하나라도 빨라지면 섬이 함께 깬다.
+        bool          enableSleep = true;
+        float         timeToSleep = 0.5f;
+        float         linearSleepTolerance = 0.05f;
+        float         angularSleepTolerance = 0.0349f;
     };
 
     // 마지막 Step 의 좁은 판정 기록이다(D-223). 프로파일과 테스트가 본다.
@@ -115,6 +126,9 @@ namespace JBro::Physics2D
         std::uint32_t candidates = 0;
         // 좁은 판정을 워커와 나눠 돈 서브스텝 수. 워커가 없거나 후보가 적으면 0 이다.
         std::uint32_t parallelSubSteps = 0;
+        // Step 이 끝났을 때 깨어 있는·잠든 동적 몸의 수(D-229).
+        std::uint32_t awakeBodies = 0;
+        std::uint32_t sleepingBodies = 0;
     };
 
     class World
@@ -140,6 +154,9 @@ namespace JBro::Physics2D
         ShapeId CreateCircleShape(BodyId body, const Circle& localCircle, const ShapeDef& def);
         // 선분 a-b(바디 로컬)에 반지름을 두른 캡슐. 조각 하나(두 점 + radius)로 든다. 두 점이 LinearSlop 안이면 원이다.
         ShapeId CreateCapsuleShape(BodyId body, Vec2 localA, Vec2 localB, float radius, const ShapeDef& def);
+        // 체인(D-229): 점을 이은 선분 모음이고 조각마다 선분 하나다. 두께와 질량이 없고 두 면 모두에서 부딪힌다. loop 면 끝과 처음을
+        // 잇는다. LinearSlop 안의 이웃 점은 합친다. 선분이 하나도 남지 않으면 만들지 않고 빈 번호를 돌려준다.
+        ShapeId CreateChainShape(BodyId body, ArrayView<const Vec2> localPoints, bool loop, const ShapeDef& def);
         void    DestroyShape(ShapeId shape);
 
         // 도형의 모양만 바꾼다(크기 애니메이션, physics-plan §4 의 4 (1)). 번호와 표면 성질은 그대로라 닿아 있던 쌍이 계속 닿아
@@ -147,12 +164,14 @@ namespace JBro::Physics2D
         PolygonError SetPolygonGeometry(ShapeId shape, ArrayView<const Vec2> localOutline);
         bool         SetCircleGeometry(ShapeId shape, const Circle& localCircle);
         bool         SetCapsuleGeometry(ShapeId shape, Vec2 localA, Vec2 localB, float radius);
+        bool         SetChainGeometry(ShapeId shape, ArrayView<const Vec2> localPoints, bool loop);
         // 마찰·반발·레이어·마스크를 바꾼다. 트리거 여부와 userData 는 도형을 새로 만들어야 바뀐다 - 트리거가 되면 훅의 종류가
         // 달라지므로 끝나고 새로 시작하는 것이 맞다.
         void         SetSurface(ShapeId shape, const ShapeDef& def);
         bool    IsValid(ShapeId shape) const;
         std::uint32_t GetChildCount(ShapeId shape) const;
         const ConvexPolygon* GetPolygonChild(ShapeId shape, std::uint32_t child) const;
+        const ChainSegment*  GetChainChild(ShapeId shape, std::uint32_t child) const;
 
         // 원점과 각도를 옮긴다(순간 이동). 속도는 그대로다.
         void  SetTransform(BodyId body, Vec2 position, float angle);
@@ -165,6 +184,21 @@ namespace JBro::Physics2D
         void  SetAngularVelocity(BodyId body, float velocity);
         // 질량·로컬 질량 중심·그 중심 기준 관성. Static·Kinematic 은 0 이다.
         MassData GetMassData(BodyId body) const;
+        // 몸의 성질을 제자리에서 바꾼다(D-227): 질량·중력 배율·감쇠·회전 고정·축 고정. 종류·자세·속도·userData 는 두고,
+        // 번호가 그대로라 닿아 있던 쌍은 이어진다.
+        void SetBodyProperties(BodyId body, const BodyDef& def);
+        // 수면(D-229). 깨우면 섬이 다음 Step 에 함께 깬다. 순간 이동·속도·힘·충격량·성질·도형을 바꾸면 저절로 깬다.
+        void SetAwake(BodyId body, bool awake);
+        bool IsAwake(BodyId body) const;
+
+        // 힘과 토크는 다음 Step 한 번 동안 서브스텝마다 가해지고 Step 끝에 비워진다. 충격량은 속도를 바로 바꾼다.
+        // 동적인 몸만 받고, 고정한 축과 회전은 받지 않는다(D-227).
+        void ApplyForce(BodyId body, Vec2 force, Vec2 worldPoint);
+        void ApplyForceToCenter(BodyId body, Vec2 force);
+        void ApplyTorque(BodyId body, float torque);
+        void ApplyLinearImpulse(BodyId body, Vec2 impulse, Vec2 worldPoint);
+        void ApplyLinearImpulseToCenter(BodyId body, Vec2 impulse);
+        void ApplyAngularImpulse(BodyId body, float impulse);
 
         void Step(float deltaTime);
 
@@ -195,6 +229,17 @@ namespace JBro::Physics2D
             float         requestedMass = 1.0f;
             float         mass = 0.0f;
             float         inverseMass = 0.0f;
+            // 축마다의 역질량. 고정한 축은 0 이다. 접촉 임펄스와 위치 보정이 이것으로 몸을 민다.
+            Vec2          inverseMassAxes;
+            bool          freezePositionX = false;
+            bool          freezePositionY = false;
+            // 이번 Step 동안 가할 힘과 토크(질량 중심 기준).
+            Vec2          force;
+            float         torque = 0.0f;
+            // 수면. 잠든 몸은 속도가 0 이고 움직이지 않는다.
+            bool          awake = true;
+            bool          canSleep = true;
+            float         sleepTime = 0.0f;
             float         inertia = 0.0f;
             float         inverseInertia = 0.0f;
             float         gravityScale = 1.0f;
@@ -211,11 +256,13 @@ namespace JBro::Physics2D
         {
             bool                 alive = false;
             bool                 isCircle = false;
+            bool                 isChain = false;
             bool                 isTrigger = false;
             std::uint32_t        generation = 0;
             std::uint32_t        body = InvalidIndex;
             Circle               circle;
             Array<ConvexPolygon> pieces;
+            Array<ChainSegment>  segments;
             float                friction = 0.6f;
             float                restitution = 0.0f;
             std::uint32_t        layer = 1;
@@ -282,6 +329,8 @@ namespace JBro::Physics2D
         Shape*       FindShape(ShapeId shape);
         const Shape* FindShape(ShapeId shape) const;
         ShapeId      AddShape(std::uint32_t bodyIndex, const ShapeDef& def);
+        // 점 모음을 체인 선분으로 만든다. 선분이 없으면 거짓이고 out 은 비어 있다.
+        static bool  BuildChain(ArrayView<const Vec2> points, bool loop, Array<Vec2>& filtered, Array<ChainSegment>& out);
         void         UpdateMass(Body& body);
         void         SyncOrigin(Body& body);
 
@@ -297,6 +346,13 @@ namespace JBro::Physics2D
         void IntegratePositions(float h);
         void SolvePositions();
         void UpdateTouching();
+        // 섬을 묶어 잠재우고 깨운다. Step 끝에 한 번 돈다.
+        void UpdateSleep(float deltaTime);
+        void WakeBody(Body& body);
+        void WakeSleepingIn(const Contact& contact);
+        std::uint32_t FindIsland(std::uint32_t body);
+        // 깨어 있는 동적 몸이 끼어야 접촉을 푼다. 둘 다 잠들었거나 멈춘 몸이면 풀 것이 없다.
+        bool IsSolved(const Contact& contact) const;
 
         WorldSettings        m_settings;
         Array<Body>          m_bodies;
@@ -319,9 +375,15 @@ namespace JBro::Physics2D
         // 워커 수가 0 이 아닐 때만 있다.
         OwnerPtr<Internal::WorkerPool> m_workers;
         StepStats            m_lastStats;
+        // 섬 찾기(합치고 찾기)의 부모 표와 섬마다의 가장 짧은 잠든 시간. 용량이 찬 뒤로는 할당하지 않는다.
+        Array<std::uint32_t> m_islandParent;
+        Array<float>         m_islandSleepTime;
+        Vec2                 m_lastGravity{ 0.0f, -9.81f };
         // 모양 바꾸기의 분해 결과. 도형의 조각 배열과 맞바꿔 두 배열 모두 용량이 남는다.
         Array<ConvexPolygon> m_scratchPieces;
         DecomposeScratch     m_decompose;
+        Array<ChainSegment>  m_scratchSegments;
+        Array<Vec2>          m_scratchChainPoints;
         // 질량을 모으는 자리. 모양을 바꿀 때마다 부르므로 용량을 남겨 둔다.
         Array<MassData>      m_massParts;
         Array<ContactEvent>  m_endEvents;

@@ -179,7 +179,7 @@ namespace JBro
         CanvasViewPanel* panel = static_cast<CanvasViewPanel*>(context.user);
         const auto* collider = static_cast<const Component::Collider2D*>(context.component);
         // 폴리곤이 아니면 회색이다. 숨기면 이 기능이 있는지 알 수 없다(D-181).
-        const bool polygon = collider != nullptr && collider->shape == Component::ColliderShape2D::Polygon;
+        const bool polygon = collider != nullptr && PolygonEditModel::EditsPoints(*collider);
         if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewEditPoints, "Edit Points"), nullptr, polygon,
                 Loc::TextOr(LocKeys::CanvasViewEditPointsNotPolygon, "shape must be Polygon")))
         {
@@ -927,7 +927,7 @@ namespace JBro
 
                 // 상자는 **돌면 기울어진다.** 외접 사각형으로 그리면 돌려 놓은 오브젝트의 충돌 칸이 실제보다
                 // 커 보인다. 폴리곤은 꼭짓점을 그대로 그리고, 꼭짓점이 없으면 물리처럼 `size` 상자다.
-                if (collider->shape == Component::ColliderShape2D::Polygon)
+                if (PolygonEditModel::EditsPoints(*collider))
                 {
                     PolygonEditModel::SeedPoints(*collider, m_outlineScratch);
                 }
@@ -971,9 +971,10 @@ namespace JBro
                         }
                     }
                 }
-                // 변마다 선 하나다. 꼭짓점 수에 상한을 두지 않는다 - 편집으로 얼마든지 는다.
+                // 변마다 선 하나다. 꼭짓점 수에 상한을 두지 않는다 - 편집으로 얼마든지 는다. 열린 체인은 끝과 처음을 잇지 않는다.
                 const std::size_t count = m_screenScratch.Size();
-                for (std::size_t index = 0; count >= 2 && index < count; ++index)
+                const std::size_t edges = PolygonEditModel::IsClosedOutline(*collider) ? count : (count > 0 ? count - 1 : 0);
+                for (std::size_t index = 0; count >= 2 && index < edges; ++index)
                 {
                     const Vec2 a = m_screenScratch[index];
                     const Vec2 b = m_screenScratch[(index + 1) % count];
@@ -1090,7 +1091,7 @@ namespace JBro
             {
                 chosen = static_cast<Component::Collider2D*>(ResolveComponent(m_editor->GetObjectIds(), m_pointTarget));
             }
-            if (chosen != nullptr && chosen->IsEnabled() && chosen->shape == Component::ColliderShape2D::Polygon)
+            if (chosen != nullptr && chosen->IsEnabled() && PolygonEditModel::EditsPoints(*chosen))
             {
                 target.collider = chosen;
             }
@@ -1106,7 +1107,7 @@ namespace JBro
             for (Component::Collider2D* collider : m_colliderScratch)
             {
                 if (collider != nullptr && collider->IsEnabled()
-                    && collider->shape == Component::ColliderShape2D::Polygon)
+                    && PolygonEditModel::EditsPoints(*collider))
                 {
                     target.collider = collider;
                     break;
@@ -1209,7 +1210,7 @@ namespace JBro
         m_polygonHover = {};
         if (false == m_vertexDragging && PointerInView(rect) && false == ImGui::IsMouseDown(ImGuiMouseButton_Right))
         {
-            m_polygonHover = PolygonEditModel::Pick(m_screenScratch.View(), mouse);
+            m_polygonHover = PolygonEditModel::Pick(m_screenScratch.View(), mouse, PolygonEditModel::IsClosedOutline(collider));
         }
         if (false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
@@ -1266,7 +1267,8 @@ namespace JBro
         const ImU32 shadow = IM_COL32(0, 0, 0, 120);
         constexpr float HandleRadius = 3.5f;
         const std::size_t count = m_screenScratch.Size();
-        for (std::size_t index = 0; count >= 2 && index < count; ++index)
+        const std::size_t edges = PolygonEditModel::IsClosedOutline(collider) ? count : (count > 0 ? count - 1 : 0);
+        for (std::size_t index = 0; count >= 2 && index < edges; ++index)
         {
             const Vec2 a = m_screenScratch[index];
             const Vec2 b = m_screenScratch[(index + 1) % count];
@@ -1303,8 +1305,8 @@ namespace JBro
                     m_screenScratch.Add(LocalToScreen(rect, target.pose, target.collider->offset, point));
                 }
                 const ImGuiIO& io = ImGui::GetIO();
-                const PolygonEditModel::Hit hit =
-                    PolygonEditModel::Pick(m_screenScratch.View(), { io.MousePos.x, io.MousePos.y });
+                const PolygonEditModel::Hit hit = PolygonEditModel::Pick(m_screenScratch.View(),
+                    { io.MousePos.x, io.MousePos.y }, PolygonEditModel::IsClosedOutline(*target.collider));
                 if (hit.kind == PolygonEditModel::HitKind::Vertex)
                 {
                     m_menuAddress = target.address;
@@ -1322,9 +1324,12 @@ namespace JBro
         if (collider != nullptr)
         {
             PolygonEditModel::SeedPoints(*collider, m_outlineScratch);
-            const bool removable = m_outlineScratch.Size() > PolygonEditModel::MinVertexCount;
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewPointDelete, "Delete Point"), nullptr, removable,
-                    Loc::TextOr(LocKeys::CanvasViewPointDeleteMin, "a polygon needs at least three points")))
+            const std::uint32_t minimum = PolygonEditModel::MinPointCount(*collider);
+            const bool removable = m_outlineScratch.Size() > minimum;
+            const char* why = minimum < PolygonEditModel::MinVertexCount
+                ? Loc::TextOr(LocKeys::CanvasViewPointDeleteMinChain, "a chain needs at least two points")
+                : Loc::TextOr(LocKeys::CanvasViewPointDeleteMin, "a polygon needs at least three points");
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewPointDelete, "Delete Point"), nullptr, removable, why))
             {
                 SetPropertyCommand::Path path;
                 String before;
@@ -1332,7 +1337,7 @@ namespace JBro
                     && SetPropertyCommand::ReadValue(*collider, m_menuAddress.typeId, path, before))
                 {
                     Array<Vec2> after = m_outlineScratch;
-                    if (PolygonEditModel::RemoveVertex(after, m_menuVertex))
+                    if (PolygonEditModel::RemoveVertex(after, m_menuVertex, minimum))
                     {
                         CommitPoints(m_menuAddress, before, after);
                     }

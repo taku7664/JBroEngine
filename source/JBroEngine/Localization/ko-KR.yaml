@@ -53,8 +53,9 @@ Entries:
   canvas_view.edit_collider_tooltip: 고른 오브젝트의 폴리곤 콜라이더를 고칩니다. 포인트를 끌어 옮기고, 변을 누르면 포인트가 생기고, 포인트를 우클릭하면 지울 수 있습니다
   canvas_view.point_delete: 포인트 삭제
   canvas_view.point_delete_min: 포인트가 세 개 이상이어야 합니다
+  canvas_view.point_delete_min_chain: 포인트가 두 개 이상이어야 합니다
   canvas_view.edit_points: 포인트 편집
-  canvas_view.edit_points_not_polygon: shape 가 Polygon 이어야 합니다
+  canvas_view.edit_points_not_polygon: shape 가 Polygon 이나 Chain 이어야 합니다
   canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
   canvas_view.preview_locale: 언어
   canvas_view.preview_locale_tooltip: textKey 가 있는 텍스트를 이 언어로 미리 봅니다
