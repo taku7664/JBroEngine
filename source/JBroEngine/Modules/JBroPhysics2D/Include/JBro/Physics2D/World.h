@@ -28,8 +28,9 @@ namespace JBro::Physics2D
     // 물리 전용 워커의 상한이다(D-223). 명시한 값도 여기서 자른다.
     inline constexpr std::uint32_t MaxWorkerCount = 16;
 
-    // 물리 일감에 맞는 워커 수(D-223). work 는 콜라이더 조각 수의 합이다. 좁은 판정 한 번이 1µs 안팎이라 수백 쌍 아래에서는
-    // 나누고 모으는 비용이 더 크다 - 256 미만이면 0(메인 한 스레드), 그 위로 128 마다 하나, hardwareThreads - 1 과 8 을 넘지 않는다.
+    // 물리 일감에 맞는 워커 수(D-223). work 는 콜라이더 조각 수의 합이다. 좁은 판정만 나누므로(솔버는 메인) 이득이 작다 - 실측에서
+    // 1000 조각 아래는 잡음보다 나은 것이 없었고 2000 에서 약 20% 빨랐으며 워커 2~4 에서 멈췄다(physics-plan §4 의 8). 그래서 1024
+    // 미만이면 0(메인 한 스레드), 1024 에 1 을 주고 1024 마다 하나씩 더하며, hardwareThreads - 1 과 4 를 넘지 않는다.
     std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads);
 
     enum class BodyType : std::uint8_t

@@ -30,6 +30,9 @@ namespace JBro::System
         int  GetExecutionOrder() const override;
         void SetGravity(Vec2 gravity);
         Vec2 GetGravity() const;
+        // 좁은 판정을 나눌 물리 전용 워커 수(D-223). 다음 고정 스텝에서 커널에 먹인다. 0 이면 메인 한 스레드다.
+        void          SetWorkerCount(std::uint32_t count);
+        std::uint32_t GetWorkerCount() const;
 
         bool Raycast(Vec2 origin, Vec2 direction, float distance, RaycastHit2D& hit,
             std::uint32_t layerMask) const override;
@@ -65,6 +68,7 @@ namespace JBro::System
 
         Canvas*         m_canvas = nullptr;
         Vec2            m_gravity{ 0.0f, -9.81f };
+        std::uint32_t   m_workerCount = 0;
         OwnerPtr<State> m_state;
     };
 }

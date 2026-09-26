@@ -298,6 +298,12 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsAudioDefaultDevice = "project_settings.audio_default_device";
     inline constexpr const char* ProjectSettingsAudioDeviceHelp = "project_settings.audio_device_help";
     inline constexpr const char* ProjectSettingsAudioRefreshDevices = "project_settings.audio_refresh_devices";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsAuto = "project_settings.physics_threads_auto";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsSingle = "project_settings.physics_threads_single";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsWorkers = "project_settings.physics_threads_workers";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsHelp = "project_settings.physics_threads_help";
+    inline constexpr const char* ProjectSettingsPhysicsRecommend = "project_settings.physics_recommend";
+    inline constexpr const char* ProjectSettingsPhysicsRecommendHelp = "project_settings.physics_recommend_help";
     inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
     inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
     inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";

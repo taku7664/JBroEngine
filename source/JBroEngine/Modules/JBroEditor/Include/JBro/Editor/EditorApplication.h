@@ -134,6 +134,8 @@ namespace JBro
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
+        // 물리 스레드의 추천 워커 수(D-223). 빌드 캔버스의 콜라이더를 센다. 2D 프로젝트가 아니면 0 이다.
+        std::uint32_t RecommendPhysicsWorkers();
 
         // ── 에디터 세션(D-146) ──────────────────────────────────────────────
         //
@@ -570,6 +572,8 @@ namespace JBro
         void PerformOpenCanvasRequest();
         // 그림·외곽선 캐시를 지금 프로젝트의 에셋 시스템에 잇는다. 프로젝트가 없으면 끊는다(D-165).
         void BindAssetTools();
+        // 프로젝트의 물리 스레드 설정을 풀어 2D 프레임워크에 먹인다(D-223). 열 때와 설정을 저장할 때 부른다.
+        void ApplyPhysicsThreads();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
         bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();

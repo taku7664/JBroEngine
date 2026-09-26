@@ -10,6 +10,7 @@
 
 #if defined(JBRO_GAME_DIMENSION_2D)
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework2DSystem/PhysicsThreads.h>
 #elif defined(JBRO_GAME_DIMENSION_3D)
 #include <JBro/Framework3DSystem/Framework3D.h>
 #else
@@ -124,6 +125,11 @@ namespace
                     }
                     else
                     {
+#if defined(JBRO_GAME_DIMENSION_2D)
+                        // 물리 스레드는 게임이 시작할 때 한 번 정한다(D-223). Auto 면 빌드 캔버스의 콜라이더로 고른다.
+                        framework.SetPhysicsWorkerCount(
+                            JBro::ResolvePhysicsWorkerCount(platform, engine.GetProjectFile(), arguments.projectFile.c_str()));
+#endif
                         LoadStartupCanvas(framework, platform,
                             JBro::ResolveStartupCanvasPath(arguments, engine.GetProjectFile(), arguments.projectFile.c_str()));
                     }

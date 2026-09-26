@@ -26,6 +26,12 @@ namespace JBro
 {
     namespace
     {
+        // 물리 워커 수의 상한이다. 커널의 `Physics2D::MaxWorkerCount` 와 같다(D-223).
+        constexpr int MaxPhysicsWorkers = 16;
+    }
+
+    namespace
+    {
         // 해상도의 한계다. 0 은 그릴 화면이 없다는 뜻이고, 위쪽은 사람이 실수로
         // 자릿수를 하나 더 치는 것을 막는 값이다.
         constexpr int MinResolution = 16;
@@ -892,6 +898,51 @@ namespace JBro
             layout.Row(
                 [] { Widget::Text("EnableIOS"); },
                 [&] { Widget::Checkbox("##ios", m_draft.build.enableIOS); });
+            // **물리 스레드**(D-223). 자동은 게임이 시작할 때 정한다. "추천 값 사용" 은 같은 계산을 지금 돌려 값을 고정한다.
+            layout.Row(
+                [] { Widget::Text("PhysicsThreads"); },
+                [&] {
+                    const char* choices[] = {
+                        Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsAuto, "Auto"),
+                        Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsSingle, "Single thread"),
+                        Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsWorkers, "Set worker count")};
+                    int current = static_cast<int>(m_draft.build.physicsThreadMode);
+                    if (Widget::FilterCombo("##physicsThreads", ArrayView<const char* const>(choices, 3), current)
+                            .ShowFilter(false)
+                            .Draw()
+                        && current >= 0)
+                    {
+                        m_draft.build.physicsThreadMode = static_cast<PhysicsThreadMode>(current);
+                        if (m_draft.build.physicsThreadMode == PhysicsThreadMode::Workers && m_draft.build.physicsWorkers == 0)
+                        {
+                            m_draft.build.physicsWorkers = 1;
+                        }
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsPhysicsThreadsHelp,
+                        "Auto picks the worker count from the colliders in the build canvases when the game starts"));
+                    ImGui::SameLine();
+                    if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsPhysicsRecommend, "Use Recommended")))
+                    {
+                        const std::uint32_t recommended = m_editor->RecommendPhysicsWorkers();
+                        m_draft.build.physicsThreadMode =
+                            recommended == 0 ? PhysicsThreadMode::Single : PhysicsThreadMode::Workers;
+                        m_draft.build.physicsWorkers = recommended;
+                    }
+                    Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsPhysicsRecommendHelp,
+                        "Counts the colliders in the build canvases and fixes the recommended worker count"));
+                });
+            if (m_draft.build.physicsThreadMode == PhysicsThreadMode::Workers)
+            {
+                layout.Row(
+                    [] { Widget::Text("PhysicsWorkers"); },
+                    [&] {
+                        int value = static_cast<int>(m_draft.build.physicsWorkers);
+                        if (Widget::DragInt("##physicsWorkers").Range(1, MaxPhysicsWorkers).Draw(value))
+                        {
+                            m_draft.build.physicsWorkers = static_cast<std::uint32_t>(value);
+                        }
+                    });
+            }
         }
 
         ImGui::Spacing();

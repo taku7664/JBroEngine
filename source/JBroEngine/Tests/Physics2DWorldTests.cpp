@@ -713,15 +713,15 @@ namespace
             "and zero goes back to the main thread alone");
     }
 
-    // **추천 워커 수(D-223).** 256 조각 아래는 메인 한 스레드, 그 위로 128 조각마다 하나, 코어 수 - 1 과 8 이 상한이다.
+    // **추천 워커 수(D-223).** 1024 조각 아래는 메인 한 스레드, 1024 마다 하나, 코어 수 - 1 과 4 가 상한이다.
     void TestRecommendedWorkerCounts()
     {
         using JBro::Physics2D::RecommendWorkerCount;
-        Check(RecommendWorkerCount(0, 8) == 0 && RecommendWorkerCount(255, 8) == 0, "a small scene stays on the main thread");
-        Check(RecommendWorkerCount(256, 8) == 2 && RecommendWorkerCount(1000, 8) == 7, "a bigger one gets a worker per 128 pieces");
-        Check(RecommendWorkerCount(5000, 8) == 7 && RecommendWorkerCount(5000, 32) == 8,
-            "but never more than the other cores, nor more than eight");
-        Check(RecommendWorkerCount(5000, 1) == 0 && RecommendWorkerCount(300, 2) == 1, "a single core never gets workers");
+        Check(RecommendWorkerCount(0, 8) == 0 && RecommendWorkerCount(1023, 8) == 0, "a scene under 1024 pieces stays on the main thread");
+        Check(RecommendWorkerCount(1024, 8) == 1 && RecommendWorkerCount(3000, 8) == 2, "a bigger one gets a worker per 1024 pieces");
+        Check(RecommendWorkerCount(50000, 8) == 4 && RecommendWorkerCount(50000, 3) == 2,
+            "but never more than four, nor more than the other cores");
+        Check(RecommendWorkerCount(50000, 1) == 0 && RecommendWorkerCount(2048, 2) == 1, "a single core never gets workers");
     }
 
     // **워커와 나눠 도는 스텝도 힙을 건드리지 않는다.** 워커는 시작할 때만 세운다.

@@ -124,6 +124,44 @@ namespace JBro
             return true;
         }
 
+        // `Auto` · `Single` · 워커 수(1 이상). 0 은 Single 로 읽는다. 그 밖의 글자는 모르는 값이라 거절한다.
+        bool ParsePhysicsThreads(const String& value, PhysicsThreadMode& mode, std::uint32_t& workers)
+        {
+            if (value == "Auto")
+            {
+                mode = PhysicsThreadMode::Auto;
+                workers = 0;
+                return true;
+            }
+            if (value == "Single")
+            {
+                mode = PhysicsThreadMode::Single;
+                workers = 0;
+                return true;
+            }
+            std::uint32_t count = 0;
+            if (false == ParseUInt(value, count))
+            {
+                return false;
+            }
+            mode = count == 0 ? PhysicsThreadMode::Single : PhysicsThreadMode::Workers;
+            workers = count;
+            return true;
+        }
+
+        String FormatPhysicsThreads(const ProjectBuildSettings& build)
+        {
+            if (build.physicsThreadMode == PhysicsThreadMode::Auto)
+            {
+                return String("Auto");
+            }
+            if (build.physicsThreadMode == PhysicsThreadMode::Single || build.physicsWorkers == 0)
+            {
+                return String("Single");
+            }
+            return String(std::to_string(build.physicsWorkers).c_str());
+        }
+
         bool ParseFloat(const String& value, float& result)
         {
             if (value.empty())
@@ -766,6 +804,10 @@ namespace JBro
                 else if (key == "OutputDirectory") { parsed.build.outputDirectory = value; }
                 else if (key == "StartupCanvas") { parsed.build.startupCanvas = value; }
                 else if (key == "ScriptOutputLibraryPath") { parsed.build.scriptOutputLibraryPath = value; }
+                else if (key == "PhysicsThreads")
+                {
+                    recognized = ParsePhysicsThreads(value, parsed.build.physicsThreadMode, parsed.build.physicsWorkers);
+                }
                 // Build 의 나머지 키는 아직 쓰지 않는다. 값을 두고 지나간다.
             }
             else if (key == "Version") { recognized = ParseUInt(value, parsed.version); }
@@ -974,11 +1016,18 @@ namespace JBro
             else if (key == "OutputDirectory") { value = project.build.outputDirectory; }
             else if (key == "StartupCanvas") { value = project.build.startupCanvas; }
             else if (key == "ScriptOutputLibraryPath") { value = project.build.scriptOutputLibraryPath; }
+            else if (key == "PhysicsThreads") { value = FormatPhysicsThreads(project.build); }
             else
             {
                 return false;
             }
             return true;
+        }
+
+        // 파일에 없던 Build 키 가운데 기본값인 것은 새로 적지 않는다 - 손대지 않은 프로젝트가 저장만으로 길어지지 않게 한다.
+        bool IsUnwrittenDefault(const ProjectFile& project, const String& key)
+        {
+            return key == "PhysicsThreads" && project.build.physicsThreadMode == PhysicsThreadMode::Auto;
         }
 
         // 아는 최상위 키의 차례다. 없던 키를 더할 때 이 차례로 붙는다.
@@ -991,7 +1040,7 @@ namespace JBro
             "AudioOutputDevice", "AudioMuteWhenUnfocused"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
-            "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath"};
+            "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath", "PhysicsThreads"};
 
         // `  Key: value` 에서 들여쓰기·키·값을 가른다. 값이 비어 있으면(블록·시퀀스의 머리)
         // `hasValue` 가 거짓이다.
@@ -1565,7 +1614,7 @@ namespace JBro
                 }
                 String value;
                 const String key(BuildKeys[index]);
-                if (BuildValue(project, key, value))
+                if (false == IsUnwrittenDefault(project, key) && BuildValue(project, key, value))
                 {
                     AppendPair(added, "  ", key, value);
                 }
@@ -1604,7 +1653,7 @@ namespace JBro
             {
                 String value;
                 const String key(BuildKeys[index]);
-                if (BuildValue(project, key, value))
+                if (false == IsUnwrittenDefault(project, key) && BuildValue(project, key, value))
                 {
                     AppendPair(result, "  ", key, value);
                 }

@@ -18,6 +18,7 @@
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework2DSystem/PhysicsThreads.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
@@ -323,6 +324,8 @@ namespace JBro
         ClearTrash();
         // 이 프로젝트의 에셋 시스템에 그림·외곽선 캐시를 잇는다(D-165).
         BindAssetTools();
+        // 재생도 게임과 같은 물리 스레드로 돈다(D-223).
+        ApplyPhysicsThreads();
 
         // ── 세션을 되살린다(D-146) ──────────────────────────────────────────
         const ProjectFile& file = GetProjectFile();
@@ -1031,7 +1034,27 @@ namespace JBro
             return false;
         }
         m_engine->SetProjectFile(reloaded);
+        ApplyPhysicsThreads();
         return true;
+    }
+
+    std::uint32_t EditorApplication::RecommendPhysicsWorkers()
+    {
+        if (m_frameworkKind != FrameworkKind::Framework2D || m_framework.Get() == nullptr || m_projectFilePath.empty())
+        {
+            return 0;
+        }
+        return RecommendProjectPhysicsWorkers(*m_platform, GetProjectFile(), m_projectFilePath.c_str());
+    }
+
+    void EditorApplication::ApplyPhysicsThreads()
+    {
+        if (m_frameworkKind != FrameworkKind::Framework2D || m_framework.Get() == nullptr || m_projectFilePath.empty())
+        {
+            return;
+        }
+        static_cast<Framework2D*>(m_framework.Get())->SetPhysicsWorkerCount(
+            ResolvePhysicsWorkerCount(*m_platform, GetProjectFile(), m_projectFilePath.c_str()));
     }
 
     const AssetRegistry& EditorApplication::GetAssetRegistry() const

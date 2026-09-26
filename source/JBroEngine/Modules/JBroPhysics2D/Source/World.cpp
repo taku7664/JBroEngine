@@ -50,12 +50,12 @@ namespace JBro::Physics2D
 
     std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads)
     {
-        if (hardwareThreads <= 1 || work < 256)
+        if (hardwareThreads <= 1 || work < 1024)
         {
             return 0;
         }
-        const std::uint32_t cap = std::min(hardwareThreads - 1, 8u);
-        return std::min(work / 128, cap);
+        const std::uint32_t cap = std::min(hardwareThreads - 1, 4u);
+        return std::min(work / 1024, cap);
     }
 
     World::World() = default;

@@ -25,7 +25,9 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Physics2D/World.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Graphics/Renderer.h>
@@ -64,6 +66,7 @@
 #include <cwchar>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 // 필드의 종류가 섞인 목록 원소다. 한 줄 숫자 묶음으로 읽히지 않으므로 접기 마디 안에 필드마다
@@ -5729,6 +5732,85 @@ namespace
     // **에디터에서 재생하면 물리가 돈다(physics-plan §4 의 4 가 남긴 "실제 에디터 재생").** 에디터 호스트와 같은
     // `EditorApplication` 의 재생 경로(엔진 시뮬레이션 → Framework2D 고정 스텝 → Physics2DSystem)로 상자와 캡슐을
     // 떨어뜨리고, 정지하면 떨어뜨리기 전 자리로 돌아오는지 본다. 물리 테스트는 시스템을 직접 부르므로 이 배선은 재지 못한다.
+    // **물리 스레드 설정이 에디터 재생까지 간다(D-223).** 빌드 캔버스에 상자 콜라이더 1100 개를 저장해 두고: "추천 값 사용" 이 쓰는
+    // 계산이 그 캔버스를 세고, 설정을 Auto·Single·워커 수로 저장할 때마다 재생의 물리 워커 수가 따라온다.
+    void TestThePhysicsThreadsSettingReachesPlay()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroPhysicsThreadsProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Scenes", ignored);
+        const JBro::String projectPath = TempPath("JBroPhysicsThreadsProbe\\Threads.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: ThreadsProbe\n"
+            "  BuildCanvases:\n"
+            "    - Scenes/Pile.jcanvas\n"
+            "  PhysicsThreads: Single\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the physics threads setting not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.RecommendPhysicsWorkers() == 0, "with no build canvas on disk there is nothing to count");
+
+        // 빌드 캔버스를 만들어 저장한다. 에디터가 캔버스 파일을 쓰는 길 그대로다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        for (int i = 0; i < 1100; ++i)
+        {
+            JBro::GameObject* box = canvas->CreateObject("Box");
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
+            transform->position = JBro::Vec2{static_cast<float>(i % 100) * 2.0f, static_cast<float>(i / 100) * 2.0f};
+            canvas->AttachComponent<JBro::Component::Collider2D>(box);
+        }
+        JBro::CanvasFileError canvasError;
+        const JBro::String canvasPath = TempPath("JBroPhysicsThreadsProbe\\Scenes\\Pile.jcanvas");
+        Check(editor.SaveCanvas(canvasPath.c_str(), canvasError), "the build canvas must save");
+        const std::uint32_t expected = JBro::Physics2D::RecommendWorkerCount(1100, std::thread::hardware_concurrency());
+        Check(editor.RecommendPhysicsWorkers() == expected, "the recommendation counts the 1100 colliders on disk");
+
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics2DSystem>();
+        Check(physics != nullptr, "the 2D framework has a physics system");
+        const auto workersInPlay = [&]() {
+            Check(editor.StartSimulation(), "play must start");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while playing");
+            }
+            const std::uint32_t workers = physics->GetWorkerCount();
+            editor.StopSimulation();
+            Check(editor.Tick(Frame), "the editor must tick after play");
+            return workers;
+        };
+        Check(workersInPlay() == 0, "Single plays on the main thread alone");
+
+        JBro::ProjectFile settings = editor.GetProjectFile();
+        settings.build.physicsThreadMode = JBro::PhysicsThreadMode::Auto;
+        Check(editor.SaveProjectSettings(settings, error), "Auto saves");
+        Check(workersInPlay() == expected, "Auto plays on the recommended count, resolved from the build canvas");
+        settings.build.physicsThreadMode = JBro::PhysicsThreadMode::Workers;
+        settings.build.physicsWorkers = 2;
+        Check(editor.SaveProjectSettings(settings, error), "two workers save");
+        Check(workersInPlay() == 2, "and a fixed count plays on that many");
+        editor.Shutdown();
+    }
+
     void TestPlayingRunsPhysicsAndStoppingPutsItBack()
     {
         JBro::EditorApplication editor;
@@ -10638,6 +10720,7 @@ int RunEditorApplicationTests()
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestPlayingRunsPhysicsAndStoppingPutsItBack();
+    TestThePhysicsThreadsSettingReachesPlay();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();

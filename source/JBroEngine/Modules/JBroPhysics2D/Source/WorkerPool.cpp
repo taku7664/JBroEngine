@@ -4,6 +4,10 @@
 #include <cwchar>
 
 #if defined(_WIN32)
+// windows.h 의 min·max 매크로가 std::min 을 깨지 않게 한다(프로젝트 설정 밖에서 빌드해도).
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
 #endif
 

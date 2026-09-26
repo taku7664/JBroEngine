@@ -47,6 +47,17 @@ namespace JBro
         Framework3D
     };
 
+    // 물리의 좁은 판정을 몇 워커로 나누는가(D-223). 파일에는 `Build.PhysicsThreads: Auto | Single | <워커 수>` 로 적힌다.
+    enum class PhysicsThreadMode : std::uint8_t
+    {
+        // 게임이 시작할 때 빌드 캔버스의 콜라이더 조각 수로 정한다(`RecommendWorkerCount`). 기본값이다.
+        Auto,
+        // 메인 한 스레드.
+        Single,
+        // `physicsWorkers` 개의 물리 전용 워커.
+        Workers,
+    };
+
     struct ProjectBuildSettings
     {
         String        productName;
@@ -59,6 +70,9 @@ namespace JBro
         Array<String> buildCanvases;
         // 익스포트한 게임 옆에 놓이는 스크립트 DLL 이름이다.
         String        scriptOutputLibraryPath = "GameScript.dll";
+        // 물리 스레드(D-223). Workers 일 때만 physicsWorkers 를 쓴다. 스레드가 없는 플랫폼(웹)은 무엇이든 메인 한 스레드다.
+        PhysicsThreadMode physicsThreadMode = PhysicsThreadMode::Auto;
+        std::uint32_t     physicsWorkers = 0;
     };
 
     // 오디오 버스 하나다(D-197). 키는 기존 엔진과 같다 - `AudioBuses` 아래 `- Name:`·`Volume:` 의 맵 시퀀스다.
