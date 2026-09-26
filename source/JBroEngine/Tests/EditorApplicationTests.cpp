@@ -44,6 +44,8 @@
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include <JBro/InputTypes/ServiceContext.h>
+
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -3215,6 +3217,109 @@ namespace
     }
 
 
+    // **게임 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-214, 기존 `SetViewportActive`).
+    // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 게임 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
+    // 게임이 키를 받는 동안 에디터 단축키는 재생 제어만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
+    void TestOnlyTheFocusedGameViewGivesTheGameItsKeys()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; game input in the editor not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GameInputProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* subject = canvas->CreateObject("Subject");
+        editor.SetSelectedObject(subject);
+        JBro::EditorPanel* game = editor.FindPanel("Game");
+        JBro::EditorPanel* inspector = editor.FindPanel("Inspector");
+        Check(game != nullptr && inspector != nullptr, "the game view and the inspector are default panels");
+
+        const auto keyboard = []() -> const JBro::KeyboardState&
+        {
+            return JBro::GetInputServices().Input.Keyboard();
+        };
+        const auto post = [hwnd](UINT message, WPARAM key)
+        {
+            const LPARAM up = message == WM_KEYUP ? static_cast<LPARAM>(0xC0000001u) : 0;
+            PostMessageW(hwnd, message, key, up);
+        };
+
+        // 재생 전에는 게임 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
+        // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다.
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        game->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the game view");
+        }
+        Check(game->IsFocused(), "the stopped game view must hold the focus too, or the next check proves nothing");
+        post(WM_KEYDOWN, 'W');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(false == editor.IsGameReceivingInput(), "a stopped game receives nothing");
+        Check(false == keyboard().IsDown(JBro::Key::W), "a stopped game does not see the key");
+        post(WM_KEYUP, 'W');
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        Check(editor.StartSimulation(), "the simulation must start");
+        game->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the playing editor must settle");
+        }
+        Check(game->IsFocused(), "the game view must hold the focus it asked for");
+        post(WM_KEYDOWN, 'W');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(editor.IsGameReceivingInput(), "a playing game with the game view focused receives input");
+        Check(keyboard().IsDown(JBro::Key::W), "and it sees the key being held");
+
+        // 게임이 받는 동안 Delete 는 게임의 것이다.
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        post(WM_KEYDOWN, VK_DELETE);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        post(WM_KEYUP, VK_DELETE);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore,
+            "the editor's delete shortcut must not run while the game has the keys");
+
+        // 인스펙터로 옮기면 누르고 있던 W 는 떼어지고, 거기서 친 키는 게임에 가지 않는다.
+        inspector->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after moving the focus");
+        }
+        Check(false == editor.IsGameReceivingInput(), "leaving the game view stops the game input");
+        Check(false == keyboard().IsDown(JBro::Key::W), "and the held key is released for the game");
+        post(WM_KEYDOWN, 'A');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(false == keyboard().IsDown(JBro::Key::A), "a key typed into another panel does not reach the game");
+        // 떠난 뒤 몇 프레임이 지났다. 에디터가 건넨 것이 틱마다 비워지지 않으면 W 가 매 프레임 다시 눌린다.
+        Check(false == keyboard().IsPressed(JBro::Key::W),
+            "what the editor handed over is not folded again on later frames");
+        post(WM_KEYUP, 'A');
+        post(WM_KEYUP, 'W');
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
     // 아래(프로젝트 파일 테스트 옆)에 있다.
     bool WriteTextFile(const JBro::String& path, const char* text);
 
@@ -3529,6 +3634,121 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick after undo");
         Check(source->bus.IsMaster(), "undo puts the source back on Master");
 
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
+    // **프로젝트 설정의 입력 갈래가 그려지고 저장된다**(D-214). 액션마다 접는 마디를 열어 바인딩 줄까지 그리고, 저장하면
+    // 고친 바인딩이 기존 엔진 모양으로 파일에 간다. 표를 마디 안에서 닫지 않으면 ImGui 의 ID 쌓기가 어긋나 단언이 터진다.
+    void TestTheInputSettingsDrawAndSave()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroInputSettingsProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        const JBro::String projectPath = TempPath("JBroInputSettingsProbe\\Input.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "InputLayers:\n"
+            "  - UI\n"
+            "  - Game\n"
+            "InputActions:\n"
+            "  - Name: Move\n"
+            "    Type: Vector2\n"
+            "    Bindings:\n"
+            "      - Source: Key\n"
+            "        Code: W\n"
+            "        Composite: Up\n"
+            "      - Source: GamepadStick\n"
+            "        Code: Left\n"
+            "  - Name: Jump\n"
+            "    Type: Bool\n"
+            "    Bindings:\n"
+            "      - Source: GamepadButton\n"
+            "        Code: South\n"
+            "        GamepadIndex: 1\n"
+            "Build:\n"
+            "  ProductName: InputSettingsProbe\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the input settings not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.GetProjectFile().inputActions.Size() == 2 && editor.GetProjectFile().inputLayers.Size() == 2,
+            "the project reads its input settings");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::EditorPanel* settings = editor.FindPanel("ProjectSettings");
+        Check(settings != nullptr, "the settings panel exists");
+        settings->SetOpen(true);
+        settings->RequestFocus();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the settings open");
+        }
+        JBro::String label = settings->GetDisplayTitle();
+        label += "###ProjectSettings";
+        ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
+        Check(window != nullptr, "the project settings must have a window");
+        // 액션마다 마디를 연다. Id 는 창 → 액션 번호 → `###action`(이름을 고쳐도 같은 마디다).
+        for (int action = 0; action < 2; ++action)
+        {
+            const ImGuiID seed = ImHashData(&action, sizeof(action), window->ID);
+            window->StateStorage.SetInt(LabelId(seed, "###action"), 1);
+        }
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the open input folds");
+        }
+        // 입력 갈래는 창의 아래쪽이다. 끝까지 내려서 찍는다.
+        ImGui::SetScrollY(window, window->ScrollMax.y);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the scrolled settings");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "input_project_settings");
+        }
+
+        // 고쳐서 저장하면 파일이 기존 엔진 모양으로 바뀐다.
+        JBro::ProjectFile edited = editor.GetProjectFile();
+        edited.inputActions[1].bindings[0].gamepad = -1;
+        JBro::ProjectInputBinding space;
+        space.code = static_cast<std::uint16_t>(JBro::Key::Space);
+        edited.inputActions[1].bindings.Add(space);
+        Check(editor.SaveProjectSettings(edited, error), "saving the input settings must go through");
+        JBro::String text;
+        {
+            std::FILE* file = nullptr;
+            Check(fopen_s(&file, projectPath.c_str(), "rb") == 0 && file != nullptr, "the project file must be readable");
+            char buffer[4096] = {};
+            const std::size_t read = std::fread(buffer, 1, sizeof(buffer) - 1, file);
+            std::fclose(file);
+            text.assign(buffer, read);
+        }
+        Check(text.find("  - Name: Jump\n    Type: Bool\n    Bindings:\n      - Source: GamepadButton\n        Code: South\n"
+                        "      - Source: Key\n        Code: Space\n") != JBro::String::npos,
+            "the edited bindings reach the file, and a pad index of -1 is not written");
+        Check(text.find("InputLayers:\n  - UI\n  - Game\n") != JBro::String::npos, "the layer order stays");
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the saved settings");
+        }
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }
@@ -10198,9 +10418,11 @@ int RunEditorApplicationTests()
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
+    TestOnlyTheFocusedGameViewGivesTheGameItsKeys();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAudioSettingsAndMetersDraw();
+    TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();

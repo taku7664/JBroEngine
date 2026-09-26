@@ -2,12 +2,15 @@
 
 #include <JBro/Canvas/GameSystem.h>
 #include <JBro/Runtime/GameScriptBase.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
 
 namespace JBro::System
 {
+    class InputSystem;
+
     // 스크립트의 실행 순서와 수명 훅을 돌린다(D-45).
     //
     // ⚠ 미완이다. 여기서 도는 것은 `Canvas::AttachComponent<T>` 로 **정적으로** 붙인
@@ -25,6 +28,14 @@ namespace JBro::System
         // 목록을 몇 번 다시 세웠는가. 더티 플래그가 실제로 일하는지를 테스트가 이 값으로
         // 본다 - 아무것도 바뀌지 않은 프레임에서 이 값이 오르면 지연 재구축이 아니다(A1).
         std::size_t GetRebuildCount() const;
+
+        // 게임 입력(D-214). 없으면 체인을 세우지도 돌리지도 않는다.
+        void SetInputSystem(InputSystem* input);
+        // 입력 레이어 체인을 한 번 돈다. 시작 훅을 받은 켜진 핸들러만, (레이어 순위, `Order` 내림차순, 실행 순서) 로 부른다.
+        // **부르는 자리는 프레임워크가 고정 스텝보다 앞에서다** - `OnFixedUpdate` 의 폴링에도 블로킹이 걸려야 한다.
+        void DispatchInput(Canvas& canvas);
+        // 체인에 선 핸들러 수다(켜지 않은 것도 센다). 테스트가 붙잡는 손잡이다.
+        std::size_t GetInputHandlerCount() const;
 
     protected:
         void OnInitialize (Canvas& canvas) override;
@@ -53,6 +64,8 @@ namespace JBro::System
         void Rebuild(Canvas& canvas);
         void AppendScripts(GameObject& object);
         bool IsScript(const ComponentBase* component) const;
+        void BuildInputChain(Canvas& canvas);
+        void SortInputChain();
 
         Array<GameScriptBase*>       m_collected;
         // `m_collected` 를 주소로 정렬한 것. 컴포넌트 슬롯이 스크립트인지 이분 탐색으로
@@ -65,6 +78,22 @@ namespace JBro::System
         // 남기므로 두 번째 재구축부터 할당이 0 이다(§9).
         Array<GameObject*>           m_walkStack;
         Array<ScriptEntry>           m_ordered;
+
+        // 입력 레이어 체인이다(D-214). 실행 순서 목록과 같은 때에 다시 세운다 - 켜고 끄기·파괴·핫 리로드가 모두
+        // 그 리비전을 올리므로 **따로 등록하거나 해제할 곳이 없다**(기존 엔진은 날 포인터를 두 파일에서 넣고 뺐다).
+        struct InputEntry
+        {
+            // `m_ordered` 의 자리. 시작했는지·켜졌는지는 부르기 직전에 거기서 읽는다.
+            std::uint32_t  ordered = 0;
+            IInputHandler* handler = nullptr;
+            NameId         layer = InvalidNameId;
+            const char*    layerText = nullptr;
+            std::uint32_t  priority = 0;
+            std::int32_t   order = 0;
+        };
+        InputSystem*                 m_input = nullptr;
+        Array<InputEntry>            m_inputChain;
+        std::uint64_t                m_inputLayerRevision = 0;
         // 이미 OnCreate/OnStart 를 받은 스크립트다. 재생성된 슬롯과 헷갈리지 않도록
         // 주소가 아니라 InstanceId 로 기억한다. 훑는 것은 재구축 때뿐이다.
         Array<InstanceId>            m_started;

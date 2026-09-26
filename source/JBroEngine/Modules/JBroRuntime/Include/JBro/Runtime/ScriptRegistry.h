@@ -11,6 +11,38 @@
 
 namespace JBro
 {
+    // 입력 핸들러 인터페이스(D-214). 정의는 `JBroInputTypes` 에 있고 여기는 이름만 안다 - Runtime 이 입력 모듈에
+    // 기대지 않게 한다. 핸들러인 스크립트는 그 헤더를 include 하므로, 아래 썽크가 만들어지는 자리에서는 완전한 타입이다.
+    class IInputHandler;
+
+    // 스크립트 타입이 `InputHandler<Layer, Order>` 이면 그 레이어·순서와 핸들러로 바꾸는 썽크다(D-214).
+    // 핸들러가 아니면 전부 비어 있다. `dynamic_cast` 없이 컴파일 타임에 갈린다(§9).
+    struct ScriptInputBinding
+    {
+        IInputHandler* (*ToHandler)(GameScriptBase* script) noexcept = nullptr;
+        NameId       layer = InvalidNameId;
+        // 없는 레이어를 경고할 때만 쓴다. 타입을 정의한 모듈(DLL 이면 그 DLL)의 상수를 가리킨다.
+        const char*  layerText = nullptr;
+        std::int32_t order = 0;
+    };
+
+    template<typename T>
+    constexpr ScriptInputBinding MakeScriptInputBinding()
+    {
+        ScriptInputBinding binding;
+        if constexpr (std::is_base_of_v<IInputHandler, T>)
+        {
+            binding.ToHandler = [](GameScriptBase* script) noexcept -> IInputHandler*
+            {
+                return static_cast<IInputHandler*>(static_cast<T*>(script));
+            };
+            binding.layer = T::InputLayerId;
+            binding.layerText = T::InputLayerText;
+            binding.order = T::InputOrder;
+        }
+        return binding;
+    }
+
     // 스크립트 DLL 이 자기 타입을 호스트에 알리는 표다(H5, Open Decision 3).
     //
     // 기존 엔진은 `CreateScriptFunc` 가 캔버스를 받아 직접 컴포넌트를 붙였다. 여기서는
@@ -28,6 +60,8 @@ namespace JBro
         GameScriptBase* (*Construct)(void* storage) noexcept = nullptr;
         // Construct 가 돌려준 것을 부순다. 메모리는 해제하지 않는다.
         void            (*Destruct)(GameScriptBase* script) noexcept = nullptr;
+        // 입력 핸들러이면 채워진다(D-214). 썽크는 DLL 안의 코드이고 호스트는 주소만 부른다.
+        ScriptInputBinding input;
     };
 
     class ScriptRegistry final
@@ -91,6 +125,7 @@ namespace JBro
         {
             static_cast<T*>(script)->~T();
         };
+        info.input = MakeScriptInputBinding<T>();
         return info;
     }
 

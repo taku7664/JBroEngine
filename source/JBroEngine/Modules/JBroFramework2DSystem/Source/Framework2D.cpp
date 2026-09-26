@@ -148,6 +148,17 @@ namespace JBro
         }
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
+        // **입력 체인은 고정 스텝보다 먼저다**(D-214). `OnFixedUpdate` 가 폴링하는 입력에도 위 레이어의 블로킹이
+        // 걸려야 한다 - 시스템 갱신 안(`ScriptSystem::OnUpdate`)에 두면 그보다 앞서 도는 고정 스텝이 막히기 전의 입력을 본다.
+        // 멈춰 있으면 스크립트가 돌지 않으니 체인도 돌지 않는다. 그때 폴링은 이번 프레임 전체를 보지만 읽는 스크립트가 없다.
+        if (m_simulationEnabled)
+        {
+            if (System::ScriptSystem* scripts = m_canvas->GetSystems().FindSystem<System::ScriptSystem>())
+            {
+                const ProfileScope scope("Input");
+                scripts->DispatchInput(*m_canvas);
+            }
+        }
         // **멈춰 있으면 시간이 흐르지 않는다**(D-131). 고정 스텝을 돌리지 않고 dt 를 0 으로
         // 넘긴다 - 스크립트·물리는 `SetSimulationEnabled` 가 이미 세워 두었고, 남은 것은
         // 트랜스폼과 추출이라 시간이 필요 없다. 그래도 **돌리기는 한다**: 편집 중에도
@@ -367,7 +378,7 @@ namespace JBro
         auto& systems = m_canvas->GetSystems();
         systems.AddSystem<System::Transform2DSystem>();
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
-        systems.AddSystem<System::ScriptSystem>();
+        systems.AddSystem<System::ScriptSystem>().SetInputSystem(m_context.input);
         systems.AddSystem<System::Physics2DSystem>();
         systems.AddSystem<System::Camera2DSystem>().SetRenderWorld(&m_renderWorld);
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();

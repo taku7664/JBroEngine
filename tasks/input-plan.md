@@ -4,7 +4,8 @@
 > 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[제안]` `[가정]` `[열림]` 으로 붙인다.
 > `[제안]` 은 **사용자 확인 전**이다. 2026-09-25 사용자 지시("인풋 처리 가자. 기존 엔진 처리 확인해 보고, 하위 레이어
 > 블로킹은 할 수 있게끔만 설계했으면 좋겠다. 현재 엔진의 아키텍처와 규칙에 맞게 이식하는 구조를 제안하고, 기존 엔진의
-> 문제점을 개선해서 이식")로 시작했다. 코드는 아직 없다. §5 의 질문이 정해지면 Decisions 로 옮긴다.
+> 문제점을 개선해서 이식")로 시작했다. 같은 날 §5 의 다섯 가지가 모두 권고대로 확인돼("1 권고대로, 2 허용, 3·4·5 ㅇㅇ") **D-214** 이 됐다.
+> 아래 `[제안]` 표시는 그 시점에 모두 확정이 됐다. 디스패치 자리만 세부를 고쳤다(§3.4, D-214 (6)). 코드는 브랜치 `input` 에서 1 단계부터 진행한다.
 
 ## 0. 한 줄 요약
 
@@ -95,7 +96,8 @@
 ### 3.1 모듈 `[제안]`
 
 ```
-JBroInputTypes (Tier S)  Key·MouseButton·KeyModifiers(JBroPlatform 에서 옮김), 장치 스냅숏(KeyboardState·MouseState),
+JBroCore (Tier S)        Key·MouseButton·KeyModifiers(JBroPlatform 에서 옮김, <JBro/Core/InputKeys.h>) - 1 단계에서 고친 자리, 아래 참고
+JBroInputTypes (Tier S)  장치 스냅숏(KeyboardState·MouseState),
                          InputView(핸들러가 받는 것), InputHandler<Layer, Order>, InputResult, InputActionId,
                          Service::InputService. 헤더 위주, 서비스 .cpp 하나
 JBroInput (Tier E)       System::InputSystem - 이벤트 → 프레임 상태, 액션 평가, 핸들러 체인과 소비 마스크
@@ -106,8 +108,10 @@ JBroHost                 EngineInstance 가 InputSystem 을 소유하고(Project
 
 - 이름은 `JBroAssetTypes`↔`JBroAsset`, `JBroAudioTypes`↔`JBroAudio` 의 관례를 따른다.
 - 입력은 차원과 무관하다. 2D 프레임워크에 두면 3D 가 같은 것을 또 만든다.
-- `Key` 를 `JBroCore` 에 두는 길도 있다("차원과 무관한 공개 값 타입은 JBroCore 에 한 번"). 그러나 장치 스냅숏·핸들러·서비스가
-  같이 가야 하므로 한 모듈에 모으는 편이 의존이 짧다. `JBroCore` 는 값 타입·컨테이너만 갖는다는 표(§3)와도 맞다.
+- `[완료]` **키 이름은 `JBroCore` 에 둔다**(1 단계에서 고침). 처음에는 장치 상태와 한 모듈에 모으려 했으나, 플랫폼 헤더(`Input.h`)가
+  키 이름을 include 해야 하므로 `JBroInputTypes` 에 두면 플랫폼을 보는 14 개 프로젝트(Asset·RHI 셋·Graphics·Host·Editor·호스트 둘·
+  프레임워크 시스템 둘·테스트)가 모두 새 include 경로를 받아야 했다. 키 이름은 차원과 무관한 값 타입이라 "JBroCore 에 한 번" 규칙(§4)에
+  그대로 맞고, 그러면 include 경로를 하나도 바꾸지 않는다. 장치 상태·뷰·핸들러·서비스는 그대로 `JBroInputTypes` 다.
 
 ### 3.2 받는 방식: 이벤트에서 프레임 상태를 만든다 `[제안]`
 
@@ -196,8 +200,9 @@ P5 의 해법이다. 날 포인터 등록·해제를 없앤다.
 - `ScriptSystem::Rebuild`(이미 리비전이 바뀔 때만 돈다)가 실행 순서 목록을 세울 때 **핸들러 목록도 같이 세워**
   `InputSystem` 에 넘긴다. 매 프레임에는 "활성이고 시작한 것" 만 부른다. 켜고 끄기·파괴·핫 리로드는 전부 리비전이 올라가는
   일이므로 따로 해제할 곳이 없다.
-- **디스패치 시점**: `ScriptSystem::OnUpdate` 안에서 시작 훅(OnCreate·OnStart) 뒤, `OnUpdate` 앞이다. 기존과 같이 입력이
-  그 프레임의 `OnUpdate` 보다 먼저 오고, 시작하지 않은 스크립트는 입력을 받지 않는다.
+- **디스패치 시점**: 시작 훅(OnCreate·OnStart)을 받은 활성 스크립트만, 그 프레임의 `OnUpdate` 보다 먼저다. 부르는 자리는
+  `Framework2D::Update` 에서 고정 스텝(`RunFixedSteps`)보다 앞이다(`ScriptSystem::DispatchInput`). `ScriptSystem::OnUpdate` 안에 두면
+  그보다 먼저 도는 `OnFixedUpdate` 의 폴링이 막히기 전의 입력을 본다. 그 프레임에 막 생긴 스크립트는 다음 프레임부터 받는다(기존과 같다).
 - 디스패치 중에 스크립트가 생기거나 꺼지면 그 프레임의 체인은 그대로 돌고 다음 리비전에서 반영된다(기존의 지연 큐와 같은 효과).
   꺼진 스크립트는 그 프레임에 이미 지나간 뒤가 아니면 부르지 않는다 - 부르기 직전에 활성 검사를 한다.
 
@@ -234,22 +239,97 @@ P5 의 해법이다. 날 포인터 등록·해제를 없앤다.
 
 각 단계는 테스트가 먼저고 단계마다 커밋한다. 경계 규칙은 음성 테스트로 본다.
 
-1. **모듈과 프레임 상태.** `JBroInputTypes`·`JBroInput` 을 세우고 `Key` 들을 옮긴다(`JBroPlatform` 은 include 만).
-   `InputSystem::BeginFrame` 이 이벤트를 키보드·마우스 상태로 접는다.
-   완료: 한 프레임 안의 눌렀다 떼기가 `IsPressed`·`IsReleased` 둘 다 참, 반복은 눌림이 아님, `FocusLost` 가 눌린 것을 뗌,
-   매핑이 레터박스를 벗김, 프레임 경로 할당 0. 음성: 스크립트 타깃이 `JBroInput` 헤더를 include 하면 컴파일 실패.
-2. **폴링 서비스와 게임 호스트.** `Service::InputService` 를 `ServiceContext` 에 넣고(ABI 버전 올림) 게임 호스트가 이벤트를 넘긴다.
-   완료: 게임 DLL 의 스크립트가 `OnUpdate` 에서 키를 읽어 오브젝트를 움직이는 호스트 테스트(창에 `PostMessageW`, D-62 방식).
-3. **핸들러 체인과 블로킹.** `InputHandler<Layer, Order>`, `ScriptTypeInfo` 썽크, `ScriptSystem` 이 체인을 세움, `Block`·`Consume`.
-   완료: `Block` 이 아래와 `OnUpdate` 폴링을 막음, 마우스 소비가 키보드를 남김, 순서(레이어·Order·실행 순서), 꺼진 스크립트는
-   부르지 않음, 디스패치 중 생성은 다음 프레임부터, 모르는 레이어는 맨 아래 + 한 번 경고. 뮤테이션으로 각 조건을 깨 본다.
-4. **에디터.** 재생 중 + 게임 뷰 포커스일 때만 넘김, 떠날 때 `FocusLost`, 게임 뷰 사각형 매핑.
-   완료: 실제 `JBroEditorHost` 에서 게임 뷰를 눌러 키를 치면 움직이고, 인스펙터에 글자를 치는 동안은 움직이지 않는다.
-5. **액션과 프로젝트 설정.** `.jproject` 두 블록, 평가, 설정 화면(커맨드).
-   완료: 키 합성·스틱·소비된 장치의 바인딩이 빠짐, 저장·되돌리기.
-6. **게임패드.** XInput 폴링, 핫플러그 간격 확인, 데드존·트리거 문턱, 진동과 만료.
-7. `[열림]` 터치(Web·Android 플랫폼과 함께), 키 단위 소비, 액션 맵 전환(걷기·차량·메뉴), 입력 버퍼(선입력·리플레이),
-   런타임 리바인딩과 사용자 저장.
+1. `[완료]` **모듈과 프레임 상태**(`3f6468d`·`03412c7`). `JBroInputTypes`(`InputState.h`·`InputView.h`)·`JBroInput`(`System::InputSystem`)을
+   세웠고 키 이름은 `JBroCore` 의 `InputKeys.h` 로 옮겼다(§3.1). `InputSystem::BeginFrame(events, mapping)` 이 이벤트를 접는다.
+   테스트(`InputSystemTests`, 스위트 앞쪽에서 1 초 안에 끝난다): 한 프레임 안의 눌렀다 떼기가 누름과 뗌 둘 다, 누른 채 다음 프레임은
+   눌림만, 반복은 누름이 아님, 누름을 못 본 채 온 반복은 눌림(아래), `FocusLost` 가 눌린 것을 뗌과 위치를 잊음, 돌아온 뒤 첫 위치는
+   이동이 아님, 글자 순서와 32 상한, 레터박스 매핑과 이동·휠 합, 범위 밖 이름 무시, 실제 창에 `PostMessageW` 로 넣은 눌렀다 떼기,
+   200 프레임 접기의 CRT 할당 0. 음성: 스크립트 프로브 `/p:JBroTierProbe=Input` 이 `JBro/Input/InputSystem.h` 에서 C1083 하나로 실패.
+   뮤테이션: 15/15 잡힘. 첫 판 13 개 중 `반복을 누름으로` 하나가 살았다 - 먼저 누름을 받은 뒤의 반복은 `Press` 의 "이미 눌림" 검사가
+   거르므로 반복 검사가 일하는 곳은 **누름을 못 본 채 반복만 오는 때**(키를 누른 채 창으로 돌아올 때)뿐이었고, 그때 코드는 키를
+   떼어진 것으로 두고 있었다. 그런 반복은 눌림으로 두고 누름은 세지 않게 고친 뒤(`03412c7`) 두 변이를 더해 잡았다.
+   러너는 `tools/mutate.py` 가 아니라 스크래치의 것을 썼다 - 그쪽은 `taskkill /IM JBroTests.exe` 로 **다른 세션의 테스트까지** 죽인다.
+2. `[완료]` **폴링 서비스와 게임 호스트.** `Service::InputService`(`GetView`·`Keyboard`·`Mouse`)와 `InputServiceContext`·`InputSystemContext`
+   (`IInputSystem` 인터페이스 포인터)를 `JBroInputTypes` 에 두고, 블록은 네트워크처럼 **호스트가** 낸다(`Make/FindInput*ContextBlock`).
+   `JBroRuntime` 의 `ServiceContext` 에 넣지 않았다 - 그러면 Runtime 이 입력 모듈을 알아야 한다. `EngineInstance` 가 `InputSystem` 을 소유하고,
+   `TickFrame` 이 펌프 직후 `BeginFrame` 을 부른다(호스트가 입력을 가져가는 동안은 빈 목록). 호스트 모듈 사본에도 묶어 정적으로 붙인
+   스크립트가 같은 서비스를 읽는다. 두 프렐류드가 `<JBro/InputTypes/ServiceContext.h>` 를 include 한다. `JBroInputTypes` 는 이제 정적
+   라이브러리이고 스크립트 DLL 도 링크한다.
+   테스트: 호스트 안의 서비스가 이번 프레임을 보고 묶이지 않으면 빈 입력(`InputSystemTests`), **실제 호스트가 실제 스크립트 DLL 을 실은 채**
+   창에 `WM_KEYDOWN` 을 넣고 틱하면 DLL 안의 서비스가 눌림을 보고 `WM_KEYUP` 뒤에는 뗌을 본다(`ScriptDLLLoaderTests`). `Debug`·`Debug_Game2D`·
+   `Debug_Game3D` 빌드 경고 0, 전체 스위트 통과. 뮤테이션 3/4 잡힘(블록을 안 냄·접지 않음·호스트 사본을 묶지 않음 - 마지막 것은 처음에
+   재지 않아 테스트를 더해 잡았다). 서비스 블록을 안 내는 변이는 **동치**다: `InputServiceContext` 안의 `InputService` 는 멤버가 없는 값이라
+   묶든 안 묶든 DLL 사본의 내용이 같다(상태는 시스템 블록이 나른다). 서비스에 상태가 생기면 이 판단은 다시 한다.
+3. `[완료]` **핸들러 체인과 블로킹**(`dfa9e14`). `InputHandler<Layer, Order>`(C++20 문자열 템플릿 인자, 레이어 `NameId` 는 컴파일 타임)와
+   `IInputHandler::OnInput(InputView&)`·`InputResult`. 썽크는 `MakeScriptInputBinding<T>` 하나가 만들고 `ScriptTypeInfo::input`(이름으로 붙인 것)과
+   컴포넌트 버킷(정적으로 붙인 것)이 든다 - `Runtime` 은 `IInputHandler` 를 전방 선언만 한다. `Canvas::FindScriptInputBinding` 이 둘 중 맞는 쪽을
+   찾고 `ScriptSystem::Rebuild` 가 체인을 세운다. `InputSystem` 은 `BeginDispatch`·`Deliver`·`EndDispatch` 로 소비를 나르고, 핸들러가 가져간 장치는
+   **그 핸들러가 돌아온 뒤에** 아래에 걸린다(가져간 핸들러 자신은 끝까지 읽는다). 레이어 순서 기본값은 Modal·UI·Game·World·Debug 이고
+   `SetLayerOrder` 로 바꾼다(프로젝트 파일에서 읽는 것은 5 단계). `Framework2D::Update` 가 고정 스텝 앞에서 `DispatchInput` 을 부른다.
+   테스트(`InputChainTests`): 순서(레이어·Order·실행 순서, 없는 레이어는 맨 아래), 없는 레이어 경고는 체인을 다시 세워도 한 번, 시작 전 스크립트는
+   다음 프레임부터, `Block` 이 아래 핸들러와 폴링을 막고 풀면 돌아옴, 마우스만 소비하면 키보드는 남음, 꺼진 핸들러와 위에서 그 프레임에 끈 핸들러는
+   안 부름, 레이어 순서를 바꾸면 다시 줄 섬, 이름으로 붙인 스크립트도 핸들러, 체인이 돌지 않은 프레임은 막히지 않음, 200 프레임 디스패치의 CRT
+   할당 0, 프레임워크가 고정 스텝 앞에서 돌려 `OnFixedUpdate` 의 폴링도 막힘. 뮤테이션 21/21 잡힘(첫 판에 `체인이 돌지 않은 프레임이 지난 블록을
+   유지` 가 살아 테스트를 더해 잡았다). 핸들러 안의 파괴를 큐로 보내는 `IterationGuard` 는 재지 않았다 - 없애면 죽은 객체를 부르는 UB 라 테스트가
+   확정적으로 울지 않는다. `OnUpdate` 와 같은 가드이고 같은 줄을 쓴다.
+4. `[완료]` **에디터**(`80a0f63`). 패널을 그릴 때마다 에디터가 `EditorPanel::SetFocused` 로 포커스를 적고, 게임 뷰가 `ReportGameView` 로
+   자기 포커스와 레터박스 그림 사각형을 알린다. `BuildEditorUi` 가 이번 프레임의 이벤트를 UI 에 넣을 때 **재생 중·멈추지 않음·지난 프레임에
+   게임 뷰 포커스**이면 같은 이벤트를 `EngineInstance::SubmitHostInput` 으로 건네고, 다음 틱이 게임 뷰 매핑으로 접는다. 게임 뷰를 떠나는
+   프레임에는 `FocusLost` 하나를 건넨다. 게임이 키를 받는 동안 단축키는 F5·F6 만 돈다(D-214 (7)). `InputSurfaceMapping` 은 플랫폼 입력 헤더로
+   옮겨 호스트 API 가 입력 모듈 헤더 없이 받는다. 멀티 뷰포트를 켜지 않았으므로 ImGui 화면 좌표가 곧 창 클라이언트 좌표다(기존 엔진은 켜서
+   뷰포트 원점을 뺐다). `[가정]` 에디터 UI 와 창 클라이언트가 같은 픽셀 단위다(DPI 배율을 ImGui 에 따로 걸지 않는다).
+   테스트(`EditorApplicationTests`): 재생 전에는 게임 뷰 포커스여도 받지 않음, 재생 중 게임 뷰 포커스면 창에 넣은 W 가 호스트 서비스에 눌림,
+   그동안 Delete 단축키가 커맨드를 만들지 않음, 인스펙터로 옮기면 W 가 떼어지고 다음 프레임들에 다시 접히지 않으며 거기서 친 A 는 게임에 가지 않음.
+   **실제 `JBroEditorHost.exe` 확인**: 창에만 메시지를 부치는 스크립트로 오브젝트를 만들고 F5 → 게임 뷰 클릭 → Delete 하면 오브젝트가 남고,
+   레이어 패널을 누른 뒤 같은 Delete 는 지우며, 정지하면 재생 전 캔버스로 돌아온다. 게임 뷰 마우스 매핑은 에디터 안에서 재지 않았다
+   (카메라와 게임 텍스처가 있어야 사각형이 선다) - 매핑 자체는 1 단계 단위 테스트가 잰다.
+   뮤테이션 9/9 잡힘. 첫 판에 둘이 살았고 둘 다 테스트가 약했다: `재생 여부를 보지 않고 넘김` 은 재생 전 구간의 게임 뷰가 **실제로는
+   포커스를 갖지 못해서**(첫 프레임들의 도크 배치가 포커스 요청을 덮었다) 검사가 공허했고, `건네받은 입력을 비우지 않음` 은 검사가
+   `FocusLost` 를 처음 접은 프레임(W 가 아직 눌린 채 시작한다)에 돌아서 다시 접힌 누름이 보이지 않았다. 둘 다 고친 뒤 잡혔다.
+   에디터 테스트는 다른 세션의 `JBroTests.exe` 가 함께 돌면 포커스를 빼앗겨 흔들린다(`[flake] active=other`) - 그때의 실패는 다시 잰다.
+5. `[완료]` **액션과 프로젝트 설정**(`30fd229`·`c651a53`). `InputActionMap`(`JBroInputTypes`) 은 액션 64 개, 액션마다 바인딩 8 개의
+   고정 POD 표이고 이름의 `NameId` 로 찾는다(§3.5). 평가는 **물을 때 그 자리의 뷰로** 한다 - 위에서 소비한 장치는 액션에서도 빠진다.
+   값 종류·원천·키 합성·길이 1 자르기는 기존 엔진과 같고, 두 키에 묶은 액션은 한쪽만 떼면 뗀 것이 아니다. 없는 이름은 0 이고 이름으로
+   한 번 경고한다(표를 다시 넣으면 다시 말한다). `.jproject` 는 기존 엔진 모양의 `InputLayers`·`InputActions` 를 읽고 쓰고, 기존 엔진의
+   옛 키 이름(`Num0`·`LeftCtrl`·`Equals`·`Grave`·`Numpad0`…)을 읽어 새 이름(`Digit0`·`LeftControl`…)으로 적는다. 이름 표는 `JBroCore`
+   (`GetKeyName`·`FindKeyByName` 등)에 있고 열거자에서 뽑아 만들었다. 입력 설정이 없는 프로젝트는 저장해도 한 줄도 늘지 않는다.
+   호스트는 프로젝트를 열 때와 `SetProjectFile` 때 레이어 순서와 액션을 넣는다(`ApplyInputSettings`). 설정 화면의 입력 갈래: 레이어
+   (위로·삭제·추가 - 처음 추가하면 기본 순서를 먼저 옮겨 적는다), 액션마다 접는 마디(이름·종류, 바인딩마다 `Source`·`Code`·
+   패드 원천이면 `GamepadIndex`·Vector2 면 `Composite`). 다른 설정처럼 편집본을 고치고 저장할 때 파일에 쓴다(D-137 - 커맨드가 아니다).
+   테스트(`InputActionTests`·`ScriptDLLLoaderTests`·`EditorApplicationTests`): 이름 표가 열거자마다 되돌아옴과 옛 이름, Bool 의 두 키,
+   WASD 대각선 길이 1, 소비된 키보드의 액션, 없는 액션의 한 번 경고, 기존 엔진 파일 모양 읽기·쓰기·고친 뒤 다시 읽기·잘못된 블록 여섯
+   가지 거절, 실제 호스트에서 `SetProjectFile` 로 넣은 액션이 서비스로 눌림, 설정 화면이 마디를 열어 그리고 고친 바인딩을 저장(첫 판에
+   레이어 줄의 표가 `PopID` 뒤에 닫혀 ImGui 단언이 터진 것을 잡았다). 뮤테이션(6 단계와 함께): 액션·파일·호스트 적용 14 개 중 12 개가 첫 판에 잡혔고,
+   둘은 고쳤다 - 바인딩 목록을 닫는 줄은 아래의 들여쓰기 조건이 같은 일을 해서 **죽은 코드**라 지웠고(`4b760ac`), 표를 다시 넣을 때 경고
+   기억을 지우는 줄은 경고가 빈 표로만 재서 못 잡던 것을 경고가 쌓인 표로 재게 해 잡았다.
+6. `[완료]` **게임패드**(`fb35d7d`). 플랫폼은 네 자리의 날 상태만 준다(`IPlatform::PollGamepad`·`SetGamepadVibration`, Windows 는
+   XInput·`Xinput9_1_0.lib`). 둥근 데드존(0.24)·트리거 문턱(0.12)·지난 폴링과 견준 누름·뗌 수·빠진 패드의 뗌·빈 자리의 120 프레임
+   재확인·진동 만료는 `InputSystem` 이 한다 - 가짜 플랫폼으로 잰다. 이벤트가 아니라 폴링이라 두 폴링 사이의 눌렀다 떼기는 보이지 않는다.
+   진동은 서비스(`SetGamepadVibration(자리, 낮은, 높은, 초)`)로 걸고 메인 스레드가 시간을 잰다(기존 엔진의 워커 타이머와 `shared_ptr` 은
+   두지 않는다, §1.3 P7). 창 포커스를 잃거나 패드가 빠지거나 에디터가 게임 뷰를 떠나거나 엔진이 내려가면 모터가 멈춘다. 다시 꽂은
+   패드는 옛 진동을 이어 받지 않는다. 에디터는 게임 입력과 같은 조건(`SetHostGameInputActive`)으로만 패드를 게임에 준다. 액션의
+   패드 바인딩: 버튼은 어느 패드든, 축·스틱은 연결된 첫 패드(-1) 또는 그 자리. `InputDevice::Gamepad` 는 네 자리를 함께 소비한다.
+   테스트(`InputGamepadTests`·`RendererContractTests`): 누름·유지·뗌, 데드존·문턱과 끄기, 빠진 패드, 빈 자리 재확인 횟수와 꽂으면 한
+   주기 안에 보임, 진동의 만료·같은 값 다시 보내지 않음·포커스·빠진 패드, 패드 바인딩의 액션과 소비, 실제 XInput 이 패드 없이도 죽지
+   않음(이 기계에는 패드가 없다), 가짜 플랫폼과 가짜 RHI 로 세운 `EngineInstance` 가 틱마다 읽고 호스트가 입력을 가진 동안 주지 않으며
+   내려갈 때 모터를 멈춤. `[열림]` 실제 패드로 재지 않았다 - 버튼 비트와 축 부호는 기존 엔진의 표를 옮겼다.
+   뮤테이션: 게임패드·엔진 배선 15/15 잡힘.
+7. **남은 것.**
+   - `[완료]` **터치**(`a3875c1`). Windows 는 `WM_POINTER*` 를 받아 터치·펜만 남기고(마우스 포인터는 WM_MOUSE 로 온다), 그 뒤에도
+     `DefWindowProcW` 로 넘겨 Windows 의 마우스 흉내가 에디터 UI 를 손가락으로 누르게 둔다. 이벤트는 `TouchBegan/Moved/Ended/Cancelled` 이고
+     포인터 번호는 `codePoint` 에 싣는다(`InputEvent` 20 바이트 그대로). 정보를 못 얻은 떼기도 자리 NaN 으로 알린다 - 알리지 않으면 손가락이
+     영영 닿아 있다. 입력 시스템은 손가락 열 개를 게임 화면 픽셀로 들고, 뗀 손가락을 한 프레임 더 보이고(기존 `e2274d1b`), 포커스를 잃으면
+     모두 취소하고, 닿는 것을 못 본 손가락의 이동·뗌은 버린다. 스크립트는 `InjectTouch` 로 손가락을 만든다(기존 엔진과 같다 - 가상 조이스틱·
+     자동 검사) - 다음 프레임에 같은 길로 접힌다. `InputDevice::Touch` 를 소비할 수 있다. **실측**: `PostMessageW` 가 포인터 메시지를
+     1002(`ERROR_INVALID_MESSAGE`)로 거절해 플랫폼 시험은 `SendMessageW` 로 창 프로시저를 부른다 - 포인터 메시지는 `TranslateMessage` 를
+     거치지 않으므로 실제로 도는 처리 그대로다. `[열림]` 실제 터치 화면으로 재지 않았다(가짜 포인터 번호는 `GetPointerInfo` 가 모른다).
+     Web·Android 의 터치 생산자는 그 플랫폼이 설 때 한다. 뮤테이션 12 개 중 10 개가 첫 판에 잡혔다. 주입 큐를 비우지 않는 변이는 뗀 뒤의
+     프레임을 보게 해 잡았고, 주입에서 `Stationary` 를 거르는 조건은 접는 쪽이 어차피 무시해 **동치**라 지웠다.
+   - `[닫힘]` **키 단위 소비** - §5 질문 1 에서 (b)(장치 단위)로 정했다. 필요해지면 다시 연다.
+   - `[논의]` **액션 맵 전환**(걷기·차량·메뉴): 액션 묶음 여러 개를 켜고 끄는 층. 레이어 블로킹과 겹치는 데가 있어 모양을 정해야 한다.
+   - `[논의]` **입력 버퍼**(선입력·코요테 타임·리플레이): 이벤트에 시각을 붙일지, 몇 프레임을 들고 있을지.
+   - `[논의]` **런타임 리바인딩과 사용자 저장**: 게임이 바인딩을 바꾸고 사용자별로 남기는 길. 저장 자리(세이브 저장소가 아직 없다)를 먼저 정해야 한다.
+   - `[열림]` 실제 게임패드·터치 화면 실측, IME 조합 글자(텍스트 계획의 입력 칸과 함께), 게임 뷰 마우스 매핑의 에디터 안 실측.
 
 ## 5. 확인할 질문
 

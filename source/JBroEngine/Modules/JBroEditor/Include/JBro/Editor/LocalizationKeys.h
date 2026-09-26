@@ -316,6 +316,21 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsAudioBusesHelp = "project_settings.audio_buses_help";
     inline constexpr const char* ProjectSettingsAudioNoBuses = "project_settings.audio_no_buses";
     inline constexpr const char* ProjectSettingsAudioDuplicate = "project_settings.audio_duplicate";
+    inline constexpr const char* ProjectSettingsInput = "project_settings.input";
+    inline constexpr const char* ProjectSettingsInputLayersHelp = "project_settings.input_layers_help";
+    inline constexpr const char* ProjectSettingsInputDefaultLayers = "project_settings.input_default_layers";
+    inline constexpr const char* ProjectSettingsInputAddLayer = "project_settings.input_add_layer";
+    inline constexpr const char* ProjectSettingsInputMoveUp = "project_settings.input_move_up";
+    inline constexpr const char* ProjectSettingsInputRemove = "project_settings.input_remove";
+    inline constexpr const char* ProjectSettingsInputDuplicate = "project_settings.input_duplicate";
+    inline constexpr const char* ProjectSettingsInputActionsHelp = "project_settings.input_actions_help";
+    inline constexpr const char* ProjectSettingsInputNoActions = "project_settings.input_no_actions";
+    inline constexpr const char* ProjectSettingsInputAddAction = "project_settings.input_add_action";
+    inline constexpr const char* ProjectSettingsInputRemoveAction = "project_settings.input_remove_action";
+    inline constexpr const char* ProjectSettingsInputAddBinding = "project_settings.input_add_binding";
+    inline constexpr const char* ProjectSettingsInputRemoveBinding = "project_settings.input_remove_binding";
+    inline constexpr const char* ProjectSettingsInputAnyGamepad = "project_settings.input_any_gamepad";
+    inline constexpr const char* ProjectSettingsInputTooMany = "project_settings.input_too_many";
     inline constexpr const char* InspectorSpriteImportOptions = "inspector.sprite_import_options";
     inline constexpr const char* CommonOk = "common.ok";
 

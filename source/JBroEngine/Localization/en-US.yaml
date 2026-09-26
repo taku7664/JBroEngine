@@ -170,6 +170,21 @@ Entries:
   project_settings.audio_buses_help: "Master is always there and every bus plays under it. A component or script names a bus to use it."
   project_settings.audio_no_buses: "Only Master - every sound plays there"
   project_settings.audio_duplicate: "This name is already used"
+  project_settings.input: "Input"
+  project_settings.input_layers_help: "Layers higher in the list get input first. When one blocks, the layers below get nothing"
+  project_settings.input_default_layers: "Using the default order (Modal, UI, Game, World, Debug)"
+  project_settings.input_add_layer: "Add Layer"
+  project_settings.input_move_up: "Move Up"
+  project_settings.input_remove: "Remove"
+  project_settings.input_duplicate: "This name is already used"
+  project_settings.input_actions_help: "Scripts read input by action name instead of by key. Each action can bind several keys, buttons and sticks"
+  project_settings.input_no_actions: "No actions"
+  project_settings.input_add_action: "Add Action"
+  project_settings.input_remove_action: "Remove Action"
+  project_settings.input_add_binding: "Add Binding"
+  project_settings.input_remove_binding: "Remove Binding"
+  project_settings.input_any_gamepad: "-1 means any connected gamepad"
+  project_settings.input_too_many: "The engine uses up to 64 actions and 8 bindings per action. The rest stay only in the file"
   inspector.sprite_import_options: Sprite Import Options
   common.ok: OK
   log.clear: Clear

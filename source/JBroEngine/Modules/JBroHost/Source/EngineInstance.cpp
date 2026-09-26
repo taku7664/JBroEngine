@@ -2,6 +2,8 @@
 #include <JBro/Core/Profiler.h>
 #include <JBro/Host/EngineInstance.h>
 
+#include <JBro/Input/InputSystem.h>
+#include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Network/Internal/ScriptModuleContext.h>
 #include <JBro/Network/SteadyClock.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
@@ -133,6 +135,12 @@ namespace JBro
                 BindNetworkSystemContext(m_network->GetSystemContext());
                 BindNetworkServiceContext(m_network->GetServiceContext());
             }
+            // 게임 입력(D-214). 네트워크처럼 호스트가 소유하고 두 차원이 같은 것을 쓴다. 이 모듈 사본에도 묶어
+            // 호스트 안에서 붙인 스크립트(정적으로 붙인 것)도 같은 서비스를 읽는다.
+            m_input = MakeOwnerPtr<System::InputSystem>();
+            BindInputSystemContext(m_input->GetSystemContext());
+            BindInputServiceContext(m_input->GetServiceContext());
+            m_frameworkContext.input = m_input.Get();
             m_frameworkContext.network = m_network.Get();
             // 오디오(D-197). 장치를 먼저 열어 그 형식으로 믹서를 만든다. 장치가 없으면 믹서만 선다 - 같은 API 가 소리 없이 돈다.
             if (config.audioEnabled)
@@ -239,6 +247,7 @@ namespace JBro
         }
         m_project = project;
         ApplyAudioBuses();
+        ApplyInputSettings();
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
@@ -564,6 +573,11 @@ namespace JBro
                         Array<ScriptContextBlock> blocks;
                         blocks.Reserve(frameworkBlocks.size + 4);
                         blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
+                        if (m_input)
+                        {
+                            blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));
+                            blocks.Add(MakeInputServiceContextBlock(m_input->GetServiceContext()));
+                        }
                         if (m_network)
                         {
                             blocks.Add(MakeNetworkSystemContextBlock(m_network->GetSystemContext()));
@@ -681,6 +695,30 @@ namespace JBro
                 m_platform->ClearInputEvents();
             }
             m_platform->PumpEvents();
+            // 게임 입력을 이번 프레임으로 접는다(D-214). 호스트(에디터)가 이벤트를 자기 UI 에 넣는 동안은 게임이
+            // 그 이벤트를 보지 않는다 - 빈 목록으로라도 불러 지난 프레임의 누름·뗌을 비운다.
+            if (m_input)
+            {
+                if (m_inputOwnedByHost)
+                {
+                    m_input->BeginFrame({m_hostInput.Data(), static_cast<std::uint32_t>(m_hostInput.Size())}, m_hostInputMapping);
+                    // 비워도 용량은 남는다. 두 번째 프레임부터는 할당하지 않는다(§9).
+                    m_hostInput.Clear();
+                }
+                else
+                {
+                    m_input->BeginFrame(m_platform->GetInputEvents());
+                }
+                // 게임패드는 폴링이다(D-214). 게임이 입력을 받는 동안만 읽고, 아니면 눌린 것을 떼고 모터를 멈춘다.
+                if (false == m_inputOwnedByHost || m_hostGameInputActive)
+                {
+                    m_input->PollGamepads(*m_platform, deltaTime);
+                }
+                else
+                {
+                    m_input->ReleaseGamepads(*m_platform);
+                }
+            }
         }
         if (m_exitRequested || m_platform->ShouldClose(m_mainWindow))
         {
@@ -869,6 +907,62 @@ namespace JBro
         }
         // 오디오 버스도 지금 적용한다(D-197). 설정 창에서 버스를 더하면 곧바로 고를 수 있어야 한다.
         ApplyAudioBuses();
+        // 입력도 같다(D-214). 설정 창에서 저장한 바인딩으로 곧바로 움직인다.
+        ApplyInputSettings();
+    }
+
+    void EngineInstance::ApplyInputSettings()
+    {
+        if (m_input.Get() == nullptr)
+        {
+            return;
+        }
+        // 레이어는 이름의 해시로 가른다. 핸들러의 `InputHandler<"UI", 10>` 도 같은 해시를 컴파일 시간에 만든다.
+        Array<NameId> layers;
+        layers.Reserve(m_project.inputLayers.Size());
+        for (const String& layer : m_project.inputLayers)
+        {
+            layers.Add(NameTable::Get().Intern(layer.c_str()));
+        }
+        m_input->SetLayerOrder({layers.Data(), static_cast<std::uint32_t>(layers.Size())});
+
+        // 액션 표는 고정 크기다. 넘치는 액션과 바인딩은 버리고 한 번 말한다 - 파일은 그대로 두어 되살릴 수 있다.
+        InputActionMap map;
+        bool truncated = false;
+        for (const ProjectInputAction& action : m_project.inputActions)
+        {
+            if (map.count >= MaxInputActions)
+            {
+                truncated = true;
+                break;
+            }
+            InputActionDesc& desc = map.actions[map.count];
+            // 이름표에 넣어 두어야 없는 액션을 물었을 때의 경고가 이름으로 말한다.
+            desc.name = NameTable::Get().Intern(action.name.c_str());
+            desc.type = action.type;
+            desc.bindingCount = 0;
+            for (const ProjectInputBinding& binding : action.bindings)
+            {
+                if (desc.bindingCount >= MaxInputBindingsPerAction)
+                {
+                    truncated = true;
+                    break;
+                }
+                InputBinding& target = desc.bindings[desc.bindingCount];
+                target.source = binding.source;
+                target.code = binding.code;
+                target.gamepad = static_cast<std::int8_t>(binding.gamepad);
+                target.composite = binding.composite;
+                ++desc.bindingCount;
+            }
+            ++map.count;
+        }
+        if (truncated)
+        {
+            Log::Write(LogLevel::Warning, "input", "the project has more than %u input actions or %u bindings in one action; the rest is ignored",
+                MaxInputActions, MaxInputBindingsPerAction);
+        }
+        m_input->SetActionMap(map);
     }
 
     void EngineInstance::ApplyAudioBuses()
@@ -1051,6 +1145,21 @@ namespace JBro
         return m_gameSubmittedLastFrame;
     }
 
+    void EngineInstance::SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping)
+    {
+        m_hostInputMapping = mapping;
+        if (events.data == nullptr || events.size == 0)
+        {
+            return;
+        }
+        m_hostInput.Append(events.data, events.size);
+    }
+
+    void EngineInstance::SetHostGameInputActive(bool active)
+    {
+        m_hostGameInputActive = active;
+    }
+
     void EngineInstance::SetInputOwnedByHost(bool owned)
     {
         m_inputOwnedByHost = owned;
@@ -1162,6 +1271,19 @@ namespace JBro
         }
         m_frameworkContext.tasks = nullptr;
         ReleaseProject();
+        // 입력은 프로젝트(스크립트 DLL) 뒤에 내린다. DLL 이 그 주소를 들고 있었다.
+        if (m_input)
+        {
+            // 내리기 전에 모터를 멈춘다. 진동을 건 채 끝나면 패드가 계속 운다.
+            if (m_platform != nullptr)
+            {
+                m_input->ReleaseGamepads(*m_platform);
+            }
+            BindInputSystemContext({});
+            BindInputServiceContext({});
+            m_frameworkContext.input = nullptr;
+            m_input.Reset();
+        }
         // 네트워크는 프로젝트 뒤, 플랫폼 앞에 내린다 - 소켓은 플랫폼의 것이다.
         if (m_network)
         {

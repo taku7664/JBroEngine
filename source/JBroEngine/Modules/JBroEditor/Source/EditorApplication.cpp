@@ -2375,6 +2375,26 @@ namespace JBro
         m_gameViewRequested = true;
     }
 
+    void EditorApplication::ReportGameView(bool focused, float left, float top, float width, float height)
+    {
+        m_gameViewReported = true;
+        m_gameViewFocused = focused;
+        const Extent2D extent = GetGameViewExtent();
+        if (width > 0.0f && height > 0.0f && extent.width != 0 && extent.height != 0)
+        {
+            // 창 클라이언트 좌표 → 게임 화면 픽셀. 멀티 뷰포트를 켜지 않았으므로 ImGui 의 화면 좌표가 곧 클라이언트 좌표다.
+            m_gameViewMapping.originX = left;
+            m_gameViewMapping.originY = top;
+            m_gameViewMapping.scaleX = static_cast<float>(extent.width) / width;
+            m_gameViewMapping.scaleY = static_cast<float>(extent.height) / height;
+        }
+    }
+
+    bool EditorApplication::IsGameReceivingInput() const
+    {
+        return m_gameReceivingInput;
+    }
+
     Extent2D EditorApplication::GetGameViewExtent() const
     {
         return m_gameViewExtent;
@@ -3043,6 +3063,8 @@ namespace JBro
             // **닫혀 있어도 갱신은 돈다.** 보이지 않는다고 멈춰야 하는 일과
             // 계속 돌아야 하는 일은 다르고, 그 판단은 패널의 몫이다.
             panel->OnUpdate(deltaTime);
+            // 그리지 않으면 포커스도 없다. 열린 창은 아래에서 다시 적는다.
+            panel->SetFocused(false);
             if (false == panel->IsOpen())
             {
                 continue;
@@ -3062,6 +3084,7 @@ namespace JBro
             }
             if (ImGui::Begin(label.c_str(), closable, flags))
             {
+                panel->SetFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
                 if (panel->HasMenuBar() && Widget::BeginMenuBar())
                 {
                     panel->OnMenuBar();
@@ -3096,6 +3119,25 @@ namespace JBro
         // 사라졌다. 빠르게 친 글자가 하나씩 빠졌다(`Beta` 가 `Bea` 로 들어갔다).
         m_platform->PumpEvents();
         const bool pushed = m_ui.PushInput(m_platform->GetInputEvents());
+        // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
+        // 기존 엔진의 `SetViewportActive` 게이트와 같다. 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
+        // 그러지 않으면 W 를 누른 채 인스펙터를 누르면 게임 속 캐릭터가 계속 걷는다.
+        const bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_gameViewReported && m_gameViewFocused;
+        if (gameInput)
+        {
+            m_engine->SubmitHostInput(m_platform->GetInputEvents(), m_gameViewMapping);
+        }
+        else if (m_gameReceivingInput)
+        {
+            InputEvent lost;
+            lost.kind = InputEventKind::FocusLost;
+            m_engine->SubmitHostInput({&lost, 1}, m_gameViewMapping);
+        }
+        m_gameReceivingInput = gameInput;
+        m_engine->SetHostGameInputActive(gameInput);
+        // 이번 프레임의 게임 뷰가 다시 알린다. 알리지 않으면(닫힘·가림) 다음 프레임은 게임 입력이 없다.
+        m_gameViewReported = false;
+        m_gameViewFocused = false;
         m_platform->ClearInputEvents();
         if (false == pushed)
         {

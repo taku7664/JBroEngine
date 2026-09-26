@@ -10,6 +10,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/EditorUI.h>
+#include <JBro/Platform/Input.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Host/ProjectFile.h>
@@ -372,6 +373,12 @@ namespace JBro
         bool DidGameSubmitLastFrame() const;
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetGameViewExtent() const;
+        // 게임 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
+        // 그 패널이 포커스를 가졌는지다. 게임 입력의 마우스를 게임 화면 픽셀로 옮기는 데 쓴다(D-214).
+        void ReportGameView(bool focused, float left, float top, float width, float height);
+        // 이번 프레임에 게임이 에디터 창의 입력을 받는가(D-214). 재생 중이고 멈추지 않았으며 **지난 프레임에** 게임 뷰가
+        // 포커스를 가졌을 때다. 그 동안 에디터 단축키는 재생 제어(F5·F6)만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
+        bool IsGameReceivingInput() const;
 
         // ── 캔버스 뷰(편집 화면) ─────────────────────────────────────────
         //
@@ -638,6 +645,12 @@ namespace JBro
         String m_simulationSnapshot;
         bool m_simulationPlaying = false;
         bool m_simulationPaused = false;
+        // 게임 입력(D-214). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
+        // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(게임 뷰를 누르면 포커스부터 온다).
+        bool m_gameViewFocused = false;
+        bool m_gameViewReported = false;
+        bool m_gameReceivingInput = false;
+        InputSurfaceMapping m_gameViewMapping;
         // 캔버스를 비운다. 되돌리기 위해 다시 읽어 넣기 전에 부른다.
         void ClearCanvasObjects();
         bool m_uiEnabled = false;
