@@ -510,7 +510,7 @@ namespace JBro::Text
             at += 1;
             // 칸이 페이지 밖을 가리키면 깨진 것이다.
             if (false == glyph.empty
-                && (glyph.page >= pageCount || glyph.x + glyph.width > pageSize || glyph.y + glyph.height > pageSize))
+                && (glyph.page >= pageCount || static_cast<std::uint32_t>(glyph.x) + glyph.width > pageSize || static_cast<std::uint32_t>(glyph.y) + glyph.height > pageSize))
             {
                 return false;
             }
