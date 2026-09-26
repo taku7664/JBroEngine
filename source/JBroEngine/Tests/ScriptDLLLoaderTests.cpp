@@ -1,4 +1,5 @@
-﻿#include <JBro/Host/RandomSystem.h>
+﻿#include <JBro/Host/DebugDrawSystem.h>
+#include <JBro/Host/RandomSystem.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -910,6 +911,16 @@ namespace
         Check(randomRange(0, 1000) == reference.Range(0, 1000), "and the DLL must draw from that stream");
         Check(JBro::GetServiceContext().Random.Range(0, 1000) == reference.Range(0, 1000),
             "the host's copy of the service shares the same engine stream");
+        // DLL 이 그린 디버그 선이 엔진의 저장소에 들어오고, 엔진이 다음 프레임 첫머리에 거둔다(D-232).
+        using DrawLine = void (*)() noexcept;
+        const auto drawLine = reinterpret_cast<DrawLine>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_DrawLine"));
+        Check(drawLine != nullptr && engine.GetDebugDraw() != nullptr, "the probe must export its line and the engine own a store");
+        drawLine();
+        Check(engine.GetDebugDraw()->GetLineCount() == 1, "a line drawn inside the script DLL must land in the host's store");
+        Check(engine.Tick(0.02f) && engine.GetDebugDraw()->GetLineCount() == 0, "and the engine must clear a one-frame line the next frame");
+        drawLine();
+        engine.RestartGameTime();
+        Check(engine.GetDebugDraw()->GetLineCount() == 0, "restarting the game time clears the lines of the last play");
         // 멈춤과 한 프레임 진행은 엔진의 것이다(D-231). 멈추면 DLL 이 읽는 델타가 0 이고, 한 프레임 진행은 고정 델타 한 번이다.
         engine.SetSimulationEnabled(false);
         Check(engine.Tick(0.02f) && getDelta() == 0.0f, "a paused engine must hand the script a zero delta");
