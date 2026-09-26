@@ -163,7 +163,8 @@ namespace JBro
             if (config.audioEnabled)
             {
                 AudioMixerDesc mixerDesc;
-                mixerDesc.maxVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
+                mixerDesc.maxAudibleVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
+                mixerDesc.maxVoices = mixerDesc.maxAudibleVoices * 4;
                 // 디스크 스트리밍의 파일은 플랫폼이 연다(D-203). 스트리머 스레드에서 불린다 - `OpenFileStream` 은 어느
                 // 스레드에서 불러도 된다.
                 // 패키지로 연 프로젝트는 패키지의 창 스트림이다(D-232) - 에셋 시스템의 바이트 출처가 연다.
