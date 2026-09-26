@@ -341,6 +341,13 @@ namespace JBro
         {
             read.options.pixelsPerUnit = DefaultPixelsPerUnit;
         }
+        // 거리장은 이웃 텍셀을 섞어야 가장자리가 선다. Nearest 로 읽으면 계단이 된다.
+        if (read.options.renderMode == FontRenderMode::Sdf)
+        {
+            read.options.filter = TextureFilter::Linear;
+        }
+        read.options.sdfSize = read.options.sdfSize < 8 ? 8 : (read.options.sdfSize > 256 ? 256 : read.options.sdfSize);
+        read.options.sdfSpread = read.options.sdfSpread < 1 ? 1 : (read.options.sdfSpread > 32 ? 32 : read.options.sdfSpread);
         if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), read.bytes))
         {
             return false;

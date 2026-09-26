@@ -30,6 +30,7 @@ namespace JBro
             || context.Registry == nullptr
             || context.Names == nullptr
             || context.Scripts == nullptr
+            || context.Texts == nullptr
             || context.Systems->AbiVersion != SystemContextAbiVersion
             || context.Services->AbiVersion != ServiceContextAbiVersion
             || context.ExtensionCount > MaxScriptContextBlocks
@@ -69,6 +70,7 @@ namespace JBro
         Internal::InstanceRegistry::Bind(context.Registry);
         NameTable::Bind(context.Names);
         ScriptRegistry::Bind(context.Scripts);
+        TextStore::Bind(context.Texts);
         return true;
     }
 }

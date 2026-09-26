@@ -1,0 +1,10 @@
+Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:rotation-ignored	const float wx = x * world.m11 + y * world.m21 + world.m31;\n                    const float wy = x * world.m12 + y * world.m22 + world.m32;	const float wx = x * transform->worldScale.x + world.m31;\n                    const float wy = y * transform->worldScale.y + world.m32;
+Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:text-skipped	enclose(localMinX, localMinY, localMaxX, localMaxY);	(void)localMaxY;
+Modules\JBroEditor\Source\Panel\CanvasViewPanel.cpp	view:empty-box-never	if (false == hasBox || maxX - minX < 0.001f || maxY - minY < 0.001f)	if (false)
+Modules\JBroRuntime\Source\ScriptModule.cpp	module:store-not-bound	TextStore::Bind(context.Texts);	(void)context.Texts;
+Modules\JBroRuntime\Source\ScriptModule.cpp	module:store-not-required	            || context.Texts == nullptr\n	 
+Modules\JBroHost\Source\ScriptDLLLoader.cpp	loader:store-not-passed	context.Texts = &TextStore::Local();	context.Texts = &TextStore::Local(); context.Texts = nullptr;
+Modules\JBroText\Source\TextLayout.cpp	layout:tab-is-a-space	if (item.codepoint == 0x09 && tabStop > 0.0f)	if (false)
+Modules\JBroText\Source\TextLayout.cpp	layout:tab-stop-not-reached	const float next = (std::floor(x / tabStop + 1.0e-4f) + 1.0f) * tabStop;	const float next = x + tabStop;
+Modules\JBroText\Source\TextLayout.cpp	layout:no-line-start-rule	&& false == IsNoLineStart(item.codepoint)	&& true
+Modules\JBroText\Source\TextLayout.cpp	layout:no-line-end-rule	&& false == IsNoLineEnd(previous.codepoint);	&& true;

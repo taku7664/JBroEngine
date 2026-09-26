@@ -1,0 +1,21 @@
+Modules\JBroText\Source\TextLayout.cpp	fit:width-ignored	if (options.boxWidth > 0.0f && m_contentWidth > widthLimit)	if (false)
+Modules\JBroText\Source\TextLayout.cpp	fit:height-ignored	if (options.boxHeight > 0.0f && m_contentHeight > heightLimit)	if (false)
+Modules\JBroText\Source\TextLayout.cpp	fit:word-break-allowed	return options.wrapMode != WrapMode::Word || m_forcedBreaks == 0;	return true;
+Modules\JBroText\Source\TextLayout.cpp	fit:search-stops-early	best = middle;	best = middle; bad = middle + 1;
+Modules\JBroText\Source\TextLayout.cpp	fit:quarter-cell-ignored	const float cell = step > 0.0f ? step : 0.25f;	const float cell = step > 0.0f ? step : 1.0f;
+Modules\JBroText\Source\TextLayout.cpp	fit:forced-not-counted	++m_forcedBreaks;	(void)0;
+Modules\JBroText\Source\GlyphAtlas.cpp	prewarm:no-hangul	if (set == PrewarmSet::Ksx1001)	if (false)
+Modules\JBroText\Source\GlyphAtlas.cpp	prewarm:sdf-as-bitmap	if (sdfSpread == 0)	if (true)
+Modules\JBroText\Source\FontFace.cpp	gpos:extension-skipped	if (type != 2 && type != 9)	if (type != 2)
+Modules\JBroText\Source\FontFace.cpp	gpos:placement-not-skipped	const std::size_t skip = ((valueFormat & 0x0001) != 0 ? 2 : 0) + ((valueFormat & 0x0002) != 0 ? 2 : 0);	const std::size_t skip = 0;
+Modules\JBroText\Source\FontFace.cpp	gpos:record-size-wrong	const std::size_t recordSize = 2 + size1 + size2;	const std::size_t recordSize = 2 + 2 + size2;
+Modules\JBroText\Source\FontFace.cpp	gpos:class-pairs-skipped	const std::uint32_t class1 = ClassOf(subtable + classDef1, left);	const std::uint32_t class1 = 0;
+Modules\JBroText\Source\FontFace.cpp	gpos:coverage-ranges-ignored	if (format == 2)\n                {\n                    std::int32_t low = 0;\n                    std::int32_t high = static_cast<std::int32_t>(count) - 1;\n                    while (low <= high)\n                    {\n                        const std::int32_t middle = (low + high) / 2;\n                        const std::size_t record = table + 4 + static_cast<std::size_t>(middle) * 6;\n                        std::uint16_t start = 0;\n                        std::uint16_t end = 0;\n                        std::uint16_t first = 0;	if (false)\n                {\n                    std::int32_t low = 0;\n                    std::int32_t high = static_cast<std::int32_t>(count) - 1;\n                    while (low <= high)\n                    {\n                        const std::int32_t middle = (low + high) / 2;\n                        const std::size_t record = table + 4 + static_cast<std::size_t>(middle) * 6;\n                        std::uint16_t start = 0;\n                        std::uint16_t end = 0;\n                        std::uint16_t first = 0;
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:prewarm-skipped	    void TextLibrary::Prewarm(FontEntry& entry)\n    {\n        entry.prewarmed = 0;\n        if (entry.prewarm == FontPrewarm::None)	    void TextLibrary::Prewarm(FontEntry& entry)\n    {\n        entry.prewarmed = 0;\n        if (true)
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:never-trims	if (entry.atlas.GetPageCount() <= limit)	if (true)
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:thrash-not-detected	if (entry.lastTrimFrame != 0 && frame - entry.lastTrimFrame < ThrashFrames)	if (false)
+Modules\JBroFramework2DSystem\Source\Rendering\TextLibrary.cpp	library:trim-keeps-generation	++entry.atlasGeneration;	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:atlas-generation-ignored	|| entry.atlasGenerations[face] != views[face].atlasGeneration;	;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:autosize-ignored	const bool fitToBox = text.autoSize && (options.boxWidth > 0.0f || options.boxHeight > 0.0f);	const bool fitToBox = false;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:autosize-without-box	const bool fitToBox = text.autoSize && (options.boxWidth > 0.0f || options.boxHeight > 0.0f);	const bool fitToBox = text.autoSize;
+Modules\JBroFramework2DSystem\Source\System\Text2DSystem.cpp	system:autosize-not-keyed	Mix(key, text.autoSize ? 1u : 0u);	(void)0;

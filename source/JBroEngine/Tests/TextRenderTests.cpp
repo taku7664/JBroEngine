@@ -17,6 +17,7 @@
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Reflection/ReflectedYaml.h>
 #include <JBro/Runtime/TextStore.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Text/GlyphAtlas.h>
 #include <JBro/Text/TextLayout.h>
 
@@ -24,6 +25,8 @@
 #include "TestFontNotoSansKRLatin.generated.h"
 
 #include <cmath>
+#include <chrono>
+#include <thread>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -473,6 +476,7 @@ namespace
                 && minY < 0.0f && maxY > 0.0f, "the centred text reports a block around its origin");
             Check(texts->GetLibrary().GetPageTextureCount() == 1, "one atlas page is on the GPU");
             const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            const std::uint64_t uploadedBefore = texts->GetLibrary().GetUploadedBytes();
             const std::uint64_t relayouts = texts->GetRelayoutCount();
             const std::uint32_t registered = gpu.renderer.GetTextureCount();
 
@@ -493,6 +497,9 @@ namespace
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() == relayouts + 1, "the changed text is laid out once");
             Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "a new glyph uploads its page once");
+            // 올린 것은 V 의 칸을 감싼 사각형이지 페이지 전체(4 MB)가 아니다.
+            Check(texts->GetLibrary().GetUploadedBytes() - uploadedBefore < 64 * 64 * 4,
+                "and only the rectangle around the new cell goes up");
             const DarkBox vee = FindDark(gpu);
             Check(vee.count > 20 && (vee.minX != dark.minX || vee.minY != dark.minY || vee.count != dark.count), "the V replaces the A");
             Check(service.SetText(ref, "A"), "back to A");
@@ -500,6 +507,17 @@ namespace
             Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "a glyph already in the atlas uploads nothing");
             Check(FindDark(gpu).count == dark.count, "and the A is back pixel for pixel");
             Check(gpu.renderer.GetTextureCount() == registered, "no texture was registered for any of it");
+            // 3-1. 새 글자 둘(T·o)이 한 프레임에 들어오면 올리는 사각형이 두 칸을 다 감싼다. 뒤의 칸(o)만 따로 그려 보면 올린 것이 보인다.
+            Check(service.SetText(ref, "To"), "two new glyphs in one frame");
+            gpu.Paint(framework);
+            const std::uint64_t afterPair = texts->GetLibrary().GetUploadCount();
+            Check(afterPair == uploads + 2, "the pair goes up in one upload");
+            Check(service.SetText(ref, "o"), "the second of the pair alone");
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == afterPair && FindDark(gpu).count > 20,
+                "the second cell of the pair was uploaded with the first");
+            Check(service.SetText(ref, "A"), "back to A once more");
+            gpu.Paint(framework);
 
             // 4. 색만 바꾸면 다시 레이아웃하지 않는다.
             const std::uint64_t beforeColour = texts->GetRelayoutCount();
@@ -535,7 +553,29 @@ namespace
                 "and none outside the box around the origin");
             Check(clipped.maxY >= 50, "the cut runs along the box's bottom edge");
             label->overflow = Component::TextOverflow::Wrap;
+
+            // 4-3. 자동 크기: 16 x 40 상자에 A 한 글자가 들어가는 가장 큰 정수 크기로 그린다. 줄 높이가 1.448 em 이라 높이로는 27 px 까지,
+            // A 의 폭(0.608 em)으로는 26 px 까지다. 상자 없이는 뜻이 없어 켜도 그대로다.
+            label->autoSize = true;
+            label->minFontSize = 8.0f;
+            label->maxFontSize = 200.0f;
+            gpu.Paint(framework);
+            const float fitted = texts->GetLaidOutFontSize(label->GetInstanceId());
+            std::cout << "  [measure] auto size in a 16 x 40 box: " << fitted << " px" << std::endl;
+            Check(fitted == std::floor(fitted) && fitted * 0.608f <= 16.0f + 0.01f && (fitted + 1.0f) * 0.608f > 16.0f,
+                "auto size picks the largest whole size whose A fits the box width");
+            Check(FindDark(gpu).count > 0 && FindDark(gpu).count < dark.count, "and draws the smaller A");
+            // 자동 크기만 끄고 켜도 다시 레이아웃한다(상자는 그대로).
+            label->autoSize = false;
+            gpu.Paint(framework);
+            Check(texts->GetLaidOutFontSize(label->GetInstanceId()) == 40.0f, "turning auto size off goes back to fontSize");
+            label->autoSize = true;
+            gpu.Paint(framework);
+            Check(texts->GetLaidOutFontSize(label->GetInstanceId()) == fitted, "and on again fits the box again");
             label->boxSize = {0.0f, 0.0f};
+            gpu.Paint(framework);
+            Check(texts->GetLaidOutFontSize(label->GetInstanceId()) == 40.0f, "without a box auto size falls back to fontSize");
+            label->autoSize = false;
             gpu.Paint(framework);
             Check(FindDark(gpu).count == dark.count, "unclipped again it is whole");
 
@@ -558,6 +598,54 @@ namespace
             gpu.Paint(framework);
             Check(texts->GetCachedTextCount() == 1, "a destroyed text leaves the cache");
 
+            // 5-1. 퇴출: 한도를 한 장으로 줄이면 다음 프레임에 두 장짜리 아틀라스를 비우고, 남은 A 만 다시 떠 한 장이 된다.
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2, "the crowd's pages are still there");
+            texts->SetAtlasPageLimit(1);
+            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetTrimCount() == trims + 1, "an atlas past its limit is emptied");
+            Check(texts->GetLibrary().GetPageTextureCount() == 1, "and the text on screen fills one page again");
+            Check(FindDark(gpu).count == dark.count, "the A draws the same after being drawn again");
+            // 5-2. 보이는 글자만으로 한도를 넘으면(곧바로 또 넘치면) 비우지 않고 그 폰트의 한도를 올린다 - 매 프레임 다시 뜨지 않는다.
+            GameObject* again = canvas->CreateObject("crowd again");
+            auto* againTransform = canvas->AttachComponent<Component::Transform2D>(again);
+            againTransform->position = {100.0f, 100.0f};
+            auto* crowdAgain = canvas->AttachComponent<Component::Text2D>(again);
+            crowdAgain->fontId = project.fontId;
+            crowdAgain->fontSize = 300.0f;
+            TextStore::Get().Assign(crowdAgain->text, many, std::strlen(many));
+            framework.BindCanvasAssets();
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            const std::uint64_t relayoutsAfterThrash = texts->GetRelayoutCount();
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetTrimCount() == trims + 1, "an atlas that refills at once is not emptied again");
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2 && texts->GetRelayoutCount() == relayoutsAfterThrash,
+                "its limit rose instead, so the text is not drawn again every frame");
+            canvas->DestroyObject(again);
+            texts->SetAtlasPageLimit(TextLibrary::DefaultPageLimit);
+            gpu.Paint(framework);
+
+            // 5-3. 글자도 스프라이트 제출 상한(여기서는 64)을 나눠 쓴다. 넘친 글자 수를 세고 알린다. 줄이면 다시 0 이다.
+            GameObject* longObject = canvas->CreateObject("long");
+            auto* longTransform = canvas->AttachComponent<Component::Transform2D>(longObject);
+            longTransform->position = {100.0f, 100.0f};
+            auto* longText = canvas->AttachComponent<Component::Text2D>(longObject);
+            longText->fontId = project.fontId;
+            const std::string seventy(70, 'A');
+            TextStore::Get().Assign(longText->text, seventy.c_str(), seventy.size());
+            framework.BindCanvasAssets();
+            // 넘친 프레임은 프레임워크가 "다 내지 못했다" 로 알린다. 그 결과를 보고 넘어간다.
+            framework.Update(1.0f / 60.0f);
+            Check(gpu.renderer.BeginFrame() == FrameStatus::Ready, "the frame begins");
+            Check(framework.Render() != RenderResult::Submitted, "a frame that dropped glyphs says so");
+            Check(gpu.renderer.EndFrame() == FrameStatus::Ready, "the frame presents");
+            std::cout << "  [measure] glyphs past the 64 sprite limit: " << texts->GetDroppedGlyphCount() << std::endl;
+            Check(texts->GetDroppedGlyphCount() == 70 + 1 - 64, "glyphs past the sprite submission limit are counted");
+            canvas->DestroyObject(longObject);
+            gpu.Paint(framework);
+            Check(texts->GetDroppedGlyphCount() == 0, "and the count goes back to zero once the text fits");
+
             // 6. 폰트가 다시 로드되면(PPU 32 → 64) 글자가 다시 레이아웃되고 절반 크기로 그려진다.
             project.WriteOptions(64.0f, TextureFilter::Default);
             Check(project.assets.ReloadInPlace(project.fontId), "the font reloads in place");
@@ -576,6 +664,541 @@ namespace
 
     // **프로젝트 폰트**(D-200 (6), text-plan §5 의 3 단계). `fontId` 가 빈 텍스트는 프로젝트의 첫 폰트로 그리고, 폰트에 없는 글자는
     // 목록에서 찾아 그 폰트의 아틀라스로 그린다. 목록을 바꾸면 다음 프레임에 다시 레이아웃되고, 같은 목록을 다시 주면 그대로다.
+    // **미리 뜬 폰트는 새 글자에도 올리지 않는다**(text-plan §3.6). 완성형 벌을 켠 폰트는 열 때 글자를 모두 떠 두고, 첫 프레임에 페이지를
+    // 한 번 올린다. 그 뒤 다른 음절로 바꿔도 레이아웃만 하고 올리지 않는다.
+    void TestPrewarmedFontsUploadOnce()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads");
+            meta.hasFontOptions = true;
+            meta.fontOptions.prewarm = FontPrewarm::Ksx1001;
+            meta.fontOptions.prewarmSize = 40;
+            Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves with a prewarm set");
+        }
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; prewarm not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29, "opening the font prewarmed its glyphs");
+            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            Check(uploads == 1, "the prewarmed page goes up once, with the first frame");
+            TextStore::Get().Assign(label->text, "\xEA\xB8\x80\xEC\x9E\x90 ABC", 10);
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == uploads, "new letters that were prewarmed upload nothing");
+
+            // 미리 채운 페이지는 퇴출 한도에 들지 않는다. 200 px 로 미리 채우면 한 장을 넘는데, 한도를 1 로 줘도 비우지 않는다.
+            // (원본 Noto Sans KR 의 기본 SDF 벌은 9 페이지라 기본 한도 8 에서 첫 프레임에 비워졌다.)
+            {
+                AssetMetaFile meta;
+                AssetMetaError error;
+                Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads again");
+                meta.fontOptions.prewarmSize = 200;
+                Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves a large prewarm");
+            }
+            texts->SetAtlasPageLimit(1);
+            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            Check(project.assets.ReloadInPlace(project.fontId), "the font reloads with the large prewarm");
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2, "a 200 px prewarm fills more than one page");
+            Check(texts->GetLibrary().GetTrimCount() == trims && texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29,
+                "and the prewarmed pages are not counted against the page limit");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
+    // **워커에서 미리 뜬다**(text-plan §5 의 뒤의 것 - 비동기 래스터화). 태스크 관리자를 주면 폰트를 여는 프레임은 뜨기를 워커에 맡기고
+    // 돌아온다. 끝난 덩어리는 태스크 관리자의 `Update` 가 메인 스레드에서 아틀라스에 넣고, 다 끝나면 동기로 뜬 것과 같은 수가 선다.
+    // 그사이 화면의 글자는 제 자리에서 뜬 것이 먼저 서고, 태스크 쪽의 같은 칸은 버린다.
+    void TestPrewarmRunsOnWorkers()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads");
+            meta.hasFontOptions = true;
+            meta.fontOptions.prewarm = FontPrewarm::Ksx1001;
+            meta.fontOptions.renderMode = FontRenderMode::Sdf;
+            Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves");
+        }
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; worker prewarm not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        TaskManager tasks;
+        TaskManagerDesc desc;
+        desc.workerCount = 2;
+        Check(tasks.Initialize(desc) && tasks.UsesWorkers(), "a task manager with two workers starts");
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            context.tasks = &tasks;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "A", 1);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+
+            gpu.Paint(framework);
+            Check(FindDark(gpu).count > 40, "the A draws on the first frame, before the prewarm is done");
+            int frames = 0;
+            while (texts->GetLibrary().IsPrewarming(label->font) && frames < 2000)
+            {
+                tasks.Update();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                ++frames;
+            }
+            std::cout << "  [measure] worker prewarm finished after " << frames << " waits, "
+                      << texts->GetLibrary().GetPrewarmedGlyphCount(label->font) << " glyphs placed" << std::endl;
+            Check(false == texts->GetLibrary().IsPrewarming(label->font), "the worker prewarm finishes");
+            // A 는 레이아웃이 먼저 떴으므로 태스크 쪽은 버린다. 나머지 공백을 뺀 ASCII 와 한글이 들어간다.
+            Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29 - 1,
+                "every prewarmed glyph but the one already drawn went in");
+            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "the page with the worker's glyphs goes up once");
+            TextStore::Get().Assign(label->text, "\xED\x95\x9C", 3);
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetUploadCount() == uploads + 1, "and a prewarmed syllable uploads nothing");
+
+            // 미리 채우기가 도는 중에 폰트가 다른 모드로 다시 열리면 옛 모드의 결과는 새 아틀라스에 들어가지 않는다. 비트맵으로 다시 열어
+            // 워커를 띄운 채 곧바로 SDF 로 되돌린다 - 끝나면 SDF 판의 수(화면의 `한` 을 뺀 것)만 선다. 비트맵 칸(키가 다르다)이 섞이면 는다.
+            const auto reopenAs = [&](FontRenderMode mode) {
+                AssetMetaFile meta;
+                AssetMetaError error;
+                Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads again");
+                meta.fontOptions.renderMode = mode;
+                Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves again");
+                Check(project.assets.ReloadInPlace(project.fontId), "the font reloads in place");
+                gpu.Paint(framework);
+            };
+            reopenAs(FontRenderMode::Bitmap);
+            Check(texts->GetLibrary().IsPrewarming(label->font), "the bitmap prewarm is on the workers");
+            reopenAs(FontRenderMode::Sdf);
+            frames = 0;
+            while (texts->GetLibrary().IsPrewarming(label->font) && frames < 2000)
+            {
+                tasks.Update();
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                ++frames;
+            }
+            Check(false == texts->GetLibrary().IsPrewarming(label->font), "the prewarm after the reopen finishes");
+            Check(texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29 - 1,
+                "nothing from the bitmap prewarm reached the reopened atlas");
+
+            // 워커가 여러 장을 채우는 동안에도, 끝난 뒤에도 미리 채운 페이지로는 비우지 않는다. 200 px 거리장은 한 장을 넘고 한도는 1 이다.
+            {
+                AssetMetaFile meta;
+                AssetMetaError error;
+                Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads for large cells");
+                meta.fontOptions.sdfSize = 200;
+                Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves large cells");
+            }
+            texts->SetAtlasPageLimit(1);
+            const std::uint32_t trims = texts->GetLibrary().GetTrimCount();
+            Check(project.assets.ReloadInPlace(project.fontId), "the font reloads with large cells");
+            frames = 0;
+            gpu.Paint(framework);
+            while (texts->GetLibrary().IsPrewarming(label->font) && frames < 2000)
+            {
+                tasks.Update();
+                gpu.Paint(framework);
+                ++frames;
+            }
+            gpu.Paint(framework);
+            Check(texts->GetLibrary().GetPageTextureCount() >= 2, "the large worker prewarm fills more than one page");
+            Check(texts->GetLibrary().GetTrimCount() == trims, "and neither its growth nor its pages trim the atlas");
+            framework.Shutdown();
+        }
+        tasks.Shutdown();
+        gpu.Close();
+        project.Close();
+    }
+
+    // **픽셀 맞춤**(text-plan §4.2 의 `pixelSnap`). 40 px `A` 를 가운데 정렬하면 원점이 (-12.16, -17.44) 같은 소수 자리라, 선형 필터에서
+    // 텍셀 사이를 샘플해 픽셀 값이 번진다. 켜면 원점이 정수 자리로 가서 정수 자리에 둔 `A`(왼쪽·기준선 정렬)와 **픽셀 값의 모음이 같다**
+    // (자리만 옮겨졌다). 끈 판이 다르다는 것도 본다 - 그래야 이 비교가 번짐을 잡는다는 증거다.
+    void TestPixelSnapLandsGlyphsOnWholePixels()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        project.WriteOptions(32.0f, TextureFilter::Linear);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; pixel snapping not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "A", 1);
+            framework.BindCanvasAssets();
+
+            // 픽셀 값(빨강 바이트)의 정렬한 모음이다. 흰 바탕은 빼지 않는다 - 모음의 크기가 늘 같다.
+            const auto values = [&]() {
+                Array<std::uint8_t> sorted;
+                sorted.Resize(64 * 64);
+                for (std::uint32_t y = 0; y < 64; ++y)
+                {
+                    for (std::uint32_t x = 0; x < 64; ++x)
+                    {
+                        sorted[y * 64 + x] = static_cast<std::uint8_t>(std::lround(gpu.Red(x, y) * 255.0f));
+                    }
+                }
+                std::sort(sorted.Data(), sorted.Data() + sorted.Size());
+                return sorted;
+            };
+            const auto same = [](const Array<std::uint8_t>& left, const Array<std::uint8_t>& right) {
+                return left.Size() == right.Size() && std::equal(left.Data(), left.Data() + left.Size(), right.Data());
+            };
+
+            label->alignX = Component::TextAlignX::Left;
+            label->alignY = Component::TextAlignY::Baseline;
+            gpu.Paint(framework);
+            const Array<std::uint8_t> whole = values();
+            Check(FindDark(gpu).count > 40, "the A at a whole-pixel origin draws");
+
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            gpu.Paint(framework);
+            Check(false == same(values(), whole), "a centred A between pixels is resampled");
+
+            label->pixelSnap = true;
+            gpu.Paint(framework);
+            Check(same(values(), whole), "with pixelSnap the centred A has the whole-pixel A's values");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
+    struct ColourCount
+    {
+        std::uint32_t red = 0;
+        std::uint32_t black = 0;
+        std::uint32_t touched = 0; // 흰색이 아닌 픽셀
+        std::uint32_t minX = 64;
+        std::uint32_t minY = 64;
+        std::uint32_t maxX = 0;
+        std::uint32_t maxY = 0;
+    };
+
+    ColourCount CountColours(const Gpu& gpu)
+    {
+        ColourCount count;
+        for (std::uint32_t y = 0; y < 64; ++y)
+        {
+            for (std::uint32_t x = 0; x < 64; ++x)
+            {
+                const auto* pixel = reinterpret_cast<const unsigned char*>(
+                    gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                const int b = pixel[0];
+                const int g = pixel[1];
+                const int r = pixel[2];
+                if (r > 200 && g < 70 && b < 70)
+                {
+                    ++count.red;
+                }
+                if (r < 70 && g < 70 && b < 70)
+                {
+                    ++count.black;
+                }
+                if (r < 240 || g < 240 || b < 240)
+                {
+                    ++count.touched;
+                    count.minX = std::min(count.minX, x);
+                    count.minY = std::min(count.minY, y);
+                    count.maxX = std::max(count.maxX, x);
+                    count.maxY = std::max(count.maxY, y);
+                }
+            }
+        }
+        return count;
+    }
+
+    // **SDF 와 외곽선**(text-plan §5 의 4 단계 완료 조건). 폰트를 `Sdf` 로 들여와 빨간 `H` 에 검은 외곽선을 준다.
+    // 외곽선 폭을 퍼짐보다 크게 줘도 글자 칸이 네모로 칠해지지 않고(퍼짐까지로 잘린다), 카메라를 두 배로 빼도 외곽선과 글자 굵기의
+    // 비가 같으며(폭이 글자 픽셀이다), 반투명 글자의 채우기 자리가 외곽선과 겹쳐 진해지지 않는다. 크기를 조금씩 바꿔도 새 글리프를
+    // 뜨지 않는다(거리장 한 벌을 키운다).
+    void TestSdfTextKeepsItsOutlineInProportion()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        {
+            AssetMetaFile meta;
+            AssetMetaError error;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), meta, error), "the font meta reads");
+            meta.hasFontOptions = true;
+            meta.fontOptions.renderMode = FontRenderMode::Sdf;
+            Check(SaveAssetMetaFile(project.platform, project.metaPath.c_str(), meta), "the font meta saves as Sdf");
+            AssetMetaFile reread;
+            Check(LoadAssetMetaFile(project.platform, project.metaPath.c_str(), reread, error)
+                    && reread.fontOptions.renderMode == FontRenderMode::Sdf && reread.fontOptions.sdfSize == 48
+                    && reread.fontOptions.sdfSpread == 8,
+                "the render mode round-trips with the default field size and spread");
+        }
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; sdf text not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {1.0f, 0.0f, 0.0f, 1.0f};
+            label->outlineColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            label->outlineWidth = 3.0f;
+            TextStore::Get().Assign(label->text, "H", 1);
+            framework.BindCanvasAssets();
+            Check(project.assets.GetFont(label->font) != nullptr
+                    && project.assets.GetFont(label->font)->options.filter == TextureFilter::Linear,
+                "an Sdf font always samples Linear");
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+
+            // 1. 외곽선이 서고, 글자는 커널이 잰 칸 가운데에 빨갛게 선다.
+            gpu.Paint(framework);
+            const ColourCount near = CountColours(gpu);
+            std::cout << "  [measure] sdf H: red " << near.red << ", black " << near.black << ", touched " << near.touched
+                      << " in " << (near.maxX - near.minX + 1) << "x" << (near.maxY - near.minY + 1) << std::endl;
+            Check(near.red > 100 && near.black > 60, "a red H with a black outline");
+            const ScreenRect cell = ExpectedGlyph("H", 40);
+            Check(static_cast<float>(near.minX) >= cell.left - 5.0f && static_cast<float>(near.maxX) <= cell.right + 5.0f,
+                "the outlined H stays around its glyph cell");
+
+            // 2. 퍼짐보다 굵은 외곽선(100 px)은 퍼짐까지로 잘린다 - 50 px 과 같은 그림이고, 칸 전체가 칠해지지 않는다.
+            label->outlineWidth = 100.0f;
+            gpu.Paint(framework);
+            const ColourCount huge = CountColours(gpu);
+            label->outlineWidth = 50.0f;
+            gpu.Paint(framework);
+            const ColourCount wide = CountColours(gpu);
+            const std::uint32_t box = (huge.maxX - huge.minX + 1) * (huge.maxY - huge.minY + 1);
+            std::cout << "  [measure] 100 px outline: black " << huge.black << ", touched " << huge.touched << " of a "
+                      << box << " px box" << std::endl;
+            Check(huge.black == wide.black && huge.touched == wide.touched, "an outline past the spread is cut at the spread");
+            // 외곽선은 글자를 둥글게 넓힌 모양이라 그 외접 사각형의 네 모서리는 비어 있다. 칸이 네모로 칠해지면 모서리까지 찬다.
+            const auto whiteAt = [&](std::uint32_t x, std::uint32_t y) {
+                const auto* pixel = reinterpret_cast<const unsigned char*>(
+                    gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                return pixel[0] > 240 && pixel[1] > 240 && pixel[2] > 240;
+            };
+            Check(whiteAt(huge.minX, huge.minY) && whiteAt(huge.maxX, huge.minY) && whiteAt(huge.minX, huge.maxY)
+                    && whiteAt(huge.maxX, huge.maxY),
+                "and the glyph's quad is not filled into a box - the corners of the outline's bounds stay white");
+            Check(huge.black > near.black, "the cut outline is still wider than a 3 px one");
+            // 자르는 자리는 퍼짐의 한 칸 안쪽이다(48 px 거리장, 퍼짐 8 이면 7 칸 = 40 px 글자에서 5.83 px). 셰이더도 문턱을 0 위로 막지만,
+            // 그것만으로는 외곽선이 퍼짐 끝까지 가서 가장자리가 흐리다.
+            label->outlineWidth = 7.0f * 40.0f / 48.0f;
+            gpu.Paint(framework);
+            const ColourCount atLimit = CountColours(gpu);
+            Check(atLimit.black == huge.black && atLimit.touched == huge.touched,
+                "the widest outline is exactly the one at a field pixel inside the spread");
+
+            // 폭은 글자 픽셀이다. 96 px 글자(거리장 한 칸이 글자 2 px)에 6 px 외곽선을 주고 카메라를 두 배로 빼면 화면에서 3 px 띠다.
+            // 거리장 픽셀로 셌다면 12 px 이라 화면에서 6 px 이다.
+            label->fontSize = 96.0f;
+            label->outlineWidth = 6.0f;
+            camera->orthographicSize = 2.0f;
+            gpu.Paint(framework);
+            std::uint32_t band = 0;
+            {
+                // 가운데 줄을 왼쪽부터 훑어 첫 빨강(왼쪽 기둥)까지의 검은 픽셀을 센다.
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const auto* pixel = reinterpret_cast<const unsigned char*>(
+                        gpu.image.Data() + static_cast<std::size_t>(32) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                    const bool black = pixel[2] < 70 && pixel[1] < 70 && pixel[0] < 70;
+                    const bool red = pixel[2] > 200 && pixel[1] < 70;
+                    if (red)
+                    {
+                        break;
+                    }
+                    if (black)
+                    {
+                        ++band;
+                    }
+                }
+            }
+            std::cout << "  [measure] 6 px outline on a 96 px H seen at half size: " << band << " screen px" << std::endl;
+            Check(band >= 2 && band <= 4, "the outline width counts glyph pixels, not distance-field pixels");
+            label->fontSize = 40.0f;
+            camera->orthographicSize = 1.0f;
+
+            // 3. 카메라를 두 배로 빼면 글자가 절반이 되고, 외곽선과 채우기의 비는 그대로다.
+            label->outlineWidth = 3.0f;
+            camera->orthographicSize = 2.0f;
+            gpu.Paint(framework);
+            const ColourCount far = CountColours(gpu);
+            const float nearRatio = static_cast<float>(near.black) / static_cast<float>(near.red);
+            const float farRatio = static_cast<float>(far.black) / static_cast<float>(far.red);
+            std::cout << "  [measure] outline / fill: near " << nearRatio << ", two times further " << farRatio << std::endl;
+            Check(far.red < near.red / 2 && far.red > near.red / 8, "the H is drawn smaller from further away");
+            Check(std::fabs(farRatio - nearRatio) < nearRatio * 0.3f, "and its outline keeps the same share of it");
+            camera->orthographicSize = 1.0f;
+
+            // 4. 반투명이면 채우기 자리는 흰 바탕 위의 빨강 절반이다. 외곽선이 그 밑에 한 번 더 깔리면 초록·파랑이 반보다 어둡다.
+            gpu.Paint(framework);
+            Array<std::uint32_t> filled;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const auto* pixel = reinterpret_cast<const unsigned char*>(
+                        gpu.image.Data() + static_cast<std::size_t>(y) * gpu.readback.rowPitch + static_cast<std::size_t>(x) * 4);
+                    if (pixel[2] > 250 && pixel[1] < 5 && pixel[0] < 5)
+                    {
+                        filled.Add(y * 64 + x);
+                    }
+                }
+            }
+            Check(filled.Size() > 20, "the opaque H has solid red pixels");
+            label->color = {1.0f, 0.0f, 0.0f, 0.5f};
+            label->outlineColor = {0.0f, 0.0f, 0.0f, 0.5f};
+            gpu.Paint(framework);
+            std::uint32_t darker = 0;
+            for (const std::uint32_t at : filled)
+            {
+                const auto* pixel = reinterpret_cast<const unsigned char*>(
+                    gpu.image.Data() + static_cast<std::size_t>(at / 64) * gpu.readback.rowPitch + static_cast<std::size_t>(at % 64) * 4);
+                if (pixel[1] < 115 || pixel[2] < 245)
+                {
+                    ++darker;
+                }
+            }
+            Check(darker == 0, "a translucent fill is half red over white everywhere, never darkened by its own outline");
+            label->color = {1.0f, 0.0f, 0.0f, 1.0f};
+            label->outlineColor = {0.0f, 0.0f, 0.0f, 1.0f};
+
+            // 5. 크기를 조금 바꾸면 다시 레이아웃하지만 새 글리프는 없다 - 올릴 것도 없다.
+            gpu.Paint(framework);
+            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            const std::uint64_t uploads = texts->GetLibrary().GetUploadCount();
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "the H has a block");
+            const float width40 = maxX - minX;
+            // 반올림한 픽셀이 같아도(40.2 → 40) 다시 레이아웃한다.
+            label->fontSize = 40.2f;
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() == relayouts + 1, "a fraction of a pixel is a new size for an SDF text");
+            label->fontSize = 40.7f;
+            gpu.Paint(framework);
+            label->fontSize = 57.3f;
+            gpu.Paint(framework);
+            // 소수 크기 그대로 레이아웃한다. 반올림한 57 이면 폭의 비가 57/40 이라 0.5 % 어긋난다.
+            Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY)
+                    && std::fabs((maxX - minX) / width40 - 57.3f / 40.0f) < 0.001f,
+                "an SDF text is laid out at its exact size, not rounded to a pixel");
+            Check(texts->GetRelayoutCount() == relayouts + 3, "each new size lays the text out again");
+            Check(texts->GetLibrary().GetUploadCount() == uploads, "but a new size is not a new glyph, so nothing uploads");
+            Check(CountColours(gpu).red > near.red, "and the bigger H is drawn bigger");
+
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     void TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters()
     {
         FontProject project;
@@ -684,6 +1307,10 @@ int RunTextRenderTests()
         TestFontAssetsLoadAndReload();
         TestTextDrawsCachesAndUploadsOnlyNewGlyphs();
         TestProjectFontsDrawEmptyFontIdsAndFillInMissingLetters();
+        TestSdfTextKeepsItsOutlineInProportion();
+        TestPrewarmedFontsUploadOnce();
+        TestPrewarmRunsOnWorkers();
+        TestPixelSnapLandsGlyphsOnWholePixels();
     }
     catch (const std::exception&)
     {

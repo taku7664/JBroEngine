@@ -11,7 +11,13 @@ $tests = Split-Path -Parent (Split-Path -Parent $here)
 # 폰트 둘이다: 한글이 든 서브셋과, 폴백 시험용으로 한글을 뺀 라틴 서브셋(3 단계).
 $fonts = @(
     @{ File = 'NotoSansKR-Subset.otf'; Header = 'TestFontNotoSansKR.generated.h'; Name = 'TestFontNotoSansKR' },
-    @{ File = 'NotoSansKR-Latin.otf'; Header = 'TestFontNotoSansKRLatin.generated.h'; Name = 'TestFontNotoSansKRLatin' }
+    @{ File = 'NotoSansKR-Latin.otf'; Header = 'TestFontNotoSansKRLatin.generated.h'; Name = 'TestFontNotoSansKRLatin' },
+    # stb 가 건너뛰는 GPOS 모양 둘(MakeGposVariants.py). 커닝이 원본과 같아야 한다.
+    @{ File = 'NotoSansKR-Extension.otf'; Header = 'TestFontNotoSansKRExtension.generated.h'; Name = 'TestFontNotoSansKRExtension' },
+    @{ File = 'NotoSansKR-XPlacement.otf'; Header = 'TestFontNotoSansKRXPlacement.generated.h'; Name = 'TestFontNotoSansKRXPlacement' },
+    # 알려진 앵커의 mark-to-base 조회를 더한 ASCII + U+0301 서브셋과, 그 조회를 확장 조회로 감싼 판(MakeMarkFont.py).
+    @{ File = 'NotoSansKR-Marks.otf'; Header = 'TestFontNotoSansKRMarks.generated.h'; Name = 'TestFontNotoSansKRMarks' },
+    @{ File = 'NotoSansKR-MarksExtension.otf'; Header = 'TestFontNotoSansKRMarksExtension.generated.h'; Name = 'TestFontNotoSansKRMarksExtension' }
 )
 foreach ($font in $fonts)
 {

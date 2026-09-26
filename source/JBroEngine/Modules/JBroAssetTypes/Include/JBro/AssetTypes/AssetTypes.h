@@ -115,10 +115,34 @@ namespace JBro
     // 글자 픽셀), 여기에는 그 픽셀을 유닛으로 옮기는 비율과 아틀라스를 읽는 샘플러만 있다. 텍스처와 같은 규칙이다(D-119):
     // `pixelsPerUnit` 이 0 이하면 기본 100, `filter` 가 `Default` 면 프로젝트의 `TextureFilter`.
     // 렌더 모드(`Bitmap`·`Sdf`)는 SDF 가 서는 4 단계에서 온다 - 쓰이지 않는 옵션을 먼저 두지 않는다.
+    // 글자를 어떻게 뜨는가(text-plan §3.5, D-200 (4)). `Bitmap` 은 글자 크기마다 커버리지를 뜨고 스프라이트 셰이더로 그린다 - 픽셀 폰트와
+    // Nearest 의 기본이다. `Sdf` 는 `sdfSize` 한 크기로 거리장을 떠 어느 크기로도 키우고, 외곽선을 그릴 수 있다. 늘 Linear 로 샘플링한다.
+    enum class FontRenderMode : std::uint8_t
+    {
+        Bitmap,
+        Sdf
+    };
+
+    // 폰트를 열 때 미리 뜰 글자다(text-plan §3.6). `Ksx1001` 은 ASCII 와 완성형 한글 2,350 자다.
+    enum class FontPrewarm : std::uint8_t
+    {
+        None,
+        Ascii,
+        Ksx1001
+    };
+
     struct FontImportOptions
     {
-        float         pixelsPerUnit = DefaultPixelsPerUnit;
-        TextureFilter filter = TextureFilter::Default;
+        float          pixelsPerUnit = DefaultPixelsPerUnit;
+        TextureFilter  filter = TextureFilter::Default;
+        FontRenderMode renderMode = FontRenderMode::Bitmap;
+        // `Sdf` 에서만 쓴다. 거리장을 뜨는 em 픽셀 크기와, 글리프 둘레에 두는 퍼짐(픽셀)이다. 외곽선은 퍼짐보다 굵어질 수 없다.
+        // 로드가 8~256, 1~32 로 자른다.
+        std::uint32_t  sdfSize = 48;
+        std::uint32_t  sdfSpread = 8;
+        FontPrewarm    prewarm = FontPrewarm::None;
+        // `Bitmap` 을 미리 뜰 em 픽셀 크기다. 비트맵은 크기마다 따로 뜨므로 이 크기의 글자만 미리 선다. `Sdf` 는 `sdfSize` 로 뜬다.
+        std::uint32_t  prewarmSize = 32;
     };
 
     // 시트의 한 칸이다. 픽셀 좌표는 왼쪽 위가 원점이다.

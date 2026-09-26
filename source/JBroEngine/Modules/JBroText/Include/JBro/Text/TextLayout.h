@@ -64,9 +64,14 @@ namespace JBro::Text
         AlignY   alignY = AlignY::Baseline;
         float    lineSpacing = 1.0f;   // 줄 높이 배율
         float    letterSpacing = 0.0f; // 글자 사이에 더하는 픽셀
+        // 탭 멈춤 자리의 간격이다(기본 폰트의 공백 폭 몇 개인가). 탭은 줄 머리에서 센 다음 멈춤 자리까지 나아간다. 0 이하면 공백 하나다.
+        float    tabSize = 4.0f;
     };
 
     // 그릴 글리프 하나다. 공백과 개행은 들어오지 않는다. (x, y) 는 기준선 위의 글리프 원점이다.
+    // 결합 표시(U+0300 따위)는 앞 글자에 붙어 제 글리프로 들어온다 - 폰트의 GPOS mark-to-base 앵커가 있으면 그 자리, 없으면 받침의
+    // 전진 폭 끝(폭 없는 표시가 음수 베어링으로 받침 위에 그려지는 폰트의 기본 자리)이다. 표시 위의 표시(mark-to-mark)는 읽지 않아
+    // 같은 받침의 두 표시는 같은 앵커에 겹친다.
     struct PositionedGlyph
     {
         float         x = 0.0f;
@@ -102,6 +107,19 @@ namespace JBro::Text
         // 줄 높이는 첫 번째 열린 face 의 치수로 정한다. 실패하면 결과를 비운다.
         LayoutError Build(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces, const LayoutOptions& options);
 
+        // **자동 크기**(text-plan §4.2). [minSize, maxSize] 에서 상자에 들어가는 가장 큰 글자 크기를 찾아 그 크기로 레이아웃해 둔다.
+        // "들어간다" 는 가장 긴 줄이 상자 폭 안이고(폭이 있으면), 줄을 모두 쌓은 높이가 상자 높이 안이며(높이가 있으면), `Word` 에서
+        // 어절을 글자에서 끊지 않았다는 뜻이다. step 이 1 이면 정수 크기만(비트맵), 0 이면 0.25 픽셀까지 좁힌다(SDF). 가장 작은 크기로도
+        // 넘치면 그 크기다. 이진 탐색이라 Build 를 크기 범위의 로그만큼 부르고, 다시 부를 때 안쪽 배열의 용량을 그대로 쓴다.
+        LayoutError BuildToFit(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces, const LayoutOptions& options,
+            float minSize, float maxSize, float step, float& chosenSize);
+
+        // 줄을 나눈 뒤의 내용 크기다(자르기 전). 가장 긴 줄의 폭, 줄 수 x 줄 높이.
+        float GetContentWidth() const;
+        float GetContentHeight() const;
+        // 끊을 자리가 없어 넘친 글자에서 억지로 끊은 횟수다. `Word` 에서 0 이 아니면 어절이 글자에서 갈렸다.
+        std::uint32_t GetForcedBreakCount() const;
+
         ArrayView<const PositionedGlyph> GetGlyphs() const;
         ArrayView<const LineInfo> GetLines() const;
 
@@ -119,6 +137,7 @@ namespace JBro::Text
         enum class ItemKind : std::uint8_t
         {
             Visible,
+            Mark,    // 앞 글자에 붙는 결합 표시다. 폭이 없고, 줄바꿈 기회가 아니며, 넘침을 재지 않는다
             Space,
             Newline,
         };
@@ -139,6 +158,9 @@ namespace JBro::Text
             std::uint32_t offset = 0;
             float         advance = 0.0f;         // 픽셀, 커닝 전
             float         x = 0.0f;               // 줄 안에서 매긴 자리
+            std::uint32_t markBase = 0;           // Mark 이면 붙는 받침 글자의 번호
+            float         markX = 0.0f;           // Mark 이면 받침 원점에서 표시 원점까지(픽셀, y 위쪽)
+            float         markY = 0.0f;
         };
 
         void Reset();
@@ -147,6 +169,9 @@ namespace JBro::Text
         Array<Item>            m_items;
         Array<PositionedGlyph> m_glyphs;
         Array<LineInfo>        m_lines;
+        float                  m_contentWidth = 0.0f;
+        float                  m_contentHeight = 0.0f;
+        std::uint32_t          m_forcedBreaks = 0;
         float                  m_minX = 0.0f;
         float                  m_minY = 0.0f;
         float                  m_maxX = 0.0f;

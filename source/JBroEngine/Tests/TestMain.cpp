@@ -30,6 +30,7 @@ int RunPhysics2DGeometryTests();
 int RunPhysics2DCollisionTests();
 int RunPhysics2DWorldTests();
 int RunPhysics2DSystemTests();
+int RunPolygonEditModelTests();
 int RunGameHostArgumentTests();
 int RunPlatformFileTests();
 int RunReflectedYamlTests();
@@ -127,6 +128,10 @@ int main()
             return 1;
         }
         if (RunPhysics2DSystemTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPolygonEditModelTests() != 0)
         {
             return 1;
         }

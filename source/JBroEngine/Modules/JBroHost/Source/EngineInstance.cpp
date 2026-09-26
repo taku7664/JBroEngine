@@ -188,6 +188,7 @@ namespace JBro
                 return false;
             }
             m_frameworkContext.renderer = m_renderer.Get();
+            m_frameworkContext.tasks = m_tasks.Get();
             m_frameworkContext.fixedDeltaTime = config.fixedDeltaTime;
             m_createMissingAssetMeta = config.createMissingAssetMeta;
             m_watchAssetDirectory = config.watchAssetDirectory;
@@ -1268,6 +1269,7 @@ namespace JBro
             m_tasks->Shutdown();
             m_tasks.Reset();
         }
+        m_frameworkContext.tasks = nullptr;
         ReleaseProject();
         // 입력은 프로젝트(스크립트 DLL) 뒤에 내린다. DLL 이 그 주소를 들고 있었다.
         if (m_input)

@@ -102,6 +102,44 @@ namespace JBro::Text
             return value == 0x20 || value == 0x09 || value == 0x3000;
         }
 
+        // **줄 머리 금칙**: 이 글자로 줄을 시작하지 않는다(닫는 괄호·마침표류·일본어 작은 가나와 장음). 그 앞의 줄바꿈 기회를 버린다.
+        bool IsNoLineStart(char32_t value)
+        {
+            switch (value)
+            {
+            case U')': case U']': case U'}': case U',': case U'.': case U'!': case U'?': case U':': case U';':
+            case U'%': case 0x2019: case 0x201D: case 0x2026: case 0x3001: case 0x3002: case 0x3009: case 0x300B:
+            case 0x300D: case 0x300F: case 0x3011: case 0x3015: case 0x30FC: case 0xFF09: case 0xFF0C: case 0xFF0E:
+            case 0xFF1A: case 0xFF1B: case 0xFF01: case 0xFF1F: case 0xFF5D: case 0xFF3D:
+                return true;
+            default:
+                break;
+            }
+            // 작은 가나(ぁぃぅぇぉっゃゅょゎ, 가타카나 같은 자리)
+            switch (value)
+            {
+            case 0x3041: case 0x3043: case 0x3045: case 0x3047: case 0x3049: case 0x3063: case 0x3083: case 0x3085:
+            case 0x3087: case 0x308E: case 0x30A1: case 0x30A3: case 0x30A5: case 0x30A7: case 0x30A9: case 0x30C3:
+            case 0x30E3: case 0x30E5: case 0x30E7: case 0x30EE:
+                return true;
+            default:
+                return false;
+            }
+        }
+
+        // **줄 꼬리 금칙**: 이 글자로 줄을 끝내지 않는다(여는 괄호·여는 따옴표). 그 뒤의 줄바꿈 기회를 버린다.
+        bool IsNoLineEnd(char32_t value)
+        {
+            switch (value)
+            {
+            case U'(': case U'[': case U'{': case 0x2018: case 0x201C: case 0x3008: case 0x300A: case 0x300C:
+            case 0x300E: case 0x3010: case 0x3014: case 0xFF08: case 0xFF3B: case 0xFF5B:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         // 띄어 쓰지 않는 문자 체계다. Word 모드에서도 이 글자의 앞뒤에서 줄을 바꿀 수 있다.
         bool IsBreakAnywhereScript(char32_t value)
         {
@@ -110,6 +148,16 @@ namespace JBro::Text
                 || (value >= 0x4E00 && value <= 0x9FFF)     // CJK 통합 한자
                 || (value >= 0xF900 && value <= 0xFAFF)     // CJK 호환 한자
                 || (value >= 0x20000 && value <= 0x2FFFF);  // CJK 확장 B 이후
+        }
+
+        // 앞 글자에 붙는 결합 표시다(결합 분음 부호와 그 보충·확장, 기호용 결합 표시, 결합 반쪽 표시).
+        bool IsCombiningMark(char32_t value)
+        {
+            return (value >= 0x0300 && value <= 0x036F)
+                || (value >= 0x1AB0 && value <= 0x1AFF)
+                || (value >= 0x1DC0 && value <= 0x1DFF)
+                || (value >= 0x20D0 && value <= 0x20FF)
+                || (value >= 0xFE20 && value <= 0xFE2F);
         }
 
         struct FaceChoice
@@ -161,6 +209,9 @@ namespace JBro::Text
         m_minY = 0.0f;
         m_maxX = 0.0f;
         m_maxY = 0.0f;
+        m_contentWidth = 0.0f;
+        m_contentHeight = 0.0f;
+        m_forcedBreaks = 0;
     }
 
     LayoutError TextLayout::Build(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces, const LayoutOptions& options)
@@ -235,8 +286,49 @@ namespace JBro::Text
                 m_items.Add(item);
                 continue;
             }
+            // 결합 표시는 바로 앞의 보이는 글자(또는 같은 글자에 먼저 붙은 표시)에 붙는다. 받침이 없으면(줄 머리·공백 뒤) 보통 글자다.
+            if (IsCombiningMark(value) && m_items.Size() > 0
+                && (m_items.Last().kind == ItemKind::Visible || m_items.Last().kind == ItemKind::Mark))
+            {
+                const std::uint32_t baseIndex = m_items.Last().kind == ItemKind::Mark
+                    ? m_items.Last().markBase
+                    : static_cast<std::uint32_t>(m_items.Size() - 1);
+                const Item& base = m_items[baseIndex];
+                item.kind = ItemKind::Mark;
+                item.markBase = baseIndex;
+                item.breaksAnywhere = base.breaksAnywhere;
+                // 앵커는 받침과 같은 폰트 안에만 있으므로, 받침의 폰트에 표시가 있으면 그 폰트로 그린다.
+                const FontFace& baseFace = *faces[base.face];
+                const GlyphIndex sameFace = baseFace.FindGlyph(value);
+                FaceChoice choice;
+                if (sameFace != MissingGlyph)
+                {
+                    choice.glyph = sameFace;
+                    choice.face = base.face;
+                }
+                else
+                {
+                    choice = ChooseFace(faces, primary, value);
+                }
+                item.glyph = choice.glyph;
+                item.face = choice.face;
+                std::int32_t dx = 0;
+                std::int32_t dy = 0;
+                if (choice.face == base.face && baseFace.GetMarkAttachment(base.glyph, choice.glyph, dx, dy))
+                {
+                    const float scale = Scale(baseFace, options.fontSize);
+                    item.markX = static_cast<float>(dx) * scale;
+                    item.markY = static_cast<float>(dy) * scale;
+                }
+                else
+                {
+                    item.markX = base.advance;
+                }
+                m_items.Add(item);
+                continue;
+            }
             item.kind = IsSpace(value) ? ItemKind::Space : ItemKind::Visible;
-            // 탭은 1 판에서 공백 하나다(탭 멈춤 자리 없음, text-plan §7).
+            // 탭은 공백 글리프로 재고, 줄을 나눌 때 멈춤 자리까지 폭을 늘린다(아래 3.).
             const char32_t lookup = value == 0x09 ? U' ' : value;
             const FaceChoice choice = ChooseFace(faces, primary, lookup);
             item.glyph = choice.glyph;
@@ -257,6 +349,10 @@ namespace JBro::Text
         const float descent = static_cast<float>(-metrics.descent) * primaryScale;
         const float lineHeight = static_cast<float>(metrics.ascent - metrics.descent + metrics.lineGap)
             * primaryScale * std::max(0.0f, options.lineSpacing);
+        // 탭 멈춤 간격(픽셀)이다. 기본 폰트의 공백 폭으로 센다 - 폴백 폰트가 섞여도 멈춤 자리는 한 줄 안에서 같다.
+        const float tabStop = options.tabSize > 0.0f && std::isfinite(options.tabSize)
+            ? static_cast<float>(primaryFace->GetAdvance(primaryFace->FindGlyph(U' '))) * primaryScale * options.tabSize
+            : 0.0f;
 
         // 줄 끝을 매긴다: [begin, end) 의 글자에서 보이는 것만 글리프로 내고, 끝 공백을 뺀 폭을 잰다.
         auto finishLine = [&](std::size_t begin, std::size_t end) -> bool
@@ -272,12 +368,13 @@ namespace JBro::Text
             for (std::size_t index = begin; index < end; ++index)
             {
                 const Item& item = m_items[index];
-                if (item.kind != ItemKind::Visible)
+                if (item.kind != ItemKind::Visible && item.kind != ItemKind::Mark)
                 {
                     continue;
                 }
                 PositionedGlyph glyph;
                 glyph.x = item.x;
+                glyph.y = item.markY; // 아래 4. 에서 기준선을 더한다
                 glyph.glyph = item.glyph;
                 glyph.face = item.face;
                 glyph.line = static_cast<std::uint16_t>(m_lines.Size());
@@ -311,18 +408,32 @@ namespace JBro::Text
                 continue;
             }
 
+            if (item.kind == ItemKind::Mark)
+            {
+                // 받침은 늘 앞에 있고(같은 줄), 이번 줄 매기기에서 이미 자리를 받았다. 펜은 움직이지 않는다.
+                item.x = m_items[item.markBase].x + item.markX;
+                ++index;
+                continue;
+            }
+
             float x = penX;
             if (index > lineStart)
             {
-                const Item& previous = m_items[index - 1];
+                // 표시 뒤의 글자는 표시가 아니라 그 받침과 짝을 짓는다(커닝·금칙).
+                const Item& previous = m_items[index - 1].kind == ItemKind::Mark
+                    ? m_items[m_items[index - 1].markBase]
+                    : m_items[index - 1];
                 if (previous.face == item.face)
                 {
                     const FontFace& face = *faces[item.face];
                     x += static_cast<float>(face.GetKerning(previous.glyph, item.glyph)) * Scale(face, options.fontSize);
                 }
-                // 공백은 줄 끝에 매달리므로 새 줄은 공백이 아닌 글자에서만 시작한다.
+                // 공백은 줄 끝에 매달리므로 새 줄은 공백이 아닌 글자에서만 시작한다. 금칙 글자는 줄 머리·꼬리에 오지 않게 기회를 버린다
+                // (기회가 없는 줄은 여전히 넘친 글자에서 끊는다 - 금칙은 끊을 자리가 있을 때만 지켜진다).
                 const bool opportunity = item.kind == ItemKind::Visible
-                    && (previous.kind == ItemKind::Space || previous.breaksAnywhere || item.breaksAnywhere);
+                    && (previous.kind == ItemKind::Space || previous.breaksAnywhere || item.breaksAnywhere)
+                    && false == IsNoLineStart(item.codepoint)
+                    && false == IsNoLineEnd(previous.codepoint);
                 if (opportunity)
                 {
                     lastOpportunity = index;
@@ -332,6 +443,10 @@ namespace JBro::Text
             if (wraps && item.kind == ItemKind::Visible && index > lineStart && x + item.advance > wrapLimit)
             {
                 const std::size_t breakAt = lastOpportunity > lineStart ? lastOpportunity : index;
+                if (breakAt == index && false == item.breaksAnywhere)
+                {
+                    ++m_forcedBreaks;
+                }
                 if (false == finishLine(lineStart, breakAt))
                 {
                     Reset();
@@ -345,6 +460,12 @@ namespace JBro::Text
             }
 
             item.x = x;
+            if (item.codepoint == 0x09 && tabStop > 0.0f)
+            {
+                // 다음 멈춤 자리까지 나아간다. 멈춤 자리에 딱 있으면 그다음 자리다.
+                const float next = (std::floor(x / tabStop + 1.0e-4f) + 1.0f) * tabStop;
+                item.advance = next - x;
+            }
             penX = x + item.advance + options.letterSpacing;
             ++index;
         }
@@ -365,6 +486,8 @@ namespace JBro::Text
         }
         const float blockWidth = options.boxWidth > 0.0f ? options.boxWidth : widest;
         const float contentHeight = static_cast<float>(m_lines.Size()) * lineHeight;
+        m_contentWidth = widest;
+        m_contentHeight = contentHeight;
         const float blockHeight = options.boxHeight > 0.0f ? options.boxHeight : contentHeight;
 
         float blockLeft = 0.0f;
@@ -420,7 +543,7 @@ namespace JBro::Text
             {
                 PositionedGlyph& glyph = m_glyphs[line.firstGlyph + glyphIndex];
                 glyph.x += shift;
-                glyph.y = line.baseline;
+                glyph.y += line.baseline;
             }
         }
         if (keptLines < m_lines.Size())
@@ -437,6 +560,98 @@ namespace JBro::Text
         m_maxY = blockTop;
         m_minY = blockTop - blockHeight;
         return LayoutError::None;
+    }
+
+    LayoutError TextLayout::BuildToFit(ArrayView<const char> utf8, ArrayView<const FontFace* const> faces,
+        const LayoutOptions& options, float minSize, float maxSize, float step, float& chosenSize)
+    {
+        if (false == std::isfinite(minSize) || false == std::isfinite(maxSize) || false == (minSize > 0.0f))
+        {
+            return LayoutError::InvalidFontSize;
+        }
+        if (maxSize < minSize)
+        {
+            maxSize = minSize;
+        }
+        LayoutOptions trial = options;
+        const auto fits = [&]() {
+            const float widthLimit = options.boxWidth * (1.0f + 1.0e-5f);
+            const float heightLimit = options.boxHeight * (1.0f + 1.0e-5f);
+            if (options.boxWidth > 0.0f && m_contentWidth > widthLimit)
+            {
+                return false;
+            }
+            if (options.boxHeight > 0.0f && m_contentHeight > heightLimit)
+            {
+                return false;
+            }
+            return options.wrapMode != WrapMode::Word || m_forcedBreaks == 0;
+        };
+        const auto buildAt = [&](float size) {
+            trial.fontSize = size;
+            return Build(utf8, faces, trial);
+        };
+        // 크기를 격자로 센다. step 이 1 이면 정수, 0 이면 0.25 픽셀 칸이다. 안쪽 끝은 칸에 맞춰 줄인다.
+        const float cell = step > 0.0f ? step : 0.25f;
+        const std::int64_t low = static_cast<std::int64_t>(std::ceil(minSize / cell));
+        const std::int64_t high = std::max(low, static_cast<std::int64_t>(std::floor(maxSize / cell)));
+        LayoutError error = buildAt(static_cast<float>(high) * cell);
+        if (error != LayoutError::None)
+        {
+            return error;
+        }
+        if (fits())
+        {
+            chosenSize = static_cast<float>(high) * cell;
+            return LayoutError::None;
+        }
+        // [best, bad) 사이를 좁힌다. best 는 들어가는 것이 확인된 가장 큰 칸이다(없으면 low 로 넘친다).
+        std::int64_t best = low;
+        std::int64_t bad = high;
+        bool lowFits = false;
+        error = buildAt(static_cast<float>(low) * cell);
+        if (error != LayoutError::None)
+        {
+            return error;
+        }
+        lowFits = fits();
+        if (lowFits)
+        {
+            while (bad - best > 1)
+            {
+                const std::int64_t middle = best + (bad - best) / 2;
+                error = buildAt(static_cast<float>(middle) * cell);
+                if (error != LayoutError::None)
+                {
+                    return error;
+                }
+                if (fits())
+                {
+                    best = middle;
+                }
+                else
+                {
+                    bad = middle;
+                }
+            }
+        }
+        chosenSize = static_cast<float>(best) * cell;
+        return buildAt(chosenSize);
+    }
+
+    float TextLayout::GetContentWidth() const
+    {
+        return m_contentWidth;
+    }
+
+    float TextLayout::GetContentHeight() const
+    {
+        return m_contentHeight;
+    }
+
+    std::uint32_t TextLayout::GetForcedBreakCount() const
+    {
+        return m_forcedBreaks;
     }
 
     ArrayView<const PositionedGlyph> TextLayout::GetGlyphs() const

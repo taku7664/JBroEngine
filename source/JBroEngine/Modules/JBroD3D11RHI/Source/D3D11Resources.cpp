@@ -333,6 +333,45 @@ namespace JBro::Internal
         return true;
     }
 
+    bool D3D11Device::WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
+        std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch)
+    {
+        if (m_context == nullptr || m_frameActive || false == texture.IsValid() || texture.index < TextureResourceBase
+            || data.data == nullptr || width == 0 || height == 0)
+        {
+            return false;
+        }
+        const std::uint32_t slot = texture.index - TextureResourceBase;
+        if (slot >= MaxTextures)
+        {
+            return false;
+        }
+        D3D11TextureState& state = m_textures[slot];
+        if (false == state.occupied || state.generation != texture.generation
+            || mipLevel >= state.desc.mipLevels || state.desc.depthOrLayers != 1)
+        {
+            return false;
+        }
+        const std::uint32_t levelWidth = (std::max)(1u, state.desc.extent.width >> mipLevel);
+        const std::uint32_t levelHeight = (std::max)(1u, state.desc.extent.height >> mipLevel);
+        const std::uint32_t pixelSize = PixelSize(state.desc.format);
+        const std::size_t rowBytes = static_cast<std::size_t>(width) * pixelSize;
+        if (pixelSize == 0 || x + width > levelWidth || y + height > levelHeight || rowPitch < rowBytes
+            || data.size < static_cast<std::size_t>(rowPitch) * (height - 1) + rowBytes)
+        {
+            return false;
+        }
+        D3D11_BOX box = {};
+        box.left = x;
+        box.top = y;
+        box.front = 0;
+        box.right = x + width;
+        box.bottom = y + height;
+        box.back = 1;
+        m_context->UpdateSubresource(state.texture.Get(), mipLevel, &box, data.data, rowPitch, 0);
+        return true;
+    }
+
     bool D3D11Device::ResolveRenderTargetView(TextureHandle texture, ID3D11RenderTargetView*& view)
     {
         if (false == texture.IsValid() || texture.index < BackBufferTextureBase)

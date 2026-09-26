@@ -2,6 +2,10 @@
 #include <JBro/Text/TextLayout.h>
 
 #include "TestFontNotoSansKR.generated.h"
+#include "TestFontNotoSansKRExtension.generated.h"
+#include "TestFontNotoSansKRXPlacement.generated.h"
+#include "TestFontNotoSansKRMarks.generated.h"
+#include "TestFontNotoSansKRMarksExtension.generated.h"
 
 #include <cmath>
 #include <cstring>
@@ -162,6 +166,128 @@ namespace
         Check(Near(layout.GetGlyphs()[1].x, (599.0f - 74.0f) * 0.5f), "kerning scales with the font size");
     }
 
+    // **stb 가 건너뛰던 GPOS 모양**(text-plan §7). 같은 서브셋을 확장 조회(형식 9)로 감싼 것과, 쌍 조정의 첫 값 형식을
+    // XPlacement|XAdvance 로 넓힌 것이다(MakeGposVariants.py). stb 는 둘 다 커닝을 0 으로 읽었다. 우리 읽기는 ASCII 의 모든 쌍에서
+    // 원본과 같은 값을 준다.
+    void TestKerningSurvivesGposShapesStbSkipped()
+    {
+        const FontFace original = LoadTestFont();
+        FontFace extension;
+        FontFace widened;
+        Check(extension.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRExtension),
+                  sizeof(TestFontNotoSansKRExtension))),
+            "the extension-lookup font loads");
+        Check(widened.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRXPlacement),
+                  sizeof(TestFontNotoSansKRXPlacement))),
+            "the widened value format font loads");
+        Check(extension.GetKerning(extension.FindGlyph(U'A'), extension.FindGlyph(U'V')) == -15
+                && extension.GetKerning(extension.FindGlyph(U'T'), extension.FindGlyph(U'o')) == -74,
+            "kerning inside extension lookups is read");
+        Check(widened.GetKerning(widened.FindGlyph(U'A'), widened.FindGlyph(U'V')) == -15
+                && widened.GetKerning(widened.FindGlyph(U'T'), widened.FindGlyph(U'o')) == -74,
+            "kerning behind an X placement is read");
+        std::uint32_t kerned = 0;
+        for (char32_t left = 0x21; left <= 0x7E; ++left)
+        {
+            for (char32_t right = 0x21; right <= 0x7E; ++right)
+            {
+                const std::int32_t expected = original.GetKerning(original.FindGlyph(left), original.FindGlyph(right));
+                kerned += expected != 0 ? 1u : 0u;
+                if (extension.GetKerning(extension.FindGlyph(left), extension.FindGlyph(right)) != expected
+                    || widened.GetKerning(widened.FindGlyph(left), widened.FindGlyph(right)) != expected)
+                {
+                    Check(false, "every ASCII pair kerns the same in all three shapes");
+                }
+            }
+        }
+        std::cout << "  [measure] kerned ASCII pairs in the test font: " << kerned << std::endl;
+        Check(kerned > 100, "the comparison covers the font's kerned pairs");
+    }
+
+    // **결합 표시**(text-plan §7). 시험 폰트는 받침 A(폭 608)·e(폭 554)의 앵커가 (폭의 절반, 800), U+0301 의 앵커가 (-200, 600) 이다
+    // (MakeMarkFont.py). 그러면 표시는 받침 원점에서 (폭/2 + 200, 200) 에 붙는다. 표시는 폭이 없어 다음 글자의 자리를 바꾸지 않고,
+    // 앵커가 없는 받침(B)에서는 받침의 전진 폭 끝에 선다. 줄바꿈은 표시 앞에서 일어나지 않는다.
+    void TestCombiningMarksAttachToTheirBase()
+    {
+        FontFace marks;
+        FontFace wrapped;
+        Check(marks.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRMarks),
+                  sizeof(TestFontNotoSansKRMarks))),
+            "the mark font loads");
+        Check(wrapped.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(TestFontNotoSansKRMarksExtension),
+                  sizeof(TestFontNotoSansKRMarksExtension))),
+            "the extension-wrapped mark font loads");
+        const GlyphIndex acute = marks.FindGlyph(U'\u0301');
+        Check(acute != MissingGlyph && marks.GetAdvance(acute) == 0, "the combining acute is in the font and has no advance");
+        std::int32_t dx = 0;
+        std::int32_t dy = 0;
+        Check(marks.GetMarkAttachment(marks.FindGlyph(U'A'), acute, dx, dy) && dx == 504 && dy == 200,
+            "the acute sits on A at the anchor difference");
+        Check(marks.GetMarkAttachment(marks.FindGlyph(U'e'), acute, dx, dy) && dx == 477 && dy == 200,
+            "and on e at its own anchor");
+        Check(wrapped.GetMarkAttachment(wrapped.FindGlyph(U'A'), wrapped.FindGlyph(U'\u0301'), dx, dy) && dx == 504 && dy == 200,
+            "a mark lookup inside an extension lookup is read");
+        Check(false == marks.GetMarkAttachment(marks.FindGlyph(U'B'), acute, dx, dy) && dx == 0 && dy == 0,
+            "a base without an anchor has no attachment");
+        Check(false == marks.GetMarkAttachment(marks.FindGlyph(U'A'), marks.FindGlyph(U'e'), dx, dy),
+            "a glyph that is not a mark has no attachment");
+
+        const FontFace* faces[] = { &marks };
+        TextLayout layout;
+        const LayoutOptions options = Unscaled();
+        // AV 는 커닝 쌍이다(-15). 표시가 끼어도 V 는 A 와 커닝한다.
+        Check(layout.Build(Utf8("AV"), faces, options) == LayoutError::None, "AV lays out");
+        const float bAfterA = layout.GetGlyphs()[1].x;
+        const float plainWidth = layout.GetLines()[0].width;
+        Check(Near(bAfterA, 608.0f - 15.0f), "the subset keeps the A-V kerning");
+        Check(layout.Build(Utf8("A\xCC\x81" "V"), faces, options) == LayoutError::None, "A + acute + V lays out");
+        Check(layout.GetGlyphs().Size() == 3 && layout.GetGlyphs()[1].glyph == acute, "the mark is its own glyph");
+        const PositionedGlyph& base = layout.GetGlyphs()[0];
+        const PositionedGlyph& mark = layout.GetGlyphs()[1];
+        Check(Near(mark.x - base.x, 504.0f) && Near(mark.y - base.y, 200.0f), "the mark is placed at the anchor");
+        Check(mark.sourceOffset == 1 && layout.GetGlyphs()[2].sourceOffset == 3, "the mark keeps its source bytes");
+        Check(Near(layout.GetGlyphs()[2].x, bAfterA) && Near(layout.GetLines()[0].width, plainWidth),
+            "the mark neither moves the next letter nor widens the line");
+        Check(layout.Build(Utf8("A\xCC\x81\xCC\x81"), faces, options) == LayoutError::None
+                && Near(layout.GetGlyphs()[2].x - layout.GetGlyphs()[0].x, 504.0f)
+                && Near(layout.GetGlyphs()[2].y - layout.GetGlyphs()[0].y, 200.0f),
+            "a second mark takes the base's anchor, not the first mark's");
+
+        // 앵커가 없는 받침에서는 받침의 끝이다. 표시가 둘이면 같은 받침에 붙는다(mark-to-mark 는 읽지 않는다).
+        Check(layout.Build(Utf8("B\xCC\x81\xCC\x81"), faces, options) == LayoutError::None, "B + two acutes lays out");
+        const float bAdvance = static_cast<float>(marks.GetAdvance(marks.FindGlyph(U'B')));
+        Check(layout.GetGlyphs().Size() == 3 && Near(layout.GetGlyphs()[1].x, bAdvance) && Near(layout.GetGlyphs()[1].y, layout.GetGlyphs()[0].y),
+            "without an anchor the mark stands at the end of its base");
+        Check(Near(layout.GetGlyphs()[2].x, bAdvance), "a second mark attaches to the same base");
+
+        // 가운데 정렬로 줄이 옮겨져도 표시는 받침과 같이 옮겨진다.
+        LayoutOptions centered = options;
+        centered.alignX = AlignX::Center;
+        Check(layout.Build(Utf8("A\xCC\x81"), faces, centered) == LayoutError::None, "a centred mark lays out");
+        Check(Near(layout.GetGlyphs()[1].x - layout.GetGlyphs()[0].x, 504.0f), "alignment moves the mark with its base");
+        // 절반 크기에서는 앵커 거리도 절반이다.
+        LayoutOptions half = options;
+        half.fontSize = 500.0f;
+        Check(layout.Build(Utf8("A\xCC\x81"), faces, half) == LayoutError::None
+                && Near(layout.GetGlyphs()[1].x - layout.GetGlyphs()[0].x, 252.0f)
+                && Near(layout.GetGlyphs()[1].y - layout.GetGlyphs()[0].y, 100.0f),
+            "the anchor offset scales with the font size");
+
+        // 글자마다 끊는 모드에서 받침 하나의 폭이면, 줄은 받침 앞에서만 바뀌고 표시는 받침의 줄에 남는다.
+        LayoutOptions narrow = options;
+        narrow.overflow = Overflow::Wrap;
+        narrow.wrapMode = WrapMode::Character;
+        narrow.boxWidth = 560.0f;
+        Check(layout.Build(Utf8("e\xCC\x81" "e\xCC\x81"), faces, narrow) == LayoutError::None, "two marked letters wrap");
+        Check(LineCounts(layout, { 2, 2 }), "a line never starts with a mark");
+        Check(Near(layout.GetGlyphs()[3].x - layout.GetGlyphs()[2].x, 477.0f) && layout.GetGlyphs()[3].line == 1,
+            "the second mark follows its base onto the second line");
+
+        // 받침이 없으면(줄 머리) 보통 글자다.
+        Check(layout.Build(Utf8("\xCC\x81" "A"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 2,
+            "a mark with no base still draws");
+    }
+
     void TestWordWrap()
     {
         const FontFace face = LoadTestFont();
@@ -203,6 +329,87 @@ namespace
         options.boxWidth = 100.0f;
         Check(layout.Build(Utf8("AB"), faces, options) == LayoutError::None, "a box narrower than a glyph lays out");
         Check(LineCounts(layout, { 1, 1 }), "each oversized glyph gets its own line");
+    }
+
+    // **탭 멈춤 자리와 금칙**(text-plan §7 의 1 단계 남은 일). 탭은 줄 머리에서 센 다음 멈춤 자리(공백 폭 x tabSize)까지 나아가고,
+    // 닫는 괄호로 줄을 시작하거나 여는 괄호로 줄을 끝내지 않는다 - 끊을 다른 자리가 있으면 그리로 옮긴다.
+    // **자동 크기**(text-plan §4.2). 줄 높이는 em 의 1.448 배, `hello` 2.335·`world` 2.696·`hello world` 5.255 em 이다.
+    void TestBuildToFitFindsTheLargestSize()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        LayoutOptions options = Unscaled();
+        options.overflow = Overflow::Wrap;
+        float chosen = 0.0f;
+
+        // 한 줄 높이의 상자: 폭이 정한다(5.255 s ≤ 5255 → 1000).
+        options.boxWidth = 5255.0f;
+        options.boxHeight = 1448.0f;
+        Check(layout.BuildToFit(Utf8("hello world"), faces, options, 10.0f, 4000.0f, 1.0f, chosen) == LayoutError::None,
+            "a one-line box fits");
+        Check(Near(chosen, 1000.0f) && LineCounts(layout, { 10 }), "the one-line box takes the size where the line just fits");
+        // 한 줄 반 높이: 두 줄로 나뉘어 높이가 정한다(2.896 s ≤ 4344 → 1500).
+        options.boxHeight = 4344.0f;
+        Check(layout.BuildToFit(Utf8("hello world"), faces, options, 10.0f, 4000.0f, 1.0f, chosen) == LayoutError::None,
+            "a taller box fits");
+        Check(Near(chosen, 1500.0f) && LineCounts(layout, { 5, 5 }), "the taller box wraps and the height decides");
+        // `Word` 는 어절을 글자에서 끊지 않는 크기를 고른다(2.335 s ≤ 2000 → 856).
+        options.boxWidth = 2000.0f;
+        options.boxHeight = 100000.0f;
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 10.0f, 4000.0f, 1.0f, chosen) == LayoutError::None,
+            "a narrow box fits");
+        Check(Near(chosen, 856.0f) && layout.GetForcedBreakCount() == 0, "a word is not broken to make it fit");
+        // 가장 작은 크기로도 넘치면 그 크기다.
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 3000.0f, 4000.0f, 1.0f, chosen) == LayoutError::None
+                && Near(chosen, 3000.0f),
+            "past the smallest size the text overflows at that size");
+        // step 0 은 0.25 칸까지 좁힌다(SDF).
+        options.boxWidth = 2001.0f;
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 10.0f, 4000.0f, 0.0f, chosen) == LayoutError::None
+                && chosen > 856.0f && chosen <= 857.0f && std::fmod(chosen, 0.25f) == 0.0f,
+            "a continuous fit lands on a quarter pixel");
+        // 다시 맞춰도 할당하지 않는다.
+        const std::size_t capacity = layout.GetReservedCapacity();
+        Check(layout.BuildToFit(Utf8("hello"), faces, options, 10.0f, 4000.0f, 0.0f, chosen) == LayoutError::None
+                && layout.GetReservedCapacity() == capacity,
+            "fitting again reuses the storage");
+    }
+
+    void TestTabStopsAndLineBreakRules()
+    {
+        const FontFace face = LoadTestFont();
+        const FontFace* faces[] = { &face };
+        TextLayout layout;
+        LayoutOptions options = Unscaled();
+        // 공백 224 라 멈춤 간격은 896 이다. A = 608.
+        Check(layout.Build(Utf8("A\tB"), faces, options) == LayoutError::None, "a tab lays out");
+        Check(layout.GetGlyphs().Size() == 2 && Near(layout.GetGlyphs()[1].x, 896.0f), "a tab after A goes to the first stop");
+        Check(layout.Build(Utf8("\t\tB"), faces, options) == LayoutError::None, "two tabs lay out");
+        Check(Near(layout.GetGlyphs()[0].x, 1792.0f), "two tabs from the line head reach the second stop");
+        Check(layout.Build(Utf8("AAAA\tB"), faces, options) == LayoutError::None, "a tab past a stop lays out");
+        Check(Near(layout.GetGlyphs()[4].x, 2688.0f), "four As (2432) tab to the third stop");
+        Check(layout.Build(Utf8("A\nA\tB"), faces, options) == LayoutError::None, "a tab on a second line lays out");
+        Check(Near(layout.GetGlyphs()[2].x, 896.0f), "stops count from the head of each line");
+        options.tabSize = 0.0f;
+        Check(layout.Build(Utf8("A\tB"), faces, options) == LayoutError::None, "a zero tab size lays out");
+        Check(Near(layout.GetGlyphs()[1].x, 608.0f + 224.0f), "with no stops a tab is one space");
+
+        // 금칙: 글자 셋이 들어가는 상자에서 넷째가 넘친다.
+        options = Unscaled();
+        options.overflow = Overflow::Wrap;
+        options.wrapMode = WrapMode::Character;
+        options.boxWidth = 608.0f * 3.0f + 10.0f;
+        Check(layout.Build(Utf8("AAA)"), faces, options) == LayoutError::None, "a closing bracket lays out");
+        Check(LineCounts(layout, { 2, 2 }), "a closing bracket does not start a line - the A before it goes down with it");
+        Check(layout.Build(Utf8("AA(A"), faces, options) == LayoutError::None, "an opening bracket lays out");
+        Check(LineCounts(layout, { 2, 2 }), "an opening bracket does not end a line - it goes down to what it opens");
+        Check(layout.Build(Utf8("AAAA"), faces, options) == LayoutError::None, "plain letters lay out");
+        Check(LineCounts(layout, { 3, 1 }), "without the rule the break stays after the third letter");
+        // 끊을 다른 자리가 없으면 금칙을 어기고라도 끊는다(멈추지 않는다).
+        options.boxWidth = 700.0f;
+        Check(layout.Build(Utf8("A)"), faces, options) == LayoutError::None, "a box for one letter lays out");
+        Check(LineCounts(layout, { 1, 1 }), "with no other place the closing bracket still wraps");
     }
 
     void TestHangulWrapModes()
@@ -406,8 +613,12 @@ int RunTextLayoutTests()
         TestFaceReadsTheFont();
         TestFaceRejectsGarbageAndMoves();
         TestKerningIsAppliedAcrossTheRun();
+        TestKerningSurvivesGposShapesStbSkipped();
+        TestCombiningMarksAttachToTheirBase();
         TestWordWrap();
         TestHangulWrapModes();
+        TestTabStopsAndLineBreakRules();
+        TestBuildToFitFindsTheLargestSize();
         TestDecoding();
         TestAlignment();
         TestClip();

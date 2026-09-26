@@ -63,10 +63,10 @@ namespace JBro::System
         m_renderWorld = renderWorld;
     }
 
-    void Text2DSystem::SetResources(AssetSystem* assets, Renderer* renderer)
+    void Text2DSystem::SetResources(AssetSystem* assets, Renderer* renderer, TaskManager* tasks)
     {
         m_entries.Clear();
-        m_library.Initialize(assets, renderer);
+        m_library.Initialize(assets, renderer, tasks);
     }
 
     void Text2DSystem::SetText(Component::Text2D& text, const char* utf8, std::uint32_t length)
@@ -109,10 +109,26 @@ namespace JBro::System
         return true;
     }
 
+    float Text2DSystem::GetLaidOutFontSize(InstanceId text) const
+    {
+        const Entry* entry = m_entries.Find(text);
+        return entry != nullptr && entry->hasBounds ? entry->fittedSize : 0.0f;
+    }
+
     bool Text2DSystem::IsMissingFont(InstanceId text) const
     {
         const Entry* entry = m_entries.Find(text);
         return entry != nullptr && entry->warnedMissingFont;
+    }
+
+    std::uint32_t Text2DSystem::GetDroppedGlyphCount() const
+    {
+        return m_droppedGlyphs;
+    }
+
+    void Text2DSystem::SetAtlasPageLimit(std::uint32_t pages)
+    {
+        m_library.SetPageLimit(pages);
     }
 
     const TextLibrary& Text2DSystem::GetLibrary() const
@@ -133,7 +149,8 @@ namespace JBro::System
     std::uint64_t Text2DSystem::MakeOptionsKey(const Component::Text2D& text)
     {
         // 레이아웃을 바꾸는 필드만 넣는다. 색·그리기 순서는 캐시를 그대로 쓴다.
-        std::uint64_t key = PixelSizeOf(text.fontSize);
+        // 크기는 값 그대로 넣는다. SDF 는 소수 크기로 레이아웃하므로 반올림한 픽셀이 같아도 다시 해야 한다.
+        std::uint64_t key = Bits(text.fontSize);
         Mix(key, Bits(text.boxSize.x));
         Mix(key, Bits(text.boxSize.y));
         Mix(key, static_cast<std::uint64_t>(text.overflow));
@@ -142,6 +159,10 @@ namespace JBro::System
         Mix(key, static_cast<std::uint64_t>(text.alignY));
         Mix(key, Bits(text.lineSpacing));
         Mix(key, Bits(text.letterSpacing));
+        Mix(key, text.autoSize ? 1u : 0u);
+        Mix(key, Bits(text.minFontSize));
+        Mix(key, Bits(text.maxFontSize));
+        Mix(key, text.pixelSnap ? 1u : 0u);
         return key;
     }
 
@@ -185,9 +206,17 @@ namespace JBro::System
     {
         const FontView& font = views[0];
         ++m_relayouts;
-        const std::uint32_t pixelSize = PixelSizeOf(text.fontSize);
+        // **SDF 는 크기를 반올림하지 않는다**(4 단계). 거리장 한 벌을 키우고 줄이므로 크기가 조금씩 바뀌는 연출(트윈)에 새 글리프가
+        // 생기지 않는다 - 비트맵은 정수 크기마다 새로 떠 아틀라스가 크기 수만큼 자랐다(text-plan §7).
+        const bool sdf = font.renderMode == FontRenderMode::Sdf;
+        const float maxSize = static_cast<float>(Text::GlyphAtlas::MaxPixelSize);
+        const auto sizeOf = [&](float requested) {
+            return sdf ? std::clamp(std::isfinite(requested) ? requested : 1.0f, 1.0f, maxSize)
+                       : static_cast<float>(PixelSizeOf(requested));
+        };
+        float layoutSize = sizeOf(text.fontSize);
         Text::LayoutOptions options;
-        options.fontSize = static_cast<float>(pixelSize);
+        options.fontSize = layoutSize;
         options.boxWidth = std::max(0.0f, text.boxSize.x);
         options.boxHeight = std::max(0.0f, text.boxSize.y);
         options.overflow = static_cast<Text::Overflow>(text.overflow);
@@ -204,9 +233,12 @@ namespace JBro::System
         {
             entry.fonts[face] = handles[face];
             entry.fontGenerations[face] = views[face].dataGeneration;
+            entry.atlasGenerations[face] = views[face].atlasGeneration;
         }
         entry.optionsKey = MakeOptionsKey(text);
         entry.pixelsPerUnit = font.pixelsPerUnit;
+        entry.sdf = sdf;
+        entry.sdfSpread = font.sdfSpread;
         entry.filter = font.filter;
         entry.quads.Clear();
         entry.hasBounds = false;
@@ -216,11 +248,31 @@ namespace JBro::System
         {
             faces[face] = views[face].face;
         }
-        if (entry.layout.Build(TextStore::Get().GetText(text.text), ArrayView<const Text::FontFace* const>(faces, count),
-                options) != Text::LayoutError::None)
+        const ArrayView<const Text::FontFace* const> faceView(faces, count);
+        const ArrayView<const char> utf8 = TextStore::Get().GetText(text.text);
+        // 자동 크기는 상자가 있을 때만 뜻이 있다. 크기를 먼저 찾고, 그 크기로 레이아웃이 남는다.
+        const bool fitToBox = text.autoSize && (options.boxWidth > 0.0f || options.boxHeight > 0.0f);
+        Text::LayoutError built = Text::LayoutError::None;
+        if (fitToBox)
+        {
+            float chosen = layoutSize;
+            built = entry.layout.BuildToFit(utf8, faceView, options, sizeOf(std::min(text.minFontSize, text.maxFontSize)),
+                sizeOf(std::max(text.minFontSize, text.maxFontSize)), sdf ? 0.0f : 1.0f, chosen);
+            layoutSize = chosen;
+        }
+        else
+        {
+            built = entry.layout.Build(utf8, faceView, options);
+        }
+        entry.fittedSize = layoutSize;
+        entry.sdfPerTextPixel = sdf ? static_cast<float>(font.sdfSize) / layoutSize : 1.0f;
+        if (built != Text::LayoutError::None)
         {
             return;
         }
+        const std::uint32_t pixelSize = PixelSizeOf(layoutSize);
+        // 거리장 칸 하나가 글자 픽셀 몇 개인가. 비트맵은 1 이다.
+        const float cellScale = sdf ? layoutSize / static_cast<float>(font.sdfSize) : 1.0f;
 
         // Clip 은 상자 밖으로 나간 글리프를 잘라 낸다 - 레이아웃은 줄만 버렸고, 여기서 반쯤 걸친 글리프의 사각형과 UV 를 줄인다.
         const bool clip = text.overflow == Component::TextOverflow::Clip && options.boxWidth > 0.0f && options.boxHeight > 0.0f;
@@ -234,16 +286,21 @@ namespace JBro::System
             const FontView& glyphFont = views[glyph.face < count ? glyph.face : 0];
             const float pageSize = static_cast<float>(glyphFont.atlas->GetPageSize());
             Text::AtlasGlyph cell;
-            if (glyphFont.atlas->Ensure(*glyphFont.face, pixelSize, glyph.glyph, cell) != Text::AtlasError::None
-                || cell.empty)
+            // SDF 텍스트의 폴백 글자도 SDF 로 뜬다 - 한 텍스트는 한 셰이더로 그린다. 크기와 퍼짐은 기본 폰트의 것이다.
+            const Text::AtlasError placed = sdf
+                ? glyphFont.atlas->EnsureSdf(*glyphFont.face, font.sdfSize, font.sdfSpread, glyph.glyph, cell)
+                : glyphFont.atlas->Ensure(*glyphFont.face, pixelSize, glyph.glyph, cell);
+            if (placed != Text::AtlasError::None || cell.empty)
             {
                 continue;
             }
             GlyphQuad quad;
-            quad.left = glyph.x + static_cast<float>(cell.left);
-            quad.top = glyph.y + static_cast<float>(cell.top);
-            quad.width = static_cast<float>(cell.width);
-            quad.height = static_cast<float>(cell.height);
+            const float originX = text.pixelSnap ? std::round(glyph.x) : glyph.x;
+            const float originY = text.pixelSnap ? std::round(glyph.y) : glyph.y;
+            quad.left = originX + static_cast<float>(cell.left) * cellScale;
+            quad.top = originY + static_cast<float>(cell.top) * cellScale;
+            quad.width = static_cast<float>(cell.width) * cellScale;
+            quad.height = static_cast<float>(cell.height) * cellScale;
             float u0 = static_cast<float>(cell.x) / pageSize;
             float v0 = static_cast<float>(cell.y) / pageSize;
             float u1 = static_cast<float>(cell.x + cell.width) / pageSize;
@@ -310,6 +367,15 @@ namespace JBro::System
             return;
         }
         const float ppu = entry.pixelsPerUnit;
+        // 외곽선 폭(글자 픽셀)을 거리장의 문턱으로 바꾼다. 거리값은 외곽선에서 0.5 이고 거리장 한 칸마다 0.5 / 퍼짐씩 준다. 폭은 퍼짐보다
+        // 한 칸 안쪽까지로 자른다 - 문턱이 0 에 닿으면 글자 칸 전체가 외곽선이 된다(text-plan §1.2 의 7 번).
+        float outlineEdge = 0.5f;
+        if (entry.sdf && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f && entry.sdfSpread > 1)
+        {
+            const float spread = static_cast<float>(entry.sdfSpread);
+            const float width = std::min(text.outlineWidth * entry.sdfPerTextPixel, spread - 1.0f);
+            outlineEdge = 0.5f - width * (0.5f / spread);
+        }
         for (const GlyphQuad& quad : entry.quads)
         {
             const AssetHandle page = m_library.GetPageTexture(entry.fonts[quad.face], quad.page);
@@ -337,7 +403,21 @@ namespace JBro::System
             item.pivot = Vec2{ 0.0f, 1.0f };
             item.size = Vec2{ quad.width / ppu, quad.height / ppu };
             item.renderOrder = text.renderOrder;
-            m_renderWorld->SubmitSprite(item);
+            if (entry.sdf)
+            {
+                item.sdfText = true;
+                item.filter = TextureFilter::Linear;
+                const float channels[4] = { text.outlineColor.R, text.outlineColor.G, text.outlineColor.B, text.outlineColor.A };
+                for (int channel = 0; channel < 4; ++channel)
+                {
+                    item.outlineColor[channel] = static_cast<std::uint8_t>(std::lround(std::clamp(channels[channel], 0.0f, 1.0f) * 255.0f));
+                }
+                item.outlineEdge = static_cast<std::uint16_t>(std::lround(std::clamp(outlineEdge, 0.0f, 1.0f) * 65535.0f));
+            }
+            if (false == m_renderWorld->SubmitSprite(item))
+            {
+                ++m_droppedGlyphsThisFrame;
+            }
         }
     }
 
@@ -367,6 +447,8 @@ namespace JBro::System
         ++m_frame;
         const TextStore& store = TextStore::Get();
         m_library.SyncProjectFonts();
+        // 레이아웃 전에 넘친 아틀라스를 비운다. 비운 폰트의 텍스트는 아래에서 아틀라스 세대가 달라 다시 레이아웃된다.
+        m_library.TrimAtlases(m_frame);
 
         // 1. 바뀐 것만 다시 레이아웃한다. 여기서 아틀라스에 새 글리프가 들어간다.
         canvas.ForEach<Component::Text2D>([&](Component::Text2D& text)
@@ -408,7 +490,8 @@ namespace JBro::System
             {
                 stale = entry.fonts[face].index != handles[face].index
                     || entry.fonts[face].generation != handles[face].generation
-                    || entry.fontGenerations[face] != views[face].dataGeneration;
+                    || entry.fontGenerations[face] != views[face].dataGeneration
+                    || entry.atlasGenerations[face] != views[face].atlasGeneration;
             }
             if (stale)
             {
@@ -419,7 +502,9 @@ namespace JBro::System
         // 2. 새 글리프가 들어간 페이지만 올린다. 새 글자가 없으면 아무것도 하지 않는다.
         m_library.UploadDirtyPages();
 
-        // 3. 글리프마다 아이템을 낸다.
+        // 3. 글리프마다 아이템을 낸다. 글자도 스프라이트 제출 상한(`RendererConfig::maxSpriteSubmissions`)을 나눠 쓴다(text-plan §3.3) -
+        // 넘친 글자는 그려지지 않으므로 처음 넘친 프레임에 한 번 알린다(스프라이트의 넘침은 렌더러 통계가 센다).
+        m_droppedGlyphsThisFrame = 0;
         canvas.ForEach<Component::Text2D>([&](Component::Text2D& text)
         {
             if (false == text.visible || false == text.IsActiveComponent())
@@ -433,6 +518,18 @@ namespace JBro::System
             }
         });
 
+        m_droppedGlyphs = m_droppedGlyphsThisFrame;
+        if (m_droppedGlyphs != 0 && false == m_warnedDroppedGlyphs)
+        {
+            Log::Write(LogLevel::Warning, "text",
+                "%u glyphs were not drawn this frame - text shares the sprite submission limit; raise maxSpriteSubmissions",
+                m_droppedGlyphs);
+            m_warnedDroppedGlyphs = true;
+        }
+        if (m_droppedGlyphs == 0)
+        {
+            m_warnedDroppedGlyphs = false;
+        }
         DropUnseen();
     }
 

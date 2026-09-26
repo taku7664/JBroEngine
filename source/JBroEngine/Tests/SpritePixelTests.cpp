@@ -593,6 +593,237 @@ namespace
     }
 }
 
+namespace
+{
+    // **SDF 텍스트 셰이더**(text-plan §5 의 4 단계). 알파가 가로로 255 → 0 으로 떨어지는 16 x 1 거리장을 화면 전체에 펴고,
+    // 채우기 빨강·외곽선 파랑으로 그린다. 거리값 0.5 까지가 채우기, 외곽선 문턱까지가 외곽선, 그 밖은 비어 있다. 같은 뷰에서
+    // 스프라이트 → SDF → 스프라이트로 파이프라인을 두 번 바꿔도 셋이 제 자리에 나오는지, 문턱을 0 으로 줘도 칸 전체가 칠해지지
+    // 않는지, 반투명 채우기에 외곽선이 겹쳐 진해지지 않는지를 세 백엔드에서 본다.
+    template <typename TModule>
+    void TestSdfTextDrawsFillAndOutlineInOnePass()
+    {
+        JBro::WindowsPlatform platform;
+        TModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the sdf pixel test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no device for this API; sdf text not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro sdf probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        Check(window.value != 0, "the probe window must open");
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.api = rhi.GetApi();
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 8;
+        config.presentMode = JBro::PresentMode::Immediate;
+        config.validation = true;
+        Check(renderer.Initialize(rhi, config), "the sdf renderer must initialize");
+
+        // 거리값이 x 를 따라 1 → 0 으로 떨어진다. 0.5 는 x ≈ 7.5 텍셀, 0.25 는 x ≈ 11.25 텍셀이다.
+        std::byte texels[16 * 4] = {};
+        for (int x = 0; x < 16; ++x)
+        {
+            texels[x * 4 + 0] = std::byte{255};
+            texels[x * 4 + 1] = std::byte{255};
+            texels[x * 4 + 2] = std::byte{255};
+            texels[x * 4 + 3] = static_cast<std::byte>(static_cast<int>(std::lround(255.0 * (15 - x) / 15.0)));
+        }
+        const JBro::AssetHandle field = renderer.RegisterTexture({16, 1}, {texels, sizeof(texels)});
+        Check(field.generation != 0, "the distance field registers");
+
+        JBro::CameraParams camera;
+        camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}};
+        camera.clearColor[3] = 1.0f;
+        camera.viewport.width = 64.0f;
+        camera.viewport.height = 64.0f;
+
+        JBro::SpriteSubmit text;
+        text.world.linear[0] = 2.0f;
+        text.world.linear[3] = 2.0f;
+        text.texture = field;
+        text.filter = JBro::SpriteFilter::Linear;
+        text.shading = JBro::SpriteShading::SdfText;
+        text.tint[0] = 1.0f;
+        text.tint[1] = 0.0f;
+        text.tint[2] = 0.0f;
+        text.outlineColor[0] = 0;
+        text.outlineColor[1] = 0;
+        text.outlineColor[2] = 255;
+        text.outlineColor[3] = 255;
+        text.outlineEdge = 16384;
+        // 앞 스프라이트는 오른쪽 아래(거리장이 비어 있는 자리), 뒤 스프라이트는 왼쪽 위(채우기 위)다.
+        JBro::SpriteSubmit before;
+        before.world.linear[0] = 0.25f;
+        before.world.linear[3] = 0.25f;
+        before.world.translation[0] = 0.875f;
+        before.world.translation[1] = -0.875f;
+        JBro::SpriteSubmit after = before;
+        after.world.translation[0] = -0.875f;
+        after.world.translation[1] = 0.875f;
+        after.tint[0] = 0.0f;
+        after.tint[2] = 0.0f;
+
+        JBro::Array<std::byte> image;
+        image.Resize(64 * 64 * 4);
+        JBro::TextureReadback readback;
+        const auto paint = [&](const JBro::SpriteSubmit& sdf, bool withSprites) {
+            Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
+            Check(renderer.BeginView(camera), "the view must open");
+            if (withSprites)
+            {
+                Check(renderer.SubmitSprite(before), "the sprite before submits");
+            }
+            Check(renderer.SubmitSprite(sdf), "the sdf text submits");
+            if (withSprites)
+            {
+                Check(renderer.SubmitSprite(after), "the sprite after submits");
+            }
+            Check(renderer.EndView() && renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must present");
+            Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the back buffer reads back");
+        };
+
+        paint(text, true);
+        const Pixel fill = ReadPixel(image, readback.rowPitch, 12, 32);
+        const Pixel outline = ReadPixel(image, readback.rowPitch, 38, 32);
+        const Pixel outside = ReadPixel(image, readback.rowPitch, 54, 32);
+        const Pixel spriteBefore = ReadPixel(image, readback.rowPitch, 60, 60);
+        const Pixel spriteAfter = ReadPixel(image, readback.rowPitch, 3, 3);
+        Check(Near(fill.r, 1.0f) && Near(fill.g, 0.0f) && Near(fill.b, 0.0f), "inside the edge is the fill colour");
+        Check(Near(outline.r, 0.0f) && Near(outline.b, 1.0f), "between the edge and the outline's edge is the outline colour");
+        Check(Near(outside.r, 0.0f) && Near(outside.g, 0.0f) && Near(outside.b, 0.0f), "past the outline the quad is empty");
+        Check(Near(spriteBefore.r, 1.0f) && Near(spriteBefore.g, 1.0f) && Near(spriteBefore.b, 1.0f),
+            "a sprite before the text still draws - the pipeline switched to the text and not the other way round");
+        Check(Near(spriteAfter.g, 1.0f) && Near(spriteAfter.r, 0.0f), "a sprite after the text draws with the sprite pipeline again");
+
+        // 문턱을 0 으로 줘도 거리값 0 인 자리(칸의 모서리)는 칠하지 않는다. 기존 엔진은 여기서 칸 전체가 외곽선 색이 됐다.
+        JBro::SpriteSubmit widest = text;
+        widest.outlineEdge = 0;
+        paint(widest, false);
+        const Pixel corner = ReadPixel(image, readback.rowPitch, 63, 32);
+        Check(Near(corner.b, 0.0f), "an outline edge of zero still leaves the zero-distance edge of the quad empty");
+
+        // 반투명 채우기와 외곽선을 한 번에 합성한다. 채우기 자리는 빨강 절반이지 외곽선 위에 한 번 더 얹힌 색이 아니다.
+        JBro::SpriteSubmit ghost = text;
+        ghost.tint[3] = 0.5f;
+        ghost.outlineColor[3] = 128;
+        paint(ghost, false);
+        const Pixel ghostFill = ReadPixel(image, readback.rowPitch, 12, 32);
+        const Pixel ghostOutline = ReadPixel(image, readback.rowPitch, 38, 32);
+        Check(Near(ghostFill.r, 0.5f) && Near(ghostFill.b, 0.0f),
+            "a half-transparent fill is half red over black, with no outline under it");
+        Check(Near(ghostOutline.b, 0.5f) && Near(ghostOutline.r, 0.0f), "and its outline is half blue");
+        Check(renderer.GetDevice()->GetValidationErrorCount() == 0, "the debug layer accepted every frame");
+
+        renderer.UnregisterTexture(field);
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
+}
+
+namespace
+{
+    // **텍스처의 사각형 하나만 올린다**(text-plan §3.6, 글리프 아틀라스의 새 칸). 4 x 4 검은 텍스처의 오른쪽 위 2 x 2 에, 8 텍셀 폭
+    // 버퍼(행 간격 32 바이트)의 한 조각을 올린다. 그 사분면만 빨갛고 나머지는 검은 채다. 텍스처 밖으로 나가는 사각형은 거절한다.
+    template <typename TModule>
+    void TestATextureRegionUpdatesOnlyItsRectangle()
+    {
+        JBro::WindowsPlatform platform;
+        TModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the region test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no device for this API; texture regions not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro region probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.api = rhi.GetApi();
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 8;
+        config.presentMode = JBro::PresentMode::Immediate;
+        config.validation = true;
+        Check(renderer.Initialize(rhi, config), "the region renderer must initialize");
+
+        std::byte black[4 * 4 * 4] = {};
+        for (int texel = 0; texel < 16; ++texel)
+        {
+            black[texel * 4 + 3] = std::byte{255};
+        }
+        const JBro::AssetHandle texture = renderer.RegisterTexture({4, 4}, {black, sizeof(black)});
+        Check(texture.generation != 0, "a 4x4 texture registers");
+        // 8 x 2 텍셀 버퍼의 앞 두 칸이 빨강이다. 행 간격은 8 텍셀(32 바이트)이다.
+        std::byte strip[8 * 2 * 4] = {};
+        for (int row = 0; row < 2; ++row)
+        {
+            for (int column = 0; column < 2; ++column)
+            {
+                std::byte* texel = strip + (row * 8 + column) * 4;
+                texel[0] = std::byte{255};
+                texel[3] = std::byte{255};
+            }
+        }
+        Check(renderer.UpdateTextureRegion(texture, 2, 0, 2, 2, {strip, sizeof(strip)}, 32), "a 2x2 region goes up");
+        Check(false == renderer.UpdateTextureRegion(texture, 3, 0, 2, 2, {strip, sizeof(strip)}, 32),
+            "a region past the texture is refused");
+        Check(false == renderer.UpdateTextureRegion(texture, 0, 0, 2, 2, {strip, sizeof(strip)}, 4),
+            "a row pitch shorter than a row is refused");
+
+        JBro::CameraParams camera;
+        camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f}};
+        camera.clearColor[3] = 1.0f;
+        camera.viewport.width = 64.0f;
+        camera.viewport.height = 64.0f;
+        JBro::SpriteSubmit sprite;
+        sprite.world.linear[0] = 2.0f;
+        sprite.world.linear[3] = 2.0f;
+        sprite.texture = texture;
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready && renderer.BeginView(camera) && renderer.SubmitSprite(sprite)
+                && renderer.EndView() && renderer.EndFrame() == JBro::FrameStatus::Ready,
+            "the textured frame presents");
+        JBro::Array<std::byte> image;
+        image.Resize(64 * 64 * 4);
+        JBro::TextureReadback readback;
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the back buffer reads back");
+        const Pixel topRight = ReadPixel(image, readback.rowPitch, 48, 16);
+        const Pixel topLeft = ReadPixel(image, readback.rowPitch, 16, 16);
+        const Pixel bottomRight = ReadPixel(image, readback.rowPitch, 48, 48);
+        Check(Near(topRight.r, 1.0f) && Near(topRight.g, 0.0f), "the uploaded quadrant is red");
+        Check(Near(topLeft.r, 0.0f) && Near(bottomRight.r, 0.0f), "and the rest of the texture kept its black");
+        Check(renderer.GetDevice()->GetValidationErrorCount() == 0, "the debug layer accepted the region upload");
+
+        renderer.UnregisterTexture(texture);
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
+}
+
 int RunSpritePixelTests()
 {
     TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D12RHIModule>();
@@ -607,6 +838,12 @@ int RunSpritePixelTests()
     TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D12RHIModule>();
     TestTheOverlayGetsTheFrameAfterTheGame<JBro::D3D11RHIModule>();
     TestTheOverlayGetsTheFrameAfterTheGame<JBro::VulkanRHIModule>();
+    TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D12RHIModule>();
+    TestSdfTextDrawsFillAndOutlineInOnePass<JBro::D3D11RHIModule>();
+    TestSdfTextDrawsFillAndOutlineInOnePass<JBro::VulkanRHIModule>();
+    TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D12RHIModule>();
+    TestATextureRegionUpdatesOnlyItsRectangle<JBro::D3D11RHIModule>();
+    TestATextureRegionUpdatesOnlyItsRectangle<JBro::VulkanRHIModule>();
     std::cout << "Sprite pixel tests passed.\n";
     return 0;
 }

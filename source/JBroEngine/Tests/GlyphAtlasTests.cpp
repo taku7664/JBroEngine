@@ -113,6 +113,91 @@ namespace
         Check(atlas.GetPageCount() == 0 && atlas.GetGlyphCount() == 0 && atlas.Find(32, a) == nullptr, "Clear drops everything");
     }
 
+    // **SDF 칸**(text-plan §5 의 4 단계). 거리장은 비트맵 상자보다 사방으로 퍼짐만큼 크고, 외곽선에서 128, 글자 안쪽은 그 위,
+    // 퍼짐 밖(칸의 모서리)은 0 이다. 같은 글리프의 비트맵 칸과 키가 갈라 서로 덮지 않고, 두 번째 요청은 새로 뜨지 않는다.
+    void TestSdfCellsCarryADistanceField()
+    {
+        const FontFace face = LoadTestFont();
+        GlyphAtlas atlas;
+        const GlyphIndex a = face.FindGlyph(U'A');
+        constexpr std::uint32_t Size = 48;
+        constexpr std::uint32_t Spread = 8;
+
+        GlyphBitmapBox bitmap;
+        Check(face.MeasureGlyphBitmap(a, static_cast<float>(Size), bitmap), "A measures at 48 px");
+        AtlasGlyph sdf;
+        Check(atlas.EnsureSdf(face, Size, Spread, a, sdf) == AtlasError::None && false == sdf.empty, "A gets an SDF cell");
+        std::cout << "  [measure] 48 px A bitmap " << bitmap.width << "x" << bitmap.height << ", sdf cell " << sdf.width << "x"
+                  << sdf.height << " at " << sdf.left << "," << sdf.top << std::endl;
+        Check(std::abs(static_cast<int>(sdf.width) - (bitmap.width + 2 * static_cast<int>(Spread))) <= 2
+                && std::abs(static_cast<int>(sdf.height) - (bitmap.height + 2 * static_cast<int>(Spread))) <= 2,
+            "the field is the bitmap box grown by the spread on every side");
+        Check(std::abs((sdf.left + static_cast<int>(Spread)) - bitmap.left) <= 1 && std::abs((sdf.top - static_cast<int>(Spread)) - bitmap.top) <= 1,
+            "and it sits the spread outside the bitmap's corner");
+
+        // 칸의 모서리는 글자에서 퍼짐보다 멀다. 가운데 줄에는 글자 안(128 위)과 밖(128 아래)이 다 있다.
+        Check(AlphaAt(atlas, 0, sdf.x, sdf.y) == 0 && AlphaAt(atlas, 0, sdf.x + sdf.width - 1, sdf.y + sdf.height - 1) == 0,
+            "the cell's corners are past the spread, at zero");
+        std::uint8_t highest = 0;
+        std::uint8_t lowest = 255;
+        const std::uint32_t row = static_cast<std::uint32_t>(sdf.y) + sdf.height * 3 / 4;
+        for (std::uint32_t x = sdf.x; x < static_cast<std::uint32_t>(sdf.x) + sdf.width; ++x)
+        {
+            highest = std::max(highest, AlphaAt(atlas, 0, x, row));
+            lowest = std::min(lowest, AlphaAt(atlas, 0, x, row));
+        }
+        std::cout << "  [measure] leg row distance " << static_cast<int>(lowest) << ".." << static_cast<int>(highest) << std::endl;
+        // 다리 굵기가 5 px 남짓이라 안쪽 깊이는 2 px 남짓(128 + 2 x 16)이다.
+        Check(highest > 140 && lowest < 60, "a row through the legs runs from inside to well outside the edge");
+        Check(RedAt(atlas, 0, sdf.x + sdf.width / 2, sdf.y + sdf.height / 2) == 255, "the field is stored as white with the distance in alpha");
+
+        // 비트맵 칸과 섞여도 서로 다른 칸이다. 다시 물으면 같은 칸을 준다.
+        AtlasGlyph bitmapCell;
+        Check(atlas.Ensure(face, Size, a, bitmapCell) == AtlasError::None, "the bitmap A goes in too");
+        Check(bitmapCell.x != sdf.x || bitmapCell.y != sdf.y, "the bitmap and the field get separate cells");
+        Check(atlas.GetGlyphCount() == 2, "two cells for one glyph in two modes");
+        atlas.ClearPageDirty(0);
+        AtlasGlyph again;
+        Check(atlas.EnsureSdf(face, Size, Spread, a, again) == AtlasError::None && again.x == sdf.x && again.y == sdf.y,
+            "a known field keeps its cell");
+        Check(false == atlas.IsPageDirty(0) && atlas.GetGlyphCount() == 2, "and is not drawn again");
+        AtlasGlyph wider;
+        Check(atlas.EnsureSdf(face, Size, Spread + 4, a, wider) == AtlasError::None && wider.width > sdf.width,
+            "another spread is another, wider cell");
+
+        AtlasGlyph space;
+        Check(atlas.EnsureSdf(face, Size, Spread, face.FindGlyph(U' '), space) == AtlasError::None && space.empty,
+            "the space has no field");
+        AtlasGlyph refused;
+        Check(atlas.EnsureSdf(face, Size, 0, a, refused) == AtlasError::InvalidPixelSize
+                && atlas.EnsureSdf(face, Size, GlyphAtlas::MaxSdfSpread + 1, a, refused) == AtlasError::InvalidPixelSize,
+            "a spread of zero or past the limit is refused");
+    }
+
+    // **미리 뜨기**(text-plan §3.6). ASCII 벌은 95 자이고 그중 공백은 칸 없이 기억된다. 완성형 벌은 폰트에 있는 한글만 더한다
+    // (시험 폰트에는 서로 다른 음절 29 자가 있고 모두 완성형이다 - `뷁` 은 폰트에 없다). 미리 뜬 글자는 다시 물어도 새로 뜨지 않는다.
+    void TestPrewarmFillsTheAtlasOnce()
+    {
+        const FontFace face = LoadTestFont();
+        GlyphAtlas ascii;
+        Check(ascii.Prewarm(face, PrewarmSet::Ascii, 32, 0) == 95, "the ASCII set is 95 glyphs");
+        Check(ascii.Find(32, face.FindGlyph(U'A')) != nullptr && ascii.Find(32, face.FindGlyph(U'~')) != nullptr,
+            "A and ~ are in the atlas without being asked for");
+        Check(ascii.Prewarm(face, PrewarmSet::Ascii, 32, 0) == 0, "prewarming twice adds nothing");
+
+        GlyphAtlas korean;
+        const std::uint32_t warmed = korean.Prewarm(face, PrewarmSet::Ksx1001, 48, 8);
+        std::cout << "  [measure] KS X 1001 prewarm of the test font: " << warmed << " SDF glyphs on " << korean.GetPageCount()
+                  << " page(s)" << std::endl;
+        Check(warmed == 95 + 29, "the Korean set adds the font's 29 syllables to ASCII");
+        AtlasGlyph han;
+        korean.ClearPageDirty(0);
+        Check(korean.EnsureSdf(face, 48, 8, face.FindGlyph(U'\uD55C'), han) == AtlasError::None && false == han.empty
+                && false == korean.IsPageDirty(0),
+            "a prewarmed syllable is already there - asking for it draws nothing");
+        Check(korean.Prewarm(face, PrewarmSet::None, 48, 8) == 0, "the empty set does nothing");
+    }
+
     void TestPagesDoNotMoveCells()
     {
         const FontFace face = LoadTestFont();
@@ -171,6 +256,8 @@ int RunGlyphAtlasTests()
     {
         TestBitmapBoxMatchesTheOutline();
         TestEnsureRasterizesOnce();
+        TestSdfCellsCarryADistanceField();
+        TestPrewarmFillsTheAtlasOnce();
         TestPagesDoNotMoveCells();
         TestErrors();
     }

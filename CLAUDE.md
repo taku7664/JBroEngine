@@ -93,13 +93,14 @@
 - [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214). 1~6 단계와 7 의 터치(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
   `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 게임 뷰 포커스 게이트·액션과 설정 화면·게임패드·터치)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
   전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(액션 맵 전환·입력 버퍼·리바인딩은 논의 전)이 §4 에 있다
-- [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~4 단계(커널 `JBroPhysics2D` 와 어댑터 `Physics2DSystem`)가 섰고 5 단계(에디터)·6 단계(질의 확장)가 남았다.
+- [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~5 단계(커널 `JBroPhysics2D`, 어댑터 `Physics2DSystem`, 캔버스 뷰의 폴리곤 포인트 편집)가 섰고 6 단계(질의 확장)가 남았다.
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
   캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다
 - [tasks/text-plan.md](./tasks/text-plan.md) — 2D 텍스트 계획(D-200). 1 단계(커널 `Modules/JBroText`: stb_truetype 의 `FontFace`, UTF-8·커닝·줄바꿈·정렬의
   `TextLayout`)와 2 단계(`GlyphAtlas`·`Font` 에셋·`TextStore`(JBroRuntime, 프로세스에 하나, D-211)·`Text2D`·`Text2DSystem`·`Text2DService`),
   3 단계(에디터: 여러 줄 글자 칸·캔버스 뷰 고르기·폰트 임포트 옵션·폰트 없음 경고, `.jproject` 의 프로젝트 폰트 목록 `Fonts`, D-213)가
-  섰고 다음은 4 단계(SDF 와 외곽선)다. 기존 엔진 `Text2D` 를 깨트려 본 결과
+  4 단계(SDF 와 외곽선: 세 백엔드 셰이더·글자 픽셀 폭 외곽선, D-215), 5 단계(미리 채우기·워커 래스터화·아틀라스 부분 업로드·자동 크기·퇴출과
+  결합 표시·금칙·GPOS 직접 읽기, D-216)가 섰다. 남은 것은 없는 계층(게임 UI·로컬라이징·`.jpak`·3D)이나 사용자 결정(리치 텍스트·패밀리)이 먼저다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).

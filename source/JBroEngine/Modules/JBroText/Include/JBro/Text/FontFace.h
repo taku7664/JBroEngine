@@ -73,6 +73,9 @@ namespace JBro::Text
         std::int32_t GetAdvance(GlyphIndex glyph) const;
         // 두 글리프 사이의 커닝이다. GPOS 쌍 조정을 먼저, 없으면 kern 표를 본다. 대개 음수다.
         std::int32_t GetKerning(GlyphIndex left, GlyphIndex right) const;
+        // 결합 표시를 받침에 붙이는 자리다(GPOS mark-to-base, 확장 조회 포함). 찾으면 받침 원점에서 표시 원점까지의 거리(폰트 단위,
+        // y 위쪽)이고 참이다. 폰트에 그 짝의 앵커가 없으면 거짓이다.
+        bool GetMarkAttachment(GlyphIndex base, GlyphIndex mark, std::int32_t& dx, std::int32_t& dy) const;
         GlyphBox GetGlyphBox(GlyphIndex glyph) const;
 
         // em 픽셀 크기 pixelSize 로 그린 글리프의 비트맵 자리를 잰다. 그릴 것이 없으면 크기가 0 이다.
@@ -80,6 +83,12 @@ namespace JBro::Text
         // box(MeasureGlyphBitmap 이 잰 것) 크기의 커버리지(한 채널, 0~255)를 coverage 에 그린다. 행 간격은 stride 바이트다.
         // 처음 보는 글리프에서만 부른다 - stb 가 안에서 힙을 쓴다(프레임 규칙은 아틀라스의 캐시가 지킨다).
         bool RasterizeGlyph(GlyphIndex glyph, float pixelSize, const GlyphBitmapBox& box, std::uint8_t* coverage, std::int32_t stride) const;
+        // em 픽셀 크기 pixelSize 로 부호 있는 거리장(SDF)을 그린다(text-plan §3.5). 사방에 spread 픽셀을 둘러 box 가 그만큼 크다.
+        // 값은 외곽선에서 128 이고 바깥으로 1 픽셀마다 128/spread 씩 줄어 spread 픽셀 밖에서 0 이다(안쪽은 같은 비율로 늘어 255 에서 멈춘다).
+        // distances 는 box.width * box.height 로 다시 잡는다. 그릴 것이 없으면(공백) 참이고 box 가 0 이다.
+        // 처음 보는 글리프에서만 부른다 - stb 가 안에서 힙을 쓴다.
+        bool RasterizeGlyphSdf(GlyphIndex glyph, float pixelSize, std::int32_t spread, GlyphBitmapBox& box,
+            Array<std::uint8_t>& distances) const;
 
     private:
         // stbtt_fontinfo 를 담는 자리다. 크기는 FontFace.cpp 가 단언한다. 헤더에 stb 를 들이지 않으려고 불투명하게 둔다.

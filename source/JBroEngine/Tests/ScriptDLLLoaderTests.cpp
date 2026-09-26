@@ -250,6 +250,38 @@ namespace
         JBro::BindServiceContext(services);
     }
 
+    // **로드 문맥의 필수 포인터**는 하나라도 비면 거절한다. 모듈은 받은 포인터를 모두 제 접근점에 묶으므로, 빈 것을 받아들이면
+    // DLL 이 제 사본(빈 저장소·빈 이름표)을 보고도 성공한 것처럼 돈다. 글자 저장소(ABI 5)도 같다.
+    void TestTheLoadContextNeedsEveryHostTable()
+    {
+        const auto valid = []() {
+            JBro::ScriptModuleLoadContext context;
+            context.Systems = &JBro::GetSystemContext();
+            context.Services = &JBro::GetServiceContext();
+            context.Registry = &JBro::Internal::InstanceRegistry::Local();
+            context.Names = &JBro::NameTable::Local();
+            context.Scripts = &JBro::ScriptRegistry::Local();
+            context.Texts = &JBro::TextStore::Local();
+            return context;
+        };
+        Check(JBro::ValidateScriptModuleLoadContext(valid()), "a context with every host table is valid");
+        JBro::ScriptModuleLoadContext missing = valid();
+        missing.Texts = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the text store is refused");
+        missing = valid();
+        missing.Names = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the name table is refused");
+        missing = valid();
+        missing.Scripts = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the script registry is refused");
+        missing = valid();
+        missing.Registry = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the instance registry is refused");
+        missing = valid();
+        missing.StructSize = 64;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "the ABI 4 size is refused");
+    }
+
     void TestRejectsInvalidModuleAbiBeforeCallingModule()
     {
         EventLog events;
@@ -606,6 +638,20 @@ namespace
         Check(fromDll != nullptr && std::strcmp(fromDll, "host side name") == 0,
             "a script DLL must read back a name the host interned");
 
+        // 글자 저장소도 붙는다(D-211). DLL 쪽 코덱이 호스트가 쓴 글자를 읽어야 스크립트 타입의 `TextId` 필드가 파일에 남는다.
+        using WriteText = std::uint32_t (*)(std::uint32_t, std::uint32_t, char*, std::uint32_t) noexcept;
+        const auto getTextStore = reinterpret_cast<ReadAddress>(loader.GetSymbol("JBroScriptProbe_GetTextStore"));
+        const auto writeText = reinterpret_cast<WriteText>(loader.GetSymbol("JBroScriptProbe_WriteText"));
+        Check(getTextStore != nullptr && writeText != nullptr, "the real script probe must expose its text store view");
+        Check(getTextStore() == reinterpret_cast<std::uintptr_t>(&JBro::TextStore::Local()),
+            "a loaded script DLL must keep text in the host text store");
+        const JBro::TextId hostText = JBro::TextStore::Local().Create("from the host", 13);
+        char written[64] = {};
+        Check(writeText(hostText.index, hostText.generation, written, sizeof(written)) != 0
+                && std::strcmp(written, "from the host") == 0,
+            "the script DLL's codec reads the text the host wrote");
+        JBro::TextStore::Local().Destroy(hostText);
+
         // H5 의 알맹이다. 타입은 DLL 안에만 있고 호스트는 정의를 보지 못하는데,
         // 이름 하나로 만들어 붙일 수 있어야 한다.
         const auto getScriptRegistry = reinterpret_cast<ReadAddress>(
@@ -874,6 +920,7 @@ namespace
 int RunScriptDLLLoaderTests()
 {
     TestRejectsInvalidModuleAbiBeforeCallingModule();
+    TestTheLoadContextNeedsEveryHostTable();
     TestRequiresExactUniqueContextBlocks();
     TestRejectsCommonContextAbiBeforeOpeningDll();
     TestFailedModuleActivationRollsBack();

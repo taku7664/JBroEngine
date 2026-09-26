@@ -13,7 +13,9 @@
   `210d628`~`48a5692` · `Modules/JBroPhysics2D`(`Geometry`·`Collision`·`BroadPhase`·`World`),
   `JBroFramework2DSystem/Source/System/Physics2DSystem.cpp`. 훅 발송은 D-207(2D 스크립트는 모두 `GameScript2D`, 등록이 컴파일
   시간에 검사). 테스트와 뮤테이션이 계획서 §4 에 있다.
-  `[진행 예정]` 5 단계 에디터(인스펙터의 `points` 편집, 캔버스 뷰의 폴리곤·조각 그리기), 6 단계 질의 확장(후순위지만 구현).
+  ~~5 단계 에디터 - 캔버스 뷰의 폴리곤 포인트 편집("콜라이더 편집"), 콜라이더 모두 그리기·조각·거절 표시~~ → 2026-09-26 ·
+  `1d66967` · `JBroEditor/Source/Panel/CanvasViewPanel.cpp`, `JBro/Editor/Gizmo/PolygonEditModel.h`.
+  `[진행 예정]` 6 단계 질의 확장(후순위지만 구현).
   `[열림]` 4 단계가 남긴 것 다섯(크기 애니메이션의 도형 재생성, 캡슐, 부모의 찌그러짐, 꺼진 부모, 실제 에디터 확인) - 계획서 §4 의 4.
 
 ## 오디오 (audio-plan §3-3, D-197)
@@ -129,6 +131,8 @@
   비트맵 글자는 렌더 패스 그래프 없이 지금의 스프라이트 경로로 선다. 1 단계(커널: face·커닝·줄바꿈·정렬, 뮤테이션 18/18)와
   2 단계(아틀라스·`Font` 에셋·`TextStore`·`Text2D`·`Text2DSystem`·스크립트 서비스, 뮤테이션 27/27)가 섰다(2026-09-25~26).
   저장소는 프로세스에 하나다(D-211). ~~3 단계(에디터: 여러 줄 글자 칸·캔버스 뷰 선택·폰트 임포트 옵션·프로젝트 기본 폰트)~~ → 완료 2026-09-26 ·
-  `ef6615a` · `JBroEditor/Panel/InspectorPanel`·`CanvasViewPanel`·`ProjectSettingsPanel`, `JBroHost/ProjectFile`(`Fonts`, D-213). 다음은 §5 의 4 단계(SDF 와 외곽선)다.
+  `ef6615a` · `JBroEditor/Panel/InspectorPanel`·`CanvasViewPanel`·`ProjectSettingsPanel`, `JBroHost/ProjectFile`(`Fonts`, D-213). ~~4 단계(SDF 와 외곽선)~~ → 완료 2026-09-26 · `126e382` · `JBroGraphics/Shaders/BuiltinSdfText.hlsl`·`Renderer`(D-215). ~~5 단계(미리 채우기·워커 래스터화·부분 업로드·자동 크기·퇴출)와 §7 의 결합 표시·
+  금칙·탭·GPOS·스크립트 `TextStore`~~ → 완료 2026-09-26 · `be44a20`·`a1f623c`·`e7849ab`·`b0e0558`·`3f92027` · `TextLibrary`·`TextLayout`·`FontFace`·`RHI`(D-216).
+  남은 것(리치 텍스트·패밀리, 게임 로컬라이징 키, 화면 공간 UI 텍스트, 3D 텍스트, `.jpak` 아틀라스, 옛한글)은 없는 계층이나 사용자 결정이 먼저다(text-plan §5 의 5 단계).
 - `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·Shape 렌더러.
   렌더 패스 그래프(공용 todo)가 먼저다.

@@ -79,7 +79,15 @@ namespace JBro
                 return left.key < right.key;
             }
             // 키가 같을 때만 아이템을 만진다. 생성 시각 순인 sourceId 로 안정화한다.
-            return items[left.index].sourceId < items[right.index].sourceId;
+            const InstanceId leftSource = items[left.index].sourceId;
+            const InstanceId rightSource = items[right.index].sourceId;
+            if (leftSource != rightSource)
+            {
+                return leftSource < rightSource;
+            }
+            // 한 소스가 여럿을 내면(텍스트의 글자들) 낸 순서다. `std::sort` 는 안정하지 않아, 이것이 없으면 외곽선이 이웃 글자에
+            // 겹치는 순서가 프레임마다 달라질 수 있었다(text-plan §3.3 - 정렬 키의 예약 비트 대신 이 자리로 풀었다).
+            return left.index < right.index;
         });
     }
 

@@ -243,6 +243,8 @@ namespace JBro::Internal
             TextureHandle texture,
             std::uint32_t mipLevel,
             JArrayView<std::byte> data) override;
+        bool WriteTextureRegion(TextureHandle texture, std::uint32_t mipLevel, std::uint32_t x, std::uint32_t y,
+            std::uint32_t width, std::uint32_t height, JArrayView<std::byte> data, std::uint32_t rowPitch) override;
         SamplerHandle CreateSampler(const SamplerDesc& desc) override;
         void DestroySampler(SamplerHandle sampler) override;
         GraphicsPipelineHandle CreateGraphicsPipeline(const GraphicsPipelineDesc& desc) override;

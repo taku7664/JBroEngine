@@ -30,6 +30,12 @@ namespace JBro::Widget
     GizmoOutput Gizmo(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
         GizmoState& state, bool interactive);
 
+    // 그림 위에 그린 손잡이 하나를 ImGui 항목으로 올린다(폴리곤 버텍스 손잡이). 누가 가리켰는지·잡았는지는
+    // 부르는 쪽이 제 모양으로 잰다 - 여기서는 그 결과를 창의 hover·active 로 알릴 뿐이다. 그래야 창 이동이나
+    // 뒤의 입력 자리가 같은 마우스를 받지 않고, 테스트가 hover id 로 손잡이를 찾는다.
+    // `pressed` 는 잡는 프레임이다(창에 포커스를 준다).
+    void OverlayHandle(const char* id, bool hovered, bool holding, bool pressed);
+
     // 이동·회전·크기 셋 중 하나를 고르는 단추 줄이다. 라벨은 부르는 쪽이 로컬라이징해 준다.
     // `hotkeys` 가 참이면 이 창에 포커스가 있을 때 W·E·R 로도 바뀐다. 바뀌었으면 참이다.
     bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel,

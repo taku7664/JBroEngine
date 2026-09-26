@@ -88,6 +88,15 @@ namespace JBro::Internal
             result.tint[1] = source.tint.G;
             result.tint[2] = source.tint.B;
             result.tint[3] = source.tint.A;
+            if (source.sdfText)
+            {
+                result.shading = SpriteShading::SdfText;
+                result.outlineColor[0] = source.outlineColor[0];
+                result.outlineColor[1] = source.outlineColor[1];
+                result.outlineColor[2] = source.outlineColor[2];
+                result.outlineColor[3] = source.outlineColor[3];
+                result.outlineEdge = source.outlineEdge;
+            }
             return result;
         }
     }

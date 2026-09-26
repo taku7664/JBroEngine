@@ -149,6 +149,7 @@ namespace JBro
         context.Registry = &Internal::InstanceRegistry::Local();
         context.Names = &NameTable::Local();
         context.Scripts = &ScriptRegistry::Local();
+        context.Texts = &TextStore::Local();
         context.Extensions = extensions;
         context.ExtensionCount = extensionCount;
         if (false == ValidateScriptModuleLoadContext(context))
