@@ -627,6 +627,67 @@ namespace
             "a font entry that is not an asset id is refused");
     }
 
+    // 게임 로케일(D-226): 목록·기본·폴백. 비어 있으면 적지 않는다 - 로컬라이징을 쓰지 않는 파일은 저장해도 그대로다.
+    void TestTheLocaleSettings()
+    {
+        const char* text =
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "Locales:\n"
+            "  - ko-KR\n"
+            "  - en-US\n"
+            "DefaultLocale: ko-KR\n"
+            "FallbackLocale: en-US\n"
+            "SomeFutureKey: keep me\n";
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error), "the locale settings parse");
+        Check(project.locales.Size() == 2 && project.locales[0] == "ko-KR" && project.locales[1] == "en-US",
+            "the locale list is read in its order");
+        Check(project.defaultLocale == "ko-KR" && project.fallbackLocale == "en-US", "and the default and fallback");
+
+        project.locales.Add("ja-JP");
+        project.fallbackLocale = "ja-JP";
+        JBro::String written;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error), "the locales rewrite");
+        Check(written.find("SomeFutureKey: keep me") != JBro::String::npos, "the key after the list stays");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.locales.Size() == 3
+                && reread.locales[2] == "ja-JP" && reread.fallbackLocale == "ja-JP" && reread.defaultLocale == "ko-KR",
+            "the new list and fallback come back");
+        Check(written.find("Locales:") == written.rfind("Locales:"), "the list is written once");
+
+        project.locales.Clear();
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error)
+                && written.find("Locales: []") != JBro::String::npos,
+            "an emptied list is an empty sequence");
+        JBro::ProjectFile emptied;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), emptied, error) && emptied.locales.IsEmpty(),
+            "and reads back empty");
+
+        // 키가 없던 파일은 로케일이 없으면 그대로이고, 있으면 붙는다.
+        const char* bare = "EngineVersion: 1.0.0\nFramework: 2D\n";
+        JBro::ProjectFile none;
+        Check(JBro::ParseProjectFile(bare, std::strlen(bare), none, error), "the bare file parses");
+        // 에디터 언어(`EditorLocale`)는 늘 적힌다. 게임 언어의 세 키만 본다.
+        const auto hasGameLocaleKey = [](const JBro::String& file) {
+            return file.find("Locales") != JBro::String::npos || file.find("DefaultLocale") != JBro::String::npos
+                || file.find("FallbackLocale") != JBro::String::npos;
+        };
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error) && false == hasGameLocaleKey(written),
+            "a project with no locales grows no locale keys");
+        none.locales.Add(JBro::String());
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error) && false == hasGameLocaleKey(written),
+            "an unnamed row from the settings window is not written");
+        none.locales.Add("ko-KR");
+        none.defaultLocale = "ko-KR";
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error)
+                && written.find("Locales:\n  - ko-KR\n") != JBro::String::npos
+                && written.find("DefaultLocale: ko-KR\n") != JBro::String::npos
+                && written.find("FallbackLocale") == JBro::String::npos,
+            "set locales are appended and the empty fallback is not");
+    }
+
     void TestCreatesANewProject()
     {
         namespace fs = std::filesystem;
@@ -750,6 +811,7 @@ int RunProjectFileTests()
     TestRewritingKeepsWhatItDoesNotKnow();
     TestRewritingTheIgnorePatterns();
     TestTheProjectFontList();
+    TestTheLocaleSettings();
     TestSavingTwiceDoesNotGrowTheFile();
     TestSavingCollapsesKeysThatWereWrittenTwice();
     TestCreatesANewProject();

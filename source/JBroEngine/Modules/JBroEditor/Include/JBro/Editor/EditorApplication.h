@@ -493,6 +493,13 @@ namespace JBro
         // **새 폰트 패밀리를 만든다**(D-225). 에셋 폴더 아래 `folder` 에 겹치지 않는 이름의 `.jfontfamily` 를 쓰고 등록한 뒤
         // 고르고 에셋 브라우저에서 보인다 - 네 칸은 인스펙터의 에셋 옵션으로 채운다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateFontFamilyAsset(const char* folder);
+        // **새 문자열 표를 만든다**(D-226). `.jstrings` 를 쓰고, 프로젝트에 기본 언어(없으면 첫 언어)가 있으면 메타의 로케일로 적는다.
+        // 고르고 에셋 브라우저에서 보인다. 만든 파일의 경로이고 실패하면 빈 글자다.
+        String CreateStringTableAsset(const char* folder);
+        // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
+        // 재생 전의 언어로 되돌린다(게임이 바꾼 로케일이 편집 화면에 남지 않게).
+        String GetPreviewLocale() const;
+        bool SetPreviewLocale(const char* locale);
         // 저장하지 않은 변경을 물어본 답이다(D-174). 0 = 저장하고 열기, 1 = 그냥 열기,
         // 그 밖(취소·닫기) = 아무것도 하지 않는다. 팝업이 부른다.
         void AnswerCanvasSwitch(int choice);
@@ -664,6 +671,8 @@ namespace JBro
         void ReleaseCanvasViewTexture();
         // 재생을 누르기 전의 캔버스 글자다(D-131). 비어 있으면 돌지 않고 있다는 뜻이다.
         String m_simulationSnapshot;
+        // 재생을 시작할 때의 로케일이다. 멈추면 이것으로 되돌린다.
+        String m_simulationLocale;
         bool m_simulationPlaying = false;
         bool m_simulationPaused = false;
         // 게임 입력(D-214). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은

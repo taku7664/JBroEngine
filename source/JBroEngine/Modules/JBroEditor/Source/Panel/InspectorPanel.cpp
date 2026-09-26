@@ -781,7 +781,7 @@ namespace JBro
         }
     }
 
-    void InspectorPanel::DrawTextBody(const TypeDescriptor& type, void* address, bool editable, Context& context)
+    void InspectorPanel::DrawTextBody(const TypeDescriptor& type, void* address, bool editable, bool multiline, Context& context)
     {
         TextId& id = *static_cast<TextId*>(address);
         // **매 프레임 저장소의 글자를 넘긴다.** 치는 동안에는 ImGui 가 제 버퍼를 들고 넘긴 글자를 보지 않고, 편집이 끝나는
@@ -789,7 +789,8 @@ namespace JBro
         // 치는 칸의 글자를 따로 들었는데, 그 상태를 지우는 뮤테이션이 모든 검사를 지나 - 같은 동작이라 - 뺐다.)
         const ArrayView<const char> stored = TextStore::Get().GetText(id);
         String draft(stored.Data(), stored.Size());
-        const bool finished = Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw();
+        const bool finished = multiline ? Widget::TextField("##value", draft).Multiline().CommitOnFinish().Draw()
+                                        : Widget::TextField("##value", draft).CommitOnFinish().Draw();
         if (finished && editable)
         {
             // 편집 전 값은 코덱 글자로 뜬다(길이 제한 없는 길). 새 글자를 저장소에 쓰고 나면 `CommitEdit` 가
@@ -963,13 +964,15 @@ namespace JBro
         const bool image = AssetTypeRules::IsImageType(meta.type);
         int slot = 0;
         const auto drawBlock = [&](const char* title, const TypeDescriptor& type, void* options, bool spriteBlock,
-                                     bool audioBlock = false, bool fontBlock = false, bool fontFamilyBlock = false) {
+                                     bool audioBlock = false, bool fontBlock = false, bool fontFamilyBlock = false,
+                                     bool stringTableBlock = false) {
             // 컴포넌트와 같은 모양이다: 슬롯 번호 → 접는 머리 → 줄 배치 `##import`.
             ImGui::PushID(slot++);
             scope.spriteBlock = spriteBlock;
             scope.audioBlock = audioBlock;
             scope.fontBlock = fontBlock;
             scope.fontFamilyBlock = fontFamilyBlock;
+            scope.stringTableBlock = stringTableBlock;
             if (Widget::CollapsingSection(title) && type.fields != nullptr)
             {
                 Widget::FormLayout layout("##import");
@@ -1004,6 +1007,12 @@ namespace JBro
             drawBlock(Loc::TextOr(LocKeys::InspectorFontFamilyFaces, "Font Family"),
                 TypeDescriptorOf<FontFamilyOptions>::Get(), &scratch.fontFamilyOptions, false, false, false, true);
         }
+        // 문자열 표의 로케일(D-226). 고치면 제자리 재로드로 표가 다른 언어의 것이 되고, 키가 있는 텍스트가 다시 레이아웃된다.
+        if (meta.type == AssetType::StringTable)
+        {
+            drawBlock(Loc::TextOr(LocKeys::InspectorStringTable, "String Table"),
+                TypeDescriptorOf<StringTableOptions>::Get(), &scratch.stringTableOptions, false, false, false, false, true);
+        }
     }
 
     void InspectorPanel::CommitAssetEdit(Context& context)
@@ -1032,6 +1041,10 @@ namespace JBro
         else if (context.asset->fontFamilyBlock)
         {
             scratch.hasFontFamilyOptions = true;
+        }
+        else if (context.asset->stringTableBlock)
+        {
+            scratch.hasStringTableOptions = true;
         }
         else
         {
@@ -1648,7 +1661,8 @@ namespace JBro
         // 512 바이트에서 끊겼다.
         if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.TextId"))
         {
-            DrawTextBody(type, address, editable, context);
+            // 문자열 표의 키(`textKey`, D-226)는 한 줄이다. 줄바꿈이 든 키는 표에 적을 수 없다.
+            DrawTextBody(type, address, editable, false == (label != nullptr && std::strcmp(label, "textKey") == 0), context);
             return;
         }
 

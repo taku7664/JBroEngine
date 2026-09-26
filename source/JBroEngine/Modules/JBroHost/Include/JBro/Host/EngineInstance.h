@@ -24,6 +24,7 @@ namespace JBro
     }
 
     class SaveStorage;
+    class GameLocalization;
 
     namespace System
     {
@@ -158,6 +159,8 @@ namespace JBro
         void Shutdown();
 
         AssetSystem* GetAssetSystem();
+        // 게임 문자열 표(D-226). 엔진 수명이고 표는 프로젝트를 열 때 모은다. 에디터의 미리보기 고르기가 로케일을 바꾼다.
+        GameLocalization* GetLocalization();
         // 감시가 쌓아 둔 에셋 폴더 변경을 적용한다(D-121). 원본이 바뀌면 로드된 것을 in-place 재로드하고, 이름이 바뀌면
         // 레지스트리의 경로만 바꾸고, 지워지면 레코드를 뺀다(로드된 자료는 참조 수 0 까지 산다). 새 파일과 넘침은
         // 다시 스캔한다. `.jmeta` 의 변경은 무시한다. **프레임 밖에서 부른다.** 돌려주는 값은 아래 요약이다.
@@ -232,6 +235,8 @@ namespace JBro
         void ApplyAudioBuses();
         // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-214).
         void ApplyInputSettings();
+        // 프로젝트의 폴백 로케일을 건다. `resetLocale` 이면 지금 로케일도 프로젝트의 기본으로 되돌린다(D-226).
+        void ApplyLocaleSettings(bool resetLocale);
         // 프로젝트의 제품명으로 세이브 폴더를 정한다(D-218). 폴더는 처음 쓸 때 만든다.
         void OpenSaveFolder();
         // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
@@ -270,6 +275,8 @@ namespace JBro
         SaveServiceContext m_saveServiceContext;
         String m_saveFolderOverride;
         bool m_editorSaves = false;
+        // 게임 문자열 표(D-226). 세이브처럼 엔진 수명이고 이 모듈 사본에도 묶는다.
+        OwnerPtr<GameLocalization> m_localization;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.

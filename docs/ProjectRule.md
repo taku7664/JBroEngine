@@ -99,7 +99,8 @@
   적는다 - `%.9g` 는 사람이 적은 `0.8` 을 `0.800000012` 로 바꿔 고친 것 없는 저장이 파일을 바꾼다(D-189·D-197).
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest), `Fonts`(폰트 에셋 아이디의 순서 있는 시퀀스 - 첫 폰트가 `fontId` 가 빈 텍스트의 기본이고 목록 전체가
-  폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
+  폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다), 게임 언어의 `Locales`(이름 시퀀스)·
+  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
   PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-213)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
   프로젝트 파일 쓰기는 원문의 줄을 타고 가며 아는 키의 값만 갈아 끼우는데, 그 길에서 같은 줄을
@@ -183,6 +184,7 @@
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
   | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-214) |
   | Tier S | `JBroSaveTypes` | `System::ISaveStorage`(POD 인자만)·`Service::SaveService`·세이브 컨텍스트. 구현 `SaveStorage` 는 `JBroHost` 에 있다 (D-218) |
+  | Tier S | `JBroLocalizationTypes` | `System::ILocalization`(POD 인자만)·`Service::LocalizationService`·로컬라이징 컨텍스트. 구현 `GameLocalization` 은 `JBroHost` 에 있다 (D-226) |
   | Tier E | `JBroInput` | `System::InputSystem` - 플랫폼 이벤트를 프레임 상태로 접고 레이어 체인의 소비를 나른다 (D-214) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216). 텍스트 레이아웃·아틀라스는 `JBroTextRendering` 이다(D-222). 3D 의 `JBroFramework3DSystem` 도 같은 두 모듈에 기댄다 |
@@ -523,6 +525,10 @@
   입력 모듈은 세이브를 부르지 않는다 - 게임이 글자를 `SaveService` 에 둔다. 호스트는 게임 DLL 의 컨테이너를 키우지 않는다. (MUST) (D-218)
 - **게임이 쓰는 파일은 세이브 저장소뿐이다.** 뿌리는 `<앱 데이터>/<제품명>/Saves`(에디터의 재생은 `EditorSaves`)이고, 슬롯은 납작한 파일 이름이다.
   쓰기는 옆 파일에 다 쓴 뒤 바꿔 넣는다 - 제자리에 덮어쓰지 않는다. 인자는 POD 이고 호스트는 게임 DLL 의 컨테이너를 키우지 않는다. (MUST) (D-218)
+- **게임 문자열은 로케일마다 `.jstrings` 표이고 로케일은 표의 `.jmeta` 에 있다.** 텍스트의 `textKey` 는 지금 로케일 → 폴백 로케일 → 키 그대로의
+  순서로 보인다(빈 글자로 두지 않는다). 호스트는 모든 로케일의 표를 들어, 로케일 바꾸기가 에셋을 싣지 않는다 - 스크립트가 프레임 안에서 바꿔도
+  로드가 프레임 경로에 들지 않는다. 조회 인자는 POD 이고 찾은 글자는 서비스가 게임 DLL 의 힙으로 복사한다. 에디터는 재생을 멈출 때 로케일을 재생
+  전으로 되돌린다. (MUST) (D-226)
 - **엔진은 지난 프레임의 입력을 들지 않는다.** 선입력은 스크립트가 뷰에서 읽어 `InputBuffer` 에 넣는다 - 막힌 입력이 되살아나지 않는다. (MUST) (D-218)
 - **뗀 손가락은 한 프레임 더 보인다.** 뗀 자리가 사라지면 탭을 클릭으로 판정할 수 없다. 포커스를 잃은 손가락은 뗌이 아니라 취소다. (MUST) (D-214)
 

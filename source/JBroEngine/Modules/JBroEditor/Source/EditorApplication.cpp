@@ -22,6 +22,7 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Host/GameLocalization.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
@@ -1886,6 +1887,53 @@ namespace JBro
         return created;
     }
 
+    String EditorApplication::CreateStringTableAsset(const char* folder)
+    {
+        // 본문은 빈 맵의 안내뿐이다. 로케일은 메타의 `StringTable` 블록에 있다 - 인스펙터에서 바꾼다.
+        const String created = WriteNewAssetFile(folder, "NewStringTable", ".jstrings", String("# key: text\n"));
+        if (created.empty())
+        {
+            return created;
+        }
+        const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str());
+        if (record == nullptr)
+        {
+            return created;
+        }
+        const ProjectFile& project = GetProjectFile();
+        const String& locale = false == project.defaultLocale.empty() ? project.defaultLocale
+            : false == project.locales.IsEmpty() ? project.locales[0] : project.defaultLocale;
+        AssetSystem* assets = m_engine->GetAssetSystem();
+        if (false == locale.empty() && assets != nullptr)
+        {
+            // 새 파일이라 되살릴 것이 없다 - 만들기와 한 몸이므로 커맨드로 따로 남기지 않는다.
+            const String metaPath = assets->GetMetaPath(*record);
+            AssetMetaFile meta;
+            AssetMetaError metaError;
+            if (LoadAssetMetaFile(*m_platform, metaPath.c_str(), meta, metaError))
+            {
+                meta.hasStringTableOptions = true;
+                meta.stringTableOptions.locale = locale;
+                SaveAssetMetaFile(*m_platform, metaPath.c_str(), meta);
+            }
+        }
+        SetSelectedAsset(record->id);
+        RevealAssetInBrowser(record->id);
+        return created;
+    }
+
+    String EditorApplication::GetPreviewLocale() const
+    {
+        const GameLocalization* localization = m_engine.Get() != nullptr ? m_engine->GetLocalization() : nullptr;
+        return localization != nullptr ? localization->GetLocaleName() : String();
+    }
+
+    bool EditorApplication::SetPreviewLocale(const char* locale)
+    {
+        GameLocalization* localization = m_engine.Get() != nullptr ? m_engine->GetLocalization() : nullptr;
+        return localization != nullptr && localization->SetLocale(locale);
+    }
+
     void EditorApplication::RequestOpenCanvas(const char* assetRelativePath)
     {
         m_openCanvasRequest = assetRelativePath != nullptr ? assetRelativePath : "";
@@ -2492,6 +2540,7 @@ namespace JBro
             return false;
         }
         m_simulationSnapshot = std::move(snapshot);
+        m_simulationLocale = GetPreviewLocale();
         m_simulationPlaying = true;
         m_simulationPaused = false;
         m_engine->SetSimulationEnabled(true);
@@ -2517,6 +2566,11 @@ namespace JBro
             m_engine->SetSimulationEnabled(false);
             // 게임이 켜고 끈 액션 세트를 되돌린다. 캔버스를 되살리는 것과 같은 까닭이다 - 다음 재생은 처음 상태로 시작한다.
             m_engine->ResetGameInput();
+            // 게임이 바꾼 로케일도 되돌린다(D-226).
+            if (false == m_simulationLocale.empty())
+            {
+                SetPreviewLocale(m_simulationLocale.c_str());
+            }
         }
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr)

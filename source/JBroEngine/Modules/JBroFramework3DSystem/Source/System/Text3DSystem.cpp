@@ -79,6 +79,7 @@ namespace JBro::System
     {
         TextBlockSettings settings;
         settings.text = text.text;
+        settings.textKey = text.textKey;
         settings.fontId = text.fontId;
         settings.font = text.font;
         settings.fontSize = text.fontSize;

@@ -26,7 +26,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroFramework3D\Include;$(JBroModulesDir)JBroRuntime\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroNetworkDir)Include;$(JBroModulesDir)JBroAudioTypes\Include;$(JBroModulesDir)JBroInputTypes\Include;$(JBroModulesDir)JBroSaveTypes\Include;$(JBroModulesDir)JBroLocalizationTypes\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -61,6 +61,10 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroSaveTypes\JBroSaveTypes.vcxproj">
       <Project>{1a000032-0000-4000-8000-000000005a7e}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroLocalizationTypes\JBroLocalizationTypes.vcxproj">
+      <Project>{1a000033-0000-4000-8000-0000000010c4}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
   </ItemGroup>

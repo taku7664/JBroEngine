@@ -53,7 +53,7 @@ namespace
         Check(Table("Component::Transform2D").count == 8, "Transform2D declares eight fields");
         Check(Table("Component::Camera2D").count == 6, "Camera2D declares six fields");
         Check(Table("Component::SpriteRenderer2D").count == 13, "SpriteRenderer2D declares thirteen fields");
-        Check(Table("Component::Text2D").count == 21, "Text2D declares twenty-one fields");
+        Check(Table("Component::Text2D").count == 22, "Text2D declares twenty-two fields");
         Check(Table("Component::Rigidbody2D").count == 7, "Rigidbody2D declares seven fields");
         Check(Table("Component::Collider2D").count == 10,
             "Collider2D declares ten fields - shape, size and trigger, then points and the surface and filter of D-199");
@@ -72,7 +72,7 @@ namespace
         Check(Table("Component::Transform3D").count == 7, "Transform3D declares seven fields");
         Check(Table("Component::Camera3D").count == 7, "Camera3D declares seven fields");
         Check(Table("Component::MeshRenderer3D").count == 6, "MeshRenderer3D declares six fields");
-        Check(Table("Component::Text3D").count == 18, "Text3D declares eighteen fields");
+        Check(Table("Component::Text3D").count == 19, "Text3D declares nineteen fields");
         Check(Table("Component::Rigidbody3D").count == 2, "Rigidbody3D declares two fields");
         Check(Table("Component::Collider3D").count == 1, "Collider3D declares one field");
 

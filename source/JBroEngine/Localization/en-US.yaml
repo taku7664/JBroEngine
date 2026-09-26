@@ -56,6 +56,8 @@ Entries:
   canvas_view.edit_points: Edit Points
   canvas_view.edit_points_not_polygon: shape must be Polygon
   canvas_view.frame_tooltip: fit the view to the selection
+  canvas_view.preview_locale: Language
+  canvas_view.preview_locale_tooltip: preview texts with a textKey in this language
   canvas_view.unit_world: "Unit"
   canvas_view.unit_pixel: "Pixel"
   canvas_view.unit_tooltip: read the ruler in world units or in pixels, against the default asset PPU of 100
@@ -139,6 +141,7 @@ Entries:
   inspector.audio_import_options: "Audio Import Options"
   inspector.font_import_options: "Font Import Options"
   inspector.font_family_faces: "Font Family"
+  inspector.string_table: "String Table"
   inspector.audio_format: "Format"
   inspector.audio_length: "Length"
   inspector.audio_preview: "Preview"
@@ -228,6 +231,8 @@ Entries:
   project_settings.build: Build
   project_settings.text: "Text"
   project_settings.fonts_help: "The first font draws texts with no fontId. Letters a font lacks are looked up in this list, in order."
+  project_settings.game_languages: "Game Languages"
+  project_settings.game_languages_help: "The languages of the string tables (.jstrings). The game starts in DefaultLocale; a key missing from the current language's tables is looked up in FallbackLocale's."
   project_settings.save: Save
   project_settings.revert: Revert
   project_settings.saved: saved
@@ -264,6 +269,7 @@ Entries:
   assets.rescan: Rescan
   assets.new_canvas: New Canvas
   assets.new_font_family: New Font Family
+  assets.new_string_table: New String Table
   assets.duplicate: Duplicate
   assets.copy_path: Copy Path
   assets.cut: Cut

@@ -14,6 +14,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
@@ -317,6 +318,42 @@ namespace JBro
         DrawContextMenu(rect);
     }
 
+    void CanvasViewPanel::DrawPreviewLocale()
+    {
+        // **미리 볼 언어**(D-226). 프로젝트에 게임 언어가 있을 때만 보인다. 고르면 엔진의 로케일이 바뀌어 `textKey` 텍스트가
+        // 그 언어의 표로 다시 그려진다 - 저장하지 않는 보기 설정이다.
+        const Array<String>& locales = m_editor->GetProjectFile().locales;
+        if (locales.IsEmpty())
+        {
+            return;
+        }
+        constexpr std::size_t MaxLocales = 32;
+        const char* names[MaxLocales] = {};
+        const String current = m_editor->GetPreviewLocale();
+        int chosen = -1;
+        const std::size_t count = std::min(locales.Size(), MaxLocales);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            names[index] = locales[index].c_str();
+            if (locales[index] == current)
+            {
+                chosen = static_cast<int>(index);
+            }
+        }
+        Widget::ToolBarSeparator();
+        if (Widget::FilterCombo("##previewLocale", ArrayView<const char* const>(names, count), chosen)
+                .ShowFilter(false)
+                .EmptyText(Loc::TextOr(LocKeys::CanvasViewPreviewLocale, "Language"))
+                .Width(96.0f)
+                .Draw()
+            && chosen >= 0)
+        {
+            m_editor->SetPreviewLocale(names[chosen]);
+        }
+        Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewPreviewLocaleTooltip,
+            "preview texts with a textKey in this language"));
+    }
+
     void CanvasViewPanel::DrawToolBar()
     {
         Widget::GizmoModeBar(m_gizmoMode,
@@ -372,6 +409,7 @@ namespace JBro
         }
         Widget::HoveredTooltip(
             Loc::TextOr(LocKeys::CanvasViewFrameTooltip, "fit the view to the selection"));
+        DrawPreviewLocale();
         if (false == Is3D())
         {
             // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글).

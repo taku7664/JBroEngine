@@ -36,6 +36,8 @@ namespace JBro::Component
         JBRO_REFLECT_BODY(Text2D)
 
         JBRO_FIELD(TextId, text);
+        // 게임 문자열 표의 키다(D-226). 비어 있지 않으면 `text` 대신 이 키의 글자다: 지금 로케일 → 폴백 로케일 → 키 그대로.
+        JBRO_FIELD(TextId, textKey);
         JBRO_FIELD(AssetId, fontId);
         JBRO_FIELD(AssetHandle, font, NoSerialize() | ReadOnly() | Tooltip("fontId 에서 해석된 값"));
         JBRO_FIELD(float, fontSize, Range(1, 512)) = 32.0f;

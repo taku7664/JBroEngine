@@ -9,7 +9,7 @@
 namespace JBro::Service
 {
     // 텍스트 서비스의 공용 부분이다(D-224). 차원별 서비스(`Text2DService`·`Text3DService`)가 물려받고, 제 컴포넌트 타입과
-    // 제 시스템을 찾는 길(`TDerived::GetTextSystem()`, 차원별 시스템 컨텍스트의 슬롯)만 준다. 컴포넌트는 `text`(TextId) 필드를 든다.
+    // 제 시스템을 찾는 길(`TDerived::GetTextSystem()`, 차원별 시스템 컨텍스트의 슬롯)만 준다. 컴포넌트는 `text`·`textKey`(TextId) 필드를 든다.
     //
     // 가상 함수를 두지 않는다 - 서비스는 서비스 컨텍스트(POD) 안에 값으로 들어가 DLL 경계를 넘는다. 메인 스레드 전용이다.
     // 무효한 Ref 나 텍스트 시스템이 없는 자리(에디터 밖 도구 등)에서는 아무것도 하지 않고 거짓·0 을 준다.
@@ -39,6 +39,20 @@ namespace JBro::Service
                 return false;
             }
             return SetText(text, utf8, static_cast<std::uint32_t>(length));
+        }
+
+        // 게임 문자열 표의 키를 바꾼다(D-226). 빈 키를 주면 `text` 의 글자로 돌아간다. 글자 칸은 `text` 와 같은 길로 호스트가 복사한다.
+        bool SetTextKey(Ref<TComponent> text, const char* key) const
+        {
+            System::ITextSystem* system = TDerived::GetTextSystem();
+            TComponent* component = text.Get();
+            const std::size_t length = key != nullptr ? std::strlen(key) : 0;
+            if (system == nullptr || component == nullptr || length > 0xFFFFFFFFu)
+            {
+                return false;
+            }
+            system->SetText(component->textKey, key, static_cast<std::uint32_t>(length));
+            return true;
         }
 
         std::uint32_t GetTextLength(Ref<TComponent> text) const

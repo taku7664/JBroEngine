@@ -4,7 +4,9 @@
 
 #include <JBro/Input/InputSystem.h>
 #include <JBro/InputTypes/Internal/ScriptModuleContext.h>
+#include <JBro/Host/GameLocalization.h>
 #include <JBro/Host/SaveStorage.h>
+#include <JBro/LocalizationTypes/Internal/ScriptModuleContext.h>
 #include <JBro/SaveTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Network/Internal/ScriptModuleContext.h>
 #include <JBro/Network/SteadyClock.h>
@@ -150,6 +152,10 @@ namespace JBro
             m_saveSystemContext.Storage = m_save.Get();
             BindSaveSystemContext(m_saveSystemContext);
             BindSaveServiceContext(m_saveServiceContext);
+            // 게임 문자열 표(D-226). 세이브와 같은 모양이다. 표는 프로젝트를 열 때 에셋 시스템에서 모은다.
+            m_localization = MakeOwnerPtr<GameLocalization>();
+            BindLocalizationSystemContext(m_localization->GetSystemContext());
+            BindLocalizationServiceContext(m_localization->GetServiceContext());
             m_frameworkContext.network = m_network.Get();
             // 오디오(D-197). 장치를 먼저 열어 그 형식으로 믹서를 만든다. 장치가 없으면 믹서만 선다 - 같은 API 가 소리 없이 돈다.
             if (config.audioEnabled)
@@ -271,6 +277,13 @@ namespace JBro
         m_assets->SetDefaultTextureFilter(project.textureFilter);
         m_assets->SetProjectFonts(ArrayView<const AssetId>(project.fonts.Data(), project.fonts.Size()));
         m_assets->Bind(*m_platform, m_assetRegistry, m_assetRoot.c_str());
+        // 문자열 표를 모으고 로케일을 프로젝트의 기본으로 둔다(D-226). 텍스트가 첫 프레임부터 그 로케일로 나온다.
+        if (m_localization)
+        {
+            m_localization->Attach(m_assets.Get(), &m_assetRegistry);
+            ApplyLocaleSettings(true);
+            m_localization->Refresh();
+        }
         if (m_watchAssetDirectory && false == m_platform->WatchDirectory(m_assetRoot.c_str()))
         {
             // 감시가 서지 않아도(폴더 없음) 프로젝트는 열린다. 그때는 변경이 오지 않을 뿐이다 - `IsWatchingAssets` 가 말한다.
@@ -595,6 +608,11 @@ namespace JBro
                             blocks.Add(MakeSaveSystemContextBlock(m_saveSystemContext));
                             blocks.Add(MakeSaveServiceContextBlock(m_saveServiceContext));
                         }
+                        if (m_localization)
+                        {
+                            blocks.Add(MakeLocalizationSystemContextBlock(m_localization->GetSystemContext()));
+                            blocks.Add(MakeLocalizationServiceContextBlock(m_localization->GetServiceContext()));
+                        }
                         if (m_network)
                         {
                             blocks.Add(MakeNetworkSystemContextBlock(m_network->GetSystemContext()));
@@ -701,6 +719,11 @@ namespace JBro
         {
             const ProfileScope scope("Tasks");
             m_tasks->Update();
+        }
+        // 문자열 표가 바뀌었는지 본다(D-226). 표를 싣는 것은 레지스트리가 바뀐 프레임뿐이고, 프레임 경로 앞이다.
+        if (m_localization)
+        {
+            m_localization->Refresh();
         }
         {
             const ProfileScope scope("Platform");
@@ -928,6 +951,33 @@ namespace JBro
         ApplyInputSettings();
         // 제품명을 고치면 세이브 폴더도 옮긴다(D-218).
         OpenSaveFolder();
+        // 폴백 로케일은 지금 적용한다. 지금 로케일은 그대로다 - 에디터가 미리보기로 고른 로케일을 설정 저장이 되돌리지 않는다.
+        ApplyLocaleSettings(false);
+    }
+
+    void EngineInstance::ApplyLocaleSettings(bool resetLocale)
+    {
+        if (m_localization.Get() == nullptr)
+        {
+            return;
+        }
+        m_localization->SetFallbackLocale(m_project.fallbackLocale.c_str());
+        if (false == resetLocale && false == m_localization->GetLocaleName().empty())
+        {
+            return;
+        }
+        // 기본이 비면 목록의 첫 로케일이다. 둘 다 비면 폴백 로케일이다 - 그것도 비면 로케일이 없고 모든 키가 키 그대로 보인다.
+        const String& locale = false == m_project.defaultLocale.empty() ? m_project.defaultLocale
+            : false == m_project.locales.IsEmpty() ? m_project.locales[0] : m_project.fallbackLocale;
+        if (false == locale.empty())
+        {
+            m_localization->SetLocale(locale.c_str());
+        }
+    }
+
+    GameLocalization* EngineInstance::GetLocalization()
+    {
+        return m_localization.Get();
     }
 
     void EngineInstance::OpenSaveFolder()
@@ -1262,6 +1312,11 @@ namespace JBro
             m_audio.Reset();
         }
         m_frameworkContext.audio = nullptr;
+        // 문자열 표는 에셋보다 먼저 놓는다(D-226).
+        if (m_localization)
+        {
+            m_localization->Attach(nullptr, nullptr);
+        }
         if (m_assets)
         {
             m_assets->Shutdown();
@@ -1307,6 +1362,12 @@ namespace JBro
             BindSaveSystemContext({});
             BindSaveServiceContext({});
             m_save.Reset();
+        }
+        if (m_localization)
+        {
+            BindLocalizationSystemContext({});
+            BindLocalizationServiceContext({});
+            m_localization.Reset();
         }
         // 네트워크는 프로젝트 뒤, 플랫폼 앞에 내린다 - 소켓은 플랫폼의 것이다.
         if (m_network)

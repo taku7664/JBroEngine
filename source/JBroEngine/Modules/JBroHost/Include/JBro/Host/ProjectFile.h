@@ -167,6 +167,12 @@ namespace JBro
         Array<String> inputLayers;
         // 입력 액션이다(`InputActions`). 비어 있으면 적지 않는다. 엔진이 담는 것은 앞의 64 개, 액션마다 바인딩 8 개다.
         Array<ProjectInputAction> inputActions;
+        // 게임의 로케일 목록이다(`Locales`, D-226). 에디터의 미리보기 고르기가 이 목록을 보인다. 비어 있으면 적지 않는다.
+        Array<String> locales;
+        // 게임이 켜질 때의 로케일(`DefaultLocale`)과, 지금 로케일의 표에 없는 키를 찾아볼 로케일(`FallbackLocale`)이다.
+        // 비어 있으면 적지 않는다 - 기본이 비면 목록의 첫 로케일이고, 폴백이 비면 찾아보지 않는다.
+        String        defaultLocale;
+        String        fallbackLocale;
         ProjectBuildSettings build;
     };
 

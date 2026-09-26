@@ -774,6 +774,11 @@ namespace JBro
                     parsed.inputLayers.Clear();
                     currentSequence = &parsed.inputLayers;
                 }
+                else if (indent == 0 && key == "Locales")
+                {
+                    parsed.locales.Clear();
+                    currentSequence = &parsed.locales;
+                }
                 else if (indent == 0 && key == "InputActions")
                 {
                     parsed.inputActions.Clear();
@@ -866,6 +871,13 @@ namespace JBro
                 parsed.inputLayers.Clear();
                 recognized = value == "[]";
             }
+            else if (key == "Locales")
+            {
+                parsed.locales.Clear();
+                recognized = value == "[]";
+            }
+            else if (key == "DefaultLocale") { parsed.defaultLocale = value; }
+            else if (key == "FallbackLocale") { parsed.fallbackLocale = value; }
             else if (key == "InputActions")
             {
                 parsed.inputActions.Clear();
@@ -999,11 +1011,20 @@ namespace JBro
                 value = FormatFloat(project.canvasViewCameraSize);
             }
             else if (key == "AssetDirectory") { value = project.assetDirectory; }
+            else if (key == "DefaultLocale") { value = project.defaultLocale; }
+            else if (key == "FallbackLocale") { value = project.fallbackLocale; }
             else
             {
                 return false;
             }
             return true;
+        }
+
+        // 파일에 없던 최상위 키 가운데 비어 있는 로케일은 새로 적지 않는다(D-226) - 로컬라이징을 쓰지 않는 프로젝트가 저장만으로 길어지지 않게 한다.
+        bool IsUnwrittenTopLevelDefault(const ProjectFile& project, const String& key)
+        {
+            return (key == "DefaultLocale" && project.defaultLocale.empty())
+                || (key == "FallbackLocale" && project.fallbackLocale.empty());
         }
 
         bool BuildValue(const ProjectFile& project, const String& key, String& value)
@@ -1037,7 +1058,7 @@ namespace JBro
             "ScriptSourceDirectory", "ScriptOutputLibraryPath", "LastOpenedCanvasPath",
             "AssetDirectory", "EditorLocale",
             "CanvasViewCameraX", "CanvasViewCameraY", "CanvasViewCameraSize",
-            "AudioOutputDevice", "AudioMuteWhenUnfocused"};
+            "AudioOutputDevice", "AudioMuteWhenUnfocused", "DefaultLocale", "FallbackLocale"};
         const char* const BuildKeys[] = {
             "ProductName", "EnableWindows", "EnableWeb", "EnableAndroid", "EnableIOS",
             "OutputDirectory", "StartupCanvas", "ScriptOutputLibraryPath", "PhysicsThreads"};
@@ -1153,18 +1174,36 @@ namespace JBro
             return name[0] != '-' && name[0] != '?';
         }
 
-        // `InputLayers` 를 적는다(D-214). 비어 있으면 `[]` 다(원문에 키가 있었을 때만 불린다).
-        void AppendInputLayers(String& result, const ProjectFile& project)
+        // 이름 시퀀스(`InputLayers`·`Locales`)를 적는다(D-214·D-226). 비어 있으면 `[]` 다(원문에 키가 있었을 때만 불린다).
+        // 빈 이름이 아닌 항목이 있는가. 설정 창의 목록은 새 줄을 빈 이름으로 시작하고, 이름을 적지 않은 줄은 저장할 때 빠진다.
+        bool HasNamedEntry(const Array<String>& names)
         {
-            if (project.inputLayers.IsEmpty())
+            for (const String& name : names)
             {
-                result.append("InputLayers: []\n", 16);
+                if (false == name.empty())
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        void AppendNameSequence(String& result, const char* key, const Array<String>& names, bool skipEmpty = false)
+        {
+            result.append(key);
+            if (names.IsEmpty() || (skipEmpty && false == HasNamedEntry(names)))
+            {
+                result.append(": []\n", 5);
                 return;
             }
-            result.append("InputLayers:\n", 13);
-            for (std::size_t index = 0; index < project.inputLayers.Size(); ++index)
+            result.append(":\n", 2);
+            for (std::size_t index = 0; index < names.Size(); ++index)
             {
-                const String& layer = project.inputLayers[index];
+                const String& layer = names[index];
+                if (skipEmpty && layer.empty())
+                {
+                    continue;
+                }
                 result.append("  - ", 4);
                 if (IsPlainName(layer))
                 {
@@ -1443,6 +1482,7 @@ namespace JBro
         bool sawFonts = false;
         bool sawInputLayers = false;
         bool sawInputActions = false;
+        bool sawLocales = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
         std::size_t buildEnd = String::npos;
 
@@ -1498,7 +1538,19 @@ namespace JBro
             String value;
             bool replaced = false;
             bool dropped = false;
-            if (pair && indent == 0 && (key == "InputLayers" || key == "InputActions"))
+            if (pair && indent == 0 && key == "Locales")
+            {
+                // 입력 레이어와 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다.
+                dropped = sawLocales;
+                if (false == dropped)
+                {
+                    AppendNameSequence(result, "Locales", project.locales, true);
+                    sawLocales = true;
+                }
+                skippingSequence = false == hasValue;
+                replaced = true;
+            }
+            else if (pair && indent == 0 && (key == "InputLayers" || key == "InputActions"))
             {
                 // 버스와 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다.
                 const bool layers = key == "InputLayers";
@@ -1508,7 +1560,7 @@ namespace JBro
                 {
                     if (layers)
                     {
-                        AppendInputLayers(result, project);
+                        AppendNameSequence(result, "InputLayers", project.inputLayers);
                     }
                     else
                     {
@@ -1641,7 +1693,7 @@ namespace JBro
             }
             String value;
             const String key(TopLevelKeys[index]);
-            if (TopLevelValue(project, key, value))
+            if (false == IsUnwrittenTopLevelDefault(project, key) && TopLevelValue(project, key, value))
             {
                 AppendPair(result, "", key, value);
             }
@@ -1674,7 +1726,12 @@ namespace JBro
         // 입력도 같다(D-214): 적힌 적 없고 비어 있으면 적지 않는다.
         if (false == sawInputLayers && false == project.inputLayers.IsEmpty())
         {
-            AppendInputLayers(result, project);
+            AppendNameSequence(result, "InputLayers", project.inputLayers);
+        }
+        // 로케일 목록도 같다(D-226).
+        if (false == sawLocales && HasNamedEntry(project.locales))
+        {
+            AppendNameSequence(result, "Locales", project.locales, true);
         }
         if (false == sawInputActions && false == project.inputActions.IsEmpty())
         {

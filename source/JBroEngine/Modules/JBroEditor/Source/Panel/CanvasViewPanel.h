@@ -75,6 +75,7 @@ namespace JBro
         };
 
         void DrawToolBar();
+        void DrawPreviewLocale();
         // 팬(가운데·오른쪽 끌기)과 줌(휠). 그림 위에 마우스가 있을 때만.
         void HandleCameraInput(const ViewRect& rect, bool hovered);
         void DrawGrid(const ViewRect& rect);

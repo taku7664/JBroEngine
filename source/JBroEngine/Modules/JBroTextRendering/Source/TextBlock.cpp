@@ -1,4 +1,5 @@
 ﻿#include <JBro/TextRendering/TextBlock.h>
+#include <JBro/LocalizationTypes/Internal/SystemContext.h>
 
 #include <JBro/Types/Hash.h>
 
@@ -131,6 +132,35 @@ namespace JBro
         return true;
     }
 
+    ArrayView<const char> TextBlock::ResolveText(const TextBlockSettings& settings)
+    {
+        const TextStore& store = TextStore::Get();
+        const ArrayView<const char> key = store.GetText(settings.textKey);
+        if (key.Size() == 0)
+        {
+            return store.GetText(settings.text);
+        }
+        const char* found = nullptr;
+        std::size_t length = 0;
+        const System::ILocalization* localization = GetLocalizationSystems().Localization;
+        if (localization != nullptr && localization->Find(key.Data(), key.Size(), found, length))
+        {
+            return ArrayView<const char>(found, length);
+        }
+        // 빠진 번역은 키 그대로 보인다 - 빈 글자로 두면 무엇이 빠졌는지 화면에서 알 수 없다.
+        return key;
+    }
+
+    std::uint32_t TextBlock::LocalizationRevision(const TextBlockSettings& settings)
+    {
+        if (TextStore::Get().GetText(settings.textKey).Size() == 0)
+        {
+            return 0;
+        }
+        const System::ILocalization* localization = GetLocalizationSystems().Localization;
+        return localization != nullptr ? localization->GetRevision() : 0;
+    }
+
     TextBlock::UpdateResult TextBlock::Update(TextLibrary& library, const TextBlockSettings& settings)
     {
         AssetHandle handles[MaxFaces];
@@ -149,6 +179,10 @@ namespace JBro
         bool stale = m_text.index != settings.text.index
             || m_text.generation != settings.text.generation
             || m_textRevision != store.GetRevision(settings.text)
+            || m_textKey.index != settings.textKey.index
+            || m_textKey.generation != settings.textKey.generation
+            || m_textKeyRevision != store.GetRevision(settings.textKey)
+            || m_localizationRevision != LocalizationRevision(settings)
             || m_fontCount != count
             || m_optionsKey != MakeOptionsKey(settings)
             || m_styles.bold != styles.bold || m_styles.italic != styles.italic || m_styles.boldItalic != styles.boldItalic;
@@ -200,6 +234,9 @@ namespace JBro
 
         m_text = settings.text;
         m_textRevision = TextStore::Get().GetRevision(settings.text);
+        m_textKey = settings.textKey;
+        m_textKeyRevision = TextStore::Get().GetRevision(settings.textKey);
+        m_localizationRevision = LocalizationRevision(settings);
         m_fontCount = count;
         for (std::uint32_t face = 0; face < count; ++face)
         {
@@ -221,7 +258,7 @@ namespace JBro
             faces[face] = views[face].face;
         }
         const ArrayView<const Text::FontFace* const> faceView(faces, count);
-        const ArrayView<const char> utf8 = TextStore::Get().GetText(settings.text);
+        const ArrayView<const char> utf8 = ResolveText(settings);
         // 자동 크기는 상자가 있을 때만 뜻이 있다. 크기를 먼저 찾고, 그 크기로 레이아웃이 남는다.
         const bool fitToBox = settings.autoSize && (options.boxWidth > 0.0f || options.boxHeight > 0.0f);
         Text::LayoutError built = Text::LayoutError::None;

@@ -58,6 +58,19 @@
 #include <JBro/Host/SaveStorage.h>
 #endif
 
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Localization
+#if defined(JBRO_TIER_PROBE_LOCALIZATION)
+// 문자열 표를 모으는 구현은 호스트의 것이다(D-226). 스크립트는 `LocalizationService` 만 본다.
+#include <JBro/Host/GameLocalization.h>
+#endif
+
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=LocalizationSystem
+#if defined(JBRO_TIER_PROBE_LOCALIZATION_SYSTEM)
+// 조회 인터페이스도 프렐류드가 내놓지 않는다. 경로로는 막을 수 없는 Tier S 헤더라 프렐류드에 없다는 것을 쓰임으로 본다:
+// 프렐류드만 include 한 번역 단위에서 `System::ILocalization` 은 알려지지 않은 이름이어야 한다(C2039/C3083).
+using ProbeLocalizationInterface = JBro::System::ILocalization;
+#endif
+
 #if defined(JBRO_TIER_PROBE_GAME_OBJECT)
 // 프렐류드를 거치지 않고 직접 집는 모양을 흉내낸다. 표식이 없으므로 #error 여야 한다.
 #undef JBRO_SCRIPT_PRELUDE

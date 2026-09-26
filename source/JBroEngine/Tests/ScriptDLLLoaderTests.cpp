@@ -6,6 +6,7 @@
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
+#include <JBro/Host/GameLocalization.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/GameObject.h>
@@ -915,6 +916,16 @@ namespace
         const std::size_t overridesSize = writeOverrides(overrides, sizeof(overrides));
         Check(JBro::String(overrides, overridesSize) == "Jump: \"Key Enter\"\n",
             "the script DLL receives the changed binding by name");
+
+        // DLL 안의 스크립트가 로케일을 바꾸면 호스트의 것이 바뀐다(D-226). 표가 없는 프로젝트라 키는 그대로 돌아온다.
+        using Localize = std::size_t (*)(const char*, const char*, char*, std::size_t) noexcept;
+        const auto localize = reinterpret_cast<Localize>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_Localize"));
+        Check(localize != nullptr, "the probe must export its localization call");
+        char localized[32] = {};
+        const std::size_t localizedSize = localize("en-US", "menu.start", localized, sizeof(localized));
+        Check(JBro::String(localized, localizedSize) == "menu.start", "a key with no table comes back as itself inside the DLL");
+        Check(engine.GetLocalization() != nullptr && engine.GetLocalization()->GetLocaleName() == "en-US",
+            "and the locale the DLL set is the host's");
 
         engine.CloseProject();
         Check(framework.unbindCount == 1, "closing must unbind the contexts once");

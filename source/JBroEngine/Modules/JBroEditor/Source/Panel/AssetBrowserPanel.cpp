@@ -808,6 +808,11 @@ namespace JBro
         {
             m_editor->CreateFontFamilyAsset(m_openFolder.c_str());
         }
+        // **새 문자열 표**(D-226). 로케일은 프로젝트의 기본 언어로 적고, 인스펙터에서 바꾼다.
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewStringTable, "New String Table")))
+        {
+            m_editor->CreateStringTableAsset(m_openFolder.c_str());
+        }
         if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewCanvas, "New Canvas")))
         {
             const String created = m_editor->CreateCanvasAsset(m_openFolder.c_str());

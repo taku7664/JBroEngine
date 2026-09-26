@@ -49,6 +49,8 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewEditPoints = "canvas_view.edit_points";
     inline constexpr const char* CanvasViewEditPointsNotPolygon = "canvas_view.edit_points_not_polygon";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
+    inline constexpr const char* CanvasViewPreviewLocale = "canvas_view.preview_locale";
+    inline constexpr const char* CanvasViewPreviewLocaleTooltip = "canvas_view.preview_locale_tooltip";
     // 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지(D-184, 기존 `canvas_view.unit.*`).
     inline constexpr const char* CanvasViewUnitWorld = "canvas_view.unit_world";
     inline constexpr const char* CanvasViewUnitPixel = "canvas_view.unit_pixel";
@@ -236,6 +238,7 @@ namespace JBro::LocKeys
     inline constexpr const char* AssetsRescan = "assets.rescan";
     inline constexpr const char* AssetsNewCanvas = "assets.new_canvas";
     inline constexpr const char* AssetsNewFontFamily = "assets.new_font_family";
+    inline constexpr const char* AssetsNewStringTable = "assets.new_string_table";
     inline constexpr const char* AssetsDuplicate = "assets.duplicate";
     inline constexpr const char* AssetsCopyPath = "assets.copy_path";
     // 파일 클립보드(D-182). 오브젝트 쪽의 복사·붙여넣기와 **다른 키**다 - 같은 말이라도
@@ -286,6 +289,7 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAudioImportOptions = "inspector.audio_import_options";
     inline constexpr const char* InspectorFontImportOptions = "inspector.font_import_options";
     inline constexpr const char* InspectorFontFamilyFaces = "inspector.font_family_faces";
+    inline constexpr const char* InspectorStringTable = "inspector.string_table";
     inline constexpr const char* InspectorAudioFormat = "inspector.audio_format";
     inline constexpr const char* InspectorAudioLength = "inspector.audio_length";
     inline constexpr const char* InspectorAudioPreview = "inspector.audio_preview";
@@ -363,6 +367,8 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsBuild = "project_settings.build";
     inline constexpr const char* ProjectSettingsText = "project_settings.text";
     inline constexpr const char* ProjectSettingsFontsHelp = "project_settings.fonts_help";
+    inline constexpr const char* ProjectSettingsGameLanguages = "project_settings.game_languages";
+    inline constexpr const char* ProjectSettingsGameLanguagesHelp = "project_settings.game_languages_help";
     inline constexpr const char* ProjectSettingsSave = "project_settings.save";
     inline constexpr const char* ProjectSettingsRevert = "project_settings.revert";
     inline constexpr const char* ProjectSettingsSaved = "project_settings.saved";

@@ -21,6 +21,9 @@
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
 #include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Host/GameLocalization.h>
+#include <JBro/LocalizationTypes/Internal/SystemContext.h>
+#include <JBro/LocalizationTypes/ServiceContext.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Reflection/ReflectedYaml.h>
@@ -1383,10 +1386,171 @@ namespace
             const std::uint64_t relayouts = texts->GetRelayoutCount();
             gpu.Paint(framework);
             Check(texts->GetRelayoutCount() > relayouts, "the next frame lays the new text out");
+
+            // 키도 서비스로 건다(D-226). 3D 도 키의 글자로 그린다: `Quit` 을 글자로 쓴 것과 블록이 같다.
+            GameLocalization localization;
+            localization.Attach(&project.assets, &project.registry);
+            localization.SetLocale("en-US");
+            localization.Refresh();
+            BindLocalizationSystemContext(localization.GetSystemContext());
+            Check(service.SetTextKey(ref, "menu.quit"), "a script sets a 3D text's key");
+            gpu.Paint(framework);
+            float keyMinX = 0.0f;
+            float keyMinY = 0.0f;
+            float keyMaxX = 0.0f;
+            float keyMaxY = 0.0f;
+            Check(texts->GetLocalBounds(label->GetInstanceId(), keyMinX, keyMinY, keyMaxX, keyMaxY), "the keyed 3D text has a block");
+            Check(service.SetTextKey(ref, "") && service.SetText(ref, "Quit"), "the key clears and the text is its value");
+            gpu.Paint(framework);
+            Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY) && minX == keyMinX && maxX == keyMaxX
+                    && maxY == keyMaxY && maxX - minX > 1.0f,
+                "a keyed 3D text lays out its table value");
+            BindLocalizationSystemContext({});
+            localization.Attach(nullptr, nullptr);
             framework.UnbindScriptContexts();
             Check(false == service.SetText(ref, "No"), "without the contexts the service does nothing");
             framework.Shutdown();
         }
+        gpu.Close();
+        project.Close();
+    }
+
+    // **게임 로컬라이징 키**(D-226). `textKey` 가 있는 텍스트는 문자열 표의 글자다: 지금 로케일 → 폴백 로케일 → 키 그대로.
+    // 로케일을 바꾸면 키가 있는 텍스트만 다시 레이아웃한다. 표를 고쳐 재로드하면 다음 프레임의 글자가 새 값이다.
+    void TestLocalizedTextFollowsTheLocale()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        // 폭이 뚜렷이 다른 글자로 표를 새로 쓴다(서브셋에 있는 글자만).
+        constexpr char korean[] = "title: \"\xEA\xB0\x80\"\n";
+        constexpr char english[] = "title: \"Hello world\"\nen.only: \"WWWWWWWW\"\n";
+        WriteBytes(project.root / "Text" / "ui.ko-KR.jstrings", korean, sizeof(korean) - 1);
+        WriteBytes(project.root / "Text" / "ui.en-US.jstrings", english, sizeof(english) - 1);
+
+        GameLocalization localization;
+        localization.Attach(&project.assets, &project.registry);
+        Check(localization.GetTableCount() == 0, "tables are gathered on the next refresh, not on attach");
+        localization.SetFallbackLocale("en-US");
+        Check(localization.SetLocale("ko-KR") && false == localization.SetLocale("") && false == localization.SetLocale(nullptr),
+            "a locale is a name; an empty one is refused");
+        localization.Refresh();
+        Check(localization.GetTableCount() == 2, "every string table is held whatever its locale");
+        Check(project.assets.GetReferenceCount(project.assets.Find(project.koreanTableId)) == 1, "and held once");
+
+        // 서비스(게임 DLL 의 사본이 부르는 길)다.
+        const Service::LocalizationService& service = GetLocalizationServices().Localization;
+        Check(false == service.IsReady() && service.GetText("title") == "title" && service.GetRevision() == 0,
+            "without a bound localization the service shows the key");
+        BindLocalizationSystemContext(localization.GetSystemContext());
+        Check(service.IsReady() && service.GetLocale() == "ko-KR", "the service reads the host's locale");
+        Check(service.GetText("title") == "\xEA\xB0\x80", "a key reads the current locale's table");
+        Check(service.GetText("en.only") == "WWWWWWWW", "a key missing there reads the fallback locale's table");
+        String out = "stale";
+        Check(false == service.TryGetText("no.such.key", out) && out.empty() && service.GetText("no.such.key") == "no.such.key",
+            "a key in no table shows itself");
+        const char* longName = "x-a-locale-name-longer-than-the-small-buffer-of-the-service";
+        Check(service.SetLocale(longName) && service.GetLocale() == longName, "a long locale name comes back whole");
+        Check(service.GetText("title") == "Hello world", "a locale with no table reads the fallback");
+        Check(service.SetLocale("ko-KR"), "the service sets the locale back");
+
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; localized text drawing not verified" << std::endl;
+            BindLocalizationSystemContext({});
+            localization.Attach(nullptr, nullptr);
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            const auto makeLabel = [&](const char* name) {
+                GameObject* object = canvas->CreateObject(name);
+                canvas->AttachComponent<Component::Transform2D>(object);
+                auto* label = canvas->AttachComponent<Component::Text2D>(object);
+                label->fontId = project.fontId;
+                label->fontSize = 24.0f;
+                return label;
+            };
+            auto* keyed = makeLabel("keyed");
+            TextStore::Get().Assign(keyed->text, "ignored", 7);
+            TextStore::Get().Assign(keyed->textKey, "title", 5);
+            auto* plain = makeLabel("plain");
+            TextStore::Get().Assign(plain->text, "Hello world", 11);
+            framework.BindCanvasAssets();
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+            const auto widthOf = [&](const Component::Text2D* label) {
+                float minX = 0.0f;
+                float minY = 0.0f;
+                float maxX = 0.0f;
+                float maxY = 0.0f;
+                Check(texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY), "a label has a block");
+                return maxX - minX;
+            };
+
+            gpu.Paint(framework);
+            const float korean = widthOf(keyed);
+            const float helloWorld = widthOf(plain);
+            Check(korean > 0.1f && korean < helloWorld * 0.5f, "the key draws its one-letter Korean value, not the text");
+            const std::uint64_t relayouts = texts->GetRelayoutCount();
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() == relayouts, "an unchanged locale lays nothing out again");
+
+            // 로케일을 바꾸면 키가 있는 것만 다시 레이아웃한다.
+            localization.SetLocale("en-US");
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() == relayouts + 1, "a new locale lays out the keyed text only");
+            Check(widthOf(keyed) == helloWorld, "which now reads the English table");
+            localization.SetLocale("en-US");
+            gpu.Paint(framework);
+            Check(texts->GetRelayoutCount() == relayouts + 1, "setting the same locale changes nothing");
+
+            // 폴백과 빠진 키.
+            localization.SetLocale("ko-KR");
+            TextStore::Get().Assign(keyed->textKey, "en.only", 7);
+            TextStore::Get().Assign(plain->text, "WWWWWWWW", 8);
+            gpu.Paint(framework);
+            Check(widthOf(keyed) == widthOf(plain), "a key missing in the locale draws the fallback's value");
+            TextStore::Get().Assign(keyed->textKey, "no.such.key", 11);
+            TextStore::Get().Assign(plain->text, "no.such.key", 11);
+            gpu.Paint(framework);
+            Check(widthOf(keyed) == widthOf(plain), "a key in no table draws the key itself");
+
+            // 표를 고쳐 재로드하면 다음 프레임의 글자가 새 값이다. 재로드는 판번호를 올린다.
+            TextStore::Get().Assign(keyed->textKey, "title", 5);
+            gpu.Paint(framework);
+            const std::uint32_t revision = localization.GetRevision();
+            constexpr char longer[] = "title: \"\xEA\xB0\x80\xEB\x82\x98\xEB\x8B\xA4\"\n";
+            WriteBytes(project.root / "Text" / "ui.ko-KR.jstrings", longer, sizeof(longer) - 1);
+            Check(project.assets.ReloadInPlace(project.koreanTableId), "the Korean table reloads");
+            localization.Refresh();
+            Check(localization.GetRevision() == revision + 1, "a reloaded table bumps the revision");
+            localization.Refresh();
+            Check(localization.GetRevision() == revision + 1, "and only once");
+            gpu.Paint(framework);
+            Check(widthOf(keyed) > korean * 2.5f, "the keyed text draws the reloaded value");
+
+            // 묶인 것이 없으면 키 그대로다.
+            BindLocalizationSystemContext({});
+            TextStore::Get().Assign(plain->text, "title", 5);
+            gpu.Paint(framework);
+            Check(widthOf(keyed) == widthOf(plain), "with no localization bound a key draws itself");
+            framework.Shutdown();
+        }
+        localization.Attach(nullptr, nullptr);
+        Check(project.assets.GetReferenceCount(project.assets.Find(project.koreanTableId)) == 0, "detaching lets the tables go");
         gpu.Close();
         project.Close();
     }
@@ -1854,6 +2018,7 @@ int RunTextRenderTests()
         TestPixelSnapLandsGlyphsOnWholePixels();
         TestRichTextDrawsTaggedColourAndSize();
         TestText3DDrawsInTheWorld();
+        TestLocalizedTextFollowsTheLocale();
     }
     catch (const std::exception&)
     {

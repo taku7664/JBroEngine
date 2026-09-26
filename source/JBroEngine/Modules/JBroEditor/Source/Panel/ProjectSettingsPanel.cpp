@@ -175,6 +175,46 @@ namespace JBro
         }
     }
 
+    void ProjectSettingsPanel::DrawGameLanguages()
+    {
+        // **게임 언어**(D-226). 문자열 표의 로케일 목록과 기본·폴백이다. 에디터 언어(`EditorLocale`)와는 다른 값이다 - 위의 언어는
+        // 에디터 화면의 것이고 이것은 게임이 보일 글자의 것이다.
+        Widget::SectionHeader(
+            Loc::TextOr(LocKeys::ProjectSettingsGameLanguages, "Game Languages")).SpacingBefore().Draw();
+        Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsGameLanguagesHelp,
+            "The languages of the string tables (.jstrings). The game starts in DefaultLocale; a key missing from the current language's tables is looked up in FallbackLocale's."));
+        // 순서가 기본값(첫 언어)을 정하므로 폰트와 같은 목록 위젯이다. 새 줄은 빈 이름으로 시작한다.
+        Widget::List("##locales", m_draft.locales,
+            [&](String& locale, int) { Widget::TextField("##locale", locale).Hint("ko-KR").Draw(); },
+            String(), Widget::ListFlagsShowIndex);
+        // 기본·폴백은 목록에서 고른다. 목록에 없는 이름이 적혀 있으면(손으로 고친 파일) 비어 보이고 그대로 남는다.
+        constexpr std::size_t MaxLocales = 32;
+        const char* names[MaxLocales] = {};
+        const std::size_t count = std::min(m_draft.locales.Size(), MaxLocales);
+        for (std::size_t index = 0; index < count; ++index)
+        {
+            names[index] = m_draft.locales[index].c_str();
+        }
+        const auto pick = [&](const char* id, String& value) {
+            int current = -1;
+            for (std::size_t index = 0; index < count; ++index)
+            {
+                if (m_draft.locales[index] == value)
+                {
+                    current = static_cast<int>(index);
+                }
+            }
+            if (Widget::FilterCombo(id, ArrayView<const char* const>(names, count), current).ShowFilter(false).Draw()
+                && current >= 0)
+            {
+                value = m_draft.locales[static_cast<std::size_t>(current)];
+            }
+        };
+        Widget::FormLayout layout("##gameLanguages");
+        layout.Row([] { Widget::Text("DefaultLocale"); }, [&] { pick("##default", m_draft.defaultLocale); });
+        layout.Row([] { Widget::Text("FallbackLocale"); }, [&] { pick("##fallback", m_draft.fallbackLocale); });
+    }
+
     void ProjectSettingsPanel::DrawInputSettings()
     {
         Widget::SectionHeader(
@@ -868,6 +908,7 @@ namespace JBro
                     .Draw();
             },
             AssetId{}, Widget::ListFlagsShowIndex);
+        DrawGameLanguages();
         DrawInputSettings();
 
         Widget::SectionHeader(

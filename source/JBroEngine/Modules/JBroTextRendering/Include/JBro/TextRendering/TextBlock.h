@@ -49,6 +49,9 @@ namespace JBro
     struct TextBlockSettings
     {
         TextId           text;
+        // 게임 문자열 표의 키다(D-226). 비어 있지 않으면 `text` 대신 이 키의 글자를 보인다: 지금 로케일 → 폴백 로케일 → 키 그대로.
+        // 표는 이 모듈 사본에 묶인 `ILocalization`(호스트의 것)에서 찾는다. 묶인 것이 없으면 키 그대로다.
+        TextId           textKey;
         AssetId          fontId;
         AssetHandle      font;             // fontId 에서 해석된 것(Font 또는 FontFamily, D-225). fontId 가 비면 프로젝트의 첫 폰트를 쓴다(D-213)
         float            fontSize = 32.0f; // em 크기(글자 픽셀)
@@ -112,9 +115,17 @@ namespace JBro
         void Relayout(const TextBlockSettings& settings, const AssetHandle* handles, const FontView* views, std::uint32_t count,
             const StyleFaces& styles);
 
+        // 보일 글자다. 키가 있으면 표에서 찾은 것(없으면 키), 없으면 `text` 의 것이다. 찾은 글자는 호스트 메모리를 가리키므로 곧바로 쓴다.
+        static ArrayView<const char> ResolveText(const TextBlockSettings& settings);
+        static std::uint32_t LocalizationRevision(const TextBlockSettings& settings);
+
         // 이 캐시를 만든 입력이다. 하나라도 다르면 다시 레이아웃한다.
         TextId           m_text;
         std::uint32_t    m_textRevision = 0;
+        TextId           m_textKey;
+        std::uint32_t    m_textKeyRevision = 0;
+        // 키가 있을 때만 본다. 키가 없으면 0 이다 - 로케일이 바뀌어도 키 없는 텍스트는 다시 레이아웃하지 않는다.
+        std::uint32_t    m_localizationRevision = 0;
         // 앞이 기본 폰트, 뒤가 폴백이다.
         AssetHandle      m_fonts[MaxFaces];
         std::uint32_t    m_fontGenerations[MaxFaces] = {};

@@ -23,6 +23,7 @@
 #include <JBro/InputTypes/InputHandler.h>
 #include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
+#include <JBro/LocalizationTypes/ServiceContext.h>
 
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>

@@ -38,6 +38,8 @@
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Audio'">JBRO_TIER_PROBE_AUDIO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Input'">JBRO_TIER_PROBE_INPUT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Save'">JBRO_TIER_PROBE_SAVE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Localization'">JBRO_TIER_PROBE_LOCALIZATION;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'LocalizationSystem'">JBRO_TIER_PROBE_LOCALIZATION_SYSTEM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Task'">JBRO_TIER_PROBE_TASK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'TextRendering'">JBRO_TIER_PROBE_TEXT_RENDERING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
@@ -63,6 +65,9 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroSaveTypes\JBroSaveTypes.vcxproj">
       <Project>{1a000032-0000-4000-8000-000000005a7e}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroLocalizationTypes\JBroLocalizationTypes.vcxproj">
+      <Project>{1a000033-0000-4000-8000-0000000010c4}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

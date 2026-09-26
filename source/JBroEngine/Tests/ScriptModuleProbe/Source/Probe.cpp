@@ -3,6 +3,7 @@
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/SaveTypes/Internal/ScriptModuleContext.h>
+#include <JBro/LocalizationTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Runtime/TextStore.h>
@@ -93,6 +94,15 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
         {
             JBro::BindSaveSystemContext(*saveSystems);
         }
+        // 문자열 표도 호스트가 낸다(D-226).
+        if (const JBro::LocalizationServiceContext* localizationServices = JBro::FindLocalizationServiceContext(*context))
+        {
+            JBro::BindLocalizationServiceContext(*localizationServices);
+        }
+        if (const JBro::LocalizationSystemContext* localizationSystems = JBro::FindLocalizationSystemContext(*context))
+        {
+            JBro::BindLocalizationSystemContext(*localizationSystems);
+        }
         // 이름으로 만들 수 있게 타입을 호스트 표에 등록한다. 여기서 만들어지는
         // 생성·파괴 함수는 이 DLL 안의 코드이며, 호스트는 그 주소만 부른다.
         if (false == JBro::RegisterScriptType2D<ProbeRegisteredScript>())
@@ -111,6 +121,8 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
         JBro::BindInputSystemContext({});
         JBro::BindSaveServiceContext({});
         JBro::BindSaveSystemContext({});
+        JBro::BindLocalizationServiceContext({});
+        JBro::BindLocalizationSystemContext({});
         JBro::Internal::InstanceRegistry::Bind(nullptr);
         JBro::ScriptRegistry::Bind(nullptr);
         JBro::NameTable::Bind(nullptr);
@@ -242,6 +254,27 @@ extern "C" __declspec(dllexport) bool JBroScriptProbe_SaveRoundTrip(const char* 
     }
     JBro::String read;
     return save.ReadText(slot, read) && read == written;
+}
+
+// DLL 안의 스크립트가 로케일을 바꾸고 키의 글자를 제 힙에 받는다(D-226). 돌려주는 것은 글자 길이이고, 로케일을 못 바꾸면 0 이다.
+extern "C" __declspec(dllexport) std::size_t JBroScriptProbe_Localize(const char* locale, const char* key, char* buffer,
+    std::size_t capacity) noexcept
+{
+    const JBro::Service::LocalizationService& localization = JBro::GetLocalizationServices().Localization;
+    if (false == localization.SetLocale(locale) || localization.GetLocale() != locale)
+    {
+        return 0;
+    }
+    const JBro::String text = localization.GetText(key);
+    if (text.size() > capacity)
+    {
+        return 0;
+    }
+    for (std::size_t index = 0; index < text.size(); ++index)
+    {
+        buffer[index] = text[index];
+    }
+    return text.size();
 }
 
 // DLL 안의 스크립트가 리바인딩을 글자로 받는다(D-218). 서비스가 크기를 묻고 제 힙에 버퍼를 키운다.

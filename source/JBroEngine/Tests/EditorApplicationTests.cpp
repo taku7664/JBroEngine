@@ -10195,6 +10195,79 @@ namespace
         editor.Shutdown();
     }
 
+    // **게임 언어**(D-226). 프로젝트의 기본 언어로 열리고, 새 문자열 표는 그 언어를 메타에 적고, 인스펙터가 로케일 칸을 보인다.
+    // 캔버스 뷰의 미리보기 고르기는 게임 언어가 있을 때 도구 줄에 있고, 재생이 끝나면 게임이 바꾼 로케일이 재생 전으로 돌아간다.
+    void TestTheEditorPreviewsGameLanguages()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; game languages not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroGameLanguageProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\n" << "AssetDirectory: Assets\n"
+                 << "Locales:\n  - ko-KR\n  - en-US\nDefaultLocale: en-US\nFallbackLocale: ko-KR\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.GetPreviewLocale() == "en-US", "the project opens in its default language");
+
+        const JBro::String table = editor.CreateStringTableAsset("Text");
+        Check(false == table.empty() && std::filesystem::exists(root / "Assets" / table.c_str()), "a string table file is written");
+        const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(table.c_str());
+        Check(record != nullptr && record->type == JBro::AssetType::StringTable, "and registered as a string table");
+        Check(editor.GetSelectedAsset() == record->id, "and selected");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the table");
+        }
+        const JBro::AssetMetaFile* meta = editor.GetSelectedAssetMeta();
+        Check(meta != nullptr && meta->hasStringTableOptions && meta->stringTableOptions.locale == "en-US",
+            "a new table is written in the project's default language");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID localeField = LabelId(PushedId(LabelId(PushedId(inspector->ID, 0), "##import"), 0), "##value");
+        Spot localeSpot;
+        Check(FindInspectorItem(editor, hwnd, localeField, localeSpot), "the table's locale is a row in the inspector");
+
+        // 캔버스 뷰 도구 줄의 고르기다. 도구 줄은 창의 위쪽에 있다.
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const ImGuiID combo = LabelId(view->ID, "##previewLocale");
+        bool found = false;
+        for (float fraction = 0.05f; fraction < 1.0f && false == found; fraction += 0.02f)
+        {
+            for (int y = static_cast<int>(view->Pos.y); y < static_cast<int>(view->Pos.y) + 64 && false == found; y += 4)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(view->Pos.x + view->Size.x * fraction), y));
+                Check(editor.Tick(Frame), "the editor must tick while looking");
+                found = ImGui::GetHoveredID() == combo;
+            }
+        }
+        Check(found, "the canvas view's toolbar has the preview language");
+
+        Check(editor.SetPreviewLocale("ko-KR") && editor.GetPreviewLocale() == "ko-KR", "the preview language changes the engine's");
+        Check(editor.StartSimulation(), "the game plays");
+        Check(editor.SetPreviewLocale("en-US"), "the game changes the language while it plays");
+        editor.StopSimulation();
+        Check(editor.GetPreviewLocale() == "ko-KR", "stopping puts back the language from before the play");
+        editor.Shutdown();
+    }
+
     // **캔버스를 새로 만들고 다른 것을 연다**(D-174, 기존 `에셋 추가 ▸ 캔버스` 와 더블클릭).
     // 프로젝트 파일에 적힌 캔버스 하나만 편집할 수 있었다 - 새로 만들 길도 다른 것을 열 길도
     // 에디터 안에 없었다.
@@ -11322,6 +11395,7 @@ int RunEditorApplicationTests()
     TestThePathHelpersAgreeOnOneAnswer();
     TestTheEditorMakesAndOpensCanvases();
     TestTheEditorMakesFontFamilies();
+    TestTheEditorPreviewsGameLanguages();
     TestTheEditorSaysWhatIsChosen();
     TestEditorHiddenObjectsLeaveOnlyTheCanvasView();
     TestCreatingAnObjectCanBeUndone();

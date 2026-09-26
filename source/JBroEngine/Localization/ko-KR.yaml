@@ -56,6 +56,8 @@ Entries:
   canvas_view.edit_points: 포인트 편집
   canvas_view.edit_points_not_polygon: shape 가 Polygon 이어야 합니다
   canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
+  canvas_view.preview_locale: 언어
+  canvas_view.preview_locale_tooltip: textKey 가 있는 텍스트를 이 언어로 미리 봅니다
   canvas_view.unit_world: "단위: 유닛"
   canvas_view.unit_pixel: "단위: 픽셀"
   canvas_view.unit_tooltip: 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지 바꿉니다. 픽셀은 에셋 PPU 기본값(100) 기준입니다
@@ -139,6 +141,7 @@ Entries:
   inspector.audio_import_options: "오디오 임포트 옵션"
   inspector.font_import_options: "폰트 임포트 옵션"
   inspector.font_family_faces: "폰트 패밀리"
+  inspector.string_table: "문자열 표"
   inspector.audio_format: "형식"
   inspector.audio_length: "길이"
   inspector.audio_preview: "미리 듣기"
@@ -228,6 +231,8 @@ Entries:
   project_settings.build: 빌드
   project_settings.text: "텍스트"
   project_settings.fonts_help: "첫 폰트로 fontId 가 비어 있는 텍스트를 그립니다. 폰트에 없는 글자는 이 목록에서 순서대로 찾습니다."
+  project_settings.game_languages: "게임 언어"
+  project_settings.game_languages_help: "문자열 표(.jstrings)의 언어 목록입니다. 게임은 DefaultLocale 로 시작하고, 지금 언어의 표에 없는 키는 FallbackLocale 의 표에서 찾습니다."
   project_settings.save: 저장
   project_settings.revert: 되돌리기
   project_settings.saved: 저장했습니다
@@ -264,6 +269,7 @@ Entries:
   assets.rescan: 새로 고침
   assets.new_canvas: 새 캔버스
   assets.new_font_family: 새 폰트 패밀리
+  assets.new_string_table: 새 문자열 표
   assets.duplicate: 복제
   assets.copy_path: 경로 복사
   assets.cut: 잘라내기
