@@ -1061,8 +1061,20 @@ namespace
             Check(large.count > small.count * 2 && large.maxY - large.minY > small.maxY - small.minY,
                 "the sized A draws larger and taller");
 
-            // 끄면 태그가 글자로 보이고 빨강은 없다(글자 수가 늘어 블록이 넓다).
+            // 비트맵은 `<size>` 도 정수로 뜬다: 47.6 은 48 과 같은 그림이다.
+            gpu.Paint(framework);
+            const Array<std::byte> at48 = gpu.image;
+            const char* fractional = "A<size=47.6>A</size>";
+            TextStore::Get().Assign(label->text, fractional, std::strlen(fractional));
+            gpu.Paint(framework);
+            Check(gpu.image.Size() == at48.Size() && std::memcmp(gpu.image.Data(), at48.Data(), at48.Size()) == 0,
+                "a bitmap font rounds a tag size to whole pixels");
+
+            // 끄면 태그가 글자로 보이고 빨강은 없다(글자 수가 늘어 블록이 넓다). 글자는 그대로 두고 필드만 끈다.
             TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
+            gpu.Paint(framework);
+            count(red, black);
+            Check(red > 20, "the tagged text is red again");
             label->richText = false;
             gpu.Paint(framework);
             count(red, black);
@@ -1152,6 +1164,34 @@ namespace
             Check(FindDark(gpu).count == front.count, "a billboard faces the camera whatever its rotation");
             label->facing = Component::TextFacing3D::Transform;
             place->rotation = Quaternion{};
+
+            // 왼쪽 정렬이면 글자가 오브젝트 원점의 오른쪽에 선다(글자 사각형의 자리가 월드로 간다).
+            label->alignX = Component::TextAlignX::Left;
+            gpu.Paint(framework);
+            const DarkBox left = FindDark(gpu);
+            Check(left.count > 20 && left.minX >= 31, "left aligned, the A starts at the object's origin");
+            label->alignX = Component::TextAlignX::Center;
+
+            // 리치 텍스트: 태그 색에 텍스트 알파(0.5)가 곱해져 흰 바탕 위 빨강 절반이다.
+            label->richText = true;
+            label->color = {0.0f, 0.0f, 0.0f, 0.5f};
+            const char* tagged = "<color=#FF0000>A</color>";
+            TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
+            gpu.Paint(framework);
+            std::uint32_t halfRed = 0;
+            std::uint32_t fullRed = 0;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const float g = gpu.Green(x, y);
+                    halfRed += gpu.Red(x, y) > 0.95f && g > 0.45f && g < 0.55f ? 1u : 0u;
+                    fullRed += gpu.Red(x, y) > 0.9f && g < 0.3f ? 1u : 0u;
+                }
+            }
+            Check(halfRed > 10 && fullRed == 0, "a 3D tag colour takes the text's alpha");
+            label->richText = false;
+            TextStore::Get().Assign(label->text, "A", 1);
 
             // 뒤→앞: 가까운 파랑을 먼저 붙인다.
             label->color = {0.0f, 0.0f, 1.0f, 0.5f};

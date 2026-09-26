@@ -71,7 +71,7 @@ namespace
         JBro::TextureHandle target;
         bool ready = false;
 
-        bool Open()
+        bool Open(bool validation = false)
         {
             Check(platform.Initialize(memory), "the platform must initialize");
             if (false == rhi.Initialize(memory))
@@ -93,6 +93,7 @@ namespace
             config.surfaceExtent = {64, 64};
             config.maxSpriteSubmissions = 4;
             config.maxMeshSubmissions = 8;
+            config.validation = validation;
             config.presentMode = JBro::PresentMode::Immediate;
             Check(renderer.Initialize(rhi, config), "the renderer must initialize");
             JBro::TextureDesc targetDesc;
@@ -342,7 +343,7 @@ namespace
     void TestWorldTextHidesBehindMeshesAndFacesAnyWay()
     {
         Stage<TModule> stage;
-        if (false == stage.Open())
+        if (false == stage.Open(true))
         {
             std::cout << "  [skip] no device for this API; world text not verified" << std::endl;
             return;

@@ -349,13 +349,15 @@ namespace
                 && Near(layout.GetGlyphs()[0].size, 2000.0f) && Near(layout.GetGlyphs()[1].size, 500.0f), "the inner size wins");
 
         // 줄 높이: 둘째 줄에 2000 px 글자가 있으면 그 줄의 높이와 올림이 두 배다.
-        Check(layout.Build(Utf8("A\n<size=2000>A</size>"), faces, options) == LayoutError::None && layout.GetLines().Size() == 2,
+        // 큰 글자가 줄의 첫 글자가 아니어도 그 줄의 높이다.
+        Check(layout.Build(Utf8("A\nA<size=2000>A</size>"), faces, options) == LayoutError::None && layout.GetLines().Size() == 2,
             "two lines of different sizes lay out");
         Check(Near(layout.GetLines()[0].height, 1448.0f) && Near(layout.GetLines()[1].height, 2896.0f), "each line is as tall as its largest letter");
         Check(Near(layout.GetLines()[0].baseline, 0.0f) && Near(layout.GetLines()[1].baseline, 1160.0f - 1448.0f - 2320.0f),
             "the second baseline drops by the first line and its own ascent");
         Check(Near(layout.GetContentHeight(), 1448.0f + 2896.0f), "the content height adds the lines");
-        Check(Near(layout.GetGlyphs()[1].y, layout.GetLines()[1].baseline), "the large A sits on its line");
+        Check(Near(layout.GetGlyphs()[2].y, layout.GetLines()[1].baseline) && Near(layout.GetGlyphs()[2].size, 2000.0f),
+            "the large A sits on its line");
 
         // 배율(자동 크기가 쓴다)과 정수 반올림(비트맵이 쓴다).
         LayoutOptions scaled = options;
