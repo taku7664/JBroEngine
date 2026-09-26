@@ -487,7 +487,7 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
      - **R8 포맷**: 두지 않는다(D-216 (2)). R8 칸은 스프라이트 셰이더로 그릴 수 없어 셰이더 갈래가 하나 더 필요하고, D3D11 에는 채널 스위즐이 없어 `(1,1,1,r)`
        로 읽힐 수 없다. 메모리 4 배는 페이지 상한과 퇴출로 막는다.
      - ~~**리치 텍스트**~~ → 6 단계에서 섰다(D-221, 사용자가 "색·크기" 를 골랐다). ~~**패밀리**~~ → 7 단계에서 섰다(D-225).
-     - **로컬라이징 키**: 에디터의 로컬라이징(D-80)은 에디터 문구용이고, 게임의 문자열 표·언어 전환은 없다. 새 서비스라 사용자 확인 뒤다.
+     - ~~**로컬라이징 키**~~ → 8 단계에서 섰다(D-226, 사용자가 "게임 로컬라이징 키" 를 골랐다).
      - **화면 공간 UI 텍스트**: 게임 UI 계층(화면 공간 캔버스·앵커)이 없다. 그 계층이 서면 같은 커널과 라이브러리를 쓴다.
      - ~~**3D 텍스트**~~ → 6 단계에서 섰다(D-222).
      - **`.jpak` 에 미리 뜬 아틀라스**: `.jpak` 패키지가 아직 없다(todo 의 `[진행 예정]`). 서면 `prewarm` 결과를 페이지째 싸 가면 된다.
@@ -545,6 +545,34 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
      `AssetTypeRules::TypeOfIdFieldName` 으로 옮긴 이름 규칙의 시험으로 모두 잡았다(`mutations-text16.txt` 3/3, `e52ecaa`).
    - 남긴 것: 640 px 창에서는 칸 이름이 길어 인스펙터의 값 열이 보이지 않는다(기존 줄 배치의 동작이다, 1024 px 에서는 보인다). 프로젝트 폰트
      목록(폴백)은 Font 만 받는다.
+
+8. ~~**게임 로컬라이징 키**(사용자가 7 단계 뒤에 고른 것).~~ → 완료 2026-09-26 (D-226) ·
+   `bdcd4f3`·`f687872`·`4fb97c1` ·
+   `JBroAssetTypes`(`AssetType::StringTable`·`StringTableOptions`), `JBroAsset`(`StringTableData`·`ReadStringTable`), 새 Tier S 모듈
+   `JBroLocalizationTypes`(`System::ILocalization`·`Service::LocalizationService`·컨텍스트), `JBroHost`(`GameLocalization`·`ProjectFile` 의 세 키·
+   `EngineInstance` 배선), `JBroTextRendering/TextBlock`(`textKey` 풀기), `Text2D`·`Text3D`(`textKey`), `JBroRuntime/TextService`(`SetTextKey`),
+   `JBroEditor`(설정 창의 게임 언어·캔버스 뷰의 미리 볼 언어·새 문자열 표·인스펙터의 문자열 표 블록) (D-204 형식)
+   - 선 것: 로케일마다 `.jstrings` 표(로케일은 `.jmeta`), 텍스트의 `textKey`(지금 로케일 → 폴백 로케일 → 키 그대로), 호스트가 모든 로케일의 표를 들어
+     로케일 바꾸기가 에셋을 싣지 않는 것, 스크립트의 `LocalizationService`(DLL 로 D-37 블록), `.jproject` 의 `Locales`·`DefaultLocale`·`FallbackLocale`,
+     에디터의 네 자리. 재생을 멈추면 게임이 바꾼 로케일이 재생 전으로 돌아간다.
+   - **잰 것**:
+     - 텍스트(D3D12, 24 px): 키 `title` 이 한국어 표의 한 글자(`가`)를 그려 `Hello world` 폭의 절반보다 좁다. 로케일을 `en-US` 로 바꾸면 키가 있는 텍스트
+       하나만 다시 레이아웃되고(키 없는 텍스트는 그대로) 폭이 `Hello world` 와 같다. 같은 로케일을 다시 걸면 다시 레이아웃하지 않는다. 한국어 표에 없는 키는
+       영어 표의 글자, 어느 표에도 없는 키는 키 그대로 폭이다. 표를 고쳐 재로드하면 판번호가 한 번 오르고 다음 프레임이 새 값(`가나다`)이다. 묶인
+       로컬라이징이 없으면 키 그대로다. 표는 로케일과 무관하게 둘 다 참조 수 1 로 들고, 떼면 0 이다.
+     - 서비스: 32 바이트보다 긴 로케일 이름도 온전히 돌아오고, 빈 이름은 거절된다. 3D 텍스트도 서비스로 건 키(`menu.quit`)가 `Quit` 을 글자로 쓴 것과 블록이
+       같다. 스크립트 DLL(`JBroScriptProbe_Localize`)이 바꾼 로케일이 호스트의 것이고, 표가 없는 프로젝트의 키는 DLL 안에서 키 그대로다.
+     - 프로젝트 파일: 세 키가 왕복하고, 로케일이 없는 파일은 저장해도 세 키가 생기지 않으며, 설정 창의 이름 없는 줄은 적히지 않는다.
+     - 에디터(1024 x 768): 프로젝트가 `DefaultLocale` 로 열리고, 새 문자열 표의 메타에 그 로케일이 적히며, 인스펙터에 로케일 줄이 서고, 캔버스 뷰 도구 줄에
+       미리 볼 언어가 있다. 재생 중에 바꾼 로케일이 멈추면 재생 전으로 돌아간다.
+     - 음성: 스크립트가 `<JBro/Host/GameLocalization.h>` 를 집으면 C1083(`/p:JBroTierProbe=Localization`), 프렐류드만으로 `System::ILocalization` 을 쓰면
+       C2039(`/p:JBroTierProbe=LocalizationSystem`)다.
+   전체 솔루션(`Debug_Game2D`·`Debug_Game3D`)·에디터 호스트(`Debug`)·테스트 전부가 경고 없이 서고 통과한다.
+   **뮤테이션**: `tools/mutations-text17.txt` 22 개 중 19 개가 처음에 잡혔다. 산 셋(레지스트리가 바뀌어도 표를 다시 모으지 않기 - 시험이 표를 더하거나 빼지 않았다,
+   틱 첫머리의 `Refresh` 빼기 - 프로젝트를 여는 자리의 `Refresh` 만 시험했다, `Text2D` 가 떼일 때 키 칸을 돌려주지 않기 - 칸 수 시험에 키가 없었다)은 레지스트리에서
+   표를 빼는 시험, 에디터에서 연 프로젝트에 표를 새로 만들고 틱 하나 뒤에 키를 찾는 시험, 키 칸을 센 칸 수 시험으로 모두 잡았다(`mutations-text18.txt` 3/3, `4fb97c1`).
+   - 남긴 것: 키 칸에 표의 키를 고르는 목록은 없다(글자로 친다). 한 로케일의 표가 여럿일 때 같은 키의 우선순위는 레지스트리 차례뿐이다. 복수형·
+     자리 채우기(`{0}`)는 없다 - 스크립트가 `GetText` 로 받아 조립한다.
 
 ## 6. 결정 (2026-09-25 확인, D-200)
 

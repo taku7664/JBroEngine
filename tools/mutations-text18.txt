@@ -1,0 +1,3 @@
+Modules\JBroHost\Source\GameLocalization.cpp	loc:registry-ignored	if (false == m_gathered || m_registryRevision != m_registry->GetRevision())	if (false == m_gathered)
+Modules\JBroHost\Source\EngineInstance.cpp	engine:tick-no-refresh	        if (m_localization)\n        {\n            m_localization->Refresh();\n        }\n        {\n            const ProfileScope scope("Platform");	        {\n            const ProfileScope scope("Platform");
+Modules\JBroFramework2D\Source\Text2D.cpp	2d:key-slot-leaks	        TextStore::Get().Destroy(textKey);\n	
