@@ -302,6 +302,8 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorAudioOff = "inspector.audio_off";
     inline constexpr const char* InspectorAudioUnreadable = "inspector.audio_unreadable";
     inline constexpr const char* InspectorAudioBusMissing = "inspector.audio_bus_missing";
+    inline constexpr const char* InspectorLayersEverything = "inspector.layers_everything";
+    inline constexpr const char* InspectorLayersNothing = "inspector.layers_nothing";
     inline constexpr const char* ProjectSettingsAudio = "project_settings.audio";
     inline constexpr const char* ProjectSettingsAudioEffectRatioOff = "project_settings.audio_effect_ratio_off";
     inline constexpr const char* ProjectSettingsAudioDuckHelp = "project_settings.audio_duck_help";
@@ -314,6 +316,11 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsPhysicsThreadsHelp = "project_settings.physics_threads_help";
     inline constexpr const char* ProjectSettingsPhysicsRecommend = "project_settings.physics_recommend";
     inline constexpr const char* ProjectSettingsPhysicsRecommendHelp = "project_settings.physics_recommend_help";
+    inline constexpr const char* ProjectSettingsPhysics = "project_settings.physics";
+    inline constexpr const char* ProjectSettingsPhysicsLayers = "project_settings.physics_layers";
+    inline constexpr const char* ProjectSettingsPhysicsLayersHelp = "project_settings.physics_layers_help";
+    inline constexpr const char* ProjectSettingsPhysicsMatrix = "project_settings.physics_matrix";
+    inline constexpr const char* ProjectSettingsPhysicsMatrixHelp = "project_settings.physics_matrix_help";
     inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
     inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
     inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";

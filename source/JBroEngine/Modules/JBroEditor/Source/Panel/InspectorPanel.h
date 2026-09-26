@@ -137,6 +137,8 @@ namespace JBro
         // 오디오 버스 필드(`JBro.AudioBusName`, D-197). 프로젝트의 버스 목록을 고르는 드롭다운이다 - 이름을 손으로 치면
         // 틀린 이름이 조용히 Master 로 떨어진다.
         void DrawAudioBusField(const TypeDescriptor& type, void* address, Context& context);
+        // 물리 레이어 비트 묶음을 프로젝트의 레이어 이름으로 고른다(D-230).
+        void DrawLayerMaskField(const TypeDescriptor& type, void* address, Context& context);
         // 텍스트의 글자(`TextId`)는 여러 줄 칸이다(text-plan §4.6). 편집이 끝날 때 커맨드 하나다.
         void DrawTextBody(const TypeDescriptor& type, void* address, bool editable, bool multiline, Context& context);
         // `textKey` 고르기의 이름 뷰다. 매 프레임 채우되 용량은 남긴다.

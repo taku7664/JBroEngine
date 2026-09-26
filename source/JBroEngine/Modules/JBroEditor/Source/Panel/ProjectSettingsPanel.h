@@ -39,6 +39,7 @@ namespace JBro
         // 입력 갈래(D-214): 레이어 순서와 액션·바인딩을 고친다.
         void DrawInputSettings();
         void DrawGameLanguages();
+        void DrawPhysicsSettings();
         // 바인딩 원천에 맞는 이름 목록을 채운다(키면 `Unknown` 을 뺀다).
         void FillInputCodeChoices(InputBindingSource source);
 

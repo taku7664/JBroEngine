@@ -631,6 +631,23 @@ namespace JBro
         }
     }
 
+    void InspectorPanel::DrawLayerMaskField(const TypeDescriptor& type, void* address, Context& context)
+    {
+        const ProjectFile& project = m_editor->GetProjectFile();
+        const char* names[32] = {};
+        for (std::size_t index = 0; index < project.physicsLayers.Size() && index < 32; ++index)
+        {
+            names[index] = project.physicsLayers[index].c_str();
+        }
+        String before;
+        const bool snapped = ToText(type, address, before);
+        std::uint32_t& mask = *static_cast<std::uint32_t*>(address);
+        if (Widget::LayerMaskField("##value", ArrayView<const char* const>(names, 32), mask) && snapped)
+        {
+            CommitEdit(type, address, before, context);
+        }
+    }
+
     void InspectorPanel::DrawAudioPreview(const AssetMetaFile& meta)
     {
         m_audioDrawn = true;
@@ -1680,6 +1697,12 @@ namespace JBro
         if (context.element == nullptr && SameName(type.typeName, "JBro.AudioBusName"))
         {
             DrawAudioBusField(type, address, context);
+            return;
+        }
+        // 물리 레이어는 프로젝트의 레이어 이름으로 고른다(D-230).
+        if (context.element == nullptr && SameName(type.typeName, "JBro.PhysicsLayerMask"))
+        {
+            DrawLayerMaskField(type, address, context);
             return;
         }
         // **`AssetId` 는 드롭다운이다**(D-116). 원소 안의 아이디는 아직 글자 칸이다 - 목록 원소

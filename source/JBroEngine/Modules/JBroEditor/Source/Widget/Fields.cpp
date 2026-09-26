@@ -7,6 +7,7 @@
 #include <imgui_internal.h>
 
 #include <algorithm>
+#include <cstdio>
 #include <cstring>
 
 namespace JBro::Widget
@@ -224,6 +225,85 @@ namespace JBro::Widget
     bool Checkbox(const char* id, bool& value)
     {
         return ImGui::Checkbox(id != nullptr ? id : "##check", &value);
+    }
+
+    bool LayerMaskField(const char* id, ArrayView<const char* const> names, std::uint32_t& mask)
+    {
+        const auto nameOf = [&](std::uint32_t bit, char* buffer, std::size_t capacity) -> const char* {
+            if (bit < names.Size() && names[bit] != nullptr && names[bit][0] != '\0')
+            {
+                return names[bit];
+            }
+            std::snprintf(buffer, capacity, "#%u", static_cast<unsigned>(bit));
+            return buffer;
+        };
+        char preview[160] = {};
+        if (mask == 0u)
+        {
+            std::snprintf(preview, sizeof(preview), "%s", Loc::TextOr(LocKeys::InspectorLayersNothing, "Nothing"));
+        }
+        else if (mask == 0xFFFFFFFFu)
+        {
+            std::snprintf(preview, sizeof(preview), "%s", Loc::TextOr(LocKeys::InspectorLayersEverything, "Everything"));
+        }
+        else
+        {
+            std::size_t used = 0;
+            for (std::uint32_t bit = 0; bit < 32 && used + 1 < sizeof(preview); ++bit)
+            {
+                if ((mask & (1u << bit)) == 0u)
+                {
+                    continue;
+                }
+                char number[8];
+                const int wrote = std::snprintf(preview + used, sizeof(preview) - used, used == 0 ? "%s" : ", %s",
+                    nameOf(bit, number, sizeof(number)));
+                if (wrote < 0)
+                {
+                    break;
+                }
+                used = std::min(sizeof(preview) - 1, used + static_cast<std::size_t>(wrote));
+            }
+        }
+
+        bool changed = false;
+        ImGui::SetNextItemWidth(-FLT_MIN);
+        if (ImGui::BeginCombo(id != nullptr ? id : "##layers", preview))
+        {
+            if (ImGui::Selectable(Loc::TextOr(LocKeys::InspectorLayersEverything, "Everything"), false,
+                    ImGuiSelectableFlags_DontClosePopups))
+            {
+                changed = mask != 0xFFFFFFFFu;
+                mask = 0xFFFFFFFFu;
+            }
+            if (ImGui::Selectable(Loc::TextOr(LocKeys::InspectorLayersNothing, "Nothing"), false,
+                    ImGuiSelectableFlags_DontClosePopups))
+            {
+                changed = changed || mask != 0u;
+                mask = 0u;
+            }
+            ImGui::Separator();
+            for (std::uint32_t bit = 0; bit < 32; ++bit)
+            {
+                const bool named = bit < names.Size() && names[bit] != nullptr && names[bit][0] != '\0';
+                bool on = (mask & (1u << bit)) != 0u;
+                // 이름 없는 레이어는 켜져 있을 때만 보인다 - 서른두 줄을 늘 늘어놓지 않는다.
+                if (false == named && false == on)
+                {
+                    continue;
+                }
+                char number[8];
+                ImGui::PushID(static_cast<int>(bit));
+                if (ImGui::Checkbox(nameOf(bit, number, sizeof(number)), &on))
+                {
+                    mask = on ? (mask | (1u << bit)) : (mask & ~(1u << bit));
+                    changed = true;
+                }
+                ImGui::PopID();
+            }
+            ImGui::EndCombo();
+        }
+        return changed;
     }
 
     bool ColorField(const char* id, float rgba[4])
