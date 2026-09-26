@@ -825,6 +825,40 @@ namespace
         Check(world.GetBeginEvents().IsEmpty() && world.GetEndEvents().IsEmpty(), "changing the mass keeps the contact");
         Check(Near(world.GetMassData(box).mass, 5.0f, 0.0f), "and the new mass is used");
     }
+
+    // **고정한 축은 유효 질량에서도 빠진다(D-227).** x 를 고정한 몸이 반발 1·마찰 0 인 45° 비탈에 떨어지면 세로로만 움직일 수 있으므로
+    // 떨어진 속력 그대로 튀어 오른다. 반발은 한 번만 풀어서, 유효 질량을 축 고정 없이 재면 절반 속력으로만 튄다.
+    void TestALockedBodyBouncesWithItsRealMass()
+    {
+        World world;
+        const BodyId slope = AddBody(world, BodyType::Static, { 0, 0 }, 0.78539816f);
+        ShapeDef bouncy;
+        bouncy.friction = 0.0f;
+        bouncy.restitution = 1.0f;
+        AddPolygon(world, slope, BoxOutline(3.0f, 3.0f), bouncy);
+        BodyDef def;
+        def.position = { 1.0f, 6.0f };
+        def.freezePositionX = true;
+        def.fixedRotation = true;
+        const BodyId ball = world.CreateBody(def);
+        JBro::Physics2D::Circle round;
+        round.radius = 0.25f;
+        world.CreateCircleShape(ball, round, bouncy);
+        float fallSpeed = 0.0f;
+        float riseSpeed = 0.0f;
+        for (int i = 0; i < 120; ++i)
+        {
+            world.Step(Frame);
+            const float vy = world.GetLinearVelocity(ball).y;
+            fallSpeed = std::fmin(fallSpeed, vy);
+            if (fallSpeed < -1.0f)
+            {
+                riseSpeed = std::fmax(riseSpeed, vy);
+            }
+        }
+        Check(fallSpeed < -3.0f && riseSpeed > 0.9f * -fallSpeed,
+            "a ball locked in x bounces off a 45 degree slope as fast as it fell");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -852,6 +886,7 @@ int RunPhysics2DWorldTests()
     TestForcesAndImpulses();
     TestAxisLocks();
     TestBodyPropertiesChangeInPlace();
+    TestALockedBodyBouncesWithItsRealMass();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }
