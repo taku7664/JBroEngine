@@ -8,6 +8,7 @@
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ListEdit.h>
+#include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
@@ -364,6 +365,24 @@ namespace JBro
                     if (false == canPasteValues)
                     {
                         ImGui::EndDisabled();
+                    }
+                }
+                // **컴포넌트마다 더한 항목**(D-220). 오브젝트 메뉴와 같은 표다. 이 메뉴는 이미 이 인스턴스의
+                // 것이므로 하위 메뉴 없이 늘어놓는다. 떼기는 무거운 손짓이라 그 아래 맨 끝에 남긴다.
+                // `Has` 는 주소를 만들기 전에 거르는 것일 뿐이다 - 항목이 없으면 `DrawItems` 는 구분선도 긋지 않는다.
+                ComponentMenuTable& menus = m_editor->GetComponentMenus();
+                ComponentMenuContext hookContext;
+                if (menus.Has(slot.typeId)
+                    && MakeComponentAddress(m_editor->GetObjectIds(), *object, *component, hookContext.address))
+                {
+                    hookContext.editor = m_editor;
+                    hookContext.component = component;
+                    if (false == menus.DrawItems(hookContext, true))
+                    {
+                        Widget::EndContextMenu();
+                        ImGui::PopID();
+                        // 훅이 슬롯 배열을 바꿨을 수 있다. 다음 프레임에 다시 그린다.
+                        return;
                     }
                 }
                 ImGui::Separator();

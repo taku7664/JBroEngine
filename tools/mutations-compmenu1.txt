@@ -1,0 +1,21 @@
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:no-type-check	        if (typeId == InvalidComponentTypeId || draw == nullptr || owner == nullptr)	        if (draw == nullptr || owner == nullptr)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:no-function-check	        if (typeId == InvalidComponentTypeId || draw == nullptr || owner == nullptr)	        if (typeId == InvalidComponentTypeId || owner == nullptr)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:no-owner-check	        if (typeId == InvalidComponentTypeId || draw == nullptr || owner == nullptr)	        if (typeId == InvalidComponentTypeId || draw == nullptr)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:while-drawing	        if (m_drawDepth > 0)\n        {\n            Log::Write(LogLevel::Error, "editor", "component menu: cannot register	        if (false)\n        {\n            Log::Write(LogLevel::Error, "editor", "component menu: cannot register
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:duplicates	            if (entry.typeId == typeId && entry.draw == draw && entry.owner == owner)	            if (false)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:duplicate-ignores-owner	            if (entry.typeId == typeId && entry.draw == draw && entry.owner == owner)	            if (entry.typeId == typeId && entry.draw == draw)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:duplicate-ignores-function	            if (entry.typeId == typeId && entry.draw == draw && entry.owner == owner)	            if (entry.typeId == typeId && entry.owner == owner)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	register:user-dropped	        entry.user = user;	        entry.user = nullptr;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	unregister:while-drawing	        if (m_drawDepth > 0)\n        {\n            Log::Write(LogLevel::Error, "editor", "component menu: cannot unregister	        if (false)\n        {\n            Log::Write(LogLevel::Error, "editor", "component menu: cannot unregister
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	unregister:other-owners	                return entry.owner == owner;	                return entry.owner != owner;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	unregister:order-lost	        return static_cast<std::uint32_t>(m_entries.RemoveAll(	        return static_cast<std::uint32_t>(m_entries.RemoveAllSwap(
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	has:always	            if (entry.typeId == typeId)\n            {\n                return true;	            if (true)\n            {\n                return true;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	count:one	                ++count;	                count = 1;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:other-types	            if (entry.typeId != context.address.typeId)\n            {\n                continue;	            if (false)\n            {\n                continue;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:no-separator	                ImGui::Separator();	                (void)0;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:separator-every-item	            if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))	            if ((first && separatorFirst) || (false == first))
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:user-not-set	            itemContext.user = entry.user;	            (void)0;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:no-stop	            if (false == entry.draw(itemContext))	            if (false == entry.draw(itemContext) && false)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:no-scope	        const DrawScope scope(m_drawDepth);	        (void)0;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:scope-never-ends	                --m_depth;	                (void)0;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	drawing:always-false	    bool ComponentMenuTable::IsDrawing() const\n    {\n        return m_drawDepth > 0;	    bool ComponentMenuTable::IsDrawing() const\n    {\n        return false;

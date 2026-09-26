@@ -6,6 +6,7 @@
 #include <JBro/Physics2D/Geometry.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
+#include <JBro/Types/SafePtr.h>
 
 #include <cstdint>
 
@@ -19,6 +20,19 @@
 // (physics-plan §1.2 의 5).
 namespace JBro::Physics2D
 {
+    namespace Internal
+    {
+        class WorkerPool;
+    }
+
+    // 물리 전용 워커의 상한이다(D-223). 명시한 값도 여기서 자른다.
+    inline constexpr std::uint32_t MaxWorkerCount = 16;
+
+    // 물리 일감에 맞는 워커 수(D-223). work 는 콜라이더 조각 수의 합이다. 좁은 판정만 나누므로(솔버는 메인) 이득이 작다 - 실측에서
+    // 1000 조각 아래는 잡음보다 나은 것이 없었고 2000 에서 약 20% 빨랐으며 워커 2~4 에서 멈췄다(physics-plan §4 의 8). 그래서 1024
+    // 미만이면 0(메인 한 스레드), 1024 에 1 을 주고 1024 마다 하나씩 더하며, hardwareThreads - 1 과 4 를 넘지 않는다.
+    std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads);
+
     enum class BodyType : std::uint8_t
     {
         Static,
@@ -94,9 +108,23 @@ namespace JBro::Physics2D
         float         restitutionThreshold = 1.0f;
     };
 
+    // 마지막 Step 의 좁은 판정 기록이다(D-223). 프로파일과 테스트가 본다.
+    struct StepStats
+    {
+        // 마지막 서브스텝의 좁은 판정 후보(걸러진 브로드페이즈 쌍) 수.
+        std::uint32_t candidates = 0;
+        // 좁은 판정을 워커와 나눠 돈 서브스텝 수. 워커가 없거나 후보가 적으면 0 이다.
+        std::uint32_t parallelSubSteps = 0;
+    };
+
     class World
     {
     public:
+        World();
+        ~World();
+        World(const World&) = delete;
+        World& operator=(const World&) = delete;
+
         WorldSettings& Settings();
         const WorldSettings& Settings() const;
 
@@ -139,6 +167,12 @@ namespace JBro::Physics2D
         MassData GetMassData(BodyId body) const;
 
         void Step(float deltaTime);
+
+        // 좁은 판정을 나눌 물리 전용 워커 수(D-223). 0 이면 메인 한 스레드이고 워커를 세우지 않는다. `MaxWorkerCount` 에서 자르고,
+        // 스레드가 없는 빌드(웹)는 늘 0 이다. 결과는 워커 수와 관계없이 같다 - 접촉을 후보 순서대로 모은 뒤 열쇠로 정렬한다.
+        void          SetWorkerCount(std::uint32_t count);
+        std::uint32_t GetWorkerCount() const;
+        StepStats     GetLastStepStats() const;
 
         // 마지막 Step 의 이벤트. 다음 Step 이 비운다.
         ArrayView<const ContactEvent> GetBeginEvents() const;
@@ -219,6 +253,16 @@ namespace JBro::Physics2D
             float         approachSpeed[2] = {};
         };
 
+        // 브로드페이즈 쌍 가운데 걸러진 것. 좁은 판정은 이것마다 따로 돌 수 있다(A 가 폴리곤-원의 폴리곤 쪽).
+        struct Candidate
+        {
+            std::uint32_t shapeA = 0;
+            std::uint32_t childA = 0;
+            std::uint32_t shapeB = 0;
+            std::uint32_t childB = 0;
+            bool          isTrigger = false;
+        };
+
         struct TouchingPair
         {
             std::uint32_t shapeA = 0;
@@ -243,6 +287,9 @@ namespace JBro::Physics2D
 
         void IntegrateVelocities(float h);
         void Collide();
+        // 워커에서도 돈다. 도형·바디를 읽기만 하고 제 칸의 매니폴드만 쓴다.
+        Manifold    ComputeManifold(const Candidate& candidate) const;
+        static void CollideCandidates(void* context, std::uint32_t begin, std::uint32_t end);
         void PrepareContacts();
         void WarmStart();
         void SolveVelocities(float h);
@@ -267,6 +314,11 @@ namespace JBro::Physics2D
         Array<TouchingPair>  m_touching;
         Array<TouchingPair>  m_previousTouching;
         Array<ContactEvent>  m_beginEvents;
+        Array<Candidate>     m_candidates;
+        Array<Manifold>      m_candidateManifolds;
+        // 워커 수가 0 이 아닐 때만 있다.
+        OwnerPtr<Internal::WorkerPool> m_workers;
+        StepStats            m_lastStats;
         // 모양 바꾸기의 분해 결과. 도형의 조각 배열과 맞바꿔 두 배열 모두 용량이 남는다.
         Array<ConvexPolygon> m_scratchPieces;
         DecomposeScratch     m_decompose;

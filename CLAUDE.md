@@ -95,7 +95,7 @@
   전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(실기기 실측과 `[열림]`)이 §4 에 있다
 - [tasks/save-plan.md](./tasks/save-plan.md) — 세이브 저장소(D-218 (4)). 새 Tier S 모듈 `JBroSaveTypes`(`ISaveStorage`·`SaveService`)와 호스트 구현 `SaveStorage` 가 섰다.
   기존 엔진 `CSaveStorage` 의 구조와 아팠던 것 S1~S5(제자리 덮어쓰기·DLL 경계의 `std::vector`·예약 이름·에디터와 게임이 한 폴더)가 §1, 설계가 §2, 검증이 §3, `[열림]` 이 §4 에 있다
-- [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~6 단계(커널 `JBroPhysics2D`, 어댑터 `Physics2DSystem`, 캔버스 뷰의 폴리곤 포인트 편집, 질의 확장)가 모두 섰다. 그 뒤로 캡슐 콜라이더와 제자리 모양 바꾸기(크기 애니메이션의 접촉 유지)가 섰다. 남은 뒤의 것(조인트·체인·CCD·Stay 훅)과 단계마다 남긴 `[열림]` 이 §4 에 있다.
+- [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~6 단계(커널 `JBroPhysics2D`, 어댑터 `Physics2DSystem`, 캔버스 뷰의 폴리곤 포인트 편집, 질의 확장)가 모두 섰다. 그 뒤로 캡슐 콜라이더와 제자리 모양 바꾸기(크기 애니메이션의 접촉 유지), 좁은 판정의 물리 전용 워커와 빌드 설정 `Build.PhysicsThreads`(D-223)가 섰다. 남은 뒤의 것(조인트·체인·CCD·Stay 훅)과 단계마다 남긴 `[열림]` 이 §4 에 있다.
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
   캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다
 - [tasks/text-plan.md](./tasks/text-plan.md) — 2D 텍스트 계획(D-200). 1 단계(커널 `Modules/JBroText`: stb_truetype 의 `FontFace`, UTF-8·커닝·줄바꿈·정렬의

@@ -4,6 +4,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
+#include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/EditorSpriteContours.h>
@@ -134,6 +135,8 @@ namespace JBro
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
+        // 물리 스레드의 추천 워커 수(D-223). 빌드 캔버스의 콜라이더를 센다. 2D 프로젝트가 아니면 0 이다.
+        std::uint32_t RecommendPhysicsWorkers();
 
         // ── 에디터 세션(D-146) ──────────────────────────────────────────────
         //
@@ -364,6 +367,9 @@ namespace JBro
         // 막는 팝업과 달리 하던 일을 멈추지 않는다. UI 가 꺼져 있어도 쌓이고, 켜지면 뜬다.
         EditorNotifications& GetNotifications();
         const EditorNotifications& GetNotifications() const;
+        // 컴포넌트 타입마다 우클릭 메뉴에 더할 항목의 표다(D-220). 오브젝트 메뉴와 인스펙터 머리 메뉴가 함께 묻는다.
+        ComponentMenuTable& GetComponentMenus();
+        const ComponentMenuTable& GetComponentMenus() const;
         // 제목으로 찾는다. 없으면 nullptr 이다.
         EditorPanel* FindPanel(const char* title);
         std::size_t GetPanelCount() const;
@@ -575,6 +581,8 @@ namespace JBro
         void PerformOpenCanvasRequest();
         // 그림·외곽선 캐시를 지금 프로젝트의 에셋 시스템에 잇는다. 프로젝트가 없으면 끊는다(D-165).
         void BindAssetTools();
+        // 프로젝트의 물리 스레드 설정을 풀어 2D 프레임워크에 먹인다(D-223). 열 때와 설정을 저장할 때 부른다.
+        void ApplyPhysicsThreads();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
         bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();
@@ -592,6 +600,8 @@ namespace JBro
         OwnerPtr<EngineInstance> m_engine;
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;
+        // **패널보다 먼저 둔다.** 패널이 소멸자에서 제 항목을 떼므로, 표가 패널보다 늦게 사라져야 한다.
+        ComponentMenuTable m_componentMenus;
         Array<OwnerPtr<EditorPanel>> m_panels;
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;

@@ -46,6 +46,8 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";
     inline constexpr const char* CanvasViewPointDelete = "canvas_view.point_delete";
     inline constexpr const char* CanvasViewPointDeleteMin = "canvas_view.point_delete_min";
+    inline constexpr const char* CanvasViewEditPoints = "canvas_view.edit_points";
+    inline constexpr const char* CanvasViewEditPointsNotPolygon = "canvas_view.edit_points_not_polygon";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
     // 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지(D-184, 기존 `canvas_view.unit.*`).
     inline constexpr const char* CanvasViewUnitWorld = "canvas_view.unit_world";
@@ -300,6 +302,12 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsAudioDefaultDevice = "project_settings.audio_default_device";
     inline constexpr const char* ProjectSettingsAudioDeviceHelp = "project_settings.audio_device_help";
     inline constexpr const char* ProjectSettingsAudioRefreshDevices = "project_settings.audio_refresh_devices";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsAuto = "project_settings.physics_threads_auto";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsSingle = "project_settings.physics_threads_single";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsWorkers = "project_settings.physics_threads_workers";
+    inline constexpr const char* ProjectSettingsPhysicsThreadsHelp = "project_settings.physics_threads_help";
+    inline constexpr const char* ProjectSettingsPhysicsRecommend = "project_settings.physics_recommend";
+    inline constexpr const char* ProjectSettingsPhysicsRecommendHelp = "project_settings.physics_recommend_help";
     inline constexpr const char* ProjectSettingsAudioMuteHelp = "project_settings.audio_mute_help";
     inline constexpr const char* ProjectSettingsAudioRouting = "project_settings.audio_routing";
     inline constexpr const char* ProjectSettingsAudioNoSend = "project_settings.audio_no_send";

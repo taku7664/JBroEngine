@@ -252,6 +252,9 @@ namespace JBro::System
         };
 
         Physics2D::World              world;
+        // 커널에 마지막으로 먹인 워커 수. 요청이 같으면 다시 먹이지 않는다 - 스레드가 없는 빌드에서 커널이 0 을 돌려줘도
+        // 스텝마다 풀을 세웠다 허무는 일이 없게 한다.
+        std::uint32_t                 appliedWorkers = 0;
         Table<InstanceId, BodyLink>   bodies;
         Table<InstanceId, ShapeLink>  shapes;
         // 이번 스텝에 지운 콜라이더의 연결. 그 끝 이벤트가 이번 커널 스텝에서 나오므로 발송할 때까지만 둔다.
@@ -317,6 +320,16 @@ namespace JBro::System
     Vec2 Physics2DSystem::GetGravity() const
     {
         return m_gravity;
+    }
+
+    void Physics2DSystem::SetWorkerCount(std::uint32_t count)
+    {
+        m_workerCount = count;
+    }
+
+    std::uint32_t Physics2DSystem::GetWorkerCount() const
+    {
+        return m_state->world.GetWorkerCount();
     }
 
     std::size_t Physics2DSystem::GetBodyCount() const
@@ -699,6 +712,11 @@ namespace JBro::System
         }
         State& state = *m_state;
         Physics2D::World& world = state.world;
+        if (state.appliedWorkers != m_workerCount)
+        {
+            world.SetWorkerCount(m_workerCount);
+            state.appliedWorkers = m_workerCount;
+        }
 
         for (auto& entry : state.bodies)
         {

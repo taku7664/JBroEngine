@@ -2,6 +2,7 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2DSystem/PhysicsThreads.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Types/Array.h>
@@ -589,6 +590,63 @@ namespace
         }
     }
 
+    // **워커 수는 다음 고정 스텝에 커널로 가고, 결과를 바꾸지 않는다(D-223).** 같은 상자 더미를 워커 0 과 3 의 두 캔버스에서 돌린다.
+    void TestTheWorkerCountReachesTheKernel()
+    {
+        Scene serial;
+        Scene parallel;
+        JBro::GameObject* serialBoxes[60] = {};
+        JBro::GameObject* parallelBoxes[60] = {};
+        Scene* scenes[2] = { &serial, &parallel };
+        JBro::GameObject** boxes[2] = { serialBoxes, parallelBoxes };
+        for (int s = 0; s < 2; ++s)
+        {
+            Scene& scene = *scenes[s];
+            JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+            scene.Box(ground, { 80, 1 });
+            for (int i = 0; i < 60; ++i)
+            {
+                const float x = -30.0f + static_cast<float>(i % 30) * 2.0f;
+                const float y = 0.5f + static_cast<float>(i / 30) * 1.0f;
+                boxes[s][i] = scene.Object("box", { x, y });
+                scene.Box(boxes[s][i], { 1, 1 });
+                scene.Dynamic(boxes[s][i]);
+            }
+        }
+        parallel.physics.SetWorkerCount(3);
+        Check(parallel.physics.GetWorkerCount() == 0, "the count waits for the next fixed step");
+        serial.Run(1.0f);
+        parallel.Run(1.0f);
+#if !defined(__EMSCRIPTEN__)
+        Check(parallel.physics.GetWorkerCount() == 3, "and then the kernel runs three workers");
+#endif
+        for (int i = 0; i < 60; ++i)
+        {
+            const JBro::Vec2 a = serial.TransformOf(serialBoxes[i])->position;
+            const JBro::Vec2 b = parallel.TransformOf(parallelBoxes[i])->position;
+            Check(a.x == b.x && a.y == b.y, "every box lands where the single-thread canvas put it");
+        }
+    }
+
+    // **물리 일감 세기(D-223).** 켜진 콜라이더마다 1, 포인트가 넷을 넘는 폴리곤은 포인트 수 - 2, 꺼진 것은 0.
+    void TestCountingPhysicsWork()
+    {
+        Scene scene;
+        JBro::GameObject* box = scene.Object("box", { 0, 0 });
+        scene.Box(box, { 1, 1 });
+        JBro::GameObject* round = scene.Object("round", { 3, 0 });
+        scene.Box(round, { 1, 1 })->shape = ColliderShape2D::Circle;
+        JBro::GameObject* cup = scene.Object("cup", { 6, 0 });
+        Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
+        polygon->shape = ColliderShape2D::Polygon;
+        polygon->points = UOutline();
+        JBro::GameObject* off = scene.Object("off", { 9, 0 });
+        scene.Box(off, { 1, 1 })->SetEnabled(false);
+        const std::uint32_t uPieces = static_cast<std::uint32_t>(UOutline().Size() - 2);
+        Check(JBro::CountPhysicsWork(scene.canvas) == 2 + uPieces,
+            "a box and a circle count one each, the U its points less two, the disabled one nothing");
+    }
+
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
     // 것도 캡슐로 남고, 질의는 둥근 끝 옆의 빈 곳을 캡슐로 보지 않는다.
     void TestCapsuleColliders()
@@ -717,6 +775,8 @@ int RunPhysics2DSystemTests()
     TestTheWiderQueries();
     TestAStaticBodyFollowsItsTransform();
     TestCapsuleColliders();
+    TestTheWorkerCountReachesTheKernel();
+    TestCountingPhysicsWork();
     TestAnAnimatedColliderKeepsItsContact();
     TestTheFixedStepDoesNotAllocate();
     TestABodyUnderASkewedOrMirroredParentKeepsItsRotation();

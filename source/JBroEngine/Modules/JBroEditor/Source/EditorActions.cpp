@@ -5,6 +5,7 @@
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/HierarchyCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
 #include <JBro/Editor/Localization.h>
@@ -14,6 +15,7 @@
 
 #include <imgui.h>
 
+#include <cstdio>
 #include <cstring>
 #include <utility>
 
@@ -36,6 +38,79 @@ namespace JBro::EditorActions
         const char* ClipboardEmptyReason()
         {
             return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
+        }
+
+        // **컴포넌트마다 더한 항목을 인스턴스마다 하위 메뉴로 세운다**(D-220). 줄 이름은 번역하지 않는 타입
+        // 이름이고, 같은 타입이 둘 이상이면 둘째부터 `(2)` 처럼 번호를 붙인다(인스펙터의 슬롯 순서와 같다).
+        // 항목이 없는 타입은 줄을 만들지 않는다. **거짓이면 오브젝트가 더 이상 없을 수 있다.**
+        bool DrawComponentSubmenus(EditorApplication& editor, GameObject& object,
+            const ObjectPlacement& placement)
+        {
+            ComponentMenuTable& table = editor.GetComponentMenus();
+            const Array<ComponentSlot>& components = object.GetComponents();
+            bool separated = false;
+            for (std::size_t index = 0; index < components.Size(); ++index)
+            {
+                const ComponentSlot& slot = components[index];
+                ComponentBase* component = slot.reference.TryGet();
+                if (component == nullptr || false == table.Has(slot.typeId))
+                {
+                    continue;
+                }
+                // 같은 타입 중 몇째이고 모두 몇인가. 죽은 슬롯은 세지 않는다(`FindComponentAt` 과 같은 셈).
+                std::uint32_t ordinal = 0;
+                std::uint32_t sameType = 0;
+                for (std::size_t other = 0; other < components.Size(); ++other)
+                {
+                    if (components[other].typeId != slot.typeId
+                        || components[other].reference.TryGet() == nullptr)
+                    {
+                        continue;
+                    }
+                    if (other < index)
+                    {
+                        ++ordinal;
+                    }
+                    ++sameType;
+                }
+                const char* typeName = EditorNames::DisplayTypeName(NameTable::Get().Resolve(slot.typeId));
+                if (typeName == nullptr)
+                {
+                    continue;
+                }
+                // 매 프레임 도는 길이라 글자를 스택에서 만든다.
+                char numbered[128] = {};
+                const char* label = typeName;
+                if (sameType > 1 && ordinal > 0)
+                {
+                    std::snprintf(numbered, sizeof(numbered), "%s (%u)", typeName, ordinal + 1);
+                    label = numbered;
+                }
+                if (false == separated)
+                {
+                    ImGui::Separator();
+                    separated = true;
+                }
+                if (false == Widget::BeginMenu(label))
+                {
+                    continue;
+                }
+                ComponentMenuContext context;
+                context.editor = &editor;
+                context.address.objectId = editor.GetObjectIds().Track(&object);
+                context.address.typeId = slot.typeId;
+                context.address.ordinal = ordinal;
+                context.component = component;
+                context.placement = placement;
+                const bool alive = table.DrawItems(context);
+                Widget::EndMenu();
+                if (false == alive)
+                {
+                    // 훅이 슬롯 배열을 바꿨을 수 있다. 더 돌면 헛돈다.
+                    return false;
+                }
+            }
+            return true;
         }
     }
 
@@ -377,6 +452,12 @@ namespace JBro::EditorActions
         if (alive && DrawPasteAsChildItem(editor, object))
         {
             alive = false;
+        }
+        if (alive && editor.GetSelectionCount() == 1)
+        {
+            // 여럿을 고른 채로는 세우지 않는다(D-220) - 어느 오브젝트의 컴포넌트에 대한 항목인지 흐려진다.
+            // 지우기는 되돌릴 수 있어도 무거운 손짓이라 맨 끝에 남긴다(기존 엔진도 그랬다).
+            alive = DrawComponentSubmenus(editor, object, placement);
         }
         if (alive)
         {

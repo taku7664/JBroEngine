@@ -693,10 +693,53 @@ namespace
 
         fs::remove_all(parent, ignored);
     }
+
+    // **물리 스레드 설정(D-223).** `Build.PhysicsThreads` 는 Auto·Single·워커 수다. 기본은 Auto 이고, 손대지 않은 파일에는 적지 않는다.
+    void TestThePhysicsThreadsSetting()
+    {
+        const auto parseWith = [](const char* line, JBro::ProjectFile& project, JBro::ProjectFileError& error) {
+            JBro::String text = "Version: 1\nEngineVersion: 1.0.0\nFramework: 2D\nBuild:\n  ProductName: Probe\n";
+            text += line;
+            return JBro::ParseProjectFile(text.c_str(), text.size(), project, error);
+        };
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(parseWith("", project, error) && project.build.physicsThreadMode == JBro::PhysicsThreadMode::Auto,
+            "a project without the key is Auto");
+        Check(parseWith("  PhysicsThreads: Single\n", project, error)
+            && project.build.physicsThreadMode == JBro::PhysicsThreadMode::Single, "Single reads as the main thread alone");
+        Check(parseWith("  PhysicsThreads: 3\n", project, error)
+            && project.build.physicsThreadMode == JBro::PhysicsThreadMode::Workers && project.build.physicsWorkers == 3,
+            "a number reads as that many workers");
+        Check(parseWith("  PhysicsThreads: 0\n", project, error)
+            && project.build.physicsThreadMode == JBro::PhysicsThreadMode::Single, "and zero as Single");
+        Check(false == parseWith("  PhysicsThreads: many\n", project, error), "anything else is refused, not guessed");
+
+        // 쓰기: 기본값은 없던 자리에 새로 적지 않고, 바꾸면 적히고, 다시 Auto 로 돌리면 그 줄이 Auto 가 된다.
+        const char* text = "Version: 1\nEngineVersion: 1.0.0\nFramework: 2D\nBuild:\n  ProductName: Probe\n";
+        JBro::ProjectFile edited;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), edited, error), "the probe parses");
+        JBro::String written;
+        Check(JBro::WriteProjectFileText(edited, text, std::strlen(text), written, error)
+            && written.find("PhysicsThreads") == JBro::String::npos, "an untouched Auto is not written");
+        edited.build.physicsThreadMode = JBro::PhysicsThreadMode::Workers;
+        edited.build.physicsWorkers = 2;
+        Check(JBro::WriteProjectFileText(edited, text, std::strlen(text), written, error)
+            && written.find("  PhysicsThreads: 2\n") != JBro::String::npos, "two workers are written into the Build block");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error)
+            && reread.build.physicsThreadMode == JBro::PhysicsThreadMode::Workers && reread.build.physicsWorkers == 2,
+            "and read back");
+        edited.build.physicsThreadMode = JBro::PhysicsThreadMode::Auto;
+        JBro::String back;
+        Check(JBro::WriteProjectFileText(edited, written.c_str(), written.size(), back, error)
+            && back.find("  PhysicsThreads: Auto\n") != JBro::String::npos, "turning it back to Auto rewrites the line");
+    }
 }
 
 int RunProjectFileTests()
 {
+    TestThePhysicsThreadsSetting();
     TestAnEmptyStringIsAValueNotABlock();
     TestReadsTheLegacyProjectShape();
     TestRefusesARealLegacyProjectFileIfPresent();

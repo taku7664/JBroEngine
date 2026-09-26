@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorNames.h>
 #include <JBro/Core/Version.h>
 
 #include <JBro/Asset/Asset.h>
@@ -17,6 +18,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/ConfirmPopup.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Localization.h>
@@ -25,7 +27,9 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Physics2D/World.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Graphics/Renderer.h>
@@ -64,6 +68,7 @@
 #include <cwchar>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 // 필드의 종류가 섞인 목록 원소다. 한 줄 숫자 묶음으로 읽히지 않으므로 접기 마디 안에 필드마다
@@ -5729,6 +5734,85 @@ namespace
     // **에디터에서 재생하면 물리가 돈다(physics-plan §4 의 4 가 남긴 "실제 에디터 재생").** 에디터 호스트와 같은
     // `EditorApplication` 의 재생 경로(엔진 시뮬레이션 → Framework2D 고정 스텝 → Physics2DSystem)로 상자와 캡슐을
     // 떨어뜨리고, 정지하면 떨어뜨리기 전 자리로 돌아오는지 본다. 물리 테스트는 시스템을 직접 부르므로 이 배선은 재지 못한다.
+    // **물리 스레드 설정이 에디터 재생까지 간다(D-223).** 빌드 캔버스에 상자 콜라이더 1100 개를 저장해 두고: "추천 값 사용" 이 쓰는
+    // 계산이 그 캔버스를 세고, 설정을 Auto·Single·워커 수로 저장할 때마다 재생의 물리 워커 수가 따라온다.
+    void TestThePhysicsThreadsSettingReachesPlay()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroPhysicsThreadsProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Scenes", ignored);
+        const JBro::String projectPath = TempPath("JBroPhysicsThreadsProbe\\Threads.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "Build:\n"
+            "  ProductName: ThreadsProbe\n"
+            "  BuildCanvases:\n"
+            "    - Scenes/Pile.jcanvas\n"
+            "  PhysicsThreads: Single\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the physics threads setting not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        Check(editor.RecommendPhysicsWorkers() == 0, "with no build canvas on disk there is nothing to count");
+
+        // 빌드 캔버스를 만들어 저장한다. 에디터가 캔버스 파일을 쓰는 길 그대로다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        for (int i = 0; i < 1100; ++i)
+        {
+            JBro::GameObject* box = canvas->CreateObject("Box");
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
+            transform->position = JBro::Vec2{static_cast<float>(i % 100) * 2.0f, static_cast<float>(i / 100) * 2.0f};
+            canvas->AttachComponent<JBro::Component::Collider2D>(box);
+        }
+        JBro::CanvasFileError canvasError;
+        const JBro::String canvasPath = TempPath("JBroPhysicsThreadsProbe\\Scenes\\Pile.jcanvas");
+        Check(editor.SaveCanvas(canvasPath.c_str(), canvasError), "the build canvas must save");
+        const std::uint32_t expected = JBro::Physics2D::RecommendWorkerCount(1100, std::thread::hardware_concurrency());
+        Check(editor.RecommendPhysicsWorkers() == expected, "the recommendation counts the 1100 colliders on disk");
+
+        auto* physics = canvas->GetSystems().FindSystem<JBro::System::Physics2DSystem>();
+        Check(physics != nullptr, "the 2D framework has a physics system");
+        const auto workersInPlay = [&]() {
+            Check(editor.StartSimulation(), "play must start");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must tick while playing");
+            }
+            const std::uint32_t workers = physics->GetWorkerCount();
+            editor.StopSimulation();
+            Check(editor.Tick(Frame), "the editor must tick after play");
+            return workers;
+        };
+        Check(workersInPlay() == 0, "Single plays on the main thread alone");
+
+        JBro::ProjectFile settings = editor.GetProjectFile();
+        settings.build.physicsThreadMode = JBro::PhysicsThreadMode::Auto;
+        Check(editor.SaveProjectSettings(settings, error), "Auto saves");
+        Check(workersInPlay() == expected, "Auto plays on the recommended count, resolved from the build canvas");
+        settings.build.physicsThreadMode = JBro::PhysicsThreadMode::Workers;
+        settings.build.physicsWorkers = 2;
+        Check(editor.SaveProjectSettings(settings, error), "two workers save");
+        Check(workersInPlay() == 2, "and a fixed count plays on that many");
+        editor.Shutdown();
+    }
+
     void TestPlayingRunsPhysicsAndStoppingPutsItBack()
     {
         JBro::EditorApplication editor;
@@ -10466,6 +10550,509 @@ namespace
     // **캔버스 뷰에서 오브젝트를 우클릭하면 그 오브젝트의 메뉴가 뜬다**(D-170).
     // 기존 캔버스 뷰도 그 자리에서 추가·복사·붙여넣기·삭제를 냈는데, 우리는 무엇을
     // 눌러도 빈자리 메뉴(`오브젝트 추가`·`붙여넣기`)만 나왔다.
+    // ── 컴포넌트별 우클릭 항목(D-220) ─────────────────────────────────────
+
+    // 훅이 무엇을 받았는지 적는다. 훅은 함수 포인터라 상태를 전역에 둔다.
+    struct ComponentHookProbe
+    {
+        int calls = 0;
+        JBro::ComponentAddress last;
+        bool componentMatches = false;
+        bool placementSeen = false;
+        bool returnValue = true;
+    };
+    ComponentHookProbe g_componentHook;
+
+    bool ProbeComponentHook(const JBro::ComponentMenuContext& context)
+    {
+        ++g_componentHook.calls;
+        g_componentHook.last = context.address;
+        g_componentHook.componentMatches = context.editor != nullptr
+            && context.component != nullptr
+            && context.component == JBro::ResolveComponent(context.editor->GetObjectIds(), context.address);
+        g_componentHook.placementSeen = context.placement.hasPosition;
+        JBro::Widget::MenuItem("Probe Item");
+        return g_componentHook.returnValue;
+    }
+
+    // 오브젝트 메뉴를 팝업으로 열어 두고 결과를 받는 패널이다. 우클릭 자리를 찾지 않고 메뉴만 잰다.
+    class ObjectMenuProbePanel final : public JBro::EditorPanel
+    {
+    public:
+        explicit ObjectMenuProbePanel(JBro::GameObject* target)
+            : m_target(target)
+        {
+        }
+
+        const char* GetTitle() const override
+        {
+            return "Object Menu Probe";
+        }
+        bool OnCreate(JBro::EditorApplication& editor) override
+        {
+            m_editor = &editor;
+            return true;
+        }
+        void OnDraw() override
+        {
+            if (m_open)
+            {
+                ImGui::OpenPopup("##objectMenuProbe");
+                m_open = false;
+            }
+            if (ImGui::BeginPopup("##objectMenuProbe"))
+            {
+                if (m_close)
+                {
+                    ImGui::CloseCurrentPopup();
+                    m_close = false;
+                }
+                ++draws;
+                // 캔버스 뷰처럼 누른 자리를 넘긴다. 훅까지 가는지 본다.
+                JBro::ObjectPlacement placement;
+                placement.hasPosition = true;
+                lastResult = JBro::EditorActions::DrawObjectMenu(*m_editor, *m_target, placement);
+                ImGui::EndPopup();
+            }
+        }
+
+        void Open()
+        {
+            m_open = true;
+        }
+        void Close()
+        {
+            m_close = true;
+        }
+
+        int draws = 0;
+        bool lastResult = true;
+
+    private:
+        JBro::EditorApplication* m_editor = nullptr;
+        JBro::GameObject* m_target = nullptr;
+        bool m_open = false;
+        bool m_close = false;
+    };
+
+    const char* ComponentLine(JBro::ComponentTypeId typeId)
+    {
+        return JBro::EditorNames::DisplayTypeName(JBro::NameTable::Get().Resolve(typeId));
+    }
+
+    // **훅은 인스턴스마다 하위 메뉴로 서고, 그 인스턴스의 주소를 받는다**(D-220). 같은 타입이 둘이면
+    // 둘째에 번호가 붙고, 훅이 없는 타입은 줄이 없고, 여럿을 고르면 줄이 없다. 훅이 거짓이면 메뉴도 거짓이다.
+    void TestComponentHooksAreSubmenusPerInstance()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; component menu hooks not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ComponentMenuProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(probe);
+        auto* first = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        auto* second = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        Check(transform != nullptr && first != nullptr && second != nullptr && first != second,
+            "the probe needs a transform and two colliders");
+        JBro::GameObject* other = canvas->CreateObject("Other");
+        Check(canvas->AttachComponent<JBro::Component::Collider2D>(other) != nullptr, "the other object has a collider");
+        const JBro::ComponentTypeId colliderType = first->GetTypeId();
+
+        int owner = 0;
+        g_componentHook = {};
+        Check(editor.GetComponentMenus().Register(colliderType, &ProbeComponentHook, &owner),
+            "the probe hook must be taken");
+        auto panel = JBro::MakeOwnerPtr<ObjectMenuProbePanel>(probe);
+        ObjectMenuProbePanel* menuProbe = panel.Get();
+        Check(editor.AddPanel(std::move(panel)), "the menu probe panel must be taken");
+        JBro::GameObject* one[] = {probe};
+        editor.SelectObjects({one, 1});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        menuProbe->Open();
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must open");
+        }
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr && menuProbe->draws > 0, "the object menu must be on screen");
+
+        const char* colliderLine = ComponentLine(colliderType);
+        char secondLine[128] = {};
+        std::snprintf(secondLine, sizeof(secondLine), "%s (2)", colliderLine);
+        Spot spot;
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu,
+                LabelId(menu->ID, ComponentLine(transform->GetTypeId())), spot),
+            "a component type without hooks must not get a line");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), spot),
+            "the second collider must get its own line, numbered");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        Check(g_componentHook.calls > 0, "hovering the line must draw its hooks");
+        Check(g_componentHook.last.ordinal == 1, "the second line's hooks must get the second collider");
+        Check(g_componentHook.last.objectId == editor.GetObjectIds().Track(probe),
+            "and the object they belong to, by editor id");
+        Check(g_componentHook.componentMatches, "the pointer handed along must be the component the address names");
+        Check(g_componentHook.placementSeen, "the spot the menu was opened at must reach the hooks");
+
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), spot),
+            "the first collider line carries the bare type name");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        Check(g_componentHook.last.ordinal == 0, "the first line's hooks must get the first collider");
+        Check(menuProbe->lastResult, "the menu stays true while the hooks keep their target");
+
+        g_componentHook.returnValue = false;
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with a failing hook");
+        }
+        Check(false == menuProbe->lastResult,
+            "a hook that may have removed its target must make the object menu say so");
+        g_componentHook.returnValue = true;
+
+        // 여럿을 고르면 공통 항목만 선다.
+        JBro::GameObject* both[] = {probe, other};
+        editor.SelectObjects({both, 2});
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after selecting both");
+        }
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "the probe menu is still open");
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), spot),
+            "with more than one object chosen, no component line");
+
+        // 실제 계층의 우클릭 메뉴도 같은 줄을 세운다.
+        menuProbe->Close();
+        editor.SelectObjects({one, 1});
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the probe menu must close");
+        }
+        Spot row;
+        Check(FindHierarchyRow(editor, hwnd, probe, row), "the probe's row must be in the hierarchy");
+        RightClickAt(editor, hwnd, row);
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the row must open the object menu");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), spot),
+            "the hierarchy's object menu must carry the component line too");
+
+        Check(editor.GetComponentMenus().Unregister(&owner) == 1, "the probe hook comes off");
+        editor.Shutdown();
+    }
+
+    // **인스펙터 컴포넌트 머리 메뉴도 같은 표를 쓴다**(D-220). 그 메뉴는 이미 인스턴스 하나의 것이라 하위 메뉴 없이
+    // 늘어놓고, 둘째 인스턴스의 머리에서 연 메뉴의 훅은 둘째 주소를 받는다. 훅이 없는 타입의 머리에서는 부르지 않는다.
+    void TestComponentHooksAppearInTheInspectorHeaderMenu()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; inspector component hooks not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "InspectorHookProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(probe);
+        auto* first = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        auto* second = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
+        Check(transform != nullptr && first != nullptr && second != nullptr, "the probe needs three components");
+        const JBro::ComponentTypeId colliderType = first->GetTypeId();
+
+        int owner = 0;
+        g_componentHook = {};
+        Check(editor.GetComponentMenus().Register(colliderType, &ProbeComponentHook, &owner),
+            "the probe hook must be taken");
+        JBro::GameObject* one[] = {probe};
+        editor.SelectObjects({one, 1});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        // 머리는 슬롯 번호를 쌓고 타입 이름으로 선다. 둘째 콜라이더는 셋째 슬롯이다.
+        // 콜라이더 절은 길어서 둘째 머리가 창 아래로 밀린다. 첫째를 접어 올린다.
+        Spot header;
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 1), ComponentLine(colliderType)), header),
+            "the first collider header must be in the inspector");
+        ClickAt(editor, hwnd, header);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the section must fold");
+        }
+        Check(FindInspectorItem(editor, hwnd, LabelId(PushedId(inspector->ID, 2), ComponentLine(colliderType)), header),
+            "the second collider header must be in the inspector");
+        RightClickAt(editor, hwnd, header);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the collider header must open its menu");
+        Check(g_componentHook.calls > 0, "the collider's hooks must be drawn in its header menu");
+        Check(g_componentHook.last.ordinal == 1, "the second collider's header must hand the second collider over");
+        Check(g_componentHook.last.objectId == editor.GetObjectIds().Track(probe), "with the object's editor id");
+        Check(g_componentHook.componentMatches, "and the component the address names");
+        Check(false == g_componentHook.placementSeen, "the inspector has no spot in the canvas to pass");
+        // **훅이 거짓이면 그 프레임의 나머지 메뉴를 그리지 않는다** - 슬롯이 바뀌었을 수 있다. 떼기 항목 위에 마우스를
+        // 둔 채 한 프레임을 돌리면, 그 항목이 서지 않았으니 가리켜지지도 않는다.
+        const char* removeLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorRemoveComponent, "Remove Component");
+        const ImGuiID removeId = LabelId(menu->ID, removeLabel);
+        Spot removeSpot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, removeId, removeSpot),
+            "the header menu must offer to remove the component");
+        g_componentHook.returnValue = false;
+        Check(editor.Tick(Frame), "the editor must tick with a failing hook");
+        Check(ImGui::GetCurrentContext()->HoveredId != removeId,
+            "after a hook that may have changed the slots, the rest of the header menu must wait for the next frame");
+        g_componentHook.returnValue = true;
+        bool back = false;
+        for (int frame = 0; frame < 4 && false == back; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick");
+            back = ImGui::GetCurrentContext()->HoveredId == removeId;
+        }
+        Check(back, "and it is back once the hook keeps its target");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "Probe Item"), item),
+            "the hook's item stands in the header menu itself, not in a submenu");
+        SaveScreenshot(*editor.GetRenderer(), 1024, 768, "component_menu_inspector");
+        // 항목을 누르면 메뉴가 닫힌다(창에 포커스가 없어 Esc 는 닿지 않는다).
+        ClickAt(editor, hwnd, item);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must close");
+        }
+
+        const int callsBefore = g_componentHook.calls;
+        Check(FindInspectorItem(editor, hwnd,
+                LabelId(PushedId(inspector->ID, 0), ComponentLine(transform->GetTypeId())), header),
+            "the transform header must be in the inspector");
+        RightClickAt(editor, hwnd, header);
+        Check(FindContextMenuWindow() != nullptr, "right-clicking the transform header must open its menu");
+        Check(g_componentHook.calls == callsBefore, "a type without hooks must not call anybody's hooks");
+
+        Check(editor.GetComponentMenus().Unregister(&owner) == 1, "the probe hook comes off");
+        editor.Shutdown();
+    }
+
+    // 지금 열린 하위 메뉴 창이다. `BeginMenu` 는 `Collider2D###Menu_00` 처럼 줄 이름 뒤에 깊이를 붙여 이름 짓는다.
+    ImGuiWindow* FindSubmenuWindow()
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "###Menu_") != nullptr && window->Active)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // **콜라이더 우클릭 메뉴의 "포인트 편집" 은 누른 그 콜라이더를 고친다**(D-220 의 첫 사용처). 도구 막대로 켜면
+    // 여전히 첫 폴리곤이다. 폴리곤이 아니면 항목이 회색이다.
+    void TestEditPointsFromTheMenuEditsThatCollider()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; editing points from the menu not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "EditPointsMenuProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
+        auto* left = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
+        auto* right = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
+        Check(left != nullptr && right != nullptr, "and two colliders");
+        // 두 폴리곤을 좌우로 떼어 놓는다. 꼭짓점 1 은 (0.5, -0.5) 에 오프셋을 더한 자리다.
+        for (JBro::Component::Collider2D* collider : {left, right})
+        {
+            collider->shape = JBro::Component::ColliderShape2D::Polygon;
+            collider->points = { {-0.5f, -0.5f}, {0.5f, -0.5f}, {0.5f, 0.5f}, {-0.5f, 0.5f} };
+        }
+        left->offset = {-2.5f, 0.0f};
+        right->offset = {2.5f, 0.0f};
+        editor.SetSelectedObject(cup);
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const ImGuiID vertex = LabelId(view->ID, "##vertex_1");
+
+        const auto at = [&](float worldX, float worldY) {
+            float x = 0.0f;
+            float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<int>(std::lround(x));
+            spot.y = static_cast<int>(std::lround(y));
+            return spot;
+        };
+        const auto hoveredAt = [&](const Spot& spot) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+            Check(editor.Tick(Frame), "the editor must tick while hovering");
+            Check(editor.Tick(Frame), "and once more for the hover to settle");
+            return ImGui::GetHoveredID();
+        };
+        const Spot leftCorner = at(-2.0f, -0.5f);
+        const Spot rightCorner = at(3.0f, -0.5f);
+
+        // 도구 막대로 켜면 첫 폴리곤이다 - 메뉴가 없던 때의 모양 그대로다.
+        const char* editLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditCollider, "Edit Collider");
+        Spot toggle;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, editLabel), toggle),
+            "the edit collider button must be on the canvas view tool bar");
+        ClickAt(editor, hwnd, toggle);
+        Check(hoveredAt(leftCorner) == vertex, "turned on from the tool bar, the first polygon is edited");
+        Check(hoveredAt(rightCorner) != vertex, "and not the second");
+        ClickAt(editor, hwnd, toggle);
+        Check(hoveredAt(leftCorner) != vertex, "turned off, no handles");
+
+        // 계층에서 둘째 콜라이더의 "포인트 편집" 을 누른다.
+        const char* colliderLine = ComponentLine(left->GetTypeId());
+        char secondLine[128] = {};
+        std::snprintf(secondLine, sizeof(secondLine), "%s (2)", colliderLine);
+        const char* pointsLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditPoints, "Edit Points");
+        Spot row;
+        Spot line;
+        Spot item;
+        ImGuiWindow* menu = nullptr;
+        ImGuiWindow* submenu = nullptr;
+        bool shot = false;
+        const auto pickSecond = [&]() {
+            Check(FindHierarchyRow(editor, hwnd, cup, row), "the cup's row must be in the hierarchy");
+            RightClickAt(editor, hwnd, row);
+            menu = FindContextMenuWindow();
+            Check(menu != nullptr, "right-clicking the row must open the object menu");
+            Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), line),
+                "the second collider must have its line");
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the submenu must open on hover");
+            }
+            submenu = FindSubmenuWindow();
+            Check(submenu != nullptr, "hovering the line must open its submenu");
+            Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
+                "the collider's submenu must offer to edit its points");
+            Check(false == ImGui::GetCurrentContext()->HoveredIdIsDisabled, "a polygon's points can be edited");
+            if (false == shot)
+            {
+                // `JBRO_EDITOR_SHOT` 이 있을 때만 찍는다. 하위 메뉴가 열린 모양을 사람이 본다.
+                SaveScreenshot(*editor.GetRenderer(), 1280, 720, "component_menu_submenu");
+            }
+            ClickAt(editor, hwnd, item);
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the menu must close");
+            }
+            Check(hoveredAt(rightCorner) == vertex, "the collider picked from the menu is the one edited");
+            Check(hoveredAt(leftCorner) != vertex, "not the first one");
+            if (false == shot)
+            {
+                SaveScreenshot(*editor.GetRenderer(), 1280, 720, "component_menu_editing_second");
+                shot = true;
+            }
+        };
+        pickSecond();
+
+        // **고른 것을 잊는 네 경우.** 잊으면 첫 폴리곤으로 돌아가고, 고른 것이 되살아나도 다시 붙지 않는다.
+        right->SetEnabled(false);
+        Check(hoveredAt(leftCorner) == vertex, "a picked collider turned off falls back to the first polygon");
+        right->SetEnabled(true);
+        Check(hoveredAt(leftCorner) == vertex, "and it stays forgotten when it is turned back on");
+
+        pickSecond();
+        right->shape = JBro::Component::ColliderShape2D::Box;
+        Check(hoveredAt(leftCorner) == vertex, "a picked collider that stops being a polygon falls back");
+        right->shape = JBro::Component::ColliderShape2D::Polygon;
+        Check(hoveredAt(leftCorner) == vertex, "and it stays forgotten when it is a polygon again");
+
+        pickSecond();
+        JBro::GameObject* saucer = canvas->CreateObject("Saucer");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(saucer) != nullptr, "the saucer needs a transform");
+        editor.SetSelectedObject(saucer);
+        Check(hoveredAt(rightCorner) != vertex, "choosing another object stops editing the picked collider");
+        editor.SetSelectedObject(cup);
+        Check(hoveredAt(leftCorner) == vertex, "and coming back starts from the first polygon");
+
+        pickSecond();
+        ClickAt(editor, hwnd, toggle);
+        ClickAt(editor, hwnd, toggle);
+        Check(hoveredAt(leftCorner) == vertex, "turning editing off and on from the tool bar forgets the pick");
+
+        // 폴리곤이 아니면 회색이다.
+        left->shape = JBro::Component::ColliderShape2D::Box;
+        RightClickAt(editor, hwnd, row);
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "the object menu must open again");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), line),
+            "the first collider must have its line");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        submenu = FindSubmenuWindow();
+        Check(submenu != nullptr, "hovering the line must open its submenu");
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
+            "a box collider still shows the item");
+        Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled, "but grey, since a box has no points to edit");
+
+        // 캔버스 뷰가 사라질 때 제 항목을 뗀다. 남으면 표가 사라진 패널을 가리킨다.
+        const JBro::ComponentTypeId colliderType = left->GetTypeId();
+        editor.Shutdown();
+        Check(false == editor.GetComponentMenus().Has(colliderType),
+            "the canvas view takes its item off the table when it goes");
+    }
+
     void TestRightClickingAnObjectInTheCanvasViewOpensItsMenu()
     {
         JBro::EditorApplication editor;
@@ -10694,6 +11281,7 @@ int RunEditorApplicationTests()
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestPlayingRunsPhysicsAndStoppingPutsItBack();
+    TestThePhysicsThreadsSettingReachesPlay();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();
@@ -10726,6 +11314,9 @@ int RunEditorApplicationTests()
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
+    TestComponentHooksAreSubmenusPerInstance();
+    TestComponentHooksAppearInTheInspectorHeaderMenu();
+    TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestTheGizmoCanWorkInWorldAxes();
     TestThePathHelpersAgreeOnOneAnswer();

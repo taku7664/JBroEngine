@@ -176,6 +176,28 @@ namespace JBro
         m_renderWorld.EndFrame();
     }
 
+    void Framework2D::SetPhysicsWorkerCount(std::uint32_t count)
+    {
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        if (System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>())
+        {
+            physics->SetWorkerCount(count);
+        }
+    }
+
+    std::uint32_t Framework2D::GetPhysicsWorkerCount()
+    {
+        if (m_canvas.Get() == nullptr)
+        {
+            return 0;
+        }
+        System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>();
+        return physics != nullptr ? physics->GetWorkerCount() : 0;
+    }
+
     void Framework2D::SetSimulationEnabled(bool enabled)
     {
         m_simulationEnabled = enabled;

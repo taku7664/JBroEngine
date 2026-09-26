@@ -53,6 +53,8 @@ Entries:
   canvas_view.edit_collider_tooltip: edit the selected object's polygon collider - drag a point to move it, click an edge to add one, right-click a point to delete it
   canvas_view.point_delete: Delete Point
   canvas_view.point_delete_min: a polygon needs at least three points
+  canvas_view.edit_points: Edit Points
+  canvas_view.edit_points_not_polygon: shape must be Polygon
   canvas_view.frame_tooltip: fit the view to the selection
   canvas_view.unit_world: "Unit"
   canvas_view.unit_pixel: "Pixel"
@@ -153,6 +155,12 @@ Entries:
   project_settings.audio_default_device: "System default"
   project_settings.audio_device_help: "On a computer without this device the system default is used"
   project_settings.audio_refresh_devices: "Refresh"
+  project_settings.physics_threads_auto: "Auto"
+  project_settings.physics_threads_single: "Single thread"
+  project_settings.physics_threads_workers: "Set worker count"
+  project_settings.physics_threads_help: "Auto picks the worker count from the colliders in the build canvases when the game starts. Platforms without threads (web) always run on a single thread"
+  project_settings.physics_recommend: "Use Recommended"
+  project_settings.physics_recommend_help: "Counts the colliders in the build canvases and fixes the recommended worker count"
   project_settings.audio_mute_help: "Mutes the sound while the window is not focused"
   project_settings.audio_routing: "Routing"
   project_settings.audio_no_send: "None"
