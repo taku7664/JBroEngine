@@ -271,8 +271,8 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
    - 표면: 질의 결과는 훅 타입 `Collision2D` 가 아니라 새 값 타입 `RaycastHit2D`(상대·몸 종류·점·법선·거리)다. 모든 질의가
      `layerMask` 를 받고 서비스는 기본값 `AllPhysicsLayers` 를 둔다. `OverlapPoint` 는 오브젝트 하나, `OverlapCircle`·`OverlapBox` 는
      오브젝트마다 한 번, `RaycastAll` 은 **콜라이더마다** 한 번(한 오브젝트의 두 콜라이더는 두 번, 한 콜라이더의 여러 조각은 가장 가까운
-     한 번)을 거리 순으로 준다. 가상 함수가 늘어 `Framework2DSystemContextAbiVersion` 을 3, `Framework2DServiceContextAbiVersion` 을 2 로
-     올렸다(D-28). 캡슐은 아직 충돌하지 않으므로 질의도 건너뛴다.
+     한 번)을 거리 순으로 준다. 가상 함수 표가 바뀌어 `Framework2DSystemContextAbiVersion` 을 3 으로 올렸다(D-28).
+     `Physics2DService` 는 비가상 함수만 늘어 배치가 그대로이므로 서비스 컨텍스트 ABI 는 두었다. 캡슐은 아직 충돌하지 않으므로 질의도 건너뛴다.
    - 테스트: `Physics2DCollisionTests`(`TestPointsAndCircles`·`TestSweeps`: 경계 위 점, 모서리를 스치는 원, 반지름만큼 앞선 면,
      원과 원, 시작 겹침, 돌린 상자의 모서리 접촉), `Physics2DSystemTests::TestTheWiderQueries`(A 의 상자와 안쪽 원·B·C·U 컵, 마스크,
      거꾸로 쏜 레이의 정렬, U 기둥을 내려가는 레이 한 번, 홈 안 점, A 를 덮는 원이 A 한 번, 홈 바닥에 떨어지는 공, 마름모 스윕),
