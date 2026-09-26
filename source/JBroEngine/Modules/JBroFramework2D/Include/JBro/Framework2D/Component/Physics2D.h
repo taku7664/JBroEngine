@@ -8,6 +8,7 @@
 #include <JBro/Reflection/TypeDescriptorOf.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObjectHandle.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Types/Array.h>
 
 #include <cstdint>
@@ -221,6 +222,71 @@ namespace JBro::Component
         // 떼어 두지 않았을 때만 만난다(D-230). 비트 i 의 이름은 프로젝트 설정의 물리 레이어 i 번째다.
         JBRO_FIELD(PhysicsLayerMask, layer) = 0x00000001u;
         JBRO_FIELD(PhysicsLayerMask, mask) = 0xFFFFFFFFu;
+    };
+
+    // **거리 조인트**(D-230, 기존 엔진 `DistanceJoint2D`). 이 오브젝트의 몸을 connectedObject 의 몸과 일정한 거리로 잇는다.
+    // connectedObject 가 비었으면 connectedAnchor 는 월드의 점이다. 두 오브젝트 모두 물리 몸(Rigidbody2D 나 Collider2D)이 있어야
+    // 이어진다. 앵커는 오브젝트 로컬이고 트랜스폼의 크기를 곱한다.
+    class DistanceJoint2D final : public ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::DistanceJoint2D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(DistanceJoint2D)
+
+        JBRO_FIELD(GameObjectHandle, connectedObject);
+        JBRO_FIELD(Vec2, anchor);
+        JBRO_FIELD(Vec2, connectedAnchor);
+        // 참이면 조인트가 처음 이어지는 순간 두 앵커 사이의 거리를 distance 에 적는다.
+        JBRO_FIELD(bool, autoDistance) = true;
+        JBRO_FIELD(float, distance, Range(0, 1000)) = 1.0f;
+        // 참이면 밧줄이다: distance 보다 멀어지지만 않게 하고 가까워지는 것은 막지 않는다.
+        JBRO_FIELD(bool, maxDistanceOnly) = false;
+        // 0 보다 크면 용수철이다(초당 떨림 수). 0 이면 단단하다. 밧줄에는 쓰지 않는다.
+        JBRO_FIELD(float, frequency, Range(0, 30)) = 0.0f;
+        JBRO_FIELD(float, dampingRatio, Range(0, 1)) = 0.0f;
+        // 거짓이면 이은 두 오브젝트의 콜라이더가 서로 부딪히지 않는다.
+        JBRO_FIELD(bool, collideConnected) = false;
+    };
+
+    // **경첩 조인트**(D-230, 기존 엔진 `HingeJoint2D`). 두 몸이 한 점을 함께 쓰고 그 둘레로 돈다. 각도는 도(°)이고, 한계는
+    // 조인트가 처음 이어질 때 이 오브젝트가 상대에 대해 놓인 각도를 0 으로 잰다. 반시계가 양수다.
+    class HingeJoint2D final : public ComponentBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Component::HingeJoint2D";
+        }
+
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_REFLECT_BODY(HingeJoint2D)
+
+        JBRO_FIELD(GameObjectHandle, connectedObject);
+        JBRO_FIELD(Vec2, anchor);
+        JBRO_FIELD(Vec2, connectedAnchor);
+        // 참이면 조인트가 처음 이어지는 순간 anchor 가 놓인 자리를 상대의 로컬(없으면 월드)로 connectedAnchor 에 적는다.
+        JBRO_FIELD(bool, autoConnectedAnchor) = true;
+        JBRO_FIELD(bool, useLimits) = false;
+        JBRO_FIELD(float, lowerAngle, Range(-360, 360)) = -45.0f;
+        JBRO_FIELD(float, upperAngle, Range(-360, 360)) = 45.0f;
+        // 모터는 이 오브젝트를 상대에 대해 motorSpeed(도/초)로 돌린다. 그러려고 쓸 수 있는 가장 큰 토크가 maxMotorTorque 다.
+        JBRO_FIELD(bool, useMotor) = false;
+        JBRO_FIELD(float, motorSpeed) = 0.0f;
+        JBRO_FIELD(float, maxMotorTorque, Range(0, 100000)) = 1000.0f;
+        JBRO_FIELD(bool, collideConnected) = false;
     };
 }
 

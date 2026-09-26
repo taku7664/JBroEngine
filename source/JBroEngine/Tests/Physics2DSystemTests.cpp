@@ -1,4 +1,8 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include <cstring>
+#include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
+#include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
@@ -954,6 +958,181 @@ namespace
         ledge->oneWay = false;
         scene.Run(0.1f);
         Check(Near(scene.TransformOf(box)->position.y, 0.75f, 0.02f), "turning oneWay off leaves it standing there");
+
+        // 막는 발판에 밑에서 쳐올리면 튕겨 떨어지고, 그 자리에서 oneWay 를 켜면 같은 도형이 흘려보낸다.
+        JBro::GameObject* jumper = scene.Object("jumper", { 5, -1.5f });
+        scene.Box(jumper, { 0.5f, 0.5f });
+        Rigidbody2D* jumperBody = scene.Dynamic(jumper);
+        JBro::GameObject* ceiling = scene.Object("ceiling", { 5, 0 });
+        Collider2D* roof = scene.Box(ceiling, { 2, 0.5f });
+        jumperBody->linearVelocity = { 0, 8 };
+        scene.Run(0.3f);
+        Check(scene.TransformOf(jumper)->position.y < -0.4f, "a solid ceiling stops a jump from below");
+        roof->oneWay = true;
+        scene.Run(0.5f);
+        jumperBody->linearVelocity = { 0, 8 };
+        scene.Run(1.0f);
+        Check(scene.TransformOf(jumper)->position.y > 0.3f, "switching oneWay on lets the next jump through onto it");
+    }
+
+    // **레이어 충돌 표가 시스템을 거쳐 커널에 간다(D-230).** 떼어 둔 두 레이어의 상자는 서로 지나간다.
+    void TestTheLayerTableReachesTheKernel()
+    {
+        Scene scene;
+        std::uint32_t rows[JBro::PhysicsLayerCount] = {};
+        rows[1] = 1u << 2;
+        rows[2] = 1u << 1;
+        scene.physics.SetIgnoredLayers(rows);
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 20, 1 });
+        JBro::GameObject* lower = scene.Object("lower", { 0, 0.5f });
+        scene.Box(lower, { 1, 1 })->layer = 1u << 1;
+        scene.Dynamic(lower);
+        JBro::GameObject* upper = scene.Object("upper", { 0, 3 });
+        scene.Box(upper, { 1, 1 })->layer = 1u << 2;
+        scene.Dynamic(upper);
+        scene.Run(1.5f);
+        Check(Near(scene.TransformOf(upper)->position.y, 0.5f, 0.03f), "a box on a separated layer falls through the other onto the ground");
+    }
+
+    // **조인트 컴포넌트(D-230).** 경첩은 처음 이어질 때 핀 자리를 월드로 적고 그 둘레로 흔들린다. 한계와 모터는 "이 오브젝트가
+    // 상대에 대해" 의 반시계 양수 각도다. 거리 조인트는 처음 거리를 적어 그만큼 매달고, 거리를 바꾸면 제자리에서 바뀌며,
+    // 상대 오브젝트가 사라지면 조인트도 없어진다.
+    void TestJointComponents()
+    {
+        using JBro::Component::DistanceJoint2D;
+        using JBro::Component::HingeJoint2D;
+        const float degree = 3.14159265f / 180.0f;
+        {
+            // 막대는 크기 (2, 1) 의 상자 하나이고 왼쪽 끝(로컬 -0.5, 크기를 곱해 -1)을 (2, 1) 의 핀에 건다. 20° 기울어 시작하므로
+            // 한계 [-30°, 10°] 는 그 자리를 0 으로 잰다 - 떨어지면 20 - 30 = -10° 에서 선다. 한계가 비대칭이라 부호가 뒤집히면
+            // 다른 각에서 선다.
+            Scene scene;
+            const float start = 20.0f * degree;
+            JBro::GameObject* rod = scene.Object("rod", { 2.0f + std::cos(start), 1.0f + std::sin(start) });
+            scene.TransformOf(rod)->rotation = start;
+            scene.TransformOf(rod)->scale = { 2, 1 };
+            scene.Box(rod, { 1.0f, 0.2f });
+            scene.Dynamic(rod);
+            HingeJoint2D* hinge = scene.canvas.AttachComponent<HingeJoint2D>(rod);
+            hinge->anchor = { -0.5f, 0 };
+            hinge->useLimits = true;
+            hinge->lowerAngle = -30.0f;
+            hinge->upperAngle = 10.0f;
+            scene.Run(1.5f);
+            Check(scene.physics.GetJointCount() == 1, "a hinge on a body becomes one kernel joint");
+            Check(Near(hinge->connectedAnchor.x, 2.0f, 1.0e-3f) && Near(hinge->connectedAnchor.y, 1.0f, 1.0e-3f),
+                "with no partner the pin is written as the scaled anchor's world point");
+            Check(Near(scene.TransformOf(rod)->rotation, -10.0f * degree, 2.0f * degree),
+                "the falling rod turns clockwise and the lower limit, measured from where it started, holds it");
+            const Vec2 end = scene.TransformOf(rod)->position;
+            const float angle = scene.TransformOf(rod)->rotation;
+            Check(Near(end.x - std::cos(angle), 2.0f, 0.02f) && Near(end.y - std::sin(angle), 1.0f, 0.02f),
+                "and its end stays on the pin");
+        }
+        {
+            Scene scene;
+            scene.physics.SetGravity({ 0, 0 });
+            JBro::GameObject* wheel = scene.Object("wheel", { 0, 0 });
+            Collider2D* round = scene.canvas.AttachComponent<Collider2D>(wheel);
+            round->shape = ColliderShape2D::Circle;
+            Rigidbody2D* body = scene.Dynamic(wheel);
+            HingeJoint2D* hinge = scene.canvas.AttachComponent<HingeJoint2D>(wheel);
+            hinge->useMotor = true;
+            hinge->motorSpeed = 90.0f;
+            scene.Run(0.5f);
+            Check(Near(body->angularVelocity, 90.0f * degree, 0.01f), "a motor turns the object counterclockwise at its speed");
+        }
+        {
+            Scene scene;
+            JBro::GameObject* hook = scene.Object("hook", { 0, 5 });
+            scene.Box(hook, { 0.2f, 0.2f });
+            JBro::GameObject* weight = scene.Object("weight", { 0, 3 });
+            scene.Box(weight, { 0.5f, 0.5f });
+            scene.Dynamic(weight);
+            DistanceJoint2D* joint = scene.canvas.AttachComponent<DistanceJoint2D>(weight);
+            joint->connectedObject = hook->GetScriptHandle();
+            scene.Run(1.0f);
+            Check(Near(joint->distance, 2.0f, 1.0e-4f), "the first distance is written from the two anchors");
+            Check(Near(scene.TransformOf(weight)->position.y, 3.0f, 0.02f), "and the weight hangs there");
+            joint->distance = 1.0f;
+            scene.Run(1.5f);
+            Check(scene.physics.GetJointCount() == 1 && Near(scene.TransformOf(weight)->position.y, 4.0f, 0.03f),
+                "a shorter distance pulls it up with the same joint");
+            joint->maxDistanceOnly = true;
+            joint->distance = 3.0f;
+            scene.Run(1.5f);
+            Check(Near(scene.TransformOf(weight)->position.y, 2.0f, 0.03f), "as a rope it falls to its length");
+            joint->SetEnabled(false);
+            scene.Run(0.2f);
+            Check(scene.physics.GetJointCount() == 0 && scene.TransformOf(weight)->position.y < 1.9f,
+                "switching the joint off removes it and the weight falls");
+            joint->SetEnabled(true);
+            JBro::GameObject* stand = scene.Object("stand", { 0, -3 });
+            scene.Box(stand, { 4, 1 });
+            scene.Run(2.0f);
+            Check(scene.physics.GetJointCount() == 1, "switching it on joins them again");
+            Check(scene.canvas.DestroyObject(hook), "the hook is destroyed");
+            scene.canvas.FlushPendingDestroy();
+            scene.Run(0.5f);
+            Check(scene.physics.GetJointCount() == 0 && scene.TransformOf(weight)->position.y < 1.5f,
+                "without its partner the joint is gone and the weight falls");
+        }
+    }
+
+    // **오브젝트 참조는 캔버스 파일에 파일 안 번호로 적힌다(D-230).** 뒤에 오는 오브젝트를 가리켜도 읽힌 뒤 그 오브젝트를 잡고,
+    // 빈 참조는 빈 채로 온다. 파일 밖(되돌리기 글자)에서는 이번 실행의 번호다.
+    void TestAnObjectReferenceSurvivesTheCanvasFile()
+    {
+        using JBro::Component::DistanceJoint2D;
+        Check(JBro::Component::RegisterBuiltinComponentTypes2D() && JBro::Component::RegisterBuiltinComponentProperties2D(),
+            "the 2D components register");
+        JBro::Canvas canvas{ JBro::CreateDefaultAllocator() };
+        JBro::GameObject* first = canvas.CreateObject("first");
+        JBro::GameObject* second = canvas.CreateObject("second");
+        DistanceJoint2D* forward = canvas.AttachComponent<DistanceJoint2D>(first);
+        forward->connectedObject = second->GetScriptHandle();
+        DistanceJoint2D* empty = canvas.AttachComponent<DistanceJoint2D>(second);
+        (void)empty;
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(canvas, text, error), "the canvas is written");
+        Check(text.find("connectedObject: 1") != JBro::String::npos, "the reference is written as the file index of its object");
+        Check(text.find("connectedObject: \"\"") != JBro::String::npos || text.find("connectedObject: \n") != JBro::String::npos
+                || text.find("connectedObject:\n") != JBro::String::npos,
+            "and an empty one as nothing");
+
+        JBro::Canvas read{ JBro::CreateDefaultAllocator() };
+        Check(JBro::ReadCanvasText(read, text.c_str(), text.size(), error), "the canvas reads back");
+        JBro::GameObject* readFirst = nullptr;
+        JBro::GameObject* readSecond = nullptr;
+        read.ForEachObject([&](JBro::GameObject& object) {
+            if (std::strcmp(object.GetTag(), "first") == 0)
+            {
+                readFirst = &object;
+            }
+            if (std::strcmp(object.GetTag(), "second") == 0)
+            {
+                readSecond = &object;
+            }
+        });
+        Check(readFirst != nullptr && readSecond != nullptr, "both objects come back");
+        DistanceJoint2D* readForward = read.FindComponentRaw<DistanceJoint2D>(readFirst);
+        DistanceJoint2D* readEmpty = read.FindComponentRaw<DistanceJoint2D>(readSecond);
+        Check(readForward != nullptr && readForward->connectedObject.GetInstanceId() == readSecond->GetInstanceId(),
+            "a reference to a later object finds the new copy of it");
+        Check(readForward->connectedObject.GetInstanceId() != second->GetInstanceId(), "not the object it was written from");
+        Check(readEmpty != nullptr && false == readEmpty->connectedObject.IsValid(), "an empty reference stays empty");
+
+        const JBro::TypeDescriptor& type = JBro::TypeDescriptorOf<JBro::GameObjectHandle>::Get();
+        char buffer[64];
+        std::size_t required = 0;
+        Check(type.codec->ToText(&forward->connectedObject, buffer, sizeof(buffer), required) && buffer[0] == '@',
+            "outside a canvas file the text is this run's object number");
+        JBro::GameObjectHandle parsed;
+        Check(type.codec->FromText(&parsed, buffer, std::strlen(buffer)) && parsed.GetInstanceId() == second->GetInstanceId(),
+            "and it reads back to the same object");
+        Check(false == type.codec->FromText(&parsed, "3", 1), "a bare file index means nothing outside a canvas file");
     }
 }
 
@@ -964,6 +1143,9 @@ int RunPhysics2DSystemTests()
     TestATriggerReportsWithoutPushing();
     TestStayHooksComeEveryStepWhileTouching();
     TestAOneWayColliderLetsThingsUpThrough();
+    TestJointComponents();
+    TestTheLayerTableReachesTheKernel();
+    TestAnObjectReferenceSurvivesTheCanvasFile();
     TestLosingAPartnerEndsTheContact();
     TestSwitchingOffAMovingBodysColliderLetsItFall();
     TestRestartingDoesNotReplayOldContacts();

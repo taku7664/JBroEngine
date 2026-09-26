@@ -1,0 +1,52 @@
+Modules\JBroPhysics2D\Source\World.cpp	stay:none	                    m_stayEvents.Add(toEvent(m_touching[i]));	                    (void)0;
+Modules\JBroPhysics2D\Source\World.cpp	stay:asleep-reported	if (moving(m_touching[i]))	if (true)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:stay-not-dispatched	dispatch(event, Phase::Stay);	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:stay-as-enter	script->OnCollisionStay(hit);	script->OnCollisionEnter(hit);
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:trigger-stay-lost	script->OnTriggerStay(hit);	(void)0;
+Modules\JBroPhysics2D\Source\World.cpp	oneway:never	contact.disabled = PassesOneWay(contact);	contact.disabled = false;
+Modules\JBroPhysics2D\Source\World.cpp	oneway:not-kept	contact.disabled = old.disabled;	contact.disabled = PassesOneWay(contact);
+Modules\JBroPhysics2D\Source\World.cpp	oneway:unrotated	RotateVector(m_bodies[shape.body].rotation, Vec2{ 0.0f, 1.0f })	Vec2{ 0.0f, 1.0f }
+Modules\JBroPhysics2D\Source\World.cpp	oneway:touching	            if (contact.disabled)\n            {\n                continue;	            if (false)\n            {\n                continue;
+Modules\JBroPhysics2D\Source\World.cpp	oneway:solved	        if (contact.disabled)\n        {\n            return false;	        if (false)\n        {\n            return false;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:oneway-not-passed	def.oneWay = collider.oneWay;	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:oneway-not-signed	 | (collider.oneWay ? 4 : 0)	
+Modules\JBroPhysics2D\Source\World.cpp	layers:ignored	if (false == LayersMeet(shapeA->layer, shapeB->layer))	if (false)
+Modules\JBroPhysics2D\Source\World.cpp	layers:any-bit	if ((layerB & ~m_settings.ignoredLayers[i]) != 0u)	if (layerB != 0u)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	system:layers-not-copied	std::memcpy(world.Settings().ignoredLayers, m_ignoredLayers, sizeof(m_ignoredLayers));	(void)0;
+Modules\JBroFramework2DSystem\Source\PhysicsThreads.cpp	resolve:one-sided	rows[pair.second] |= 1u << pair.first;	(void)0;
+Modules\JBroHost\Source\ProjectFile.cpp	project:pair-unsorted	result.first = static_cast<std::uint8_t>(std::min(first, second));	result.first = static_cast<std::uint8_t>(first);	project
+Modules\JBroHost\Source\ProjectFile.cpp	project:trailing-kept	while (count > 0 && project.physicsLayers[count - 1].empty())	while (false)	project
+Modules\JBroPhysics2D\Source\World.cpp	joint:no-position	                SolveJointPositions();\n                SolvePositions();	                SolvePositions();
+Modules\JBroPhysics2D\Source\World.cpp	joint:no-velocity	                SolveJoints(h);\n                SolveVelocities(h);	                SolveVelocities(h);
+Modules\JBroPhysics2D\Source\World.cpp	joint:no-warm	            WarmStartJoints();\n	
+Modules\JBroPhysics2D\Source\World.cpp	joint:filter-ignored	if (false == m_jointFilters.IsEmpty() && m_jointFilters.Contains(	if (false && m_jointFilters.Contains(
+Modules\JBroPhysics2D\Source\World.cpp	joint:no-island	const std::uint32_t rootA = FindIsland(joint.bodyA);	const std::uint32_t rootA = FindIsland(joint.bodyB);
+Modules\JBroPhysics2D\Source\World.cpp	joint:body-destroy-keeps	                DestroyJoint({ j, joint.generation });	                (void)0;
+Modules\JBroPhysics2D\Source\Joints.cpp	joint:no-wake-prepare	WakeBody(a.awake ? b : a);	(void)0;
+Modules\JBroPhysics2D\Source\Joints.cpp	rope:pushes	joint.upperImpulse = std::fmin(0.0f, old - joint.mass * (speed - std::fmax(slack, 0.0f) * inverseH));	joint.upperImpulse = old - joint.mass * (speed - std::fmax(slack, 0.0f) * inverseH);
+Modules\JBroPhysics2D\Source\Joints.cpp	rope:no-slack	(speed - std::fmax(slack, 0.0f) * inverseH)	(speed - 0.0f)
+Modules\JBroPhysics2D\Source\Joints.cpp	spring:rigid	if (false == def.maxLengthOnly && def.hertz > 0.0f && k > 0.0f)	if (false)
+Modules\JBroPhysics2D\Source\Joints.cpp	spring:position-corrected	                if (false == def.maxLengthOnly && def.hertz > 0.0f)\n                {\n                    continue;	                if (false)\n                {\n                    continue;
+Modules\JBroPhysics2D\Source\Joints.cpp	rigid:no-position	ApplyPositionImpulse(a, b, rA, rB, Scale(axis, -error / k));	(void)0;
+Modules\JBroPhysics2D\Source\Joints.cpp	hinge:motor-off	            if (def.enableMotor)\n            {	            if (false)\n            {
+Modules\JBroPhysics2D\Source\Joints.cpp	hinge:motor-unclamped	joint.motorImpulse = std::clamp(old - joint.axialMass * speed, -limit, limit);	joint.motorImpulse = old - joint.axialMass * speed;
+Modules\JBroPhysics2D\Source\Joints.cpp	hinge:limit-velocity-off	            if (def.enableLimit)\n            {\n                // 아래	            if (false)\n            {\n                // 아래
+Modules\JBroPhysics2D\Source\Joints.cpp	hinge:limit-position-off	if (def.enableLimit && joint.axialMass > 0.0f)	if (false)
+Modules\JBroPhysics2D\Source\Joints.cpp	hinge:point-position-off	ApplyPositionImpulse(a, b, rA, rB, Scale(Solve22(k11, k12, k22, error), -1.0f));	(void)0;
+Modules\JBroPhysics2D\Source\Joints.cpp	hinge:point-velocity-off	            joint.linearImpulse = Add(joint.linearImpulse, impulse);\n            ApplyImpulse(a, b, joint.rA, joint.rB, impulse);	            joint.linearImpulse = Add(joint.linearImpulse, impulse);
+Modules\JBroPhysics2D\Source\Joints.cpp	hinge:limit-kept-when-off	            joint->lowerImpulse = 0.0f;\n            joint->upperImpulse = 0.0f;\n        }\n        if (false == def.enableMotor)	        }\n        if (false == def.enableMotor)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:limit-not-negated	def.lowerAngle = -std::fmax(joint.lowerAngle, joint.upperAngle) * Radian;	def.lowerAngle = std::fmin(joint.lowerAngle, joint.upperAngle) * Radian;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:motor-sign	def.motorSpeed = -joint.motorSpeed * Radian;	def.motorSpeed = joint.motorSpeed * Radian;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:reference-zero	link->referenceAngle = angleB - angleA;	link->referenceAngle = 0.0f;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:auto-anchor-off	joint.connectedAnchor = bodyB.index != Physics2D::InvalidIndex ? unscaled(worldToLocal(bodyB, pin), scaleB) : pin;	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:auto-distance-off	joint.distance = std::sqrt(	joint.distance = 1.0f + 0.0f * std::sqrt(
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:no-in-place	update(*link, own->body, otherBody, ownPose.scale, otherPose.scale);	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:joint-not-removed	world.DestroyJoint(state.joints.Find(id)->joint);	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:hinge-scale-ignored	def.localAnchorA = scaled(joint.anchor, scaleA);\n                def.localAnchorB = bodyB.index != Physics2D::InvalidIndex ? scaled(joint.connectedAnchor, scaleB) : joint.connectedAnchor;\n                def.referenceAngle	def.localAnchorA = joint.anchor;\n                def.localAnchorB = bodyB.index != Physics2D::InvalidIndex ? scaled(joint.connectedAnchor, scaleB) : joint.connectedAnchor;\n                def.referenceAngle
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:partner-ignored	if (own == nullptr || (connectedId != InvalidInstanceId && other == nullptr))	if (own == nullptr)
+Modules\JBroCanvas\Source\CanvasFile.cpp	file:write-no-remap	        ObjectRefRemapScope remapScope(remap);\n\n        YamlWriter writer;	\n        YamlWriter writer;
+Modules\JBroCanvas\Source\CanvasFile.cpp	file:read-no-remap	? objects[static_cast<std::size_t>(index)]->GetInstanceId()	? InvalidInstanceId
+Modules\JBroEditor\Source\Command\ObjectTreeSnapshot.cpp	snapshot:new-id	canvas.CreateObject(entry.name.c_str(), rebind ? entry.instanceId : InvalidInstanceId);	canvas.CreateObject(entry.name.c_str());	objcmd
+Modules\JBroEditor\Source\Command\ObjectTreeSnapshot.cpp	snapshot:no-retarget	        RetargetReferences(created);\n		objcmd
+Modules\JBroCanvas\Source\Canvas.cpp	canvas:preferred-ignored	const InstanceId instanceId = reuse ? preferredId : GenerateCanvasInstanceId();	const InstanceId instanceId = GenerateCanvasInstanceId();	objcmd
+Modules\JBroRuntime\Include\JBro\Runtime\GameObjectHandleReflection.h	codec:bare-id	local[0] = '@';	local[0] = '0';

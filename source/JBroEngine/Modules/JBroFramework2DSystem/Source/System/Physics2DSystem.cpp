@@ -270,6 +270,19 @@ namespace JBro::System
             bool               seen = false;
         };
 
+        // 조인트 컴포넌트 하나의 연결이다(D-230). 두 몸의 오브젝트가 바뀌면 새로 만들고, 성질만 바뀌면 제자리에서 바꾼다.
+        struct JointLink
+        {
+            Physics2D::JointId joint;
+            InstanceId         bodyObject = InvalidInstanceId;
+            InstanceId         connectedObject = InvalidInstanceId;
+            std::uint64_t      signature = 0;
+            // 경첩의 기준 각(커널의 B - A). 처음 이어질 때 정하고 몸이 다시 만들어져도 그대로 쓴다.
+            float              referenceAngle = 0.0f;
+            bool               hinge = false;
+            bool               seen = false;
+        };
+
         struct PieceCache
         {
             std::uint64_t                   signature = 0;
@@ -283,6 +296,7 @@ namespace JBro::System
         std::uint32_t                 appliedWorkers = 0;
         Table<InstanceId, BodyLink>   bodies;
         Table<InstanceId, ShapeLink>  shapes;
+        Table<InstanceId, JointLink>  joints;
         // 이번 스텝에 지운 콜라이더의 연결. 그 끝 이벤트가 이번 커널 스텝에서 나오므로 발송할 때까지만 둔다.
         Array<ShapeLink>              retired;
         Array<InstanceId>             removals;
@@ -363,6 +377,11 @@ namespace JBro::System
     std::uint32_t Physics2DSystem::GetWorkerCount() const
     {
         return m_state->world.GetWorkerCount();
+    }
+
+    std::size_t Physics2DSystem::GetJointCount() const
+    {
+        return m_state->world.GetJointCount();
     }
 
     std::size_t Physics2DSystem::GetBodyCount() const
@@ -1083,6 +1102,213 @@ namespace JBro::System
         {
             world.DestroyBody(state.bodies.Find(id)->body);
             state.bodies.Remove(id);
+        }
+
+        // ── 3.5 조인트(D-230) ───────────────────────────────────────────────────────
+        // 몸을 모두 맞추고 사라진 몸을 지운 뒤라야 두 몸의 번호가 확정된다. 몸을 지우면 커널이 그 조인트도 지우므로 연결은
+        // 번호가 죽은 것을 보고 다시 만든다.
+        for (auto& entry : state.joints)
+        {
+            entry.MappedValue.seen = false;
+        }
+        const auto bodyOf = [&](InstanceId objectId) -> State::BodyLink* {
+            State::BodyLink* link = objectId != InvalidInstanceId ? state.bodies.Find(objectId) : nullptr;
+            return link != nullptr && link->seen ? link : nullptr;
+        };
+        const auto localToWorld = [&](Physics2D::BodyId body, Vec2 local) {
+            const Vec2 origin = world.GetPosition(body);
+            const float angle = world.GetAngle(body);
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            return Vec2{ origin.x + c * local.x - s * local.y, origin.y + s * local.x + c * local.y };
+        };
+        const auto worldToLocal = [&](Physics2D::BodyId body, Vec2 point) {
+            const Vec2 origin = world.GetPosition(body);
+            const float angle = world.GetAngle(body);
+            const float c = std::cos(angle);
+            const float s = std::sin(angle);
+            const Vec2 d{ point.x - origin.x, point.y - origin.y };
+            return Vec2{ c * d.x + s * d.y, -s * d.x + c * d.y };
+        };
+        const auto scaled = [](Vec2 value, Vec2 scale) {
+            return Vec2{ value.x * scale.x, value.y * scale.y };
+        };
+        const auto unscaled = [](Vec2 value, Vec2 scale) {
+            return Vec2{ scale.x != 0.0f ? value.x / scale.x : 0.0f, scale.y != 0.0f ? value.y / scale.y : 0.0f };
+        };
+        // 조인트 하나를 맞춘다. 두 몸이 없으면 연결을 두지 않는다(보이지 않은 연결은 아래에서 지운다).
+        const auto syncJoint = [&](ComponentBase& component, GameObjectHandle connected, bool hinge,
+                                   const auto& configure, const auto& signatureOf, const auto& create, const auto& update) {
+            if (false == component.IsActiveComponent())
+            {
+                return;
+            }
+            GameObject* object = Internal::CanvasAccess::GetOwner(component);
+            State::BodyLink* own = object != nullptr ? bodyOf(object->GetInstanceId()) : nullptr;
+            const InstanceId connectedId = connected.GetInstanceId();
+            State::BodyLink* other = bodyOf(connectedId);
+            if (own == nullptr || (connectedId != InvalidInstanceId && other == nullptr))
+            {
+                return;
+            }
+            Internal::ObjectPose ownPose;
+            Internal::CalculateObjectPose(canvas, object, ownPose);
+            Internal::ObjectPose otherPose;
+            if (other != nullptr && other->object != nullptr)
+            {
+                Internal::CalculateObjectPose(canvas, other->object, otherPose);
+            }
+            const Physics2D::BodyId otherBody = other != nullptr ? other->body : Physics2D::BodyId{};
+            const InstanceId componentId = component.GetInstanceId();
+            State::JointLink* link = state.joints.Find(componentId);
+            const bool fresh = link == nullptr;
+            if (fresh)
+            {
+                // 처음 이어진다. 자동 설정(거리·상대 앵커)을 여기서 한 번 적는다.
+                configure(own->body, otherBody, ownPose.scale, otherPose.scale);
+                State::JointLink made;
+                state.joints.TryAdd(componentId, made);
+                link = state.joints.Find(componentId);
+            }
+            link->seen = true;
+            const std::uint64_t signature = signatureOf(ownPose.scale, otherPose.scale);
+            const bool sameBodies = world.IsValid(link->joint) && link->bodyObject == object->GetInstanceId()
+                && link->connectedObject == connectedId && link->hinge == hinge;
+            if (sameBodies)
+            {
+                if (link->signature != signature)
+                {
+                    update(*link, own->body, otherBody, ownPose.scale, otherPose.scale);
+                    link->signature = signature;
+                }
+                return;
+            }
+            // 처음 잇거나 상대가 바뀌었으면 기준 각을 다시 잰다. 몸만 다시 만들어진 것(종류를 바꿨다)이면 그대로 쓴다.
+            if (fresh || link->bodyObject != object->GetInstanceId() || link->connectedObject != connectedId)
+            {
+                // 경첩의 한계는 이어지는 순간의 상대 각도를 0 으로 잰다.
+                const float angleA = world.GetAngle(own->body);
+                const float angleB = other != nullptr ? world.GetAngle(other->body) : 0.0f;
+                link->referenceAngle = angleB - angleA;
+            }
+            world.DestroyJoint(link->joint);
+            link->joint = create(*link, own->body, otherBody, ownPose.scale, otherPose.scale);
+            link->bodyObject = object->GetInstanceId();
+            link->connectedObject = connectedId;
+            link->hinge = hinge;
+            link->signature = signature;
+        };
+
+        canvas.ForEach<Component::DistanceJoint2D>([&](Component::DistanceJoint2D& joint) {
+            const auto makeDef = [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                Physics2D::DistanceJointDef def;
+                def.bodyA = bodyA;
+                def.bodyB = bodyB;
+                def.localAnchorA = scaled(joint.anchor, scaleA);
+                def.localAnchorB = bodyB.index != Physics2D::InvalidIndex ? scaled(joint.connectedAnchor, scaleB) : joint.connectedAnchor;
+                def.length = std::fmax(joint.distance, 0.0f);
+                def.maxLengthOnly = joint.maxDistanceOnly;
+                def.hertz = std::fmax(joint.frequency, 0.0f);
+                def.dampingRatio = std::clamp(joint.dampingRatio, 0.0f, 1.0f);
+                def.collideConnected = joint.collideConnected;
+                return def;
+            };
+            syncJoint(joint, joint.connectedObject, false,
+                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    if (false == joint.autoDistance)
+                    {
+                        return;
+                    }
+                    const Vec2 a = localToWorld(bodyA, scaled(joint.anchor, scaleA));
+                    const Vec2 b = bodyB.index != Physics2D::InvalidIndex ? localToWorld(bodyB, scaled(joint.connectedAnchor, scaleB))
+                                                                          : joint.connectedAnchor;
+                    joint.distance = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
+                },
+                [&](Vec2 scaleA, Vec2 scaleB) {
+                    Fingerprint print;
+                    print.Mix(joint.anchor);
+                    print.Mix(joint.connectedAnchor);
+                    print.Mix(joint.distance);
+                    print.Mix(joint.frequency);
+                    print.Mix(joint.dampingRatio);
+                    print.Mix(scaleA);
+                    print.Mix(scaleB);
+                    const std::uint8_t flags = static_cast<std::uint8_t>((joint.maxDistanceOnly ? 1 : 0) | (joint.collideConnected ? 2 : 0));
+                    print.Mix(&flags, sizeof(flags));
+                    return print.value;
+                },
+                [&](State::JointLink&, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    return world.CreateDistanceJoint(makeDef(bodyA, bodyB, scaleA, scaleB));
+                },
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    world.SetDistanceJoint(link.joint, makeDef(bodyA, bodyB, scaleA, scaleB));
+                });
+        });
+
+        canvas.ForEach<Component::HingeJoint2D>([&](Component::HingeJoint2D& joint) {
+            constexpr float Radian = 3.14159265358979323846f / 180.0f;
+            // 커널의 A 는 이 오브젝트, B 는 상대다. 커널의 각은 B - A 라서 "이 오브젝트가 상대에 대해" 의 부호를 뒤집는다.
+            const auto makeDef = [&](const State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB,
+                                     Vec2 scaleA, Vec2 scaleB) {
+                Physics2D::HingeJointDef def;
+                def.bodyA = bodyA;
+                def.bodyB = bodyB;
+                def.localAnchorA = scaled(joint.anchor, scaleA);
+                def.localAnchorB = bodyB.index != Physics2D::InvalidIndex ? scaled(joint.connectedAnchor, scaleB) : joint.connectedAnchor;
+                def.referenceAngle = link.referenceAngle;
+                def.enableLimit = joint.useLimits;
+                def.lowerAngle = -std::fmax(joint.lowerAngle, joint.upperAngle) * Radian;
+                def.upperAngle = -std::fmin(joint.lowerAngle, joint.upperAngle) * Radian;
+                def.enableMotor = joint.useMotor;
+                def.motorSpeed = -joint.motorSpeed * Radian;
+                def.maxMotorTorque = std::fmax(joint.maxMotorTorque, 0.0f);
+                def.collideConnected = joint.collideConnected;
+                return def;
+            };
+            syncJoint(joint, joint.connectedObject, true,
+                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    if (false == joint.autoConnectedAnchor)
+                    {
+                        return;
+                    }
+                    const Vec2 pin = localToWorld(bodyA, scaled(joint.anchor, scaleA));
+                    joint.connectedAnchor = bodyB.index != Physics2D::InvalidIndex ? unscaled(worldToLocal(bodyB, pin), scaleB) : pin;
+                },
+                [&](Vec2 scaleA, Vec2 scaleB) {
+                    Fingerprint print;
+                    print.Mix(joint.anchor);
+                    print.Mix(joint.connectedAnchor);
+                    print.Mix(joint.lowerAngle);
+                    print.Mix(joint.upperAngle);
+                    print.Mix(joint.motorSpeed);
+                    print.Mix(joint.maxMotorTorque);
+                    print.Mix(scaleA);
+                    print.Mix(scaleB);
+                    const std::uint8_t flags = static_cast<std::uint8_t>(
+                        (joint.useLimits ? 1 : 0) | (joint.useMotor ? 2 : 0) | (joint.collideConnected ? 4 : 0));
+                    print.Mix(&flags, sizeof(flags));
+                    return print.value;
+                },
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    return world.CreateHingeJoint(makeDef(link, bodyA, bodyB, scaleA, scaleB));
+                },
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                    world.SetHingeJoint(link.joint, makeDef(link, bodyA, bodyB, scaleA, scaleB));
+                });
+        });
+
+        state.removals.Clear();
+        for (const auto& entry : state.joints)
+        {
+            if (false == entry.MappedValue.seen)
+            {
+                state.removals.Add(entry.KeyValue);
+            }
+        }
+        for (const InstanceId id : state.removals)
+        {
+            world.DestroyJoint(state.joints.Find(id)->joint);
+            state.joints.Remove(id);
         }
 
         // ── 4. 스텝 ─────────────────────────────────────────────────────────────────

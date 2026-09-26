@@ -53,6 +53,7 @@ namespace JBro::System
         // 커널에 올라간 바디와 도형의 수. 동기화가 만들고 지우는 것을 테스트가 붙잡는 손잡이다.
         std::size_t GetBodyCount() const;
         std::size_t GetShapeCount() const;
+        std::size_t GetJointCount() const;
 
     protected:
         void OnInitialize (Canvas& canvas) override;
