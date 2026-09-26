@@ -5,6 +5,7 @@
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/System/IText2DSystem.h>
 #include <JBro/TextRendering/GlyphMesh.h>
+#include <JBro/TextRendering/TextBlock.h>
 #include <JBro/TextRendering/TextLibrary.h>
 #include <JBro/Text/TextLayout.h>
 #include <JBro/Types/Array.h>
@@ -70,39 +71,15 @@ namespace JBro::System
         void OnShutdown(Canvas& canvas) override;
 
     private:
-        // 한 텍스트가 쓰는 face 의 최대 수다: 자기 폰트 하나와 프로젝트 폴백들.
-        static constexpr std::uint32_t MaxFaces = 8;
-
         struct Entry
         {
-            // 이 캐시를 만든 입력이다. 하나라도 다르면 다시 레이아웃한다.
-            TextId               text;
-            std::uint32_t        textRevision = 0;
-            // 앞이 기본 폰트, 뒤가 폴백이다. 기본 폰트는 `fontId` 의 것이거나, 비었으면 프로젝트의 첫 폰트다.
-            AssetHandle          fonts[MaxFaces];
-            std::uint32_t        fontGenerations[MaxFaces] = {};
-            std::uint32_t        atlasGenerations[MaxFaces] = {};
-            std::uint32_t        fontCount = 0;
-            std::uint64_t        optionsKey = 0;
-            Text::TextLayout     layout;
-            Array<GlyphQuad>     quads;
-            float                pixelsPerUnit = DefaultPixelsPerUnit;
-            TextureFilter        filter = TextureFilter::Nearest;
-            float                bounds[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // 유닛
-            // SDF 글자면 참이다. 외곽선 폭을 문턱으로 바꾸는 비는 글자마다 쿼드에 있다(리치 텍스트는 크기가 섞인다).
-            bool                 sdf = false;
-            float                fittedSize = 0.0f;
-            std::uint32_t        sdfSpread = 8;
-            bool                 hasBounds = false;
+            // 레이아웃과 쿼드는 공용 캐시가 든다(D-218). 여기는 이 시스템의 몫만이다.
+            TextBlock            block;
             bool                 warnedMissingFont = false;
             std::uint64_t        lastSeenFrame = 0;
         };
 
-        static std::uint64_t MakeOptionsKey(const Component::Text2D& text);
-        // 이 텍스트가 쓸 face 들을 모은다. 기본 폰트가 없으면 거짓이다.
-        bool GatherFonts(const Component::Text2D& text, AssetHandle* handles, FontView* views, std::uint32_t& count);
-        void Relayout(const Component::Text2D& text, Entry& entry, const AssetHandle* handles, const FontView* views,
-            std::uint32_t count);
+        static TextBlockSettings SettingsOf(const Component::Text2D& text);
         void Submit(Canvas& canvas, const Component::Text2D& text, const Entry& entry);
         void DropUnseen();
 

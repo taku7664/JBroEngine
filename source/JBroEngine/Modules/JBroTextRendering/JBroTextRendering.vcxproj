@@ -25,8 +25,8 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ItemDefinitionGroup>
     <ClCompile>
-      <!-- 캔버스·컴포넌트·프레임워크 경로는 두지 않는다(D-218). 2D 와 3D 가 같이 쓰는 자리라 차원을 모른다. -->
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroTextRendering\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroPlatform\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <!-- 캔버스·컴포넌트·프레임워크 경로는 두지 않는다(D-218). 2D 와 3D 가 같이 쓰는 자리라 차원을 모른다. JBroRuntime 은 TextStore 때문이다. -->
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroTextRendering\Include;$(JBroModulesDir)JBroText\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroAssetTypes\Include;$(JBroModulesDir)JBroAsset\Include;$(JBroModulesDir)JBroRHI\Include;$(JBroModulesDir)JBroGraphics\Include;$(JBroModulesDir)JBroTask\Include;$(JBroModulesDir)JBroPlatform\Include;$(JBroModulesDir)JBroRuntime\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -62,6 +62,10 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroTask\JBroTask.vcxproj">
       <Project>{1a000023-0000-4000-8000-00000000da5c}</Project>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroRuntime\JBroRuntime.vcxproj">
+      <Project>{1a000006-0000-4000-8000-000000027417}</Project>
       <LinkLibraryDependencies>false</LinkLibraryDependencies>
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroPlatform\JBroPlatform.vcxproj">

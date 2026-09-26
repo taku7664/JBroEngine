@@ -83,6 +83,24 @@ int main()
         _CrtSetReportMode(report, _CRTDBG_MODE_FILE);
         _CrtSetReportFile(report, _CRTDBG_FILE_STDERR);
     }
+    char* focused = nullptr;
+    std::size_t focusedLength = 0;
+    if (_dupenv_s(&focused, &focusedLength, "JBRO_TEXT5_ONLY") == 0 && focused != nullptr)
+    {
+        std::free(focused);
+        int failed = 0;
+        try
+        {
+            failed = RunTextLayoutTests() + RunGlyphAtlasTests() + RunTextRenderTests() + RunSpritePixelTests() + RunMeshPixelTests() + RunRendererContractTests();
+        }
+        catch (const std::exception& error)
+        {
+            std::printf("text5 failure %s\n", error.what());
+            return 1;
+        }
+        std::printf(failed == 0 ? "text5 passed\n" : "text5 failure\n");
+        return failed;
+    }
     _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
 
     // **첫 D3D12 디바이스가 생기기 전에 켜야 한다.** 디버그 레이어는 프로세스 단위라
