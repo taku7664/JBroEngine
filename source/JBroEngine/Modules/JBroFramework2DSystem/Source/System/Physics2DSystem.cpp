@@ -108,6 +108,14 @@ namespace JBro::System
             return circle;
         }
 
+        // 크기를 곱한 `size` 상자에 꼭 맞는 캡슐(physics-plan §4 의 7). 긴 축으로 눕고 반지름은 짧은 쪽 반폭이라, 한 축으로만
+        // 늘여도 캡슐로 남는다. 캔버스 뷰가 같은 함수로 그린다.
+        Physics2D::ConvexPolygon BakeCapsule(const Component::Collider2D& collider, Vec2 scale)
+        {
+            return Physics2D::MakeCapsuleInBox(Bake({}, collider.offset, scale),
+                { collider.size.x * 0.5f * scale.x, collider.size.y * 0.5f * scale.y });
+        }
+
         void BakeOutline(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
         {
             outline.Clear();
@@ -124,6 +132,33 @@ namespace JBro::System
             {
                 outline.Add(Bake(point, collider.offset, scale));
             }
+        }
+
+        // 이미 있는 도형의 모양을 콜라이더에 맞춘다. 만들 때와 같은 갈래다. 틀린 외곽선이면 false 이고 모양은 그대로다.
+        bool Reshape(Physics2D::World& world, Physics2D::ShapeId shape, const Component::Collider2D& collider, Vec2 scale,
+            Array<Vec2>& outline)
+        {
+            if (collider.shape == Component::ColliderShape2D::Circle)
+            {
+                return world.SetCircleGeometry(shape, BakeCircle(collider, scale));
+            }
+            if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, scale);
+                return world.SetCapsuleGeometry(shape, capsule.points[0], capsule.points[1], capsule.radius);
+            }
+            if (collider.shape == Component::ColliderShape2D::Box)
+            {
+                Vec2 corners[4];
+                BakeBox(collider, scale, corners);
+                outline.Clear();
+                outline.Append(corners, 4);
+            }
+            else
+            {
+                BakeOutline(collider, scale, outline);
+            }
+            return world.SetPolygonGeometry(shape, outline.View()) == Physics2D::PolygonError::None;
         }
 
         Physics2D::Pose ToPose(const Internal::ObjectPose& pose)
@@ -204,6 +239,8 @@ namespace JBro::System
             GameObjectHandle   owner;
             SafePtr<GameObject> ownerObject;
             std::uint64_t      signature = 0;
+            // 트리거 여부가 바뀌면 도형을 새로 만든다(훅의 종류가 바뀐다). 나머지는 제자리에서 바꾼다.
+            bool               isTrigger = false;
             bool               seen = false;
         };
 
@@ -335,9 +372,7 @@ namespace JBro::System
         State& state = *m_state;
         canvas.ForEach<Component::Collider2D>([&](Component::Collider2D& collider)
         {
-            // 캡슐은 아직 커널에 없어 부딪히지도 질의에 걸리지도 않는다(physics-plan §4 의 7).
-            if (false == collider.IsActiveComponent() || (collider.layer & layerMask) == 0u
-                || collider.shape == Component::ColliderShape2D::Capsule)
+            if (false == collider.IsActiveComponent() || (collider.layer & layerMask) == 0u)
             {
                 return;
             }
@@ -364,6 +399,17 @@ namespace JBro::System
                 BakeBox(collider, objectPose.scale, corners);
                 const Physics2D::ConvexPolygon box = BoxPolygon(corners);
                 shape.polygon = &box;
+                visit(shape);
+                return;
+            }
+            if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, objectPose.scale);
+                if (capsule.radius <= 0.0f)
+                {
+                    return;
+                }
+                shape.polygon = &capsule;
                 visit(shape);
                 return;
             }
@@ -784,8 +830,7 @@ namespace JBro::System
         // ── 2. 도형 ─────────────────────────────────────────────────────────────────
         canvas.ForEach<Component::Collider2D>([&](Component::Collider2D& collider)
         {
-            // 캡슐은 아직 커널에 없다(physics-plan §4 의 7). 충돌하지 않는다.
-            if (false == collider.IsActiveComponent() || collider.shape == Component::ColliderShape2D::Capsule)
+            if (false == collider.IsActiveComponent())
             {
                 return;
             }
@@ -808,11 +853,6 @@ namespace JBro::System
                 link->seen = true;
                 return;
             }
-            if (link != nullptr)
-            {
-                world.DestroyShape(link->shape);
-            }
-
             Physics2D::ShapeDef def;
             def.friction = collider.friction;
             def.restitution = collider.restitution;
@@ -821,16 +861,44 @@ namespace JBro::System
             def.mask = collider.mask;
             def.userData = colliderId;
 
+            // 같은 오브젝트의 살아 있는 도형이면 제자리에서 바꾼다. 스텝마다 지우고 만들면 크기를 움직이는 콜라이더가
+            // 닿아 있는 동안 끝·시작 훅을 스텝마다 되풀이한다(physics-plan §4 의 4 (1)).
+            if (link != nullptr && link->object == object->GetInstanceId() && world.IsValid(link->shape)
+                && link->isTrigger == collider.isTrigger)
+            {
+                world.SetSurface(link->shape, def);
+                if (false == Reshape(world, link->shape, collider, pose.scale, state.outline))
+                {
+                    // 틀린 외곽선이 되었다. 만들 때와 같이 도형이 없는 연결로 둔다 - 닿아 있던 쌍은 끝으로 나온다.
+                    world.DestroyShape(link->shape);
+                    link->shape = {};
+                }
+                link->signature = signature;
+                link->seen = true;
+                return;
+            }
+            if (link != nullptr)
+            {
+                world.DestroyShape(link->shape);
+            }
+
             State::ShapeLink fresh;
             fresh.collider = colliderId;
             fresh.object = object->GetInstanceId();
             fresh.owner = object->GetScriptHandle();
             fresh.ownerObject = object->SafeFromThis();
             fresh.signature = signature;
+            fresh.isTrigger = collider.isTrigger;
             fresh.seen = true;
             if (collider.shape == Component::ColliderShape2D::Circle)
             {
                 fresh.shape = world.CreateCircleShape(body->body, BakeCircle(collider, pose.scale), def);
+            }
+            else if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, pose.scale);
+                fresh.shape = world.CreateCapsuleShape(
+                    body->body, capsule.points[0], capsule.points[1], capsule.radius, def);
             }
             else
             {

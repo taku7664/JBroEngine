@@ -1,0 +1,25 @@
+Modules\JBroPhysics2D\Source\Geometry.cpp	mass:no-circle	const float circleMass = density * Pi * radius * radius;	const float circleMass = 0.0f;
+Modules\JBroPhysics2D\Source\Geometry.cpp	mass:inertia-no-offset	0.5f * radius * radius + half * half + 2.0f * half * centroid	0.5f * radius * radius + half * half
+Modules\JBroPhysics2D\Source\Geometry.cpp	mass:two-points-as-polygon	if (polygon.count == 2)\n        {\n            return ComputeCapsuleMass	if (false)\n        {\n            return ComputeCapsuleMass
+Modules\JBroPhysics2D\Source\Geometry.cpp	box:axis-swapped	if (halfX >= halfY)	if (halfX < halfY)
+Modules\JBroPhysics2D\Source\Collision.cpp	circle:no-polygon-radius	const float radius = b.radius + a.radius;	const float radius = b.radius;
+Modules\JBroPhysics2D\Source\Collision.cpp	circle:segment-has-inside	if (faceSeparation > FLT_EPSILON || a.count < 3)	if (faceSeparation > FLT_EPSILON)
+Modules\JBroPhysics2D\Source\Collision.cpp	circle:midpoint-ignores-thickness	0.5f * (surfaceDistance - a.radius + b.radius)	0.5f * (surfaceDistance + b.radius)
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:exit-ignores-radius	if (separationA > SpeculativeDistance + radius)	if (separationA > SpeculativeDistance)
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:no-corner-contact	if (radius > 0.0f && coreSeparation > 0.1f * LinearSlop)	if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:corner-even-when-aligned	&& Dot(normal, referenceNormal) < 1.0f - 1.0e-4f)	)
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:clip-ignores-radius	const float separation = coreGap - radius;	const float separation = coreGap;
+Modules\JBroPhysics2D\Source\Collision.cpp	polygons:clip-midpoint-core	0.5f * (coreGap - referenceRadius + incidentRadius)	0.5f * coreGap
+Modules\JBroPhysics2D\Source\Collision.cpp	segments:through-sat	if (a.count == 2 && b.count == 2)	if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	segments:one-point-only	if (sideLower * sideUpper > 0.0f)	if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	bounds:no-thickness	bounds.min = { bounds.min.x - polygon.radius, bounds.min.y - polygon.radius };	(void)0;
+Modules\JBroPhysics2D\Source\Collision.cpp	ray:core-only	if (polygon.radius > 0.0f)\n        {\n            // 둥근 도형에 쏘는	if (false)\n        {\n            // 둥근 도형에 쏘는
+Modules\JBroPhysics2D\Source\Collision.cpp	overlap:sat-only	if (a.radius + b.radius > 0.0f)	if (false)
+Modules\JBroPhysics2D\Source\Collision.cpp	contains:core-only	if (polygon.radius > 0.0f)\n        {\n            // 코어에서	if (false)\n        {\n            // 코어에서
+Modules\JBroPhysics2D\Source\Collision.cpp	cast:not-grown	const float grown = radius + target.radius;	const float grown = radius;
+Modules\JBroPhysics2D\Source\Collision.cpp	hull:not-rounded	if (grown > 0.0f)\n        {\n            // 두께가	if (false)\n        {\n            // 두께가
+Modules\JBroPhysics2D\Source\Collision.cpp	hull:no-start-inside	if (DistanceToHull(hull, count) <= radius)	if (false)
+Modules\JBroPhysics2D\Source\World.cpp	world:short-capsule-kept	if (Length(Subtract(localB, localA)) <= LinearSlop)	if (false)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:queries-skip-capsules	const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, objectPose.scale);	const Physics2D::ConvexPolygon capsule{};
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:no-capsule-shape	const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, pose.scale);	const Physics2D::ConvexPolygon capsule{};
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:capsule-ignores-scale	{ collider.size.x * 0.5f * scale.x, collider.size.y * 0.5f * scale.y }	{ collider.size.x * 0.5f, collider.size.y * 0.5f }

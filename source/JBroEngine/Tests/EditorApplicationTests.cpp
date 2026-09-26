@@ -1176,6 +1176,69 @@ namespace
         editor.Shutdown();
     }
 
+    // **인스펙터가 폴리곤 콜라이더의 `points` 를 목록으로 고친다(physics-plan §4 의 5 가 남긴 것).** 목록 위젯 자체는 위의
+    // 테스트들이 재지만, 이 필드가 실제로 그 목록으로 나오고 더하기·빼기가 커맨드 하나씩인지는 따로 본다.
+    void TestTheInspectorEditsPolygonColliderPoints()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; collider points in the inspector not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ColliderPointsProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
+        auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
+        Check(collider != nullptr, "and a collider");
+        collider->shape = JBro::Component::ColliderShape2D::Polygon;
+        collider->points = { {-1.0f, -1.0f}, {1.0f, -1.0f}, {0.0f, 1.0f} };
+        editor.SetSelectedObject(cup);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the inspector must draw the collider's points as a list");
+        const int middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
+        std::size_t undo = editor.GetCommands().GetUndoCount();
+
+        Spot spot;
+        const char* addLabel = JBro::Loc::TextOr(JBro::LocKeys::ListAddElement, "Add element");
+        Check(FindListItem(editor, hwnd, LabelId(body->ID, addLabel), middle, spot),
+            "the points list must offer to add a point");
+        ClickAt(editor, hwnd, spot);
+        Check(collider->points.Size() == 4, "adding puts a fourth point on the collider");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(collider->points.Size() == 3, "and takes it back");
+        undo = editor.GetCommands().GetUndoCount();
+
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), JBro::Icons::Xmark), 1, spot),
+            "the first point's row must offer to be removed");
+        ClickAt(editor, hwnd, spot);
+        Check(collider->points.Size() == 2 && collider->points[0].x == 1.0f && collider->points[0].y == -1.0f,
+            "removing takes the first point off");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(collider->points.Size() == 3 && collider->points[0].x == -1.0f && collider->points[2].y == 1.0f,
+            "and brings it back in order");
+        editor.Shutdown();
+    }
+
     using Points = JBro::Array<JBro::Vec2>;
 
     // 원소가 실수 묶음인 목록이다. 한 줄에 칸 둘로 그려지는 원소는 목록 편집에서
@@ -10415,6 +10478,7 @@ int RunEditorApplicationTests()
     TestAChosenChildDoesNotGetTheEditTwice();
     TestMultiEditPicksTheSameOrdinalEverywhere();
     TestListEditsReachEveryChosenObjectAsOneUndo();
+    TestTheInspectorEditsPolygonColliderPoints();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
     TestTheGameViewKnowsWhenNoCameraDrew();

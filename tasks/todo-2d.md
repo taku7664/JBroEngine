@@ -17,7 +17,10 @@
   `1d66967` · `JBroEditor/Source/Panel/CanvasViewPanel.cpp`, `JBro/Editor/Gizmo/PolygonEditModel.h`.
   ~~6 단계 질의 확장 - `RaycastAll`·`OverlapPoint`·`OverlapCircle`·`CircleCast`·`BoxCast`·레이어 마스크~~ → 2026-09-26 ·
   `41a0c8f`·`7484f57` · `JBroPhysics2D/Source/Collision.cpp`, `Physics2DSystem.cpp`(`ForEachQueryShape`). 결과 타입은 `RaycastHit2D`.
-  `[열림]` 4 단계가 남긴 것 다섯(크기 애니메이션의 도형 재생성, 캡슐, 부모의 찌그러짐, 꺼진 부모, 실제 에디터 확인) - 계획서 §4 의 4.
+  ~~캡슐 콜라이더 - `size` 상자에 꼭 맞는 알약, 커널의 둥근 조각(`ConvexPolygon::radius`)~~ → 2026-09-26 · `f16b79b` ·
+  `JBroPhysics2D/Source/Collision.cpp`, `Physics2DSystem.cpp`(`BakeCapsule`). 계획서 §4 의 7.
+  ~~크기 애니메이션의 도형 재생성 - 커널의 제자리 모양 바꾸기로 접촉 유지~~ → 2026-09-26 · `1294c43` · `World::SetPolygonGeometry` 외.
+  `[열림]` 4 단계가 남긴 것 셋(부모의 찌그러짐, 꺼진 부모, 실제 에디터 확인) - 계획서 §4 의 4.
 
 ## 오디오 (audio-plan §3-3, D-197)
 
