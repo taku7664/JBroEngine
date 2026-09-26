@@ -172,13 +172,13 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
 
 ### 3.7 스레드
 
-- **물리는 메인 스레드 전용이다.** 커널 `World` 와 어댑터 `Physics2DSystem` 은 스레드를 만들지도 태스크를 등록하지도 않는다(2026-09-26 확인).
-  스텝·되쓰기·훅 발송·질의가 모두 캔버스의 고정 스텝(`EngineInstance::Tick` → Framework2D → 시스템 목록) 안에서 돈다. 그래서 훅과
-  질의가 스크립트에 건네는 `GameObjectHandle` 은 메인 스레드 전용 규약(ProjectRule, D-54)에 맞는다. 기존 엔진 물리도 스레드를 쓰지 않았다.
-- 병렬화가 필요해지면 따로 스레드를 두지 않고 `JBroTask` 의 `TaskManager` 에 태스크로 넣는다(ProjectRule, D-209·D-212). 커널은 캔버스를
-  모르고 값만 다루므로 워커 계약(값과 raw 포인터만, `SafePtr`·`Ref<T>`·`GameObjectHandle` 을 만지지 않음)에 맞는다. 나눌 자리는 좁은 판정
-  (쌍마다)과 섬 단위 솔버이고, 되쓰기와 훅 발송은 컴포넌트를 만지므로 메인 스레드에 남는다. `[열림]` 방향을 바꾸는 판단이라 필요해질 때
-  사용자 확인 뒤 정한다 - 지금은 측정한 병목이 없다.
+- **기본은 메인 한 스레드이고, 좁은 판정만 물리 전용 워커로 나눌 수 있다(D-223).** 스텝·되쓰기·훅 발송·질의는 캔버스의 고정 스텝
+  (`EngineInstance::Tick` → Framework2D → 시스템 목록) 안의 메인 스레드에서 돈다 - 훅과 질의가 건네는 `GameObjectHandle` 은 메인 스레드 전용이다(D-54).
+  기존 엔진 물리는 스레드를 쓰지 않았다.
+- 워커는 `TaskManager`(D-209) 가 아니라 커널의 `WorkerPool` 이다. `TaskManager` 는 제출마다 할당하고 결과가 다음 프레임에 와서 서브스텝 안의
+  나눴다 합치기에 쓸 수 없다. 워커 수는 빌드 설정 `Build.PhysicsThreads`(Auto·Single·워커 수)가 정한다 - 규칙과 기준은 D-223, 단계와 실측은 §4 의 8.
+- 물리 시스템은 캔버스의 시스템 목록에 있지만 캔버스는 Framework2D 수명에 하나다. 다른 캔버스 파일을 열면 같은 캔버스를 비우고 다시 읽으므로
+  시스템·커널·워커는 내려가지 않는다(`Canvas::Clear` → `ReadCanvasText`, 2026-09-26 확인).
 
 ## 4. 단계 (D-199)
 
@@ -336,6 +336,30 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      - 남긴 것 `[열림]`: ~~에디터의 알약 그리기는 창 테스트로 재지 않았다~~ → `562352d` · `TestTheCanvasViewDrawsCapsuleColliders`(그리기 목록의
        꼭짓점이 둥근 끝의 꼭대기·45°·곧은 변과의 이음에 있고 `size` 상자 모서리에는 없다). 둥근 폴리곤(세 점 이상 + radius)은 판정은 되지만 질량이 radius 를
        무시하고 만드는 곳이 없다.
+8. ~~**물리 병렬(D-223)** - 좁은 판정을 물리 전용 워커로, 워커 수는 빌드 설정~~ → 2026-09-26 · `ca4b9df`·`2a9ebc9` ·
+   `JBroPhysics2D/Source/WorkerPool.cpp`, `World.cpp`(`Collide`·`ComputeManifold`·`CollideCandidates`·`RecommendWorkerCount`),
+   `JBroFramework2DSystem/Source/PhysicsThreads.cpp`, `ProjectFile.cpp`(`PhysicsThreads`), `ProjectSettingsPanel.cpp`(Build 절), 게임 호스트 `Main.cpp`.
+   - 커널: `World::SetWorkerCount`·`GetWorkerCount`·`GetLastStepStats`. 거르기(메인) → 후보마다 매니폴드(워커, 제 칸에만 씀) → 접촉 모으기(메인, 후보
+     순서)라 워커 수와 관계없이 결과가 같다. 후보 64 개 미만은 나누지 않고, 한 스레드에 네 조각쯤 돌아가게 자른다.
+   - 설정: `Build.PhysicsThreads`. 게임 호스트는 프로젝트를 연 뒤, 에디터는 열 때와 설정을 저장할 때 풀어 넘긴다. Auto 는 빌드 캔버스를 따로 세운
+     캔버스에 읽어 센다. 프로젝트 설정의 Build 절에 선택 칸과 "추천 값 사용" 단추.
+   - 테스트: `Physics2DWorldTests`(`TestWorkersGiveTheSameResult` - 83 몸 더미를 워커 0 과 3 으로 3 초, 자세가 비트까지 같고 워커 월드만 서브스텝마다
+     나눔, 상한 16·0 으로 돌아가기, `TestRecommendedWorkerCounts`, `TestParallelSteppingDoesNotAllocate` - 워커 셋으로 60 스텝 할당 0),
+     `Physics2DSystemTests`(`TestTheWorkerCountReachesTheKernel` - 다음 고정 스텝에 먹고 결과가 같음, `TestCountingPhysicsWork`), `ProjectFileTests`
+     (`TestThePhysicsThreadsSetting` - 읽기·거절·기본값 안 적기·되쓰기), `EditorApplicationTests::TestThePhysicsThreadsSettingReachesPlay`(빌드 캔버스에
+     상자 1100 을 저장하고 추천 값이 그것을 세며, Single·Auto·워커 2 로 저장할 때마다 재생의 워커 수가 따라온다).
+   - 실측(스크래치 `/O2`, 16 스레드 기계, 다른 세션이 빌드하던 중이라 잡음이 크다): 쌓인 상자 스텝 시간 - 128 상자 0.66ms(워커는 이득 없음),
+     512 상자 2.5~4.8ms(같은 설정이 잴 때마다 달라 판단 불가), 1024 상자 5.7ms → 워커 1~7 에서 4.3~6.9ms, 2000 상자 10.5ms → 워커 3~4 에서 8.1~8.4ms
+     (약 20%). 이득이 작은 것은 스텝의 대부분이 직렬 솔버(속도 반복 8 × 서브스텝 4)여서다. 그래서 처음 잡은 기준(256 조각부터, 128 마다 하나,
+     상한 8)을 1024 조각부터·1024 마다 하나·상한 4 로 낮췄다.
+   - 실측 중 드러난 것: `WorkerPool.cpp` 가 `windows.h` 를 넣어 프로젝트 정의(`NOMINMAX`) 밖에서 빌드하면 `std::min` 이 깨졌다 - 파일 안에서 정의한다.
+   - 뮤테이션(`tools/mutations-physics9.txt`, 멈출 자리를 줄마다 고르는 러너 - 물리 묶음·에디터 테스트·프로젝트 파일 테스트): 첫 판 13/14, 모두 제
+     단언에서 죽었다(나누지 않기·기록 빼기·칸 어긋남·상한·조각 끝 빠뜨리기·합치지 않기·어댑터가 먹이지 않기·꺼진 것 세기·폴리곤을 하나로·에디터가 저장 뒤
+     먹이지 않기·Auto 를 Single 로·Auto 를 적기·0 을 워커로). 살아남은 하나(Auto 문턱 1024 → 256)는 테스트 빈자리가 아니라 **군더더기**였다 - 나눗셈
+     `work / 1024` 가 이미 0 이라 따로 거르던 조건을 뺐다. 깨끗한 판은 에디터의 글자 입력 테스트(스프라이트 이름 입력)에서 흔들렸다 - 물리와 무관하고
+     다른 세션의 입력과 겹치면 흔들리던 테스트다.
+   - 남긴 것 `[열림]`: 솔버 병렬(접촉 그래프 색칠, Box2D v3) - 좁은 판정만으로는 20% 가 한계다. 웹 빌드에서 워커 0 이 되는지 실제 확인.
+     Auto 는 게임이 시작할 때마다 빌드 캔버스를 한 번 더 읽는다(캔버스가 크면 시작이 늦어진다 - 익스포트가 생기면 빌드 때 적어 둔다).
 
 ## 5. 결정 (2026-09-25 확인, D-199)
 

@@ -1,0 +1,14 @@
+Modules\JBroPhysics2D\Source\World.cpp	kernel:never-parallel	if (workers == 0 || candidateCount < MinParallelCandidates)	if (true)	physics
+Modules\JBroPhysics2D\Source\World.cpp	kernel:stats-not-counted	++m_lastStats.parallelSubSteps;	(void)0;	physics
+Modules\JBroPhysics2D\Source\World.cpp	kernel:slot-mismatch	world.m_candidateManifolds[i] = world.ComputeManifold(world.m_candidates[i]);	world.m_candidateManifolds[begin] = world.ComputeManifold(world.m_candidates[i]);	physics
+Modules\JBroPhysics2D\Source\World.cpp	kernel:recommend-threshold	if (hardwareThreads <= 1 || work < 1024)	if (hardwareThreads <= 1 || work < 256)	physics
+Modules\JBroPhysics2D\Source\World.cpp	kernel:recommend-cap	const std::uint32_t cap = std::min(hardwareThreads - 1, 4u);	const std::uint32_t cap = std::min(hardwareThreads - 1, 8u);	physics
+Modules\JBroPhysics2D\Source\WorkerPool.cpp	pool:chunk-drops-last	const std::uint32_t end = std::min(begin + m_grain, m_count);	const std::uint32_t end = std::min(begin + m_grain - 1, m_count);	physics
+Modules\JBroPhysics2D\Source\WorkerPool.cpp	pool:no-join	return m_busyWorkers == 0;	return true;	physics
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:count-not-applied	            world.SetWorkerCount(m_workerCount);\n            state.appliedWorkers = m_workerCount;	            state.appliedWorkers = m_workerCount;	physics
+Modules\JBroFramework2DSystem\Source\PhysicsThreads.cpp	work:disabled-counted	if (false == collider.IsActiveComponent())\n            {\n                return;	if (false)\n            {\n                return;	physics
+Modules\JBroFramework2DSystem\Source\PhysicsThreads.cpp	work:polygon-as-one	collider.shape == Component::ColliderShape2D::Polygon && points > 4	collider.shape == Component::ColliderShape2D::Polygon && points > 400	physics
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:save-not-applied	m_engine->SetProjectFile(reloaded);\n        ApplyPhysicsThreads();	m_engine->SetProjectFile(reloaded);	editor
+Modules\JBroFramework2DSystem\Source\PhysicsThreads.cpp	resolve:auto-as-single	        case PhysicsThreadMode::Auto:\n        default:\n            return RecommendProjectPhysicsWorkers(platform, project, projectFilePath);	        case PhysicsThreadMode::Auto:\n        default:\n            return 0;	editor
+Modules\JBroHost\Source\ProjectFile.cpp	project:auto-written	return key == "PhysicsThreads" && project.build.physicsThreadMode == PhysicsThreadMode::Auto;	return false;	project
+Modules\JBroHost\Source\ProjectFile.cpp	project:zero-as-workers	mode = count == 0 ? PhysicsThreadMode::Single : PhysicsThreadMode::Workers;	mode = PhysicsThreadMode::Workers;	project
