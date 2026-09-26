@@ -1,6 +1,7 @@
 ﻿#include <JBro/Physics2D/World.h>
 
 #include <cmath>
+#include <utility>
 #if defined(_MSC_VER)
 #include <crtdbg.h>
 #endif
@@ -1325,6 +1326,80 @@ namespace
         world.Step(Frame);
         Check(world.IsAwake(box), "waking the ball wakes the box it is tied to");
     }
+
+    // **이어지는 판정(CCD, D-231).** 서브스텝마다 0.8 m 를 가는 반지름 5 cm 공과 상자는 두께 10 cm 벽도, 체인 선분도 뚫지 않는다.
+    // 바닥에 얹혀 빠르게 미끄러지는 상자는 바닥(출발부터 닿아 있다) 때문에 서지 않고, 한 방향 발판은 밑에서 오면 지나간다.
+    void TestFastBodiesDoNotTunnel()
+    {
+        using JBro::Physics2D::StepStats;
+        const auto fire = [](World& world, bool round) {
+            world.Settings().gravity = { 0, 0 };
+            const BodyId bullet = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            if (round)
+            {
+                world.CreateCircleShape(bullet, MakeBall(0.05f), {});
+            }
+            else
+            {
+                AddPolygon(world, bullet, BoxOutline(0.05f, 0.05f));
+            }
+            world.SetLinearVelocity(bullet, { 200, 0 });
+            std::uint32_t hits = 0;
+            for (int i = 0; i < 30; ++i)
+            {
+                world.Step(Frame);
+                hits += world.GetLastStepStats().continuousHits;
+            }
+            return std::make_pair(bullet, hits);
+        };
+        {
+            World world;
+            const BodyId wall = AddBody(world, BodyType::Static, { 5, 0 });
+            AddPolygon(world, wall, BoxOutline(0.05f, 3.0f));
+            const auto [ball, hits] = fire(world, true);
+            Check(world.GetPosition(ball).x < 5.0f && hits > 0, "a fast ball stops at a thin wall instead of passing it");
+        }
+        {
+            World world;
+            const BodyId wall = AddBody(world, BodyType::Static, { 5, 0 });
+            AddPolygon(world, wall, BoxOutline(0.05f, 3.0f));
+            const auto [box, hits] = fire(world, false);
+            Check(world.GetPosition(box).x < 5.0f && hits > 0, "and so does a fast box");
+        }
+        {
+            World world;
+            const BodyId line = AddBody(world, BodyType::Static, { 5, 0 });
+            const Array<Vec2> points{ { 0, -3 }, { 0, 3 } };
+            world.CreateChainShape(line, points.View(), false, {});
+            const auto [ball, hits] = fire(world, true);
+            Check(world.GetPosition(ball).x < 5.0f && hits > 0, "a chain segment stops it too");
+        }
+        {
+            World world;
+            ShapeDef slippery;
+            slippery.friction = 0.0f;
+            AddGround(world, slippery);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -15, 0.5f });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f), slippery);
+            Run(world, 0.5f);
+            world.SetLinearVelocity(box, { 60, 0 });
+            Run(world, 0.25f);
+            Check(world.GetPosition(box).x > -2.0f, "a box sliding fast on the ground is not held back by the ground it touches");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            ShapeDef oneWay;
+            oneWay.oneWay = true;
+            const BodyId ledge = AddBody(world, BodyType::Static, { 0, 5 });
+            AddPolygon(world, ledge, BoxOutline(3.0f, 0.05f), oneWay);
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            world.CreateCircleShape(ball, MakeBall(0.05f), {});
+            world.SetLinearVelocity(ball, { 0, 200 });
+            Run(world, 0.1f);
+            Check(world.GetPosition(ball).y > 6.0f, "a fast ball from below goes through a one-way ledge");
+        }
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -1362,6 +1437,7 @@ int RunPhysics2DWorldTests()
     TestDistanceJoints();
     TestHingeJoints();
     TestJointedBodiesSleepTogether();
+    TestFastBodiesDoNotTunnel();
     TestStayEventsFollowTouchingPairs();
     std::cout << "Physics2D world tests passed.\n";
     return 0;

@@ -176,6 +176,8 @@ namespace JBro::Physics2D
         std::uint32_t candidates = 0;
         // 좁은 판정을 워커와 나눠 돈 서브스텝 수. 워커가 없거나 후보가 적으면 0 이다.
         std::uint32_t parallelSubSteps = 0;
+        // 이어지는 판정이 몸을 멈춰 세운 횟수(서브스텝마다 몸 하나에 한 번).
+        std::uint32_t continuousHits = 0;
         // Step 이 끝났을 때 깨어 있는·잠든 동적 몸의 수(D-229).
         std::uint32_t awakeBodies = 0;
         std::uint32_t sleepingBodies = 0;
@@ -305,6 +307,9 @@ namespace JBro::Physics2D
             bool          awake = true;
             bool          canSleep = true;
             float         sleepTime = 0.0f;
+            // 도형이 품은 가장 얇은 두께의 절반(원은 반지름, 조각은 중심에서 가장 가까운 변까지). 한 서브스텝에 이것보다 멀리 가면
+            // 이어지는 판정(CCD)으로 정적인 도형을 뚫지 않게 한다(D-231). 도형이 없으면 0 이다.
+            float         coreExtent = 0.0f;
             float         inertia = 0.0f;
             float         inverseInertia = 0.0f;
             float         gravityScale = 1.0f;
@@ -421,6 +426,8 @@ namespace JBro::Physics2D
         std::uint32_t FindIsland(std::uint32_t body);
         // 깨어 있는 동적 몸이 끼어야 접촉을 푼다. 둘 다 잠들었거나 멈춘 몸이면 풀 것이 없다.
         bool IsSolved(const Contact& contact) const;
+        // 빠른 몸을 정적·키네마틱 도형 앞에서 멈춘다(D-231). startCenter 는 이 서브스텝이 시작할 때의 질량 중심이다.
+        void ClampToFirstHit(Body& body, std::uint32_t bodyIndex, Vec2 startCenter);
 
         enum class JointType : std::uint8_t
         {

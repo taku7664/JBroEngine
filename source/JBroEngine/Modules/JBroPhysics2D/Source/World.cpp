@@ -596,6 +596,48 @@ namespace JBro::Physics2D
             }
         }
 
+        body.coreExtent = 0.0f;
+        for (const std::uint32_t shapeIndex : body.shapes)
+        {
+            const Shape& shape = m_shapes[shapeIndex];
+            if (shape.isTrigger || shape.isChain)
+            {
+                continue;
+            }
+            const auto keep = [&body](float extent) {
+                if (extent > 0.0f && (body.coreExtent <= 0.0f || extent < body.coreExtent))
+                {
+                    body.coreExtent = extent;
+                }
+            };
+            if (shape.isCircle)
+            {
+                keep(shape.circle.radius);
+                continue;
+            }
+            for (const ConvexPolygon& piece : shape.pieces)
+            {
+                Vec2 middle;
+                for (std::uint32_t i = 0; i < piece.count; ++i)
+                {
+                    middle = Add(middle, piece.points[i]);
+                }
+                middle = Scale(middle, 1.0f / static_cast<float>(piece.count));
+                float nearest = piece.count > 2 ? FLT_MAX : 0.0f;
+                for (std::uint32_t i = 0; piece.count > 2 && i < piece.count; ++i)
+                {
+                    const Vec2 a = piece.points[i];
+                    const Vec2 edge = Subtract(piece.points[(i + 1) % piece.count], a);
+                    const float length = Length(edge);
+                    if (length > 0.0f)
+                    {
+                        nearest = std::fmin(nearest, std::fabs(Cross(edge, Subtract(middle, a))) / length);
+                    }
+                }
+                keep((nearest == FLT_MAX ? 0.0f : nearest) + piece.radius);
+            }
+        }
+
         WakeBody(body);
         body.inverseMassAxes = {
             body.freezePositionX ? 0.0f : body.inverseMass,
@@ -1372,9 +1414,118 @@ namespace JBro::Physics2D
             {
                 body.angularVelocity *= MaxRotationPerSubStep / rotation;
             }
+            const Vec2 startCenter = body.center;
             body.center = Add(body.center, Scale(body.linearVelocity, h));
             body.angle += body.angularVelocity * h;
+            // 이 서브스텝에 자기 두께의 절반보다 멀리 가는 동적 몸만 이어서 본다. 그보다 느리면 미리 만든 접촉이 잡는다.
+            if (body.type == BodyType::Dynamic && body.coreExtent > 0.0f && Length(body.linearVelocity) * h > 0.5f * body.coreExtent)
+            {
+                ClampToFirstHit(body, static_cast<std::uint32_t>(&body - m_bodies.Data()), startCenter);
+            }
         }
+    }
+
+    void World::ClampToFirstHit(Body& body, std::uint32_t bodyIndex, Vec2 startCenter)
+    {
+        const Vec2 move = Subtract(body.center, startCenter);
+        const float length = Length(move);
+        if (length <= LinearSlop)
+        {
+            return;
+        }
+        const Vec2 direction = Scale(move, 1.0f / length);
+        // 도형은 돌지 않는다고 보고 끝 각도로 민다. 도는 몸의 모서리는 다음 서브스텝의 접촉이 맡는다.
+        const Rotation rotation = Rotation::FromAngle(body.angle);
+        const Pose start{ Subtract(startCenter, RotateVector(rotation, body.localCenter)), rotation };
+        const Pose end{ Subtract(body.center, RotateVector(rotation, body.localCenter)), rotation };
+        float best = length;
+        bool hit = false;
+        for (const std::uint32_t ownIndex : body.shapes)
+        {
+            const Shape& own = m_shapes[ownIndex];
+            if (own.isTrigger || own.isChain)
+            {
+                continue;
+            }
+            const std::uint32_t ownPieces = own.isCircle ? 1u : static_cast<std::uint32_t>(own.pieces.Size());
+            for (std::uint32_t p = 0; p < ownPieces; ++p)
+            {
+                Rect swept = own.isCircle ? ComputeCircleBounds(own.circle, start) : ComputePolygonBounds(own.pieces[p], start);
+                const Rect finish = own.isCircle ? ComputeCircleBounds(own.circle, end) : ComputePolygonBounds(own.pieces[p], end);
+                swept.min = { std::fmin(swept.min.x, finish.min.x), std::fmin(swept.min.y, finish.min.y) };
+                swept.max = { std::fmax(swept.max.x, finish.max.x), std::fmax(swept.max.y, finish.max.y) };
+                for (std::uint32_t targetIndex = 0; targetIndex < m_shapes.Size(); ++targetIndex)
+                {
+                    const Shape& target = m_shapes[targetIndex];
+                    if (false == target.alive || target.isTrigger || target.oneWay || target.body == bodyIndex)
+                    {
+                        continue;
+                    }
+                    const Body& other = m_bodies[target.body];
+                    if (other.type == BodyType::Dynamic)
+                    {
+                        continue;
+                    }
+                    if ((own.layer & target.mask) == 0u || (target.layer & own.mask) == 0u || false == LayersMeet(own.layer, target.layer))
+                    {
+                        continue;
+                    }
+                    const Pose targetPose{ other.origin, other.rotation };
+                    const std::uint32_t children = target.isCircle ? 1u
+                        : static_cast<std::uint32_t>(target.isChain ? target.segments.Size() : target.pieces.Size());
+                    for (std::uint32_t c = 0; c < children; ++c)
+                    {
+                        ConvexPolygon segment;
+                        const ConvexPolygon* piece = nullptr;
+                        if (target.isChain)
+                        {
+                            segment.points[0] = target.segments[c].p1;
+                            segment.points[1] = target.segments[c].p2;
+                            segment.count = 2;
+                            piece = &segment;
+                        }
+                        else if (false == target.isCircle)
+                        {
+                            piece = &target.pieces[c];
+                        }
+                        const Rect box = piece != nullptr ? ComputePolygonBounds(*piece, targetPose) : ComputeCircleBounds(target.circle, targetPose);
+                        if (box.max.x < swept.min.x || box.min.x > swept.max.x || box.max.y < swept.min.y || box.min.y > swept.max.y)
+                        {
+                            continue;
+                        }
+                        float distance = 0.0f;
+                        Vec2 normal;
+                        bool found = false;
+                        if (own.isCircle)
+                        {
+                            const Vec2 center = TransformPoint(start, own.circle.center);
+                            found = piece != nullptr
+                                ? CastCircle(center, own.circle.radius, direction, best, *piece, targetPose, distance, normal)
+                                : CastCircle(center, own.circle.radius, direction, best, target.circle, targetPose, distance, normal);
+                        }
+                        else
+                        {
+                            found = piece != nullptr
+                                ? CastPolygon(own.pieces[p], start, direction, best, *piece, targetPose, distance, normal)
+                                : CastPolygon(own.pieces[p], start, direction, best, target.circle, targetPose, distance, normal);
+                        }
+                        // 출발부터 닿아 있던 것(거리 0)은 이미 접촉이 맡고 있다. 그것으로 멈추면 바닥 위를 미끄러지는 몸이 서 버린다.
+                        if (found && distance > 0.0f && distance < best)
+                        {
+                            best = distance;
+                            hit = true;
+                        }
+                    }
+                }
+            }
+        }
+        if (false == hit)
+        {
+            return;
+        }
+        // 닿는 자리에서 LinearSlop 만큼 앞에 세운다. 다음 서브스텝의 미리 만든 접촉이 거기서 받는다.
+        body.center = Add(startCenter, Scale(direction, std::fmax(best - LinearSlop, 0.0f)));
+        ++m_lastStats.continuousHits;
     }
 
     void World::SolvePositions()
