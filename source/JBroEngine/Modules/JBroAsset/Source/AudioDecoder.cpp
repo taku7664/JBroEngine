@@ -12,13 +12,16 @@ namespace JBro
     namespace
     {
         // 임포트 경로라 할당은 miniaudio 기본(CRT)을 쓴다 - 프레임 규칙의 대상이 아니다.
-        bool Open(JArrayView<std::byte> encoded, ma_decoder& decoder)
+        bool Open(JArrayView<std::byte> encoded, ma_decoder& decoder, const AudioDecodeTarget& target = {})
         {
             if (encoded.data == nullptr || encoded.size == 0)
             {
                 return false;
             }
-            const ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
+            ma_decoder_config config = ma_decoder_config_init(ma_format_f32, target.mono ? 1 : 0, target.sampleRate);
+            // 한 번만 푸는 자리라 리샘플의 저역 통과 필터를 가장 높은 차수로 둔다.
+            config.resampling.algorithm = ma_resample_algorithm_linear;
+            config.resampling.linear.lpfOrder = MA_MAX_FILTER_ORDER;
             return ma_decoder_init_memory(encoded.data, encoded.size, &config, &decoder) == MA_SUCCESS;
         }
 
@@ -74,10 +77,10 @@ namespace JBro
         return true;
     }
 
-    bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<float>& pcm)
+    bool DecodeAudio(JArrayView<std::byte> encoded, AudioFormat& format, Array<float>& pcm, const AudioDecodeTarget& target)
     {
         ma_decoder decoder;
-        if (false == Open(encoded, decoder))
+        if (false == Open(encoded, decoder, target))
         {
             return false;
         }
@@ -203,6 +206,9 @@ namespace JBro
         ma_decoder decoder = {};
         bool open = false;
         AudioFormat format;
+        // `SetMono` 뒤에 참이다. 디코더는 파일의 채널(`nativeChannels`)로 풀고 `Read` 가 평균한다.
+        bool mono = false;
+        std::uint32_t nativeChannels = 0;
 
         static IFileStream* StreamOf(ma_vfs* vfs)
         {
@@ -328,6 +334,17 @@ namespace JBro
         return IsOpen() ? m_state->format : AudioFormat{};
     }
 
+    void AudioFileDecoder::SetMono()
+    {
+        if (false == IsOpen() || m_state->mono || m_state->format.channels <= 1)
+        {
+            return;
+        }
+        m_state->mono = true;
+        m_state->nativeChannels = m_state->format.channels;
+        m_state->format.channels = 1;
+    }
+
     std::uint64_t AudioFileDecoder::CountFrames()
     {
         if (false == IsOpen())
@@ -361,13 +378,47 @@ namespace JBro
         {
             return 0;
         }
-        ma_uint64 read = 0;
-        const ma_result result = ma_decoder_read_pcm_frames(&m_state->decoder, out, frames, &read);
-        if (result != MA_SUCCESS && result != MA_AT_END)
+        if (false == m_state->mono)
         {
-            return 0;
+            ma_uint64 read = 0;
+            const ma_result result = ma_decoder_read_pcm_frames(&m_state->decoder, out, frames, &read);
+            if (result != MA_SUCCESS && result != MA_AT_END)
+            {
+                return 0;
+            }
+            return read;
         }
-        return read;
+        // 파일의 채널로 조금씩 풀어 평균한다. 칸은 스택에 있다 - 스트리머 스레드가 부르는 자리다.
+        float native[4096];
+        const std::uint32_t channels = m_state->nativeChannels;
+        const std::uint64_t chunk = sizeof(native) / sizeof(float) / channels;
+        const float scale = 1.0f / static_cast<float>(channels);
+        std::uint64_t done = 0;
+        while (done < frames)
+        {
+            const std::uint64_t want = frames - done < chunk ? frames - done : chunk;
+            ma_uint64 read = 0;
+            const ma_result result = ma_decoder_read_pcm_frames(&m_state->decoder, native, want, &read);
+            if ((result != MA_SUCCESS && result != MA_AT_END) || read == 0)
+            {
+                break;
+            }
+            for (std::uint64_t frame = 0; frame < read; ++frame)
+            {
+                float sum = 0.0f;
+                for (std::uint32_t channel = 0; channel < channels; ++channel)
+                {
+                    sum += native[frame * channels + channel];
+                }
+                out[done + frame] = sum * scale;
+            }
+            done += read;
+            if (read < want)
+            {
+                break;
+            }
+        }
+        return done;
     }
 
     bool AudioFileDecoder::Seek(std::uint64_t frame)

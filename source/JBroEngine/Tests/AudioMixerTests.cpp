@@ -1138,6 +1138,171 @@ namespace
         mixer.Shutdown();
     }
 
+    // 클립의 동시 수와 쿨다운(D-231). 연타한 같은 소리가 보이스를 다 먹지 않는다.
+    void TestInstanceLimitAndCooldown()
+    {
+        AudioMixer mixer;
+        // 줄여 끄는 보이스가 한꺼번에 몰려도 훔치기가 끼어들지 않을 만큼 둔다.
+        Check(mixer.Initialize(SmallDesc(40)), "mixer initializes");
+        const Array<float> sine = MakeSine(2, 440.0f, 0.3f, 1.0f);
+        AudioClipDesc desc;
+        desc.encoding = AudioClipEncoding::Pcm;
+        desc.pcm = sine.Data();
+        desc.channels = 2;
+        desc.sampleRate = Rate;
+        desc.frameCount = sine.Size() / 2;
+        desc.maxInstances = 2;
+        const AudioClipHandle limited = mixer.RegisterClip(desc);
+        AudioPlayDesc play;
+        play.clip = limited;
+        play.loop = true;
+        AudioVoiceHandle first = mixer.Play(play);
+        AudioVoiceHandle second = mixer.Play(play);
+        AudioVoiceHandle third = mixer.Play(play);
+        Check(first.IsSet() && second.IsSet() && third.IsSet(), "a full clip still plays the new instance");
+        Check(mixer.GetStats().voicesReplaced == 1, "by replacing an old one");
+        Render(mixer, 2400);
+        mixer.Update();
+        Check(false == mixer.IsAlive(first) && mixer.IsAlive(second) && mixer.IsAlive(third),
+            "the oldest instance fades out and is gone after 20 ms");
+        Check(mixer.GetStats().activeVoices == 2, "the clip never holds more than its limit");
+        // 30 번 몰아 틀어도 울리는 것은 둘이다.
+        for (int burst = 0; burst < 30; ++burst)
+        {
+            mixer.Play(play);
+        }
+        Render(mixer, 2400);
+        mixer.Update();
+        Check(mixer.GetStats().activeVoices == 2, "a burst of thirty plays still sounds as two");
+        const Rendered burstOut = Render(mixer, 4800);
+        Check(burstOut.Peak(0) < 0.65f, "so the burst is not thirty times louder");
+
+        // 우선순위가 높은 인스턴스는 바꾸지 않는다 - 새것을 버린다.
+        mixer.StopAll();
+        AudioPlayDesc important = play;
+        important.priority = 200;
+        mixer.Play(important);
+        mixer.Play(important);
+        const std::uint64_t throttled = mixer.GetStats().voicesThrottled;
+        Check(false == mixer.Play(play).IsSet() && mixer.GetStats().voicesThrottled == throttled + 1,
+            "a lower-priority play is dropped rather than replacing important instances");
+
+        // 쿨다운: 0.1 초 안의 재생은 버린다. 시계는 믹서가 섞은 시간이다.
+        mixer.StopAll();
+        desc.maxInstances = 0;
+        desc.cooldownSeconds = 0.1f;
+        const AudioClipHandle cooled = mixer.RegisterClip(desc);
+        play.clip = cooled;
+        play.loop = false;
+        Check(mixer.Play(play).IsSet(), "the first play after a quiet spell sounds");
+        Check(false == mixer.Play(play).IsSet(), "a second play in the same instant is dropped");
+        Render(mixer, Rate / 20);
+        Check(false == mixer.Play(play).IsSet(), "and so is one 50 ms later");
+        Render(mixer, Rate / 20 + 480);
+        Check(mixer.Play(play).IsSet(), "after the cooldown it plays again");
+        Check(mixer.GetStats().voicesThrottled == throttled + 3, "the dropped plays are counted");
+        mixer.Shutdown();
+    }
+
+    // 시작 자리에서 들리지 않는 한 번짜리 소리는 보이스를 잡지 않는다(D-231).
+    void TestInaudibleStartsAreCulled()
+    {
+        AudioMixer mixer;
+        Check(mixer.Initialize(SmallDesc(2)), "mixer initializes");
+        const Array<float> sine = MakeSine(1, 440.0f, 0.5f, 1.0f);
+        const AudioClipHandle clip = RegisterPcm(mixer, sine, 1);
+        const float origin[3] = {0.0f, 0.0f, 0.0f};
+        const float forward[3] = {0.0f, 0.0f, -1.0f};
+        const float up[3] = {0.0f, 1.0f, 0.0f};
+        mixer.SetListener(origin, forward, up);
+        // 보이스 둘을 가장 낮은 우선순위로 채운다 - 걸러지지 않으면 하나를 훔쳤을 것이다.
+        AudioPlayDesc filler;
+        filler.clip = clip;
+        filler.loop = true;
+        filler.priority = 0;
+        const AudioVoiceHandle a = mixer.Play(filler);
+        const AudioVoiceHandle b = mixer.Play(filler);
+
+        AudioPlayDesc far;
+        far.clip = clip;
+        far.spatial = true;
+        far.attenuation = AudioAttenuation::Linear;
+        far.minDistance = 1.0f;
+        far.maxDistance = 20.0f;
+        far.position[0] = 40.0f;
+        Check(false == mixer.Play(far).IsSet(), "a linear one-shot past its maximum distance is not started");
+        Check(mixer.IsAlive(a) && mixer.IsAlive(b) && mixer.GetStats().voicesStolen == 0, "and steals nothing");
+        Check(mixer.GetStats().voicesCulled == 1, "it is counted as culled");
+
+        // 역감쇠는 최대 거리(20 m) 밖에서도 최대 거리의 값(1/20 = -26 dB)이라 들린다 - "최대 거리 밖이면 버린다" 로 짜면 소리가 사라진다.
+        AudioPlayDesc inverse = far;
+        inverse.attenuation = AudioAttenuation::Inverse;
+        Check(mixer.Play(inverse).IsSet(), "an inverse one-shot past its maximum distance keeps that distance's gain and plays");
+        inverse.volume = 0.01f;
+        Check(false == mixer.Play(inverse).IsSet(), "the same sound at 1% volume falls under -60 dB and is culled");
+        AudioPlayDesc looping = far;
+        looping.loop = true;
+        Check(mixer.Play(looping).IsSet(), "a loop is never culled - it may come closer");
+        AudioPlayDesc flat = far;
+        flat.spatial = false;
+        Check(mixer.Play(flat).IsSet(), "a non-spatial sound is never culled");
+        AudioPlayDesc near = far;
+        near.position[0] = 5.0f;
+        Check(mixer.Play(near).IsSet(), "a one-shot inside its range plays");
+        Check(mixer.GetStats().voicesCulled == 2, "only the inaudible starts were culled");
+
+        // 걸러진 재생은 쿨다운 시계를 건드리지 않는다.
+        AudioClipDesc cooledDesc;
+        cooledDesc.encoding = AudioClipEncoding::Pcm;
+        cooledDesc.pcm = sine.Data();
+        cooledDesc.channels = 1;
+        cooledDesc.sampleRate = Rate;
+        cooledDesc.frameCount = sine.Size();
+        cooledDesc.cooldownSeconds = 1.0f;
+        far.clip = mixer.RegisterClip(cooledDesc);
+        Check(false == mixer.Play(far).IsSet(), "a culled play of a cooled clip");
+        near.clip = far.clip;
+        Check(mixer.Play(near).IsSet(), "does not start the cooldown");
+        mixer.Shutdown();
+    }
+
+    // 믹서와 같은 레이트의 PCM 은 보이스마다 리샘플하지 않는다(D-231 의 근거 실측). 시간은 적기만 한다 - 기계마다 다르다.
+    void MeasureResampleCost()
+    {
+        const auto measure = [](std::uint32_t clipRate) {
+            AudioMixer mixer;
+            Check(mixer.Initialize(SmallDesc(32)), "mixer initializes");
+            Array<float> samples;
+            samples.Resize(static_cast<std::size_t>(clipRate) * 2);
+            for (std::size_t index = 0; index < samples.Size(); ++index)
+            {
+                samples[index] = 0.01f * std::sin(static_cast<float>(index) * 0.01f);
+            }
+            AudioClipDesc desc;
+            desc.encoding = AudioClipEncoding::Pcm;
+            desc.pcm = samples.Data();
+            desc.channels = 2;
+            desc.sampleRate = clipRate;
+            desc.frameCount = clipRate;
+            AudioPlayDesc play;
+            play.clip = mixer.RegisterClip(desc);
+            play.loop = true;
+            for (int voice = 0; voice < 32; ++voice)
+            {
+                mixer.Play(play);
+            }
+            Render(mixer, 4800);
+            const auto begin = std::chrono::steady_clock::now();
+            Render(mixer, Rate * 4);
+            const auto end = std::chrono::steady_clock::now();
+            mixer.Shutdown();
+            return std::chrono::duration<double, std::milli>(end - begin).count();
+        };
+        const double matched = measure(Rate);
+        const double resampled = measure(44100);
+        std::cout << "  32 voices for 4 s: clips at the mixer rate " << matched << " ms, at 44.1 kHz " << resampled << " ms\n";
+    }
+
     void TestSteadyStateDoesNotAllocate()
     {
         AudioMixer mixer;
@@ -1291,6 +1456,9 @@ int RunAudioMixerTests()
         TestCompressorAndLimiter();
         TestExtendedEffectsAreRealtimeSafe();
         TestStealing();
+        TestInstanceLimitAndCooldown();
+        TestInaudibleStartsAreCulled();
+        MeasureResampleCost();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();
         TestLifetimeRepeats();

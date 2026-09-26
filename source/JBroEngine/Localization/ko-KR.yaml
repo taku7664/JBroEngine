@@ -173,6 +173,7 @@ Entries:
   project_settings.audio_send_help: "이 버스의 소리를 다른 버스로도 보냅니다. 예: Dry 가 0 인 공용 잔향 버스"
   stats.audio_solo: "솔로 - 믹싱하는 동안 이 버스만 듣습니다"
   stats.audio_buses: "버스"
+  stats.audio_saved: "들리지 않는 재생 %llu 개, 동시 재생 수·재생 간격에 걸린 재생 %llu 개를 건너뛰었고 %llu 개를 새 재생으로 바꿨습니다"
   stats.audio_voices: "보이스 %u / %u, 최대 음량 %.2f"
   stats.audio_device: "오디오 장치 %s"
   stats.audio_no_device: "오디오 장치가 없습니다. 소리를 섞기는 하지만 들리지 않습니다"

@@ -107,13 +107,20 @@ namespace JBro
         StreamFromDisk
     };
 
-    // `.jmeta` 의 `Audio.ImportOptions` 블록이다. **재생 파라미터는 없다** - 볼륨·루프·거리·버스는 컴포넌트가
-    // 유일한 원천이다(D-197·D-198). 라우드니스 정규화 게인·루프 지점처럼 파일의 속성이 생기면 여기에 온다.
+    // `.jmeta` 의 `Audio.ImportOptions` 블록이다. **소리 하나의 재생 파라미터는 없다** - 볼륨·루프·거리·버스는 컴포넌트가
+    // 유일한 원천이다(D-197·D-198). 파일의 속성과, 같은 소리가 여럿 울릴 때의 규칙(여러 컴포넌트가 한 클립을 나눠 쓰므로
+    // 컴포넌트는 이것을 말할 수 없다, D-231)이 여기에 온다.
     struct AudioImportOptions
     {
         AudioImportMode mode = AudioImportMode::Decompressed;
         // 파일의 크기 보정(트림, 0..4, D-205)이다. 녹음마다 다른 크기를 여기서 한 번 맞추면 컴포넌트의 `volume` 은 연출에만 쓴다.
         float gain = 1.0f;
+        // 모노로 줄인다(채널 평균, D-231). 공간화하는 소리는 채널이 하나면 된다 - 메모리와 믹스가 채널 수만큼 준다.
+        bool mono = false;
+        // 이 소리가 동시에 울릴 수 있는 수다(0 이면 제한 없음, D-231). 넘치면 가장 오래된 것을 짧게 줄여 끄고 새것을 튼다.
+        std::int32_t maxInstances = 0;
+        // 이 소리를 다시 틀 수 있기까지의 초다(0 이면 끔, D-231). 그 안에 온 재생은 버린다 - 한 프레임에 몰린 발소리·피격음.
+        float cooldown = 0.0f;
     };
 
     // `.jmeta` 의 `Font.ImportOptions` 블록이다(D-200, text-plan §4.1). 글자 크기는 컴포넌트의 몫이고(`Text2D::fontSize`,
