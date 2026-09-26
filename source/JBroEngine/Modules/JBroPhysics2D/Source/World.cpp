@@ -25,6 +25,13 @@ namespace JBro::Physics2D
             return { normal.y, -normal.x };
         }
 
+        // 방향 d 로 본 역질량. 축을 고정하면 그 축의 성분이 빠진다(고정하지 않으면 inverseMass 와 같다).
+        template <typename TBody>
+        float InverseMassAlong(const TBody& body, Vec2 d)
+        {
+            return d.x * d.x * body.inverseMassAxes.x + d.y * d.y * body.inverseMassAxes.y;
+        }
+
         // 이보다 적은 후보는 나누지 않는다. 워커를 깨우고 모으는 비용이 판정보다 크다.
         constexpr std::uint32_t MinParallelCandidates = 64;
         constexpr std::uint32_t MinCandidatesPerChunk = 16;
@@ -164,6 +171,8 @@ namespace JBro::Physics2D
         body.alive = true;
         body.type = def.type;
         body.fixedRotation = def.fixedRotation;
+        body.freezePositionX = def.freezePositionX;
+        body.freezePositionY = def.freezePositionY;
         body.origin = def.position;
         body.angle = def.angle;
         body.rotation = Rotation::FromAngle(def.angle);
@@ -464,6 +473,10 @@ namespace JBro::Physics2D
             }
         }
 
+        body.inverseMassAxes = {
+            body.freezePositionX ? 0.0f : body.inverseMass,
+            body.freezePositionY ? 0.0f : body.inverseMass };
+
         // 원점은 그대로 두고 중심을 새 로컬 중심에 맞춘다. 도형을 붙이는 것이 물체를 옮기지 않는다.
         body.center = Add(body.origin, RotateVector(body.rotation, body.localCenter));
     }
@@ -510,7 +523,9 @@ namespace JBro::Physics2D
         Body* body = FindBody(id);
         if (body != nullptr && body->type != BodyType::Static)
         {
-            body->linearVelocity = velocity;
+            body->linearVelocity = {
+                body->freezePositionX ? 0.0f : velocity.x,
+                body->freezePositionY ? 0.0f : velocity.y };
         }
     }
 
@@ -527,6 +542,92 @@ namespace JBro::Physics2D
         {
             body->angularVelocity = velocity;
         }
+    }
+
+    void World::SetBodyProperties(BodyId id, const BodyDef& def)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr)
+        {
+            return;
+        }
+        body->requestedMass = def.mass;
+        body->gravityScale = def.gravityScale;
+        body->linearDamping = def.linearDamping;
+        body->angularDamping = def.angularDamping;
+        body->fixedRotation = def.fixedRotation;
+        body->freezePositionX = def.freezePositionX;
+        body->freezePositionY = def.freezePositionY;
+        if (body->fixedRotation)
+        {
+            body->angularVelocity = 0.0f;
+        }
+        body->linearVelocity = {
+            body->freezePositionX ? 0.0f : body->linearVelocity.x,
+            body->freezePositionY ? 0.0f : body->linearVelocity.y };
+        UpdateMass(*body);
+    }
+
+    void World::ApplyForce(BodyId id, Vec2 force, Vec2 worldPoint)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        body->force = Add(body->force, force);
+        body->torque += Cross(Subtract(worldPoint, body->center), force);
+    }
+
+    void World::ApplyForceToCenter(BodyId id, Vec2 force)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        body->force = Add(body->force, force);
+    }
+
+    void World::ApplyTorque(BodyId id, float torque)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        body->torque += torque;
+    }
+
+    void World::ApplyLinearImpulse(BodyId id, Vec2 impulse, Vec2 worldPoint)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        body->linearVelocity = Add(body->linearVelocity, Multiply(impulse, body->inverseMassAxes));
+        body->angularVelocity += body->inverseInertia * Cross(Subtract(worldPoint, body->center), impulse);
+    }
+
+    void World::ApplyLinearImpulseToCenter(BodyId id, Vec2 impulse)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        body->linearVelocity = Add(body->linearVelocity, Multiply(impulse, body->inverseMassAxes));
+    }
+
+    void World::ApplyAngularImpulse(BodyId id, float impulse)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        body->angularVelocity += body->inverseInertia * impulse;
     }
 
     MassData World::GetMassData(BodyId id) const
@@ -589,6 +690,11 @@ namespace JBro::Physics2D
             }
         }
         UpdateTouching();
+        for (Body& body : m_bodies)
+        {
+            body.force = {};
+            body.torque = 0.0f;
+        }
     }
 
     Manifold World::ComputeManifold(const Candidate& candidate) const
@@ -628,12 +734,23 @@ namespace JBro::Physics2D
                 continue;
             }
             body.linearVelocity = Add(body.linearVelocity, Scale(m_settings.gravity, body.gravityScale * h));
+            body.linearVelocity = Add(body.linearVelocity, Scale(Multiply(body.force, body.inverseMassAxes), h));
+            body.angularVelocity += h * body.inverseInertia * body.torque;
             // 감쇠는 1 / (1 + h·c) 로 곱한다. 1 - h·c 와 달리 큰 값에서도 부호가 뒤집히지 않는다.
             body.linearVelocity = Scale(body.linearVelocity, 1.0f / (1.0f + h * body.linearDamping));
             body.angularVelocity *= 1.0f / (1.0f + h * body.angularDamping);
             if (body.fixedRotation)
             {
                 body.angularVelocity = 0.0f;
+            }
+            // 고정한 축은 중력도 받지 않는다.
+            if (body.freezePositionX)
+            {
+                body.linearVelocity.x = 0.0f;
+            }
+            if (body.freezePositionY)
+            {
+                body.linearVelocity.y = 0.0f;
             }
         }
     }
@@ -826,13 +943,13 @@ namespace JBro::Physics2D
 
                 const float rnA = Cross(rA, normal);
                 const float rnB = Cross(rB, normal);
-                const float normalK = a.inverseMass + b.inverseMass
+                const float normalK = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
                     + a.inverseInertia * rnA * rnA + b.inverseInertia * rnB * rnB;
                 contact.normalMass[i] = normalK > 0.0f ? 1.0f / normalK : 0.0f;
 
                 const float rtA = Cross(rA, tangent);
                 const float rtB = Cross(rB, tangent);
-                const float tangentK = a.inverseMass + b.inverseMass
+                const float tangentK = InverseMassAlong(a, tangent) + InverseMassAlong(b, tangent)
                     + a.inverseInertia * rtA * rtA + b.inverseInertia * rtB * rtB;
                 contact.tangentMass[i] = tangentK > 0.0f ? 1.0f / tangentK : 0.0f;
 
@@ -860,9 +977,9 @@ namespace JBro::Physics2D
             {
                 const Vec2 impulse = Add(
                     Scale(normal, contact.normalImpulse[i]), Scale(tangent, contact.tangentImpulse[i]));
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(contact.anchorA[i], impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(contact.anchorB[i], impulse);
             }
         }
@@ -896,9 +1013,9 @@ namespace JBro::Physics2D
                 const float next = std::clamp(old - contact.tangentMass[i] * speed, -limit, limit);
                 const Vec2 impulse = Scale(tangent, next - old);
                 contact.tangentImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
             }
 
@@ -918,9 +1035,9 @@ namespace JBro::Physics2D
                 const float next = std::fmax(old - contact.normalMass[i] * (speed + bias), 0.0f);
                 const Vec2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
             }
         }
@@ -955,9 +1072,9 @@ namespace JBro::Physics2D
                     old - contact.normalMass[i] * (speed + contact.restitution * contact.approachSpeed[i]), 0.0f);
                 const Vec2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
             }
         }
@@ -1014,16 +1131,16 @@ namespace JBro::Physics2D
                 }
                 const float rnA = Cross(rA, normal);
                 const float rnB = Cross(rB, normal);
-                const float k = a.inverseMass + b.inverseMass
+                const float k = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
                     + a.inverseInertia * rnA * rnA + b.inverseInertia * rnB * rnB;
                 if (k <= 0.0f)
                 {
                     continue;
                 }
                 const Vec2 impulse = Scale(normal, -correction / k);
-                a.center = Subtract(a.center, Scale(impulse, a.inverseMass));
+                a.center = Subtract(a.center, Multiply(impulse, a.inverseMassAxes));
                 a.angle -= a.inverseInertia * Cross(rA, impulse);
-                b.center = Add(b.center, Scale(impulse, b.inverseMass));
+                b.center = Add(b.center, Multiply(impulse, b.inverseMassAxes));
                 b.angle += b.inverseInertia * Cross(rB, impulse);
             }
         }

@@ -69,6 +69,9 @@ namespace JBro::Physics2D
         float         linearDamping = 0.0f;
         float         angularDamping = 0.0f;
         bool          fixedRotation = false;
+        // 축 고정(D-227). 그 축으로는 움직이지 않는다 - 중력·힘·접촉 어느 것도 그 축의 속도를 만들지 못한다.
+        bool          freezePositionX = false;
+        bool          freezePositionY = false;
         std::uint64_t userData = 0;
     };
 
@@ -165,6 +168,18 @@ namespace JBro::Physics2D
         void  SetAngularVelocity(BodyId body, float velocity);
         // 질량·로컬 질량 중심·그 중심 기준 관성. Static·Kinematic 은 0 이다.
         MassData GetMassData(BodyId body) const;
+        // 몸의 성질을 제자리에서 바꾼다(D-227): 질량·중력 배율·감쇠·회전 고정·축 고정. 종류·자세·속도·userData 는 두고,
+        // 번호가 그대로라 닿아 있던 쌍은 이어진다.
+        void SetBodyProperties(BodyId body, const BodyDef& def);
+
+        // 힘과 토크는 다음 Step 한 번 동안 서브스텝마다 가해지고 Step 끝에 비워진다. 충격량은 속도를 바로 바꾼다.
+        // 동적인 몸만 받고, 고정한 축과 회전은 받지 않는다(D-227).
+        void ApplyForce(BodyId body, Vec2 force, Vec2 worldPoint);
+        void ApplyForceToCenter(BodyId body, Vec2 force);
+        void ApplyTorque(BodyId body, float torque);
+        void ApplyLinearImpulse(BodyId body, Vec2 impulse, Vec2 worldPoint);
+        void ApplyLinearImpulseToCenter(BodyId body, Vec2 impulse);
+        void ApplyAngularImpulse(BodyId body, float impulse);
 
         void Step(float deltaTime);
 
@@ -195,6 +210,13 @@ namespace JBro::Physics2D
             float         requestedMass = 1.0f;
             float         mass = 0.0f;
             float         inverseMass = 0.0f;
+            // 축마다의 역질량. 고정한 축은 0 이다. 접촉 임펄스와 위치 보정이 이것으로 몸을 민다.
+            Vec2          inverseMassAxes;
+            bool          freezePositionX = false;
+            bool          freezePositionY = false;
+            // 이번 Step 동안 가할 힘과 토크(질량 중심 기준).
+            Vec2          force;
+            float         torque = 0.0f;
             float         inertia = 0.0f;
             float         inverseInertia = 0.0f;
             float         gravityScale = 1.0f;

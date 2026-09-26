@@ -747,6 +747,84 @@ namespace
             "a physics step split across workers does not touch the heap");
 #endif
     }
+
+    // **힘·충격량·토크(D-227).** 무중력에서 질량 2 인 1x1 상자(관성 m(w²+h²)/12 = 1/3). 힘은 Step 한 번만 가해지고 비워진다.
+    void TestForcesAndImpulses()
+    {
+        World world;
+        world.Settings().gravity = { 0, 0 };
+        BodyDef def;
+        def.mass = 2.0f;
+        const BodyId box = world.CreateBody(def);
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        world.ApplyForceToCenter(box, { 4, 0 });
+        world.Step(Frame);
+        Check(Near(world.GetLinearVelocity(box).x, 2.0f * Frame, 1.0e-6f), "a force of 4 on a mass of 2 adds 2 m/s² for one step");
+        world.Step(Frame);
+        Check(Near(world.GetLinearVelocity(box).x, 2.0f * Frame, 1.0e-6f), "and is gone the step after");
+        world.ApplyLinearImpulseToCenter(box, { 0, 2 });
+        Check(Near(world.GetLinearVelocity(box).y, 1.0f, 1.0e-6f), "an impulse of 2 adds 1 m/s at once");
+        world.ApplyTorque(box, 1.0f);
+        world.Step(Frame);
+        Check(Near(world.GetAngularVelocity(box), 3.0f * Frame, 1.0e-5f), "a torque of 1 on an inertia of 1/3 spins it up by 3 rad/s²");
+        world.SetAngularVelocity(box, 0.0f);
+        const Vec2 center = world.GetWorldCenter(box);
+        world.ApplyLinearImpulse(box, { 1, 0 }, { center.x, center.y + 0.5f });
+        Check(Near(world.GetAngularVelocity(box), -1.5f, 1.0e-5f), "an impulse half a unit above the center turns it by -0.5 / (1/3)");
+
+        const BodyId ground = AddBody(world, BodyType::Static, { 0, -5 });
+        world.ApplyLinearImpulseToCenter(ground, { 5, 5 });
+        Check(world.GetLinearVelocity(ground).x == 0.0f, "a static body takes no impulse");
+    }
+
+    // **축 고정(D-227).** Y 를 고정한 몸은 떨어지지 않고 옆으로는 밀리며, X 를 고정한 몸은 비탈에서 미끄러지지 않고 선다.
+    void TestAxisLocks()
+    {
+        World world;
+        const BodyId floating = AddBody(world, BodyType::Dynamic, { 0, 5 });
+        AddPolygon(world, floating, BoxOutline(0.5f, 0.5f));
+        BodyDef lockY;
+        lockY.freezePositionY = true;
+        world.SetBodyProperties(floating, lockY);
+        world.ApplyLinearImpulseToCenter(floating, { 1, 1 });
+        Run(world, 1.0f);
+        Check(Near(world.GetPosition(floating).y, 5.0f, 1.0e-6f), "a body locked in y neither falls nor rises");
+        Check(Near(world.GetPosition(floating).x, 1.0f, 1.0e-3f), "but an impulse still moves it in x");
+
+        // 45° 비탈(돌린 상자) 위에 떨어뜨린다. 풀린 몸은 옆으로 미끄러지고, x 를 고정한 몸은 그 자리에 선다.
+        const BodyId slope = AddBody(world, BodyType::Static, { 10, 0 }, 0.78539816f);
+        AddPolygon(world, slope, BoxOutline(3.0f, 3.0f));
+        ShapeDef slippery;
+        slippery.friction = 0.0f;
+        const BodyId free = AddBody(world, BodyType::Dynamic, { 9.0f, 4.0f });
+        AddPolygon(world, free, BoxOutline(0.25f, 0.25f), slippery);
+        const BodyId pinned = AddBody(world, BodyType::Dynamic, { 11.0f, 4.0f });
+        AddPolygon(world, pinned, BoxOutline(0.25f, 0.25f), slippery);
+        BodyDef lockX;
+        lockX.freezePositionX = true;
+        world.SetBodyProperties(pinned, lockX);
+        Run(world, 2.0f);
+        Check(std::fabs(world.GetPosition(free).x - 9.0f) > 0.5f, "a free body slides off the frictionless slope");
+        Check(Near(world.GetPosition(pinned).x, 11.0f, 1.0e-5f) && world.GetPosition(pinned).y < 4.0f,
+            "a body locked in x drops onto it and stays in its column");
+    }
+
+    // **성질을 제자리에서 바꾸면 닿아 있던 쌍이 이어진다(D-227).** 서 있는 상자의 질량·감쇠를 바꿔도 끝·시작 이벤트가 없다.
+    void TestBodyPropertiesChangeInPlace()
+    {
+        World world;
+        AddGround(world);
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        Run(world, 0.5f);
+        BodyDef heavier;
+        heavier.mass = 5.0f;
+        heavier.angularDamping = 2.0f;
+        world.SetBodyProperties(box, heavier);
+        world.Step(Frame);
+        Check(world.GetBeginEvents().IsEmpty() && world.GetEndEvents().IsEmpty(), "changing the mass keeps the contact");
+        Check(Near(world.GetMassData(box).mass, 5.0f, 0.0f), "and the new mass is used");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -771,6 +849,9 @@ int RunPhysics2DWorldTests()
     TestWorkersGiveTheSameResult();
     TestRecommendedWorkerCounts();
     TestParallelSteppingDoesNotAllocate();
+    TestForcesAndImpulses();
+    TestAxisLocks();
+    TestBodyPropertiesChangeInPlace();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

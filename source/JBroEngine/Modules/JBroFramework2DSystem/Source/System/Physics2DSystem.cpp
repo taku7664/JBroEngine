@@ -201,8 +201,10 @@ namespace JBro::System
             print.Mix(body->mass);
             print.Mix(body->gravityScale);
             print.Mix(body->linearDamping);
-            const std::uint8_t fixed = body->fixedRotation ? 1 : 0;
-            print.Mix(&fixed, sizeof(fixed));
+            print.Mix(body->angularDamping);
+            const std::uint8_t flags = static_cast<std::uint8_t>((body->fixedRotation ? 1 : 0)
+                | (body->freezePositionX ? 2 : 0) | (body->freezePositionY ? 4 : 0));
+            print.Mix(&flags, sizeof(flags));
             return print.value;
         }
     }
@@ -760,10 +762,10 @@ namespace JBro::System
             const InstanceId rigidbodyId = rigidbody != nullptr ? rigidbody->GetInstanceId() : InvalidInstanceId;
             const std::uint64_t parameters = BodyParameters(rigidbody);
 
-            // 종류나 질량 같은 성질이 바뀌면 바디를 다시 만든다. 드문 일이라 커널에 성질을 바꾸는 길을 따로 두지 않는다.
+            // 종류가 바뀌면 바디를 다시 만든다. 질량·감쇠·고정 같은 성질은 제자리에서 바꾼다(D-227) - 다시 만들면 닿아 있던
+            // 쌍이 끝나고 다시 시작한다.
             if (link != nullptr
-                && (link->type != type || link->rigidbody != rigidbodyId || link->parameters != parameters
-                    || false == world.IsValid(link->body)))
+                && (link->type != type || link->rigidbody != rigidbodyId || false == world.IsValid(link->body)))
             {
                 world.DestroyBody(link->body);
                 state.bodies.Remove(object->GetInstanceId());
@@ -783,7 +785,10 @@ namespace JBro::System
                     def.mass = rigidbody->mass;
                     def.gravityScale = rigidbody->gravityScale;
                     def.linearDamping = rigidbody->linearDamping;
+                    def.angularDamping = rigidbody->angularDamping;
                     def.fixedRotation = rigidbody->fixedRotation;
+                    def.freezePositionX = rigidbody->freezePositionX;
+                    def.freezePositionY = rigidbody->freezePositionY;
                 }
                 def.userData = object->GetInstanceId();
 
@@ -828,6 +833,50 @@ namespace JBro::System
                 if (rigidbody->angularVelocity != link->writtenAngularVelocity)
                 {
                     world.SetAngularVelocity(link->body, rigidbody->angularVelocity);
+                }
+            }
+
+            if (rigidbody != nullptr && link->parameters != parameters)
+            {
+                Physics2D::BodyDef properties;
+                properties.mass = rigidbody->mass;
+                properties.gravityScale = rigidbody->gravityScale;
+                properties.linearDamping = rigidbody->linearDamping;
+                properties.angularDamping = rigidbody->angularDamping;
+                properties.fixedRotation = rigidbody->fixedRotation;
+                properties.freezePositionX = rigidbody->freezePositionX;
+                properties.freezePositionY = rigidbody->freezePositionY;
+                world.SetBodyProperties(link->body, properties);
+                link->parameters = parameters;
+            }
+            if (rigidbody != nullptr)
+            {
+                // 스크립트가 쌓은 힘·충격량을 이번 스텝에 먹인다. 위치를 준 것의 토크는 지금의 질량 중심으로 푼다.
+                const Component::PendingForces2D pending = rigidbody->TakePendingForces();
+                const Vec2 center = world.GetWorldCenter(link->body);
+                const Vec2 force{ pending.forceAtCenter.x + pending.forceAtPoints.x,
+                    pending.forceAtCenter.y + pending.forceAtPoints.y };
+                const float torque = pending.torque + pending.forceMoment
+                    - (center.x * pending.forceAtPoints.y - center.y * pending.forceAtPoints.x);
+                const Vec2 impulse{ pending.impulseAtCenter.x + pending.impulseAtPoints.x,
+                    pending.impulseAtCenter.y + pending.impulseAtPoints.y };
+                const float angularImpulse = pending.angularImpulse + pending.impulseMoment
+                    - (center.x * pending.impulseAtPoints.y - center.y * pending.impulseAtPoints.x);
+                if (force.x != 0.0f || force.y != 0.0f)
+                {
+                    world.ApplyForceToCenter(link->body, force);
+                }
+                if (torque != 0.0f)
+                {
+                    world.ApplyTorque(link->body, torque);
+                }
+                if (impulse.x != 0.0f || impulse.y != 0.0f)
+                {
+                    world.ApplyLinearImpulseToCenter(link->body, impulse);
+                }
+                if (angularImpulse != 0.0f)
+                {
+                    world.ApplyAngularImpulse(link->body, angularImpulse);
                 }
             }
 

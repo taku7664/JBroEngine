@@ -32,6 +32,20 @@ namespace JBro
 
 namespace JBro::Component
 {
+    // 스크립트가 다음 고정 스텝에 가할 힘·충격량을 모은 것이다(D-227). 위치를 준 힘은 월드 원점에 대한 모멘트(cross(점, 힘))로 모아
+    // 두고, 물리가 그 스텝의 질량 중심으로 토크를 푼다 - 컴포넌트는 질량 중심을 모른다.
+    struct PendingForces2D
+    {
+        Vec2  forceAtCenter;
+        Vec2  forceAtPoints;
+        float forceMoment = 0.0f;
+        float torque = 0.0f;
+        Vec2  impulseAtCenter;
+        Vec2  impulseAtPoints;
+        float impulseMoment = 0.0f;
+        float angularImpulse = 0.0f;
+    };
+
     class Rigidbody2D final : public ComponentBase
     {
     public:
@@ -55,7 +69,51 @@ namespace JBro::Component
         JBRO_FIELD(float, mass,          Range(0, 1000)) = 1.0f;
         JBRO_FIELD(float, gravityScale)  = 1.0f;
         JBRO_FIELD(float, linearDamping) = 0.0f;
+        JBRO_FIELD(float, angularDamping) = 0.0f;
         JBRO_FIELD(bool,  fixedRotation) = false;
+        // 축 고정(D-227). 그 축으로는 중력·힘·접촉 어느 것으로도 움직이지 않는다.
+        JBRO_FIELD(bool,  freezePositionX) = false;
+        JBRO_FIELD(bool,  freezePositionY) = false;
+
+        // 힘·토크는 다음 고정 스텝 한 번 동안 가해지고, 충격량은 그 스텝이 시작할 때 속도를 바꾼다(D-227). 월드 좌표다.
+        // Dynamic 이 아니면 물리가 버린다.
+        void AddForce(Vec2 force)
+        {
+            m_pending.forceAtCenter = { m_pending.forceAtCenter.x + force.x, m_pending.forceAtCenter.y + force.y };
+        }
+        void AddForceAtPosition(Vec2 force, Vec2 worldPoint)
+        {
+            m_pending.forceAtPoints = { m_pending.forceAtPoints.x + force.x, m_pending.forceAtPoints.y + force.y };
+            m_pending.forceMoment += worldPoint.x * force.y - worldPoint.y * force.x;
+        }
+        void AddTorque(float torque)
+        {
+            m_pending.torque += torque;
+        }
+        void AddImpulse(Vec2 impulse)
+        {
+            m_pending.impulseAtCenter = { m_pending.impulseAtCenter.x + impulse.x, m_pending.impulseAtCenter.y + impulse.y };
+        }
+        void AddImpulseAtPosition(Vec2 impulse, Vec2 worldPoint)
+        {
+            m_pending.impulseAtPoints = { m_pending.impulseAtPoints.x + impulse.x, m_pending.impulseAtPoints.y + impulse.y };
+            m_pending.impulseMoment += worldPoint.x * impulse.y - worldPoint.y * impulse.x;
+        }
+        void AddAngularImpulse(float impulse)
+        {
+            m_pending.angularImpulse += impulse;
+        }
+        // 물리 시스템이 고정 스텝마다 가져가고 비운다.
+        PendingForces2D TakePendingForces()
+        {
+            const PendingForces2D taken = m_pending;
+            m_pending = {};
+            return taken;
+        }
+
+    private:
+        // 저장하지 않고 인스펙터에도 없다 - 스크립트가 쌓고 물리가 가져가는 한 스텝짜리 값이다.
+        PendingForces2D m_pending;
     };
 
     class Collider2D final : public ComponentBase

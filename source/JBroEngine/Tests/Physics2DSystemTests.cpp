@@ -647,6 +647,58 @@ namespace
             "a box and a circle count one each, the U its points less two, the disabled one nothing");
     }
 
+    // **스크립트의 힘·충격량과 축 고정·각 감쇠(D-227).** 컴포넌트에 쌓은 것이 다음 고정 스텝에 한 번 먹고, 성질을 바꿔도 접촉이 이어진다.
+    void TestRigidbodyForcesLocksAndDamping()
+    {
+        Scene scene;
+        scene.physics.SetGravity({ 0, 0 });
+        JBro::GameObject* box = scene.Object("box", { 0, 0 });
+        scene.Box(box, { 1, 1 });
+        Rigidbody2D* body = scene.Dynamic(box);
+        body->mass = 2.0f;
+        scene.Run(Frame);
+        body->AddForce({ 4, 0 });
+        scene.physics.FixedUpdate(scene.canvas, Frame);
+        Check(Near(body->linearVelocity.x, 2.0f * Frame, 1.0e-6f), "a force added by a script acts for the next fixed step");
+        scene.physics.FixedUpdate(scene.canvas, Frame);
+        Check(Near(body->linearVelocity.x, 2.0f * Frame, 1.0e-6f), "only that one");
+        body->linearVelocity = { 0, 0 };
+        body->AddImpulseAtPosition({ 1, 0 }, { 0, 0.5f });
+        scene.physics.FixedUpdate(scene.canvas, Frame);
+        Check(Near(body->linearVelocity.x, 0.5f, 1.0e-5f) && Near(body->angularVelocity, -1.5f, 1.0e-4f),
+            "an impulse above the center pushes and turns, about the center of mass");
+        body->angularVelocity = 0.0f;
+        body->AddAngularImpulse(1.0f);
+        body->AddTorque(0.0f);
+        scene.physics.FixedUpdate(scene.canvas, Frame);
+        Check(Near(body->angularVelocity, 3.0f, 1.0e-4f), "an angular impulse of 1 turns an inertia of 1/3 at 3 rad/s");
+
+        body->angularDamping = 5.0f;
+        body->freezePositionX = true;
+        body->AddImpulse({ 3, 0 });
+        scene.Run(1.0f);
+        Check(std::fabs(body->angularVelocity) < 0.1f, "angular damping from the component slows the spin");
+        Check(Near(body->linearVelocity.x, 0.0f, 0.0f), "and a body locked in x takes no push along it");
+    }
+
+    // **질량을 바꿔도 서 있는 상자의 접촉은 이어진다(D-227).** 전에는 성질이 바뀌면 바디를 다시 만들어 끝·시작 훅이 불렸다.
+    void TestChangingTheMassKeepsTheContact()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
+        scene.Box(box, { 1, 1 });
+        Rigidbody2D* body = scene.Dynamic(box);
+        ContactProbe* probe = scene.Probe(box);
+        scene.Run(0.5f);
+        Check(probe->collisionEnter == 1, "the box lands");
+        body->mass = 10.0f;
+        body->linearDamping = 1.0f;
+        scene.Run(0.2f);
+        Check(probe->collisionEnter == 1 && probe->collisionExit == 0, "changing its mass and damping keeps the one contact");
+    }
+
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
     // 것도 캡슐로 남고, 질의는 둥근 끝 옆의 빈 곳을 캡슐로 보지 않는다.
     void TestCapsuleColliders()
@@ -777,6 +829,8 @@ int RunPhysics2DSystemTests()
     TestCapsuleColliders();
     TestTheWorkerCountReachesTheKernel();
     TestCountingPhysicsWork();
+    TestRigidbodyForcesLocksAndDamping();
+    TestChangingTheMassKeepsTheContact();
     TestAnAnimatedColliderKeepsItsContact();
     TestTheFixedStepDoesNotAllocate();
     TestABodyUnderASkewedOrMirroredParentKeepsItsRotation();
