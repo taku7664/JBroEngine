@@ -463,6 +463,29 @@ namespace
         collider->isTrigger = true;
         scene.Run(0.2f);
         Check(probe->collisionExit == 1 && probe->triggerEnter == 1, "turning it into a trigger ends the collision");
+
+        // 모양이 틀린 외곽선이 되면 도형이 없어지고 닿아 있던 것은 끝난다. 레이어를 바꿔 걸러도 끝난다(제자리에서 바꾼 표면).
+        JBro::GameObject* second = scene.Object("second", { 5, 0.5f });
+        Collider2D* outline = scene.Box(second, { 1, 1 });
+        outline->shape = ColliderShape2D::Polygon;
+        outline->points = { { -0.5f, -0.5f }, { 0.5f, -0.5f }, { 0.5f, 0.5f }, { -0.5f, 0.5f } };
+        scene.Dynamic(second);
+        ContactProbe* secondProbe = scene.Probe(second);
+        JBro::GameObject* third = scene.Object("third", { -5, 0.5f });
+        Collider2D* layered = scene.Box(third, { 1, 1 });
+        scene.Dynamic(third);
+        ContactProbe* thirdProbe = scene.Probe(third);
+        scene.Run(0.5f);
+        Check(secondProbe->collisionEnter == 1 && thirdProbe->collisionEnter == 1, "two more boxes land");
+        const std::size_t shapes = scene.physics.GetShapeCount();
+        outline->points = { { 0, 0 }, { 1, 1 }, { 1, 0 }, { 0, 1 } };
+        scene.physics.FixedUpdate(scene.canvas, Frame);
+        Check(scene.physics.GetShapeCount() == shapes - 1 && secondProbe->collisionExit == 1,
+            "a collider bent into a bow tie loses its shape and its contact");
+        scene.canvas.FindComponentRaw<Collider2D>(ground)->mask = 0x1u;
+        layered->layer = 0x2u;
+        scene.Run(0.1f);
+        Check(thirdProbe->collisionExit == 1, "and one moved to a layer the ground does not take lets go");
     }
 
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인

@@ -521,11 +521,15 @@ namespace
     void TestReshapingKeepsTheContact()
     {
         World world;
-        AddGround(world);
+        // 바닥은 레이어 1 만 받는다. 뒤에서 상자의 레이어만 바꿔 거른다.
+        ShapeDef groundDef;
+        groundDef.mask = 0x1u;
+        AddGround(world, groundDef);
         const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
         const ShapeId shape = AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         Run(world, 0.5f);
         Check(world.GetBeginEvents().IsEmpty() && world.GetEndEvents().IsEmpty(), "the box has settled");
+        const float squareInertia = world.GetMassData(box).inertia;
 
         int begins = 0;
         int ends = 0;
@@ -539,6 +543,9 @@ namespace
             ends += static_cast<int>(world.GetEndEvents().Size());
         }
         Check(world.IsValid(shape) && begins == 0 && ends == 0, "growing and shrinking it in place never ends the contact");
+        Check(world.SetPolygonGeometry(shape, BoxOutline(1.0f, 0.5f).View()) == JBro::Physics2D::PolygonError::None
+            && Near(world.GetMassData(box).inertia, squareInertia * (4.0f + 1.0f) / (1.0f + 1.0f), 1.0e-4f),
+            "a reshaped box turns with the inertia of its new shape: m(w^2 + h^2)/12");
         Check(Near(world.GetPosition(box).y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "and it stays on the ground");
 
         const Array<Vec2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
@@ -553,7 +560,6 @@ namespace
 
         ShapeDef apart;
         apart.layer = 0x2u;
-        apart.mask = 0x2u;
         world.SetSurface(shape, apart);
         world.Step(Frame);
         Check(world.GetEndEvents().Size() == 1, "filtering it out by layer ends the contact");
