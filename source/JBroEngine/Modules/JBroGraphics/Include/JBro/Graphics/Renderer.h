@@ -30,6 +30,8 @@ namespace JBro
         std::uint32_t maxViews = 8;
         std::uint32_t maxSpriteSubmissions = 65536;
         std::uint32_t maxMeshSubmissions = 16384;
+        // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-218).
+        std::uint32_t maxWorldTextSubmissions = 16384;
         bool validation = false;
     };
 
@@ -141,6 +143,22 @@ namespace JBro
         float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     };
 
+    // **월드 텍스트**(D-218). 3D 뷰에 놓는 글자 사각형 하나다. 스프라이트와 같은 단위 쿼드(-0.5..0.5)를 `world`(행 우선 4x4, 열 벡터)로
+    // 월드에 놓으므로 어느 방향이든 향한다. 렌더러는 그 뷰의 **메시 뒤에** 깊이를 보되 쓰지 않고 알파로 그린다 - 메시에 가려지고,
+    // 글자끼리는 가리지 않는다. 겹치는 반투명 글자의 뒤→앞 정렬은 프레임워크가 제출 전에 한다(D-53). 텍스처는 `RegisterTexture` 의 것이다.
+    struct WorldTextSubmit
+    {
+        Matrix4x4 world;
+        AssetHandle texture;
+        float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+        float uvRect[4] = {0.0f, 0.0f, 1.0f, 1.0f};
+        SpriteFilter filter = SpriteFilter::Linear;
+        // 참이면 텍스처 알파를 거리장으로 읽고 채우기와 외곽선을 한 번에 합성한다(`SpriteShading::SdfText` 와 같은 셈).
+        bool sdf = false;
+        std::uint16_t outlineEdge = 32768;
+        std::uint8_t outlineColor[4] = {0, 0, 0, 0};
+    };
+
     // 렌더러가 GPU 에 올리는 메시 정점이다. 위치와 법선만 있다 - 재질이 생기면 UV 가 붙는다
     // (framework3d-plan §2.4). 셰이더 ABI 라 크기와 자리를 아래에서 단언한다.
     struct MeshVertex
@@ -159,6 +177,8 @@ namespace JBro
         std::uint32_t skippedViewCount = 0;
         std::uint32_t droppedSpriteCount = 0;
         std::uint32_t droppedMeshCount = 0;
+        std::uint32_t worldTextCount = 0;
+        std::uint32_t droppedWorldTextCount = 0;
         // 유효하지 않은(빈 것이 아니라 죽은) 텍스처 핸들을 든 스프라이트다. 흰색으로 그리고 센다.
         std::uint32_t staleTextureSpriteCount = 0;
     };
@@ -183,6 +203,8 @@ namespace JBro
         bool SubmitSprites(JArrayView<SpriteSubmit> items);
         bool SubmitMesh(const MeshSubmit& item);
         bool SubmitMeshes(JArrayView<MeshSubmit> items);
+        bool SubmitWorldText(const WorldTextSubmit& item);
+        bool SubmitWorldTexts(JArrayView<WorldTextSubmit> items);
 
         // 메시 지오메트리를 GPU 에 올리고 `MeshSubmit::mesh` 에 넣을 핸들을 준다. 프레임 밖에서만
         // 부른다. 빈 배열·너무 큰 배열·프레임 안이면 빈 핸들이다.
@@ -264,6 +286,11 @@ namespace JBro
             // 이 뷰의 스프라이트 드로우 묶음(`m_spriteRuns`). 텍스처·샘플러가 같은 연속 구간 하나가 묶음 하나다.
             std::uint32_t spriteRunOffset = 0;
             std::uint32_t spriteRunCount = 0;
+            // 이 뷰의 월드 텍스트(`m_worldTexts`)와 그 드로우 묶음(`m_worldTextRuns`). 묶음은 텍스처·샘플러가 같은 연속 구간이다.
+            std::uint32_t worldTextOffset = 0;
+            std::uint32_t worldTextCount = 0;
+            std::uint32_t worldTextRunOffset = 0;
+            std::uint32_t worldTextRunCount = 0;
         };
 
         // 같은 텍스처와 샘플러로 그리는 스프라이트의 연속 구간이다(D-113). 순서는 제출 순서 그대로다 - 정렬은
@@ -341,6 +368,22 @@ namespace JBro
         static_assert(sizeof(GpuMeshInstance) == 80, "mesh instance stride is part of the shader ABI");
         static_assert(offsetof(GpuMeshInstance, tint) == 64, "attribute 6 reads the tint from offset 64");
 
+        // 월드 텍스트 인스턴스다. `BuiltinWorldText.hlsl` 의 ATTRIBUTE1..8 이 읽는다. 월드는 메시처럼 행 넷이다.
+        struct GpuWorldTextInstance
+        {
+            Matrix4x4 world;
+            std::uint8_t fill[4] = {255, 255, 255, 255};
+            std::uint16_t uvRect[4] = {0, 0, 65535, 65535};
+            std::uint8_t outline[4] = {0, 0, 0, 0};
+            // x 는 외곽선이 끝나는 거리값, y 는 거리장이면 65535(셰이더에서 1)다.
+            std::uint16_t params[4] = {32768, 0, 0, 0};
+        };
+        static_assert(sizeof(GpuWorldTextInstance) == 88, "world text instance stride is part of the shader ABI");
+        static_assert(offsetof(GpuWorldTextInstance, fill) == 64, "world text attribute 5 reads the fill colour from offset 64");
+        static_assert(offsetof(GpuWorldTextInstance, uvRect) == 68, "world text attribute 6 reads the uv rectangle from offset 68");
+        static_assert(offsetof(GpuWorldTextInstance, outline) == 76, "world text attribute 7 reads the outline colour from offset 76");
+        static_assert(offsetof(GpuWorldTextInstance, params) == 80, "world text attribute 8 reads the params from offset 80");
+
         // 올라간 메시 하나. 핸들의 index 가 이 배열의 자리고 generation 이 재사용을 가른다.
         struct MeshResource
         {
@@ -376,6 +419,9 @@ namespace JBro
         bool CreateBuiltinMeshResources();
         void DestroyBuiltinMeshResources();
         bool UploadMeshInstances();
+        bool CreateBuiltinWorldTextResources();
+        void DestroyBuiltinWorldTextResources();
+        bool UploadWorldTextInstances();
         void DestroyMeshResources();
         // `extent` 크기의 깊이 텍스처를 준다. 백버퍼용과 프레임 타깃용을 따로 든다.
         bool AcquireDepthTarget(const Extent2D& extent, bool forTexture, TextureHandle& depth);
@@ -397,6 +443,12 @@ namespace JBro
         Array<ViewPacket> m_views;
         Array<SpriteSubmit> m_sprites;
         Array<MeshSubmit> m_meshes;
+        Array<WorldTextSubmit> m_worldTexts;
+        Array<GpuWorldTextInstance> m_gpuWorldTextInstances;
+        Array<SpriteRun> m_worldTextRuns;
+        std::size_t m_gpuWorldTextCount = 0;
+        BufferHandle m_worldTextInstanceBuffers[MaxFrameSlots];
+        GraphicsPipelineHandle m_worldTextPipeline;
         // 인스턴스 배열은 초기화 때 상한 크기로 한 번 잡고 프레임마다 앞에서부터 채운다 - `Resize` 는 매 프레임
         // 값 초기화(memset)를 하고, 그 비용이 자료를 옮기는 것보다 컸다(D-110 리뷰).
         Array<GpuSpriteInstance> m_gpuSpriteInstances;

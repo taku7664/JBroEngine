@@ -331,6 +331,125 @@ namespace
     }
 }
 
+namespace
+{
+    // **월드 텍스트는 메시에 가려지고 어느 방향이든 향한다**(D-218). 카메라(z=3, 세로 60도, 가로세로 1)는 96 x 64 타깃을 본다.
+    // - 붉은 상자(원점, 크기 1) 뒤의 큰 초록 판(z=-1, 3 x 3)은 상자 자리에서 가려지고 상자 위쪽에서만 보인다.
+    // - 상자 앞의 작은 파랑 판(z=1.5, 0.3)은 상자 위에 그려진다. Y 로 60 도 돌리면 가로가 절반이다 - 2D 아핀으로는 못 하는 방향이다.
+    // - SDF 판 둘: 거리값 1 은 채우기 색, 0.25 는 외곽선(문턱 0.1) 색이다.
+    // - 메시가 없는 뷰에도 깊이가 달려 파랑 판이 그려진다.
+    template <typename TModule>
+    void TestWorldTextHidesBehindMeshesAndFacesAnyWay()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; world text not verified" << std::endl;
+            return;
+        }
+        JBro::MeshLibrary library;
+        Check(library.Initialize(&stage.renderer), "the mesh library must upload its cube");
+        const std::byte solid[4] = {std::byte{255}, std::byte{255}, std::byte{255}, std::byte{255}};
+        const std::byte quarter[4] = {std::byte{255}, std::byte{255}, std::byte{255}, std::byte{64}};
+        const JBro::AssetHandle inside = stage.renderer.RegisterTexture({1, 1}, {solid, 4});
+        const JBro::AssetHandle outside = stage.renderer.RegisterTexture({1, 1}, {quarter, 4});
+        Check(inside.generation != 0 && outside.generation != 0, "the distance textures register");
+
+        JBro::CameraParams camera;
+        camera.view = JBro::MakeViewMatrix({0.0f, 0.0f, 3.0f}, {});
+        Check(JBro::MakePerspectiveMatrix(60.0f * 3.14159265f / 180.0f, 1.0f, 0.1f, 100.0f, camera.projection),
+            "the perspective matrix must build");
+        camera.viewport.width = static_cast<float>(TargetWidth);
+        camera.viewport.height = static_cast<float>(TargetHeight);
+        camera.clearColor[3] = 1.0f;
+
+        JBro::MeshSubmit cube;
+        cube.mesh = library.Resolve(JBro::MeshLibrary::BuiltinCubeId());
+        cube.tint[1] = 0.0f;
+        cube.tint[2] = 0.0f;
+        const auto quad = [](const JBro::Vec3& position, float size, const JBro::Quaternion& rotation, float r, float g, float b) {
+            JBro::WorldTextSubmit text;
+            text.world = JBro::MakeTransformMatrix3D(position, rotation, {size, size, 1.0f});
+            text.tint[0] = r;
+            text.tint[1] = g;
+            text.tint[2] = b;
+            return text;
+        };
+        const JBro::WorldTextSubmit behind = quad({0.0f, 0.0f, -1.0f}, 3.0f, {}, 0.0f, 1.0f, 0.0f);
+        const JBro::WorldTextSubmit front = quad({0.0f, 0.0f, 1.5f}, 0.3f, {}, 0.0f, 0.0f, 1.0f);
+        const float half = 30.0f * 3.14159265f / 180.0f;
+        JBro::Quaternion turned;
+        turned.y = std::sin(half);
+        turned.w = std::cos(half);
+        const JBro::WorldTextSubmit turnedFront = quad({0.0f, 0.0f, 1.5f}, 0.3f, turned, 0.0f, 0.0f, 1.0f);
+        JBro::WorldTextSubmit fill = quad({-0.6f, 0.0f, 1.5f}, 0.2f, {}, 1.0f, 1.0f, 0.0f);
+        fill.texture = inside;
+        fill.sdf = true;
+        fill.outlineEdge = static_cast<std::uint16_t>(0.1f * 65535.0f);
+        fill.outlineColor[0] = 255;
+        fill.outlineColor[2] = 255;
+        fill.outlineColor[3] = 255;
+        JBro::WorldTextSubmit outline = fill;
+        outline.world = JBro::MakeTransformMatrix3D({0.6f, 0.0f, 1.5f}, {}, {0.2f, 0.2f, 1.0f});
+        outline.texture = outside;
+
+        JBro::Array<std::byte> image;
+        image.Resize(TargetWidth * TargetHeight * 4);
+        JBro::TextureReadback readback;
+        const auto draw = [&](bool withCube, JBro::JArrayView<JBro::WorldTextSubmit> texts) {
+            JBro::FrameTarget frameTarget;
+            frameTarget.texture = stage.target;
+            frameTarget.extent = {TargetWidth, TargetHeight};
+            Check(stage.renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
+            Check(stage.renderer.BeginView(camera), "the view must open");
+            if (withCube)
+            {
+                Check(stage.renderer.SubmitMesh(cube), "the cube must submit");
+            }
+            Check(stage.renderer.SubmitWorldTexts(texts), "the world texts must submit");
+            Check(stage.renderer.EndView(), "the view must close");
+            Check(stage.renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must record and present");
+            Check(stage.renderer.GetDevice()->ReadTexture(stage.target, image.Data(), image.Size(), readback),
+                "the target must read back");
+        };
+
+        const JBro::WorldTextSubmit scene[] = {behind, front, fill, outline};
+        draw(true, {scene, 4});
+        Check(stage.renderer.GetLastFrameStats().worldTextCount == 4, "four world texts are recorded");
+        const Pixel center = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(center.b > 0.9f && center.r < 0.05f, "the blue plate in front of the cube draws over it");
+        const Pixel onCube = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 11, TargetHeight / 2);
+        Check(onCube.r > 0.2f && onCube.g < 0.05f && onCube.b < 0.05f, "beside it the cube hides the green plate behind");
+        const Pixel aboveCube = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2 - 16);
+        Check(aboveCube.g > 0.9f && aboveCube.r < 0.05f, "above the cube the green plate shows");
+        const Pixel nearBlueEdge = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 6, TargetHeight / 2);
+        Check(nearBlueEdge.b > 0.9f, "the square plate is blue six pixels right of the middle");
+        const Pixel fillPixel = ReadPixel(image, readback.rowPitch, TargetWidth / 2 - 33, TargetHeight / 2);
+        Check(fillPixel.r > 0.9f && fillPixel.g > 0.9f && fillPixel.b < 0.05f, "a distance of 1 is the fill colour");
+        const Pixel outlinePixel = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 33, TargetHeight / 2);
+        Check(outlinePixel.r > 0.9f && outlinePixel.g < 0.05f && outlinePixel.b > 0.9f, "a distance of 0.25 is the outline colour");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "the debug layer accepts the world text pass");
+
+        const JBro::WorldTextSubmit turnedScene[] = {behind, turnedFront};
+        draw(true, {turnedScene, 2});
+        const Pixel turnedEdge = ReadPixel(image, readback.rowPitch, TargetWidth / 2 + 6, TargetHeight / 2);
+        Check(turnedEdge.r > 0.2f && turnedEdge.b < 0.05f, "turned 60 degrees about Y the plate is narrower and the cube shows there");
+        const Pixel turnedCenter = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(turnedCenter.b > 0.9f, "and it still covers the middle");
+
+        // 메시 없이 글자만 있는 뷰도 깊이 패스다.
+        draw(false, {&front, 1});
+        const Pixel alone = ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        Check(alone.b > 0.9f, "a view with only world text draws it");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the text-only depth pass is valid");
+
+        stage.renderer.UnregisterTexture(inside);
+        stage.renderer.UnregisterTexture(outside);
+        library.Shutdown();
+        stage.Close();
+    }
+}
+
 int RunMeshPixelTests()
 {
     TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>();
@@ -342,6 +461,9 @@ int RunMeshPixelTests()
     TestSpritesLayOverMeshesInTheSameView<JBro::D3D12RHIModule>();
     TestSpritesLayOverMeshesInTheSameView<JBro::D3D11RHIModule>();
     TestSpritesLayOverMeshesInTheSameView<JBro::VulkanRHIModule>();
+    TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::D3D12RHIModule>();
+    TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::D3D11RHIModule>();
+    TestWorldTextHidesBehindMeshesAndFacesAnyWay<JBro::VulkanRHIModule>();
     std::cout << "Mesh pixel tests passed.\n";
     return 0;
 }
