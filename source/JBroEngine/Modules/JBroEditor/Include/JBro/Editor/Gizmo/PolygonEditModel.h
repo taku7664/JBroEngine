@@ -35,14 +35,23 @@ namespace JBro::PolygonEditModel
 
     // 화면에 그려진 버텍스(`screen`, 고리)에서 마우스가 가리키는 것. **버텍스가 변보다 먼저다** - 버텍스 바로 옆은
     // 두 변에도 가까워, 변을 먼저 보면 버텍스를 잡으려다 새 버텍스를 만든다.
-    Hit Pick(ArrayView<const Vec2> screen, Vec2 mouse);
+    // closed 가 거짓이면(열린 체인) 마지막에서 처음으로 가는 변은 없다.
+    Hit Pick(ArrayView<const Vec2> screen, Vec2 mouse, bool closed = true);
 
     // 편집이 시작할 꼭짓점. `points` 가 비었으면 `size` 상자의 네 모서리다(offset 은 빼고) - 물리와 캔버스 뷰가
-    // 빈 폴리곤을 그 상자로 다루므로(physics-plan §4 의 5), 첫 편집이 보이는 모양에서 이어진다.
+    // 빈 폴리곤을 그 상자로 다루므로(physics-plan §4 의 5), 첫 편집이 보이는 모양에서 이어진다. 빈 체인은 `size.x` 폭의
+    // 가로 선분 두 점이다(D-228, 물리와 같다).
     void SeedPoints(const Component::Collider2D& collider, Array<Vec2>& out);
 
     // `edge` 번 변(그 버텍스와 다음 버텍스 사이)에 `point` 를 넣는다. 변 번호가 없으면 거짓이다.
     bool InsertOnEdge(Array<Vec2>& points, std::uint32_t edge, Vec2 point);
     // `index` 번 버텍스를 뺀다. 남는 것이 `MinVertexCount` 보다 적어지면 거짓이고 바꾸지 않는다.
-    bool RemoveVertex(Array<Vec2>& points, std::uint32_t index);
+    bool RemoveVertex(Array<Vec2>& points, std::uint32_t index, std::uint32_t minimum = MinVertexCount);
+
+    // 포인트로 모양을 정하는 콜라이더인가(Polygon·Chain, D-228).
+    bool EditsPoints(const Component::Collider2D& collider);
+    // 외곽선이 닫혀 있는가. 열린 체인만 거짓이다.
+    bool IsClosedOutline(const Component::Collider2D& collider);
+    // 지우기가 멈추는 포인트 수: 폴리곤과 닫힌 체인은 셋, 열린 체인은 둘이다.
+    std::uint32_t MinPointCount(const Component::Collider2D& collider);
 }

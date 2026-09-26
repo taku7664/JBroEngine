@@ -859,6 +859,104 @@ namespace
         Check(fallSpeed < -3.0f && riseSpeed > 0.9f * -fallSpeed,
             "a ball locked in x bounces off a 45 degree slope as fast as it fell");
     }
+
+    // **체인 바닥에서는 미끄러지는 상자가 걸리지 않는다(D-228).** 1 유닛 선분 40 개를 이은 마찰 없는 바닥에서 5 m/s 로 민 상자가 2 초 뒤에도
+    // 같은 속력이고 튀지 않는다.
+    void TestABoxSlidesAcrossAChainWithoutSnagging()
+    {
+        World world;
+        world.Settings().enableSleep = false;
+        const BodyId ground = AddBody(world, BodyType::Static, { 0, 0 });
+        Array<Vec2> points;
+        for (int i = 0; i <= 40; ++i)
+        {
+            points.Add({ -20.0f + static_cast<float>(i), 0.0f });
+        }
+        ShapeDef slippery;
+        slippery.friction = 0.0f;
+        const ShapeId chain = world.CreateChainShape(ground, points.View(), false, slippery);
+        Check(world.IsValid(chain) && world.GetChildCount(chain) == 40, "the chain is forty segments");
+        const BodyId box = AddBody(world, BodyType::Dynamic, { -15, 0.5f });
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f), slippery);
+        Run(world, 0.3f);
+        world.SetLinearVelocity(box, { 5, 0 });
+        float lowest = 10.0f;
+        float highest = -10.0f;
+        for (int i = 0; i < 120; ++i)
+        {
+            world.Step(Frame);
+            lowest = std::fmin(lowest, world.GetLinearVelocity(box).x);
+            highest = std::fmax(highest, std::fabs(world.GetLinearVelocity(box).y));
+        }
+        Check(lowest > 4.95f, "the box keeps its speed across every seam");
+        Check(highest < 0.05f, "and never hops");
+        const Array<Vec2> tooFew = { { 0, 0 } };
+        Check(false == world.IsValid(world.CreateChainShape(ground, tooFew.View(), false, {})), "one point is no chain");
+    }
+
+    // **수면(D-228).** 서 있는 상자는 0.5 초쯤 뒤 잠들고, 충격량·다른 몸의 충돌·바닥을 옮기기로 깬다. 잠들 수 없는 몸은 깨어 있다.
+    void TestBodiesFallAsleepAndWake()
+    {
+        World world;
+        const BodyId ground = AddGround(world);
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        BodyDef restless;
+        restless.canSleep = false;
+        const BodyId awake = world.CreateBody(restless);
+        world.SetTransform(awake, { 5, 0.5f }, 0.0f);
+        AddPolygon(world, awake, BoxOutline(0.5f, 0.5f));
+        Run(world, 0.2f);
+        Check(world.IsAwake(box), "a box that just landed is awake");
+        Run(world, 1.5f);
+        Check(false == world.IsAwake(box) && world.IsAwake(awake), "after resting it sleeps, but not one that cannot");
+        Check(world.GetLastStepStats().sleepingBodies == 1 && world.GetLastStepStats().awakeBodies == 1, "the stats count them");
+        const Vec2 asleep = world.GetPosition(box);
+        Run(world, 1.0f);
+        Check(world.GetPosition(box).x == asleep.x && world.GetPosition(box).y == asleep.y, "a sleeping body does not move at all");
+
+        world.ApplyLinearImpulseToCenter(box, { 0, 3 });
+        Check(world.IsAwake(box), "an impulse wakes it");
+        Run(world, 2.5f);
+        Check(false == world.IsAwake(box), "and it sleeps again once it has landed");
+
+        // 위에서 떨어진 상자가 잠든 상자를 깨운다.
+        const BodyId dropped = AddBody(world, BodyType::Dynamic, { 0, 4 });
+        AddPolygon(world, dropped, BoxOutline(0.5f, 0.5f));
+        bool wokeByTouch = false;
+        for (int i = 0; i < 90; ++i)
+        {
+            world.Step(Frame);
+            wokeByTouch = wokeByTouch || world.IsAwake(box);
+        }
+        Check(wokeByTouch, "a box landing on it wakes it");
+        Run(world, 2.0f);
+        Check(false == world.IsAwake(box) && false == world.IsAwake(dropped), "and the two sleep together once still");
+
+        // 바닥을 내리면 잠든 몸이 깨어 떨어진다.
+        world.SetTransform(ground, { 0, -3.5f }, 0.0f);
+        Run(world, 1.5f);
+        Check(world.GetPosition(box).y < -2.0f, "moving the floor away wakes them and they fall");
+    }
+
+    // **잠든 더미는 풀지 않는다(D-228).** 10 층 상자 더미가 잠들면 스텝마다 풀 접촉이 없고 자리를 지킨다.
+    void TestAStackSleeps()
+    {
+        World world;
+        AddGround(world);
+        Array<BodyId> boxes;
+        for (int i = 0; i < 10; ++i)
+        {
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f + static_cast<float>(i) });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            boxes.Add(box);
+        }
+        Run(world, 5.0f);
+        Check(world.GetLastStepStats().sleepingBodies == 10, "the whole stack falls asleep");
+        const float top = world.GetPosition(boxes[9]).y;
+        Run(world, 2.0f);
+        Check(world.GetPosition(boxes[9]).y == top, "and stays exactly where it slept");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -887,6 +985,9 @@ int RunPhysics2DWorldTests()
     TestAxisLocks();
     TestBodyPropertiesChangeInPlace();
     TestALockedBodyBouncesWithItsRealMass();
+    TestABoxSlidesAcrossAChainWithoutSnagging();
+    TestBodiesFallAsleepAndWake();
+    TestAStackSleeps();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

@@ -116,6 +116,23 @@ namespace JBro::System
                 { collider.size.x * 0.5f * scale.x, collider.size.y * 0.5f * scale.y });
         }
 
+        // 체인의 점들(D-228). 포인트가 없으면 `size.x` 폭의 가로 선분이다.
+        void BakeChain(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
+        {
+            outline.Clear();
+            if (collider.points.IsEmpty())
+            {
+                const float half = collider.size.x * 0.5f;
+                outline.Add(Bake({ -half, 0.0f }, collider.offset, scale));
+                outline.Add(Bake({ half, 0.0f }, collider.offset, scale));
+                return;
+            }
+            for (const Vec2& point : collider.points)
+            {
+                outline.Add(Bake(point, collider.offset, scale));
+            }
+        }
+
         void BakeOutline(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
         {
             outline.Clear();
@@ -147,6 +164,11 @@ namespace JBro::System
                 const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, scale);
                 return world.SetCapsuleGeometry(shape, capsule.points[0], capsule.points[1], capsule.radius);
             }
+            if (collider.shape == Component::ColliderShape2D::Chain)
+            {
+                BakeChain(collider, scale, outline);
+                return world.SetChainGeometry(shape, outline.View(), collider.loop);
+            }
             if (collider.shape == Component::ColliderShape2D::Box)
             {
                 Vec2 corners[4];
@@ -176,7 +198,7 @@ namespace JBro::System
             print.Mix(collider.size);
             print.Mix(collider.radius);
             print.Mix(scale);
-            const std::uint8_t trigger = collider.isTrigger ? 1 : 0;
+            const std::uint8_t trigger = static_cast<std::uint8_t>((collider.isTrigger ? 1 : 0) | (collider.loop ? 2 : 0));
             print.Mix(&trigger, sizeof(trigger));
             print.Mix(collider.friction);
             print.Mix(collider.restitution);
@@ -203,7 +225,7 @@ namespace JBro::System
             print.Mix(body->linearDamping);
             print.Mix(body->angularDamping);
             const std::uint8_t flags = static_cast<std::uint8_t>((body->fixedRotation ? 1 : 0)
-                | (body->freezePositionX ? 2 : 0) | (body->freezePositionY ? 4 : 0));
+                | (body->freezePositionX ? 2 : 0) | (body->freezePositionY ? 4 : 0) | (body->canSleep ? 8 : 0));
             print.Mix(&flags, sizeof(flags));
             return print.value;
         }
@@ -265,6 +287,8 @@ namespace JBro::System
         // 질의용 폴리곤 조각. 질의는 지금의 컴포넌트를 보지만 분해는 꼭짓점이 바뀔 때 한 번만 한다.
         Table<InstanceId, PieceCache> pieces;
         Array<Vec2>                   outline;
+        // 질의가 체인 점을 굽는 자리. 동기화의 outline 과 따로 둔다 - 질의는 스텝 밖에서도 불린다.
+        Array<Vec2>                   queryOutline;
         Physics2D::DecomposeScratch   decompose;
 
         // 오브젝트의 컴포넌트 중 스크립트를 가려내는 표(주소 정렬). ScriptSystem 과 같은 방식이고, 실행 순서 판번호가
@@ -427,6 +451,23 @@ namespace JBro::System
                 }
                 shape.polygon = &capsule;
                 visit(shape);
+                return;
+            }
+            if (collider.shape == Component::ColliderShape2D::Chain)
+            {
+                // 선분마다 두께 없는 두 점 조각으로 본다. 질의는 두 면 모두에서 맞는다.
+                BakeChain(collider, objectPose.scale, state.queryOutline);
+                const std::size_t count = state.queryOutline.Size();
+                const std::size_t segments = collider.loop && count > 2 ? count : (count > 0 ? count - 1 : 0);
+                for (std::size_t i = 0; i < segments; ++i)
+                {
+                    Physics2D::ConvexPolygon segment;
+                    segment.points[0] = state.queryOutline[i];
+                    segment.points[1] = state.queryOutline[(i + 1) % count];
+                    segment.count = 2;
+                    shape.polygon = &segment;
+                    visit(shape);
+                }
                 return;
             }
             for (const Physics2D::ConvexPolygon& piece : state.PiecesFor(collider, objectPose.scale))
@@ -789,6 +830,7 @@ namespace JBro::System
                     def.fixedRotation = rigidbody->fixedRotation;
                     def.freezePositionX = rigidbody->freezePositionX;
                     def.freezePositionY = rigidbody->freezePositionY;
+                    def.canSleep = rigidbody->canSleep;
                 }
                 def.userData = object->GetInstanceId();
 
@@ -846,6 +888,7 @@ namespace JBro::System
                 properties.fixedRotation = rigidbody->fixedRotation;
                 properties.freezePositionX = rigidbody->freezePositionX;
                 properties.freezePositionY = rigidbody->freezePositionY;
+                properties.canSleep = rigidbody->canSleep;
                 world.SetBodyProperties(link->body, properties);
                 link->parameters = parameters;
             }
@@ -877,6 +920,10 @@ namespace JBro::System
                 if (angularImpulse != 0.0f)
                 {
                     world.ApplyAngularImpulse(link->body, angularImpulse);
+                }
+                if (pending.wake)
+                {
+                    world.SetAwake(link->body, true);
                 }
             }
 
@@ -967,6 +1014,11 @@ namespace JBro::System
                 const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, pose.scale);
                 fresh.shape = world.CreateCapsuleShape(
                     body->body, capsule.points[0], capsule.points[1], capsule.radius, def);
+            }
+            else if (collider.shape == Component::ColliderShape2D::Chain)
+            {
+                BakeChain(collider, pose.scale, state.outline);
+                fresh.shape = world.CreateChainShape(body->body, state.outline.View(), collider.loop, def);
             }
             else
             {
@@ -1068,6 +1120,7 @@ namespace JBro::System
             link.writtenRotation = localRotation;
             if (link.rigidbodyComponent != nullptr)
             {
+                link.rigidbodyComponent->m_sleeping = false == world.IsAwake(link.body);
                 link.rigidbodyComponent->linearVelocity = world.GetLinearVelocity(link.body);
                 link.rigidbodyComponent->angularVelocity = world.GetAngularVelocity(link.body);
                 link.writtenVelocity = link.rigidbodyComponent->linearVelocity;

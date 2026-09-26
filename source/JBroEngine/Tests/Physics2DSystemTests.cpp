@@ -701,6 +701,42 @@ namespace
         Check(probe->collisionEnter == 1 && probe->collisionExit == 0, "changing its mass and damping keeps the one contact");
     }
 
+    // **체인 콜라이더와 수면 API(D-228).** 체인 바닥에 떨어진 상자가 서서 잠들고, 레이가 체인에 맞으며, WakeUp 으로 깬다.
+    void TestChainCollidersAndSleep()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, 0 });
+        Collider2D* chain = scene.canvas.AttachComponent<Collider2D>(ground);
+        chain->shape = ColliderShape2D::Chain;
+        chain->points = { { -10, 0 }, { -2, 0 }, { 2, 0 }, { 10, 0 } };
+        JBro::GameObject* box = scene.Object("box", { 0, 3 });
+        scene.Box(box, { 1, 1 });
+        Rigidbody2D* body = scene.Dynamic(box);
+        scene.Run(3.0f);
+        Check(Near(scene.TransformOf(box)->position.y, 0.5f, 2.0f * Slop), "a box lands on a chain floor");
+        Check(body->IsSleeping(), "and falls asleep on it");
+
+        JBro::RaycastHit2D hit;
+        const JBro::System::IPhysics2DSystem& queries = scene.physics;
+        Check(queries.Raycast({ 6, 5 }, { 0, -1 }, 10, hit, JBro::AllPhysicsLayers)
+            && hit.other.GetInstanceId() == ground->GetInstanceId() && Near(hit.distance, 5.0f, 1.0e-4f)
+            && Near(hit.normal.y, 1.0f, 1.0e-5f), "a ray down hits the chain, its normal facing the ray");
+        Check(queries.Raycast({ 6, -5 }, { 0, 1 }, 10, hit, JBro::AllPhysicsLayers) && Near(hit.normal.y, -1.0f, 1.0e-5f),
+            "and from below too, both faces answer");
+
+        body->WakeUp();
+        scene.physics.FixedUpdate(scene.canvas, Frame);
+        Check(false == body->IsSleeping(), "WakeUp wakes it on the next fixed step");
+        body->canSleep = false;
+        scene.Run(2.0f);
+        Check(false == body->IsSleeping(), "and one that may not sleep stays awake");
+
+        chain->loop = true;
+        scene.Run(0.1f);
+        Check(scene.physics.GetShapeCount() == 2, "looping the chain reshapes it in place");
+        Check(JBro::CountPhysicsWork(scene.canvas) == 1 + 4, "a looped chain of four points is four segments of work");
+    }
+
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
     // 것도 캡슐로 남고, 질의는 둥근 끝 옆의 빈 곳을 캡슐로 보지 않는다.
     void TestCapsuleColliders()
@@ -833,6 +869,7 @@ int RunPhysics2DSystemTests()
     TestCountingPhysicsWork();
     TestRigidbodyForcesLocksAndDamping();
     TestChangingTheMassKeepsTheContact();
+    TestChainCollidersAndSleep();
     TestAnAnimatedColliderKeepsItsContact();
     TestTheFixedStepDoesNotAllocate();
     TestABodyUnderASkewedOrMirroredParentKeepsItsRotation();

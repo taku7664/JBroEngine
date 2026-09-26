@@ -46,6 +46,7 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";
     inline constexpr const char* CanvasViewPointDelete = "canvas_view.point_delete";
     inline constexpr const char* CanvasViewPointDeleteMin = "canvas_view.point_delete_min";
+    inline constexpr const char* CanvasViewPointDeleteMinChain = "canvas_view.point_delete_min_chain";
     inline constexpr const char* CanvasViewEditPoints = "canvas_view.edit_points";
     inline constexpr const char* CanvasViewEditPointsNotPolygon = "canvas_view.edit_points_not_polygon";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";

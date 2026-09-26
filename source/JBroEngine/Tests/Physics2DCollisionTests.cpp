@@ -668,6 +668,76 @@ namespace
         Check(JBro::Physics2D::CastPolygon(upright, At(1.6f, 0), { -1, 0 }, 10, capsule, At(0, 0), distance, normal)
             && distance == 0.0f, "one that starts touching reports zero");
     }
+
+    // **체인 선분은 이음매에서 옆으로 걸리지 않는다(D-228).** 체인 (-5,0)-(0,0)-(5,0). 상자(반폭 0.5)가 0.01 박힌 채 오른쪽 끝이 이음매를 0.005
+    // 넘었다. 이웃을 모르는 선분 (0,0)-(5,0) 은 상자의 옆면을 기준면으로 골라 가로로 민다(유령 충돌). 체인 선분은 평평한 꼭짓점이라 세로로 민다.
+    void TestChainSegmentsHaveNoGhostCollisions()
+    {
+        using JBro::Physics2D::ChainSegment;
+        ChainSegment right;
+        right.p1 = { 0, 0 };
+        right.p2 = { 5, 0 };
+        right.previous = { -5, 0 };
+        right.hasPrevious = true;
+        ChainSegment left;
+        left.p1 = { -5, 0 };
+        left.p2 = { 0, 0 };
+        left.next = { 5, 0 };
+        left.hasNext = true;
+        const ConvexPolygon box = MakeBox(0.5f, 0.5f);
+        const Pose boxPose = At(-0.495f, 0.49f);
+
+        ConvexPolygon bare;
+        bare.points[0] = right.p1;
+        bare.points[1] = right.p2;
+        bare.count = 2;
+        const Manifold ghost = JBro::Physics2D::CollidePolygons(bare, At(0, 0), box, boxPose);
+        Check(ghost.count > 0 && std::fabs(ghost.normal.x) > 0.9f, "a bare segment snags the box at the seam with a sideways normal");
+
+        const Manifold smooth = JBro::Physics2D::CollideChainSegmentAndPolygon(right, At(0, 0), box, boxPose);
+        Check(smooth.count > 0 && NearVector(smooth.normal, { 0, 1 }, 1.0e-5f)
+            && Near(smooth.points[0].separation, -0.01f, 1.0e-4f), "a chain segment pushes it straight up instead");
+        const Manifold beside = JBro::Physics2D::CollideChainSegmentAndPolygon(left, At(0, 0), box, boxPose);
+        Check(beside.count == 2 && NearVector(beside.normal, { 0, 1 }, 1.0e-5f), "and so does its neighbor, on two points");
+
+        // 원: 중심이 이음매 바로 앞(선분 범위 밖)이면 오른쪽 선분은 내놓고 왼쪽이 면으로 맡는다.
+        Circle ball;
+        ball.radius = 0.5f;
+        const Manifold ballRight = JBro::Physics2D::CollideChainSegmentAndCircle(right, At(0, 0), ball, At(-0.1f, 0.49f));
+        const Manifold ballLeft = JBro::Physics2D::CollideChainSegmentAndCircle(left, At(0, 0), ball, At(-0.1f, 0.49f));
+        Check(ballRight.count == 0 && ballLeft.count == 1 && NearVector(ballLeft.normal, { 0, 1 }, 1.0e-5f),
+            "a ball just before the seam is held up by the left segment's face alone");
+        // 체인의 끝(이웃 없음)은 모서리를 그대로 받는다.
+        ChainSegment lone = right;
+        lone.hasPrevious = false;
+        const Manifold corner = JBro::Physics2D::CollideChainSegmentAndCircle(lone, At(0, 0), ball, At(-0.3f, 0.3f));
+        Check(corner.count == 1 && corner.normal.x < -0.5f, "at a free end the ball rounds the corner");
+    }
+
+    // **볼록한 꼭짓점(D-228).** 평평한 선분 (-5,0)-(0,0) 뒤에 수직으로 내려가는 선분 (0,0)-(0,-5). 꼭짓점을 둘러싼 원은 끝으로 가진
+    // 앞 선분이 맡고(대각 법선), 뒤 선분은 그 꼭짓점을 내놓는다. 두 면 사이 밖의 법선은 버린다.
+    void TestAConvexChainCornerIsOwnedOnce()
+    {
+        using JBro::Physics2D::ChainSegment;
+        ChainSegment top;
+        top.p1 = { -5, 0 };
+        top.p2 = { 0, 0 };
+        top.next = { 0, -5 };
+        top.hasNext = true;
+        ChainSegment wall;
+        wall.p1 = { 0, 0 };
+        wall.p2 = { 0, -5 };
+        wall.previous = { -5, 0 };
+        wall.hasPrevious = true;
+        Circle ball;
+        ball.radius = 0.5f;
+        const Pose around = At(0.3f, 0.3f);
+        const Manifold byTop = JBro::Physics2D::CollideChainSegmentAndCircle(top, At(0, 0), ball, around);
+        const Manifold byWall = JBro::Physics2D::CollideChainSegmentAndCircle(wall, At(0, 0), ball, around);
+        const float d = std::sqrt(0.5f);
+        Check(byTop.count == 1 && NearVector(byTop.normal, { d, d }, 1.0e-4f), "the flat segment owns the corner, pushing along the diagonal");
+        Check(byWall.count == 0, "and the wall below lets it go, so the corner pushes once");
+    }
 }
 
 int RunPhysics2DCollisionTests()
@@ -689,6 +759,8 @@ int RunPhysics2DCollisionTests()
     TestCapsuleShapeAndMass();
     TestCapsuleContacts();
     TestCapsuleQueries();
+    TestChainSegmentsHaveNoGhostCollisions();
+    TestAConvexChainCornerIsOwnedOnce();
     std::cout << "Physics2D collision tests passed.\n";
     return 0;
 }

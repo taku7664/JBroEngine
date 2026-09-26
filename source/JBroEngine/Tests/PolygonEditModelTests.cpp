@@ -83,10 +83,38 @@ namespace
         Check(triangle.Size() == 3, "untouched");
         Check(false == JBro::PolygonEditModel::RemoveVertex(points, 9), "a point past the last is refused");
     }
+
+    // **체인의 포인트 편집(D-228).** 열린 체인은 끝과 처음 사이에 변이 없고 두 점까지 지울 수 있으며, 빈 체인은 가로 선분 두 점에서 시작한다.
+    void TestChainPointEditing()
+    {
+        JBro::Component::Collider2D chain;
+        chain.shape = JBro::Component::ColliderShape2D::Chain;
+        chain.size = { 4, 1 };
+        JBro::Array<JBro::Vec2> seeded;
+        JBro::PolygonEditModel::SeedPoints(chain, seeded);
+        Check(seeded.Size() == 2 && seeded[0].x == -2.0f && seeded[1].x == 2.0f && seeded[0].y == 0.0f, "an empty chain starts as a flat line");
+        Check(JBro::PolygonEditModel::EditsPoints(chain) && false == JBro::PolygonEditModel::IsClosedOutline(chain)
+            && JBro::PolygonEditModel::MinPointCount(chain) == 2, "an open chain edits points, open, down to two");
+        chain.loop = true;
+        Check(JBro::PolygonEditModel::IsClosedOutline(chain) && JBro::PolygonEditModel::MinPointCount(chain) == 3,
+            "a looped one is closed and keeps three");
+
+        // 화면의 세 점 (0,0) (100,0) (100,100). 닫는 변 (100,100)-(0,0) 위의 점은 열린 체인에서 변이 아니다.
+        const JBro::Vec2 screen[] = { { 0, 0 }, { 100, 0 }, { 100, 100 } };
+        const JBro::ArrayView<const JBro::Vec2> view(screen, 3);
+        Check(JBro::PolygonEditModel::Pick(view, { 50, 50 }, true).kind == JBro::PolygonEditModel::HitKind::Edge,
+            "on a closed outline the closing edge is pickable");
+        Check(JBro::PolygonEditModel::Pick(view, { 50, 50 }, false).kind == JBro::PolygonEditModel::HitKind::None,
+            "on an open chain it is not there");
+        JBro::Array<JBro::Vec2> two = { { 0, 0 }, { 1, 0 }, { 2, 0 } };
+        Check(JBro::PolygonEditModel::RemoveVertex(two, 1, 2) && two.Size() == 2, "a chain of three may lose a point");
+        Check(false == JBro::PolygonEditModel::RemoveVertex(two, 0, 2), "but not below two");
+    }
 }
 
 int RunPolygonEditModelTests()
 {
+    TestChainPointEditing();
     TestPickPrefersAVertexOverItsEdges();
     TestSeedStartsFromWhatIsDrawn();
     TestInsertAndRemove();

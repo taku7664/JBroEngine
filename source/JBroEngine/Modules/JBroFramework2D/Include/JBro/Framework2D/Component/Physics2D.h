@@ -13,7 +13,7 @@
 namespace JBro::Component
 {
     enum class BodyType2D      : std::uint8_t { Static, Kinematic, Dynamic };
-    enum class ColliderShape2D : std::uint8_t { Box, Circle, Capsule, Polygon };
+    enum class ColliderShape2D : std::uint8_t { Box, Circle, Capsule, Polygon, Chain };
 }
 
 namespace JBro
@@ -27,7 +27,13 @@ namespace JBro
         { Component::ColliderShape2D::Box,     "Box" },
         { Component::ColliderShape2D::Circle,  "Circle" },
         { Component::ColliderShape2D::Capsule, "Capsule" },
-        { Component::ColliderShape2D::Polygon, "Polygon" });
+        { Component::ColliderShape2D::Polygon, "Polygon" },
+        { Component::ColliderShape2D::Chain,   "Chain" });
+}
+
+namespace JBro::System
+{
+    class Physics2DSystem;
 }
 
 namespace JBro::Component
@@ -44,6 +50,8 @@ namespace JBro::Component
         Vec2  impulseAtPoints;
         float impulseMoment = 0.0f;
         float angularImpulse = 0.0f;
+        // 잠든 몸을 깨운다(D-228).
+        bool  wake = false;
     };
 
     class Rigidbody2D final : public ComponentBase
@@ -74,6 +82,8 @@ namespace JBro::Component
         // 축 고정(D-227). 그 축으로는 중력·힘·접촉 어느 것으로도 움직이지 않는다.
         JBRO_FIELD(bool,  freezePositionX) = false;
         JBRO_FIELD(bool,  freezePositionY) = false;
+        // 멈춰 있으면 잠들 수 있는가(D-228). 잠든 몸은 계산에서 빠지고, 닿거나 힘을 받으면 깬다.
+        JBRO_FIELD(bool,  canSleep) = true;
 
         // 힘·토크는 다음 고정 스텝 한 번 동안 가해지고, 충격량은 그 스텝이 시작할 때 속도를 바꾼다(D-227). 월드 좌표다.
         // Dynamic 이 아니면 물리가 버린다.
@@ -103,6 +113,15 @@ namespace JBro::Component
         {
             m_pending.angularImpulse += impulse;
         }
+        // 다음 고정 스텝에 깨운다. 지난 고정 스텝이 끝났을 때 잠들어 있었는가(D-228).
+        void WakeUp()
+        {
+            m_pending.wake = true;
+        }
+        bool IsSleeping() const
+        {
+            return m_sleeping;
+        }
         // 물리 시스템이 고정 스텝마다 가져가고 비운다.
         PendingForces2D TakePendingForces()
         {
@@ -112,8 +131,12 @@ namespace JBro::Component
         }
 
     private:
+        friend class System::Physics2DSystem;
+
         // 저장하지 않고 인스펙터에도 없다 - 스크립트가 쌓고 물리가 가져가는 한 스텝짜리 값이다.
         PendingForces2D m_pending;
+        // 물리 시스템이 고정 스텝마다 쓴다.
+        bool            m_sleeping = false;
     };
 
     class Collider2D final : public ComponentBase
@@ -139,6 +162,9 @@ namespace JBro::Component
         // Polygon 의 꼭짓점이다(D-199). 오브젝트 로컬이고 offset 을 더한 뒤 트랜스폼의 크기를 곱한다. 오목해도 되고
         // 감긴 방향은 상관없다 - 물리 커널이 정리해 볼록 조각으로 나눈다. 자기 교차하면 그 콜라이더는 충돌하지 않는다.
         JBRO_FIELD(Array<Vec2>, points);
+        // Chain 이 끝과 처음을 잇는가(D-228). Chain 은 points 를 이은 선분 모음이고 두께와 질량이 없으며 두 면 모두에서 부딪힌다 -
+        // 오목 폴리곤을 조각으로 나눈 바닥과 달리 이음매에서 걸리지 않는다. 포인트가 없으면 `size.x` 폭의 가로 선분이다.
+        JBRO_FIELD(bool, loop) = false;
         // 표면 성질과 충돌 거르기는 도형의 것이다(D-199 (4)). 두 도형의 마찰은 기하 평균, 반발은 큰 쪽으로 섞는다.
         JBRO_FIELD(float, friction, Range(0, 2)) = 0.6f;
         JBRO_FIELD(float, restitution, Range(0, 1)) = 0.0f;
