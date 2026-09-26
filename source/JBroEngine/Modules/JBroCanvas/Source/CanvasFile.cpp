@@ -1,4 +1,5 @@
 ﻿#include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Canvas/ScreenSpace.h>
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/ComponentRegistry.h>
@@ -151,6 +152,15 @@ namespace JBro
             writer.WriteInt("Id", static_cast<std::int64_t>(layer->GetId()));
             writer.WriteString("Name", layer->GetName());
             writer.WriteBool("Visible", layer->IsVisible());
+            // 기본값(월드·FixedHeight)이면 적지 않는다 - 화면 레이어가 없는 옛 캔버스는 저장해도 그대로다(D-233).
+            if (layer->GetSpace() != LayerSpace::World)
+            {
+                writer.WriteString("Space", LayerSpaceName(layer->GetSpace()));
+            }
+            if (layer->GetScaleMode() != ScreenScaleMode::FixedHeight)
+            {
+                writer.WriteString("ScaleMode", ScreenScaleModeName(layer->GetScaleMode()));
+            }
             writer.EndMap();
         }
         writer.EndSequence();
@@ -269,6 +279,18 @@ namespace JBro
             }
             bool visible = true;
             document.FindBool(entry, "Visible", visible);
+            LayerSpace space = LayerSpace::World;
+            ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
+            String spaceName;
+            if (document.FindScalar(entry, "Space", spaceName) && false == ParseLayerSpace(spaceName.c_str(), space))
+            {
+                return Fail(error, "a layer names a space this engine does not know");
+            }
+            String scaleName;
+            if (document.FindScalar(entry, "ScaleMode", scaleName) && false == ParseScreenScaleMode(scaleName.c_str(), scaleMode))
+            {
+                return Fail(error, "a layer names a screen scale mode this engine does not know");
+            }
 
             // 캔버스는 기본 레이어를 하나 들고 시작한다. 첫 레이어는 그것을 쓴다 —
             // 그러지 않으면 파일을 읽을 때마다 쓰지 않는 레이어가 하나씩 남는다.
@@ -283,6 +305,8 @@ namespace JBro
             }
             firstLayer = false;
             layer->SetVisible(visible);
+            layer->SetSpace(space);
+            layer->SetScaleMode(scaleMode);
             layerOf.TryAdd(static_cast<std::uint64_t>(fileId), layer->GetId());
         }
 

@@ -1,4 +1,5 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Profiler.h>
@@ -148,6 +149,21 @@ namespace JBro
         }
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
+        {
+            // 화면 기준을 갱신 전에 건다 - 트랜스폼이 이번 프레임의 앵커를 잰다(D-233).
+            ScreenSpaceFrame frame = m_screenSpace;
+            if ((false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f)) && m_context.renderer != nullptr)
+            {
+                const Extent2D extent = m_context.renderer->GetFrameExtent();
+                frame.targetWidth = static_cast<float>(extent.width);
+                frame.targetHeight = static_cast<float>(extent.height);
+            }
+            m_renderWorld.SetScreenSpace(frame);
+            if (System::Transform2DSystem* transforms = m_canvas->GetSystems().FindSystem<System::Transform2DSystem>())
+            {
+                transforms->SetScreenSpace(frame);
+            }
+        }
         // **입력 체인은 고정 스텝보다 먼저다**(D-214). `OnFixedUpdate` 가 폴링하는 입력에도 위 레이어의 블로킹이
         // 걸려야 한다 - 시스템 갱신 안(`ScriptSystem::OnUpdate`)에 두면 그보다 앞서 도는 고정 스텝이 막히기 전의 입력을 본다.
         // 멈춰 있으면 스크립트가 돌지 않으니 체인도 돌지 않는다. 그때 폴링은 이번 프레임 전체를 보지만 읽는 스크립트가 없다.
@@ -196,6 +212,16 @@ namespace JBro
         }
         System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>();
         return physics != nullptr ? physics->GetWorkerCount() : 0;
+    }
+
+    void Framework2D::SetScreenSpace(const ScreenSpaceFrame& frame)
+    {
+        m_screenSpace = frame;
+    }
+
+    const ScreenSpaceFrame& Framework2D::GetScreenSpace() const
+    {
+        return m_screenSpace;
     }
 
     void Framework2D::SetSimulationEnabled(bool enabled)

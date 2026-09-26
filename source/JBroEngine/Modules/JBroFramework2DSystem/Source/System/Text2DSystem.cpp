@@ -44,7 +44,7 @@ namespace JBro::System
         {
             return false;
         }
-        const float ppu = entry->block.GetPixelsPerUnit();
+        const float ppu = entry->screenSpace ? 1.0f : entry->block.GetPixelsPerUnit();
         minX /= ppu;
         minY /= ppu;
         maxX /= ppu;
@@ -131,7 +131,7 @@ namespace JBro::System
             return;
         }
         const TextBlock& block = entry.block;
-        const float ppu = block.GetPixelsPerUnit();
+        const float ppu = entry.screenSpace ? 1.0f : block.GetPixelsPerUnit();
         // 외곽선 폭(글자 픽셀)의 문턱은 글자마다다 - 리치 텍스트의 `<size>` 가 섞이면 거리장 픽셀 / 글자 픽셀이 글자마다 다르다.
         const bool outlined = block.IsSdf() && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f;
         for (const GlyphQuad& quad : block.GetQuads())
@@ -146,6 +146,8 @@ namespace JBro::System
             item.owner = owner;
             item.sourceId = text.GetInstanceId();
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
+            item.screenSpace = entry.screenSpace;
+            item.scaleMode = layer != nullptr ? layer->GetScaleMode() : ScreenScaleMode::FixedHeight;
             // 글리프 쿼드의 왼쪽 위를 오브젝트 로컬에 두고(피벗 {0, 1}), 오브젝트 월드로 옮긴다.
             Matrix3x2 local;
             local.m31 = quad.left / ppu;
@@ -227,6 +229,11 @@ namespace JBro::System
             }
             Entry& entry = m_entries.FindOrAdd(text.GetInstanceId());
             entry.lastSeenFrame = m_frame;
+            {
+                const GameObject* owner = Internal::CanvasAccess::GetOwner(text);
+                const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
+                entry.screenSpace = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
+            }
             const TextBlock::UpdateResult result = entry.block.Update(m_library, SettingsOf(text));
             if (result == TextBlock::UpdateResult::NoFont)
             {

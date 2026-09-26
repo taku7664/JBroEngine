@@ -14,16 +14,6 @@ namespace JBro
         m_blendMode = mode;
     }
 
-    Layer2D::Space Layer2D::GetSpace() const
-    {
-        return m_space;
-    }
-
-    void Layer2D::SetSpace(Space space)
-    {
-        m_space = space;
-    }
-
     float Layer2D::GetOpacity() const
     {
         return m_opacity;

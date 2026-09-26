@@ -270,7 +270,10 @@ namespace
             "        rotation: 0.75\n"
             "        scale:\n"
             "          - 1\n"
-            "          - 1\n";
+            "          - 1\n"
+            "        anchor:\n"
+            "          - 0.5\n"
+            "          - 0.5\n";
         if (text != expected)
         {
             std::cout << "written:" << std::endl << text.c_str()
@@ -871,6 +874,48 @@ namespace
         Check(false == layer->IsVisible(), "a hidden layer must come back hidden");
     }
 
+    // **화면 레이어가 파일을 오간다**(D-233). 공간과 맞춤 방식을 적고, 기본값(월드·FixedHeight)이면 적지 않는다. 앵커도 오간다.
+    void TestScreenLayersComeBack()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::Layer& ui = canvas.CreateLayer("UI");
+            ui.SetSpace(JBro::LayerSpace::Screen);
+            ui.SetScaleMode(JBro::ScreenScaleMode::Contain);
+            JBro::GameObject* object = canvas.CreateObject("Badge");
+            canvas.SetObjectLayer(object, ui.GetId());
+            canvas.AttachComponent<JBro::Component::Transform2D>(object)->anchor = {1.0f, 0.25f};
+            text = Save(canvas);
+        }
+        Check(text.find("Space: Screen") != JBro::String::npos && text.find("ScaleMode: Contain") != JBro::String::npos,
+            "a screen layer writes its space and scale mode");
+        Check(text.find("Space: World") == JBro::String::npos && text.find("ScaleMode: FixedHeight") == JBro::String::npos,
+            "a world layer and the default scale mode write nothing");
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+        JBro::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Layer* layer = object->GetLayer();
+        Check(layer != nullptr && layer->GetSpace() == JBro::LayerSpace::Screen && layer->GetScaleMode() == JBro::ScreenScaleMode::Contain,
+            "the screen layer comes back with its scale mode");
+        const auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
+        Check(transform != nullptr && transform->anchor.x == 1.0f && transform->anchor.y == 0.25f, "and the anchor with it");
+        Check(reopened.FindLayer(reopened.GetDefaultLayer())->GetSpace() == JBro::LayerSpace::World, "the default layer stays in the world");
+
+        // 모르는 공간은 추측하지 않고 거절한다.
+        JBro::String broken = text;
+        const std::size_t at = broken.find("Space: Screen");
+        broken.replace(at, 13, "Space: Overlay");
+        JBro::Canvas refused(JBro::CreateDefaultAllocator());
+        JBro::CanvasFileError error;
+        Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer space is refused");
+    }
+
     void TestTwoTypesCannotShareAName()
     {
         JBro::Component::RegisterBuiltinComponentTypes2D();
@@ -1155,6 +1200,7 @@ int RunCanvasFileTests()
     TestAnInactiveObjectDoesNotDisableItsComponents();
     TestAComponentSwitchedOffStaysOff();
     TestLayersComeBackWithoutPilingUp();
+    TestScreenLayersComeBack();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
     TestAPolygonColliderMakesTheRoundTrip();

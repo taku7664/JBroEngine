@@ -5,7 +5,9 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
+#include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/ServiceContext.h>
@@ -910,6 +912,199 @@ namespace
             Check(texts->GetLibrary().GetPageTextureCount() >= 2, "a 200 px prewarm fills more than one page");
             Check(texts->GetLibrary().GetTrimCount() == trims && texts->GetLibrary().GetPrewarmedGlyphCount(label->font) == 95 + 29,
                 "and the prewarmed pages are not counted against the page limit");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
+    // **화면 영역**(D-233). 맞춤 방식 넷이 기준 1920 x 1080 과 대상 1280 x 1024 에서 무엇을 보이는가.
+    void TestScreenExtentsFollowTheirScaleMode()
+    {
+        ScreenSpaceFrame frame;
+        frame.targetWidth = 1280.0f;
+        frame.targetHeight = 1024.0f;
+        ScreenExtent extent;
+        const auto near = [](float a, float b) { return std::fabs(a - b) < 0.01f; };
+        Check(ComputeScreenExtent(ScreenScaleMode::FixedHeight, frame, extent) && near(extent.halfHeight, 540.0f) && near(extent.halfWidth, 675.0f),
+            "FixedHeight keeps the reference height and follows the target's aspect");
+        Check(ComputeScreenExtent(ScreenScaleMode::FixedWidth, frame, extent) && near(extent.halfWidth, 960.0f) && near(extent.halfHeight, 768.0f),
+            "FixedWidth keeps the reference width");
+        Check(ComputeScreenExtent(ScreenScaleMode::Contain, frame, extent) && near(extent.halfWidth, 960.0f) && near(extent.halfHeight, 768.0f),
+            "Contain shows the whole reference rectangle - on a squarer target the width binds");
+        frame.targetWidth = 2560.0f;
+        frame.targetHeight = 1080.0f;
+        Check(ComputeScreenExtent(ScreenScaleMode::Contain, frame, extent) && near(extent.halfHeight, 540.0f) && near(extent.halfWidth, 1280.0f),
+            "and on a wider target the height binds");
+        Check(ComputeScreenExtent(ScreenScaleMode::ConstantPixel, frame, extent) && near(extent.halfWidth, 1280.0f) && near(extent.halfHeight, 540.0f),
+            "ConstantPixel is one target pixel per unit");
+        float x = 0.0f;
+        float y = 0.0f;
+        ComputeAnchorPoint(extent, 1.0f, 0.0f, x, y);
+        Check(near(x, 1280.0f) && near(y, -540.0f), "the anchor (1, 0) is the bottom-right corner");
+        frame.targetHeight = 0.0f;
+        Check(false == ComputeScreenExtent(ScreenScaleMode::FixedHeight, frame, extent), "a frame with no target has no extent");
+        ScreenScaleMode mode = ScreenScaleMode::FixedHeight;
+        LayerSpace space = LayerSpace::World;
+        Check(ParseScreenScaleMode("ConstantPixel", mode) && mode == ScreenScaleMode::ConstantPixel && false == ParseScreenScaleMode("Stretch", mode)
+                && ParseLayerSpace("Screen", space) && space == LayerSpace::Screen && false == ParseLayerSpace("Overlay", space),
+            "the file names read back and unknown ones are refused");
+    }
+
+    // **화면 레이어를 그린다**(D-233, ui-plan 1 단계). 64 x 64 대상에서 화면 레이어의 붉은 사각형이 앵커 자리에 기준 픽셀 크기로 그려지고, 월드
+    // 위에 오며, 카메라가 없어도 그려진다. 화면 레이어의 글자는 글자 픽셀이 기준 픽셀이다.
+    void TestScreenLayersDrawOverTheWorld()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; screen layers not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            ScreenSpaceFrame screen;
+            screen.referenceWidth = 64.0f;
+            screen.referenceHeight = 64.0f;
+            screen.targetWidth = 64.0f;
+            screen.targetHeight = 64.0f;
+            framework.SetScreenSpace(screen);
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            // 월드의 파랑: 가운데 한 유닛(32 픽셀).
+            GameObject* ground = canvas->CreateObject("ground");
+            canvas->AttachComponent<Component::Transform2D>(ground);
+            auto* blue = canvas->AttachComponent<Component::SpriteRenderer2D>(ground);
+            blue->sizeMode = Component::SpriteSizeMode::Custom;
+            blue->size = {1.0f, 1.0f};
+            blue->tint = {0.0f, 0.0f, 1.0f, 1.0f};
+            // 화면 레이어는 월드 레이어보다 아래 차례여도 위에 그려진다.
+            Layer& ui = canvas->CreateLayer("UI");
+            ui.SetSpace(LayerSpace::Screen);
+            GameObject* badge = canvas->CreateObject("badge");
+            Check(canvas->SetObjectLayer(badge, ui.GetId()), "the badge goes on the screen layer");
+            auto* place = canvas->AttachComponent<Component::Transform2D>(badge);
+            place->anchor = {1.0f, 1.0f};
+            place->position = {-8.0f, -8.0f};
+            auto* red = canvas->AttachComponent<Component::SpriteRenderer2D>(badge);
+            red->sizeMode = Component::SpriteSizeMode::Custom;
+            red->size = {8.0f, 8.0f};
+            red->tint = {1.0f, 0.0f, 0.0f, 1.0f};
+            framework.BindCanvasAssets();
+
+            const auto countRed = [&](std::uint32_t& minX, std::uint32_t& minY, std::uint32_t& maxX, std::uint32_t& maxY) {
+                std::uint32_t count = 0;
+                minX = 64;
+                minY = 64;
+                maxX = 0;
+                maxY = 0;
+                for (std::uint32_t y = 0; y < 64; ++y)
+                {
+                    for (std::uint32_t x = 0; x < 64; ++x)
+                    {
+                        if (gpu.Red(x, y) > 0.8f && gpu.Green(x, y) < 0.2f)
+                        {
+                            ++count;
+                            minX = std::min(minX, x);
+                            minY = std::min(minY, y);
+                            maxX = std::max(maxX, x);
+                            maxY = std::max(maxY, y);
+                        }
+                    }
+                }
+                return count;
+            };
+            std::uint32_t minX = 0;
+            std::uint32_t minY = 0;
+            std::uint32_t maxX = 0;
+            std::uint32_t maxY = 0;
+            gpu.Paint(framework);
+            // 앵커 (1, 1) = (32, 32), 자리 (24, 24), 8 x 8 → 화면 x 52..59, y 4..11.
+            Check(countRed(minX, minY, maxX, maxY) == 64 && minX == 52 && maxX == 59 && minY == 4 && maxY == 11,
+                "an 8 px square anchored to the top-right corner sits 4 px in from both edges");
+            Check(gpu.Red(32, 32) < 0.2f && gpu.Blue(32, 32) > 0.8f, "the world is still drawn under it");
+
+            // 기준을 절반으로 줄이면(FixedHeight, 기준 32) 기준 1 픽셀이 대상 2 픽셀이다.
+            screen.referenceWidth = 32.0f;
+            screen.referenceHeight = 32.0f;
+            framework.SetScreenSpace(screen);
+            gpu.Paint(framework);
+            Check(countRed(minX, minY, maxX, maxY) == 256 && minX == 40 && maxX == 55 && minY == 8 && maxY == 23,
+                "a smaller reference scales the screen layer up");
+            // ConstantPixel 은 기준과 무관하게 대상 픽셀이다.
+            ui.SetScaleMode(ScreenScaleMode::ConstantPixel);
+            gpu.Paint(framework);
+            Check(countRed(minX, minY, maxX, maxY) == 64 && minX == 52 && minY == 4, "ConstantPixel ignores the reference");
+
+            // 월드 위에: 화면 가운데로 옮기면 파랑 위에 빨강이다.
+            place->anchor = {0.5f, 0.5f};
+            place->position = {0.0f, 0.0f};
+            gpu.Paint(framework);
+            Check(gpu.Red(32, 32) > 0.8f && gpu.Blue(32, 32) < 0.2f, "the screen layer draws over the world");
+
+            // 카메라가 없어도 화면 레이어는 그린다(바탕은 검정).
+            canvas->DestroyObject(cameraObject);
+            canvas->FlushPendingDestroy();
+            gpu.Paint(framework);
+            Check(gpu.Red(32, 32) > 0.8f && gpu.Red(2, 2) < 0.1f && gpu.Green(2, 2) < 0.1f && gpu.Blue(2, 2) < 0.1f,
+                "without a camera the screen layer still draws on black");
+
+            // 화면 레이어의 글자: 글자 픽셀이 기준 픽셀이다. 기준 = 대상이면 40 px 의 A 가 월드의 PPU 와 무관하게 40 px 로 선다.
+            canvas->DestroyObject(badge);
+            canvas->FlushPendingDestroy();
+            GameObject* labelObject = canvas->CreateObject("label");
+            Check(canvas->SetObjectLayer(labelObject, ui.GetId()), "the label goes on the screen layer");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 40.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {1.0f, 1.0f, 1.0f, 1.0f};
+            TextStore::Get().Assign(label->text, "A", 1);
+            framework.BindCanvasAssets();
+            gpu.Paint(framework);
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+            float boundsMinX = 0.0f;
+            float boundsMinY = 0.0f;
+            float boundsMaxX = 0.0f;
+            float boundsMaxY = 0.0f;
+            Check(texts->GetLocalBounds(label->GetInstanceId(), boundsMinX, boundsMinY, boundsMaxX, boundsMaxY)
+                    && boundsMaxY - boundsMinY > 30.0f && boundsMaxY - boundsMinY < 60.0f,
+                "a screen text's bounds are in glyph pixels, not units");
+            std::uint32_t lit = 0;
+            std::uint32_t litMinY = 64;
+            std::uint32_t litMaxY = 0;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    if (gpu.Red(x, y) > 0.8f && gpu.Green(x, y) > 0.8f)
+                    {
+                        ++lit;
+                        litMinY = std::min(litMinY, y);
+                        litMaxY = std::max(litMaxY, y);
+                    }
+                }
+            }
+            const ScreenRect glyph = ExpectedGlyph("A", 40);
+            Check(lit > 40 && static_cast<float>(litMaxY - litMinY) > (glyph.bottom - glyph.top) * 0.8f
+                    && static_cast<float>(litMaxY - litMinY) < (glyph.bottom - glyph.top) * 1.2f,
+                "a 40 px letter on a screen layer is 40 px tall on a same-size target");
             framework.Shutdown();
         }
         gpu.Close();
@@ -2150,6 +2345,8 @@ int RunTextRenderTests()
         TestPixelSnapLandsGlyphsOnWholePixels();
         TestRichTextDrawsTaggedColourAndSize();
         TestText3DDrawsInTheWorld();
+        TestScreenExtentsFollowTheirScaleMode();
+        TestScreenLayersDrawOverTheWorld();
         TestLocalizedTextFollowsTheLocale();
     }
     catch (const std::exception&)

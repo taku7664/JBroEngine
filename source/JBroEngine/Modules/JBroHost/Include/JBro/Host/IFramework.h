@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Core/Core.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Runtime/ScriptModule.h>
@@ -98,6 +99,12 @@ namespace JBro
         virtual JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept
         {
             return {};
+        }
+        // 이번 프레임의 화면 기준이다(D-233): 프로젝트의 기준 해상도와 게임이 그려지는 크기. 호스트가 `Update` 앞에서 부른다 - 화면 레이어의 앵커가
+        // 그 프레임의 크기로 잰다(기존 엔진은 그린 뒤에 알려 첫 프레임이 0 이었다). 화면 레이어가 없는 프레임워크는 무시한다.
+        virtual void SetScreenSpace(const ScreenSpaceFrame& frame)
+        {
+            (void)frame;
         }
         virtual void Update(float deltaTime) = 0;
         // **게임을 돌릴 것인가**(D-131). 거짓이면 스크립트·물리·네트워크는 서고,

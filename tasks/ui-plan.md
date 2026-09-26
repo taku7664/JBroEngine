@@ -1,0 +1,91 @@
+# 화면 공간 UI 계획 (D-233)
+
+> 상태: **진행** (2026-09-27 시작). 사용자 확인(2026-09-27): 화면 레이어 + 앵커 방식, 좌표 단위는 기준 해상도의 픽셀, 레이어의 Space·ScaleMode 는
+> 캔버스의 `Layer` 로 옮긴다, 캔버스 뷰는 월드/UI 보기 전환, 범위는 1~3 단계 모두. 동기는 text-plan §5 5 단계가 남긴 "화면 공간 UI 텍스트" 다.
+
+## 1. 기존 엔진의 UI - 무엇이 있었고 무엇이 아팠나
+
+읽은 것: `Engine/GameFramework/Canvas/GameLayer.h`·`Canvas.cpp`(`GetRootAnchorOffset`·`ScreenToUI`)·`Transform/TransformSystem.cpp`,
+`Engine/Core/Renderer/ScreenSpaceProjection.h`·`Render2DPipeline.cpp`, `Component/Button2D.h`·`System/Button2DSystem.cpp`,
+`Application/Editor/Main/CanvasView/CanvasViewTool.cpp`, 그쪽 문서 `tasks/UISystemDesign.md`·`_TEMP_RendererBaseAndButton.md`.
+
+### 1.1 있었던 것
+
+- **UI 트리가 없다.** 레이어마다 `Space {World, Screen}`·`ScaleMode`·`AnchorToSafeArea` 가 있고, 화면 레이어에 보통의 렌더러(`SpriteRenderer2D`·`Text2D`)를 올렸다.
+  RectTransform 식 트리는 일부러 거절했다(UISystemDesign §2 Alt-C).
+- **앵커는 `Transform2D.Anchor`**(Y 위, (0,0) 이 왼쪽 아래). `UIAnchor2D` 컴포넌트는 "위치의 출처가 둘이 된다" 며 거절했다. 루트에만 걸고, 앵커 점을
+  **부모 행렬로** 넣어 `Position` 을 덮지 않았다. 매 프레임 다시 쟀다(더러움 표시 없음).
+- **맞춤 방식** FixedHeight·FixedWidth·Contain·ConstantPixel. 좌표는 유닛(기준 해상도 / 전역 PPU).
+- **그리기**: 월드(조명 포함) 뒤의 "Overlay" 패스에서 화면 레이어를 그렸다 - UI 가 광원 맵에 곱해지지 않게.
+- **버튼** `Button2D`(누름 사각형·색/스프라이트 바꾸기·스크립트 훅 다섯). 버튼 시스템은 스크립트보다 먼저 돌았다.
+- **에디터**: 화면 레이어도 편집 카메라로 그림, 기준 사각형 안내선, "화면에 맞추기", 월드↔화면 바꾸기 커맨드(화면 위치 유지), 화면 레이어에서만 보이는 앵커 칸.
+
+### 1.2 아팠던 것
+
+| 번호 | 문제 | 새 설계의 대응 |
+|---|---|---|
+| U1 | 그린 뒤에 화면 크기를 알려 주어 **첫 프레임에 앵커가 0** 이었다 | 프레임을 시작할 때 대상 크기를 안다(`GetFrameExtent`·게임 뷰 텍스처). 앵커를 그 값으로 먼저 잰다(§2.3) |
+| U2 | 앵커·역투영은 화면 전체, 그리기는 뷰포트라 **분할 화면에서 어긋났다** | 화면 영역을 재는 함수 **하나**를 그리기·앵커·역투영이 같이 부른다(§2.2) |
+| U3 | 버튼이 장치를 직접 폴링했고, 게임이 `IsPointerOverButton()` 을 손으로 물어야 막혔다 | 입력 레이어 체인의 `"UI"` 레이어가 포인터를 소비한다 - 아래 핸들러와 폴링에서 자동으로 사라진다(D-214, §2.5) |
+| U4 | 안전 영역 값을 넣는 플랫폼이 없었다 | 자리만 남긴다(§4) |
+
+## 2. 설계
+
+### 2.1 레이어
+
+- 캔버스의 `Layer`(차원 무관)에 `LayerSpace { World, Screen }` 와 `ScreenScaleMode { FixedHeight, FixedWidth, Contain, ConstantPixel }` 를 둔다.
+  캔버스 파일의 `Layers` 항목에 `Space`·`ScaleMode` 로 적는다(기본값이면 적지 않는다 - 옛 파일은 그대로 읽힌다). `Layer2D` 의 죽은 `Space` 는 지운다.
+- 3D 는 이 판에서 화면 레이어를 그리지 않는다(값만 같이 쓴다).
+
+### 2.2 좌표와 맞춤
+
+- **화면 레이어의 1 유닛 = 기준 해상도의 1 픽셀.** 기준은 프로젝트의 `ResolutionWidth/Height`(기본 1920 x 1080). 원점은 화면 가운데, y 위.
+- 대상 크기 (W, H) 픽셀에서 보이는 반폭·반높이(기준 픽셀):
+  FixedHeight = (RH/2 · W/H, RH/2), FixedWidth = (RW/2, RW/2 · H/W), Contain = 기준 사각형이 다 들어가는 쪽(`min(W/RW, H/RH)` 로 나눔),
+  ConstantPixel = (W/2, H/2).
+- 이 계산은 `ScreenSpace.h` 의 함수 하나다. 앵커(§2.3)·그리기(§2.4)·역투영(§2.5)이 모두 이것을 부른다(U2).
+- 화면 레이어의 그림·글자 크기는 PPU 대신 픽셀이다: 스프라이트는 프레임의 픽셀 크기, `Text2D` 의 `fontSize 32` 는 기준 픽셀 32 다.
+
+### 2.3 앵커
+
+- `Transform2D` 에 `anchor`(Vec2, 기본 (0.5, 0.5), Y 위)를 더한다. **화면 레이어의 루트에만** 뜻이 있다: 앵커 점 = (lerp(-반폭, 반폭, x), lerp(-반높이, 반높이, y))
+  을 루트의 부모 행렬로 넣는다. `position` 은 앵커에서의 거리로 남는다. 자식은 로컬 그대로다.
+- `Transform2DSystem` 은 프레임워크가 프레임마다 넣어 주는 화면 크기(`SetScreenExtent`)로 잰다. 크기는 렌더링 전에 알려져 있다(U1).
+
+### 2.4 그리기
+
+- 렌더 월드의 아이템이 화면 레이어의 것인지 표시를 든다. 브리지는 월드 뷰(월드 레이어만) 다음에 **화면 뷰**(화면 레이어만, §2.2 의 정사영, 카메라 무관)를 연다.
+  렌더러는 대상을 첫 뷰에서만 지우므로 화면 뷰가 월드 위에 그려진다. 화면 레이어가 없으면 뷰를 열지 않는다.
+- 월드 카메라가 없어도 화면 레이어는 그린다(메뉴만 있는 캔버스).
+- 에디터 캔버스 뷰는 **월드 보기 / UI 보기**를 바꾼다: UI 보기는 화면 레이어만 편집 카메라로(기준 픽셀 좌표) 그리고 기준 사각형 안내선을 그린다.
+  고른 오브젝트의 레이어가 바뀌면 보기도 따라 바뀐다.
+
+### 2.5 입력 (3 단계)
+
+- 화면 역투영 `ScreenToLayer`(게임 픽셀 → 그 레이어의 좌표)를 스크립트 서비스로 낸다.
+- `Button2D`(누름 사각형·`interactable`·색 바꾸기·스크립트 훅)와 `Button2DSystem`(스크립트보다 먼저). 버튼 위의 포인터는 `"UI"` 입력 레이어에서 소비한다.
+
+## 3. 단계
+
+1. **그리기**: 레이어의 Space·ScaleMode 와 저장, `ScreenSpace` 함수, `Transform2D.anchor`, 화면 뷰, 화면 레이어의 픽셀 크기. 완료 조건: 픽셀 시험(맞춤 넷·앵커 모서리·
+   카메라 없음·월드 위에 그림), 캔버스 파일 왕복.
+2. **에디터**: 레이어 Space·ScaleMode 고르기, 앵커 칸(화면 레이어에서만), 월드/UI 보기 전환과 안내선, 월드↔화면 바꾸기 커맨드. 완료 조건: 에디터 시험, 되돌리기.
+3. **입력**: 역투영 서비스, `Button2D`, 포인터 소비. 완료 조건: 눌림·훅·소비 시험.
+
+## 4. 이 계획 밖 (`[열림]`)
+
+- 안전 영역(값을 넣는 플랫폼이 없다), 분할 화면(카메라가 하나다), 레이아웃 컨테이너·스크롤·마스크·텍스트 입력·게임패드 포커스, 3D 의 화면 레이어,
+  조명이 서면 화면 레이어가 광원 맵 뒤에 그려지는지(지금은 조명이 없다).
+
+## 5. 진행 기록
+
+1. ~~**그리기**~~ → 완료 2026-09-27 · `JBroCanvas`(`Layer` 의 `LayerSpace`·`ScreenScaleMode`, `ScreenSpace.h`, 캔버스 파일의 `Space`·`ScaleMode`),
+   `Transform2D.anchor`, `Transform2DSystem::SetScreenSpace`, `RenderWorld2D`(아이템의 `screenSpace`·`scaleMode`), `RenderBridge2D`(월드 뷰 뒤 화면 뷰),
+   `IFramework::SetScreenSpace`·`EngineInstance`(기준 해상도와 이번 프레임의 대상 크기를 `Update` 앞에서), 화면 레이어의 스프라이트·글자는 픽셀 크기 ·
+   - **잰 것**(D3D12, 64 x 64): 기준 = 대상일 때 오른쪽 위 앵커의 8 px 사각형이 두 가장자리에서 4 px 안쪽(x 52..59, y 4..11)에 64 픽셀로 선다. 기준을 32 로
+     줄이면(FixedHeight) 256 픽셀(16 x 16), ConstantPixel 은 기준과 무관하게 64 픽셀이다. 가운데로 옮기면 월드의 파랑 위에 빨강이다(화면 레이어가 월드
+     레이어보다 아래 차례여도). 카메라를 지워도 검정 바탕에 그려진다. 화면 레이어의 40 px `A` 는 PPU 와 무관하게 40 px 이고 경계도 글자 픽셀이다.
+     맞춤 넷의 값(1920 x 1080 기준, 1280 x 1024·2560 x 1080 대상), 앵커 점, 파일 이름 왕복과 모르는 이름 거절. 캔버스 파일: 화면 레이어의 공간·맞춤 방식과
+     앵커가 오가고, 기본값은 적지 않으며, 모르는 공간은 거절한다.
+   - 정한 것: 화면 뷰는 맞춤 방식이 같은 화면 아이템이 이어진 덩어리마다 하나다. 화면 레이어는 레이어 차례와 무관하게 월드 위다(기존 엔진의 Overlay 와 같다).
+     에디터 캔버스 뷰는 이 단계에서 화면 레이어를 그리지 않는다(2 단계의 UI 보기).

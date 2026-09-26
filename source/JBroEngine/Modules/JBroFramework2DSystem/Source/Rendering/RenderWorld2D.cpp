@@ -27,6 +27,22 @@ namespace JBro
         m_sprites.Clear();
         m_order.Clear();
         m_droppedSpriteCount = 0;
+        m_screenSprites = 0;
+    }
+
+    void RenderWorld2D::SetScreenSpace(const ScreenSpaceFrame& frame)
+    {
+        m_screen = frame;
+    }
+
+    const ScreenSpaceFrame& RenderWorld2D::GetScreenSpace() const
+    {
+        return m_screen;
+    }
+
+    std::size_t RenderWorld2D::GetScreenSpriteCount() const
+    {
+        return m_screenSprites;
     }
 
     void RenderWorld2D::SetCamera(const RenderCamera2D& camera)
@@ -48,6 +64,10 @@ namespace JBro
         entry.index = static_cast<std::uint32_t>(m_sprites.Size());
         m_sprites.Add(item);
         m_order.Add(entry);
+        if (item.screenSpace)
+        {
+            ++m_screenSprites;
+        }
         return true;
     }
 

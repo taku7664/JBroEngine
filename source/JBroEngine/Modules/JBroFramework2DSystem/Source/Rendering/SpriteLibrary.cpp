@@ -136,6 +136,8 @@ namespace JBro
                 ? sprite->options.pixelsPerUnit : DefaultPixelsPerUnit;
             frameView->widthUnits = static_cast<float>(frame.width) / pixelsPerUnit;
             frameView->heightUnits = static_cast<float>(frame.height) / pixelsPerUnit;
+            frameView->widthPixels = static_cast<float>(frame.width);
+            frameView->heightPixels = static_cast<float>(frame.height);
             frameView->pivotX = frame.pivotX;
             frameView->pivotY = frame.pivotY;
             frameView->filter = texture->filter;

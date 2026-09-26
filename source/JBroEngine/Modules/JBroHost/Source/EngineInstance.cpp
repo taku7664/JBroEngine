@@ -832,6 +832,17 @@ namespace JBro
         if (m_framework != nullptr && false == m_projectCloseRequested)
         {
             const ProfileScope scope("Update");
+            {
+                // 화면 기준(D-233): 프로젝트의 기준 해상도와 이번 프레임에 게임이 그려지는 크기(에디터는 게임 뷰 텍스처, 게임은 창).
+                ScreenSpaceFrame screen;
+                screen.referenceWidth = static_cast<float>(m_project.resolutionWidth);
+                screen.referenceHeight = static_cast<float>(m_project.resolutionHeight);
+                const Extent2D target = m_gameViewTarget.texture.IsValid() ? m_gameViewTarget.extent
+                    : m_renderer ? m_renderer->GetSurfaceExtent() : Extent2D{};
+                screen.targetWidth = static_cast<float>(target.width);
+                screen.targetHeight = static_cast<float>(target.height);
+                m_framework->SetScreenSpace(screen);
+            }
             m_framework->Update(deltaTime);
         }
         // 끝난 보이스를 거둔다. 프레임워크 갱신이 이번 프레임의 재생 요청을 다 낸 뒤다.

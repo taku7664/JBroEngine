@@ -61,6 +61,11 @@ namespace JBro::System
         return 100;
     }
 
+    void Transform2DSystem::SetScreenSpace(const ScreenSpaceFrame& frame)
+    {
+        m_screen = frame;
+    }
+
     // 부모를 가진 노드는 그 부모의 순회에서 처리된다. 여기서는 루트만 골라 내려간다.
     void Transform2DSystem::OnUpdate(Canvas& canvas, float deltaTime)
     {
@@ -77,7 +82,7 @@ namespace JBro::System
             transform.worldValid = false;
         });
 
-        canvas.ForEach<Component::Transform2D>([&canvas](Component::Transform2D& transform)
+        canvas.ForEach<Component::Transform2D>([&canvas, this](Component::Transform2D& transform)
         {
             if (false == transform.IsActiveComponent())
             {
@@ -103,11 +108,21 @@ namespace JBro::System
                 return;
             }
 
+            // **화면 레이어의 루트는 앵커 점에서 시작한다**(D-233). 점을 부모 행렬로 넣는다 - `position` 을 덮지 않는다. 화면 기준이 아직
+            // 없으면(대상 크기 0) 원점이다.
+            Matrix3x2 parent;
+            const Layer* layer = owner->GetLayer();
+            ScreenExtent extent;
+            if (layer != nullptr && layer->GetSpace() == LayerSpace::Screen
+                && ComputeScreenExtent(layer->GetScaleMode(), m_screen, extent))
+            {
+                ComputeAnchorPoint(extent, transform.anchor.x, transform.anchor.y, parent.m31, parent.m32);
+            }
             PropagateWorldTransform(
                 canvas,
                 *owner,
                 transform,
-                {},
+                parent,
                 0.0f,
                 {1.0f, 1.0f});
         });

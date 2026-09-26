@@ -37,6 +37,8 @@ namespace JBro
         void Update(float deltaTime) override;
         JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept override;
         void SetSimulationEnabled(bool enabled) override;
+        void SetScreenSpace(const ScreenSpaceFrame& frame) override;
+        const ScreenSpaceFrame& GetScreenSpace() const;
         RenderResult Render() override;
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         void Shutdown() override;
@@ -65,6 +67,8 @@ namespace JBro
         Array<AssetHandle> m_canvasAssets;
         Table<LayerId, OwnerPtr<Layer2D>> m_layer2DStates;
         RenderWorld2D    m_renderWorld;
+        // 호스트가 준 화면 기준이다(D-233). 대상 크기가 0 이면(호스트가 주지 않은 시험) 렌더러의 프레임 크기를 쓴다.
+        ScreenSpaceFrame m_screenSpace;
         // 스프라이트 에셋 → 렌더러 텍스처(D-113). 렌더러보다 먼저 내려가야 텍스처를 돌려줄 수 있다.
         SpriteLibrary    m_spriteLibrary;
         // 복제 풀 어댑터들(D-122). 네트워크가 있을 때만 있고, 캔버스와 함께 죽는다.

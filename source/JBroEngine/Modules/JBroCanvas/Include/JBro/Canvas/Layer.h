@@ -12,6 +12,22 @@ namespace JBro
     // 합성 순서. 렌더 정렬 키의 최상위 필드라 매 오브젝트가 읽는다.
     using LayerOrder = std::uint16_t;
 
+    // 레이어가 그려지는 공간이다(D-233, ui-plan §2.1). `Screen` 은 카메라와 무관한 화면 좌표(기준 해상도의 픽셀)이고 월드 뒤에 그려진다.
+    enum class LayerSpace : std::uint8_t
+    {
+        World,
+        Screen,
+    };
+
+    // 화면 레이어가 대상 크기에 맞추는 방식이다(`ScreenSpace.h`). 월드 레이어는 보지 않는다.
+    enum class ScreenScaleMode : std::uint8_t
+    {
+        FixedHeight,
+        FixedWidth,
+        Contain,
+        ConstantPixel,
+    };
+
     class Layer final
     {
     public:
@@ -29,6 +45,11 @@ namespace JBro
         bool IsVisible() const;
         void SetVisible(bool visible);
 
+        LayerSpace GetSpace() const;
+        void SetSpace(LayerSpace space);
+        ScreenScaleMode GetScaleMode() const;
+        void SetScaleMode(ScreenScaleMode mode);
+
     private:
         friend class Canvas;
 
@@ -38,5 +59,7 @@ namespace JBro
         LayerOrder m_order = 0;
         char       m_name[64]{};
         bool       m_visible = true;
+        LayerSpace m_space = LayerSpace::World;
+        ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
     };
 }
