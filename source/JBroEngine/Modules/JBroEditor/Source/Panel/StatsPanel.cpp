@@ -151,6 +151,13 @@ namespace JBro
                         static_cast<unsigned long long>(sound.voicesStolen),
                         static_cast<unsigned long long>(sound.voicesRejected));
                 }
+                // 섞지 않고 위치만 세는 루프다(D-235).
+                if (sound.virtualVoices != 0)
+                {
+                    Widget::HintTextF(Loc::TextOr(LocKeys::StatsAudioVirtual,
+                            "%u virtual voice(s) - too quiet or crowded out, counted but not mixed"),
+                        sound.virtualVoices);
+                }
                 // 일부러 건너뛴 재생이다(D-231). 경고가 아니라 절약한 양이다.
                 if (sound.voicesCulled != 0 || sound.voicesThrottled != 0 || sound.voicesReplaced != 0)
                 {

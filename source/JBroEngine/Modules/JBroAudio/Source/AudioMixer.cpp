@@ -7,6 +7,7 @@
 
 #include <miniaudio.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -1156,6 +1157,21 @@ namespace JBro
             // 디스크 스트리밍 보이스면 그 자리 번호다.
             std::uint32_t streamSlot = NoStream;
             bool filterRouted = false;
+            // 들리는 크기를 메인 스레드에서 잰다(D-235). 공간화 값은 시작 때와 `SetPosition` 이 적는다.
+            float pitch = 1.0f;
+            bool spatial = false;
+            AudioAttenuation attenuation = AudioAttenuation::Inverse;
+            float minDistance = 1.0f;
+            float maxDistance = 50.0f;
+            float rolloff = 1.0f;
+            float position[3] = {0.0f, 0.0f, 0.0f};
+            // 가상 보이스(D-235). 가상이면 `ma_sound` 는 멈춰 있고 재생 위치는 `parkCursor`(클립 프레임)에 `parkTime`(믹서 프레임)
+            // 부터 흐른 시간 × 피치를 더한 값이다. `lastSwitch` 는 마지막으로 바뀐 믹서 시각이다.
+            bool parked = false;
+            bool everSwitched = false;
+            double parkCursor = 0.0;
+            std::uint64_t parkTime = 0;
+            std::uint64_t lastSwitch = 0;
         };
 
         struct Bus
@@ -1209,6 +1225,11 @@ namespace JBro
         std::uint64_t voicesCulled = 0;
         std::uint64_t voicesThrottled = 0;
         std::uint64_t voicesReplaced = 0;
+        std::uint64_t voicesVirtualized = 0;
+        std::uint64_t voicesRealized = 0;
+        // 가상 보이스의 순위를 매기는 칸이다. 초기화 때 보이스 수만큼 잡아 두어 매 프레임 할당하지 않는다.
+        Array<std::uint32_t> rankOrder;
+        Array<float> rankLoudness;
         std::atomic<float> peak{0.0f};
         std::atomic<std::uint64_t> renderedFrames{0};
         float masterVolume = 1.0f;
@@ -1449,6 +1470,8 @@ namespace JBro
             }
             voice.state = VoiceState::Free;
             voice.clip = {};
+            voice.parked = false;
+            voice.everSwitched = false;
             ++voice.generation;
             if (voice.generation == 0)
             {
@@ -1457,9 +1480,220 @@ namespace JBro
             freeVoices.Add(index);
         }
 
+        // 지금 들리는 크기다. 공간화한 보이스는 거리 감쇠를 곱한다(D-235 - 전에는 거리를 보지 않아 먼 소리와 가까운 소리가
+        // 같았다). 가상 보이스는 들리지 않으므로 0 이다 - 자리가 모자랄 때 먼저 훔쳐진다.
         float Audibility(const Voice& voice) const
         {
-            return voice.volume * voice.trim * buses[voice.bus].effectiveGain;
+            if (voice.parked)
+            {
+                return 0.0f;
+            }
+            return Loudness(voice);
+        }
+
+        // 가상이든 아니든 실제로 섞으면 들릴 크기다. 가상 보이스의 순위를 매긴다(D-235).
+        float Loudness(const Voice& voice) const
+        {
+            const float gain = voice.volume * voice.trim * buses[voice.bus].effectiveGain;
+            if (false == voice.spatial)
+            {
+                return gain;
+            }
+            return gain * DistanceGain(voice.attenuation, voice.minDistance, voice.maxDistance, voice.rolloff, voice.position);
+        }
+
+        bool VirtualizationEnabled() const
+        {
+            return desc.maxAudibleVoices > 0 && desc.maxAudibleVoices < desc.maxVoices;
+        }
+
+        // 가상이 될 수 있는 보이스다: 재생 중인 루프이고 디스크 스트리밍이 아니다.
+        static bool CanPark(const Voice& voice)
+        {
+            return voice.state == VoiceState::Playing && voice.looping && voice.streamSlot == NoStream;
+        }
+
+        // 실제로 섞고 있는 보이스다(줄여 끄는 중인 것 포함).
+        static bool IsMixing(const Voice& voice)
+        {
+            return (voice.state == VoiceState::Playing || voice.state == VoiceState::Stopping) && false == voice.parked;
+        }
+
+        std::uint32_t CountMixing() const
+        {
+            std::uint32_t count = 0;
+            for (const Voice& voice : voices)
+            {
+                count += IsMixing(voice) ? 1u : 0u;
+            }
+            return count;
+        }
+
+        std::uint64_t Now() const
+        {
+            return ma_engine_get_time_in_pcm_frames(&engine);
+        }
+
+        // 가상 보이스의 지금 재생 위치(클립 프레임)다. 멈춘 동안은 흐르지 않고, 루프이므로 길이로 감는다.
+        double VirtualCursor(const Voice& voice, std::uint64_t now) const
+        {
+            const Clip* clip = ResolveClip(voice.clip);
+            if (clip == nullptr || clip->desc.sampleRate == 0)
+            {
+                return voice.parkCursor;
+            }
+            double cursor = voice.parkCursor;
+            if (voice.state == VoiceState::Playing && now > voice.parkTime)
+            {
+                cursor += static_cast<double>(now - voice.parkTime) * static_cast<double>(voice.pitch)
+                    * static_cast<double>(clip->desc.sampleRate) / static_cast<double>(desc.sampleRate);
+            }
+            const double length = static_cast<double>(clip->desc.frameCount);
+            if (length > 0.0 && cursor >= length)
+            {
+                cursor = std::fmod(cursor, length);
+            }
+            return cursor;
+        }
+
+        // 가상으로 돌린다: 지금 위치를 기준으로 적고 20 ms 에 줄여 멈춘다. 자리·핸들·디코더는 그대로다.
+        void Park(Voice& voice, std::uint64_t now)
+        {
+            ma_uint64 cursor = 0;
+            ma_sound_get_cursor_in_pcm_frames(&voice.sound, &cursor);
+            voice.parkCursor = static_cast<double>(cursor);
+            voice.parkTime = now;
+            voice.lastSwitch = now;
+            voice.everSwitched = true;
+            voice.parked = true;
+            ma_sound_stop_with_fade_in_milliseconds(&voice.sound, 20);
+            ++voicesVirtualized;
+        }
+
+        // 실제로 되돌린다: 센 자리로 옮기고 20 ms 페이드인으로 튼다. 옮기기는 목표만 적는다(miniaudio `seekTarget`).
+        void Unpark(Voice& voice, std::uint64_t now)
+        {
+            const double cursor = VirtualCursor(voice, now);
+            ma_sound_stop(&voice.sound);
+            ma_sound_reset_stop_time_and_fade(&voice.sound);
+            ma_sound_seek_to_pcm_frame(&voice.sound, static_cast<ma_uint64>(cursor));
+            ma_sound_set_fade_in_milliseconds(&voice.sound, 0.0f, 1.0f, 20);
+            voice.parked = false;
+            voice.lastSwitch = now;
+            voice.everSwitched = true;
+            ma_sound_start(&voice.sound);
+            ++voicesRealized;
+        }
+
+        // 섞는 수가 찼을 때 한 번짜리 자리를 내준다: 가장 약한 실제 루프(우선순위가 낮은 것, 같으면 작게 들리는 것)를 가상으로
+        // 돌린다. 머무는 시간은 보지 않는다 - 새 소리가 우선이다. 그런 루프가 없으면 거짓이다.
+        bool ParkWeakest(std::uint64_t now)
+        {
+            std::uint32_t weakest = static_cast<std::uint32_t>(-1);
+            float weakestLoudness = 0.0f;
+            for (std::uint32_t index = 0; index < voices.Size(); ++index)
+            {
+                const Voice& voice = voices[index];
+                if (false == CanPark(voice) || voice.parked)
+                {
+                    continue;
+                }
+                const float loudness = Loudness(voice);
+                if (weakest == static_cast<std::uint32_t>(-1) || voice.priority < voices[weakest].priority
+                    || (voice.priority == voices[weakest].priority && loudness < weakestLoudness))
+                {
+                    weakest = index;
+                    weakestLoudness = loudness;
+                }
+            }
+            if (weakest == static_cast<std::uint32_t>(-1))
+            {
+                return false;
+            }
+            Park(voices[weakest], now);
+            return true;
+        }
+
+        // 프레임마다 루프에 섞는 자리를 나눠 준다(D-235). 한 번짜리·스트리밍이 쓰고 남은 자리를 우선순위 → 들리는 크기 순으로
+        // 준다. -60 dB 밑은 자리가 남아도 가상이다. 바뀐 지 `AudioVirtualDwellSeconds` 가 안 된 것은 그대로 둔다.
+        void Virtualize()
+        {
+            if (false == VirtualizationEnabled())
+            {
+                return;
+            }
+            const std::uint64_t now = Now();
+            const std::uint64_t dwell = static_cast<std::uint64_t>(AudioVirtualDwellSeconds * static_cast<float>(desc.sampleRate));
+            const auto settled = [now, dwell](const Voice& voice) {
+                // 아직 시작 지연 중인 가상 보이스도 그대로 둔다 - 되살리면 지연보다 먼저 울린다.
+                return (voice.everSwitched && now - voice.lastSwitch < dwell) || (voice.parked && voice.parkTime > now);
+            };
+            std::uint32_t required = 0;
+            std::uint32_t candidates = 0;
+            for (std::uint32_t index = 0; index < voices.Size(); ++index)
+            {
+                Voice& voice = voices[index];
+                // 가상인 채 루프가 풀렸으면 곧바로 되돌린다 - 끝까지 울고 거둬져야 한다.
+                if (voice.parked && voice.state == VoiceState::Playing && false == voice.looping)
+                {
+                    Unpark(voice, now);
+                }
+                if (CanPark(voice))
+                {
+                    rankOrder[candidates] = index;
+                    rankLoudness[index] = Loudness(voice);
+                    ++candidates;
+                }
+                else if (IsMixing(voice))
+                {
+                    ++required;
+                }
+            }
+            std::sort(rankOrder.Data(), rankOrder.Data() + candidates, [this](std::uint32_t a, std::uint32_t b) {
+                const Voice& left = voices[a];
+                const Voice& right = voices[b];
+                if (left.priority != right.priority)
+                {
+                    return left.priority > right.priority;
+                }
+                if (rankLoudness[a] != rankLoudness[b])
+                {
+                    return rankLoudness[a] > rankLoudness[b];
+                }
+                return left.startSerial < right.startSerial;
+            });
+            const std::uint32_t budget = desc.maxAudibleVoices > required ? desc.maxAudibleVoices - required : 0;
+            // 머무느라 가상이 못 된 루프가 자리를 쥐고 있으면 그만큼 순위의 자리가 준다 - 섞는 수를 넘지 않는다.
+            std::uint32_t used = 0;
+            for (std::uint32_t rank = 0; rank < candidates; ++rank)
+            {
+                const Voice& voice = voices[rankOrder[rank]];
+                if (settled(voice) && false == voice.parked)
+                {
+                    ++used;
+                }
+            }
+            for (std::uint32_t rank = 0; rank < candidates; ++rank)
+            {
+                Voice& voice = voices[rankOrder[rank]];
+                if (settled(voice))
+                {
+                    continue;
+                }
+                const bool wantReal = used < budget && rankLoudness[rankOrder[rank]] >= CullGain;
+                if (wantReal)
+                {
+                    ++used;
+                    if (voice.parked)
+                    {
+                        Unpark(voice, now);
+                    }
+                }
+                else if (false == voice.parked)
+                {
+                    Park(voice, now);
+                }
+            }
         }
 
         // 보이스를 버스에 잇는다. 필터를 켠 보이스는 소리 → 필터 → 버스, 아니면 소리 → 버스다. 재생 중에도 스레드 안전하다.
@@ -1614,32 +1848,34 @@ namespace JBro
             }
         }
 
-        // 시작하는 자리에서 들리지 않는가(D-231). miniaudio 의 감쇠 공식(`ma_attenuation_*`)을 그대로 따른다 - 최대 거리
+        // 이 밑이면 들리지 않는 것으로 본다(-60 dB, D-231).
+        static constexpr float CullGain = 0.001f;
+
+        // 듣는 자리에서의 거리 감쇠다(D-231). miniaudio 의 감쇠 공식(`ma_attenuation_*`)을 그대로 따른다 - 최대 거리
         // 밖은 최대 거리의 값이므로 역·지수 감쇠는 멀어도 0 이 되지 않는다. 원뿔은 더 줄일 뿐이라 보지 않는다(보수적).
-        bool IsInaudibleAtStart(const AudioPlayDesc& play, float trim, float minDistance, float maxDistance) const
+        float DistanceGain(AudioAttenuation attenuation, float minDistance, float maxDistance, float rolloff,
+            const float position[3]) const
         {
-            static constexpr float CullGain = 0.001f;
-            if (false == play.spatial || play.loop || play.attenuation == AudioAttenuation::None)
+            if (attenuation == AudioAttenuation::None)
             {
-                return false;
+                return 1.0f;
             }
             const ma_vec3f listener = ma_engine_listener_get_position(&engine, 0);
-            const float dx = play.position[0] - listener.x;
-            const float dy = play.position[1] - listener.y;
-            const float dz = play.position[2] - listener.z;
+            const float dx = position[0] - listener.x;
+            const float dy = position[1] - listener.y;
+            const float dz = position[2] - listener.z;
             const float distance = std::sqrt(dx * dx + dy * dy + dz * dz);
             if (false == std::isfinite(distance) || minDistance >= maxDistance)
             {
-                return false;
+                return 1.0f;
             }
-            const float rolloff = SafePositive(play.rolloff, 1.0f);
             const float clamped = distance < minDistance ? minDistance : (distance > maxDistance ? maxDistance : distance);
             float gain = 1.0f;
-            if (play.attenuation == AudioAttenuation::Linear)
+            if (attenuation == AudioAttenuation::Linear)
             {
                 gain = 1.0f - rolloff * (clamped - minDistance) / (maxDistance - minDistance);
             }
-            else if (play.attenuation == AudioAttenuation::Exponential)
+            else if (attenuation == AudioAttenuation::Exponential)
             {
                 gain = std::pow(clamped / minDistance, -rolloff);
             }
@@ -1647,18 +1883,32 @@ namespace JBro
             {
                 gain = minDistance / (minDistance + rolloff * (clamped - minDistance));
             }
+            return gain > 0.0f ? gain : 0.0f;
+        }
+
+        // 시작하는 자리에서 들리지 않는가(D-231). 공간화한 한 번짜리만 거른다 - 루프는 가상 보이스(D-235)가 맡는다.
+        bool IsInaudibleAtStart(const AudioPlayDesc& play, float trim, float minDistance, float maxDistance) const
+        {
+            if (false == play.spatial || play.loop)
+            {
+                return false;
+            }
+            const float gain = DistanceGain(play.attenuation, minDistance, maxDistance, SafePositive(play.rolloff, 1.0f),
+                play.position);
             return Clamp01(play.volume) * trim * gain < CullGain;
         }
 
         // 훔칠 보이스다. 우선순위가 가장 낮은 것, 같으면 작게 들리는 것, 같으면 가장 오래된 것이다. 새 보이스보다
         // 우선순위가 높은 것만 남았으면 훔치지 않는다. 결정적이다 - 같은 상태에서 늘 같은 것을 고른다.
-        std::uint32_t PickVictim(std::uint8_t incomingPriority) const
+        // `mixingOnly` 면 실제로 섞는 보이스만 본다 - 섞는 수가 찼을 때(D-235).
+        std::uint32_t PickVictim(std::uint8_t incomingPriority, bool mixingOnly = false) const
         {
             std::uint32_t best = static_cast<std::uint32_t>(-1);
             for (std::uint32_t index = 0; index < voices.Size(); ++index)
             {
                 const Voice& voice = voices[index];
-                if (voice.state == VoiceState::Free || voice.priority > incomingPriority)
+                if (voice.state == VoiceState::Free || voice.priority > incomingPriority
+                    || (mixingOnly && false == IsMixing(voice)))
                 {
                     continue;
                 }
@@ -1869,6 +2119,8 @@ namespace JBro
             voice.filterReady = ma_node_init(ma_engine_get_node_graph(&state.engine), &filterConfig, &state.callbacks,
                 reinterpret_cast<ma_node*>(voice.filter.Get())) == MA_SUCCESS;
         }
+        state.rankOrder.Resize(desc.maxVoices);
+        state.rankLoudness.Resize(desc.maxVoices);
         state.freeVoices.Reserve(desc.maxVoices);
         for (std::uint32_t index = desc.maxVoices; index > 0; --index)
         {
@@ -2091,6 +2343,7 @@ namespace JBro
                 }
             }
         }
+        state.Virtualize();
     }
 
     AudioClipHandle AudioMixer::RegisterClip(const AudioClipDesc& desc)
@@ -2629,6 +2882,29 @@ namespace JBro
             state.freeVoices.RemoveAt(state.freeVoices.Size() - 1);
         }
 
+        // 섞는 수가 찼다(D-235). 루프는 가상으로 시작하고, 한 번짜리·스트리밍은 가장 약한 루프를 가상으로 돌리거나 실제로 섞는
+        // 보이스 가운데서 훔친다.
+        bool startParked = false;
+        if (state.VirtualizationEnabled() && state.CountMixing() >= state.desc.maxAudibleVoices)
+        {
+            if (desc.loop && clip->desc.encoding != AudioClipEncoding::File)
+            {
+                startParked = true;
+            }
+            else if (false == state.ParkWeakest(now))
+            {
+                const std::uint32_t victim = state.PickVictim(desc.priority, true);
+                if (victim == static_cast<std::uint32_t>(-1))
+                {
+                    ++state.voicesRejected;
+                    state.freeVoices.Add(index);
+                    return {};
+                }
+                state.ReleaseVoice(victim);
+                ++state.voicesStolen;
+            }
+        }
+
         State::Voice& voice = state.voices[index];
         ma_data_source* source = nullptr;
         if (clip->desc.encoding == AudioClipEncoding::Pcm)
@@ -2753,8 +3029,17 @@ namespace JBro
         voice.clip = desc.clip;
         voice.tag = desc.tag;
         voice.startSerial = ++state.serial;
+        voice.pitch = SafePositive(desc.pitch, 1.0f);
+        voice.spatial = desc.spatial;
+        voice.attenuation = desc.attenuation;
+        voice.minDistance = minDistance;
+        voice.maxDistance = maxDistance;
+        voice.rolloff = SafePositive(desc.rolloff, 1.0f);
+        voice.position[0] = desc.position[0];
+        voice.position[1] = desc.position[1];
+        voice.position[2] = desc.position[2];
         ma_sound_set_volume(&voice.sound, voice.volume * voice.trim);
-        ma_sound_set_pitch(&voice.sound, SafePositive(desc.pitch, 1.0f));
+        ma_sound_set_pitch(&voice.sound, voice.pitch);
         ma_sound_set_looping(&voice.sound, desc.loop ? MA_TRUE : MA_FALSE);
         if (desc.spatial)
         {
@@ -2771,10 +3056,25 @@ namespace JBro
             ma_sound_set_fade_in_milliseconds(&voice.sound, 0.0f, 1.0f,
                 static_cast<ma_uint64>(desc.fadeInSeconds * 1000.0f));
         }
+        ma_uint64 delayFrames = 0;
         if (desc.startDelaySeconds > 0.0f && std::isfinite(desc.startDelaySeconds))
         {
-            const ma_uint64 delay = static_cast<ma_uint64>(desc.startDelaySeconds * static_cast<float>(state.desc.sampleRate));
-            ma_sound_set_start_time_in_pcm_frames(&voice.sound, ma_engine_get_time_in_pcm_frames(&state.engine) + delay);
+            delayFrames = static_cast<ma_uint64>(desc.startDelaySeconds * static_cast<float>(state.desc.sampleRate));
+            ma_sound_set_start_time_in_pcm_frames(&voice.sound, ma_engine_get_time_in_pcm_frames(&state.engine) + delayFrames);
+        }
+        if (startParked)
+        {
+            // 가상으로 시작한다: 틀지 않고 처음(시작 지연 뒤)부터 센다. 다음 갱신에서 순위에 들면 곧바로 울린다.
+            voice.parked = true;
+            voice.parkCursor = 0.0;
+            voice.parkTime = now + delayFrames;
+            voice.state = State::VoiceState::Playing;
+            ++state.voicesStarted;
+            ++state.voicesVirtualized;
+            State::Clip& parkedClip = state.clips[desc.clip.index];
+            parkedClip.started = true;
+            parkedClip.lastStartFrame = now;
+            return {index, voice.generation};
         }
         if (ma_sound_start(&voice.sound) != MA_SUCCESS)
         {
@@ -2801,7 +3101,8 @@ namespace JBro
         {
             return;
         }
-        if (fadeOutSeconds > 0.0f && std::isfinite(fadeOutSeconds) && voice->state == State::VoiceState::Playing)
+        if (fadeOutSeconds > 0.0f && std::isfinite(fadeOutSeconds) && voice->state == State::VoiceState::Playing
+            && false == voice->parked)
         {
             ma_sound_stop_with_fade_in_milliseconds(&voice->sound, static_cast<ma_uint64>(fadeOutSeconds * 1000.0f));
             voice->state = State::VoiceState::Stopping;
@@ -2843,6 +3144,13 @@ namespace JBro
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice != nullptr && voice->state == State::VoiceState::Playing)
         {
+            if (voice->parked)
+            {
+                // 가상 보이스는 센 위치를 굳힌다 - 멈춘 동안 흐르지 않는다.
+                const std::uint64_t now = m_state->Now();
+                voice->parkCursor = m_state->VirtualCursor(*voice, now);
+                voice->parkTime = now;
+            }
             ma_sound_stop(&voice->sound);
             voice->state = State::VoiceState::Paused;
         }
@@ -2853,8 +3161,14 @@ namespace JBro
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice != nullptr && voice->state == State::VoiceState::Paused)
         {
-            ma_sound_start(&voice->sound);
             voice->state = State::VoiceState::Playing;
+            if (voice->parked)
+            {
+                // 가상인 채 다시 센다. 울릴지는 다음 갱신의 순위가 정한다.
+                voice->parkTime = m_state->Now();
+                return;
+            }
+            ma_sound_start(&voice->sound);
         }
     }
 
@@ -2875,6 +3189,12 @@ namespace JBro
         if (voice == nullptr)
         {
             return 0.0;
+        }
+        if (voice->parked)
+        {
+            const State::Clip* clip = m_state->ResolveClip(voice->clip);
+            return clip != nullptr && clip->desc.sampleRate > 0
+                ? m_state->VirtualCursor(*voice, m_state->Now()) / static_cast<double>(clip->desc.sampleRate) : 0.0;
         }
         float seconds = 0.0f;
         if (ma_sound_get_cursor_in_seconds(&voice->sound, &seconds) != MA_SUCCESS)
@@ -2902,6 +3222,12 @@ namespace JBro
             frame = static_cast<double>(clip->desc.frameCount - 1);
         }
         // 데이터 소스의 프레임 단위다(클립 자신의 샘플 레이트). 재생 중에도 목표만 적는다(miniaudio `seekTarget`).
+        if (voice->parked)
+        {
+            voice->parkCursor = frame;
+            voice->parkTime = m_state->Now();
+            return;
+        }
         ma_sound_seek_to_pcm_frame(&voice->sound, static_cast<ma_uint64>(frame));
     }
 
@@ -2920,7 +3246,15 @@ namespace JBro
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice != nullptr)
         {
-            ma_sound_set_pitch(&voice->sound, SafePositive(pitch, 1.0f));
+            if (voice->parked)
+            {
+                // 옛 피치로 센 만큼을 굳히고 새 피치로 센다.
+                const std::uint64_t now = m_state->Now();
+                voice->parkCursor = m_state->VirtualCursor(*voice, now);
+                voice->parkTime = now > voice->parkTime ? now : voice->parkTime;
+            }
+            voice->pitch = SafePositive(pitch, 1.0f);
+            ma_sound_set_pitch(&voice->sound, voice->pitch);
         }
     }
 
@@ -2939,6 +3273,9 @@ namespace JBro
         State::Voice* voice = IsInitialized() ? m_state->Resolve(handle) : nullptr;
         if (voice != nullptr && position != nullptr)
         {
+            voice->position[0] = position[0];
+            voice->position[1] = position[1];
+            voice->position[2] = position[2];
             ma_sound_set_position(&voice->sound, position[0], position[1], position[2]);
         }
     }
@@ -3158,6 +3495,10 @@ namespace JBro
         }
         const State& state = *m_state;
         stats.activeVoices = state.desc.maxVoices - static_cast<std::uint32_t>(state.freeVoices.Size());
+        for (const State::Voice& voice : state.voices)
+        {
+            stats.virtualVoices += voice.state != State::VoiceState::Free && voice.parked ? 1u : 0u;
+        }
         stats.maxVoices = state.desc.maxVoices;
         stats.registeredClips = static_cast<std::uint32_t>(state.clips.Size() - state.freeClips.Size());
         stats.voicesStarted = state.voicesStarted;
@@ -3166,6 +3507,8 @@ namespace JBro
         stats.voicesCulled = state.voicesCulled;
         stats.voicesThrottled = state.voicesThrottled;
         stats.voicesReplaced = state.voicesReplaced;
+        stats.voicesVirtualized = state.voicesVirtualized;
+        stats.voicesRealized = state.voicesRealized;
         stats.allocatorGrowths = state.allocator.GetGrowths();
         stats.lastPeak = state.peak.load(std::memory_order_relaxed);
         stats.renderedFrames = state.renderedFrames.load(std::memory_order_relaxed);
