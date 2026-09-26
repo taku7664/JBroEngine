@@ -1,0 +1,3 @@
+Modules\JBroAsset\Source\Asset.cpp	family:non-font-kept	if (font.generation != 0 && GetHandleType(font) != AssetType::Font)	if (false)
+Modules\JBroTextRendering\Source\TextBlock.cpp	block:styles-not-keyed	 || m_styles.bold != styles.bold || m_styles.italic != styles.italic || m_styles.boldItalic != styles.boldItalic;	;
+Modules\JBroAsset\Source\AssetTypeRules.cpp	rules:last-word-ignored	            if (whole != AssetType::Unknown)\n            {\n                return whole;\n            }	            if (true)\n            {\n                return whole;\n            }
