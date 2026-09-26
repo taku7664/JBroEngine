@@ -1,0 +1,15 @@
+Modules\JBroEditor\Source\EditorShortcutManager.cpp	suspend:ignored	        if (m_suspended)\n        {\n            return 0;	        if (false)\n        {\n            return 0;
+Modules\JBroEditor\Source\EditorShortcutManager.cpp	search:case-sensitive	                    if (a >= 'A' && a <= 'Z')	                    if (false)
+Modules\JBroEditor\Source\EditorShortcutManager.cpp	search:no-label	        return contains(label) || contains(category)	        return contains(category)
+Modules\JBroEditor\Source\EditorShortcutManager.cpp	search:no-category	        return contains(label) || contains(category) || contains(view.id)	        return contains(label) || contains(view.id)
+Modules\JBroEditor\Source\EditorShortcutManager.cpp	search:no-keys	 || contains(Describe(view.primary).value)\n            || contains(Describe(view.secondary).value);	;
+Modules\JBroEditor\Source\EditorShortcutManager.cpp	search:no-second-key	\n            || contains(Describe(view.secondary).value);	;
+Modules\JBroEditor\Source\EditorShortcutManager.cpp	search:empty-matches-nothing	        if (IsBlank(query))\n        {\n            return true;	        if (IsBlank(query))\n        {\n            return false;
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	capture:not-suspending	        m_editor->GetShortcuts().SetSuspended(true);	        (void)0;
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	capture:not-releasing	            m_editor->GetShortcuts().SetSuspended(false);	            (void)0;
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	capture:esc-binds	        if (pressed.key == ImGuiKey_Escape && false == pressed.control && false == pressed.shift && false == pressed.alt)	        if (false)
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	capture:wrong-slot	        m_editor->GetShortcuts().SetBinding(m_captureId.c_str(), m_captureSlot, pressed);	        m_editor->GetShortcuts().SetBinding(m_captureId.c_str(), 1, pressed);
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	close:keeps-capture	        if (false == m_captureId.IsEmpty() && false == IsOpen())	        if (false)
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	reset:does-nothing	                    shortcuts.ResetBinding(view.id);	                    (void)0;
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	filter:off	 || false == EditorShortcutManager::MatchesSearch(m_search.c_str(), Translate(view.labelKey), category, view))	)
+Modules\JBroEditor\Source\Panel\EditorSettingsPanel.cpp	resetall:ignores-answer	        if (choice == 0)	        if (true)
