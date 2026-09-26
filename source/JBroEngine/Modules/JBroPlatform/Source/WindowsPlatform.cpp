@@ -318,6 +318,47 @@ namespace JBro
                 platform->RecordInputEvent(event);
                 break;
 
+            // 터치·펜(D-214, 기존 엔진 `AccumulateTouchPointer`). 마우스 포인터는 여기서 거르고 WM_MOUSE 로 받는다.
+            // 처리한 뒤에도 `DefWindowProcW` 로 넘긴다 - 그래야 Windows 가 터치를 마우스로도 흉내 내어 에디터 UI 가 손가락으로 눌린다.
+            case WM_POINTERDOWN:
+            case WM_POINTERUPDATE:
+            case WM_POINTERUP:
+            case WM_POINTERCAPTURECHANGED:
+            {
+                const UINT32 pointer = GET_POINTERID_WPARAM(wParam);
+                const bool ends = message == WM_POINTERUP || message == WM_POINTERCAPTURECHANGED;
+                POINTER_INFO info = {};
+                bool known = GetPointerInfo(pointer, &info) != FALSE;
+                if (known && info.pointerType != PT_TOUCH && info.pointerType != PT_PEN)
+                {
+                    break;
+                }
+                // 정보를 못 얻은 누름·이동은 버린다. 떼기는 정보가 없어도 알린다 - 알리지 않으면 손가락이 영영 닿아 있다.
+                if (false == known && false == ends)
+                {
+                    break;
+                }
+                if (known)
+                {
+                    POINT at = info.ptPixelLocation;
+                    ScreenToClient(window, &at);
+                    event.x = static_cast<float>(at.x);
+                    event.y = static_cast<float>(at.y);
+                }
+                else
+                {
+                    // 자리를 모른다는 뜻이다. (0, 0) 은 창의 구석이라 자리로 오해된다.
+                    event.x = std::numeric_limits<float>::quiet_NaN();
+                    event.y = std::numeric_limits<float>::quiet_NaN();
+                }
+                event.codePoint = pointer;
+                event.kind = message == WM_POINTERDOWN ? InputEventKind::TouchBegan
+                    : message == WM_POINTERUPDATE ? InputEventKind::TouchMoved
+                    : message == WM_POINTERUP ? InputEventKind::TouchEnded : InputEventKind::TouchCancelled;
+                platform->RecordInputEvent(event);
+                break;
+            }
+
             case WM_SETFOCUS:
                 event.kind = InputEventKind::FocusGained;
                 platform->RecordInputEvent(event);

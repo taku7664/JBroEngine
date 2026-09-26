@@ -4,6 +4,8 @@
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Host/ScriptDLLLoader.h>
+#include <JBro/InputTypes/ServiceContext.h>
+#include <JBro/SaveTypes/ServiceContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/GameObject.h>
@@ -16,6 +18,7 @@
 #include <Windows.h>
 
 #include <cstring>
+#include <filesystem>
 #include <cwchar>
 #include <iostream>
 #include <stdexcept>
@@ -827,6 +830,14 @@ namespace
         config.window.visible = false;
         config.window.width = 64;
         config.window.height = 64;
+        // 세이브는 임시 폴더에 쓴다 - 시험이 사용자 폴더에 세이브를 남기지 않는다(D-218).
+        const std::filesystem::path saveRoot = std::filesystem::temp_directory_path() / "JBroHostSaveProbe";
+        std::error_code saveError;
+        std::filesystem::remove_all(saveRoot, saveError);
+        {
+            const std::u8string text = saveRoot.generic_u8string();
+            config.saveFolder = JBro::String(reinterpret_cast<const char*>(text.data()), text.size());
+        }
         JBro::EngineInstance engine;
         Check(engine.Initialize(config, platform, rhi), "host must initialize for the script test");
         Check(false == engine.GetScriptModule().IsLoaded(),
@@ -841,6 +852,69 @@ namespace
             "opening a project with a module path must leave that module loaded");
         Check(engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsLoaded") != nullptr,
             "the loaded module must be queryable through the host");
+
+        // 게임 입력이 DLL 까지 닿는다(D-214). 창에 넣은 키를 엔진이 틱에서 접고, DLL 은 자기 사본의 서비스로
+        // 그것을 읽는다 - 호스트가 입력 블록을 내지 않았거나 DLL 이 묶지 않았으면 여기서 거짓이다.
+        using IsKeyDown = bool (*)(std::uint16_t) noexcept;
+        const auto isKeyDown = reinterpret_cast<IsKeyDown>(
+            engine.GetScriptModule().GetSymbol("JBroScriptProbe_IsKeyDown"));
+        Check(isKeyDown != nullptr, "the probe must export its key query");
+        const auto space = static_cast<std::uint16_t>(JBro::Key::Space);
+        Check(false == isKeyDown(space), "nothing is held before any input arrives");
+        const HWND window = reinterpret_cast<HWND>(engine.GetMainWindow().value);
+        PostMessageW(window, WM_KEYDOWN, VK_SPACE, 0);
+        Check(engine.Tick(0.016f), "the host must tick with the script module loaded");
+        Check(isKeyDown(space), "a key posted to the game window must reach the service inside the script DLL");
+        // 호스트 안에서 정적으로 붙인 스크립트는 호스트 모듈의 사본을 읽는다. 엔진이 그 사본에도 묶었어야 한다.
+        Check(JBro::GetInputServices().Input.Keyboard().IsDown(JBro::Key::Space),
+            "the host's own copy of the service must see the same key");
+        PostMessageW(window, WM_KEYUP, VK_SPACE, static_cast<LPARAM>(0xC0000001u));
+        Check(engine.Tick(0.016f), "the host must keep ticking");
+        Check(false == isKeyDown(space), "and releasing it must reach the DLL too");
+
+        // 프로젝트의 입력 액션이 곧바로 걸린다(D-214). 설정 창이 저장하면 부르는 길(`SetProjectFile`)이다.
+        JBro::ProjectFile inputProject = engine.GetProjectFile();
+        JBro::ProjectInputAction jumpAction;
+        jumpAction.name = "Jump";
+        JBro::ProjectInputBinding jumpKey;
+        jumpKey.code = static_cast<std::uint16_t>(JBro::Key::Space);
+        jumpAction.bindings.Add(jumpKey);
+        inputProject.inputActions.Add(jumpAction);
+        engine.SetProjectFile(inputProject);
+        const JBro::InputActionId jump = JBro::MakeNameId("Jump");
+        PostMessageW(window, WM_KEYDOWN, VK_SPACE, 0);
+        Check(engine.Tick(0.016f), "the host must tick with the new actions");
+        Check(JBro::GetInputServices().Input.GetView().IsActionPressed(jump),
+            "a key bound in the project presses its action through the service");
+        PostMessageW(window, WM_KEYUP, VK_SPACE, static_cast<LPARAM>(0xC0000001u));
+        Check(engine.Tick(0.016f), "the host must keep ticking");
+
+        // DLL 안의 스크립트가 세이브를 쓰고 되읽는다(D-218). 읽은 바이트는 DLL 의 힙에 놓인다.
+        using SaveRoundTrip = bool (*)(const char*, const char*) noexcept;
+        const auto saveRoundTrip = reinterpret_cast<SaveRoundTrip>(
+            engine.GetScriptModule().GetSymbol("JBroScriptProbe_SaveRoundTrip"));
+        Check(saveRoundTrip != nullptr, "the probe must export its save round trip");
+        Check(saveRoundTrip("probe.yaml", "score: 42\n"), "a save written inside the script DLL reads back there");
+        Check(std::filesystem::is_regular_file(saveRoot / "probe.yaml", saveError),
+            "and lands in the folder the host was given");
+        JBro::String hostRead;
+        Check(JBro::GetSaveServices().Save.ReadText("probe.yaml", hostRead) && hostRead == "score: 42\n",
+            "the host's own copy of the service reads the same slot");
+
+        // 리바인딩의 글자도 DLL 이 제 힙에 받는다.
+        Check(JBro::GetInputServices().Input.SetActionBinding(jump, 0, [] {
+            JBro::InputBinding binding;
+            binding.code = static_cast<std::uint16_t>(JBro::Key::Enter);
+            return binding;
+        }()), "the host's copy rebinds the action");
+        using WriteOverrides = std::size_t (*)(char*, std::size_t) noexcept;
+        const auto writeOverrides = reinterpret_cast<WriteOverrides>(
+            engine.GetScriptModule().GetSymbol("JBroScriptProbe_WriteBindingOverrides"));
+        Check(writeOverrides != nullptr, "the probe must export its binding text");
+        char overrides[128] = {};
+        const std::size_t overridesSize = writeOverrides(overrides, sizeof(overrides));
+        Check(JBro::String(overrides, overridesSize) == "Jump: \"Key Enter\"\n",
+            "the script DLL receives the changed binding by name");
 
         engine.CloseProject();
         Check(framework.unbindCount == 1, "closing must unbind the contexts once");

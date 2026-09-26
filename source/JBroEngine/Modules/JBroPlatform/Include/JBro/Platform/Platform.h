@@ -246,6 +246,12 @@ namespace JBro
             (void)utf8Path;
             return false;
         }
+        // **사용자가 쓸 수 있는 앱 데이터 폴더**다(D-218). 세이브가 여기 아래에 간다 - 설치 폴더는 쓰기 권한이 없을 수 있고
+        // 에셋 폴더는 패키지 빌드에서 팩 파일이다. Windows 는 `%LOCALAPPDATA%` 이다. 없는 플랫폼이면 빈 글자다.
+        virtual String GetUserDataFolder() const
+        {
+            return String();
+        }
         // **실행 파일이 있는 폴더**다(D-176). 없는 플랫폼이면 빈 글자다.
         //
         // 프로그램과 함께 놓인 것(글자 표·아이콘 글꼴)은 이 폴더 기준으로 찾아야 한다.
@@ -356,6 +362,23 @@ namespace JBro
         virtual bool TakeAudioDevicesChanged()
         {
             return false;
+        }
+
+        // ── 게임패드 (D-214) ────────────────────────────────────────────────────────────────────
+        // 자리(0..3) 하나의 지금 상태다. 연결되어 있지 않으면 비우고 거짓이다. 빈 자리를 묻는 것이 비싸므로(XInput 은 수 ms)
+        // 부르는 쪽이 빈 자리는 가끔만 묻는다. 기본은 "이 플랫폼에는 없다" 다.
+        virtual bool PollGamepad(std::uint32_t slot, GamepadRawState& state)
+        {
+            (void)slot;
+            state = {};
+            return false;
+        }
+        // 두 모터의 세기(0..1)다. 낮은 쪽이 왼쪽(큰 모터)이다. 없는 자리면 아무 일도 하지 않는다.
+        virtual void SetGamepadVibration(std::uint32_t slot, float low, float high)
+        {
+            (void)slot;
+            (void)low;
+            (void)high;
         }
     };
 }

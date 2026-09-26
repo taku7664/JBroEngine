@@ -108,6 +108,14 @@ namespace JBro::System
             return circle;
         }
 
+        // 크기를 곱한 `size` 상자에 꼭 맞는 캡슐(physics-plan §4 의 7). 긴 축으로 눕고 반지름은 짧은 쪽 반폭이라, 한 축으로만
+        // 늘여도 캡슐로 남는다. 캔버스 뷰가 같은 함수로 그린다.
+        Physics2D::ConvexPolygon BakeCapsule(const Component::Collider2D& collider, Vec2 scale)
+        {
+            return Physics2D::MakeCapsuleInBox(Bake({}, collider.offset, scale),
+                { collider.size.x * 0.5f * scale.x, collider.size.y * 0.5f * scale.y });
+        }
+
         void BakeOutline(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
         {
             outline.Clear();
@@ -124,6 +132,33 @@ namespace JBro::System
             {
                 outline.Add(Bake(point, collider.offset, scale));
             }
+        }
+
+        // 이미 있는 도형의 모양을 콜라이더에 맞춘다. 만들 때와 같은 갈래다. 틀린 외곽선이면 false 이고 모양은 그대로다.
+        bool Reshape(Physics2D::World& world, Physics2D::ShapeId shape, const Component::Collider2D& collider, Vec2 scale,
+            Array<Vec2>& outline)
+        {
+            if (collider.shape == Component::ColliderShape2D::Circle)
+            {
+                return world.SetCircleGeometry(shape, BakeCircle(collider, scale));
+            }
+            if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, scale);
+                return world.SetCapsuleGeometry(shape, capsule.points[0], capsule.points[1], capsule.radius);
+            }
+            if (collider.shape == Component::ColliderShape2D::Box)
+            {
+                Vec2 corners[4];
+                BakeBox(collider, scale, corners);
+                outline.Clear();
+                outline.Append(corners, 4);
+            }
+            else
+            {
+                BakeOutline(collider, scale, outline);
+            }
+            return world.SetPolygonGeometry(shape, outline.View()) == Physics2D::PolygonError::None;
         }
 
         Physics2D::Pose ToPose(const Internal::ObjectPose& pose)
@@ -204,6 +239,8 @@ namespace JBro::System
             GameObjectHandle   owner;
             SafePtr<GameObject> ownerObject;
             std::uint64_t      signature = 0;
+            // 트리거 여부가 바뀌면 도형을 새로 만든다(훅의 종류가 바뀐다). 나머지는 제자리에서 바꾼다.
+            bool               isTrigger = false;
             bool               seen = false;
         };
 
@@ -299,32 +336,43 @@ namespace JBro::System
         return count;
     }
 
-    bool Physics2DSystem::Raycast(
-        Vec2 origin,
-        Vec2 direction,
-        float distance,
-        Collision2D& hit) const
+    namespace
     {
-        hit = {};
+        // 질의 하나가 도형마다 받는 것. 폴리곤 콜라이더는 볼록 조각마다 한 번씩 불린다.
+        struct QueryShape
+        {
+            GameObject*                     owner = nullptr;
+            const Component::Collider2D*    collider = nullptr;
+            const Physics2D::ConvexPolygon* polygon = nullptr;
+            const Physics2D::Circle*        circle = nullptr;
+            Physics2D::Pose                 pose;
+        };
+
+        bool NormalizeDirection(Vec2& direction)
+        {
+            const float lengthSquared = direction.x * direction.x + direction.y * direction.y;
+            if (lengthSquared <= DirectionEpsilonSquared)
+            {
+                return false;
+            }
+            const float inverse = 1.0f / std::sqrt(lengthSquared);
+            direction = { direction.x * inverse, direction.y * inverse };
+            return true;
+        }
+    }
+
+    template<typename Fn>
+    void Physics2DSystem::ForEachQueryShape(std::uint32_t layerMask, Fn&& visit) const
+    {
         if (m_canvas == nullptr)
         {
-            return false;
+            return;
         }
-
-        const float lengthSquared = direction.x * direction.x + direction.y * direction.y;
-        if (distance < 0.0f || lengthSquared <= DirectionEpsilonSquared)
-        {
-            return false;
-        }
-        const float inverseLength = 1.0f / std::sqrt(lengthSquared);
-        direction = { direction.x * inverseLength, direction.y * inverseLength };
-
         Canvas& canvas = *m_canvas;
         State& state = *m_state;
-        float closest = std::numeric_limits<float>::max();
         canvas.ForEach<Component::Collider2D>([&](Component::Collider2D& collider)
         {
-            if (false == collider.IsActiveComponent())
+            if (false == collider.IsActiveComponent() || (collider.layer & layerMask) == 0u)
             {
                 return;
             }
@@ -334,64 +382,147 @@ namespace JBro::System
             {
                 return;
             }
-            const Physics2D::Pose pose = ToPose(objectPose);
-
-            float candidate = 0.0f;
-            Vec2 normal;
-            bool intersects = false;
+            QueryShape shape;
+            shape.owner = owner;
+            shape.collider = &collider;
+            shape.pose = ToPose(objectPose);
+            if (collider.shape == Component::ColliderShape2D::Circle)
+            {
+                const Physics2D::Circle circle = BakeCircle(collider, objectPose.scale);
+                shape.circle = &circle;
+                visit(shape);
+                return;
+            }
             if (collider.shape == Component::ColliderShape2D::Box)
             {
                 Vec2 corners[4];
                 BakeBox(collider, objectPose.scale, corners);
-                intersects = Physics2D::RaycastPolygon(
-                    BoxPolygon(corners), pose, origin, direction, distance, candidate, normal);
-            }
-            else if (collider.shape == Component::ColliderShape2D::Circle)
-            {
-                intersects = Physics2D::RaycastCircle(
-                    BakeCircle(collider, objectPose.scale), pose, origin, direction, distance, candidate, normal);
-            }
-            else if (collider.shape == Component::ColliderShape2D::Polygon)
-            {
-                for (const Physics2D::ConvexPolygon& piece : state.PiecesFor(collider, objectPose.scale))
-                {
-                    float pieceDistance = 0.0f;
-                    Vec2 pieceNormal;
-                    if (Physics2D::RaycastPolygon(piece, pose, origin, direction, distance, pieceDistance, pieceNormal)
-                        && (false == intersects || pieceDistance < candidate))
-                    {
-                        intersects = true;
-                        candidate = pieceDistance;
-                        normal = pieceNormal;
-                    }
-                }
-            }
-
-            if (false == intersects || candidate >= closest)
-            {
+                const Physics2D::ConvexPolygon box = BoxPolygon(corners);
+                shape.polygon = &box;
+                visit(shape);
                 return;
             }
-            closest = candidate;
-            hit.other = owner->GetScriptHandle();
-            hit.bodyType = Internal::GetBodyType(canvas, owner);
-            hit.point = { origin.x + direction.x * candidate, origin.y + direction.y * candidate };
-            hit.normal = normal;
+            if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, objectPose.scale);
+                if (capsule.radius <= 0.0f)
+                {
+                    return;
+                }
+                shape.polygon = &capsule;
+                visit(shape);
+                return;
+            }
+            for (const Physics2D::ConvexPolygon& piece : state.PiecesFor(collider, objectPose.scale))
+            {
+                shape.polygon = &piece;
+                visit(shape);
+            }
         });
-        return hit.other.GetInstanceId() != InvalidInstanceId;
     }
 
-    void Physics2DSystem::OverlapBox(
-        const Rect& area,
-        Array<GameObjectHandle>& results) const
+    namespace
     {
-        results.Clear();
-        if (m_canvas == nullptr)
+        RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vec2 point, Vec2 normal, float distance)
+        {
+            RaycastHit2D hit;
+            hit.other = owner->GetScriptHandle();
+            hit.bodyType = Internal::GetBodyType(canvas, owner);
+            hit.point = point;
+            hit.normal = normal;
+            hit.distance = distance;
+            return hit;
+        }
+
+        void AddUnique(Array<GameObjectHandle>& results, GameObject* owner)
+        {
+            const InstanceId id = owner->GetInstanceId();
+            for (const GameObjectHandle& existing : results)
+            {
+                if (existing.GetInstanceId() == id)
+                {
+                    return;
+                }
+            }
+            results.Add(owner->GetScriptHandle());
+        }
+
+        bool RayShape(const QueryShape& shape, Vec2 origin, Vec2 direction, float maxDistance,
+            float& distance, Vec2& normal)
+        {
+            return shape.circle != nullptr
+                ? Physics2D::RaycastCircle(*shape.circle, shape.pose, origin, direction, maxDistance, distance, normal)
+                : Physics2D::RaycastPolygon(*shape.polygon, shape.pose, origin, direction, maxDistance, distance, normal);
+        }
+    }
+
+    bool Physics2DSystem::Raycast(
+        Vec2 origin, Vec2 direction, float distance, RaycastHit2D& hit, std::uint32_t layerMask) const
+    {
+        hit = {};
+        if (m_canvas == nullptr || distance < 0.0f || false == NormalizeDirection(direction))
+        {
+            return false;
+        }
+        bool found = false;
+        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        {
+            float candidate = 0.0f;
+            Vec2 normal;
+            if (RayShape(shape, origin, direction, distance, candidate, normal)
+                && (false == found || candidate < hit.distance))
+            {
+                found = true;
+                hit = MakeHit(*m_canvas, shape.owner,
+                    { origin.x + direction.x * candidate, origin.y + direction.y * candidate }, normal, candidate);
+            }
+        });
+        return found;
+    }
+
+    void Physics2DSystem::RaycastAll(
+        Vec2 origin, Vec2 direction, float distance, Array<RaycastHit2D>& hits, std::uint32_t layerMask) const
+    {
+        hits.Clear();
+        if (m_canvas == nullptr || distance < 0.0f || false == NormalizeDirection(direction))
         {
             return;
         }
+        // 콜라이더마다 한 번이다. 폴리곤의 조각 여럿에 걸려도 그 콜라이더의 가장 가까운 것 하나다 - 조각은 우리 사정이다.
+        const Component::Collider2D* current = nullptr;
+        std::size_t currentIndex = 0;
+        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        {
+            float candidate = 0.0f;
+            Vec2 normal;
+            if (false == RayShape(shape, origin, direction, distance, candidate, normal))
+            {
+                return;
+            }
+            const RaycastHit2D hit = MakeHit(*m_canvas, shape.owner,
+                { origin.x + direction.x * candidate, origin.y + direction.y * candidate }, normal, candidate);
+            if (shape.collider == current)
+            {
+                if (candidate < hits[currentIndex].distance)
+                {
+                    hits[currentIndex] = hit;
+                }
+                return;
+            }
+            current = shape.collider;
+            currentIndex = hits.Size();
+            hits.Add(hit);
+        });
+        std::sort(hits.begin(), hits.end(), [](const RaycastHit2D& left, const RaycastHit2D& right)
+        {
+            return left.distance < right.distance;
+        });
+    }
 
-        Canvas& canvas = *m_canvas;
-        State& state = *m_state;
+    void Physics2DSystem::OverlapBox(
+        const Rect& area, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
+    {
+        results.Clear();
         Physics2D::ConvexPolygon box;
         box.points[0] = { area.min.x, area.min.y };
         box.points[1] = { area.max.x, area.min.y };
@@ -399,59 +530,150 @@ namespace JBro::System
         box.points[3] = { area.min.x, area.max.y };
         box.count = 4;
         const Physics2D::Pose identity;
-
-        canvas.ForEach<Component::Collider2D>([&](Component::Collider2D& collider)
+        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
         {
-            if (false == collider.IsActiveComponent())
+            const bool overlaps = shape.circle != nullptr
+                ? Physics2D::OverlapPolygonAndCircle(box, identity, *shape.circle, shape.pose)
+                : Physics2D::OverlapPolygons(box, identity, *shape.polygon, shape.pose);
+            if (overlaps)
             {
-                return;
+                AddUnique(results, shape.owner);
             }
-            GameObject* owner = Internal::CanvasAccess::GetOwner(collider);
-            Internal::ObjectPose objectPose;
-            if (owner == nullptr || false == Internal::CalculateObjectPose(canvas, owner, objectPose))
-            {
-                return;
-            }
-            const Physics2D::Pose pose = ToPose(objectPose);
+        });
+    }
 
-            bool overlaps = false;
-            if (collider.shape == Component::ColliderShape2D::Box)
+    GameObjectHandle Physics2DSystem::OverlapPoint(Vec2 point, std::uint32_t layerMask) const
+    {
+        GameObjectHandle found;
+        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        {
+            if (found.GetInstanceId() != InvalidInstanceId)
             {
+                return;
+            }
+            const bool inside = shape.circle != nullptr
+                ? Physics2D::ContainsPoint(*shape.circle, shape.pose, point)
+                : Physics2D::ContainsPoint(*shape.polygon, shape.pose, point);
+            if (inside)
+            {
+                found = shape.owner->GetScriptHandle();
+            }
+        });
+        return found;
+    }
+
+    void Physics2DSystem::OverlapCircle(
+        Vec2 center, float radius, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
+    {
+        results.Clear();
+        if (radius < 0.0f)
+        {
+            return;
+        }
+        Physics2D::Circle probe;
+        probe.center = center;
+        probe.radius = radius;
+        const Physics2D::Pose identity;
+        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        {
+            const bool overlaps = shape.circle != nullptr
+                ? Physics2D::OverlapCircles(probe, identity, *shape.circle, shape.pose)
+                : Physics2D::OverlapPolygonAndCircle(*shape.polygon, shape.pose, probe, identity);
+            if (overlaps)
+            {
+                AddUnique(results, shape.owner);
+            }
+        });
+    }
+
+    bool Physics2DSystem::CircleCast(Vec2 origin, float radius, Vec2 direction, float distance,
+        RaycastHit2D& hit, std::uint32_t layerMask) const
+    {
+        hit = {};
+        if (m_canvas == nullptr || distance < 0.0f || radius < 0.0f || false == NormalizeDirection(direction))
+        {
+            return false;
+        }
+        bool found = false;
+        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        {
+            float candidate = 0.0f;
+            Vec2 normal;
+            const bool touched = shape.circle != nullptr
+                ? Physics2D::CastCircle(origin, radius, direction, distance, *shape.circle, shape.pose, candidate, normal)
+                : Physics2D::CastCircle(origin, radius, direction, distance, *shape.polygon, shape.pose, candidate, normal);
+            if (touched && (false == found || candidate < hit.distance))
+            {
+                found = true;
+                const Vec2 center{ origin.x + direction.x * candidate, origin.y + direction.y * candidate };
+                // 맞은 순간 원이 표면에 닿는 자리다. 출발부터 겹쳤으면 원의 중심이다.
+                const Vec2 point = candidate == 0.0f
+                    ? center
+                    : Vec2{ center.x - normal.x * radius, center.y - normal.y * radius };
+                hit = MakeHit(*m_canvas, shape.owner, point, normal, candidate);
+            }
+        });
+        return found;
+    }
+
+    bool Physics2DSystem::BoxCast(Vec2 center, Vec2 halfExtents, float angle, Vec2 direction, float distance,
+        RaycastHit2D& hit, std::uint32_t layerMask) const
+    {
+        hit = {};
+        if (m_canvas == nullptr || distance < 0.0f || halfExtents.x < 0.0f || halfExtents.y < 0.0f
+            || false == NormalizeDirection(direction))
+        {
+            return false;
+        }
+        Physics2D::ConvexPolygon box;
+        box.points[0] = { -halfExtents.x, -halfExtents.y };
+        box.points[1] = { halfExtents.x, -halfExtents.y };
+        box.points[2] = { halfExtents.x, halfExtents.y };
+        box.points[3] = { -halfExtents.x, halfExtents.y };
+        box.count = 4;
+        const Physics2D::Pose start{ center, Physics2D::Rotation::FromAngle(angle) };
+        bool found = false;
+        ForEachQueryShape(layerMask, [&](const QueryShape& shape)
+        {
+            float candidate = 0.0f;
+            Vec2 normal;
+            const bool touched = shape.circle != nullptr
+                ? Physics2D::CastPolygon(box, start, direction, distance, *shape.circle, shape.pose, candidate, normal)
+                : Physics2D::CastPolygon(box, start, direction, distance, *shape.polygon, shape.pose, candidate, normal);
+            if (false == touched || (found && candidate >= hit.distance))
+            {
+                return;
+            }
+            found = true;
+            const Vec2 moved{ center.x + direction.x * candidate, center.y + direction.y * candidate };
+            Vec2 point = moved;
+            if (candidate > 0.0f)
+            {
+                // 상자에서 법선의 반대쪽으로 가장 나온 점들(면이 닿으면 그 면의 가운데)이 닿은 자리다.
+                const Physics2D::Pose at{ moved, start.rotation };
+                float lowest = 0.0f;
                 Vec2 corners[4];
-                BakeBox(collider, objectPose.scale, corners);
-                overlaps = Physics2D::OverlapPolygons(box, identity, BoxPolygon(corners), pose);
-            }
-            else if (collider.shape == Component::ColliderShape2D::Circle)
-            {
-                overlaps = Physics2D::OverlapPolygonAndCircle(
-                    box, identity, BakeCircle(collider, objectPose.scale), pose);
-            }
-            else if (collider.shape == Component::ColliderShape2D::Polygon)
-            {
-                for (const Physics2D::ConvexPolygon& piece : state.PiecesFor(collider, objectPose.scale))
+                for (std::uint32_t k = 0; k < 4; ++k)
                 {
-                    if (Physics2D::OverlapPolygons(box, identity, piece, pose))
+                    corners[k] = Physics2D::TransformPoint(at, box.points[k]);
+                    const float along = corners[k].x * normal.x + corners[k].y * normal.y;
+                    lowest = k == 0 ? along : std::fmin(lowest, along);
+                }
+                Vec2 sum;
+                int count = 0;
+                for (const Vec2& corner : corners)
+                {
+                    if (corner.x * normal.x + corner.y * normal.y <= lowest + Physics2D::LinearSlop)
                     {
-                        overlaps = true;
-                        break;
+                        sum = { sum.x + corner.x, sum.y + corner.y };
+                        ++count;
                     }
                 }
+                point = { sum.x / static_cast<float>(count), sum.y / static_cast<float>(count) };
             }
-            if (false == overlaps)
-            {
-                return;
-            }
-
-            const InstanceId ownerId = owner->GetInstanceId();
-            for (const GameObjectHandle& existing : results)
-            {
-                if (existing.GetInstanceId() == ownerId)
-                {
-                    return;
-                }
-            }
-            results.Add(owner->GetScriptHandle());
+            hit = MakeHit(*m_canvas, shape.owner, point, normal, candidate);
         });
+        return found;
     }
 
     void Physics2DSystem::OnInitialize(Canvas& canvas)
@@ -608,8 +830,7 @@ namespace JBro::System
         // ── 2. 도형 ─────────────────────────────────────────────────────────────────
         canvas.ForEach<Component::Collider2D>([&](Component::Collider2D& collider)
         {
-            // 캡슐은 아직 커널에 없다(physics-plan §4 의 7). 충돌하지 않는다.
-            if (false == collider.IsActiveComponent() || collider.shape == Component::ColliderShape2D::Capsule)
+            if (false == collider.IsActiveComponent())
             {
                 return;
             }
@@ -632,11 +853,6 @@ namespace JBro::System
                 link->seen = true;
                 return;
             }
-            if (link != nullptr)
-            {
-                world.DestroyShape(link->shape);
-            }
-
             Physics2D::ShapeDef def;
             def.friction = collider.friction;
             def.restitution = collider.restitution;
@@ -645,16 +861,44 @@ namespace JBro::System
             def.mask = collider.mask;
             def.userData = colliderId;
 
+            // 같은 오브젝트의 살아 있는 도형이면 제자리에서 바꾼다. 스텝마다 지우고 만들면 크기를 움직이는 콜라이더가
+            // 닿아 있는 동안 끝·시작 훅을 스텝마다 되풀이한다(physics-plan §4 의 4 (1)).
+            if (link != nullptr && link->object == object->GetInstanceId() && world.IsValid(link->shape)
+                && link->isTrigger == collider.isTrigger)
+            {
+                world.SetSurface(link->shape, def);
+                if (false == Reshape(world, link->shape, collider, pose.scale, state.outline))
+                {
+                    // 틀린 외곽선이 되었다. 만들 때와 같이 도형이 없는 연결로 둔다 - 닿아 있던 쌍은 끝으로 나온다.
+                    world.DestroyShape(link->shape);
+                    link->shape = {};
+                }
+                link->signature = signature;
+                link->seen = true;
+                return;
+            }
+            if (link != nullptr)
+            {
+                world.DestroyShape(link->shape);
+            }
+
             State::ShapeLink fresh;
             fresh.collider = colliderId;
             fresh.object = object->GetInstanceId();
             fresh.owner = object->GetScriptHandle();
             fresh.ownerObject = object->SafeFromThis();
             fresh.signature = signature;
+            fresh.isTrigger = collider.isTrigger;
             fresh.seen = true;
             if (collider.shape == Component::ColliderShape2D::Circle)
             {
                 fresh.shape = world.CreateCircleShape(body->body, BakeCircle(collider, pose.scale), def);
+            }
+            else if (collider.shape == Component::ColliderShape2D::Capsule)
+            {
+                const Physics2D::ConvexPolygon capsule = BakeCapsule(collider, pose.scale);
+                fresh.shape = world.CreateCapsuleShape(
+                    body->body, capsule.points[0], capsule.points[1], capsule.radius, def);
             }
             else
             {

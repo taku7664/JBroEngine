@@ -754,6 +754,27 @@ namespace JBro
         }
     }
 
+    ScriptInputBinding Canvas::FindScriptInputBinding(const GameScriptBase& script) const
+    {
+        const ComponentTypeId typeId = script.GetCachedTypeId();
+        if (const OwnerPtr<IComponentBucket>* bucket = m_componentBuckets.Find(typeId))
+        {
+            if (bucket->Get() != nullptr)
+            {
+                return (*bucket)->GetInputBinding();
+            }
+        }
+        for (const auto& entry : m_scriptPools)
+        {
+            const ScriptPool* pool = entry.MappedValue.Get();
+            if (pool != nullptr && pool->GetType().typeId == typeId)
+            {
+                return pool->GetType().input;
+            }
+        }
+        return {};
+    }
+
     void Canvas::FlushPendingDestroy()
     {
         if (IsIterating())

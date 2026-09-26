@@ -25,6 +25,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Notification.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/Command/SetAssetMetaCommand.h>
 #include <JBro/Canvas/Canvas.h>
@@ -200,6 +201,8 @@ namespace JBro
             engineConfig.enableValidation = config.enableValidation;
             // 에디터는 메타가 없는 에셋 파일에 메타를 만든다(D-111). 게임 실행은 만들지 않는다.
             engineConfig.createMissingAssetMeta = true;
+            // 에디터에서 재생한 게임의 세이브는 실제 게임의 것과 다른 폴더다(D-218).
+            engineConfig.editorSaves = true;
             engineConfig.watchAssetDirectory = true;
             engineConfig.audioDeviceEnabled = config.audioDevice;
             engineConfig.window.title = {"JBro Editor", 11};
@@ -2375,6 +2378,26 @@ namespace JBro
         m_gameViewRequested = true;
     }
 
+    void EditorApplication::ReportGameView(bool focused, float left, float top, float width, float height)
+    {
+        m_gameViewReported = true;
+        m_gameViewFocused = focused;
+        const Extent2D extent = GetGameViewExtent();
+        if (width > 0.0f && height > 0.0f && extent.width != 0 && extent.height != 0)
+        {
+            // 창 클라이언트 좌표 → 게임 화면 픽셀. 멀티 뷰포트를 켜지 않았으므로 ImGui 의 화면 좌표가 곧 클라이언트 좌표다.
+            m_gameViewMapping.originX = left;
+            m_gameViewMapping.originY = top;
+            m_gameViewMapping.scaleX = static_cast<float>(extent.width) / width;
+            m_gameViewMapping.scaleY = static_cast<float>(extent.height) / height;
+        }
+    }
+
+    bool EditorApplication::IsGameReceivingInput() const
+    {
+        return m_gameReceivingInput;
+    }
+
     Extent2D EditorApplication::GetGameViewExtent() const
     {
         return m_gameViewExtent;
@@ -2444,6 +2467,8 @@ namespace JBro
         if (m_engine.Get() != nullptr)
         {
             m_engine->SetSimulationEnabled(false);
+            // 게임이 켜고 끈 액션 세트를 되돌린다. 캔버스를 되살리는 것과 같은 까닭이다 - 다음 재생은 처음 상태로 시작한다.
+            m_engine->ResetGameInput();
         }
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr)
@@ -3043,6 +3068,8 @@ namespace JBro
             // **닫혀 있어도 갱신은 돈다.** 보이지 않는다고 멈춰야 하는 일과
             // 계속 돌아야 하는 일은 다르고, 그 판단은 패널의 몫이다.
             panel->OnUpdate(deltaTime);
+            // 그리지 않으면 포커스도 없다. 열린 창은 아래에서 다시 적는다.
+            panel->SetFocused(false);
             if (false == panel->IsOpen())
             {
                 continue;
@@ -3062,6 +3089,7 @@ namespace JBro
             }
             if (ImGui::Begin(label.c_str(), closable, flags))
             {
+                panel->SetFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
                 if (panel->HasMenuBar() && Widget::BeginMenuBar())
                 {
                     panel->OnMenuBar();
@@ -3096,6 +3124,25 @@ namespace JBro
         // 사라졌다. 빠르게 친 글자가 하나씩 빠졌다(`Beta` 가 `Bea` 로 들어갔다).
         m_platform->PumpEvents();
         const bool pushed = m_ui.PushInput(m_platform->GetInputEvents());
+        // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
+        // 기존 엔진의 `SetViewportActive` 게이트와 같다. 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
+        // 그러지 않으면 W 를 누른 채 인스펙터를 누르면 게임 속 캐릭터가 계속 걷는다.
+        const bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_gameViewReported && m_gameViewFocused;
+        if (gameInput)
+        {
+            m_engine->SubmitHostInput(m_platform->GetInputEvents(), m_gameViewMapping);
+        }
+        else if (m_gameReceivingInput)
+        {
+            InputEvent lost;
+            lost.kind = InputEventKind::FocusLost;
+            m_engine->SubmitHostInput({&lost, 1}, m_gameViewMapping);
+        }
+        m_gameReceivingInput = gameInput;
+        m_engine->SetHostGameInputActive(gameInput);
+        // 이번 프레임의 게임 뷰가 다시 알린다. 알리지 않으면(닫힘·가림) 다음 프레임은 게임 입력이 없다.
+        m_gameViewReported = false;
+        m_gameViewFocused = false;
         m_platform->ClearInputEvents();
         if (false == pushed)
         {
@@ -3125,6 +3172,15 @@ namespace JBro
         }
 
         DrawPopups();
+
+        // **알림은 모든 것 위에 선다** - 팝업보다 뒤에 그린다. 누른 것의 할 일은 여기서 부른다: 할 일이
+        // 에디터를 받아야 하는데 위젯 계층은 에디터를 모른다.
+        m_notifications.Update(deltaTime);
+        const NotificationHandle clicked = Widget::NotificationStack(m_notifications);
+        if (clicked != InvalidNotificationHandle)
+        {
+            m_notifications.Activate(clicked, *this);
+        }
 
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
@@ -3274,6 +3330,16 @@ namespace JBro
             }
         }
         return false;
+    }
+
+    EditorNotifications& EditorApplication::GetNotifications()
+    {
+        return m_notifications;
+    }
+
+    const EditorNotifications& EditorApplication::GetNotifications() const
+    {
+        return m_notifications;
     }
 
     bool EditorApplication::IsPopupOpenById(const char* id) const

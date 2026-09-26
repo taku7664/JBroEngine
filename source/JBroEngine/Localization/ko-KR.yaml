@@ -170,6 +170,22 @@ Entries:
   project_settings.audio_buses_help: "Master 는 항상 있으며 모든 버스는 Master 아래에서 재생됩니다. 컴포넌트나 스크립트가 버스 이름으로 고릅니다."
   project_settings.audio_no_buses: "Master 만 있습니다. 모든 소리가 Master 로 재생됩니다"
   project_settings.audio_duplicate: "이미 쓰고 있는 이름입니다"
+  project_settings.input: "입력"
+  project_settings.input_layers_help: "위에 있는 레이어가 먼저 입력을 받습니다. 한 레이어가 막으면 그 아래 레이어는 받지 않습니다"
+  project_settings.input_default_layers: "기본 순서(Modal, UI, Game, World, Debug)를 씁니다"
+  project_settings.input_add_layer: "레이어 추가"
+  project_settings.input_move_up: "위로"
+  project_settings.input_remove: "삭제"
+  project_settings.input_duplicate: "이미 쓰고 있는 이름입니다"
+  project_settings.input_actions_help: "스크립트는 키 대신 액션 이름으로 입력을 읽습니다. 액션마다 키·버튼·스틱을 여러 개 묶을 수 있습니다"
+  project_settings.input_no_actions: "액션이 없습니다"
+  project_settings.input_add_action: "액션 추가"
+  project_settings.input_remove_action: "액션 삭제"
+  project_settings.input_add_binding: "바인딩 추가"
+  project_settings.input_remove_binding: "바인딩 삭제"
+  project_settings.input_any_gamepad: "-1 이면 연결된 아무 게임패드입니다"
+  project_settings.input_set_help: "스크립트가 액션 세트를 켜고 끕니다. 게임을 시작하면 Default 만 켜져 있습니다"
+  project_settings.input_too_many: "엔진은 액션 64개, 액션마다 바인딩 8개까지 씁니다. 나머지는 파일에만 남습니다"
   inspector.sprite_import_options: 스프라이트 임포트 옵션
   common.ok: 확인
   log.clear: 지우기

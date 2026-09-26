@@ -181,6 +181,9 @@
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
+  | Tier S | `JBroInputTypes` | 입력 상태·`InputView`·`InputHandler`·`Service::InputService`·입력 컨텍스트 (D-214) |
+  | Tier S | `JBroSaveTypes` | `System::ISaveStorage`(POD 인자만)·`Service::SaveService`·세이브 컨텍스트. 구현 `SaveStorage` 는 `JBroHost` 에 있다 (D-218) |
+  | Tier E | `JBroInput` | `System::InputSystem` - 플랫폼 이벤트를 프레임 상태로 접고 레이어 체인의 소비를 나른다 (D-214) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
   | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216). 텍스트 레이아웃·아틀라스는 `JBroTextRendering` 이다(D-222). 3D 의 `JBroFramework3DSystem` 도 같은 두 모듈에 기댄다 |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
@@ -313,6 +316,8 @@
     포인터만 쓰고, 대상의 수명은 등록한 쪽이 태스크가 끝날 때까지 보장한다. 풀에 넣는 것 같은 마무리는 메인 스레드의 `OnFinished` 가 한다. (MUST)
   - 태스크를 넘기는 모양은 가상 함수다(`Task::Run`·`OnFinished`). `std::function` 본문을 받지 않는다 - 캡처한 `SafePtr` 가 워커에서 소멸할 수 있다. (MUST) (D-212)
   - 묶음은 다 채운 뒤 통째로 제출한다. 완료는 제출한 뒤에만 판정하고, 콜백은 `EngineInstance::Tick` 첫머리의 `Update` 에서 메인 스레드로 온다. (MUST) (D-212)
+- **2D 물리(커널 `JBroPhysics2D`·`Physics2DSystem`)는 메인 스레드 전용이다.** 스텝·되쓰기·훅 발송·질의가 모두 캔버스의 고정 스텝 안에서 돈다.
+  병렬화할 때는 위 규약대로 `TaskManager` 태스크로 넣고, 컴포넌트를 만지는 되쓰기와 훅 발송은 메인 스레드에 남긴다. (MUST) (D-199, physics-plan §3.7)
 - **`GetComponent<T>()` 는 원시 포인터가 아니라 `Ref<T>` 를 반환한다.** (MUST)
   원시 포인터는 저장할 수 없어 매 프레임 다시 찾아야 하고, 그 조회가 선형 탐색이다.
   `Ref<T>` 로 한 번 받아두면 이후 접근이 상수 시간이 된다.
@@ -488,6 +493,34 @@
 - Time, Input 같은 핵심 서비스의 수명은 엔진이 소유한다. (MUST)
 - 서비스 접근을 위해 매 호출마다 delta time이나 서비스 참조를 전달하는 구조를 기본 방식으로 삼지 않는다. (MUST)
 - `Time`, `Input`처럼 소유권과 분리된 전역 접근 지점을 제공할 수 있다. 이 접근 지점이 서비스 수명을 소유해서는 안 된다. (MAY)
+
+### 7.1 게임 입력
+
+- **게임 입력은 플랫폼 이벤트(D-62)를 프레임마다 한 번 접은 상태다.** 키 상태를 폴링(`GetAsyncKeyState` 따위)하지 않는다. (MUST) (D-214)
+  폴링은 한 프레임 안에 눌렀다 뗀 키를 잃는다. 키·버튼마다 지금 눌림과 이번 프레임의 눌림 수·뗌 수를 두고, 자동 반복은 누름이 아니며,
+  `FocusLost` 는 눌린 것을 모두 뗀 것으로 접는다. 접는 것은 `System::InputSystem`(Tier E `JBroInput`)이고 `EngineInstance` 가 소유한다.
+  키 이름(`Key`·`MouseButton`·`KeyModifiers`)은 `JBroCore` 의 `<JBro/Core/InputKeys.h>` 에 한 번 둔다. 상태·뷰·핸들러·서비스는 Tier S `JBroInputTypes` 다.
+- **입력 블로킹은 레이어 체인 하나로 한다.** 스크립트는 `InputHandler<"레이어", Order>` 를 상속해 `OnInput(InputView&)` 을 쓰고, `InputResult::Block` 을
+  돌려주면 아래 핸들러와 폴링이 모두 막힌다. `InputView::Consume(InputDevice)` 는 그 장치만 아래에 빈 장치로 보인다. (MUST) (D-214)
+  체인 순서는 (프로젝트 레이어 순서, `Order` 큰 것 먼저, 실행 순서)이고 없는 레이어는 맨 아래에서 받는다.
+- **입력을 읽는 뒷문을 두지 않는다.** 스크립트의 폴링(`Service::InputService`)은 체인이 막고 남은 것만 본다. 엔진 시스템이 입력을 써야 하면
+  (뒤에 올 UI 버튼 따위) 같은 체인에 레이어와 순서를 가진 핸들러로 선다 - 프레임 상태를 직접 읽지 않는다. (MUST) (D-214)
+  기존 엔진의 `GetDeviceContext()` 가 그 뒷문이었고, 모달 아래의 버튼이 눌렸다.
+- **핸들러는 따로 등록하지 않는다.** 스크립트 타입에서 `if constexpr` 로 만든 썽크를 `ScriptTypeInfo`·컴포넌트 버킷이 들고, `ScriptSystem` 이 실행
+  순서 목록과 함께 체인을 세운다. 날 핸들러 포인터를 등록·해제하는 목록을 만들지 않는다. (MUST) (D-214)
+- 체인은 시작 훅을 받은 켜진 스크립트만, 그 프레임의 `OnFixedUpdate`·`OnUpdate` 보다 먼저 부른다. 부르는 자리는 프레임워크의 고정 스텝 앞이다. (MUST) (D-214)
+- **액션은 이름의 `NameId` 로 찾고 물을 때 그 자리의 뷰로 평가한다.** 매 프레임 경로에서 액션 이름을 글자로 견주지 않는다. 소비된 장치의
+  바인딩은 액션에서도 빠진다. 액션·레이어의 원본은 `.jproject` 의 `InputActions`·`InputLayers` 이고 모양은 기존 엔진과 같다. (MUST) (D-214)
+- **게임패드는 플랫폼이 날 상태만 준다.** 데드존·누름 세기·빈 자리 재확인·진동 만료는 입력 시스템이 한다 - 플랫폼마다 같은 규칙이어야 한다.
+  게임이 입력을 받지 않게 되면(포커스·게임 뷰·내려감) 모터를 멈춘다. 진동을 끄려고 워커 스레드를 쓰지 않는다. (MUST) (D-214)
+- **액션 세트는 뜻을 고르고, 막지 않는다.** 꺼진 세트의 액션은 0 으로 읽힐 뿐 장치를 소비하지 않는다. 막는 것은 레이어 체인뿐이다.
+  세트 전환을 두 번째 스택으로 만들지 않는다. 에디터는 재생을 멈출 때 세트를 프로젝트 상태로 되돌린다. (MUST) (D-218)
+- **리바인딩은 프로젝트 표 위에 얹는다.** 프로젝트의 `InputActions` 는 고치지 않고, 바꾼 것은 이름으로 적은 글자로만 나간다(키 번호로 적지 않는다).
+  입력 모듈은 세이브를 부르지 않는다 - 게임이 글자를 `SaveService` 에 둔다. 호스트는 게임 DLL 의 컨테이너를 키우지 않는다. (MUST) (D-218)
+- **게임이 쓰는 파일은 세이브 저장소뿐이다.** 뿌리는 `<앱 데이터>/<제품명>/Saves`(에디터의 재생은 `EditorSaves`)이고, 슬롯은 납작한 파일 이름이다.
+  쓰기는 옆 파일에 다 쓴 뒤 바꿔 넣는다 - 제자리에 덮어쓰지 않는다. 인자는 POD 이고 호스트는 게임 DLL 의 컨테이너를 키우지 않는다. (MUST) (D-218)
+- **엔진은 지난 프레임의 입력을 들지 않는다.** 선입력은 스크립트가 뷰에서 읽어 `InputBuffer` 에 넣는다 - 막힌 입력이 되살아나지 않는다. (MUST) (D-218)
+- **뗀 손가락은 한 프레임 더 보인다.** 뗀 자리가 사라지면 탭을 클릭으로 판정할 수 없다. 포커스를 잃은 손가락은 뗌이 아니라 취소다. (MUST) (D-214)
 
 ## 8. 오브젝트-컴포넌트 모델
 
@@ -1024,6 +1057,9 @@
 - **사용자에게 알릴 결과는 로그가 아니라 팝업으로 간다.** (SHOULD) (D-92)
   모달은 `EditorApplication::OpenPopup` 큐를 거친다 - `ImGui::OpenPopup` 을 직접 부르면 한 프레임에
   둘이 열릴 때 뒤의 것이 조용히 사라진다. 같은 결과가 반복되면 같은 Id 로 하나만 띄운다.
+- **하던 일을 멈출 필요가 없는 알림은 우측 하단 알림으로 간다.** (MUST) (D-219)
+  `EditorApplication::GetNotifications().Notify(...)` 를 부른다. 패널·도구·외부 에디터가 제 알림 상자나 토스트를 따로 그리지 않는다 -
+  모양과 시간과 닫는 법이 도구마다 달라진다. 사용자가 답해야 하는 것만 모달이다. 반복되는 알림은 같은 `id` 로 하나로 합친다.
 - **`Execute` 가 성공해야 스택에 쌓인다.** (MUST) (D-71)
   실패한 편집이 남으면 다음 Ctrl+Z 가 일어나지도 않은 일을 되돌린다.
 - **드래그 하나가 되돌리기 하나다.** (MUST) (D-71)

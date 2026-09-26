@@ -46,6 +46,18 @@
 #include <JBro/TextRendering/TextLibrary.h>
 #endif
 
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Input
+#if defined(JBRO_TIER_PROBE_INPUT)
+// 입력을 접는 시스템은 Tier E 다(D-214). 스크립트는 상태와 뷰만 본다.
+#include <JBro/Input/InputSystem.h>
+#endif
+
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Save
+#if defined(JBRO_TIER_PROBE_SAVE)
+// 파일을 만지는 세이브 구현은 호스트의 것이다(D-218). 스크립트는 `SaveService` 만 본다.
+#include <JBro/Host/SaveStorage.h>
+#endif
+
 #if defined(JBRO_TIER_PROBE_GAME_OBJECT)
 // 프렐류드를 거치지 않고 직접 집는 모양을 흉내낸다. 표식이 없으므로 #error 여야 한다.
 #undef JBRO_SCRIPT_PRELUDE

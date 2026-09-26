@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Core/InputKeys.h>
 
 namespace JBro
 {
@@ -22,146 +23,13 @@ namespace JBro
         MouseButtonUp,
         MouseWheel,
         FocusGained,
-        FocusLost
-    };
-
-    enum class MouseButton : std::uint8_t
-    {
-        Left,
-        Right,
-        Middle,
-        Extra1,
-        Extra2,
-        Count
-    };
-
-    // 비트 조합이다. `KeyModifierShift | KeyModifierControl` 처럼 쓴다.
-    using KeyModifiers = std::uint8_t;
-    inline constexpr KeyModifiers KeyModifierNone = 0;
-    inline constexpr KeyModifiers KeyModifierShift = 1 << 0;
-    inline constexpr KeyModifiers KeyModifierControl = 1 << 1;
-    inline constexpr KeyModifiers KeyModifierAlt = 1 << 2;
-    inline constexpr KeyModifiers KeyModifierSuper = 1 << 3;
-
-    // 물리 키다. 배열과 무관한 이름을 쓴다 - `Key::A` 는 QWERTY 의 A 자리이지
-    // 그 키가 내는 글자가 아니다. 글자는 `InputEventKind::Text` 로 따로 온다.
-    enum class Key : std::uint16_t
-    {
-        Unknown = 0,
-
-        Tab,
-        Left,
-        Right,
-        Up,
-        Down,
-        PageUp,
-        PageDown,
-        Home,
-        End,
-        Insert,
-        Delete,
-        Backspace,
-        Space,
-        Enter,
-        Escape,
-
-        LeftControl,
-        LeftShift,
-        LeftAlt,
-        LeftSuper,
-        RightControl,
-        RightShift,
-        RightAlt,
-        RightSuper,
-        Menu,
-
-        Digit0,
-        Digit1,
-        Digit2,
-        Digit3,
-        Digit4,
-        Digit5,
-        Digit6,
-        Digit7,
-        Digit8,
-        Digit9,
-
-        A,
-        B,
-        C,
-        D,
-        E,
-        F,
-        G,
-        H,
-        I,
-        J,
-        K,
-        L,
-        M,
-        N,
-        O,
-        P,
-        Q,
-        R,
-        S,
-        T,
-        U,
-        V,
-        W,
-        X,
-        Y,
-        Z,
-
-        F1,
-        F2,
-        F3,
-        F4,
-        F5,
-        F6,
-        F7,
-        F8,
-        F9,
-        F10,
-        F11,
-        F12,
-
-        Apostrophe,
-        Comma,
-        Minus,
-        Period,
-        Slash,
-        Semicolon,
-        Equal,
-        LeftBracket,
-        Backslash,
-        RightBracket,
-        GraveAccent,
-
-        CapsLock,
-        ScrollLock,
-        NumLock,
-        PrintScreen,
-        Pause,
-
-        Keypad0,
-        Keypad1,
-        Keypad2,
-        Keypad3,
-        Keypad4,
-        Keypad5,
-        Keypad6,
-        Keypad7,
-        Keypad8,
-        Keypad9,
-        KeypadDecimal,
-        KeypadDivide,
-        KeypadMultiply,
-        KeypadSubtract,
-        KeypadAdd,
-        KeypadEnter,
-
-        Count
+        FocusLost,
+        // 손가락·펜(D-214). 포인터 번호는 `codePoint` 에, 자리는 `x`·`y`(클라이언트 픽셀)에 온다. 마우스는 여기로 오지 않는다.
+        TouchBegan,
+        TouchMoved,
+        TouchEnded,
+        // 시스템이 가져갔다(제스처·붙잡음 잃음). 뗀 것과 같이 다루되 "탭" 으로 치면 안 된다.
+        TouchCancelled
     };
 
     struct InputEvent
@@ -176,9 +44,30 @@ namespace JBro
         // 나머지 종류에서는 0 이다.
         float x = 0.0f;
         float y = 0.0f;
-        // Text 의 유니코드 코드포인트다. 나머지 종류에서는 0 이다.
+        // Text 의 유니코드 코드포인트, 터치의 포인터 번호다. 나머지 종류에서는 0 이다.
         std::uint32_t codePoint = 0;
     };
 
     static_assert(sizeof(InputEvent) == 20, "InputEvent crosses the game DLL boundary");
+
+    // 게임패드 한 자리의 날 상태다(D-214). 게임패드는 이벤트가 아니라 **폴링**이다 - XInput 이 그렇다. 데드존·누름 세기는
+    // 플랫폼이 하지 않는다(`System::InputSystem` 이 한다). 그래서 플랫폼마다 같은 규칙으로 접힌다.
+    struct GamepadRawState
+    {
+        bool connected = false;
+        // `GamepadButton` 차례의 비트다(1 << South ...).
+        std::uint16_t buttons = 0;
+        // `GamepadAxis` 차례다. 스틱은 -1..1(위가 +), 트리거는 0..1 - 아직 데드존 전이다.
+        float axes[static_cast<std::size_t>(GamepadAxis::Count)] = {};
+    };
+
+    // 창 클라이언트 좌표를 게임 화면 픽셀로 옮기는 값이다. 게임 화면 픽셀 = (클라이언트 - origin) * scale.
+    // 게임 호스트는 창 전체가 게임 화면이라 기본값(그대로)이다. 에디터는 게임 뷰의 사각형과 렌더 타깃 크기에서 만든다.
+    struct InputSurfaceMapping
+    {
+        float originX = 0.0f;
+        float originY = 0.0f;
+        float scaleX = 1.0f;
+        float scaleY = 1.0f;
+    };
 }

@@ -44,6 +44,9 @@
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include <JBro/InputTypes/ServiceContext.h>
+#include <JBro/InputTypes/Service/InputService.h>
+
 #include <imgui.h>
 #include <imgui_internal.h>
 
@@ -1170,6 +1173,69 @@ namespace
         {
             SaveScreenshot(*renderer, 1024, 768, "list");
         }
+        editor.Shutdown();
+    }
+
+    // **인스펙터가 폴리곤 콜라이더의 `points` 를 목록으로 고친다(physics-plan §4 의 5 가 남긴 것).** 목록 위젯 자체는 위의
+    // 테스트들이 재지만, 이 필드가 실제로 그 목록으로 나오고 더하기·빼기가 커맨드 하나씩인지는 따로 본다.
+    void TestTheInspectorEditsPolygonColliderPoints()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; collider points in the inspector not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ColliderPointsProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
+        auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
+        Check(collider != nullptr, "and a collider");
+        collider->shape = JBro::Component::ColliderShape2D::Polygon;
+        collider->points = { {-1.0f, -1.0f}, {1.0f, -1.0f}, {0.0f, 1.0f} };
+        editor.SetSelectedObject(cup);
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        ImGuiWindow* body = FindListBody();
+        Check(body != nullptr, "the inspector must draw the collider's points as a list");
+        const int middle = static_cast<int>(body->Pos.x + body->Size.x * 0.5f);
+        std::size_t undo = editor.GetCommands().GetUndoCount();
+
+        Spot spot;
+        const char* addLabel = JBro::Loc::TextOr(JBro::LocKeys::ListAddElement, "Add element");
+        Check(FindListItem(editor, hwnd, LabelId(body->ID, addLabel), middle, spot),
+            "the points list must offer to add a point");
+        ClickAt(editor, hwnd, spot);
+        Check(collider->points.Size() == 4, "adding puts a fourth point on the collider");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(collider->points.Size() == 3, "and takes it back");
+        undo = editor.GetCommands().GetUndoCount();
+
+        Check(FindListItemNearRightEdge(editor, hwnd, LabelId(PushedId(body->ID, 0), JBro::Icons::Xmark), 1, spot),
+            "the first point's row must offer to be removed");
+        ClickAt(editor, hwnd, spot);
+        Check(collider->points.Size() == 2 && collider->points[0].x == 1.0f && collider->points[0].y == -1.0f,
+            "removing takes the first point off");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
+        Check(editor.GetCommands().Undo(), "undo must run");
+        Check(collider->points.Size() == 3 && collider->points[0].x == -1.0f && collider->points[2].y == 1.0f,
+            "and brings it back in order");
         editor.Shutdown();
     }
 
@@ -3215,6 +3281,109 @@ namespace
     }
 
 
+    // **게임 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-214, 기존 `SetViewportActive`).
+    // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 게임 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
+    // 게임이 키를 받는 동안 에디터 단축키는 재생 제어만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
+    void TestOnlyTheFocusedGameViewGivesTheGameItsKeys()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; game input in the editor not verified"
+                << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GameInputProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* subject = canvas->CreateObject("Subject");
+        editor.SetSelectedObject(subject);
+        JBro::EditorPanel* game = editor.FindPanel("Game");
+        JBro::EditorPanel* inspector = editor.FindPanel("Inspector");
+        Check(game != nullptr && inspector != nullptr, "the game view and the inspector are default panels");
+
+        const auto keyboard = []() -> const JBro::KeyboardState&
+        {
+            return JBro::GetInputServices().Input.Keyboard();
+        };
+        const auto post = [hwnd](UINT message, WPARAM key)
+        {
+            const LPARAM up = message == WM_KEYUP ? static_cast<LPARAM>(0xC0000001u) : 0;
+            PostMessageW(hwnd, message, key, up);
+        };
+
+        // 재생 전에는 게임 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
+        // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다.
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        game->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle on the game view");
+        }
+        Check(game->IsFocused(), "the stopped game view must hold the focus too, or the next check proves nothing");
+        post(WM_KEYDOWN, 'W');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(false == editor.IsGameReceivingInput(), "a stopped game receives nothing");
+        Check(false == keyboard().IsDown(JBro::Key::W), "a stopped game does not see the key");
+        post(WM_KEYUP, 'W');
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        Check(editor.StartSimulation(), "the simulation must start");
+        game->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the playing editor must settle");
+        }
+        Check(game->IsFocused(), "the game view must hold the focus it asked for");
+        post(WM_KEYDOWN, 'W');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(editor.IsGameReceivingInput(), "a playing game with the game view focused receives input");
+        Check(keyboard().IsDown(JBro::Key::W), "and it sees the key being held");
+
+        // 게임이 받는 동안 Delete 는 게임의 것이다.
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        post(WM_KEYDOWN, VK_DELETE);
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        post(WM_KEYUP, VK_DELETE);
+        Check(editor.Tick(Frame), "the editor must tick");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore,
+            "the editor's delete shortcut must not run while the game has the keys");
+
+        // 인스펙터로 옮기면 누르고 있던 W 는 떼어지고, 거기서 친 키는 게임에 가지 않는다.
+        inspector->RequestFocus();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick after moving the focus");
+        }
+        Check(false == editor.IsGameReceivingInput(), "leaving the game view stops the game input");
+        Check(false == keyboard().IsDown(JBro::Key::W), "and the held key is released for the game");
+        post(WM_KEYDOWN, 'A');
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        Check(false == keyboard().IsDown(JBro::Key::A), "a key typed into another panel does not reach the game");
+        // 떠난 뒤 몇 프레임이 지났다. 에디터가 건넨 것이 틱마다 비워지지 않으면 W 가 매 프레임 다시 눌린다.
+        Check(false == keyboard().IsPressed(JBro::Key::W),
+            "what the editor handed over is not folded again on later frames");
+        post(WM_KEYUP, 'A');
+        post(WM_KEYUP, 'W');
+        Check(editor.Tick(Frame), "the editor must tick");
+
+        editor.StopSimulation();
+        editor.Shutdown();
+    }
+
     // 아래(프로젝트 파일 테스트 옆)에 있다.
     bool WriteTextFile(const JBro::String& path, const char* text);
 
@@ -3529,6 +3698,134 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick after undo");
         Check(source->bus.IsMaster(), "undo puts the source back on Master");
 
+        editor.Shutdown();
+        fs::remove_all(root, ignored);
+    }
+
+    // **프로젝트 설정의 입력 갈래가 그려지고 저장된다**(D-214). 액션마다 접는 마디를 열어 바인딩 줄까지 그리고, 저장하면
+    // 고친 바인딩이 기존 엔진 모양으로 파일에 간다. 표를 마디 안에서 닫지 않으면 ImGui 의 ID 쌓기가 어긋나 단언이 터진다.
+    void TestTheInputSettingsDrawAndSave()
+    {
+        namespace fs = std::filesystem;
+        const fs::path root(TempPath("JBroInputSettingsProbe").c_str());
+        std::error_code ignored;
+        fs::remove_all(root, ignored);
+        fs::create_directories(root / "Assets", ignored);
+        const JBro::String projectPath = TempPath("JBroInputSettingsProbe\\Input.jproject");
+        Check(WriteTextFile(projectPath,
+            "Version: 1\n"
+            "EngineVersion: 0.1.0\n"
+            "Framework: 2D\n"
+            "RootPath: .\n"
+            "AssetDirectory: Assets\n"
+            "ScriptOutputLibraryPath: \"\"\n"
+            "InputLayers:\n"
+            "  - UI\n"
+            "  - Game\n"
+            "InputActions:\n"
+            "  - Name: Move\n"
+            "    Type: Vector2\n"
+            "    Bindings:\n"
+            "      - Source: Key\n"
+            "        Code: W\n"
+            "        Composite: Up\n"
+            "      - Source: GamepadStick\n"
+            "        Code: Left\n"
+            "  - Name: Jump\n"
+            "    Type: Bool\n"
+            "    Set: Vehicle\n"
+            "    Bindings:\n"
+            "      - Source: GamepadButton\n"
+            "        Code: South\n"
+            "        GamepadIndex: 1\n"
+            "Build:\n"
+            "  ProductName: InputSettingsProbe\n"),
+            "the test must be able to write its own project file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the input settings not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.c_str(), error), "the probe project must open");
+        Check(editor.GetProjectFile().inputActions.Size() == 2 && editor.GetProjectFile().inputLayers.Size() == 2,
+            "the project reads its input settings");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::EditorPanel* settings = editor.FindPanel("ProjectSettings");
+        Check(settings != nullptr, "the settings panel exists");
+        settings->SetOpen(true);
+        settings->RequestFocus();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the settings open");
+        }
+        JBro::String label = settings->GetDisplayTitle();
+        label += "###ProjectSettings";
+        ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
+        Check(window != nullptr, "the project settings must have a window");
+        // 액션마다 마디를 연다. Id 는 창 → 액션 번호 → `###action`(이름을 고쳐도 같은 마디다).
+        for (int action = 0; action < 2; ++action)
+        {
+            const ImGuiID seed = ImHashData(&action, sizeof(action), window->ID);
+            window->StateStorage.SetInt(LabelId(seed, "###action"), 1);
+        }
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the open input folds");
+        }
+        // 입력 갈래는 창의 아래쪽이다. 끝까지 내려서 찍는다.
+        ImGui::SetScrollY(window, window->ScrollMax.y);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the scrolled settings");
+        }
+        if (JBro::Renderer* shotRenderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*shotRenderer, 1024, 768, "input_project_settings");
+        }
+
+        // 고쳐서 저장하면 파일이 기존 엔진 모양으로 바뀐다.
+        JBro::ProjectFile edited = editor.GetProjectFile();
+        edited.inputActions[1].bindings[0].gamepad = -1;
+        JBro::ProjectInputBinding space;
+        space.code = static_cast<std::uint16_t>(JBro::Key::Space);
+        edited.inputActions[1].bindings.Add(space);
+        Check(editor.SaveProjectSettings(edited, error), "saving the input settings must go through");
+        JBro::String text;
+        {
+            std::FILE* file = nullptr;
+            Check(fopen_s(&file, projectPath.c_str(), "rb") == 0 && file != nullptr, "the project file must be readable");
+            char buffer[4096] = {};
+            const std::size_t read = std::fread(buffer, 1, sizeof(buffer) - 1, file);
+            std::fclose(file);
+            text.assign(buffer, read);
+        }
+        Check(text.find("  - Name: Jump\n    Type: Bool\n    Set: Vehicle\n    Bindings:\n      - Source: GamepadButton\n        Code: South\n"
+                        "      - Source: Key\n        Code: Space\n") != JBro::String::npos,
+            "the edited bindings reach the file, and a pad index of -1 is not written");
+        Check(text.find("InputLayers:\n  - UI\n  - Game\n") != JBro::String::npos, "the layer order stays");
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw the saved settings");
+        }
+
+        // 게임이 켠 액션 세트는 재생을 멈추면 꺼진다 - 다음 재생은 `Default` 만 켜진 채로 시작한다.
+        const JBro::NameId vehicle = JBro::MakeNameId("Vehicle");
+        const JBro::Service::InputService input;
+        Check(false == input.IsActionSetEnabled(vehicle), "a set other than Default starts off");
+        Check(editor.StartSimulation(), "play must start");
+        Check(input.EnableActionSet(vehicle), "the game turns on the set the project names");
+        Check(editor.Tick(Frame), "the editor must tick while playing");
+        Check(input.IsActionSetEnabled(vehicle), "and it stays on while the game runs");
+        editor.StopSimulation();
+        Check(false == input.IsActionSetEnabled(vehicle), "stopping play turns it back off");
+        Check(input.IsActionSetEnabled(JBro::DefaultInputActionSet), "and leaves Default on");
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }
@@ -5429,6 +5726,77 @@ namespace
 
     // **재생을 누르기 전의 캔버스로 돌아온다**(D-131). 게임이 만든 것과 고친 값이
     // 편집 중인 캔버스에 남으면, 저장했을 때 게임이 만든 상태가 파일이 된다.
+    // **에디터에서 재생하면 물리가 돈다(physics-plan §4 의 4 가 남긴 "실제 에디터 재생").** 에디터 호스트와 같은
+    // `EditorApplication` 의 재생 경로(엔진 시뮬레이션 → Framework2D 고정 스텝 → Physics2DSystem)로 상자와 캡슐을
+    // 떨어뜨리고, 정지하면 떨어뜨리기 전 자리로 돌아오는지 본다. 물리 테스트는 시스템을 직접 부르므로 이 배선은 재지 못한다.
+    void TestPlayingRunsPhysicsAndStoppingPutsItBack()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; physics in play not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "PhysicsPlayProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto place = [&](const char* tag, JBro::Vec2 position, JBro::Vec2 size,
+                               JBro::Component::ColliderShape2D shape, bool dynamic) {
+            JBro::GameObject* object = canvas->CreateObject(tag);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+            Check(transform != nullptr, "each object needs a transform");
+            transform->position = position;
+            auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(object);
+            Check(collider != nullptr, "and a collider");
+            collider->size = size;
+            collider->shape = shape;
+            if (dynamic)
+            {
+                Check(canvas->AttachComponent<JBro::Component::Rigidbody2D>(object) != nullptr, "and a body");
+            }
+            return object;
+        };
+        place("Ground", {0.0f, -0.5f}, {40.0f, 1.0f}, JBro::Component::ColliderShape2D::Box, false);
+        JBro::GameObject* box = place("Box", {0.0f, 3.0f}, {1.0f, 1.0f}, JBro::Component::ColliderShape2D::Box, true);
+        JBro::GameObject* pill =
+            place("Pill", {4.0f, 3.0f}, {2.0f, 1.0f}, JBro::Component::ColliderShape2D::Capsule, true);
+        Check(editor.Tick(Frame), "the editor must tick before play");
+        auto* boxTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(box);
+        auto* pillTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(pill);
+        Check(boxTransform->position.y == 3.0f, "nothing falls while the editor is stopped");
+
+        Check(editor.StartSimulation(), "play must start");
+        for (int frame = 0; frame < 180; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        Check(std::fabs(boxTransform->position.y - 0.5f) < 0.02f, "in play the box falls and rests on the ground");
+        Check(std::fabs(pillTransform->position.y - 0.5f) < 0.02f, "and the capsule lies on it, a radius up");
+
+        editor.StopSimulation();
+        JBro::Array<JBro::GameObject*> roots;
+        canvas->GetRootObjects(roots);
+        bool boxBack = false;
+        for (JBro::GameObject* root : roots)
+        {
+            if (std::strcmp(root->GetTag(), "Box") == 0)
+            {
+                auto* restored = canvas->FindComponentRaw<JBro::Component::Transform2D>(root);
+                boxBack = restored != nullptr && std::fabs(restored->position.y - 3.0f) < 1.0e-4f;
+            }
+        }
+        Check(boxBack, "stopping puts the box back where it was before play");
+        editor.Shutdown();
+    }
+
     void TestPlayingAndStoppingRestoresTheCanvas()
     {
         JBro::EditorApplication editor;
@@ -10181,6 +10549,7 @@ int RunEditorApplicationTests()
     TestAChosenChildDoesNotGetTheEditTwice();
     TestMultiEditPicksTheSameOrdinalEverywhere();
     TestListEditsReachEveryChosenObjectAsOneUndo();
+    TestTheInspectorEditsPolygonColliderPoints();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
     TestTheGameViewKnowsWhenNoCameraDrew();
@@ -10198,11 +10567,14 @@ int RunEditorApplicationTests()
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
+    TestOnlyTheFocusedGameViewGivesTheGameItsKeys();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAudioSettingsAndMetersDraw();
+    TestTheInputSettingsDrawAndSave();
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
+    TestPlayingRunsPhysicsAndStoppingPutsItBack();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();
     TestProjectSettingsAreWrittenBackToTheFile();

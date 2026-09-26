@@ -330,26 +330,208 @@ namespace
         scene.TransformOf(diamond)->rotation = 0.78539816f;
         scene.Box(diamond, { 2, 2 });
 
-        JBro::Collision2D hit;
+        JBro::RaycastHit2D hit;
         const JBro::System::IPhysics2DSystem& queries = scene.physics;
-        Check(queries.Raycast({ 1.5f, 5 }, { 0, -1 }, 10, hit), "a ray dropped into the notch hits the cup");
+        Check(queries.Raycast({ 1.5f, 5 }, { 0, -1 }, 10, hit, JBro::AllPhysicsLayers), "a ray dropped into the notch hits the cup");
         Check(Near(hit.point.y, 1.0f, 1.0e-4f) && Near(hit.normal.y, 1.0f, 1.0e-4f),
             "on the notch floor, not across the notch's mouth");
         Check(hit.other.GetInstanceId() == cup->GetInstanceId(), "naming the cup");
 
-        Check(queries.Raycast({ 5, 0 }, { 1, 0 }, 10, hit), "a ray hits the rotated box");
+        Check(queries.Raycast({ 5, 0 }, { 1, 0 }, 10, hit, JBro::AllPhysicsLayers), "a ray hits the rotated box");
         Check(Near(hit.point.x, 10.0f - std::sqrt(2.0f), 1.0e-4f), "at its corner, not at an unrotated face");
 
         Array<JBro::GameObjectHandle> overlaps;
-        queries.OverlapBox({ { 1.2f, 1.5f }, { 1.8f, 2.5f } }, overlaps);
+        queries.OverlapBox({ { 1.2f, 1.5f }, { 1.8f, 2.5f } }, overlaps, JBro::AllPhysicsLayers);
         Check(overlaps.IsEmpty(), "a box inside the notch overlaps nothing");
-        queries.OverlapBox({ { 0.5f, 1.5f }, { 1.2f, 2.5f } }, overlaps);
+        queries.OverlapBox({ { 0.5f, 1.5f }, { 1.2f, 2.5f } }, overlaps, JBro::AllPhysicsLayers);
         Check(overlaps.Size() == 1 && overlaps[0].GetInstanceId() == cup->GetInstanceId(),
             "one reaching into the left pillar overlaps the cup");
 
         // 질의는 스텝을 기다리지 않는다. 옮긴 직후에 바로 맞다.
         scene.TransformOf(cup)->position = { 0, 10 };
-        Check(false == queries.Raycast({ 1.5f, 5 }, { 0, -1 }, 3, hit), "a query sees the cup's new place at once");
+        Check(false == queries.Raycast({ 1.5f, 5 }, { 0, -1 }, 3, hit, JBro::AllPhysicsLayers), "a query sees the cup's new place at once");
+    }
+
+    // **늘어난 질의(physics-plan §4 의 6).** x 축에 벽 A(레이어 1, 상자 안에 원 콜라이더 하나 더), 벽 B(레이어 2),
+    // 원 C(레이어 1), 멀리 U 컵. 값은 손으로 푼 것이다.
+    void TestTheWiderQueries()
+    {
+        Scene scene;
+        JBro::GameObject* a = scene.Object("a", { 3, 0 });
+        scene.Box(a, { 2, 2 });
+        Collider2D* inner = scene.canvas.AttachComponent<Collider2D>(a);
+        inner->shape = ColliderShape2D::Circle;
+        inner->radius = 0.5f;
+        JBro::GameObject* b = scene.Object("b", { 6, 0 });
+        scene.Box(b, { 2, 2 })->layer = 0x2u;
+        JBro::GameObject* c = scene.Object("c", { 9, 0 });
+        Collider2D* round = scene.canvas.AttachComponent<Collider2D>(c);
+        round->shape = ColliderShape2D::Circle;
+        round->radius = 0.5f;
+        JBro::GameObject* cup = scene.Object("cup", { 20, 0 });
+        Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
+        polygon->shape = ColliderShape2D::Polygon;
+        polygon->points = UOutline();
+        const JBro::System::IPhysics2DSystem& queries = scene.physics;
+        const std::uint32_t all = JBro::AllPhysicsLayers;
+
+        JBro::Array<JBro::RaycastHit2D> hits;
+        queries.RaycastAll({ 0, 0 }, { 1, 0 }, 15, hits, all);
+        Check(hits.Size() == 4, "a ray through everything hits every collider on its path, the inner circle too");
+        Check(Near(hits[0].distance, 2.0f, 1.0e-4f) && hits[0].other.GetInstanceId() == a->GetInstanceId()
+            && Near(hits[1].distance, 2.5f, 1.0e-4f) && hits[1].other.GetInstanceId() == a->GetInstanceId()
+            && Near(hits[2].distance, 5.0f, 1.0e-4f) && hits[2].other.GetInstanceId() == b->GetInstanceId()
+            && Near(hits[3].distance, 8.5f, 1.0e-4f) && hits[3].other.GetInstanceId() == c->GetInstanceId(),
+            "sorted by distance: A's box, A's circle, B, C");
+        // 거꾸로 쏘면 콜라이더를 도는 순서와 거리 순서가 어긋난다. 정렬이 없으면 여기서 드러난다.
+        queries.RaycastAll({ 15, 0 }, { -1, 0 }, 15, hits, all);
+        Check(hits.Size() == 4 && Near(hits[0].distance, 5.5f, 1.0e-4f) && hits[0].other.GetInstanceId() == c->GetInstanceId()
+            && Near(hits[1].distance, 8.0f, 1.0e-4f) && Near(hits[2].distance, 11.0f, 1.0e-4f)
+            && Near(hits[3].distance, 11.5f, 1.0e-4f),
+            "a ray shot back along x is sorted too: C, B, A's box, A's circle");
+        queries.RaycastAll({ 0, 0 }, { 1, 0 }, 15, hits, 0x1u);
+        Check(hits.Size() == 3 && hits[2].other.GetInstanceId() == c->GetInstanceId(), "masking layer 1 skips B");
+        JBro::RaycastHit2D hit;
+        Check(queries.Raycast({ 0, 0 }, { 1, 0 }, 15, hit, 0x2u) && hit.other.GetInstanceId() == b->GetInstanceId()
+            && Near(hit.distance, 5.0f, 1.0e-4f), "a ray on layer 2 goes through A and stops at B");
+        queries.RaycastAll({ 20.5f, 5 }, { 0, -1 }, 10, hits, all);
+        Check(hits.Size() == 1 && Near(hits[0].distance, 2.0f, 1.0e-4f),
+            "a ray down the left pillar of the U is one hit, though the pillar may be more than one piece");
+
+        Check(queries.OverlapPoint({ 3, 0 }, all).GetInstanceId() == a->GetInstanceId(), "a point inside A is A");
+        Check(queries.OverlapPoint({ 4.5f, 0 }, all).GetInstanceId() == JBro::InvalidInstanceId,
+            "a point between the walls is nothing");
+        Check(queries.OverlapPoint({ 21.5f, 2 }, all).GetInstanceId() == JBro::InvalidInstanceId,
+            "a point in the notch of the U is not the U");
+        Check(queries.OverlapPoint({ 20.5f, 2 }, all).GetInstanceId() == cup->GetInstanceId(), "one in its pillar is");
+        Check(queries.OverlapPoint({ 3, 0 }, 0x2u).GetInstanceId() == JBro::InvalidInstanceId, "and a mask hides A");
+
+        JBro::Array<JBro::GameObjectHandle> found;
+        queries.OverlapCircle({ 4.5f, 0 }, 0.6f, found, all);
+        Check(found.Size() == 2, "a circle between the walls reaching both finds A and B, A once");
+        queries.OverlapCircle({ 4.5f, 0 }, 0.4f, found, all);
+        Check(found.IsEmpty(), "a smaller one reaches neither");
+        queries.OverlapCircle({ 3, 0 }, 1.0f, found, all);
+        Check(found.Size() == 1 && found[0].GetInstanceId() == a->GetInstanceId(),
+            "a circle over both of A's colliders finds A once");
+        queries.OverlapBox({ { 2.5f, -0.5f }, { 3.5f, 0.5f } }, found, 0x2u);
+        Check(found.IsEmpty(), "a box over A on layer 2 finds nothing");
+
+        Check(queries.CircleCast({ 0, 0 }, 0.5f, { 1, 0 }, 15, hit, all) && hit.other.GetInstanceId() == a->GetInstanceId(),
+            "a circle swept along x hits A");
+        Check(Near(hit.distance, 1.5f, 1.0e-4f) && Near(hit.normal.x, -1.0f, 1.0e-5f)
+            && Near(hit.point.x, 2.0f, 1.0e-4f) && Near(hit.point.y, 0.0f, 1.0e-4f),
+            "a radius short of A's face, touching it at (2, 0)");
+        Check(queries.CircleCast({ 3, 0 }, 0.5f, { 1, 0 }, 15, hit, all) && hit.distance == 0.0f
+            && Near(hit.point.x, 3.0f, 0.0f), "a circle that starts inside A reports zero at its own center");
+        Check(queries.CircleCast({ 21.5f, 5 }, 0.3f, { 0, -1 }, 10, hit, all)
+            && hit.other.GetInstanceId() == cup->GetInstanceId() && Near(hit.distance, 3.7f, 1.0e-4f),
+            "a ball dropped into the notch of the U lands on the notch floor");
+
+        Check(queries.BoxCast({ 0, 0 }, { 0.5f, 0.5f }, 0.0f, { 1, 0 }, 15, hit, all)
+            && Near(hit.distance, 1.5f, 1.0e-4f) && Near(hit.point.x, 2.0f, 1.0e-4f) && Near(hit.point.y, 0.0f, 1.0e-3f),
+            "a box swept along x stops face to face with A, touching at the middle of its face");
+        Check(queries.BoxCast({ 0, 0 }, { 0.5f, 0.5f }, 0.78539816f, { 1, 0 }, 15, hit, all)
+            && Near(hit.distance, 2.0f - std::sqrt(0.5f), 1.0e-4f) && Near(hit.point.x, 2.0f, 1.0e-4f),
+            "a diamond swept along x touches A with its corner");
+        Check(false == queries.BoxCast({ 0, 3 }, { 0.5f, 0.5f }, 0.0f, { 1, 0 }, 15, hit, all),
+            "a box passing above everything misses");
+    }
+
+    // **크기를 움직이는 콜라이더는 닿아 있는 동안 훅을 되풀이하지 않는다.** 전에는 모양이 바뀔 때마다 도형을 지우고 만들어
+    // 스텝마다 끝·시작이 불렸다. 트리거로 바꾸는 것은 훅의 종류가 바뀌므로 끝나고 새로 시작한다.
+    void TestAnAnimatedColliderKeepsItsContact()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
+        Collider2D* collider = scene.Box(box, { 1, 1 });
+        scene.Dynamic(box);
+        ContactProbe* probe = scene.Probe(box);
+        scene.Run(0.5f);
+        Check(probe->collisionEnter == 1, "the box lands once");
+
+        for (int i = 0; i < 60; ++i)
+        {
+            collider->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
+            scene.physics.FixedUpdate(scene.canvas, Frame);
+        }
+        Check(probe->collisionEnter == 1 && probe->collisionExit == 0, "resizing it every step keeps the one contact");
+        Check(Near(scene.TransformOf(box)->position.y, 0.5f, 2.0f * Slop), "and it stays on the ground");
+
+        collider->isTrigger = true;
+        scene.Run(0.2f);
+        Check(probe->collisionExit == 1 && probe->triggerEnter == 1, "turning it into a trigger ends the collision");
+
+        // 모양이 틀린 외곽선이 되면 도형이 없어지고 닿아 있던 것은 끝난다. 레이어를 바꿔 걸러도 끝난다(제자리에서 바꾼 표면).
+        JBro::GameObject* second = scene.Object("second", { 5, 0.5f });
+        Collider2D* outline = scene.Box(second, { 1, 1 });
+        outline->shape = ColliderShape2D::Polygon;
+        outline->points = { { -0.5f, -0.5f }, { 0.5f, -0.5f }, { 0.5f, 0.5f }, { -0.5f, 0.5f } };
+        scene.Dynamic(second);
+        ContactProbe* secondProbe = scene.Probe(second);
+        JBro::GameObject* third = scene.Object("third", { -5, 0.5f });
+        Collider2D* layered = scene.Box(third, { 1, 1 });
+        scene.Dynamic(third);
+        ContactProbe* thirdProbe = scene.Probe(third);
+        scene.Run(0.5f);
+        Check(secondProbe->collisionEnter == 1 && thirdProbe->collisionEnter == 1, "two more boxes land");
+        const std::size_t shapes = scene.physics.GetShapeCount();
+        outline->points = { { 0, 0 }, { 1, 1 }, { 1, 0 }, { 0, 1 } };
+        scene.physics.FixedUpdate(scene.canvas, Frame);
+        Check(scene.physics.GetShapeCount() == shapes - 1 && secondProbe->collisionExit == 1,
+            "a collider bent into a bow tie loses its shape and its contact");
+        scene.canvas.FindComponentRaw<Collider2D>(ground)->mask = 0x1u;
+        layered->layer = 0x2u;
+        scene.Run(0.1f);
+        Check(thirdProbe->collisionExit == 1, "and one moved to a layer the ground does not take lets go");
+    }
+
+    // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
+    // 것도 캡슐로 남고, 질의는 둥근 끝 옆의 빈 곳을 캡슐로 보지 않는다.
+    void TestCapsuleColliders()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* lying = scene.Object("lying", { -5, 2 });
+        scene.Box(lying, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        scene.Dynamic(lying);
+        JBro::GameObject* stretched = scene.Object("stretched", { 5, 2 });
+        scene.TransformOf(stretched)->scale = { 3, 1 };
+        scene.Box(stretched, { 1, 1 })->shape = ColliderShape2D::Capsule;
+        scene.Dynamic(stretched);
+        JBro::GameObject* post = scene.Object("post", { 20, 0 });
+        scene.Box(post, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        JBro::GameObject* upright = scene.Object("upright", { 30, 0 });
+        scene.TransformOf(upright)->rotation = 1.5707963f;
+        scene.Box(upright, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        scene.Run(3.0f);
+
+        Check(scene.physics.GetShapeCount() == 5, "every capsule collider is a shape");
+        Check(Near(scene.TransformOf(lying)->position.y, 0.5f, 2.0f * Slop)
+            && Near(scene.TransformOf(lying)->rotation, 0.0f, 1.0e-3f), "a lying capsule rests a radius up, flat");
+        Check(Near(scene.TransformOf(stretched)->position.y, 0.5f, 2.0f * Slop)
+            && Near(scene.TransformOf(stretched)->rotation, 0.0f, 1.0e-3f),
+            "one stretched from a circle along x lies the same way");
+
+        JBro::RaycastHit2D hit;
+        const JBro::System::IPhysics2DSystem& queries = scene.physics;
+        const float stretchedX = scene.TransformOf(stretched)->position.x;
+        Check(queries.Raycast({ stretchedX + 3.0f, 0.5f }, { -1, 0 }, 10, hit, JBro::AllPhysicsLayers)
+            && hit.other.GetInstanceId() == stretched->GetInstanceId() && Near(hit.distance, 1.5f, 1.0e-3f),
+            "and it is 3 long, not the unit circle it was stretched from");
+        Check(queries.Raycast({ 25, 0.4f }, { -1, 0 }, 10, hit, JBro::AllPhysicsLayers)
+            && hit.other.GetInstanceId() == post->GetInstanceId() && Near(hit.distance, 4.2f, 1.0e-4f),
+            "a ray along x at 0.4 hits the post's round end (core 19.5..20.5, radius 0.5) at x = 20.8");
+        Check(queries.Raycast({ 30, 5 }, { 0, -1 }, 10, hit, JBro::AllPhysicsLayers)
+            && hit.other.GetInstanceId() == upright->GetInstanceId() && Near(hit.distance, 4.0f, 1.0e-4f),
+            "a turned capsule stands, its top a length and a radius up");
+        Check(queries.OverlapPoint({ 20.8f, 0 }, JBro::AllPhysicsLayers).GetInstanceId() == post->GetInstanceId(),
+            "a point in the round end is the post");
+        Check(queries.OverlapPoint({ 20.9f, 0.4f }, JBro::AllPhysicsLayers).GetInstanceId() == JBro::InvalidInstanceId,
+            "one in the corner of its size box is not");
     }
 
     // **정적인 몸은 옮긴 자리로 따라간다.** 에디터나 스크립트가 바닥을 내리면 그 위의 상자도 따라 내려간다.
@@ -431,7 +613,10 @@ int RunPhysics2DSystemTests()
     TestSwitchingOffAMovingBodysColliderLetsItFall();
     TestRestartingDoesNotReplayOldContacts();
     TestQueriesSeePolygonsAndRotatedBoxes();
+    TestTheWiderQueries();
     TestAStaticBodyFollowsItsTransform();
+    TestCapsuleColliders();
+    TestAnAnimatedColliderKeepsItsContact();
     TestAnEmptyPolygonCollidesAsItsSizeBox();
     TestScaleGrowsTheShape();
     TestAnOffCenterBodyTurnsAboutItsCenterOfMass();

@@ -1,0 +1,8 @@
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:always-recreate	if (link != nullptr && link->object == object->GetInstanceId() && world.IsValid(link->shape)	if (false && link != nullptr && link->object == object->GetInstanceId() && world.IsValid(link->shape)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:trigger-in-place	&& link->isTrigger == collider.isTrigger)	)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:bad-outline-kept	world.DestroyShape(link->shape);\n                    link->shape = {};	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:surface-not-updated	world.SetSurface(link->shape, def);	(void)def;
+Modules\JBroPhysics2D\Source\World.cpp	world:reshape-no-mass	shape->pieces.Swap(m_scratchPieces);\n        UpdateMass(m_bodies[shape->body]);	shape->pieces.Swap(m_scratchPieces);
+Modules\JBroPhysics2D\Source\World.cpp	world:bad-outline-applied	if (error != PolygonError::None)\n        {\n            return error;\n        }\n        shape->isCircle = false;	shape->isCircle = false;
+Modules\JBroPhysics2D\Source\World.cpp	world:short-capsule-kept-reshape	if (Length(Subtract(localB, localA)) <= LinearSlop)\n        {\n            Circle circle;\n            circle.center = Scale(Add(localA, localB), 0.5f);\n            circle.radius = radius;\n            return SetCircleGeometry	if (false)\n        {\n            Circle circle;\n            circle.center = Scale(Add(localA, localB), 0.5f);\n            circle.radius = radius;\n            return SetCircleGeometry
+Modules\JBroPhysics2D\Source\World.cpp	world:surface-no-layer	shape->layer = def.layer;	(void)0;

@@ -35,6 +35,7 @@ namespace JBro
         bool DeleteFileAt(const char* utf8Path) override;
         bool DeleteDirectoryAt(const char* utf8Path) override;
         String GetExecutableFolder() const override;
+        String GetUserDataFolder() const override;
         bool GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const override;
         bool OpenPathWithShell(const char* utf8Path) override;
         bool RevealInFileBrowser(const char* utf8Path) override;
@@ -50,6 +51,8 @@ namespace JBro
         // `WindowsAudio.cpp` 의 것이다. miniaudio 의 WASAPI 장치다(D-197).
         OwnerPtr<IAudioOutput> CreateAudioOutput(const AudioOutputDesc& desc) override;
         std::uint32_t EnumerateAudioOutputs(AudioDeviceInfo* devices, std::uint32_t capacity) override;
+        bool PollGamepad(std::uint32_t slot, GamepadRawState& state) override;
+        void SetGamepadVibration(std::uint32_t slot, float low, float high) override;
         bool TakeAudioDevicesChanged() override;
 
         // WndProc 이 부른다. 공개 API 가 아니다.

@@ -5,6 +5,7 @@
 #include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/ServiceContext.h>
+#include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/Runtime/ComponentLookupStats.h>
 
 #include <cmath>
@@ -441,6 +442,25 @@ namespace
         bool pluggedIn = false;
         bool devicesChanged = false;
         int deviceChecks = 0;
+        // 게임패드 한 자리(0 번)다(D-214).
+        bool PollGamepad(std::uint32_t slot, JBro::GamepadRawState& state) override
+        {
+            state = slot == 0 ? pad : JBro::GamepadRawState{};
+            return state.connected;
+        }
+
+        void SetGamepadVibration(std::uint32_t slot, float low, float high) override
+        {
+            if (slot == 0)
+            {
+                motorLow = low;
+                motorHigh = high;
+            }
+        }
+
+        JBro::GamepadRawState pad;
+        float motorLow = 0.0f;
+        float motorHigh = 0.0f;
         bool refuseAudio = false;
         JBro::String lastRequestedDevice;
         FakeAudioOutput* lastOutput = nullptr;
@@ -624,6 +644,43 @@ namespace
     };
 
     // 오버레이가 불렸는지, 그때 백버퍼가 무엇이었는지 남긴다.
+    // **엔진이 틱마다 게임패드를 읽고, 호스트가 입력을 가져간 동안에는 게임에 주지 않는다**(D-214). 진동은 서비스에서 플랫폼까지
+    // 가고, 호스트가 게임 입력을 끄거나 엔진이 내려가면 모터가 멈춘다.
+    void TestTheHostPollsGamepadsForTheGame()
+    {
+        FakeModule module;
+        HostPlatform platform;
+        platform.module = &module;
+        platform.pad.connected = true;
+        platform.pad.buttons = static_cast<std::uint16_t>(1u << static_cast<std::uint32_t>(JBro::GamepadButton::South));
+        JBro::EngineConfig config;
+        JBro::EngineInstance engine;
+        Check(engine.Initialize(config, platform, module), "the host must initialize");
+        Check(engine.Tick(0.016f), "the host must tick");
+        const JBro::Service::InputService& input = JBro::GetInputServices().Input;
+        Check(input.Gamepad(0).connected && input.Gamepad(0).IsPressed(JBro::GamepadButton::South),
+            "a game host reads the pad every tick");
+
+        input.SetGamepadVibration(0, 0.25f, 0.75f);
+        Check(engine.Tick(0.016f), "the host must tick");
+        Check(platform.motorLow == 0.25f && platform.motorHigh == 0.75f, "a vibration asked through the service reaches the pad");
+
+        // 에디터처럼 호스트가 입력을 가져가면, 게임 입력을 켜기 전에는 패드도 게임에 가지 않는다.
+        engine.SetInputOwnedByHost(true);
+        Check(engine.Tick(0.016f), "the host must tick");
+        Check(false == input.Gamepad(0).connected, "while the host owns input the game gets no pad");
+        Check(platform.motorLow == 0.0f && platform.motorHigh == 0.0f, "and the motors stop");
+        engine.SetHostGameInputActive(true);
+        Check(engine.Tick(0.016f), "the host must tick");
+        Check(input.Gamepad(0).connected, "turning the game input on hands the pad back");
+
+        input.SetGamepadVibration(0, 1.0f, 1.0f);
+        Check(engine.Tick(0.016f), "the host must tick");
+        Check(platform.motorLow == 1.0f, "the motors turn again");
+        engine.Shutdown();
+        Check(platform.motorLow == 0.0f && platform.motorHigh == 0.0f, "shutting the engine down stops the motors");
+    }
+
     void TestProjectSwitchPreservesProcessResources()
     {
         FakeModule module;
@@ -1369,6 +1426,7 @@ int RunRendererContractTests()
     TestMeshRegistrationValidatesItsInput();
     TestMeshesSharingAHandleDrawAsOneInstancedCall();
     TestProjectSwitchPreservesProcessResources();
+    TestTheHostPollsGamepadsForTheGame();
     std::cout << "Renderer contract tests passed.\n";
     return 0;
 }

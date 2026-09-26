@@ -208,6 +208,120 @@ namespace JBro
             error.message = message;
             return false;
         }
+
+        // 입력 액션의 글자(D-214). 기존 엔진이 `magic_enum` 으로 적던 열거자 이름 그대로다.
+        constexpr const char* InputActionTypeNames[] = {"Bool", "Float", "Vector2"};
+        constexpr const char* InputBindingSourceNames[] = {"Key", "MouseButton", "GamepadButton", "GamepadAxis", "GamepadStick"};
+        constexpr const char* InputCompositeNames[] = {"None", "Up", "Down", "Left", "Right"};
+
+        template<typename Enum, std::size_t Count>
+        bool ParseNamed(const char* const (&names)[Count], const String& value, Enum& result)
+        {
+            for (std::size_t index = 0; index < Count; ++index)
+            {
+                if (value == names[index])
+                {
+                    result = static_cast<Enum>(index);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        template<typename Enum, std::size_t Count>
+        const char* NameOfEnum(const char* const (&names)[Count], Enum value)
+        {
+            const std::size_t index = static_cast<std::size_t>(value);
+            return index < Count ? names[index] : names[0];
+        }
+
+        bool ParseInputActionType(const String& value, InputActionType& result)
+        {
+            return ParseNamed(InputActionTypeNames, value, result);
+        }
+
+        bool ParseInputBindingSource(const String& value, InputBindingSource& result)
+        {
+            return ParseNamed(InputBindingSourceNames, value, result);
+        }
+
+        bool ParseInputComposite(const String& value, InputComposite& result)
+        {
+            return ParseNamed(InputCompositeNames, value, result);
+        }
+
+        bool ParseInputBindingCode(InputBindingSource source, const String& value, std::uint16_t& code)
+        {
+            switch (source)
+            {
+            case InputBindingSource::Key:
+            {
+                Key key = Key::Unknown;
+                if (false == FindKeyByName(value.c_str(), key))
+                {
+                    return false;
+                }
+                code = static_cast<std::uint16_t>(key);
+                return true;
+            }
+            case InputBindingSource::MouseButton:
+            {
+                MouseButton button = MouseButton::Left;
+                if (false == FindMouseButtonByName(value.c_str(), button))
+                {
+                    return false;
+                }
+                code = static_cast<std::uint16_t>(button);
+                return true;
+            }
+            case InputBindingSource::GamepadButton:
+            {
+                GamepadButton button = GamepadButton::South;
+                if (false == FindGamepadButtonByName(value.c_str(), button))
+                {
+                    return false;
+                }
+                code = static_cast<std::uint16_t>(button);
+                return true;
+            }
+            case InputBindingSource::GamepadAxis:
+            {
+                GamepadAxis axis = GamepadAxis::LeftX;
+                if (false == FindGamepadAxisByName(value.c_str(), axis))
+                {
+                    return false;
+                }
+                code = static_cast<std::uint16_t>(axis);
+                return true;
+            }
+            case InputBindingSource::GamepadStick:
+                if (value == "Left" || value == "Right")
+                {
+                    code = value == "Right" ? 1 : 0;
+                    return true;
+                }
+                return false;
+            }
+            return false;
+        }
+
+        const char* InputBindingCodeName(const ProjectInputBinding& binding)
+        {
+            switch (binding.source)
+            {
+            case InputBindingSource::Key:
+                return GetKeyName(static_cast<Key>(binding.code));
+            case InputBindingSource::MouseButton:
+                return GetMouseButtonName(static_cast<MouseButton>(binding.code));
+            case InputBindingSource::GamepadButton:
+                return GetGamepadButtonName(static_cast<GamepadButton>(binding.code));
+            case InputBindingSource::GamepadAxis:
+                return GetGamepadAxisName(static_cast<GamepadAxis>(binding.code));
+            case InputBindingSource::GamepadStick:
+                return binding.code == 1 ? "Right" : "Left";
+            }
+            return "";
+        }
     }
 
     bool ParseProjectFile(
@@ -239,6 +353,10 @@ namespace JBro
         // `Fonts:` 의 항목은 글자로 모았다가 끝에서 아이디로 읽는다. 읽지 못하는 아이디는 파일 오류다.
         Array<String>  fontTexts;
         std::size_t    fontsLine = 0;
+        // `InputActions:` 아래에 있는가(D-214). 액션 항목의 들여쓰기와 `Bindings:` 아래에 있는지를 함께 든다.
+        bool           inInputActions = false;
+        bool           inInputBindings = false;
+        std::size_t    inputActionIndent = 2;
 
         std::size_t lineNumber = 0;
         std::size_t cursor = 0;
@@ -297,6 +415,136 @@ namespace JBro
                 currentMap.clear();
                 currentSequence = nullptr;
                 inAudioBuses = false;
+                inInputActions = false;
+                inInputBindings = false;
+            }
+
+            // 입력 액션(D-214): `- Name: X` 가 액션을 열고 `Type:`·`Bindings:` 가 붙는다. `Bindings:` 아래의
+            // `- Source: Key` 가 바인딩을 열고 `Code:`·`GamepadIndex:`·`Composite:` 가 붙는다. 들여쓰기로 가른다.
+            if (inInputActions)
+            {
+                const bool opens = content[0] == '-' && (content[1] == ' ' || content[1] == '\0');
+                const char* entry = opens ? content + 1 : content;
+                while (entry < contentEnd && *entry == ' ')
+                {
+                    ++entry;
+                }
+                // `Bindings:` 와 같은 깊이의 줄은 바인딩이 아니다 - 아래에서 들여쓰기로 가른다. 새 액션(`- Name:`)이 목록을 닫는다.
+                if (opens && indent == inputActionIndent)
+                {
+                    parsed.inputActions.Emplace();
+                    inInputBindings = false;
+                }
+                else if (opens && inInputBindings)
+                {
+                    parsed.inputActions.Last().bindings.Emplace();
+                }
+                else if (opens)
+                {
+                    return Fail(error, lineNumber, "an input action item is `- Name:` or a binding under `Bindings:`");
+                }
+                if (parsed.inputActions.IsEmpty())
+                {
+                    return Fail(error, lineNumber, "an input action field has no `- Name:` above it");
+                }
+                if (entry >= contentEnd)
+                {
+                    if (atEnd)
+                    {
+                        break;
+                    }
+                    continue;
+                }
+                const char* fieldColon = std::strchr(entry, ':');
+                if (fieldColon == nullptr)
+                {
+                    return Fail(error, lineNumber, "an input action field is `key: value`");
+                }
+                const String fieldKey = Trim(entry, fieldColon);
+                String fieldValue = Trim(fieldColon + 1, contentEnd);
+                if (false == Unquote(fieldValue))
+                {
+                    return Fail(error, lineNumber, "unterminated quoted string");
+                }
+                ProjectInputAction& action = parsed.inputActions.Last();
+                if (inInputBindings && (opens || indent > inputActionIndent + 2))
+                {
+                    if (action.bindings.IsEmpty())
+                    {
+                        return Fail(error, lineNumber, "an input binding field has no `- Source:` above it");
+                    }
+                    ProjectInputBinding& binding = action.bindings.Last();
+                    if (fieldKey == "Source")
+                    {
+                        if (false == ParseInputBindingSource(fieldValue, binding.source))
+                        {
+                            return Fail(error, lineNumber,
+                                "an input binding Source is Key, MouseButton, GamepadButton, GamepadAxis or GamepadStick");
+                        }
+                    }
+                    else if (fieldKey == "Code")
+                    {
+                        // 원천이 먼저 적혀 있어야 이름을 풀 수 있다. 기존 엔진도 Source 를 먼저 적었다.
+                        if (false == ParseInputBindingCode(binding.source, fieldValue, binding.code))
+                        {
+                            return Fail(error, lineNumber, "an input binding Code does not name a key, button or axis");
+                        }
+                    }
+                    else if (fieldKey == "GamepadIndex")
+                    {
+                        std::uint32_t index = 0;
+                        if (fieldValue == "-1")
+                        {
+                            binding.gamepad = -1;
+                        }
+                        else if (ParseUInt(fieldValue, index) && index < 4)
+                        {
+                            binding.gamepad = static_cast<int>(index);
+                        }
+                        else
+                        {
+                            return Fail(error, lineNumber, "an input binding GamepadIndex is -1 or 0..3");
+                        }
+                    }
+                    else if (fieldKey == "Composite")
+                    {
+                        if (false == ParseInputComposite(fieldValue, binding.composite))
+                        {
+                            return Fail(error, lineNumber, "an input binding Composite is None, Up, Down, Left or Right");
+                        }
+                    }
+                    // 모르는 필드는 두고 지나간다.
+                }
+                else if (fieldKey == "Name")
+                {
+                    action.name = fieldValue;
+                }
+                else if (fieldKey == "Set")
+                {
+                    action.set = fieldValue;
+                }
+                else if (fieldKey == "Type")
+                {
+                    if (false == ParseInputActionType(fieldValue, action.type))
+                    {
+                        return Fail(error, lineNumber, "an input action Type is Bool, Float or Vector2");
+                    }
+                }
+                else if (fieldKey == "Bindings")
+                {
+                    action.bindings.Clear();
+                    // `Bindings: []` 는 빈 목록이다. 값이 없으면 아래 줄들이 바인딩이다.
+                    inInputBindings = fieldValue.empty();
+                    if (false == fieldValue.empty() && fieldValue != "[]")
+                    {
+                        return Fail(error, lineNumber, "input action Bindings is a list");
+                    }
+                }
+                if (atEnd)
+                {
+                    break;
+                }
+                continue;
             }
 
             // 오디오 버스(D-197): `- Name: X` 가 항목을 열고 그 아래 `Volume: v` 가 붙는다.
@@ -483,6 +731,18 @@ namespace JBro
                     fontsLine = lineNumber;
                     currentSequence = &fontTexts;
                 }
+                else if (indent == 0 && key == "InputLayers")
+                {
+                    parsed.inputLayers.Clear();
+                    currentSequence = &parsed.inputLayers;
+                }
+                else if (indent == 0 && key == "InputActions")
+                {
+                    parsed.inputActions.Clear();
+                    inInputActions = true;
+                    // 기존 엔진은 항목을 두 칸 들여 적었다. 첫 항목의 들여쓰기가 그 목록의 들여쓰기다 - 우리도 두 칸으로 적는다.
+                    inputActionIndent = 2;
+                }
                 else
                 {
                     // 이 엔진이 읽지 않는 블록이다. 더 깊은 줄을 전부 건너뛴다.
@@ -559,6 +819,16 @@ namespace JBro
                 }
             }
             else if (key == "AssetDirectory") { parsed.assetDirectory = value; }
+            else if (key == "InputLayers")
+            {
+                parsed.inputLayers.Clear();
+                recognized = value == "[]";
+            }
+            else if (key == "InputActions")
+            {
+                parsed.inputActions.Clear();
+                recognized = value == "[]";
+            }
             else if (key == "AudioBuses")
             {
                 // 같은 줄에 값이 있는 것은 빈 목록(`[]`)뿐이다.
@@ -834,6 +1104,107 @@ namespace JBro
             return name[0] != '-' && name[0] != '?';
         }
 
+        // `InputLayers` 를 적는다(D-214). 비어 있으면 `[]` 다(원문에 키가 있었을 때만 불린다).
+        void AppendInputLayers(String& result, const ProjectFile& project)
+        {
+            if (project.inputLayers.IsEmpty())
+            {
+                result.append("InputLayers: []\n", 16);
+                return;
+            }
+            result.append("InputLayers:\n", 13);
+            for (std::size_t index = 0; index < project.inputLayers.Size(); ++index)
+            {
+                const String& layer = project.inputLayers[index];
+                result.append("  - ", 4);
+                if (IsPlainName(layer))
+                {
+                    result.append(layer.c_str(), layer.size());
+                }
+                else
+                {
+                    result.append("\"", 1);
+                    result.append(layer.c_str(), layer.size());
+                    result.append("\"", 1);
+                }
+                result.append("\n", 1);
+            }
+        }
+
+        // `InputActions` 를 적는다(D-214). 모양은 기존 엔진과 같다.
+        void AppendInputActions(String& result, const ProjectFile& project)
+        {
+            if (project.inputActions.IsEmpty())
+            {
+                result.append("InputActions: []\n", 17);
+                return;
+            }
+            result.append("InputActions:\n", 14);
+            for (std::size_t index = 0; index < project.inputActions.Size(); ++index)
+            {
+                const ProjectInputAction& action = project.inputActions[index];
+                result.append("  - Name: ", 10);
+                if (IsPlainName(action.name))
+                {
+                    result.append(action.name.c_str(), action.name.size());
+                }
+                else
+                {
+                    result.append("\"", 1);
+                    result.append(action.name.c_str(), action.name.size());
+                    result.append("\"", 1);
+                }
+                result.append("\n    Type: ", 11);
+                const char* type = NameOfEnum(InputActionTypeNames, action.type);
+                result.append(type, std::strlen(type));
+                // 세트는 적었을 때만 적는다. 세트를 쓰지 않는 프로젝트의 파일은 기존 엔진 모양 그대로다.
+                if (false == action.set.empty())
+                {
+                    result.append("\n    Set: ", 10);
+                    if (IsPlainName(action.set))
+                    {
+                        result.append(action.set.c_str(), action.set.size());
+                    }
+                    else
+                    {
+                        result.append("\"", 1);
+                        result.append(action.set.c_str(), action.set.size());
+                        result.append("\"", 1);
+                    }
+                }
+                if (action.bindings.IsEmpty())
+                {
+                    result.append("\n    Bindings: []\n", 18);
+                    continue;
+                }
+                result.append("\n    Bindings:\n", 15);
+                for (std::size_t at = 0; at < action.bindings.Size(); ++at)
+                {
+                    const ProjectInputBinding& binding = action.bindings[at];
+                    result.append("      - Source: ", 16);
+                    const char* source = NameOfEnum(InputBindingSourceNames, binding.source);
+                    result.append(source, std::strlen(source));
+                    result.append("\n        Code: ", 15);
+                    const char* code = InputBindingCodeName(binding);
+                    result.append(code, std::strlen(code));
+                    result.append("\n", 1);
+                    if (binding.gamepad >= 0)
+                    {
+                        char text[40] = {};
+                        const int written = std::snprintf(text, sizeof(text), "        GamepadIndex: %d\n", binding.gamepad);
+                        result.append(text, written > 0 ? static_cast<std::size_t>(written) : 0);
+                    }
+                    if (binding.composite != InputComposite::None)
+                    {
+                        result.append("        Composite: ", 19);
+                        const char* composite = NameOfEnum(InputCompositeNames, binding.composite);
+                        result.append(composite, std::strlen(composite));
+                        result.append("\n", 1);
+                    }
+                }
+            }
+        }
+
         // `AudioBuses` 를 적는다(D-197). 비어 있으면 `[]` 다.
         void AppendAudioBuses(String& result, const ProjectFile& project)
         {
@@ -1021,6 +1392,8 @@ namespace JBro
         bool sawIgnorePatterns = false;
         bool sawAudioBuses = false;
         bool sawFonts = false;
+        bool sawInputLayers = false;
+        bool sawInputActions = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
         std::size_t buildEnd = String::npos;
 
@@ -1076,7 +1449,28 @@ namespace JBro
             String value;
             bool replaced = false;
             bool dropped = false;
-            if (pair && indent == 0 && key == "AudioBuses")
+            if (pair && indent == 0 && (key == "InputLayers" || key == "InputActions"))
+            {
+                // 버스와 같다: 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다.
+                const bool layers = key == "InputLayers";
+                bool& saw = layers ? sawInputLayers : sawInputActions;
+                dropped = saw;
+                if (false == dropped)
+                {
+                    if (layers)
+                    {
+                        AppendInputLayers(result, project);
+                    }
+                    else
+                    {
+                        AppendInputActions(result, project);
+                    }
+                    saw = true;
+                }
+                skippingSequence = false == hasValue;
+                replaced = true;
+            }
+            else if (pair && indent == 0 && key == "AudioBuses")
             {
                 // 시퀀스라 머리줄에서 새로 적고 원문의 항목 줄들을 건너뛴다(`AssetIgnorePatterns` 와 같다).
                 dropped = sawAudioBuses;
@@ -1228,6 +1622,15 @@ namespace JBro
         {
             AppendFonts(result, project);
         }
+        // 입력도 같다(D-214): 적힌 적 없고 비어 있으면 적지 않는다.
+        if (false == sawInputLayers && false == project.inputLayers.IsEmpty())
+        {
+            AppendInputLayers(result, project);
+        }
+        if (false == sawInputActions && false == project.inputActions.IsEmpty())
+        {
+            AppendInputActions(result, project);
+        }
 
         // **쓴 것을 도로 읽어 본다.** 읽히지 않는 글자를 파일에 남기면 그 프로젝트는
         // 다음에 열리지 않는다 - 값 안의 따옴표나 콜론 하나가 그렇게 만든다.
@@ -1277,6 +1680,62 @@ namespace JBro
             return Fail(error, 0, "the project file could not be replaced");
         }
         return true;
+    }
+
+    bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out)
+    {
+        out = InputActionMap{};
+        bool complete = true;
+        for (const ProjectInputAction& action : actions)
+        {
+            if (out.count >= MaxInputActions)
+            {
+                complete = false;
+                break;
+            }
+            std::uint32_t set = 0;
+            if (false == action.set.empty())
+            {
+                const NameId setName = NameTable::Get().Intern(action.set.c_str());
+                const int found = out.FindSet(setName);
+                if (found >= 0)
+                {
+                    set = static_cast<std::uint32_t>(found);
+                }
+                else if (out.setCount < MaxInputActionSets)
+                {
+                    set = out.setCount;
+                    out.sets[out.setCount] = setName;
+                    ++out.setCount;
+                }
+                else
+                {
+                    complete = false;
+                    continue;
+                }
+            }
+            InputActionDesc& desc = out.actions[out.count];
+            desc.name = NameTable::Get().Intern(action.name.c_str());
+            desc.type = action.type;
+            desc.set = static_cast<std::uint8_t>(set);
+            desc.bindingCount = 0;
+            for (const ProjectInputBinding& binding : action.bindings)
+            {
+                if (desc.bindingCount >= MaxInputBindingsPerAction)
+                {
+                    complete = false;
+                    break;
+                }
+                InputBinding& target = desc.bindings[desc.bindingCount];
+                target.source = binding.source;
+                target.code = binding.code;
+                target.gamepad = static_cast<std::int8_t>(binding.gamepad);
+                target.composite = binding.composite;
+                ++desc.bindingCount;
+            }
+            ++out.count;
+        }
+        return complete;
     }
 
     bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,

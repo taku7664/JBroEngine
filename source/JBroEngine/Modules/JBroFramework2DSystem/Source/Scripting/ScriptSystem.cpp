@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Internal/CanvasAccess.h>
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Input/InputSystem.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <algorithm>
@@ -35,6 +36,7 @@ namespace JBro::System
 
         m_ordered.Clear();
         m_started.Clear();
+        m_inputChain.Clear();
         m_lastUpdateCount = 0;
         m_rebuildCount = 0;
         m_builtRevision = 0;
@@ -111,6 +113,7 @@ namespace JBro::System
             m_scriptKeys.Clear();
             m_ordered.Clear();
             m_started.Clear();
+            m_inputChain.Clear();
             return;
         }
 
@@ -196,6 +199,93 @@ namespace JBro::System
                 }
             }
         }
+        BuildInputChain(canvas);
+    }
+
+    void ScriptSystem::SetInputSystem(InputSystem* input)
+    {
+        m_input = input;
+        // 레이어 순위는 입력 시스템이 안다. 바뀌었으니 다음 디스패치에서 다시 줄 세운다.
+        m_inputLayerRevision = 0;
+    }
+
+    std::size_t ScriptSystem::GetInputHandlerCount() const
+    {
+        return m_inputChain.Size();
+    }
+
+    void ScriptSystem::BuildInputChain(Canvas& canvas)
+    {
+        m_inputChain.Clear();
+        for (std::size_t index = 0; index < m_ordered.Size(); ++index)
+        {
+            GameScriptBase* script = m_ordered[index].script;
+            const ScriptInputBinding binding = canvas.FindScriptInputBinding(*script);
+            if (binding.ToHandler == nullptr)
+            {
+                continue;
+            }
+            InputEntry entry;
+            entry.ordered = static_cast<std::uint32_t>(index);
+            entry.handler = binding.ToHandler(script);
+            entry.layer = binding.layer;
+            entry.layerText = binding.layerText;
+            entry.order = binding.order;
+            m_inputChain.Add(entry);
+        }
+        SortInputChain();
+    }
+
+    void ScriptSystem::SortInputChain()
+    {
+        for (InputEntry& entry : m_inputChain)
+        {
+            entry.priority = m_input != nullptr ? m_input->GetLayerPriority(entry.layer, entry.layerText) : 0;
+        }
+        m_inputLayerRevision = m_input != nullptr ? m_input->GetLayerRevision() : 0;
+        // 같은 레이어에서는 `Order` 가 큰 것이 먼저, 그것도 같으면 실행 순서다. 등록 순(기존 엔진)은 로드 순서에 따라 흔들린다.
+        std::sort(m_inputChain.begin(), m_inputChain.end(), [](const InputEntry& left, const InputEntry& right)
+        {
+            if (left.priority != right.priority)
+            {
+                return left.priority < right.priority;
+            }
+            if (left.order != right.order)
+            {
+                return left.order > right.order;
+            }
+            return left.ordered < right.ordered;
+        });
+    }
+
+    void ScriptSystem::DispatchInput(Canvas& canvas)
+    {
+        if (m_input == nullptr)
+        {
+            return;
+        }
+        EnsureOrder(canvas);
+        if (m_input->GetLayerRevision() != m_inputLayerRevision)
+        {
+            SortInputChain();
+        }
+        // 핸들러 안에서 오브젝트를 지우면 그 파괴는 큐로 간다(OnUpdate 와 같다).
+        Canvas::IterationGuard guard(canvas);
+        m_input->BeginDispatch();
+        for (const InputEntry& entry : m_inputChain)
+        {
+            // 앞의 핸들러가 이 스크립트를 끌 수 있으므로 부르기 직전에 본다.
+            const ScriptEntry& script = m_ordered[entry.ordered];
+            if (false == script.started || false == script.script->IsActiveComponent())
+            {
+                continue;
+            }
+            if (m_input->Deliver(*entry.handler))
+            {
+                break;
+            }
+        }
+        m_input->EndDispatch();
     }
 
     void ScriptSystem::OnUpdate(Canvas& canvas, float deltaTime)
@@ -279,6 +369,7 @@ namespace JBro::System
 
         m_ordered.Clear();
         m_started.Clear();
+        m_inputChain.Clear();
         m_lastUpdateCount = 0;
         m_builtRevision = 0;
     }

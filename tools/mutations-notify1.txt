@@ -1,0 +1,34 @@
+Modules\JBroEditor\Source\EditorNotifications.cpp	queue:no-limit	            if (onScreen >= MaxVisible)	            if (false)
+Modules\JBroEditor\Source\EditorNotifications.cpp	queue:leaving-holds-slot	            if (owned->phase == Phase::Entering || owned->phase == Phase::Shown)	            if (owned->phase != Phase::Waiting)
+Modules\JBroEditor\Source\EditorNotifications.cpp	notify:blank-title-accepted	        if (IsBlank(desc.title))\n        {\n            return InvalidNotificationHandle;	        if (false)\n        {\n            return InvalidNotificationHandle;
+Modules\JBroEditor\Source\EditorNotifications.cpp	clock:hover-does-not-pause	                if (entry.duration > 0.0f && false == entry.hovered && false == entry.dragging)	                if (entry.duration > 0.0f && false == entry.dragging)
+Modules\JBroEditor\Source\EditorNotifications.cpp	clock:drag-does-not-pause	                if (entry.duration > 0.0f && false == entry.hovered && false == entry.dragging)	                if (entry.duration > 0.0f && false == entry.hovered)
+Modules\JBroEditor\Source\EditorNotifications.cpp	clock:sticky-times-out	                if (entry.duration > 0.0f && false == entry.hovered && false == entry.dragging)	                if (entry.duration >= 0.0f && false == entry.hovered && false == entry.dragging)
+Modules\JBroEditor\Source\EditorNotifications.cpp	clock:errors-as-short-as-info	            return 10.0f;	            return 5.0f;
+Modules\JBroEditor\Source\EditorNotifications.cpp	swipe:direction-ignored	            StartLeaving(*entry, entry->offsetX < 0.0f ? -1.0f : 1.0f);	            StartLeaving(*entry, 1.0f);
+Modules\JBroEditor\Source\EditorNotifications.cpp	swipe:short-dismisses	        if (std::fabs(entry->offsetX) >= width * SwipeDismissFraction)	        if (true)
+Modules\JBroEditor\Source\EditorNotifications.cpp	swipe:no-snap-back	                    entry.offsetX = Approach(entry.offsetX, 0.0f, SnapBackRate, dt);	                    (void)0;
+Modules\JBroEditor\Source\EditorNotifications.cpp	merge:off	        if (false == IsBlank(desc.id))	        if (false)
+Modules\JBroEditor\Source\EditorNotifications.cpp	merge:clock-not-reset	                entry.remaining = duration;\n                ++entry.count;	                ++entry.count;
+Modules\JBroEditor\Source\EditorNotifications.cpp	activate:action-not-called	            entry->action->OnClick(editor);	            (void)editor;
+Modules\JBroEditor\Source\EditorNotifications.cpp	activate:twice	        if (entry == nullptr || entry->phase == Phase::Waiting || entry->phase == Phase::Leaving)\n        {\n            return;\n        }\n        // 먼저	        if (entry == nullptr || entry->phase == Phase::Waiting)\n        {\n            return;\n        }\n        // 먼저
+Modules\JBroEditor\Source\EditorNotifications.cpp	log:always	        if (desc.writeLog)	        if (true)
+Modules\JBroEditor\Source\EditorNotifications.cpp	log:never	            WriteLog(desc.level, desc.title, desc.message);	            (void)0;
+Modules\JBroEditor\Source\EditorNotifications.cpp	stack:jumps	                entry.offsetY = Approach(entry.offsetY, entry.targetOffsetY, StackFollowRate, dt);	                entry.offsetY = entry.targetOffsetY;
+Modules\JBroEditor\Source\EditorNotifications.cpp	stack:first-not-snapped	            entry->offsetY = targetOffsetY;\n            entry->laidOut = true;	            entry->laidOut = true;
+Modules\JBroEditor\Source\EditorNotifications.cpp	enter:no-slide	                    entry.offsetX = (1.0f - EaseOut(entry.presence)) * slide;	                    entry.offsetX = 0.0f;
+Modules\JBroEditor\Source\EditorNotifications.cpp	leave:never-removed	                if (entry.presence <= 0.0f)\n                {\n                    m_entries.RemoveAt(index);	                if (false)\n                {\n                    m_entries.RemoveAt(index);
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:newest-on-top	            const std::uint32_t index = count - 1 - reversed;	            const std::uint32_t index = reversed;
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:not-in-front	                ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());	                (void)0;
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:leaving-keeps-height	            stacked += (height + style.spacing) * measured.space;	            stacked += (height + style.spacing);
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:swipe-is-click	                        if (MouseWasDragged(ImGuiMouseButton_Left))	                        if (false)
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:drag-not-followed	                        notifications.Drag(view.handle, ImGui::GetMouseDragDelta(ImGuiMouseButton_Left).x);	                        (void)0;
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:hover-not-reported	                    notifications.SetHovered(view.handle, hovered);	                    (void)hovered;
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:hover-on-body	                    hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) || active;	                    hovered = ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenOverlappedByItem) || active;
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:close-does-nothing	                        notifications.Dismiss(view.handle);	                        (void)0;
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:height-ignores-message	            height += ImGui::GetStyle().ItemSpacing.y + size.y;	            (void)size;
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:click-anywhere	                        else if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenOverlappedByItem))	                        else if (true)
+Modules\JBroEditor\Source\Widget\Notification.cpp	widget:no-margin	        const float right = viewport->WorkPos.x + viewport->WorkSize.x - style.margin;	        const float right = viewport->WorkPos.x + viewport->WorkSize.x;
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:no-activate	            m_notifications.Activate(clicked, *this);	            (void)clicked;
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:no-update	        m_notifications.Update(deltaTime);\n	\n
+Modules\JBroEditor\Source\EditorNotifications.cpp	leave:space-follows-alpha-curve	            view.space = view.leaving ? entry.presence : 1.0f;	            view.space = view.leaving ? EaseOut(entry.presence) : 1.0f;

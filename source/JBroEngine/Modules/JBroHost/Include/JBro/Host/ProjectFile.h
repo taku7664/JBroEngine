@@ -2,6 +2,7 @@
 
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/AudioTypes/AudioTypes.h>
+#include <JBro/InputTypes/InputAction.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
@@ -81,6 +82,26 @@ namespace JBro
         float duckRelease = 0.3f;
     };
 
+    // 입력 바인딩 하나다(D-214). 키는 기존 엔진과 같다 - `Source:`·`Code:`·`GamepadIndex:`(-1 이면 적지 않는다)·
+    // `Composite:`(None 이면 적지 않는다). `Code` 는 원천에 따른 열거자 이름이다(스틱은 `Left`·`Right`).
+    struct ProjectInputBinding
+    {
+        InputBindingSource source = InputBindingSource::Key;
+        std::uint16_t code = 0;
+        int gamepad = -1;
+        InputComposite composite = InputComposite::None;
+    };
+
+    // 입력 액션 하나다(D-214). `InputActions` 아래 `- Name:`·`Type:`·`Set:`·`Bindings:` 의 맵 시퀀스다.
+    struct ProjectInputAction
+    {
+        String name;
+        InputActionType type = InputActionType::Bool;
+        // 액션 세트다. 비어 있으면 `Default` 이고 파일에 적지 않는다 - 기존 엔진 파일에는 이 키가 없다.
+        String set;
+        Array<ProjectInputBinding> bindings;
+    };
+
     struct ProjectFile
     {
         std::uint32_t version = 1;
@@ -127,6 +148,11 @@ namespace JBro
         // 텍스트의 기본 폰트이고, 목록 전체가 글자가 없을 때 차례로 찾아보는 폴백이다. 비어 있으면 `fontId` 가 빈 텍스트는
         // 그리지 않는다.
         Array<AssetId> fonts;
+        // 입력 레이어 순서다(`InputLayers`, D-214). 위가 먼저 받는다. 비어 있으면 엔진 기본(Modal·UI·Game·World·Debug)이고
+        // 파일에 적지 않는다 - 손대지 않은 파일은 저장해도 바이트 하나 바뀌지 않는다.
+        Array<String> inputLayers;
+        // 입력 액션이다(`InputActions`). 비어 있으면 적지 않는다. 엔진이 담는 것은 앞의 64 개, 액션마다 바인딩 8 개다.
+        Array<ProjectInputAction> inputActions;
         ProjectBuildSettings build;
     };
 
@@ -187,6 +213,11 @@ namespace JBro
     bool CreateProjectFile(IPlatform& platform, const char* parentFolder, const char* name,
         FrameworkKind framework, const char* engineVersion, String& outProjectFilePath,
         ProjectFileError& error);
+
+    // 프로젝트의 액션을 입력 시스템의 고정 표로 옮긴다(D-214). 이름과 세트 이름은 이름표에 넣는다 - 없는 이름의 경고가 이름으로 말한다.
+    // 표는 고정 크기다: 액션 64·바인딩 8·세트 32 를 넘는 것은 버리고 거짓을 돌려준다(파일은 그대로라 되살릴 수 있다).
+    // 세트가 넘친 액션은 통째로 버린다 - `Default` 에 넣으면 끄려던 액션이 늘 켜져 있다.
+    bool MakeInputActionMap(const Array<ProjectInputAction>& actions, InputActionMap& out);
 
     // 프로젝트 루트와 합쳐 실제로 로드할 스크립트 DLL 경로를 만든다.
     // 절대경로면 그대로 두고, 상대경로면 프로젝트 파일이 있는 폴더 기준으로 붙인다.

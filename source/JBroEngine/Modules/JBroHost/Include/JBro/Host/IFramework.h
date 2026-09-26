@@ -13,6 +13,7 @@ namespace JBro
     {
         // 오디오 시스템은 `JBroAudio` 의 것이다. 이 헤더를 쓰는 모듈이 오디오 헤더를 보지 않게 이름만 안다.
         class AudioSystem;
+        class InputSystem;
     }
     class Renderer;
 
@@ -75,6 +76,10 @@ namespace JBro
         System::AudioSystem* audio = nullptr;
         // 호스트가 소유하는 태스크 관리자(D-209). 있으면 폰트의 미리 뜨기가 워커에서 돈다. 없으면(테스트의 가짜) 메인 스레드에서 한 번에 뜬다.
         TaskManager* tasks = nullptr;
+
+        // 호스트가 소유하는 게임 입력(D-214). 프레임워크는 스크립트의 레이어 체인을 이것에 내려보낸다.
+        // 없으면(테스트의 가짜) 체인을 돌리지 않고, 스크립트의 폴링은 빈 입력을 본다.
+        System::InputSystem* input = nullptr;
     };
 
     class IFramework

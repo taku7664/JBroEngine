@@ -6,6 +6,8 @@
 #include <JBro/Platform/Platform.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
+#include <JBro/SaveTypes/Internal/SystemContext.h>
+#include <JBro/SaveTypes/ServiceContext.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Task/TaskManager.h>
 #include <JBro/Types/LinearAllocator.h>
@@ -19,6 +21,14 @@ namespace JBro
         // 오디오의 것들(D-197). 이 헤더를 쓰는 에디터가 오디오 헤더를 보지 않게 이름만 안다. 정의는 EngineInstance.cpp 가 본다.
         class AudioSystem;
         class IAudioDeviceControl;
+    }
+
+    class SaveStorage;
+
+    namespace System
+    {
+        // 게임 입력(D-214). 이 헤더를 쓰는 에디터가 입력 모듈 헤더를 보지 않게 이름만 안다.
+        class InputSystem;
     }
 
     namespace Network
@@ -58,6 +68,11 @@ namespace JBro
         std::uint32_t audioMaxVoices = 64;
         // 태스크 관리자의 설정이다(D-209). 워커 수가 0 이면 코어 수에서 정한다.
         TaskManagerDesc tasks;
+        // 세이브를 쓰는 폴더다(D-218). 비어 있으면 `<앱 데이터>/<제품명>/Saves` 이고, `editorSaves` 면 `EditorSaves` 다.
+        // 시험이 임시 폴더를 준다 - 사용자 폴더에 시험의 세이브가 남지 않는다.
+        String saveFolder;
+        // 참이면 에디터에서 재생한 게임의 세이브다. 실제 게임의 세이브를 덮지 않게 다른 폴더에 쓴다. **에디터만 참이다.**
+        bool editorSaves = false;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -123,6 +138,15 @@ namespace JBro
         // 참을 준다. 거짓이면(게임 호스트) 엔진이 프레임 끝에 비운다 - 아무도 꺼내 가지 않는
         // 입력이 쌓이기만 한다.
         void SetInputOwnedByHost(bool owned);
+        // 호스트가 입력을 가져가는 동안(`SetInputOwnedByHost(true)`) 게임에 줄 입력이다(D-214). 다음 `Tick` 이 이것을 접고 비운다.
+        // 에디터는 재생 중이고 게임 뷰가 포커스를 가졌을 때만 부르고, 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건넨다.
+        // 한 틱에 여러 번 부르면 이어 붙는다. `mapping` 은 마지막 것을 쓴다.
+        void SubmitHostInput(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping);
+        // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-214). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
+        // 꺼지면 다음 틱에 눌린 패드 버튼을 떼고 모터를 멈춘다.
+        void SetHostGameInputActive(bool active);
+        // 게임이 바꾼 입력 상태(켠 액션 세트)를 프로젝트 설정으로 되돌린다(D-214). 에디터가 재생을 멈출 때 부른다.
+        void ResetGameInput();
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         bool DidGameSubmitLastFrame() const;
@@ -206,6 +230,10 @@ namespace JBro
         void ReleaseResources();
         // 프로젝트의 버스 목록·장치·포커스 정책을 오디오 시스템에 건다.
         void ApplyAudioBuses();
+        // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-214).
+        void ApplyInputSettings();
+        // 프로젝트의 제품명으로 세이브 폴더를 정한다(D-218). 폴더는 처음 쓸 때 만든다.
+        void OpenSaveFolder();
         // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
         bool OpenAudioOutput();
         // 프레임마다: 장치가 사라졌으면 닫고 다시 연다(D-203). 창 포커스를 오디오 시스템에 알린다.
@@ -235,6 +263,13 @@ namespace JBro
         String m_audioDevicePreference;
         float m_audioRetrySeconds = 0.0f;
         OwnerPtr<System::IAudioDeviceControl> m_audioDevices;
+        OwnerPtr<System::InputSystem> m_input;
+        // 게임의 세이브(D-218). 엔진 수명이고, 폴더만 프로젝트마다 바뀐다.
+        OwnerPtr<SaveStorage> m_save;
+        SaveSystemContext m_saveSystemContext;
+        SaveServiceContext m_saveServiceContext;
+        String m_saveFolderOverride;
+        bool m_editorSaves = false;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.
@@ -247,6 +282,9 @@ namespace JBro
         EditorViewDesc m_editorView;
         bool m_hasEditorView = false;
         bool m_inputOwnedByHost = false;
+        bool m_hostGameInputActive = false;
+        Array<InputEvent> m_hostInput;
+        InputSurfaceMapping m_hostInputMapping;
         bool m_gameSubmittedLastFrame = false;
         // 게임을 돌릴 것인가(D-131). 게임 호스트는 손대지 않으므로 기본이 참이다.
         bool m_simulationEnabled = true;

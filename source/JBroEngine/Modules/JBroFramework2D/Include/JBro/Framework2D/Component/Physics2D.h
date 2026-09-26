@@ -92,11 +92,27 @@ namespace JBro::Component
 
 namespace JBro
 {
+    // 충돌·트리거 훅이 받는 접촉이다(D-207). normal 은 받는 쪽에서 상대 쪽이다. 트리거와 끝 이벤트는 point·normal 이 0 이다.
     struct Collision2D
     {
         GameObjectHandle other;
         Component::BodyType2D bodyType = Component::BodyType2D::Dynamic;
         Vec2 point;
         Vec2 normal;
+    };
+
+    // 질의가 모든 레이어를 본다(콜라이더의 `layer` 비트와 AND 해서 0 이 아니면 대상이다).
+    inline constexpr std::uint32_t AllPhysicsLayers = 0xFFFFFFFFu;
+
+    // 반직선·스윕 질의의 결과다(physics-plan §4 의 6, 기존 엔진 `RaycastHit2D`). 스윕에서 "어디까지 갈 수 있는가" 가
+    // 거리라서 접촉과 따로 둔다. normal 은 맞은 표면의 바깥(쏜 쪽을 향한다)이다. 출발부터 겹쳐 있으면 distance 0,
+    // normal 은 쏜 방향의 반대, point 는 쏜 모양의 중심이다.
+    struct RaycastHit2D
+    {
+        GameObjectHandle other;
+        Component::BodyType2D bodyType = Component::BodyType2D::Static;
+        Vec2 point;
+        Vec2 normal;
+        float distance = 0.0f;
     };
 }

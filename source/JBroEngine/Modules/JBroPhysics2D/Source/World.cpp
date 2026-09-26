@@ -226,6 +226,103 @@ namespace JBro::Physics2D
         return id;
     }
 
+    ShapeId World::CreateCapsuleShape(BodyId bodyId, Vec2 localA, Vec2 localB, float radius, const ShapeDef& def)
+    {
+        if (FindBody(bodyId) == nullptr || radius <= 0.0f)
+        {
+            return {};
+        }
+        if (Length(Subtract(localB, localA)) <= LinearSlop)
+        {
+            Circle circle;
+            circle.center = Scale(Add(localA, localB), 0.5f);
+            circle.radius = radius;
+            return CreateCircleShape(bodyId, circle, def);
+        }
+        ConvexPolygon capsule;
+        capsule.points[0] = localA;
+        capsule.points[1] = localB;
+        capsule.count = 2;
+        capsule.radius = radius;
+        const ShapeId id = AddShape(bodyId.index, def);
+        m_shapes[id.index].pieces.Add(capsule);
+        UpdateMass(m_bodies[bodyId.index]);
+        return id;
+    }
+
+    PolygonError World::SetPolygonGeometry(ShapeId id, ArrayView<const Vec2> localOutline)
+    {
+        Shape* shape = FindShape(id);
+        if (shape == nullptr)
+        {
+            return PolygonError::TooFewPoints;
+        }
+        const PolygonError error = DecomposePolygon(localOutline, m_scratchPieces);
+        if (error != PolygonError::None)
+        {
+            return error;
+        }
+        shape->isCircle = false;
+        shape->circle = Circle{};
+        shape->pieces.Swap(m_scratchPieces);
+        UpdateMass(m_bodies[shape->body]);
+        return PolygonError::None;
+    }
+
+    bool World::SetCircleGeometry(ShapeId id, const Circle& localCircle)
+    {
+        Shape* shape = FindShape(id);
+        if (shape == nullptr || localCircle.radius <= 0.0f)
+        {
+            return false;
+        }
+        shape->isCircle = true;
+        shape->circle = localCircle;
+        shape->pieces.Clear();
+        UpdateMass(m_bodies[shape->body]);
+        return true;
+    }
+
+    bool World::SetCapsuleGeometry(ShapeId id, Vec2 localA, Vec2 localB, float radius)
+    {
+        Shape* shape = FindShape(id);
+        if (shape == nullptr || radius <= 0.0f)
+        {
+            return false;
+        }
+        if (Length(Subtract(localB, localA)) <= LinearSlop)
+        {
+            Circle circle;
+            circle.center = Scale(Add(localA, localB), 0.5f);
+            circle.radius = radius;
+            return SetCircleGeometry(id, circle);
+        }
+        ConvexPolygon capsule;
+        capsule.points[0] = localA;
+        capsule.points[1] = localB;
+        capsule.count = 2;
+        capsule.radius = radius;
+        shape->isCircle = false;
+        shape->circle = Circle{};
+        shape->pieces.Clear();
+        shape->pieces.Add(capsule);
+        UpdateMass(m_bodies[shape->body]);
+        return true;
+    }
+
+    void World::SetSurface(ShapeId id, const ShapeDef& def)
+    {
+        Shape* shape = FindShape(id);
+        if (shape == nullptr)
+        {
+            return;
+        }
+        shape->friction = def.friction;
+        shape->restitution = def.restitution;
+        shape->layer = def.layer;
+        shape->mask = def.mask;
+    }
+
     void World::DestroyShape(ShapeId id)
     {
         Shape* shape = FindShape(id);
