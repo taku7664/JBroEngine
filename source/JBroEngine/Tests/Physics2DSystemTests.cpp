@@ -652,7 +652,8 @@ namespace
     {
         Scene scene;
         scene.physics.SetGravity({ 0, 0 });
-        JBro::GameObject* box = scene.Object("box", { 0, 0 });
+        // 원점에서 떨어뜨려 둔다 - 위치를 준 충격량의 토크가 질량 중심으로 풀려야 맞는 자리다.
+        JBro::GameObject* box = scene.Object("box", { 3, 2 });
         scene.Box(box, { 1, 1 });
         Rigidbody2D* body = scene.Dynamic(box);
         body->mass = 2.0f;
@@ -663,7 +664,8 @@ namespace
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(Near(body->linearVelocity.x, 2.0f * Frame, 1.0e-6f), "only that one");
         body->linearVelocity = { 0, 0 };
-        body->AddImpulseAtPosition({ 1, 0 }, { 0, 0.5f });
+        const JBro::Vec2 at = scene.TransformOf(box)->position;
+        body->AddImpulseAtPosition({ 1, 0 }, { at.x, at.y + 0.5f });
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(Near(body->linearVelocity.x, 0.5f, 1.0e-5f) && Near(body->angularVelocity, -1.5f, 1.0e-4f),
             "an impulse above the center pushes and turns, about the center of mass");
