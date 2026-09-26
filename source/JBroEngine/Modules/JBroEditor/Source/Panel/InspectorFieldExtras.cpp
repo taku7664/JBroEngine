@@ -13,6 +13,8 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Framework3D/Component/Text3D.h>
+#include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -66,15 +68,8 @@ namespace JBro
         // **폰트가 없으면 지속 경고**(text-plan §4.6). 콘솔 경고는 한 번뿐이라 지나가면 왜 글자가 안 보이는지 알 길이 없다.
         // 판단은 그리는 시스템이 한다 - 기존 엔진은 인스펙터가 "아이디가 비었나" 만 봐서, 아이디는 있는데 파일이 깨진
         // 폰트에는 경고가 없었다.
-        void DrawTextFontWarning(Widget::FormLayout& layout, const FieldExtraContext& context)
+        void DrawMissingFontRow(Widget::FormLayout& layout)
         {
-            Canvas* canvas = context.editor->GetCanvas();
-            System::Text2DSystem* texts =
-                canvas != nullptr ? canvas->GetSystems().FindSystem<System::Text2DSystem>() : nullptr;
-            if (texts == nullptr || false == texts->IsMissingFont(context.component->GetInstanceId()))
-            {
-                return;
-            }
             layout.Row([]() {}, [&]() {
                 Widget::ValidationMessage(Widget::Severity::Warning,
                     Loc::TextOr(LocKeys::InspectorTextNoFont,
@@ -82,6 +77,29 @@ namespace JBro
                     .Wrapped()
                     .Draw();
             });
+        }
+
+        void DrawTextFontWarning(Widget::FormLayout& layout, const FieldExtraContext& context)
+        {
+            Canvas* canvas = context.editor->GetCanvas();
+            System::Text2DSystem* texts =
+                canvas != nullptr ? canvas->GetSystems().FindSystem<System::Text2DSystem>() : nullptr;
+            if (texts != nullptr && texts->IsMissingFont(context.component->GetInstanceId()))
+            {
+                DrawMissingFontRow(layout);
+            }
+        }
+
+        // 3D 텍스트도 같은 경고다(D-218). 판단은 3D 텍스트 시스템이 한다.
+        void DrawText3DFontWarning(Widget::FormLayout& layout, const FieldExtraContext& context)
+        {
+            Canvas* canvas = context.editor->GetCanvas();
+            System::Text3DSystem* texts =
+                canvas != nullptr ? canvas->GetSystems().FindSystem<System::Text3DSystem>() : nullptr;
+            if (texts != nullptr && texts->IsMissingFont(context.component->GetInstanceId()))
+            {
+                DrawMissingFontRow(layout);
+            }
         }
 
         struct Entry
@@ -94,6 +112,7 @@ namespace JBro
         constexpr Entry Entries[] = {
             {MakeStableTypeId(Component::SpriteRenderer2D::StaticTypeName()), "frameIndex", &DrawSpriteFramePick},
             {MakeStableTypeId(Component::Text2D::StaticTypeName()), "fontId", &DrawTextFontWarning},
+            {MakeStableTypeId(Component::Text3D::StaticTypeName()), "fontId", &DrawText3DFontWarning},
         };
         constexpr std::size_t EntryCount = sizeof(Entries) / sizeof(Entries[0]);
     }

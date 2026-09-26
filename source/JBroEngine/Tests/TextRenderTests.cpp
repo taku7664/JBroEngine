@@ -1182,6 +1182,17 @@ namespace
             std::cout << "  [measure] 3D text overlap pixels: " << overlap << std::endl;
             Check(overlap > 5 && wrongOrder == 0, "where the two overlap the nearer blue lies on top");
             Check(gpu.renderer.GetLastFrameStats().worldTextCount == 2, "two glyphs went to the renderer as world text");
+
+            // 폰트를 못 찾는 텍스트는 그리지 않고 그렇다고 말한다(인스펙터 경고가 이것을 묻는다).
+            GameObject* lostObject = canvas->CreateObject("lost");
+            canvas->AttachComponent<Component::Transform3D>(lostObject);
+            auto* lost = canvas->AttachComponent<Component::Text3D>(lostObject);
+            lost->fontId = Uuid::FromName("a font that is not in the project");
+            TextStore::Get().Assign(lost->text, "A", 1);
+            framework.BindCanvasAssets();
+            gpu.Paint(framework);
+            Check(texts->IsMissingFont(lost->GetInstanceId()) && false == texts->IsMissingFont(label->GetInstanceId()),
+                "a Text3D whose font is missing is reported, the others are not");
             framework.Shutdown();
         }
         gpu.Close();
