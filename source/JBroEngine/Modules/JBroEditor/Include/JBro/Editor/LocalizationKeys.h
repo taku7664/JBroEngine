@@ -336,6 +336,7 @@ namespace JBro::LocKeys
     inline constexpr const char* StatsAudioBuses = "stats.audio_buses";
     inline constexpr const char* StatsAudioVoices = "stats.audio_voices";
     inline constexpr const char* StatsAudioSaved = "stats.audio_saved";
+    inline constexpr const char* StatsAudioVirtual = "stats.audio_virtual";
     inline constexpr const char* StatsAudioDevice = "stats.audio_device";
     inline constexpr const char* StatsAudioNoDevice = "stats.audio_no_device";
     inline constexpr const char* StatsAudioStolen = "stats.audio_stolen";

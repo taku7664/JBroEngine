@@ -1303,6 +1303,225 @@ namespace
         std::cout << "  32 voices for 4 s: clips at the mixer rate " << matched << " ms, at 44.1 kHz " << resampled << " ms\n";
     }
 
+    // 가상 보이스(D-235): 섞는 자리보다 루프가 많으면 들리는 크기가 작은 것부터 멈추고 위치만 센다.
+    struct VirtualBench
+    {
+        AudioMixer mixer;
+        Array<float> sine;
+        AudioClipHandle clip;
+        AudioBusId buses[4] = {};
+        AudioVoiceHandle loops[4];
+
+        void Open(std::uint32_t audible)
+        {
+            AudioMixerDesc desc = SmallDesc(8);
+            desc.maxAudibleVoices = audible;
+            Check(mixer.Initialize(desc), "mixer initializes");
+            const float origin[3] = {0.0f, 0.0f, 0.0f};
+            const float forward[3] = {0.0f, 0.0f, -1.0f};
+            const float up[3] = {0.0f, 1.0f, 0.0f};
+            mixer.SetListener(origin, forward, up);
+            sine = MakeSine(1, 440.0f, 0.5f, 1.0f);
+            clip = RegisterPcm(mixer, sine, 1);
+            for (int index = 0; index < 4; ++index)
+            {
+                buses[index] = mixer.CreateBus(1.0f);
+            }
+        }
+
+        AudioVoiceHandle PlayLoop(int bus, float x)
+        {
+            AudioPlayDesc play;
+            play.clip = clip;
+            play.loop = true;
+            play.spatial = true;
+            play.attenuation = AudioAttenuation::Linear;
+            play.minDistance = 1.0f;
+            play.maxDistance = 40.0f;
+            play.position[0] = x;
+            play.bus = buses[bus];
+            return mixer.Play(play);
+        }
+
+        void Move(AudioVoiceHandle voice, float x)
+        {
+            const float position[3] = {x, 0.0f, 0.0f};
+            mixer.SetPosition(voice, position);
+        }
+
+        // 한 번 갱신하고 0.1 초를 섞은 뒤 버스마다 소리가 나는지 본다(페이드 20 ms 는 지나간다).
+        void Step(std::uint32_t frames = 4800)
+        {
+            mixer.Update();
+            Render(mixer, frames);
+        }
+
+        bool Heard(int bus) const
+        {
+            return mixer.GetBusPeak(buses[bus]) > 0.005f;
+        }
+    };
+
+    double Wrapped(double seconds)
+    {
+        return std::fmod(seconds, 1.0);
+    }
+
+    bool NearCursor(double actual, double expected)
+    {
+        double difference = std::fabs(Wrapped(actual) - Wrapped(expected));
+        difference = difference > 0.5 ? 1.0 - difference : difference;
+        return difference < 0.02;
+    }
+
+    void TestVirtualVoices()
+    {
+        VirtualBench bench;
+        bench.Open(2);
+        AudioMixer& mixer = bench.mixer;
+        bench.loops[0] = bench.PlayLoop(0, 2.0f);
+        bench.loops[1] = bench.PlayLoop(1, 10.0f);
+        bench.loops[2] = bench.PlayLoop(2, 20.0f);
+        Check(mixer.GetStats().virtualVoices == 1, "a loop started over the mixing limit starts virtual");
+        bench.loops[3] = bench.PlayLoop(3, 30.0f);
+        bench.Step();
+        bench.Step();
+        Check(bench.Heard(0) && bench.Heard(1), "the two nearest loops are mixed");
+        Check(false == bench.Heard(2) && false == bench.Heard(3), "the far loops are silent");
+        Check(mixer.GetStats().virtualVoices == 2 && mixer.GetStats().activeVoices == 4, "they stay alive as virtual voices");
+        for (const AudioVoiceHandle& loop : bench.loops)
+        {
+            Check(mixer.IsAlive(loop), "a virtual voice keeps its handle");
+        }
+
+        // 가상인 동안도 위치가 흐른다.
+        const double before = mixer.GetPlaybackSeconds(bench.loops[3]);
+        bench.Step(Rate / 2);
+        Check(NearCursor(mixer.GetPlaybackSeconds(bench.loops[3]), before + 0.5), "a virtual voice's cursor keeps moving");
+
+        // 가까이 오면 센 자리에서 이어 울리고, 밀려난 것이 가상이 된다.
+        bench.Move(bench.loops[3], 1.0f);
+        const double counted = mixer.GetPlaybackSeconds(bench.loops[3]);
+        const std::uint64_t realizedBefore = mixer.GetStats().voicesRealized;
+        bench.Step();
+        bench.Step();
+        Check(mixer.GetStats().voicesRealized == realizedBefore + 1, "a loop that comes close is realized");
+        Check(bench.Heard(3) && false == bench.Heard(1), "it is heard and the weaker loop gives way");
+        std::cout << "  virtual voice resumed at " << mixer.GetPlaybackSeconds(bench.loops[3]) << " s, counted "
+                  << counted << " s + 0.2 s\n";
+        Check(NearCursor(mixer.GetPlaybackSeconds(bench.loops[3]), counted + 0.2), "it resumes where the count says, not from the start");
+
+        // 막 바뀐 것은 0.25 초 동안 그대로다 - 경계에서 떨지 않는다.
+        const std::uint64_t switches = mixer.GetStats().voicesVirtualized + mixer.GetStats().voicesRealized;
+        bench.Move(bench.loops[3], 30.0f);
+        bench.Move(bench.loops[1], 1.5f);
+        bench.Step(480);
+        Check(mixer.GetStats().voicesVirtualized + mixer.GetStats().voicesRealized == switches,
+            "a voice that just switched holds for the dwell time");
+        bench.Step(Rate / 4);
+        bench.Step();
+        Check(bench.Heard(1) && false == bench.Heard(3), "after the dwell the ranking applies again");
+
+        // 한 번짜리가 오면 가장 약한 루프가 자리를 내준다.
+        AudioPlayDesc shot;
+        shot.clip = bench.clip;
+        const std::uint32_t virtualBefore = mixer.GetStats().virtualVoices;
+        const AudioVoiceHandle once = mixer.Play(shot);
+        Check(once.IsSet() && mixer.GetStats().virtualVoices == virtualBefore + 1,
+            "a one-shot over the mixing limit parks the weakest loop");
+
+        // 가상인 채 멈추면 위치가 굳는다.
+        mixer.Stop(once);
+        bench.Step(Rate / 2);
+        // 가장 먼 것은 순위 밖이라 가상인 채 남는다.
+        const AudioVoiceHandle parked = bench.loops[3];
+        const double beforePause = mixer.GetPlaybackSeconds(parked);
+        mixer.Pause(parked);
+        const double paused = mixer.GetPlaybackSeconds(parked);
+        Check(std::fabs(paused - beforePause) < 1e-3, "pausing a virtual voice keeps its position");
+        bench.Step(Rate / 4);
+        Check(std::fabs(mixer.GetPlaybackSeconds(parked) - paused) < 1e-6, "a paused virtual voice does not move");
+        mixer.Resume(parked);
+        bench.Step(Rate / 4);
+        Check(NearCursor(mixer.GetPlaybackSeconds(parked), paused + 0.25), "and moves again after resuming");
+        // 피치를 바꾸면 그 뒤로만 빠르게 센다. 옮기면 곧바로 그 자리다.
+        const double beforePitch = mixer.GetPlaybackSeconds(parked);
+        mixer.SetPitch(parked, 2.0f);
+        bench.Step(Rate / 4);
+        Check(NearCursor(mixer.GetPlaybackSeconds(parked), beforePitch + 0.5), "a virtual voice counts at its new pitch from then on");
+        mixer.SetPitch(parked, 1.0f);
+        mixer.Seek(parked, 0.1);
+        Check(std::fabs(mixer.GetPlaybackSeconds(parked) - 0.1) < 1e-3, "seeking a virtual voice moves its count");
+
+        // 루프가 풀리면 실제로 돌아와 끝까지 울고 거둬진다.
+        mixer.SetLooping(parked, false);
+        bench.Step();
+        Check(bench.Heard(3), "a virtual voice that stops looping is realized to finish");
+        for (int frame = 0; frame < 12; ++frame)
+        {
+            bench.Step();
+        }
+        Check(false == mixer.IsAlive(parked), "and it is collected at its end");
+        mixer.Shutdown();
+
+        // 자리가 남아도 -60 dB 밑의 루프는 섞지 않는다. 가상 보이스를 끄면(0) 아무것도 가상이 되지 않는다.
+        VirtualBench quiet;
+        quiet.Open(4);
+        quiet.loops[0] = quiet.PlayLoop(0, 50.0f);
+        quiet.Step();
+        Check(quiet.mixer.GetStats().virtualVoices == 1, "an inaudible loop is virtual even with room to spare");
+        quiet.mixer.Shutdown();
+        VirtualBench off;
+        off.Open(0);
+        for (int index = 0; index < 4; ++index)
+        {
+            off.loops[index] = off.PlayLoop(index, 50.0f);
+        }
+        off.Step();
+        Check(off.mixer.GetStats().virtualVoices == 0, "with no mixing limit nothing is virtualized");
+        off.mixer.Shutdown();
+    }
+
+    // 가상 보이스를 오가도 힙을 건드리지 않는다(D-235).
+    void TestVirtualVoicesDoNotAllocate()
+    {
+        VirtualBench bench;
+        bench.Open(2);
+        for (int index = 0; index < 4; ++index)
+        {
+            bench.loops[index] = bench.PlayLoop(index, 5.0f + 5.0f * static_cast<float>(index));
+        }
+        bench.Step();
+        // 시험의 `Render` 는 결과 배열을 새로 잡으므로 여기서는 미리 잡은 칸에 섞는다.
+        Array<float> buffer;
+        buffer.Resize(960);
+        const std::uint64_t growthsBefore = bench.mixer.GetStats().allocatorGrowths;
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_crtAllocations = 0;
+        _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountCrtAllocations);
+#endif
+        for (int frame = 0; frame < 120; ++frame)
+        {
+            // 0.3 초마다 가까운 루프가 바뀐다 - 머무는 시간을 넘겨 가상과 실제가 오간다.
+            const int nearest = (frame / 18) % 4;
+            for (int index = 0; index < 4; ++index)
+            {
+                bench.Move(bench.loops[index], index == nearest ? 1.0f : 15.0f + static_cast<float>(index));
+            }
+            bench.mixer.Update();
+            bench.mixer.Render(buffer.Data(), 400);
+            bench.mixer.Render(buffer.Data(), 400);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        _CrtSetAllocHook(previous);
+        std::cout << "  CRT allocations during 120 frames of virtual voice switching: " << g_crtAllocations.load() << '\n';
+        Check(g_crtAllocations.load() == 0, "switching virtual voices does not touch the CRT heap");
+#endif
+        Check(bench.mixer.GetStats().voicesRealized >= 4, "the loop switched between virtual and real");
+        Check(bench.mixer.GetStats().allocatorGrowths == growthsBefore, "nor grow the fixed allocator");
+        bench.mixer.Shutdown();
+    }
+
     void TestSteadyStateDoesNotAllocate()
     {
         AudioMixer mixer;
@@ -1459,6 +1678,8 @@ int RunAudioMixerTests()
         TestInstanceLimitAndCooldown();
         TestInaudibleStartsAreCulled();
         MeasureResampleCost();
+        TestVirtualVoices();
+        TestVirtualVoicesDoNotAllocate();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();
         TestLifetimeRepeats();

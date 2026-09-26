@@ -187,6 +187,7 @@ Entries:
   stats.audio_solo: "Solo - hear only this bus while mixing"
   stats.audio_buses: "Buses"
   stats.audio_saved: "skipped %llu inaudible play(s), held back %llu by instance limit or cooldown, replaced %llu"
+  stats.audio_virtual: "%u virtual voice(s) - too quiet or crowded out, counted but not mixed"
   stats.audio_voices: "voices %u / %u, peak %.2f"
   stats.audio_device: "audio device %s"
   stats.audio_no_device: "no audio device - sounds are mixed but not heard"
