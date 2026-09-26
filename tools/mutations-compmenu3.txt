@@ -1,0 +1,7 @@
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:never	                if (menus.Has(slot.typeId)\n                    && MakeComponentAddress	                if (false\n                    && MakeComponentAddress
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:types-without-hooks	                if (menus.Has(slot.typeId)\n                    && MakeComponentAddress	                if (true\n                    && MakeComponentAddress
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:false-ignored	                    if (false == menus.DrawItems(hookContext, true))	                    if (false == menus.DrawItems(hookContext, true) && false)
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:no-component	                    hookContext.component = component;	                    hookContext.component = nullptr;
+Modules\JBroEditor\Source\Panel\InspectorPanel.cpp	inspector:no-editor	                    hookContext.editor = m_editor;	                    (void)0;
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:separator-first-ignored	            if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))	            if ((false) || (false == first && previousOwner != entry.owner))
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:separator-first-always	            if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))	            if ((first) || (false == first && previousOwner != entry.owner))

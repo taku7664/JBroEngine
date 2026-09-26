@@ -13,7 +13,7 @@ Modules\JBroEditor\Source\ComponentMenuTable.cpp	has:always	            if (entr
 Modules\JBroEditor\Source\ComponentMenuTable.cpp	count:one	                ++count;	                count = 1;
 Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:other-types	            if (entry.typeId != context.address.typeId)\n            {\n                continue;	            if (false)\n            {\n                continue;
 Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:no-separator	                ImGui::Separator();	                (void)0;
-Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:separator-every-item	            if (previousOwner != nullptr && previousOwner != entry.owner)	            if (previousOwner != nullptr)
+Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:separator-every-item	            if ((first && separatorFirst) || (false == first && previousOwner != entry.owner))	            if ((first && separatorFirst) || (false == first))
 Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:user-not-set	            itemContext.user = entry.user;	            (void)0;
 Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:no-stop	            if (false == entry.draw(itemContext))	            if (false == entry.draw(itemContext) && false)
 Modules\JBroEditor\Source\ComponentMenuTable.cpp	draw:no-scope	        const DrawScope scope(m_drawDepth);	        (void)0;
