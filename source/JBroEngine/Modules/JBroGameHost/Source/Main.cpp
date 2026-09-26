@@ -54,7 +54,7 @@ namespace
             return;
         }
         JBro::Array<std::byte> text;
-        // 패키지로 연 게임은 캔버스도 패키지에서 읽는다(D-227). 경로는 에셋 폴더 기준이다.
+        // 패키지로 연 게임은 캔버스도 패키지에서 읽는다(D-232). 경로는 에셋 폴더 기준이다.
         const JBro::AssetSystem* assets = engine.GetAssetSystem();
         const bool read = engine.IsRunningFromPackage()
             ? assets != nullptr && assets->ReadSourceByPath(path, text)
@@ -114,7 +114,7 @@ namespace
             bool opened = engine.Initialize(config, platform, rhi);
             if (opened)
             {
-                // 인자가 없으면 실행 파일 옆의 프로젝트다 - 게임 빌드가 내놓은 폴더를 두 번 눌러 띄운다(D-227).
+                // 인자가 없으면 실행 파일 옆의 프로젝트다 - 게임 빌드가 내놓은 폴더를 두 번 눌러 띄운다(D-232).
                 const JBro::String projectFile = arguments.projectFile.empty()
                     ? JBro::FindProjectBesideExecutable(platform)
                     : arguments.projectFile;

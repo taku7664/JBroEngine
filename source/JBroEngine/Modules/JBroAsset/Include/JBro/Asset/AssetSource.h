@@ -13,7 +13,7 @@ namespace JBro
     class IPlatform;
     class IFileStream;
 
-    // 에셋 하나가 가진 바이트 덩어리다(D-227). 번호는 패키지의 블롭 종류(`Package::BlobKind`)와 같다.
+    // 에셋 하나가 가진 바이트 덩어리다(D-232). 번호는 패키지의 블롭 종류(`Package::BlobKind`)와 같다.
     enum class AssetBlob : std::uint8_t
     {
         Meta = 1,          // `.jmeta` 원문
@@ -35,7 +35,7 @@ namespace JBro
     // 머리와 크기가 맞으면 참이다. 픽셀은 `bytes` 의 `CookedTextureHeaderSize` 뒤에 있다.
     bool ReadCookedTexture(const Array<std::byte>& bytes, CookedTextureInfo& info);
 
-    // 에셋 시스템이 바이트를 받는 곳이다(D-227). 에셋 폴더의 파일(`LooseAssetSource`)이든 패키지(`Package::PackageAssetSource`)든 같은 모양이라
+    // 에셋 시스템이 바이트를 받는 곳이다(D-232). 에셋 폴더의 파일(`LooseAssetSource`)이든 패키지(`Package::PackageAssetSource`)든 같은 모양이라
     // 에셋 시스템은 어느 쪽인지 모른다. `Read`·`Has`·`MakeStreamPath` 는 메인 스레드이고, `OpenStream` 은 어느 스레드에서 불러도 된다
     // (디스크 스트리밍 오디오의 스트리머가 부른다).
     class IAssetSource

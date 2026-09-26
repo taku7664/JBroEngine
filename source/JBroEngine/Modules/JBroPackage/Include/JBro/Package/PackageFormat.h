@@ -7,7 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 
-// 에셋 패키지 `.jpak` 의 모양이다(D-227, package-plan §2.1).
+// 에셋 패키지 `.jpak` 의 모양이다(D-232, package-plan §2.1).
 //
 //     [머리 64 B] [블롭들 - 16 바이트 정렬, 난독화] [색인 - 끝, 난독화]
 //
@@ -32,7 +32,7 @@ namespace JBro::Package
         Meta = 1,          // `.jmeta` 원문
         Source = 2,        // 원본 파일 바이트
         CookedTexture = 3, // 디코드한 RGBA8(`JBro::WriteCookedTexture` 의 모양)
-        FontAtlas = 4,     // 미리 뜬 글리프 아틀라스(D-227 4 단계)
+        FontAtlas = 4,     // 미리 뜬 글리프 아틀라스(D-232 4 단계)
     };
 
     inline constexpr std::uint8_t BlobKindCount = 5;

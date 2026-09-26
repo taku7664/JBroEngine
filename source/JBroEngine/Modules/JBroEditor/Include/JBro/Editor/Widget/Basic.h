@@ -30,6 +30,8 @@ namespace JBro::Widget
     // ── 단추 ────────────────────────────────────────────────────────────────
     // 글자 단추다. 눌렸으면 참이다.
     bool Button(const char* label);
+    // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
+    bool SelectableRow(const char* label, bool selected);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
     // 붉게(`Error`), 저장·만들기처럼 그 자리의 주된 확인은 푸르게(`Success`) 선다 -
     // `Info` 는 보통 단추와 같다. **지우기가 그만두기와 똑같이 생기면 손이 먼저 움직인다.**

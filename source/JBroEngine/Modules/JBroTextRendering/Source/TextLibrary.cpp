@@ -405,7 +405,7 @@ namespace JBro
         {
             return;
         }
-        // **미리 뜬 아틀라스가 있으면 되살린다**(D-227). 표지(원본 해시·벌·크기·퍼짐)가 맞을 때만이다 - 틀리면 아래에서 지금처럼 뜬다.
+        // **미리 뜬 아틀라스가 있으면 되살린다**(D-232). 표지(원본 해시·벌·크기·퍼짐)가 맞을 때만이다 - 틀리면 아래에서 지금처럼 뜬다.
         // 비운 뒤(퇴출) 다시 채울 때도 같다.
         if (const FontData* data = m_assets != nullptr ? m_assets->GetFont(entry.asset) : nullptr; data != nullptr && false == data->bakedAtlas.IsEmpty())
         {

@@ -1,0 +1,14 @@
+Modules\JBroPhysics2D\Source\World.cpp	kernel:force-not-integrated	body.linearVelocity = Add(body.linearVelocity, Scale(Multiply(body.force, body.inverseMassAxes), h));	(void)0;
+Modules\JBroPhysics2D\Source\World.cpp	kernel:torque-not-integrated	body.angularVelocity += h * body.inverseInertia * body.torque;	(void)0;
+Modules\JBroPhysics2D\Source\World.cpp	kernel:forces-kept	body.force = {};\n            body.torque = 0.0f;	(void)0;
+Modules\JBroPhysics2D\Source\World.cpp	kernel:lock-y-ignored	if (body.freezePositionY)\n            {\n                body.linearVelocity.y = 0.0f;	if (false)\n            {\n                body.linearVelocity.y = 0.0f;
+Modules\JBroPhysics2D\Source\World.cpp	kernel:axes-not-locked	body.freezePositionX ? 0.0f : body.inverseMass,	body.inverseMass,
+Modules\JBroPhysics2D\Source\World.cpp	kernel:mass-along-scalar	const float normalK = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)	const float normalK = a.inverseMass + b.inverseMass
+Modules\JBroPhysics2D\Source\World.cpp	kernel:impulse-point-ignored	body->angularVelocity += body->inverseInertia * Cross(Subtract(worldPoint, body->center), impulse);	(void)worldPoint;
+Modules\JBroPhysics2D\Source\World.cpp	kernel:properties-not-remassed	        body->freezePositionY = def.freezePositionY;\n        if (body->fixedRotation)	        if (body->fixedRotation)
+Modules\JBroFramework2D\Include\JBro\Framework2D\Component\Physics2D.h	component:moment-sign	m_pending.impulseMoment += worldPoint.x * impulse.y - worldPoint.y * impulse.x;	m_pending.impulseMoment += worldPoint.y * impulse.x - worldPoint.x * impulse.y;
+Modules\JBroFramework2D\Include\JBro\Framework2D\Component\Physics2D.h	component:take-not-cleared	            m_pending = {};\n	
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:center-not-subtracted	                const float angularImpulse = pending.angularImpulse + pending.impulseMoment\n                    - (center.x * pending.impulseAtPoints.y - center.y * pending.impulseAtPoints.x);	                const float angularImpulse = pending.angularImpulse + pending.impulseMoment;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:properties-not-applied	if (rigidbody != nullptr && link->parameters != parameters)	if (false)
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:damping-not-passed	properties.angularDamping = rigidbody->angularDamping;	(void)0;
+Modules\JBroFramework2DSystem\Source\System\Physics2DSystem.cpp	adapter:recreate-on-properties	&& (link->type != type || link->rigidbody != rigidbodyId || false == world.IsValid(link->body)))	&& (link->type != type || link->rigidbody != rigidbodyId || link->parameters != parameters || false == world.IsValid(link->body)))

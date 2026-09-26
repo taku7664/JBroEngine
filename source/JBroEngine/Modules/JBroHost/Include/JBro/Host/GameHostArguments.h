@@ -31,7 +31,7 @@ namespace JBro
     // 둘 다 없으면 빈 문자열이다.
     String ResolveStartupCanvasPath(const GameHostArguments& arguments, const ProjectFile& project, const char* projectFilePath);
 
-    // 실행 파일 옆의 `.jproject` 다(D-227). 게임 빌드가 내놓은 폴더는 인자 없이 띄워도 제 프로젝트를 연다. 여럿이면 이름의 바이트 차례로 첫 것,
+    // 실행 파일 옆의 `.jproject` 다(D-232). 게임 빌드가 내놓은 폴더는 인자 없이 띄워도 제 프로젝트를 연다. 여럿이면 이름의 바이트 차례로 첫 것,
     // 없으면 빈 글자다.
     String FindProjectBesideExecutable(IPlatform& platform);
 

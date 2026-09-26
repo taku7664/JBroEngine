@@ -916,7 +916,7 @@ namespace
         project.Close();
     }
 
-    // **패키지의 미리 뜬 아틀라스**(D-227, package-plan 4 단계). 게임 빌드가 미리 떠 싼 아틀라스를 게임의 라이브러리가 뜨지 않고 되살린다 -
+    // **패키지의 미리 뜬 아틀라스**(D-232, package-plan 4 단계). 게임 빌드가 미리 떠 싼 아틀라스를 게임의 라이브러리가 뜨지 않고 되살린다 -
     // 미리 뜬 칸 수와 첫 업로드가 느슨한 파일로 뜬 것과 같고, 그려진 글자도 픽셀까지 같다.
     void TestBakedAtlasesRestoreFromAPackage()
     {

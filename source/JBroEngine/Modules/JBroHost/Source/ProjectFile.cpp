@@ -1101,7 +1101,7 @@ namespace JBro
         }
 
         // 빈 값은 `""` 로 적는다. `Key: ` 는 "아래에 블록이 온다" 로 읽혀 기본값이 되돌아온다 - 설정 창에서 비운 칸이 저장 뒤 기본값으로
-        // 돌아왔고, 게임 빌드의 프로젝트 사본이 비운 스크립트 경로가 개발 경로로 되살았다(D-227).
+        // 돌아왔고, 게임 빌드의 프로젝트 사본이 비운 스크립트 경로가 개발 경로로 되살았다(D-232).
         void AppendPair(String& out, const char* indent, const String& key, const String& value)
         {
             String line(indent);

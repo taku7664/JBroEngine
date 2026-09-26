@@ -46,6 +46,7 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";
     inline constexpr const char* CanvasViewPointDelete = "canvas_view.point_delete";
     inline constexpr const char* CanvasViewPointDeleteMin = "canvas_view.point_delete_min";
+    inline constexpr const char* CanvasViewPointDeleteMinChain = "canvas_view.point_delete_min_chain";
     inline constexpr const char* CanvasViewEditPoints = "canvas_view.edit_points";
     inline constexpr const char* CanvasViewEditPointsNotPolygon = "canvas_view.edit_points_not_polygon";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
@@ -325,6 +326,7 @@ namespace JBro::LocKeys
     inline constexpr const char* StatsAudioSolo = "stats.audio_solo";
     inline constexpr const char* StatsAudioBuses = "stats.audio_buses";
     inline constexpr const char* StatsAudioVoices = "stats.audio_voices";
+    inline constexpr const char* StatsAudioSaved = "stats.audio_saved";
     inline constexpr const char* StatsAudioDevice = "stats.audio_device";
     inline constexpr const char* StatsAudioNoDevice = "stats.audio_no_device";
     inline constexpr const char* StatsAudioStolen = "stats.audio_stolen";
@@ -389,4 +391,22 @@ namespace JBro::LocKeys
     inline constexpr const char* LogInfo = "log.info";
     inline constexpr const char* LogWarning = "log.warning";
     inline constexpr const char* LogError = "log.error";
+    inline constexpr const char* PanelEditorSettings = "panel.editor_settings";
+    inline constexpr const char* MenuSettingsEditor = "menu.settings_editor";
+    inline constexpr const char* EditorSettingsShortcuts = "editor_settings.shortcuts";
+    inline constexpr const char* EditorSettingsSearchHint = "editor_settings.search_hint";
+    inline constexpr const char* EditorSettingsPressKey = "editor_settings.press_key";
+    inline constexpr const char* EditorSettingsCaptureHint = "editor_settings.capture_hint";
+    inline constexpr const char* EditorSettingsClearBinding = "editor_settings.clear_binding";
+    inline constexpr const char* EditorSettingsEmptyBinding = "editor_settings.empty_binding";
+    inline constexpr const char* EditorSettingsReset = "editor_settings.reset";
+    inline constexpr const char* EditorSettingsResetTooltip = "editor_settings.reset_tooltip";
+    inline constexpr const char* EditorSettingsResetAll = "editor_settings.reset_all";
+    inline constexpr const char* EditorSettingsResetAllTitle = "editor_settings.reset_all_title";
+    inline constexpr const char* EditorSettingsResetAllMessage = "editor_settings.reset_all_message";
+    inline constexpr const char* EditorSettingsResetAllConfirm = "editor_settings.reset_all_confirm";
+    inline constexpr const char* EditorSettingsClash = "editor_settings.clash";
+    inline constexpr const char* EditorSettingsShadows = "editor_settings.shadows";
+    inline constexpr const char* EditorSettingsShadowed = "editor_settings.shadowed";
+    inline constexpr const char* EditorSettingsNoMatch = "editor_settings.no_match";
 }

@@ -688,7 +688,7 @@ namespace
             "set locales are appended and the empty fallback is not");
     }
 
-    // **비운 값은 빈 채로 돌아온다**(D-227). `Key: ` 는 블록 머리로 읽혀 기본값이 되살았다 - 설정 창에서 스크립트 경로를 비워도 저장 뒤
+    // **비운 값은 빈 채로 돌아온다**(D-232). `Key: ` 는 블록 머리로 읽혀 기본값이 되살았다 - 설정 창에서 스크립트 경로를 비워도 저장 뒤
     // 개발 경로(`x64/Debug/GameScript.dll`)가 돌아왔다. 원문에 비어 있던 줄은 그대로 둔다.
     void TestAnEmptiedValueStaysEmpty()
     {

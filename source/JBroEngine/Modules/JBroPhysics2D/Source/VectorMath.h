@@ -38,6 +38,12 @@ namespace JBro::Physics2D::Internal
         return { -w * r.y, w * r.x };
     }
 
+    // 성분끼리 곱한다. 축마다 다른 역질량(축 고정)에 쓴다.
+    inline Vec2 Multiply(Vec2 a, Vec2 b)
+    {
+        return { a.x * b.x, a.y * b.y };
+    }
+
     inline float LengthSquared(Vec2 a)
     {
         return a.x * a.x + a.y * a.y;

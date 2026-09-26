@@ -4,6 +4,7 @@
 #include "WorkerPool.h"
 
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
 
 namespace JBro::Physics2D
@@ -23,6 +24,13 @@ namespace JBro::Physics2D
         Vec2 Tangent(Vec2 normal)
         {
             return { normal.y, -normal.x };
+        }
+
+        // 방향 d 로 본 역질량. 축을 고정하면 그 축의 성분이 빠진다(고정하지 않으면 inverseMass 와 같다).
+        template <typename TBody>
+        float InverseMassAlong(const TBody& body, Vec2 d)
+        {
+            return d.x * d.x * body.inverseMassAxes.x + d.y * d.y * body.inverseMassAxes.y;
         }
 
         // 이보다 적은 후보는 나누지 않는다. 워커를 깨우고 모으는 비용이 판정보다 크다.
@@ -164,6 +172,9 @@ namespace JBro::Physics2D
         body.alive = true;
         body.type = def.type;
         body.fixedRotation = def.fixedRotation;
+        body.freezePositionX = def.freezePositionX;
+        body.freezePositionY = def.freezePositionY;
+        body.canSleep = def.canSleep;
         body.origin = def.position;
         body.angle = def.angle;
         body.rotation = Rotation::FromAngle(def.angle);
@@ -227,6 +238,8 @@ namespace JBro::Physics2D
         Shape& shape = m_shapes[index];
         shape.alive = true;
         shape.isCircle = false;
+        shape.isChain = false;
+        shape.segments.Clear();
         shape.isTrigger = def.isTrigger;
         shape.body = bodyIndex;
         shape.pieces.Clear();
@@ -300,6 +313,85 @@ namespace JBro::Physics2D
         return id;
     }
 
+    bool World::BuildChain(ArrayView<const Vec2> points, bool loop, Array<Vec2>& filtered, Array<ChainSegment>& out)
+    {
+        out.Clear();
+        filtered.Clear();
+        // 이웃과 LinearSlop 안인 점은 한 점으로 본다. 닫힌 체인은 끝점이 첫 점과 같으면 한 번만 센다.
+        for (const Vec2& point : points)
+        {
+            if (false == filtered.IsEmpty()
+                && LengthSquared(Subtract(point, filtered.Last())) <= LinearSlop * LinearSlop)
+            {
+                continue;
+            }
+            filtered.Add(point);
+        }
+        if (loop && filtered.Size() > 2
+            && LengthSquared(Subtract(filtered.Last(), filtered[0])) <= LinearSlop * LinearSlop)
+        {
+            filtered.RemoveAt(filtered.Size() - 1);
+        }
+        const std::size_t kept = filtered.Size();
+        if (kept < 2 || (loop && kept < 3))
+        {
+            filtered.Clear();
+            return false;
+        }
+        const std::size_t segmentCount = loop ? kept : kept - 1;
+        for (std::size_t s = 0; s < segmentCount; ++s)
+        {
+            ChainSegment& segment = out.Emplace();
+            segment.p1 = filtered[s];
+            segment.p2 = filtered[(s + 1) % kept];
+            if (loop || s > 0)
+            {
+                segment.previous = filtered[(s + kept - 1) % kept];
+                segment.hasPrevious = true;
+            }
+            if (loop || s + 2 < kept)
+            {
+                segment.next = filtered[(s + 2) % kept];
+                segment.hasNext = true;
+            }
+        }
+        return true;
+    }
+
+    ShapeId World::CreateChainShape(BodyId bodyId, ArrayView<const Vec2> localPoints, bool loop, const ShapeDef& def)
+    {
+        if (FindBody(bodyId) == nullptr)
+        {
+            return {};
+        }
+        Array<ChainSegment> segments;
+        if (false == BuildChain(localPoints, loop, m_scratchChainPoints, segments))
+        {
+            return {};
+        }
+        const ShapeId id = AddShape(bodyId.index, def);
+        m_shapes[id.index].isChain = true;
+        m_shapes[id.index].segments.Swap(segments);
+        UpdateMass(m_bodies[bodyId.index]);
+        return id;
+    }
+
+    bool World::SetChainGeometry(ShapeId id, ArrayView<const Vec2> localPoints, bool loop)
+    {
+        Shape* shape = FindShape(id);
+        if (shape == nullptr || false == BuildChain(localPoints, loop, m_scratchChainPoints, m_scratchSegments))
+        {
+            return false;
+        }
+        shape->isCircle = false;
+        shape->circle = Circle{};
+        shape->pieces.Clear();
+        shape->isChain = true;
+        shape->segments.Swap(m_scratchSegments);
+        UpdateMass(m_bodies[shape->body]);
+        return true;
+    }
+
     PolygonError World::SetPolygonGeometry(ShapeId id, ArrayView<const Vec2> localOutline)
     {
         Shape* shape = FindShape(id);
@@ -313,6 +405,8 @@ namespace JBro::Physics2D
             return error;
         }
         shape->isCircle = false;
+        shape->isChain = false;
+        shape->segments.Clear();
         shape->circle = Circle{};
         shape->pieces.Swap(m_scratchPieces);
         UpdateMass(m_bodies[shape->body]);
@@ -327,6 +421,8 @@ namespace JBro::Physics2D
             return false;
         }
         shape->isCircle = true;
+        shape->isChain = false;
+        shape->segments.Clear();
         shape->circle = localCircle;
         shape->pieces.Clear();
         UpdateMass(m_bodies[shape->body]);
@@ -353,6 +449,8 @@ namespace JBro::Physics2D
         capsule.count = 2;
         capsule.radius = radius;
         shape->isCircle = false;
+        shape->isChain = false;
+        shape->segments.Clear();
         shape->circle = Circle{};
         shape->pieces.Clear();
         shape->pieces.Add(capsule);
@@ -389,6 +487,7 @@ namespace JBro::Physics2D
         shape->alive = false;
         ++shape->generation;
         shape->pieces.Clear();
+        shape->segments.Clear();
         m_freeShapes.Add(id.index);
         UpdateMass(body);
     }
@@ -400,7 +499,21 @@ namespace JBro::Physics2D
         {
             return 0;
         }
+        if (shape->isChain)
+        {
+            return static_cast<std::uint32_t>(shape->segments.Size());
+        }
         return shape->isCircle ? 1u : static_cast<std::uint32_t>(shape->pieces.Size());
+    }
+
+    const ChainSegment* World::GetChainChild(ShapeId id, std::uint32_t child) const
+    {
+        const Shape* shape = FindShape(id);
+        if (shape == nullptr || false == shape->isChain || child >= shape->segments.Size())
+        {
+            return nullptr;
+        }
+        return &shape->segments[child];
     }
 
     const ConvexPolygon* World::GetPolygonChild(ShapeId id, std::uint32_t child) const
@@ -464,6 +577,11 @@ namespace JBro::Physics2D
             }
         }
 
+        WakeBody(body);
+        body.inverseMassAxes = {
+            body.freezePositionX ? 0.0f : body.inverseMass,
+            body.freezePositionY ? 0.0f : body.inverseMass };
+
         // 원점은 그대로 두고 중심을 새 로컬 중심에 맞춘다. 도형을 붙이는 것이 물체를 옮기지 않는다.
         body.center = Add(body.origin, RotateVector(body.rotation, body.localCenter));
     }
@@ -479,6 +597,7 @@ namespace JBro::Physics2D
         body->angle = angle;
         body->rotation = Rotation::FromAngle(angle);
         body->center = Add(position, RotateVector(body->rotation, body->localCenter));
+        WakeBody(*body);
     }
 
     Vec2 World::GetPosition(BodyId id) const
@@ -510,7 +629,13 @@ namespace JBro::Physics2D
         Body* body = FindBody(id);
         if (body != nullptr && body->type != BodyType::Static)
         {
-            body->linearVelocity = velocity;
+            body->linearVelocity = {
+                body->freezePositionX ? 0.0f : velocity.x,
+                body->freezePositionY ? 0.0f : velocity.y };
+            if (velocity.x != 0.0f || velocity.y != 0.0f)
+            {
+                WakeBody(*body);
+            }
         }
     }
 
@@ -526,7 +651,135 @@ namespace JBro::Physics2D
         if (body != nullptr && body->type != BodyType::Static && false == body->fixedRotation)
         {
             body->angularVelocity = velocity;
+            if (velocity != 0.0f)
+            {
+                WakeBody(*body);
+            }
         }
+    }
+
+    void World::SetBodyProperties(BodyId id, const BodyDef& def)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr)
+        {
+            return;
+        }
+        body->requestedMass = def.mass;
+        body->gravityScale = def.gravityScale;
+        body->linearDamping = def.linearDamping;
+        body->angularDamping = def.angularDamping;
+        body->fixedRotation = def.fixedRotation;
+        body->freezePositionX = def.freezePositionX;
+        body->freezePositionY = def.freezePositionY;
+        body->canSleep = def.canSleep;
+        WakeBody(*body);
+        if (body->fixedRotation)
+        {
+            body->angularVelocity = 0.0f;
+        }
+        body->linearVelocity = {
+            body->freezePositionX ? 0.0f : body->linearVelocity.x,
+            body->freezePositionY ? 0.0f : body->linearVelocity.y };
+        UpdateMass(*body);
+    }
+
+    void World::ApplyForce(BodyId id, Vec2 force, Vec2 worldPoint)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        WakeBody(*body);
+        body->force = Add(body->force, force);
+        body->torque += Cross(Subtract(worldPoint, body->center), force);
+    }
+
+    void World::ApplyForceToCenter(BodyId id, Vec2 force)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        WakeBody(*body);
+        body->force = Add(body->force, force);
+    }
+
+    void World::ApplyTorque(BodyId id, float torque)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        WakeBody(*body);
+        body->torque += torque;
+    }
+
+    void World::ApplyLinearImpulse(BodyId id, Vec2 impulse, Vec2 worldPoint)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        WakeBody(*body);
+        body->linearVelocity = Add(body->linearVelocity, Multiply(impulse, body->inverseMassAxes));
+        body->angularVelocity += body->inverseInertia * Cross(Subtract(worldPoint, body->center), impulse);
+    }
+
+    void World::ApplyLinearImpulseToCenter(BodyId id, Vec2 impulse)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        WakeBody(*body);
+        body->linearVelocity = Add(body->linearVelocity, Multiply(impulse, body->inverseMassAxes));
+    }
+
+    void World::ApplyAngularImpulse(BodyId id, float impulse)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type != BodyType::Dynamic)
+        {
+            return;
+        }
+        WakeBody(*body);
+        body->angularVelocity += body->inverseInertia * impulse;
+    }
+
+    void World::WakeBody(Body& body)
+    {
+        body.awake = true;
+        body.sleepTime = 0.0f;
+    }
+
+    void World::SetAwake(BodyId id, bool awake)
+    {
+        Body* body = FindBody(id);
+        if (body == nullptr || body->type == BodyType::Static)
+        {
+            return;
+        }
+        if (awake)
+        {
+            WakeBody(*body);
+            return;
+        }
+        body->awake = false;
+        body->linearVelocity = {};
+        body->angularVelocity = 0.0f;
+        body->sleepTime = m_settings.timeToSleep;
+    }
+
+    bool World::IsAwake(BodyId id) const
+    {
+        const Body* body = FindBody(id);
+        return body != nullptr && body->awake;
     }
 
     MassData World::GetMassData(BodyId id) const
@@ -562,6 +815,18 @@ namespace JBro::Physics2D
             return;
         }
 
+        // 중력이 바뀌면 잠든 몸도 새 중력을 받아야 한다.
+        if (m_settings.gravity.x != m_lastGravity.x || m_settings.gravity.y != m_lastGravity.y)
+        {
+            for (Body& body : m_bodies)
+            {
+                if (body.alive)
+                {
+                    WakeBody(body);
+                }
+            }
+            m_lastGravity = m_settings.gravity;
+        }
         const std::uint32_t subSteps = std::max<std::uint32_t>(1u, m_settings.subSteps);
         const float h = deltaTime / static_cast<float>(subSteps);
         for (std::uint32_t step = 0; step < subSteps; ++step)
@@ -582,13 +847,19 @@ namespace JBro::Physics2D
             }
             for (Body& body : m_bodies)
             {
-                if (body.alive && body.type != BodyType::Static)
+                if (body.alive && body.type != BodyType::Static && body.awake)
                 {
                     SyncOrigin(body);
                 }
             }
         }
         UpdateTouching();
+        UpdateSleep(deltaTime);
+        for (Body& body : m_bodies)
+        {
+            body.force = {};
+            body.torque = 0.0f;
+        }
     }
 
     Manifold World::ComputeManifold(const Candidate& candidate) const
@@ -599,6 +870,13 @@ namespace JBro::Physics2D
         const Body& bodyB = m_bodies[shapeB.body];
         const Pose poseA{ bodyA.origin, bodyA.rotation };
         const Pose poseB{ bodyB.origin, bodyB.rotation };
+        if (shapeA.isChain)
+        {
+            const ChainSegment& segment = shapeA.segments[candidate.childA];
+            return shapeB.isCircle
+                ? CollideChainSegmentAndCircle(segment, poseA, shapeB.circle, poseB)
+                : CollideChainSegmentAndPolygon(segment, poseA, shapeB.pieces[candidate.childB], poseB);
+        }
         if (shapeA.isCircle)
         {
             return CollideCircles(shapeA.circle, poseA, shapeB.circle, poseB);
@@ -623,17 +901,28 @@ namespace JBro::Physics2D
     {
         for (Body& body : m_bodies)
         {
-            if (false == body.alive || body.type != BodyType::Dynamic)
+            if (false == body.alive || body.type != BodyType::Dynamic || false == body.awake)
             {
                 continue;
             }
             body.linearVelocity = Add(body.linearVelocity, Scale(m_settings.gravity, body.gravityScale * h));
+            body.linearVelocity = Add(body.linearVelocity, Scale(Multiply(body.force, body.inverseMassAxes), h));
+            body.angularVelocity += h * body.inverseInertia * body.torque;
             // 감쇠는 1 / (1 + h·c) 로 곱한다. 1 - h·c 와 달리 큰 값에서도 부호가 뒤집히지 않는다.
             body.linearVelocity = Scale(body.linearVelocity, 1.0f / (1.0f + h * body.linearDamping));
             body.angularVelocity *= 1.0f / (1.0f + h * body.angularDamping);
             if (body.fixedRotation)
             {
                 body.angularVelocity = 0.0f;
+            }
+            // 고정한 축은 중력도 받지 않는다.
+            if (body.freezePositionX)
+            {
+                body.linearVelocity.x = 0.0f;
+            }
+            if (body.freezePositionY)
+            {
+                body.linearVelocity.y = 0.0f;
             }
         }
     }
@@ -655,12 +944,24 @@ namespace JBro::Physics2D
             }
             const Body& body = m_bodies[shape.body];
             const Pose pose{ body.origin, body.rotation };
-            const std::uint32_t childCount = shape.isCircle ? 1u : static_cast<std::uint32_t>(shape.pieces.Size());
+            const std::uint32_t childCount = shape.isChain ? static_cast<std::uint32_t>(shape.segments.Size())
+                : shape.isCircle ? 1u : static_cast<std::uint32_t>(shape.pieces.Size());
             for (std::uint32_t child = 0; child < childCount; ++child)
             {
-                Rect bounds = shape.isCircle
-                    ? ComputeCircleBounds(shape.circle, pose)
-                    : ComputePolygonBounds(shape.pieces[child], pose);
+                Rect bounds;
+                if (shape.isChain)
+                {
+                    const Vec2 a = TransformPoint(pose, shape.segments[child].p1);
+                    const Vec2 b = TransformPoint(pose, shape.segments[child].p2);
+                    bounds.min = { std::fmin(a.x, b.x), std::fmin(a.y, b.y) };
+                    bounds.max = { std::fmax(a.x, b.x), std::fmax(a.y, b.y) };
+                }
+                else
+                {
+                    bounds = shape.isCircle
+                        ? ComputeCircleBounds(shape.circle, pose)
+                        : ComputePolygonBounds(shape.pieces[child], pose);
+                }
                 bounds.min = { bounds.min.x - margin, bounds.min.y - margin };
                 bounds.max = { bounds.max.x + margin, bounds.max.y + margin };
                 m_proxies.Add({ shapeIndex, child });
@@ -707,8 +1008,15 @@ namespace JBro::Physics2D
                 continue;
             }
 
-            // 폴리곤-원 판정은 폴리곤이 A 다.
-            if (shapeA->isCircle && false == shapeB->isCircle)
+            // 체인끼리는 부딪히지 않는다(둘 다 두께가 없다).
+            if (shapeA->isChain && shapeB->isChain)
+            {
+                continue;
+            }
+            // A 는 체인 > 폴리곤 > 원 차례로 고른다: 체인 판정은 체인이, 폴리곤-원 판정은 폴리곤이 A 다.
+            const int rankA = shapeA->isChain ? 0 : (shapeA->isCircle ? 2 : 1);
+            const int rankB = shapeB->isChain ? 0 : (shapeB->isCircle ? 2 : 1);
+            if (rankA > rankB)
             {
                 std::swap(proxyA, proxyB);
             }
@@ -760,6 +1068,21 @@ namespace JBro::Physics2D
             contact.manifold = manifold;
         }
 
+        // 깨어 있는 동적 몸이 잠든 몸에 닿으면 풀기 전에 깨운다 - 잠든 채 임펄스를 받으면 움직이지 않는 벽처럼 군다.
+        for (const Contact& contact : m_contacts)
+        {
+            if (contact.isTrigger)
+            {
+                continue;
+            }
+            Body& a = m_bodies[contact.bodyA];
+            Body& b = m_bodies[contact.bodyB];
+            if (a.type == BodyType::Dynamic && b.type == BodyType::Dynamic && a.awake != b.awake)
+            {
+                WakeBody(a.awake ? b : a);
+            }
+        }
+
         const auto byKey = [](const Contact& left, const Contact& right)
         {
             return IsLess(left.shapeA, left.childA, left.shapeB, left.childB,
@@ -769,18 +1092,23 @@ namespace JBro::Physics2D
 
         // 직전 서브스텝의 접촉과 열쇠로 맞춘다(둘 다 정렬돼 있어 한 번 훑으면 된다). 같은 점 번호면 누적 임펄스를
         // 이어받는다 - 워밍스타트가 끊기면 쌓인 상자가 매 스텝 처음부터 버텨야 해서 흔들린다.
+        // 새로 생기거나 사라진 접촉에 잠든 몸이 끼면 깨운다(D-229) - 밑의 바닥을 옮기거나 지우거나, 잠든 몸 곁에 도형이 새로 생겼다.
         std::size_t previous = 0;
         for (Contact& contact : m_contacts)
         {
             while (previous < m_previousContacts.Size() && byKey(m_previousContacts[previous], contact))
             {
+                WakeSleepingIn(m_previousContacts[previous]);
                 ++previous;
             }
             if (previous >= m_previousContacts.Size() || byKey(contact, m_previousContacts[previous]))
             {
+                WakeSleepingIn(contact);
                 continue;
             }
             const Contact& old = m_previousContacts[previous];
+            // 맞춘 것은 지나간다. 남겨 두면 다음 접촉이 그것을 "사라진 접촉" 으로 본다.
+            ++previous;
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
                 for (std::uint32_t j = 0; j < old.manifold.count; ++j)
@@ -794,6 +1122,28 @@ namespace JBro::Physics2D
                 }
             }
         }
+        for (; previous < m_previousContacts.Size(); ++previous)
+        {
+            WakeSleepingIn(m_previousContacts[previous]);
+        }
+    }
+
+    void World::WakeSleepingIn(const Contact& contact)
+    {
+        if (contact.isTrigger)
+        {
+            return;
+        }
+        Body& a = m_bodies[contact.bodyA];
+        Body& b = m_bodies[contact.bodyB];
+        if (a.alive && a.type == BodyType::Dynamic && false == a.awake)
+        {
+            WakeBody(a);
+        }
+        if (b.alive && b.type == BodyType::Dynamic && false == b.awake)
+        {
+            WakeBody(b);
+        }
     }
 
     void World::PrepareContacts()
@@ -806,7 +1156,7 @@ namespace JBro::Physics2D
 
         for (Contact& contact : m_contacts)
         {
-            if (contact.isTrigger)
+            if (false == IsSolved(contact))
             {
                 continue;
             }
@@ -826,13 +1176,13 @@ namespace JBro::Physics2D
 
                 const float rnA = Cross(rA, normal);
                 const float rnB = Cross(rB, normal);
-                const float normalK = a.inverseMass + b.inverseMass
+                const float normalK = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
                     + a.inverseInertia * rnA * rnA + b.inverseInertia * rnB * rnB;
                 contact.normalMass[i] = normalK > 0.0f ? 1.0f / normalK : 0.0f;
 
                 const float rtA = Cross(rA, tangent);
                 const float rtB = Cross(rB, tangent);
-                const float tangentK = a.inverseMass + b.inverseMass
+                const float tangentK = InverseMassAlong(a, tangent) + InverseMassAlong(b, tangent)
                     + a.inverseInertia * rtA * rtA + b.inverseInertia * rtB * rtB;
                 contact.tangentMass[i] = tangentK > 0.0f ? 1.0f / tangentK : 0.0f;
 
@@ -848,7 +1198,7 @@ namespace JBro::Physics2D
     {
         for (Contact& contact : m_contacts)
         {
-            if (contact.isTrigger)
+            if (false == IsSolved(contact))
             {
                 continue;
             }
@@ -860,9 +1210,9 @@ namespace JBro::Physics2D
             {
                 const Vec2 impulse = Add(
                     Scale(normal, contact.normalImpulse[i]), Scale(tangent, contact.tangentImpulse[i]));
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(contact.anchorA[i], impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(contact.anchorB[i], impulse);
             }
         }
@@ -873,7 +1223,7 @@ namespace JBro::Physics2D
         const float inverseH = 1.0f / h;
         for (Contact& contact : m_contacts)
         {
-            if (contact.isTrigger)
+            if (false == IsSolved(contact))
             {
                 continue;
             }
@@ -896,9 +1246,9 @@ namespace JBro::Physics2D
                 const float next = std::clamp(old - contact.tangentMass[i] * speed, -limit, limit);
                 const Vec2 impulse = Scale(tangent, next - old);
                 contact.tangentImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
             }
 
@@ -918,9 +1268,9 @@ namespace JBro::Physics2D
                 const float next = std::fmax(old - contact.normalMass[i] * (speed + bias), 0.0f);
                 const Vec2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
             }
         }
@@ -930,7 +1280,7 @@ namespace JBro::Physics2D
     {
         for (Contact& contact : m_contacts)
         {
-            if (contact.isTrigger || contact.restitution <= 0.0f)
+            if (false == IsSolved(contact) || contact.restitution <= 0.0f)
             {
                 continue;
             }
@@ -955,9 +1305,9 @@ namespace JBro::Physics2D
                     old - contact.normalMass[i] * (speed + contact.restitution * contact.approachSpeed[i]), 0.0f);
                 const Vec2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
-                a.linearVelocity = Subtract(a.linearVelocity, Scale(impulse, a.inverseMass));
+                a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
                 a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
-                b.linearVelocity = Add(b.linearVelocity, Scale(impulse, b.inverseMass));
+                b.linearVelocity = Add(b.linearVelocity, Multiply(impulse, b.inverseMassAxes));
                 b.angularVelocity += b.inverseInertia * Cross(rB, impulse);
             }
         }
@@ -967,7 +1317,7 @@ namespace JBro::Physics2D
     {
         for (Body& body : m_bodies)
         {
-            if (false == body.alive || body.type == BodyType::Static)
+            if (false == body.alive || body.type == BodyType::Static || false == body.awake)
             {
                 continue;
             }
@@ -990,7 +1340,7 @@ namespace JBro::Physics2D
     {
         for (const Contact& contact : m_contacts)
         {
-            if (contact.isTrigger)
+            if (false == IsSolved(contact))
             {
                 continue;
             }
@@ -1014,17 +1364,142 @@ namespace JBro::Physics2D
                 }
                 const float rnA = Cross(rA, normal);
                 const float rnB = Cross(rB, normal);
-                const float k = a.inverseMass + b.inverseMass
+                const float k = InverseMassAlong(a, normal) + InverseMassAlong(b, normal)
                     + a.inverseInertia * rnA * rnA + b.inverseInertia * rnB * rnB;
                 if (k <= 0.0f)
                 {
                     continue;
                 }
                 const Vec2 impulse = Scale(normal, -correction / k);
-                a.center = Subtract(a.center, Scale(impulse, a.inverseMass));
+                a.center = Subtract(a.center, Multiply(impulse, a.inverseMassAxes));
                 a.angle -= a.inverseInertia * Cross(rA, impulse);
-                b.center = Add(b.center, Scale(impulse, b.inverseMass));
+                b.center = Add(b.center, Multiply(impulse, b.inverseMassAxes));
                 b.angle += b.inverseInertia * Cross(rB, impulse);
+            }
+        }
+    }
+
+    bool World::IsSolved(const Contact& contact) const
+    {
+        if (contact.isTrigger)
+        {
+            return false;
+        }
+        const Body& a = m_bodies[contact.bodyA];
+        const Body& b = m_bodies[contact.bodyB];
+        return (a.type == BodyType::Dynamic && a.awake) || (b.type == BodyType::Dynamic && b.awake);
+    }
+
+    std::uint32_t World::FindIsland(std::uint32_t body)
+    {
+        std::uint32_t root = body;
+        while (m_islandParent[root] != root)
+        {
+            root = m_islandParent[root];
+        }
+        // 길 줄이기.
+        while (m_islandParent[body] != root)
+        {
+            const std::uint32_t next = m_islandParent[body];
+            m_islandParent[body] = root;
+            body = next;
+        }
+        return root;
+    }
+
+    void World::UpdateSleep(float deltaTime)
+    {
+        const std::uint32_t count = static_cast<std::uint32_t>(m_bodies.Size());
+        m_islandParent.Resize(count);
+        m_islandSleepTime.Resize(count);
+        for (std::uint32_t i = 0; i < count; ++i)
+        {
+            m_islandParent[i] = i;
+            m_islandSleepTime[i] = FLT_MAX;
+        }
+
+        // 1. 몸마다 느린 시간을 잰다. 잠들 수 없는 몸과 움직이는 키네마틱은 0 이다.
+        for (Body& body : m_bodies)
+        {
+            if (false == body.alive || body.type == BodyType::Static)
+            {
+                continue;
+            }
+            const bool slow = LengthSquared(body.linearVelocity)
+                    <= m_settings.linearSleepTolerance * m_settings.linearSleepTolerance
+                && std::fabs(body.angularVelocity) <= m_settings.angularSleepTolerance;
+            if (false == m_settings.enableSleep || false == body.canSleep || false == slow)
+            {
+                body.sleepTime = 0.0f;
+            }
+            else if (body.awake)
+            {
+                body.sleepTime += deltaTime;
+            }
+        }
+
+        // 2. 단단한 접촉으로 이어진 움직이는 몸들을 한 섬으로 묶는다. 멈춘 몸은 섬을 잇지 않는다.
+        for (const Contact& contact : m_contacts)
+        {
+            if (contact.isTrigger || contact.manifold.count == 0)
+            {
+                continue;
+            }
+            const Body& a = m_bodies[contact.bodyA];
+            const Body& b = m_bodies[contact.bodyB];
+            if (a.type == BodyType::Static || b.type == BodyType::Static)
+            {
+                continue;
+            }
+            const std::uint32_t rootA = FindIsland(contact.bodyA);
+            const std::uint32_t rootB = FindIsland(contact.bodyB);
+            if (rootA != rootB)
+            {
+                m_islandParent[std::max(rootA, rootB)] = std::min(rootA, rootB);
+            }
+        }
+
+        // 3. 섬마다 가장 짧은 느린 시간. 그것이 timeToSleep 에 이르면 섬이 잠들고, 모자라면 섬이 모두 깬다.
+        for (std::uint32_t i = 0; i < count; ++i)
+        {
+            const Body& body = m_bodies[i];
+            if (false == body.alive || body.type == BodyType::Static)
+            {
+                continue;
+            }
+            const std::uint32_t root = FindIsland(i);
+            m_islandSleepTime[root] = std::fmin(m_islandSleepTime[root], body.sleepTime);
+        }
+        m_lastStats.awakeBodies = 0;
+        m_lastStats.sleepingBodies = 0;
+        for (std::uint32_t i = 0; i < count; ++i)
+        {
+            Body& body = m_bodies[i];
+            if (false == body.alive || body.type == BodyType::Static)
+            {
+                continue;
+            }
+            const bool asleep = m_islandSleepTime[FindIsland(i)] >= m_settings.timeToSleep;
+            if (asleep)
+            {
+                body.awake = false;
+                body.linearVelocity = {};
+                body.angularVelocity = 0.0f;
+            }
+            else
+            {
+                body.awake = true;
+            }
+            if (body.type == BodyType::Dynamic)
+            {
+                if (body.awake)
+                {
+                    ++m_lastStats.awakeBodies;
+                }
+                else
+                {
+                    ++m_lastStats.sleepingBodies;
+                }
             }
         }
     }

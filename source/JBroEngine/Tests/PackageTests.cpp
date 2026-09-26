@@ -31,7 +31,7 @@
 #include <iostream>
 #include <stdexcept>
 
-// 에셋 패키지 `.jpak`(D-227, package-plan 1 단계): 왕복·정렬·난독화·깨진 파일 거절·창 스트림.
+// 에셋 패키지 `.jpak`(D-232, package-plan 1 단계): 왕복·정렬·난독화·깨진 파일 거절·창 스트림.
 namespace
 {
     namespace fs = std::filesystem;

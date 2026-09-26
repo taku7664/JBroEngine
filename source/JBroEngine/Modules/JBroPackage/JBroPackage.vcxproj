@@ -24,7 +24,7 @@
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!--
-    에셋 패키지 `.jpak` 의 쓰기·읽기·쿡·게임 빌드다(D-227). Tier E 이고 스크립트 타깃에는 경로가 없다.
+    에셋 패키지 `.jpak` 의 쓰기·읽기·쿡·게임 빌드다(D-232). Tier E 이고 스크립트 타깃에는 경로가 없다.
     파일은 플랫폼의 스트림으로만 연다(D-112).
   -->
   <ItemDefinitionGroup>

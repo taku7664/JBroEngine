@@ -57,8 +57,9 @@ Entries:
   canvas_view.edit_collider_tooltip: 고른 오브젝트의 폴리곤 콜라이더를 고칩니다. 포인트를 끌어 옮기고, 변을 누르면 포인트가 생기고, 포인트를 우클릭하면 지울 수 있습니다
   canvas_view.point_delete: 포인트 삭제
   canvas_view.point_delete_min: 포인트가 세 개 이상이어야 합니다
+  canvas_view.point_delete_min_chain: 포인트가 두 개 이상이어야 합니다
   canvas_view.edit_points: 포인트 편집
-  canvas_view.edit_points_not_polygon: shape 가 Polygon 이어야 합니다
+  canvas_view.edit_points_not_polygon: shape 가 Polygon 이나 Chain 이어야 합니다
   canvas_view.frame_tooltip: 선택한 오브젝트가 보이도록 화면을 맞춥니다
   canvas_view.preview_locale: 언어
   canvas_view.preview_locale_tooltip: textKey 가 있는 텍스트를 이 언어로 미리 봅니다
@@ -176,6 +177,7 @@ Entries:
   project_settings.audio_send_help: "이 버스의 소리를 다른 버스로도 보냅니다. 예: Dry 가 0 인 공용 잔향 버스"
   stats.audio_solo: "솔로 - 믹싱하는 동안 이 버스만 듣습니다"
   stats.audio_buses: "버스"
+  stats.audio_saved: "들리지 않는 재생 %llu 개, 동시 재생 수·재생 간격에 걸린 재생 %llu 개를 건너뛰었고 %llu 개를 새 재생으로 바꿨습니다"
   stats.audio_voices: "보이스 %u / %u, 최대 음량 %.2f"
   stats.audio_device: "오디오 장치 %s"
   stats.audio_no_device: "오디오 장치가 없습니다. 소리를 섞기는 하지만 들리지 않습니다"
@@ -328,3 +330,21 @@ Entries:
   inspector.pick_frame_no_sprite: 스프라이트를 먼저 지정하세요
   inspector.text_no_font: "쓸 수 있는 폰트가 없어 이 텍스트는 그려지지 않습니다. fontId 를 지정하거나 프로젝트 설정에서 폰트를 추가하세요."
   hierarchy.paste_as_child: 자식으로 붙여넣기
+  panel.editor_settings: 에디터 설정
+  menu.settings_editor: 에디터 설정
+  editor_settings.shortcuts: 단축키
+  editor_settings.search_hint: 이름이나 키로 검색
+  editor_settings.press_key: 키를 누르세요
+  editor_settings.capture_hint: Esc 를 누르면 취소합니다
+  editor_settings.clear_binding: 비우기
+  editor_settings.empty_binding: "(없음)"
+  editor_settings.reset: 기본값
+  editor_settings.reset_tooltip: 기본 조합으로 되돌립니다
+  editor_settings.reset_all: 모두 기본값으로
+  editor_settings.reset_all_title: 단축키 초기화
+  editor_settings.reset_all_message: 모든 단축키를 기본 조합으로 되돌립니다. 바꾼 키는 사라집니다.
+  editor_settings.reset_all_confirm: 초기화
+  editor_settings.clash: "같은 키를 쓰는 단축키가 있습니다: %s"
+  editor_settings.shadows: "이 창에서는 이 단축키가 먼저 실행됩니다: %s"
+  editor_settings.shadowed: "포커스가 있는 창의 단축키가 먼저 실행됩니다: %s"
+  editor_settings.no_match: 찾는 단축키가 없습니다

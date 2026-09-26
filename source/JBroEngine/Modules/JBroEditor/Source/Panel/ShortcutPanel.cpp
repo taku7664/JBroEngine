@@ -2,7 +2,7 @@
 
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/EditorApplication.h>
-#include <JBro/Editor/EditorShortcuts.h>
+#include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
@@ -38,43 +38,54 @@ namespace JBro
         {
             return;
         }
-        const JArrayView<EditorShortcutInfo> all = EditorShortcuts::All();
+        const EditorShortcutManager& shortcuts = m_editor->GetShortcuts();
+        const std::uint32_t count = shortcuts.GetCount();
 
-        // 무리는 표에 적힌 차례대로 나온다. 무리 이름을 따로 모아 두지 않는 이유는
-        // 표가 이미 무리별로 모여 있기 때문이다 - 두 곳에 적으면 어긋난다.
-        const char* drawnCategory = nullptr;
-        for (std::uint32_t index = 0; index < all.size; ++index)
+        // **무리는 처음 나온 차례대로 모은다.** 전역 것이 먼저 등록되고 패널 것이 나중에 온다 - 등록 차례로만 그리면
+        // 같은 무리가 두 번 나뉘어 나온다. 목록은 열두어 줄이라 두 겹으로 돌아도 가볍다.
+        for (std::uint32_t head = 0; head < count; ++head)
         {
-            const EditorShortcutInfo& info = all.data[index];
-            const char* category = Loc::TextOr(info.categoryKey, info.categoryKey);
-            if (drawnCategory == nullptr || std::strcmp(drawnCategory, category) != 0)
+            const EditorShortcutView first = shortcuts.GetAt(head);
+            bool seen = false;
+            for (std::uint32_t before = 0; before < head && false == seen; ++before)
             {
-                if (drawnCategory != nullptr)
-                {
-                    ImGui::Spacing();
-                }
-                Widget::SectionHeader(category).Draw();
-                drawnCategory = category;
+                seen = std::strcmp(shortcuts.GetAt(before).categoryKey, first.categoryKey) == 0;
             }
-
-            // 라벨과 조합키를 두 칸으로 나눈다(§11.3). 붙여 쓰면 키가 어디서 시작하는지
-            // 줄마다 달라 읽히지 않는다.
-            Widget::FormLayout layout("##shortcut");
-            layout.Row(
-                [&] { Widget::Text(Loc::TextOr(info.labelKey, info.labelKey)); },
-                [&]
+            if (seen)
+            {
+                continue;
+            }
+            if (head != 0)
+            {
+                ImGui::Spacing();
+            }
+            Widget::SectionHeader(Loc::TextOr(first.categoryKey, first.categoryKey)).Draw();
+            for (std::uint32_t index = head; index < count; ++index)
+            {
+                const EditorShortcutView info = shortcuts.GetAt(index);
+                if (std::strcmp(info.categoryKey, first.categoryKey) != 0)
                 {
-                    const EditorShortcutText primary = EditorShortcuts::Describe(info.primary);
-                    const EditorShortcutText secondary = EditorShortcuts::Describe(info.secondary);
-                    if (secondary.value[0] != '\0')
+                    continue;
+                }
+                // 라벨과 조합키를 두 칸으로 나눈다(§11.3). 붙여 쓰면 키가 어디서 시작하는지
+                // 줄마다 달라 읽히지 않는다.
+                Widget::FormLayout layout("##shortcut");
+                layout.Row(
+                    [&] { Widget::Text(Loc::TextOr(info.labelKey, info.labelKey)); },
+                    [&]
                     {
-                        Widget::TextF("%s, %s", primary.value, secondary.value);
-                    }
-                    else
-                    {
-                        Widget::Text(primary.value);
-                    }
-                });
+                        const EditorShortcutText primary = EditorShortcutManager::Describe(info.primary);
+                        const EditorShortcutText secondary = EditorShortcutManager::Describe(info.secondary);
+                        if (secondary.value[0] != '\0')
+                        {
+                            Widget::TextF("%s, %s", primary.value, secondary.value);
+                        }
+                        else
+                        {
+                            Widget::Text(primary.value);
+                        }
+                    });
+            }
         }
     }
 }

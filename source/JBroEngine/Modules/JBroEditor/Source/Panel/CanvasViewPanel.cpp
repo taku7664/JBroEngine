@@ -121,6 +121,31 @@ namespace JBro
         // 폴리곤 포인트 편집을 콜라이더의 우클릭 메뉴에서도 켠다. 콜라이더가 여럿이면 누른 것을 고친다.
         editor.GetComponentMenus().Register(MakeStableTypeId(Component::Collider2D::StaticTypeName()),
             &CanvasViewPanel::DrawEditPointsItem, this, this);
+        // **기즈모 모드 단축키는 이 패널에 포커스가 있을 때만 돈다**(D-228). 기본 조합은 기존 기즈모와 같은 W·E·R 이다.
+        // 조합키 없는 글자라 글자 칸에 타자를 치는 중에는 돌지 않는다(`whileTyping` 기본 거짓).
+        struct Row
+        {
+            const char* id;
+            const char* labelKey;
+            ImGuiKey key;
+            GizmoMode mode;
+        };
+        const Row rows[] = {
+            {"canvas_view.gizmo_translate", LocKeys::GizmoTranslate, ImGuiKey_W, GizmoMode::Translate},
+            {"canvas_view.gizmo_rotate", LocKeys::GizmoRotate, ImGuiKey_E, GizmoMode::Rotate},
+            {"canvas_view.gizmo_scale", LocKeys::GizmoScale, ImGuiKey_R, GizmoMode::Scale},
+        };
+        for (std::size_t index = 0; index < sizeof(rows) / sizeof(rows[0]); ++index)
+        {
+            EditorShortcutDesc desc;
+            desc.id = rows[index].id;
+            desc.labelKey = rows[index].labelKey;
+            desc.categoryKey = LocKeys::PanelCanvasView;
+            desc.scope = GetTitle();
+            desc.primary.key = rows[index].key;
+            desc.handler = MakeOwnerPtr<GizmoModeShortcut>(*this, rows[index].mode);
+            m_shortcuts[index] = editor.GetShortcuts().Register(std::move(desc));
+        }
         return true;
     }
 
@@ -129,7 +154,24 @@ namespace JBro
         if (m_editor != nullptr)
         {
             m_editor->GetComponentMenus().Unregister(this);
+            for (ShortcutHandle& handle : m_shortcuts)
+            {
+                m_editor->GetShortcuts().Unregister(handle);
+                handle = InvalidShortcutHandle;
+            }
         }
+    }
+
+    CanvasViewPanel::GizmoModeShortcut::GizmoModeShortcut(CanvasViewPanel& panel, GizmoMode mode)
+        : m_panel(panel), m_mode(mode)
+    {
+    }
+
+    bool CanvasViewPanel::GizmoModeShortcut::Execute(EditorApplication& editor)
+    {
+        (void)editor;
+        m_panel.m_gizmoMode = m_mode;
+        return true;
     }
 
     bool CanvasViewPanel::DrawEditPointsItem(const ComponentMenuContext& context)
@@ -137,7 +179,7 @@ namespace JBro
         CanvasViewPanel* panel = static_cast<CanvasViewPanel*>(context.user);
         const auto* collider = static_cast<const Component::Collider2D*>(context.component);
         // 폴리곤이 아니면 회색이다. 숨기면 이 기능이 있는지 알 수 없다(D-181).
-        const bool polygon = collider != nullptr && collider->shape == Component::ColliderShape2D::Polygon;
+        const bool polygon = collider != nullptr && PolygonEditModel::EditsPoints(*collider);
         if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewEditPoints, "Edit Points"), nullptr, polygon,
                 Loc::TextOr(LocKeys::CanvasViewEditPointsNotPolygon, "shape must be Polygon")))
         {
@@ -359,7 +401,7 @@ namespace JBro
         Widget::GizmoModeBar(m_gizmoMode,
             Loc::TextOr(LocKeys::GizmoTranslate, "Move"),
             Loc::TextOr(LocKeys::GizmoRotate, "Rotate"),
-            Loc::TextOr(LocKeys::GizmoScale, "Scale"), true);
+            Loc::TextOr(LocKeys::GizmoScale, "Scale"));
         // **로컬·월드**(D-171, 기존 기즈모의 `L`/`W`). 크기 모드에서는 쓰지 않으므로 잠근다 -
         // 눌러도 아무 일이 없으면 고장과 구분되지 않는다.
         ImGui::SameLine(0.0f, 6.0f);
@@ -885,7 +927,7 @@ namespace JBro
 
                 // 상자는 **돌면 기울어진다.** 외접 사각형으로 그리면 돌려 놓은 오브젝트의 충돌 칸이 실제보다
                 // 커 보인다. 폴리곤은 꼭짓점을 그대로 그리고, 꼭짓점이 없으면 물리처럼 `size` 상자다.
-                if (collider->shape == Component::ColliderShape2D::Polygon)
+                if (PolygonEditModel::EditsPoints(*collider))
                 {
                     PolygonEditModel::SeedPoints(*collider, m_outlineScratch);
                 }
@@ -929,9 +971,10 @@ namespace JBro
                         }
                     }
                 }
-                // 변마다 선 하나다. 꼭짓점 수에 상한을 두지 않는다 - 편집으로 얼마든지 는다.
+                // 변마다 선 하나다. 꼭짓점 수에 상한을 두지 않는다 - 편집으로 얼마든지 는다. 열린 체인은 끝과 처음을 잇지 않는다.
                 const std::size_t count = m_screenScratch.Size();
-                for (std::size_t index = 0; count >= 2 && index < count; ++index)
+                const std::size_t edges = PolygonEditModel::IsClosedOutline(*collider) ? count : (count > 0 ? count - 1 : 0);
+                for (std::size_t index = 0; count >= 2 && index < edges; ++index)
                 {
                     const Vec2 a = m_screenScratch[index];
                     const Vec2 b = m_screenScratch[(index + 1) % count];
@@ -1048,7 +1091,7 @@ namespace JBro
             {
                 chosen = static_cast<Component::Collider2D*>(ResolveComponent(m_editor->GetObjectIds(), m_pointTarget));
             }
-            if (chosen != nullptr && chosen->IsEnabled() && chosen->shape == Component::ColliderShape2D::Polygon)
+            if (chosen != nullptr && chosen->IsEnabled() && PolygonEditModel::EditsPoints(*chosen))
             {
                 target.collider = chosen;
             }
@@ -1064,7 +1107,7 @@ namespace JBro
             for (Component::Collider2D* collider : m_colliderScratch)
             {
                 if (collider != nullptr && collider->IsEnabled()
-                    && collider->shape == Component::ColliderShape2D::Polygon)
+                    && PolygonEditModel::EditsPoints(*collider))
                 {
                     target.collider = collider;
                     break;
@@ -1167,7 +1210,7 @@ namespace JBro
         m_polygonHover = {};
         if (false == m_vertexDragging && PointerInView(rect) && false == ImGui::IsMouseDown(ImGuiMouseButton_Right))
         {
-            m_polygonHover = PolygonEditModel::Pick(m_screenScratch.View(), mouse);
+            m_polygonHover = PolygonEditModel::Pick(m_screenScratch.View(), mouse, PolygonEditModel::IsClosedOutline(collider));
         }
         if (false == ImGui::IsMouseDown(ImGuiMouseButton_Left))
         {
@@ -1224,7 +1267,8 @@ namespace JBro
         const ImU32 shadow = IM_COL32(0, 0, 0, 120);
         constexpr float HandleRadius = 3.5f;
         const std::size_t count = m_screenScratch.Size();
-        for (std::size_t index = 0; count >= 2 && index < count; ++index)
+        const std::size_t edges = PolygonEditModel::IsClosedOutline(collider) ? count : (count > 0 ? count - 1 : 0);
+        for (std::size_t index = 0; count >= 2 && index < edges; ++index)
         {
             const Vec2 a = m_screenScratch[index];
             const Vec2 b = m_screenScratch[(index + 1) % count];
@@ -1261,8 +1305,8 @@ namespace JBro
                     m_screenScratch.Add(LocalToScreen(rect, target.pose, target.collider->offset, point));
                 }
                 const ImGuiIO& io = ImGui::GetIO();
-                const PolygonEditModel::Hit hit =
-                    PolygonEditModel::Pick(m_screenScratch.View(), { io.MousePos.x, io.MousePos.y });
+                const PolygonEditModel::Hit hit = PolygonEditModel::Pick(m_screenScratch.View(),
+                    { io.MousePos.x, io.MousePos.y }, PolygonEditModel::IsClosedOutline(*target.collider));
                 if (hit.kind == PolygonEditModel::HitKind::Vertex)
                 {
                     m_menuAddress = target.address;
@@ -1280,9 +1324,12 @@ namespace JBro
         if (collider != nullptr)
         {
             PolygonEditModel::SeedPoints(*collider, m_outlineScratch);
-            const bool removable = m_outlineScratch.Size() > PolygonEditModel::MinVertexCount;
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewPointDelete, "Delete Point"), nullptr, removable,
-                    Loc::TextOr(LocKeys::CanvasViewPointDeleteMin, "a polygon needs at least three points")))
+            const std::uint32_t minimum = PolygonEditModel::MinPointCount(*collider);
+            const bool removable = m_outlineScratch.Size() > minimum;
+            const char* why = minimum < PolygonEditModel::MinVertexCount
+                ? Loc::TextOr(LocKeys::CanvasViewPointDeleteMinChain, "a chain needs at least two points")
+                : Loc::TextOr(LocKeys::CanvasViewPointDeleteMin, "a polygon needs at least three points");
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewPointDelete, "Delete Point"), nullptr, removable, why))
             {
                 SetPropertyCommand::Path path;
                 String before;
@@ -1290,7 +1337,7 @@ namespace JBro
                     && SetPropertyCommand::ReadValue(*collider, m_menuAddress.typeId, path, before))
                 {
                     Array<Vec2> after = m_outlineScratch;
-                    if (PolygonEditModel::RemoveVertex(after, m_menuVertex))
+                    if (PolygonEditModel::RemoveVertex(after, m_menuVertex, minimum))
                     {
                         CommitPoints(m_menuAddress, before, after);
                     }

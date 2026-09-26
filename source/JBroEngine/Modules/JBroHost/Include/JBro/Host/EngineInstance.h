@@ -28,7 +28,7 @@ namespace JBro
 
     namespace Package
     {
-        // 에셋 패키지(D-227). 이 헤더를 쓰는 에디터가 패키지 헤더를 보지 않게 이름만 안다.
+        // 에셋 패키지(D-232). 이 헤더를 쓰는 에디터가 패키지 헤더를 보지 않게 이름만 안다.
         class PackageReader;
         class PackageAssetSource;
     }
@@ -168,9 +168,9 @@ namespace JBro
         AssetSystem* GetAssetSystem();
         // 게임 문자열 표(D-226). 엔진 수명이고 표는 프로젝트를 열 때 모은다. 에디터의 미리보기 고르기가 로케일을 바꾼다.
         GameLocalization* GetLocalization();
-        // 패키지로 연 프로젝트인가(`AssetPackage`, D-227). 참이면 에셋 폴더가 없고 다시 스캔·감시가 없다.
+        // 패키지로 연 프로젝트인가(`AssetPackage`, D-232). 참이면 에셋 폴더가 없고 다시 스캔·감시가 없다.
         bool IsRunningFromPackage() const;
-        // 디스크 스트리밍 오디오의 스트림을 연다(D-227). 믹서의 스트리머 스레드가 부른다 - 패키지로 연 프로젝트는 `jpak:<아이디>` 를 패키지의
+        // 디스크 스트리밍 오디오의 스트림을 연다(D-232). 믹서의 스트리머 스레드가 부른다 - 패키지로 연 프로젝트는 `jpak:<아이디>` 를 패키지의
         // 창 스트림으로 연다. 어느 스레드에서 불러도 된다.
         OwnerPtr<IFileStream> OpenAudioStream(const char* path);
         // 감시가 쌓아 둔 에셋 폴더 변경을 적용한다(D-121). 원본이 바뀌면 로드된 것을 in-place 재로드하고, 이름이 바뀌면
@@ -289,7 +289,7 @@ namespace JBro
         bool m_editorSaves = false;
         // 게임 문자열 표(D-226). 세이브처럼 엔진 수명이고 이 모듈 사본에도 묶는다.
         OwnerPtr<GameLocalization> m_localization;
-        // 패키지로 연 프로젝트의 것이다(D-227). 에셋 시스템이 내려간 뒤에 내린다.
+        // 패키지로 연 프로젝트의 것이다(D-232). 에셋 시스템이 내려간 뒤에 내린다.
         OwnerPtr<Package::PackageReader> m_package;
         OwnerPtr<Package::PackageAssetSource> m_packageSource;
 

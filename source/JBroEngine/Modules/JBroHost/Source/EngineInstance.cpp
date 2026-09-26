@@ -166,7 +166,7 @@ namespace JBro
                 mixerDesc.maxVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
                 // 디스크 스트리밍의 파일은 플랫폼이 연다(D-203). 스트리머 스레드에서 불린다 - `OpenFileStream` 은 어느
                 // 스레드에서 불러도 된다.
-                // 패키지로 연 프로젝트는 패키지의 창 스트림이다(D-227) - 에셋 시스템의 바이트 출처가 연다.
+                // 패키지로 연 프로젝트는 패키지의 창 스트림이다(D-232) - 에셋 시스템의 바이트 출처가 연다.
                 mixerDesc.openStream = [](void* user, const char* path, AudioFileDecoder& decoder) {
                     return decoder.Open(static_cast<EngineInstance*>(user)->OpenAudioStream(path), path);
                 };
@@ -270,7 +270,7 @@ namespace JBro
 
         // 에셋 폴더를 한 번 스캔하고 에셋 시스템을 잇는다(D-111). **폴더가 없어도 프로젝트는 열린다** - 에셋이 하나도
         // 없는 새 프로젝트가 그것이다. 스캔 결과는 `GetAssetScanReport` 로 남는다.
-        // **패키지로 연다**(D-227). 에셋 폴더를 스캔하지 않고 패키지의 색인이 레지스트리다. 감시도 없다.
+        // **패키지로 연다**(D-232). 에셋 폴더를 스캔하지 않고 패키지의 색인이 레지스트리다. 감시도 없다.
         if (false == project.assetPackage.empty())
         {
             const String packagePath = ResolveProjectRelativePath(project.assetPackage.c_str(), projectFilePath);

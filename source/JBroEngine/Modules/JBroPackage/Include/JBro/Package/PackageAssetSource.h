@@ -6,7 +6,7 @@
 
 namespace JBro::Package
 {
-    // 패키지에서 에셋 바이트를 주는 곳이다(D-227). 에셋 시스템은 느슨한 파일과 같은 모양으로 받는다.
+    // 패키지에서 에셋 바이트를 주는 곳이다(D-232). 에셋 시스템은 느슨한 파일과 같은 모양으로 받는다.
     // 흘려 읽는 이름은 `jpak:<32 자리 아이디>` 이고, `OpenStream` 은 그 블롭의 창 스트림을 연다(어느 스레드에서든).
     class PackageAssetSource final : public IAssetSource
     {

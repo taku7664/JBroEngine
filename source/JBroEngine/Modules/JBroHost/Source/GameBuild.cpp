@@ -143,7 +143,7 @@ namespace JBro
         {
             report.warnings.Add(std::move(warning));
         }
-        // 키는 빌드마다 뽑는다(D-227 §2.3). 0 은 피한다 - 섞지 않은 것과 헷갈린다.
+        // 키는 빌드마다 뽑는다(D-232 §2.3). 0 은 피한다 - 섞지 않은 것과 헷갈린다.
         const Uuid random = Uuid::Generate();
         const std::uint64_t key = (random.high ^ random.low) | 1ull;
         Package::PackageWriter writer(key);

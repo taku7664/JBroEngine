@@ -4,7 +4,7 @@
 
 namespace JBro::PolygonEditModel
 {
-    Hit Pick(ArrayView<const Vec2> screen, Vec2 mouse)
+    Hit Pick(ArrayView<const Vec2> screen, Vec2 mouse, bool closed)
     {
         Hit hit;
         const std::uint32_t count = static_cast<std::uint32_t>(screen.Size());
@@ -32,7 +32,8 @@ namespace JBro::PolygonEditModel
         }
 
         float bestEdge = EdgePickDistance * EdgePickDistance;
-        for (std::uint32_t i = 0; i < count; ++i)
+        const std::uint32_t edges = closed ? count : count - 1;
+        for (std::uint32_t i = 0; i < edges; ++i)
         {
             const Vec2 a = screen[i];
             const Vec2 b = screen[(i + 1) % count];
@@ -70,6 +71,12 @@ namespace JBro::PolygonEditModel
         }
         const float halfWidth = collider.size.x * 0.5f;
         const float halfHeight = collider.size.y * 0.5f;
+        if (collider.shape == Component::ColliderShape2D::Chain)
+        {
+            out.Add({ -halfWidth, 0.0f });
+            out.Add({ halfWidth, 0.0f });
+            return;
+        }
         out.Add({ -halfWidth, -halfHeight });
         out.Add({ halfWidth, -halfHeight });
         out.Add({ halfWidth, halfHeight });
@@ -86,13 +93,29 @@ namespace JBro::PolygonEditModel
         return true;
     }
 
-    bool RemoveVertex(Array<Vec2>& points, std::uint32_t index)
+    bool RemoveVertex(Array<Vec2>& points, std::uint32_t index, std::uint32_t minimum)
     {
-        if (index >= points.Size() || points.Size() <= MinVertexCount)
+        if (index >= points.Size() || points.Size() <= minimum)
         {
             return false;
         }
         points.RemoveAt(index);
         return true;
+    }
+
+    bool EditsPoints(const Component::Collider2D& collider)
+    {
+        return collider.shape == Component::ColliderShape2D::Polygon
+            || collider.shape == Component::ColliderShape2D::Chain;
+    }
+
+    bool IsClosedOutline(const Component::Collider2D& collider)
+    {
+        return collider.shape != Component::ColliderShape2D::Chain || collider.loop;
+    }
+
+    std::uint32_t MinPointCount(const Component::Collider2D& collider)
+    {
+        return IsClosedOutline(collider) ? MinVertexCount : 2u;
     }
 }

@@ -100,18 +100,18 @@
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest), `Fonts`(폰트 에셋 아이디의 순서 있는 시퀀스 - 첫 폰트가 `fontId` 가 빈 텍스트의 기본이고 목록 전체가
   폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다), 게임 언어의 `Locales`(이름 시퀀스)·
-  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226), 게임 빌드의 프로젝트 사본이 적는 `AssetPackage`(D-227) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
+  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226), 게임 빌드의 프로젝트 사본이 적는 `AssetPackage`(D-232) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
   PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-213)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
-- **빈 값은 `""` 로 적는다.** `Key: ` 는 "아래에 블록이 온다" 로 읽혀 기본값이 되살아난다. 원문에서 이미 비어 있던 줄만 그대로 둔다. (MUST) (D-227)
+- **빈 값은 `""` 로 적는다.** `Key: ` 는 "아래에 블록이 온다" 로 읽혀 기본값이 되살아난다. 원문에서 이미 비어 있던 줄만 그대로 둔다. (MUST) (D-232)
 - **`AssetPackage` 가 있는 프로젝트는 패키지로 연다.** 에셋 폴더를 스캔하지 않고 패키지의 색인이 레지스트리이며, 다시 스캔·파일 감시가 없다.
   패키지를 열지 못하면 프로젝트를 열지 않는다 - 빈 게임으로 뜨지 않는다. 그 프로젝트의 `Build.StartupCanvas`·`--canvas` 는 에셋 폴더 기준 경로다.
-  게임 호스트는 `--project` 가 없으면 실행 파일 옆의 `.jproject` 를 연다. (MUST) (D-227)
+  게임 호스트는 `--project` 가 없으면 실행 파일 옆의 `.jproject` 를 연다. (MUST) (D-232)
 - **에셋 바이트는 `IAssetSource` 로만 받는다.** 에셋 시스템은 느슨한 파일(`LooseAssetSource`)과 패키지(`PackageAssetSource`)를 가르지 않는다. 패키지는
-  플랫폼의 스트림으로만 열고(D-112), 깨진 색인은 열지 않으며 해시가 틀린 블롭은 읽지 않는다. 쓰는 곳은 `JBroPackage` 하나다. (MUST) (D-227)
+  플랫폼의 스트림으로만 열고(D-112), 깨진 색인은 열지 않으며 해시가 틀린 블롭은 읽지 않는다. 쓰는 곳은 `JBroPackage` 하나다. (MUST) (D-232)
 - **게임 빌드는 참조를 따라간다.** 씨는 시작 캔버스·빌드 캔버스·프로젝트 폰트·모든 문자열 표이고, 메타와 캔버스 원문의 32 자리 아이디를 따라간다.
   Texture 는 디코드한 RGBA8, 미리 뜨기가 켜진 Font 는 원본과 미리 뜬 아틀라스로 싼다. 패키지의 난독화는 일반 도구로 열리지 않게 할 뿐 뜯는 사람을 막지
-  못한다 - 키가 게임과 함께 간다. (MUST) (D-227)
+  못한다 - 키가 게임과 함께 간다. (MUST) (D-232)
   프로젝트 파일 쓰기는 원문의 줄을 타고 가며 아는 키의 값만 갈아 끼우는데, 그 길에서 같은 줄을
   두 번 세면 저장할 때마다 파일이 불어난다. 값이 비어 있어도 아는 키는 **적은 것**으로 세고,
   파일 끝 줄바꿈 다음 자리는 줄로 세지 않는다. 시퀀스(`AssetIgnorePatterns`·`AudioBuses`·`Fonts`)는 머리줄에서 새로 적고
@@ -148,7 +148,10 @@
     (측정으로 고정한다). 예외는 Vorbis 스트리밍 시작 하나다(stb_vorbis 가 CRT 에서 할당한다).
   - 오디오 에셋은 CPU 자료만 든다(`AudioData`: 전체 PCM 또는 압축 바이트). 믹서는 그것을 **빌려** 재생하므로, `AssetSystem` 은
     오디오 자료를 풀거나 바꾸기 **직전에** `AudioReleaseCallback` 으로 알리고 받는 쪽은 그 클립의 보이스를 멈추고 등록을 내린다.
-  - 임포트 옵션(`Audio.ImportOptions`)은 파일의 속성(지금은 `mode`)만 든다. 재생 파라미터는 컴포넌트가 유일한 원천이다.
+  - 임포트 옵션(`Audio.ImportOptions`)은 파일의 속성(`mode`·`gain`·`mono`)과 같은 소리가 여럿 울릴 때의 규칙(`maxInstances`·
+    `cooldown`, D-231)만 든다. 소리 하나의 재생 파라미터(볼륨·루프·거리·버스)는 컴포넌트가 유일한 원천이다.
+  - 공간화한 한 번짜리 소리는 시작 자리에서 -60 dB 밑이면 보이스를 잡지 않는다(D-231). 감쇠 계산은 miniaudio 의 공식과 같아야 한다 -
+    역·지수 감쇠는 최대 거리 밖에서도 0 이 아니다. `Decompressed` 오디오는 믹서의 레이트로 풀린다.
   - 이펙트는 **버스마다 고정 사슬**(고역 차단 → 저역 차단 → EQ → 디스토션 → 코러스 → 피치 시프트 → 메아리 → 잔향 → 원음 양 →
     컴프레서, D-202·D-210)이다. 출력은 리미터(기본 켬)를 거친 뒤 1 에서 잘린다. 값은 원자 변수로 건너가고 필터 계수는
     오디오 스레드가 짓는다. 메아리·잔향 버퍼는 처음 켤 때 메인 스레드가 잡는다 - 오디오 스레드는 할당하지 않는다.
@@ -202,7 +205,7 @@
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
-  | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-227) |
+  | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-232) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
   | Tier E | `JBroTextRendering` | 텍스트 렌더링 공용: `TextLibrary`(폰트·아틀라스·페이지 텍스처)·`GlyphMesh`(글리프 쿼드)·`TextBlock`(레이아웃 캐시). Core·Text·AssetTypes·Asset·RHI·Graphics·Task·Platform·Runtime 에 기대고 캔버스·컴포넌트·프레임워크를 모른다. 2D·3D 텍스트 시스템이 쓴다 (D-222) |
   | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
@@ -1084,6 +1087,11 @@
 - **사용자에게 알릴 결과는 로그가 아니라 팝업으로 간다.** (SHOULD) (D-92)
   모달은 `EditorApplication::OpenPopup` 큐를 거친다 - `ImGui::OpenPopup` 을 직접 부르면 한 프레임에
   둘이 열릴 때 뒤의 것이 조용히 사라진다. 같은 결과가 반복되면 같은 Id 로 하나만 띄운다.
+- **에디터 단축키는 `EditorShortcutManager` 에 이름으로 등록한다.** (MUST) (D-228)
+  패널·도구·외부 에디터가 `ImGui::IsKeyPressed`·`ImGui::Shortcut` 으로 단축키를 직접 읽지 않는다 - 그러면 도움말에도 안 나오고 사용자가 바꿀 수도
+  없다(칸 안의 편집 키 - 콤보의 Enter 같은 것 - 는 단축키가 아니다). 패널에서만 도는 것은 `scope` 에 패널의 `GetTitle()` 을 주고, 등록은 `OnDestroy` 에서
+  푼다. 이름(`editor.save_canvas`)은 사용자 설정의 키라 바꾸지 않는다. 사용자가 바꾼 조합은 에디터 호스트만 사용자별 파일에 쓰고, 읽지 못한 파일은 덮어쓰지 않는다.
+  사용자가 조합을 바꾸는 곳은 `설정` → `에디터 설정` 한 곳이고, 새 키를 잡는 동안에는 관리자를 멈춘다(`SetSuspended`). (D-230)
 - **하던 일을 멈출 필요가 없는 알림은 우측 하단 알림으로 간다.** (MUST) (D-219)
   `EditorApplication::GetNotifications().Notify(...)` 를 부른다. 패널·도구·외부 에디터가 제 알림 상자나 토스트를 따로 그리지 않는다 -
   모양과 시간과 닫는 법이 도구마다 달라진다. 사용자가 답해야 하는 것만 모달이다. 반복되는 알림은 같은 `id` 로 하나로 합친다.

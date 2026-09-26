@@ -73,7 +73,7 @@ using ProbeLocalizationInterface = JBro::System::ILocalization;
 
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Package
 #if defined(JBRO_TIER_PROBE_PACKAGE)
-// 에셋 패키지는 Tier E 다(D-227). 스크립트는 패키지를 모르고 에셋 서비스만 본다.
+// 에셋 패키지는 Tier E 다(D-232). 스크립트는 패키지를 모르고 에셋 서비스만 본다.
 #include <JBro/Package/PackageReader.h>
 #endif
 
