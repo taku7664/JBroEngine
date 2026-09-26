@@ -3338,6 +3338,16 @@ namespace JBro
         return m_notifications;
     }
 
+    ComponentMenuTable& EditorApplication::GetComponentMenus()
+    {
+        return m_componentMenus;
+    }
+
+    const ComponentMenuTable& EditorApplication::GetComponentMenus() const
+    {
+        return m_componentMenus;
+    }
+
     bool EditorApplication::IsPopupOpenById(const char* id) const
     {
         if (id == nullptr || *id == '\0')

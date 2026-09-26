@@ -4,6 +4,7 @@
 #include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
+#include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/EditorSpriteContours.h>
@@ -364,6 +365,9 @@ namespace JBro
         // 막는 팝업과 달리 하던 일을 멈추지 않는다. UI 가 꺼져 있어도 쌓이고, 켜지면 뜬다.
         EditorNotifications& GetNotifications();
         const EditorNotifications& GetNotifications() const;
+        // 컴포넌트 타입마다 우클릭 메뉴에 더할 항목의 표다(D-220). 오브젝트 메뉴와 인스펙터 머리 메뉴가 함께 묻는다.
+        ComponentMenuTable& GetComponentMenus();
+        const ComponentMenuTable& GetComponentMenus() const;
         // 제목으로 찾는다. 없으면 nullptr 이다.
         EditorPanel* FindPanel(const char* title);
         std::size_t GetPanelCount() const;
@@ -587,6 +591,8 @@ namespace JBro
         OwnerPtr<EngineInstance> m_engine;
         OwnerPtr<IFramework> m_framework;
         EditorUI m_ui;
+        // **패널보다 먼저 둔다.** 패널이 소멸자에서 제 항목을 떼므로, 표가 패널보다 늦게 사라져야 한다.
+        ComponentMenuTable m_componentMenus;
         Array<OwnerPtr<EditorPanel>> m_panels;
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;

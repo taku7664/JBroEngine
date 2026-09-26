@@ -55,6 +55,7 @@ int RunEditorObjectCommandTests();
 int RunEditorLocalizationTests();
 int RunEditorWidgetTests();
 int RunEditorNotificationTests();
+int RunComponentMenuTableTests();
 int RunGizmoModelTests();
 int RunInputTests();
 int RunInputSystemTests();
@@ -321,6 +322,10 @@ int main()
             return 1;
         }
         if (RunEditorNotificationTests() != 0)
+        {
+            return 1;
+        }
+        if (RunComponentMenuTableTests() != 0)
         {
             return 1;
         }
