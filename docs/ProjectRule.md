@@ -100,9 +100,18 @@
   기존 엔진에 없던 키는 `AssetDirectory`(기본값 `Contents/Assets`)와 `AssetIgnorePatterns`, `TextureFilter`
   (Nearest|Linear, 기본 Nearest), `Fonts`(폰트 에셋 아이디의 순서 있는 시퀀스 - 첫 폰트가 `fontId` 가 빈 텍스트의 기본이고 목록 전체가
   폴백이다. 기존의 `DefaultFontFamilyGuid`·`FallbackFontFamilies` 는 패밀리를 가리켜 쓰지 않는다), 게임 언어의 `Locales`(이름 시퀀스)·
-  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
+  `DefaultLocale`·`FallbackLocale`(비어 있으면 적지 않는다, D-226), 게임 빌드의 프로젝트 사본이 적는 `AssetPackage`(D-227) 다. `PixelsPerUnit` 은 프로젝트에 없다 -
   PPU 는 스프라이트 에셋의 것이다. (D-111·D-119·D-213)
 - **바뀐 것이 없으면 저장이 파일을 바이트 하나도 건드리지 않는다.** (MUST) (D-189)
+- **빈 값은 `""` 로 적는다.** `Key: ` 는 "아래에 블록이 온다" 로 읽혀 기본값이 되살아난다. 원문에서 이미 비어 있던 줄만 그대로 둔다. (MUST) (D-227)
+- **`AssetPackage` 가 있는 프로젝트는 패키지로 연다.** 에셋 폴더를 스캔하지 않고 패키지의 색인이 레지스트리이며, 다시 스캔·파일 감시가 없다.
+  패키지를 열지 못하면 프로젝트를 열지 않는다 - 빈 게임으로 뜨지 않는다. 그 프로젝트의 `Build.StartupCanvas`·`--canvas` 는 에셋 폴더 기준 경로다.
+  게임 호스트는 `--project` 가 없으면 실행 파일 옆의 `.jproject` 를 연다. (MUST) (D-227)
+- **에셋 바이트는 `IAssetSource` 로만 받는다.** 에셋 시스템은 느슨한 파일(`LooseAssetSource`)과 패키지(`PackageAssetSource`)를 가르지 않는다. 패키지는
+  플랫폼의 스트림으로만 열고(D-112), 깨진 색인은 열지 않으며 해시가 틀린 블롭은 읽지 않는다. 쓰는 곳은 `JBroPackage` 하나다. (MUST) (D-227)
+- **게임 빌드는 참조를 따라간다.** 씨는 시작 캔버스·빌드 캔버스·프로젝트 폰트·모든 문자열 표이고, 메타와 캔버스 원문의 32 자리 아이디를 따라간다.
+  Texture 는 디코드한 RGBA8, 미리 뜨기가 켜진 Font 는 원본과 미리 뜬 아틀라스로 싼다. 패키지의 난독화는 일반 도구로 열리지 않게 할 뿐 뜯는 사람을 막지
+  못한다 - 키가 게임과 함께 간다. (MUST) (D-227)
   프로젝트 파일 쓰기는 원문의 줄을 타고 가며 아는 키의 값만 갈아 끼우는데, 그 길에서 같은 줄을
   두 번 세면 저장할 때마다 파일이 불어난다. 값이 비어 있어도 아는 키는 **적은 것**으로 세고,
   파일 끝 줄바꿈 다음 자리는 줄로 세지 않는다. 시퀀스(`AssetIgnorePatterns`·`AudioBuses`·`Fonts`)는 머리줄에서 새로 적고
@@ -193,6 +202,7 @@
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
+  | Tier E | `JBroPackage` | 에셋 패키지 `.jpak`: `PackageWriter`·`PackageReader`(창 스트림)·`PackageAssetSource`·쿡·참조 따라가기. Core·Platform·AssetTypes·Asset·Text·TextRendering 에 기댄다. 게임 빌드(`BuildGame`)는 `JBroHost` 에 있다 (D-227) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
   | Tier E | `JBroTextRendering` | 텍스트 렌더링 공용: `TextLibrary`(폰트·아틀라스·페이지 텍스처)·`GlyphMesh`(글리프 쿼드)·`TextBlock`(레이아웃 캐시). Core·Text·AssetTypes·Asset·RHI·Graphics·Task·Platform·Runtime 에 기대고 캔버스·컴포넌트·프레임워크를 모른다. 2D·3D 텍스트 시스템이 쓴다 (D-222) |
   | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |

@@ -77,6 +77,10 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuWindowImporter = "menu.window_importer";
     inline constexpr const char* MenuSaveCanvas = "menu.save_canvas";
     inline constexpr const char* MenuSaveProject = "menu.save_project";
+    inline constexpr const char* MenuBuildGame = "menu.build_game";
+    inline constexpr const char* NotifyGameBuilt = "notify.game_built";
+    inline constexpr const char* NotifyGameBuildFailed = "notify.game_build_failed";
+    inline constexpr const char* NotifyGameBuildWarnings = "notify.game_build_warnings";
     inline constexpr const char* DockMain = "dock.main";
     inline constexpr const char* PopupSaveBlockedWhilePlaying = "popup.save_blocked_while_playing";
     inline constexpr const char* MenuSettings = "menu.settings";

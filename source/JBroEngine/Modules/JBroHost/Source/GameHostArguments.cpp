@@ -1,8 +1,10 @@
 ﻿#include <JBro/Host/GameHostArguments.h>
 
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Platform/Platform.h>
 
 #include <cstring>
+#include <string_view>
 
 namespace JBro
 {
@@ -39,6 +41,48 @@ namespace JBro
             ++index;
         }
         return result;
+    }
+
+    String FindProjectBesideExecutable(IPlatform& platform)
+    {
+        const String folder = platform.GetExecutableFolder();
+        if (folder.empty())
+        {
+            return String();
+        }
+        struct Search
+        {
+            String best;
+        } search;
+        platform.EnumerateDirectory(folder.c_str(), [](const char* relative, bool isDirectory, void* user) {
+            auto& found = *static_cast<Search*>(user);
+            const std::string_view name(relative);
+            constexpr std::string_view extension(".jproject");
+            // 옆의 파일만 본다. 아래 폴더로 내려가지 않는다.
+            if (false == isDirectory && name.find('/') == std::string_view::npos && name.size() > extension.size()
+                && name.compare(name.size() - extension.size(), extension.size(), extension) == 0
+                && (found.best.empty() || name < std::string_view(found.best)))
+            {
+                found.best.assign(name.data(), name.size());
+            }
+            return false;
+        }, &search);
+        if (search.best.empty())
+        {
+            return String();
+        }
+        String path = folder;
+        if (path.back() != '/' && path.back() != '\\')
+        {
+            path.push_back('/');
+        }
+        path.append(search.best);
+        return path;
+    }
+
+    String ResolvePackagedStartupCanvas(const GameHostArguments& arguments, const ProjectFile& project)
+    {
+        return false == arguments.canvasFile.empty() ? arguments.canvasFile : project.build.startupCanvas;
     }
 
     String ResolveStartupCanvasPath(const GameHostArguments& arguments, const ProjectFile& project, const char* projectFilePath)

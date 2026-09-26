@@ -5,6 +5,7 @@
 namespace JBro
 {
     struct ProjectFile;
+    class IPlatform;
 
     // 게임 호스트의 실행 인자다(D-115). 에디터의 규약(D-97)과 같은 모양이고 키는 둘이다.
     //
@@ -29,4 +30,12 @@ namespace JBro
     // 처음 읽을 캔버스의 경로다. `--canvas` 가 있으면 그것(상대경로는 프로젝트 폴더 기준), 없으면 `Build.StartupCanvas`.
     // 둘 다 없으면 빈 문자열이다.
     String ResolveStartupCanvasPath(const GameHostArguments& arguments, const ProjectFile& project, const char* projectFilePath);
+
+    // 실행 파일 옆의 `.jproject` 다(D-227). 게임 빌드가 내놓은 폴더는 인자 없이 띄워도 제 프로젝트를 연다. 여럿이면 이름 차례로 첫 것,
+    // 없으면 빈 글자다.
+    String FindProjectBesideExecutable(IPlatform& platform);
+
+    // 패키지로 연 프로젝트의 시작 캔버스다(에셋 폴더 기준 경로). `--canvas` 가 있으면 그것, 없으면 `Build.StartupCanvas` 다 - 게임 빌드가
+    // 두 경로를 에셋 폴더 기준으로 적는다.
+    String ResolvePackagedStartupCanvas(const GameHostArguments& arguments, const ProjectFile& project);
 }

@@ -23,6 +23,10 @@ Entries:
   menu.simulation_pause: Pause
   menu.save_canvas: Save Canvas
   menu.save_project: Save Project
+  menu.build_game: Build Game
+  notify.game_built: The game was built
+  notify.game_build_failed: The game could not be built
+  notify.game_build_warnings: The game was built with warnings
   dock.main: Main
   popup.save_blocked_while_playing: stop the simulation before saving
   menu.settings: Settings

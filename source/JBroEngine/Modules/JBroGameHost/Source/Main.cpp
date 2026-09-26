@@ -47,14 +47,19 @@ namespace
     // 캔버스 파일을 읽어 프레임워크의 캔버스에 넣고 에셋을 푼다(D-115). 실패는 알리되 게임은 뜬다 - 빈 화면이 아무것도
     // 안 뜨는 것보다 낫고, 원인은 표준 출력에 있다.
     template <typename TFramework>
-    void LoadStartupCanvas(TFramework& framework, JBro::IPlatform& platform, const JBro::String& path)
+    void LoadStartupCanvas(TFramework& framework, JBro::IPlatform& platform, JBro::EngineInstance& engine, const JBro::String& path)
     {
         if (path.empty())
         {
             return;
         }
         JBro::Array<std::byte> text;
-        if (false == platform.ReadWholeFile(path.c_str(), text))
+        // 패키지로 연 게임은 캔버스도 패키지에서 읽는다(D-227). 경로는 에셋 폴더 기준이다.
+        const JBro::AssetSystem* assets = engine.GetAssetSystem();
+        const bool read = engine.IsRunningFromPackage()
+            ? assets != nullptr && assets->ReadSourceByPath(path, text)
+            : platform.ReadWholeFile(path.c_str(), text);
+        if (false == read)
         {
             JBro::Log::Write(JBro::LogLevel::Info, "canvas",
                 "the startup canvas could not be read: %s", path.c_str());
@@ -109,7 +114,11 @@ namespace
             bool opened = engine.Initialize(config, platform, rhi);
             if (opened)
             {
-                if (arguments.projectFile.empty())
+                // 인자가 없으면 실행 파일 옆의 프로젝트다 - 게임 빌드가 내놓은 폴더를 두 번 눌러 띄운다(D-227).
+                const JBro::String projectFile = arguments.projectFile.empty()
+                    ? JBro::FindProjectBesideExecutable(platform)
+                    : arguments.projectFile;
+                if (projectFile.empty())
                 {
                     // 프로젝트 없이도 뜬다 - 지금까지의 동작이고, 테스트와 스모크가 이 길을 쓴다.
                     opened = engine.OpenProject(framework);
@@ -117,21 +126,22 @@ namespace
                 else
                 {
                     JBro::ProjectFileError error;
-                    opened = engine.OpenProjectFile(framework, arguments.projectFile.c_str(), error);
+                    opened = engine.OpenProjectFile(framework, projectFile.c_str(), error);
                     if (false == opened)
                     {
                         std::printf("error: the project could not be opened: %s (line %u: %s)\n",
-                            arguments.projectFile.c_str(), error.line, error.message.c_str());
+                            projectFile.c_str(), error.line, error.message.c_str());
                     }
                     else
                     {
 #if defined(JBRO_GAME_DIMENSION_2D)
                         // 물리 스레드는 게임이 시작할 때 한 번 정한다(D-223). Auto 면 빌드 캔버스의 콜라이더로 고른다.
                         framework.SetPhysicsWorkerCount(
-                            JBro::ResolvePhysicsWorkerCount(platform, engine.GetProjectFile(), arguments.projectFile.c_str()));
+                            JBro::ResolvePhysicsWorkerCount(platform, engine.GetProjectFile(), projectFile.c_str()));
 #endif
-                        LoadStartupCanvas(framework, platform,
-                            JBro::ResolveStartupCanvasPath(arguments, engine.GetProjectFile(), arguments.projectFile.c_str()));
+                        LoadStartupCanvas(framework, platform, engine, engine.IsRunningFromPackage()
+                                ? JBro::ResolvePackagedStartupCanvas(arguments, engine.GetProjectFile())
+                                : JBro::ResolveStartupCanvasPath(arguments, engine.GetProjectFile(), projectFile.c_str()));
                     }
                 }
             }

@@ -688,6 +688,43 @@ namespace
             "set locales are appended and the empty fallback is not");
     }
 
+    // **비운 값은 빈 채로 돌아온다**(D-227). `Key: ` 는 블록 머리로 읽혀 기본값이 되살았다 - 설정 창에서 스크립트 경로를 비워도 저장 뒤
+    // 개발 경로(`x64/Debug/GameScript.dll`)가 돌아왔다. 원문에 비어 있던 줄은 그대로 둔다.
+    void TestAnEmptiedValueStaysEmpty()
+    {
+        const char* text =
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "ScriptOutputLibraryPath: bin/Game.dll\n"
+            "LastOpenedCanvasPath: \n"
+            "Build:\n"
+            "  ProductName: Probe\n";
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error), "the probe parses");
+        JBro::String written;
+        // 적히지 않은 아는 키는 첫 저장이 더한다. 비어 있던 줄은 그 자리 그대로이고, 두 번째 저장은 바이트 하나 바꾸지 않는다.
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error)
+                && written.find("\nLastOpenedCanvasPath: \n") != JBro::String::npos,
+            "an untouched empty line keeps its bytes");
+        JBro::String again;
+        Check(JBro::WriteProjectFileText(project, written.c_str(), written.size(), again, error) && again == written,
+            "and saving again changes nothing");
+        project.scriptOutputLibraryPath.clear();
+        project.build.productName.clear();
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error), "the emptied values write");
+        Check(written.find("ScriptOutputLibraryPath: \"\"\n") != JBro::String::npos && written.find("  ProductName: \"\"\n") != JBro::String::npos,
+            "an emptied value is written as an empty string");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.scriptOutputLibraryPath.empty()
+                && reread.build.productName.empty(),
+            "and reads back empty instead of the default");
+        // 원문 없이 새로 적어도 같다(게임 빌드의 프로젝트 사본).
+        Check(JBro::WriteProjectFileText(project, "", 0, written, error) && JBro::ParseProjectFile(written.c_str(), written.size(), reread, error)
+                && reread.scriptOutputLibraryPath.empty(),
+            "a new file keeps an empty value empty");
+    }
+
     void TestCreatesANewProject()
     {
         namespace fs = std::filesystem;
@@ -812,6 +849,7 @@ int RunProjectFileTests()
     TestRewritingTheIgnorePatterns();
     TestTheProjectFontList();
     TestTheLocaleSettings();
+    TestAnEmptiedValueStaysEmpty();
     TestSavingTwiceDoesNotGrowTheFile();
     TestSavingCollapsesKeysThatWereWrittenTwice();
     TestCreatesANewProject();

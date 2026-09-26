@@ -53,6 +53,28 @@ namespace JBro
         m_platform = &platform;
         m_registry = &registry;
         m_assetRoot = assetRoot != nullptr ? assetRoot : "";
+        m_looseSource.Bind(&platform, m_assetRoot.c_str());
+        m_source = &m_looseSource;
+    }
+
+    void AssetSystem::Bind(IPlatform& platform, const AssetRegistry& registry, const IAssetSource& source)
+    {
+        Unbind();
+        m_platform = &platform;
+        m_registry = &registry;
+        m_source = &source;
+    }
+
+    const IAssetSource* AssetSystem::GetSource() const
+    {
+        return m_source;
+    }
+
+    bool AssetSystem::ReadSourceByPath(std::string_view relativePath, Array<std::byte>& out) const
+    {
+        out.Clear();
+        const AssetRecord* record = m_registry != nullptr ? m_registry->FindByPath(relativePath) : nullptr;
+        return record != nullptr && m_source != nullptr && m_source->Read(*record, AssetBlob::Source, out);
     }
 
     void AssetSystem::Unbind()
@@ -73,6 +95,8 @@ namespace JBro
         m_platform = nullptr;
         m_registry = nullptr;
         m_assetRoot.clear();
+        m_looseSource.Bind(nullptr, nullptr);
+        m_source = nullptr;
     }
 
     bool AssetSystem::IsBound() const
@@ -189,8 +213,25 @@ namespace JBro
         {
             return false;
         }
+        // 빌드가 디코드해 둔 픽셀이 있으면 그것이다(D-227) - 게임에 이미지 디코더가 돌지 않는다.
+        if (m_source->Has(record, AssetBlob::CookedTexture))
+        {
+            Array<std::byte> cooked;
+            CookedTextureInfo info;
+            if (false == m_source->Read(record, AssetBlob::CookedTexture, cooked) || false == ReadCookedTexture(cooked, info))
+            {
+                Log::Write(LogLevel::Warning, "asset", "%s: the cooked texture is damaged", record.relativePath.c_str());
+                return false;
+            }
+            data.width = info.width;
+            data.height = info.height;
+            data.pixels.Resize(static_cast<std::size_t>(info.width) * info.height * 4);
+            std::memcpy(data.pixels.Data(), cooked.Data() + CookedTextureHeaderSize, data.pixels.Size());
+            data.filter = data.options.filter == TextureFilter::Default ? m_defaultTextureFilter : data.options.filter;
+            return true;
+        }
         Array<std::byte> encoded;
-        if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), encoded))
+        if (false == m_source->Read(record, AssetBlob::Source, encoded))
         {
             return false;
         }
@@ -219,10 +260,19 @@ namespace JBro
             return true;
         }
         AssetMetaError error;
-        if (false == LoadAssetMetaFile(*m_platform, MetaPathOf(record).c_str(), meta, error))
+        // 이미지의 Sprite 는 Texture 의 메타를 쓴다. 패키지에는 주인의 메타만 있다.
+        const AssetRecord* owner = record.owner.IsNull() || m_registry == nullptr ? nullptr : m_registry->Find(record.owner);
+        const AssetRecord& metaRecord = owner != nullptr ? *owner : record;
+        Array<std::byte> text;
+        if (false == m_source->Read(metaRecord, AssetBlob::Meta, text))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the meta file could not be read", metaRecord.relativePath.c_str());
+            return false;
+        }
+        if (false == ParseAssetMetaFile(reinterpret_cast<const char*>(text.Data()), text.Size(), meta, error))
         {
             Log::Write(LogLevel::Warning, "asset", "%s: %s (line %zu)",
-                MetaPathOf(record).c_str(), error.message.c_str(), error.line);
+                metaRecord.relativePath.c_str(), error.message.c_str(), error.line);
             return false;
         }
         m_metaCache.TryAdd(key, meta);
@@ -281,9 +331,9 @@ namespace JBro
         // 디스크 스트리밍은 헤더만 읽는다 - 파일이 메모리에 오지 않는다(D-203).
         if (read.options.mode == AudioImportMode::StreamFromDisk)
         {
-            const String path = SourcePathOf(record);
+            const String path = m_source->MakeStreamPath(record);
             AudioFileDecoder decoder;
-            if (false == decoder.Open(m_platform->OpenFileStream(path.c_str()), path.c_str()) || decoder.CountFrames() == 0)
+            if (false == decoder.Open(m_source->OpenStream(path.c_str()), path.c_str()) || decoder.CountFrames() == 0)
             {
                 Log::Write(LogLevel::Warning, "asset", "%s: this file cannot be streamed from disk", path.c_str());
                 return false;
@@ -297,7 +347,7 @@ namespace JBro
             return true;
         }
         Array<std::byte> encoded;
-        if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), encoded))
+        if (false == m_source->Read(record, AssetBlob::Source, encoded))
         {
             return false;
         }
@@ -311,7 +361,7 @@ namespace JBro
         if (false == decoded)
         {
             Log::Write(LogLevel::Warning, "asset", "%s: not an audio file this engine can decode",
-                SourcePathOf(record).c_str());
+                record.relativePath.c_str());
             return false;
         }
         if (read.options.mode == AudioImportMode::Streaming)
@@ -334,30 +384,42 @@ namespace JBro
         }
         FontData read;
         read.options = meta.hasFontOptions ? meta.fontOptions : FontImportOptions{};
-        // 텍스처와 같은 규칙으로 여기서 정해 둔다(D-119). 쓰는 쪽은 `Default`·0 이하를 보지 않는다.
-        if (read.options.filter == TextureFilter::Default)
-        {
-            read.options.filter = m_defaultTextureFilter;
-        }
-        if (false == (read.options.pixelsPerUnit > 0.0f))
-        {
-            read.options.pixelsPerUnit = DefaultPixelsPerUnit;
-        }
-        // 거리장은 이웃 텍셀을 섞어야 가장자리가 선다. Nearest 로 읽으면 계단이 된다.
-        if (read.options.renderMode == FontRenderMode::Sdf)
-        {
-            read.options.filter = TextureFilter::Linear;
-        }
-        read.options.sdfSize = read.options.sdfSize < 8 ? 8 : (read.options.sdfSize > 256 ? 256 : read.options.sdfSize);
-        read.options.sdfSpread = read.options.sdfSpread < 1 ? 1 : (read.options.sdfSpread > 32 ? 32 : read.options.sdfSpread);
-        if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), read.bytes))
+        NormalizeFontOptions(read.options, m_defaultTextureFilter);
+        if (false == m_source->Read(record, AssetBlob::Source, read.bytes))
         {
             return false;
+        }
+        // 미리 뜬 아틀라스는 있으면 함께 든다. 읽지 못해도 폰트는 선다 - 라이브러리가 지금처럼 뜬다.
+        if (m_source->Has(record, AssetBlob::FontAtlas) && false == m_source->Read(record, AssetBlob::FontAtlas, read.bakedAtlas))
+        {
+            Log::Write(LogLevel::Warning, "asset", "%s: the baked atlas is damaged; the font will prewarm at run time",
+                record.relativePath.c_str());
+            read.bakedAtlas.Clear();
         }
         // 바이트가 폰트인지는 여기서 보지 않는다 - 에셋 모듈은 텍스트 커널을 모른다. 여는 것은 텍스트 시스템이고,
         // 열지 못하면 그쪽이 경고하고 그리지 않는다.
         data = std::move(read);
         return true;
+    }
+
+    void NormalizeFontOptions(FontImportOptions& options, TextureFilter projectDefault)
+    {
+        // 텍스처와 같은 규칙으로 여기서 정해 둔다(D-119). 쓰는 쪽은 `Default`·0 이하를 보지 않는다.
+        if (options.filter == TextureFilter::Default)
+        {
+            options.filter = projectDefault == TextureFilter::Default ? TextureFilter::Nearest : projectDefault;
+        }
+        if (false == (options.pixelsPerUnit > 0.0f))
+        {
+            options.pixelsPerUnit = DefaultPixelsPerUnit;
+        }
+        // 거리장은 이웃 텍셀을 섞어야 가장자리가 선다. Nearest 로 읽으면 계단이 된다.
+        if (options.renderMode == FontRenderMode::Sdf)
+        {
+            options.filter = TextureFilter::Linear;
+        }
+        options.sdfSize = options.sdfSize < 8 ? 8 : (options.sdfSize > 256 ? 256 : options.sdfSize);
+        options.sdfSpread = options.sdfSpread < 1 ? 1 : (options.sdfSpread > 32 ? 32 : options.sdfSpread);
     }
 
     bool AssetSystem::ReadFontFamily(const AssetRecord& record, FontFamilyData& data)
@@ -410,7 +472,7 @@ namespace JBro
             return false;
         }
         Array<std::byte> bytes;
-        if (false == m_platform->ReadWholeFile(SourcePathOf(record).c_str(), bytes))
+        if (false == m_source->Read(record, AssetBlob::Source, bytes))
         {
             return false;
         }
@@ -490,10 +552,10 @@ namespace JBro
             bytes.size = static_cast<std::uint32_t>(data->encoded.Size());
             return JBro::ComputeAudioPeaks(bytes, buckets, peaks);
         }
-        if (false == data->streamPath.empty() && m_platform != nullptr)
+        if (false == data->streamPath.empty() && m_source != nullptr)
         {
             AudioFileDecoder decoder;
-            return decoder.Open(m_platform->OpenFileStream(data->streamPath.c_str()), data->streamPath.c_str())
+            return decoder.Open(m_source->OpenStream(data->streamPath.c_str()), data->streamPath.c_str())
                 && JBro::ComputeAudioPeaks(decoder, buckets, peaks);
         }
         return false;

@@ -249,6 +249,7 @@ namespace JBro
             // 미리 뜨기(text-plan §3.6). 폰트를 열 때 한 번이다 - 그 뒤의 글이 런타임 래스터화 없이 그려진다. 올리기는 다음 업로드가 한다.
             entry.prewarm = data->options.prewarm;
             entry.prewarmSize = data->options.prewarmSize;
+            entry.sourceHash = data->bakedAtlas.IsEmpty() ? 0 : Text::GlyphAtlas::HashFontSource(data->bytes.Data(), data->bytes.Size());
             entry.pageLimit = 0;
             entry.lastTrimFrame = 0;
             Prewarm(entry, slot);
@@ -358,6 +359,44 @@ namespace JBro
         return entry.pageTextures[page];
     }
 
+    Text::BakedAtlasStamp TextLibrary::PrewarmStampOf(const FontImportOptions& options, std::uint64_t sourceHash)
+    {
+        const bool sdf = options.renderMode == FontRenderMode::Sdf;
+        Text::BakedAtlasStamp stamp;
+        stamp.sourceHash = sourceHash;
+        stamp.set = options.prewarm == FontPrewarm::Ksx1001 ? Text::PrewarmSet::Ksx1001
+            : options.prewarm == FontPrewarm::Ascii          ? Text::PrewarmSet::Ascii
+                                                              : Text::PrewarmSet::None;
+        stamp.pixelSize = sdf ? options.sdfSize : options.prewarmSize;
+        stamp.sdfSpread = sdf ? options.sdfSpread : 0;
+        return stamp;
+    }
+
+    bool TextLibrary::BakeFontAtlas(const FontData& data, Array<std::byte>& out)
+    {
+        out.Clear();
+        const Text::BakedAtlasStamp stamp =
+            PrewarmStampOf(data.options, Text::GlyphAtlas::HashFontSource(data.bytes.Data(), data.bytes.Size()));
+        if (stamp.set == Text::PrewarmSet::None)
+        {
+            return false;
+        }
+        Text::FontFace face;
+        if (false == face.Load(ArrayView<const std::byte>(data.bytes.Data(), data.bytes.Size())))
+        {
+            return false;
+        }
+        Text::GlyphAtlas atlas;
+        atlas.Prewarm(face, stamp.set, stamp.pixelSize, stamp.sdfSpread);
+        atlas.Bake(stamp, out);
+        return true;
+    }
+
+    std::uint64_t TextLibrary::GetBakedRestoreCount() const
+    {
+        return m_bakedRestores;
+    }
+
     void TextLibrary::Prewarm(FontEntry& entry, std::uint32_t slot)
     {
         entry.prewarmed = 0;
@@ -365,6 +404,26 @@ namespace JBro
         if (entry.prewarm == FontPrewarm::None)
         {
             return;
+        }
+        // **미리 뜬 아틀라스가 있으면 되살린다**(D-227). 표지(원본 해시·벌·크기·퍼짐)가 맞을 때만이다 - 틀리면 아래에서 지금처럼 뜬다.
+        // 비운 뒤(퇴출) 다시 채울 때도 같다.
+        if (const FontData* data = m_assets != nullptr ? m_assets->GetFont(entry.asset) : nullptr; data != nullptr && false == data->bakedAtlas.IsEmpty())
+        {
+            FontImportOptions options = data->options;
+            options.prewarm = entry.prewarm;
+            options.prewarmSize = entry.prewarmSize;
+            options.renderMode = entry.renderMode;
+            options.sdfSize = entry.sdfSize;
+            options.sdfSpread = entry.sdfSpread;
+            if (entry.atlas.Restore(ArrayView<const std::byte>(data->bakedAtlas.Data(), data->bakedAtlas.Size()),
+                    PrewarmStampOf(options, entry.sourceHash)))
+            {
+                entry.prewarmed = entry.atlas.GetGlyphCount();
+                entry.prewarmPages = entry.atlas.GetPageCount();
+                ++m_bakedRestores;
+                return;
+            }
+            Log::Write(LogLevel::Info, "text", "a baked atlas does not match its font; prewarming at run time");
         }
         const Text::PrewarmSet set = entry.prewarm == FontPrewarm::Ksx1001 ? Text::PrewarmSet::Ksx1001 : Text::PrewarmSet::Ascii;
         const bool sdf = entry.renderMode == FontRenderMode::Sdf;

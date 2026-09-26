@@ -62,6 +62,7 @@ int RunInputSystemTests();
 int RunInputChainTests();
 int RunInputActionTests();
 int RunSaveStorageTests();
+int RunPackageTests();
 int RunInputGamepadTests();
 int RunInputTouchTests();
 int RunContextBoundaryTests();
@@ -161,6 +162,10 @@ int main()
             return 1;
         }
         if (RunSaveStorageTests() != 0)
+        {
+            return 1;
+        }
+        if (RunPackageTests() != 0)
         {
             return 1;
         }

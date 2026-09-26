@@ -352,4 +352,175 @@ namespace JBro::Text
         m_pages.Clear();
         m_glyphs.Clear();
     }
+
+    namespace
+    {
+        constexpr char BakedMagic[4] = { 'J', 'A', 'T', 'L' };
+        constexpr std::uint32_t BakedVersion = 1;
+        // 머리: 표지 4 + 판 4 + 원본 해시 8 + 벌 1·빈칸 3 + 크기 4 + 퍼짐 4 + 페이지 크기 4 + 페이지 수 4 + 칸 수 4.
+        constexpr std::size_t BakedHeaderSize = 40;
+        constexpr std::size_t BakedPageHeaderSize = 12;
+        constexpr std::size_t BakedGlyphSize = 24;
+
+        template <typename T>
+        void PutValue(Array<std::byte>& out, T value)
+        {
+            const std::size_t at = out.Size();
+            out.Resize(at + sizeof(value));
+            std::memcpy(out.Data() + at, &value, sizeof(value));
+        }
+
+        template <typename T>
+        T TakeValue(const std::byte*& at)
+        {
+            T value;
+            std::memcpy(&value, at, sizeof(value));
+            at += sizeof(value);
+            return value;
+        }
+    }
+
+    std::uint64_t GlyphAtlas::HashFontSource(const std::byte* bytes, std::size_t size)
+    {
+        std::uint64_t hash = 0xCBF29CE484222325ull;
+        for (std::size_t index = 0; index < size; ++index)
+        {
+            hash ^= static_cast<std::uint8_t>(bytes[index]);
+            hash *= 0x100000001B3ull;
+        }
+        return hash;
+    }
+
+    void GlyphAtlas::Bake(const BakedAtlasStamp& stamp, Array<std::byte>& out) const
+    {
+        out.Clear();
+        const std::size_t area = static_cast<std::size_t>(m_pageSize) * m_pageSize;
+        out.Reserve(BakedHeaderSize + m_pages.Size() * (BakedPageHeaderSize + area) + m_glyphs.Size() * BakedGlyphSize);
+        for (const char value : BakedMagic)
+        {
+            PutValue(out, value);
+        }
+        PutValue(out, BakedVersion);
+        PutValue(out, stamp.sourceHash);
+        PutValue(out, static_cast<std::uint8_t>(stamp.set));
+        PutValue(out, std::uint8_t{ 0 });
+        PutValue(out, std::uint16_t{ 0 });
+        PutValue(out, stamp.pixelSize);
+        PutValue(out, stamp.sdfSpread);
+        PutValue(out, m_pageSize);
+        PutValue(out, static_cast<std::uint32_t>(m_pages.Size()));
+        PutValue(out, static_cast<std::uint32_t>(m_glyphs.Size()));
+        for (const Page& page : m_pages)
+        {
+            PutValue(out, page.cursorX);
+            PutValue(out, page.cursorY);
+            PutValue(out, page.shelfHeight);
+            // RGB 는 늘 255 라 알파만 싼다(4 배 작다).
+            const std::size_t at = out.Size();
+            out.Resize(at + area);
+            for (std::size_t pixel = 0; pixel < area; ++pixel)
+            {
+                out[at + pixel] = page.pixels[pixel * 4 + 3];
+            }
+        }
+        for (const auto& entry : m_glyphs)
+        {
+            const AtlasGlyph& glyph = entry.MappedValue;
+            PutValue(out, entry.KeyValue);
+            PutValue(out, glyph.page);
+            PutValue(out, glyph.x);
+            PutValue(out, glyph.y);
+            PutValue(out, glyph.width);
+            PutValue(out, glyph.height);
+            PutValue(out, glyph.left);
+            PutValue(out, glyph.top);
+            PutValue(out, static_cast<std::uint8_t>(glyph.empty ? 1 : 0));
+            PutValue(out, std::uint8_t{ 0 });
+        }
+    }
+
+    bool GlyphAtlas::Restore(ArrayView<const std::byte> baked, const BakedAtlasStamp& expected)
+    {
+        if (baked.Size() < BakedHeaderSize || std::memcmp(baked.Data(), BakedMagic, sizeof(BakedMagic)) != 0)
+        {
+            return false;
+        }
+        const std::byte* at = baked.Data() + sizeof(BakedMagic);
+        const auto version = TakeValue<std::uint32_t>(at);
+        const auto sourceHash = TakeValue<std::uint64_t>(at);
+        const auto set = TakeValue<std::uint8_t>(at);
+        at += 3;
+        const auto pixelSize = TakeValue<std::uint32_t>(at);
+        const auto spread = TakeValue<std::uint32_t>(at);
+        const auto pageSize = TakeValue<std::uint32_t>(at);
+        const auto pageCount = TakeValue<std::uint32_t>(at);
+        const auto glyphCount = TakeValue<std::uint32_t>(at);
+        if (version != BakedVersion || sourceHash != expected.sourceHash || set != static_cast<std::uint8_t>(expected.set)
+            || pixelSize != expected.pixelSize || spread != expected.sdfSpread || pageSize != m_pageSize)
+        {
+            return false;
+        }
+        const std::size_t area = static_cast<std::size_t>(pageSize) * pageSize;
+        const std::size_t size = BakedHeaderSize + static_cast<std::size_t>(pageCount) * (BakedPageHeaderSize + area)
+            + static_cast<std::size_t>(glyphCount) * BakedGlyphSize;
+        if (baked.Size() != size)
+        {
+            return false;
+        }
+        Array<Page> pages;
+        pages.Resize(pageCount);
+        for (Page& page : pages)
+        {
+            page.cursorX = TakeValue<std::uint32_t>(at);
+            page.cursorY = TakeValue<std::uint32_t>(at);
+            page.shelfHeight = TakeValue<std::uint32_t>(at);
+            if (page.cursorX > pageSize || page.cursorY > pageSize || page.shelfHeight > pageSize)
+            {
+                return false;
+            }
+            page.pixels.Resize(area * 4);
+            for (std::size_t pixel = 0; pixel < area; ++pixel)
+            {
+                page.pixels[pixel * 4 + 0] = std::byte{ 255 };
+                page.pixels[pixel * 4 + 1] = std::byte{ 255 };
+                page.pixels[pixel * 4 + 2] = std::byte{ 255 };
+                page.pixels[pixel * 4 + 3] = at[pixel];
+            }
+            at += area;
+            // 통째로 올린다 - GPU 에는 아직 아무것도 없다.
+            page.dirty = true;
+            page.dirtyMinX = 0;
+            page.dirtyMinY = 0;
+            page.dirtyMaxX = pageSize;
+            page.dirtyMaxY = pageSize;
+        }
+        Table<std::uint64_t, AtlasGlyph> glyphs;
+        for (std::uint32_t index = 0; index < glyphCount; ++index)
+        {
+            const auto key = TakeValue<std::uint64_t>(at);
+            AtlasGlyph glyph;
+            glyph.page = TakeValue<std::uint16_t>(at);
+            glyph.x = TakeValue<std::uint16_t>(at);
+            glyph.y = TakeValue<std::uint16_t>(at);
+            glyph.width = TakeValue<std::uint16_t>(at);
+            glyph.height = TakeValue<std::uint16_t>(at);
+            glyph.left = TakeValue<std::int16_t>(at);
+            glyph.top = TakeValue<std::int16_t>(at);
+            glyph.empty = TakeValue<std::uint8_t>(at) != 0;
+            at += 1;
+            // 칸이 페이지 밖을 가리키면 깨진 것이다.
+            if (false == glyph.empty
+                && (glyph.page >= pageCount || glyph.x + glyph.width > pageSize || glyph.y + glyph.height > pageSize))
+            {
+                return false;
+            }
+            if (false == glyphs.TryAdd(key, glyph))
+            {
+                return false;
+            }
+        }
+        m_pages = std::move(pages);
+        m_glyphs = std::move(glyphs);
+        return true;
+    }
 }
