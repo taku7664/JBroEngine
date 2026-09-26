@@ -66,6 +66,7 @@ namespace
         ComponentMenuTable* table = nullptr;
         bool registerResult = true;
         std::uint32_t unregisterResult = 99;
+        bool drawingSeen = false;
     };
 
     struct Slot
@@ -106,6 +107,7 @@ namespace
     {
         Record(context);
         Recorder& recorder = *static_cast<Slot*>(context.user)->recorder;
+        recorder.drawingSeen = recorder.table->IsDrawing();
         recorder.registerResult = recorder.table->Register(TypeB, &DrawOther, &recorder);
         recorder.unregisterResult = recorder.table->Unregister(&recorder);
         return true;
@@ -261,8 +263,9 @@ namespace
         Slot slot2{ &recorder, 2 };
         Slot slot3{ &recorder, 3 };
         Slot slot4{ &recorder, 4 };
-        table.Register(TypeA, &DrawOk, &ownerA, &slot1);
+        // 떼어 낼 등록자를 맨 앞에 둔다. 끝의 것을 그 자리로 옮겨 지우면 남은 순서가 뒤집힌다.
         table.Register(TypeA, &DrawOk, &ownerB, &slot2);
+        table.Register(TypeA, &DrawOk, &ownerA, &slot1);
         table.Register(TypeB, &DrawOther, &ownerB, &slot3);
         table.Register(TypeA, &DrawOther, &ownerA, &slot4);
 
@@ -288,6 +291,7 @@ namespace
         Check(false == table.IsDrawing(), "not drawing before the draw");
 
         stage.Draw(table, ContextFor(TypeA));
+        Check(recorder.drawingSeen, "the table must know it is drawing while a hook runs");
         Check(false == recorder.registerResult, "registering from inside a hook must be refused");
         Check(recorder.unregisterResult == 0, "unregistering from inside a hook must be refused");
         Check(table.Count(TypeA) == 1 && false == table.Has(TypeB), "the table is as it was");
