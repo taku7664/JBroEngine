@@ -53,9 +53,26 @@ namespace JBro::Physics2D
     // 실패하면 out 을 비운다. 입력은 건드리지 않는다.
     PolygonError CleanPolygon(ArrayView<const Vec2> points, Array<Vec2>& out);
 
+    // 분해의 작업 공간이다. 모양을 자주 바꾸는 쪽(크기를 움직이는 콜라이더)이 들고 있으면 용량이 남아 두 번째부터 할당하지 않는다.
+    struct DecomposeScratch
+    {
+        // 정리된 외곽선 꼭짓점의 번호 고리다. 번호로 들고 있어야 두 조각이 공유하는 대각선을 찾을 수 있다.
+        struct Piece
+        {
+            std::uint32_t vertices[MaxPolygonVertices];
+            std::uint32_t count = 0;
+            bool          alive = true;
+        };
+
+        Array<Vec2>          clean;
+        Array<std::uint32_t> ring;
+        Array<Piece>         pieces;
+    };
+
     // CleanPolygon 뒤에 귀 자르기 + Hertel-Mehlhorn 병합으로 볼록 조각을 만든다. 조각의 꼭짓점은
     // MaxPolygonVertices 이하다. 볼록한 입력이 상한 안이면 조각 하나다. 실패하면 outPieces 를 비운다.
     PolygonError DecomposePolygon(ArrayView<const Vec2> points, Array<ConvexPolygon>& outPieces);
+    PolygonError DecomposePolygon(ArrayView<const Vec2> points, Array<ConvexPolygon>& outPieces, DecomposeScratch& scratch);
 
     // 볼록 조각의 질량 속성(밀도 × 넓이). 두 점 조각은 캡슐로 잰다(ComputeCapsuleMass).
     MassData ComputePolygonMass(const ConvexPolygon& polygon, float density);

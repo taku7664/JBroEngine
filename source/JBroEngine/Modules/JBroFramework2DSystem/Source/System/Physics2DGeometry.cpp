@@ -10,7 +10,7 @@ namespace JBro::Internal
 {
     namespace
     {
-        bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vec2& scale)
+        bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vec2& scale, float& rotation)
         {
             Component::Transform2D* local = canvas.FindComponentRaw<Component::Transform2D>(object);
             if (local == nullptr || false == local->IsActiveComponent())
@@ -26,31 +26,35 @@ namespace JBro::Internal
                 // 부모에 Transform 이 **아예 없으면** 물려받을 자리가 없으므로 자기 로컬이 곧 월드다.
                 matrix = localMatrix;
                 scale = local->scale;
+                rotation = local->rotation;
                 return true;
             }
 
             Matrix3x2 parentMatrix;
             Vec2 parentScale;
-            if (false == CalculateWorldMatrix(canvas, parent, parentMatrix, parentScale))
+            float parentRotation = 0.0f;
+            if (false == CalculateWorldMatrix(canvas, parent, parentMatrix, parentScale, parentRotation))
             {
                 return false;
             }
             matrix = MultiplyMatrix3x2(localMatrix, parentMatrix);
             scale = { local->scale.x * parentScale.x, local->scale.y * parentScale.y };
+            rotation = local->rotation + parentRotation;
             return true;
         }
     }
 
     bool CalculateObjectPose(Canvas& canvas, GameObject* object, ObjectPose& result)
     {
-        if (object == nullptr || false == CalculateWorldMatrix(canvas, object, result.matrix, result.scale))
+        if (object == nullptr
+            || false == CalculateWorldMatrix(canvas, object, result.matrix, result.scale, result.angle))
         {
             return false;
         }
         result.position = { result.matrix.m31, result.matrix.m32 };
-        // 첫 행은 (cos·sx, sin·sx) 다. sx 의 부호로 나누어야 뒤집힌 물체의 각도가 π 만큼 튀지 않는다.
-        const float sign = result.scale.x < 0.0f ? -1.0f : 1.0f;
-        result.angle = std::atan2(result.matrix.m12 * sign, result.matrix.m11 * sign);
+        // 각도는 회전의 합이다 - `Transform2D` 의 `worldRotation` 과 캔버스 뷰의 콜라이더 그림이 쓰는 규칙이고, 되쓰기(각도 - 부모 각도)가
+        // 그 정확한 역이다. 행렬 첫 행의 각도는 회전 + 비균등 크기인 부모 아래에서 찌그러짐을 섞고, 뒤집힌 부모 아래에서 부호가 바뀐다
+        // (physics-plan §4 의 4 (3)). 자리는 행렬로 잰다 - 그것은 찌그러짐이 있어도 맞다.
         return true;
     }
 
