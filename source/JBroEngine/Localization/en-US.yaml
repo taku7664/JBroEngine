@@ -53,6 +53,8 @@ Entries:
   canvas_view.edit_collider_tooltip: edit the selected object's polygon collider - drag a point to move it, click an edge to add one, right-click a point to delete it
   canvas_view.point_delete: Delete Point
   canvas_view.point_delete_min: a polygon needs at least three points
+  canvas_view.edit_points: Edit Points
+  canvas_view.edit_points_not_polygon: shape must be Polygon
   canvas_view.frame_tooltip: fit the view to the selection
   canvas_view.unit_world: "Unit"
   canvas_view.unit_pixel: "Pixel"

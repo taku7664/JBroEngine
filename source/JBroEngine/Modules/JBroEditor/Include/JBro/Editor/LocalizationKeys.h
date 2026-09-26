@@ -46,6 +46,8 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewEditColliderTooltip = "canvas_view.edit_collider_tooltip";
     inline constexpr const char* CanvasViewPointDelete = "canvas_view.point_delete";
     inline constexpr const char* CanvasViewPointDeleteMin = "canvas_view.point_delete_min";
+    inline constexpr const char* CanvasViewEditPoints = "canvas_view.edit_points";
+    inline constexpr const char* CanvasViewEditPointsNotPolygon = "canvas_view.edit_points_not_polygon";
     inline constexpr const char* CanvasViewFrameTooltip = "canvas_view.frame_tooltip";
     // 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지(D-184, 기존 `canvas_view.unit.*`).
     inline constexpr const char* CanvasViewUnitWorld = "canvas_view.unit_world";

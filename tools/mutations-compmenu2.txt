@@ -1,0 +1,12 @@
+Modules\JBroEditor\Source\EditorActions.cpp	submenus:with-many-chosen	        if (alive && editor.GetSelectionCount() == 1)	        if (alive)
+Modules\JBroEditor\Source\EditorActions.cpp	submenus:never	            alive = DrawComponentSubmenus(editor, object, placement);	            (void)placement;
+Modules\JBroEditor\Source\EditorActions.cpp	submenus:types-without-hooks	                if (component == nullptr || false == table.Has(slot.typeId))	                if (component == nullptr)
+Modules\JBroEditor\Source\EditorActions.cpp	submenus:ordinal-always-first	                    if (other < index)\n                    {\n                        ++ordinal;	                    if (other < index)\n                    {\n                        (void)0;
+Modules\JBroEditor\Source\EditorActions.cpp	submenus:first-numbered	                if (sameType > 1 && ordinal > 0)	                if (sameType > 1)
+Modules\JBroEditor\Source\EditorActions.cpp	submenus:never-numbered	                if (sameType > 1 && ordinal > 0)	                if (false)
+Modules\JBroEditor\Source\EditorActions.cpp	submenus:false-ignored	                if (false == alive)\n                {\n                    // 훅이	                if (false)\n                {\n                    // 훅이
+Modules\JBroEditor\Source\EditorActions.cpp	context:no-object-id	                context.address.objectId = editor.GetObjectIds().Track(&object);	                context.address.objectId = InvalidEditorObjectId;
+Modules\JBroEditor\Source\EditorActions.cpp	context:no-component	                context.component = component;	                context.component = nullptr;
+Modules\JBroEditor\Source\EditorActions.cpp	context:no-type	                context.address.typeId = slot.typeId;	                context.address.typeId = InvalidComponentTypeId;
+Modules\JBroEditor\Source\EditorActions.cpp	context:no-placement	                context.placement = placement;	                (void)0;
+Modules\JBroEditor\Source\EditorActions.cpp	context:no-ordinal	                context.address.ordinal = ordinal;	                context.address.ordinal = 0;
