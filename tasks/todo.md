@@ -40,7 +40,13 @@
   → 완료 2026-09-26 · 17d9276·21e7ecf · `EditorNotifications`(`Include/JBro/Editor/EditorNotifications.h`, 큐·시간·애니메이션·끌어서 밀기),
   `Widget::NotificationStack`(`Source/Widget/Notification.cpp`, 그리기), `EditorApplication::GetNotifications`·`BuildEditorUi`(팝업 뒤에 그리고
   누른 것의 할 일을 부름). 정한 값과 실측은 D-219. **아직 부르는 곳이 없다** - 첫 사용처는 4 번 로딩의 실패·취소 알림이다.
-- `[진행 예정]` **2. 단축키를 공용 API 로 - 이름 붙은 Action 과 사용자 재매핑.** 각 에디터는 단축키를 **Action 이름으로 등록**하고,
+- `[진행]` **2. 단축키를 공용 API 로 - 이름 붙은 Action 과 사용자 재매핑.** (D-228) **남은 것은 화면 둘뿐이다**: 키매핑 설정 화면(키 칸을 누르면
+  "키를 누르세요" → `CaptureBinding`, 겹침 표시 → `FindConflicts`, 기본값 되돌리기)과 도움말 창의 다듬기. 화면은 사용자가 에디터를 켜고 안내하기로 했다.
+  - ~~관리자·에디터별 이름 등록·전역/패널 범위·포커스 우선과 막기·재매핑·기본값 되돌리기·겹침 목록·키 이름 글자·키 잡기·환경설정 파일 저장·
+    W/E/R 을 캔버스 뷰 범위로 옮기기·도움말 창이 등록 표를 무리별로 보이기~~ → 완료 2026-09-27 · fbc1a4f·792a006·392595b·f820799 ·
+    `EditorShortcutManager`(`Include/JBro/Editor/EditorShortcutManager.h`), `EditorShortcuts::RegisterBuiltins`, `EditorApplication::LoadPreferences`·
+    `SavePreferences`·`BuildEditorUi`, `CanvasViewPanel::OnCreate`(`GizmoModeShortcut`), `ShortcutPanel::OnDraw`. 정한 값과 실측은 D-228.
+  (아래는 처음 적은 요청과 그때의 상태다.) 각 에디터는 단축키를 **Action 이름으로 등록**하고,
   관리자 하나가 Action → 키 조합 매퍼를 들고 있는다. 사용자는 그 매핑을 고칠 수 있어야 한다: 바꿀 칸에서 키를 누르면 그 키를
   인식해 매핑을 바꾸고, 키 코드의 이름을 보여 준다(Space 를 누르면 `Space`).
   지금 상태(D-132): `EditorShortcuts` 가 고정 `enum class EditorShortcut` 아홉 개와 코드에 박힌 기본 조합을 표 하나로 들고, `ShortcutPanel`
@@ -126,6 +132,9 @@
 - `[진행 예정]` **6. 에디터 환경설정 저장소.** 단축키 사용자 매핑(2 번)·툴팁 딜레이 값(3 번)·언어·테마·알림 표시 시간(1 번)을 한곳에 둔다.
   지금은 없고, 도킹 레이아웃만 `EditorApplication.cpp` 가 따로 읽고 쓴다(`LoadIniSettingsFromDisk`·`SaveIniSettingsToDisk`).
   정할 것: 저장 위치(사용자별인지 프로젝트별인지, 둘 다인지), 형식(YAML), 외부 에디터가 자기 항목을 더하는 방식.
+  `[진행]` 2026-09-27: **사용자별 YAML 파일이 섰고 지금은 단축키만 든다**(D-228) - `%LOCALAPPDATA%/JBroEngine/Editor/EditorPreferences.yaml`,
+  `Version: 1` + `Shortcuts:`. 에디터 호스트만 켜고(`EditorApplicationConfig::userPreferences`) 테스트는 제 임시 경로를 준다. 툴팁 딜레이·언어·테마·
+  알림 시간은 그 항목이 설 때 같은 파일에 더한다. 외부 에디터가 제 항목을 더하는 길은 5 번과 함께 정한다.
 - `[진행 예정]` **7. 드래그 앤 드롭 공용 페이로드.** 에셋은 `Widget/AssetDrag` 가 있지만 `HierarchyPanel.cpp` 는 `ImGui::BeginDragDropSource`·
   `AcceptDragDropPayload` 를 직접 부르고 오브젝트·레이어 페이로드도 패널 안에서 정한다. 외부 에디터가 오브젝트·에셋을 끌어다 놓으려면
   공용 형식이 필요하다. 패널이 ImGui 를 직접 부르지 않는다는 규칙에도 어긋나 보인다 - 허용된 예외인지 먼저 확인한다.
@@ -2878,6 +2887,36 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-228. 에디터 단축키는 관리자 하나가 이름으로 들고, 전역과 패널 범위로 나뉘며, 포커스를 가진 패널이 먼저 돌고 같은 조합의 전역을 막는다.** (2026-09-27)
+  (D-227 은 `physics2d-more` 브랜치가 먼저 잡아 건너뛴다.) Updates: D-132.
+  사용자가 정했다: 에디터별로 단축키를 등록하고, 도움말과 전체 키매핑 설정이 한 표에서 나오고, 전역과 포커스 단축키가 겹치면 막을지 볼 수 있어야 한다.
+  포커스 단위는 **패널 창 하나**(도킹된 창과 그 안의 팝업 포함), 겹치면 **포커스가 이기고 전역을 막는다**, 저장은 **사용자별**. 설정 화면은 사용자가
+  에디터를 켜고 안내한다.
+  - **나눔**: `EditorShortcutManager`(에디터 모듈)가 이름 → 조합 매핑·범위·사용자 조합을 든다. 할 일은 `IEditorShortcutHandler`(가상 함수,
+    `CanExecute`·`WhyBlocked`·`Execute`). 기존 아홉(`EditorShortcut` 열거)은 `EditorShortcuts::RegisterBuiltins` 가 `editor.*` 이름으로 올리고 메뉴는
+    그대로 열거로 가리킨다(`Describe(editor, id)` 가 지금 조합을 준다). 게임 입력(`InputService`)과 별개다.
+  - **규칙**: 이름은 저장 키라 바꾸지 않는다. 등록은 빈 이름·겹친 이름·할 일 없음을 거절한다. 조합키는 정확히 견준다(Ctrl·Shift·Alt, Super 가 눌려
+    있으면 아무것도 아니다). 범위마다 한 프레임에 하나. 패널 것이 **실행되면** 같은 조합의 전역 것은 그 프레임에 돌지 않는다(`blocksGlobal`, 끌 수 있다) -
+    지금 못 하는 패널 것은 막지 않고 전역에게 넘긴다. 타자 중에는 `whileTyping`(저장만), 게임이 키를 받는 동안에는 `duringGame`(재생 제어만)만 돈다.
+    포커스는 지난 프레임에 그린 패널의 `IsFocused` 이고 패널을 그리기 전에 처리한다. 매 프레임 글자를 복사하거나 견주지 않는다(눌린 조합이 있을 때만).
+  - **사용자 조합**: 이름으로 든다. 기본값으로 돌아오면 지운다. 등록이 풀려도 남는다(외부 에디터가 다시 붙으면 그대로). 글자는 `Ctrl+Shift+Z` 모양이고
+    키 이름은 ImGui 의 것(Space → `Space`), 모르는 키가 섞인 줄은 통째로 버린다. 겹침은 `Clash`(같은 범위)와 `Shadows`(막는 패널 것이 전역을 가림)로
+    나눠 목록을 준다 - 서로 다른 두 패널은 부딪히지 않는다.
+  - **파일**: `%LOCALAPPDATA%/JBroEngine/Editor/EditorPreferences.yaml`. 바뀐 틱이 끝날 때(프레임 밖) 쓴다. 에디터 호스트만 켠다 - 테스트가 사람의
+    설정을 읽거나 덮으면 안 된다. **읽지 못한 파일(YAML 이 아니거나 모양이 틀림)은 덮어쓰지 않는다** - `Shortcuts: [...` 는 YAML 로는 한 줄 글자로
+    읽혀서 처음에 덮어썼다(테스트가 잡았다).
+  - **옮긴 것**: 캔버스 뷰의 W/E/R 은 기즈모 위젯이 `ImGui::IsKeyPressed` 로 읽던 것을 `canvas_view.gizmo_*` 패널 범위 등록으로 옮겼다. **달라진 점**:
+    전에는 포커스가 없어도 마우스를 올리면 먹었는데 이제는 포커스가 있어야 먹는다. 패널은 `OnDestroy` 에서 등록을 푼다.
+  - **실측에서 나온 것**: (1) 관리자 헤더가 `imgui.h` 를 끌어와 에디터 호스트 빌드가 깨졌다 - `EditorApplication.h` 는 이름만 알고 `OwnerPtr` 로 든다.
+    (2) UI 를 껐다 켤 때 새 캔버스 뷰가 옛 패널 주소에 서서, 등록을 풀지 않는 변이가 "키가 닿는다" 검사에서 살아남았다 - 등록 핸들 자체를 잰다.
+    (3) 기존 아홉에는 "타자 중 Ctrl+Z 는 씬을 되돌리지 않는다"·"타자 중에도 Ctrl+S 는 저장" 테스트가 없었다 - 채웠다.
+  - 검증: `EditorShortcutTests.cpp` 13 개(등록 거절·재매핑과 되돌리기·등록 풀림 뒤 남음·저장 왕복·못 읽는 줄·글자 왕복·겹침 종류·전역과 조합키·포커스
+    우선과 막기·막지 않음·못 하는 패널 것의 넘김·타자와 게임 입력·키 잡기), `EditorApplicationTests.cpp` 3 개(설정 저장·다시 읽기·깨진 파일 보존·
+    경로 없으면 안 씀 / 포커스에 따른 W·E·R·바꾼 키·UI 재시작 / 타자 중의 Ctrl+Z·Ctrl+S). 뮤테이션 `tools/mutations-shortcut1.txt` 40 개가 모두 겨눈
+    검사에서 잡혔다(첫 판 6 개 생존 → 테스트 보강). 전체 솔루션 빌드 통과. **전체 테스트는 세 번 돌려 세 번 다 다른 에디터 마우스 테스트 하나씩에서
+    실패했다**(기즈모 끌기·스프라이트 뷰어) - 그때마다 다른 세션의 `JBroTests.exe`(텍스트 워크트리)가 같은 `%TEMP%` 탐침 폴더를 쓰며 돌고 있었고,
+    실패한 둘은 따로 세 번씩 돌려 모두 통과했다. 동시 실행 간섭으로 보았지만 조용할 때 전체를 한 번 더 도는 것이 남았다.
 
 - **D-226. 게임 로컬라이징은 로케일마다 문자열 표 에셋(`.jstrings`)이고, 텍스트의 `textKey` 가 표의 글자를 보이며, 조회는 새 Tier S 모듈 `JBroLocalizationTypes` 를 거친다.**
   (2026-09-26, text-plan §5 의 8 단계. 사용자 확인: "로케일마다 파일", "textKey 필드, 없으면 키를 보임", "공용 LocalizationService", "프로젝트 로케일 설정 + 미리보기 전환")
