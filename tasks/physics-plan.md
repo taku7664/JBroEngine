@@ -386,6 +386,26 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      - 알아낸 것: 따뜻한 시작 병합에서 짝을 찾은 뒤 이전 목록을 넘기지 않아, 새로 넣은 "사라진 접촉은 깨운다" 가 매 스텝 모두를 깨웠다(잠이 오지 않았다).
      - 남긴 것 `[열림]`: 체인은 양면이라 닫힌 체인 안쪽에서도 막는다(Box2D 는 한면이다). 체인끼리의 충돌은 없다. 잠든 섬이 크면 한 몸만 깨워도 다음
        스텝에 섬 전체가 깬다.
+   - ~~**9-3. Stay 훅·한 방향 발판·레이어 이름과 충돌 표·거리와 경첩 조인트(D-232)**~~ → 2026-09-27 · `9e7bbba`·`c14ebfe`·`ec97c00`·`ab61b29`·`7d538ff`·`d4997be` ·
+     `JBroPhysics2D/Source/Joints.cpp`, `World.cpp`(`GetStayEvents`·`PassesOneWay`·`LayersMeet`·조인트 거르기와 섬), `Physics2DSystem.cpp`(3.5 조인트·
+     Stay 발송·표 복사), `Framework2D/Component/Physics2D.h`(`PhysicsLayerMask`·`DistanceJoint2D`·`HingeJoint2D`), `Runtime/GameObjectHandleReflection.h`,
+     `Canvas/Source/CanvasFile.cpp`(두 패스), `Editor/Source/Command/ObjectTreeSnapshot.cpp`(옛 번호로 되살리기·`RetargetReferences`), `Host/ProjectFile.cpp`,
+     `Editor/Source/Panel/InspectorPanel.cpp`·`ProjectSettingsPanel.cpp`·`CanvasViewPanel.cpp`(`DrawJoints`), `Editor/Source/Widget/Fields.cpp`(`LayerMaskField`·`ObjectField`).
+     - 테스트: `Physics2DWorldTests`(`TestOneWayPlatforms` - 위에서 얹힘·밑에서 뚫고 올라 얹힘·옆에서 지나감·뒤집은 발판, `TestStayEventsFollowTouchingPairs`,
+       `TestTheLayerTableSeparatesLayers`, `TestDistanceJoints` - 단단함·밧줄·용수철(g/ω² 만큼 늘어남), `TestHingeJoints` - 핀·한계·제자리 바꾸기·모터·
+       collideConnected·몸 지우기, `TestJointedBodiesSleepTogether`), `Physics2DSystemTests`(`TestStayHooksComeEveryStepWhileTouching`,
+       `TestAOneWayColliderLetsThingsUpThrough` - 켜면 같은 도형이 흘려보냄, `TestJointComponents` - 크기 2 배·기울어 시작한 막대의 비대칭 한계와
+       핀 적기·모터 부호·자동 거리·제자리 거리 바꾸기·밧줄·끄고 켜기·상대가 사라짐, `TestTheLayerTableReachesTheKernel`,
+       `TestAnObjectReferenceSurvivesTheCanvasFile`), `EditorObjectCommandTests`(`TestObjectReferencesFollowDeleteAndPaste`),
+       `ProjectFileTests`(`TestThePhysicsLayerSettings`), `GameScriptTests`(Stay 훅이 있다), `BuiltinComponentPropertyTests`(필드 수),
+       `EditorWidgetTests`(`TestTheLayerMaskFieldTogglesNamedBits`·`TestTheObjectFieldPicksByName`).
+     - 뮤테이션(`tools/mutations-physics12.txt`): 첫 판 52 개 가운데 진짜로 살아남은 것이 일곱이었다 - 조인트 섬(기존 테스트에서는 풀기 전 깨우기가 대신 깨웠다), 풀기 전 깨우기(섬이 스텝 끝에 깨워 가렸다), 미는 밧줄, 토크 없는 모터(목표가 그대로라 차이가 없었다), 한계와 핀의 위치 보정(속도 보정만으로 오차 안에 들었다), 위 한계의 부호(아래 한계만 쟀다). 각각 무거운 허브의 공전·같은 스텝의 끌림·핀 쪽으로 던진 공·목표 바꾸기·떨어져 시작한 핀과 한계 밖에서 시작한 막대·모터로 들어 올리기로 잡았다. 그 밖에 다섯은 뮤테이션 워크트리에 번역 표가 없어(에디터 호스트를 빌드하지 않았다) 앞선 에디터 테스트가 번역 비교로 죽은 가짜 잡힘이었고, 하나는 멈출 자리를 잘못 줬다 - 다시 돌려 모두 잡혔다. 최종 52/52.
+     - 알아낸 것: 경첩을 "이 오브젝트(A) 대 상대(B)" 로 두면 커널의 각(B - A)이 사용자가 보는 각과 부호가 반대다. 대칭 한계(±30°)로 재면 뒤집힌
+       부호가 드러나지 않아 비대칭 한계와 기울어 시작한 막대로 쟀다.
+     - 남긴 것 `[열림]`: 레이어·오브젝트 칸 위젯은 무대 테스트(`EditorWidgetTests`)로만 잰다 - 인스펙터에 붙은 모습, 설정의 물리 절, 캔버스 뷰의
+       조인트 그림은 실제 에디터 화면으로 확인하지 않았다. 목록·구조체 안의
+       오브젝트 참조는 붙여넣을 때 옮기지 않는다(맨 위 필드만). 한 방향 발판은 한 발판 안에서 조각을 건너갈 때 새 조각을 다시 잰다. 스크립트가
+       레이어를 이름으로 찾는 API(`LayerMask("Enemy")`)는 없다. 조인트는 끊어짐(break force)과 반작용 힘 읽기가 없다.
 
 ## 5. 결정 (2026-09-25 확인, D-199)
 
