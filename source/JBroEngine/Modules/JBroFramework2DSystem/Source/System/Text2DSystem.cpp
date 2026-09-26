@@ -18,13 +18,6 @@ namespace JBro::System
 {
     namespace
     {
-        std::uint32_t PixelSizeOf(float fontSize)
-        {
-            // 비트맵은 정수 크기로 뜬다. 레이아웃도 같은 크기로 해야 글자 사이가 비트맵과 맞는다.
-            const long rounded = std::isfinite(fontSize) ? std::lround(fontSize) : 0;
-            return static_cast<std::uint32_t>(std::clamp<long>(rounded, 1, static_cast<long>(Text::GlyphAtlas::MaxPixelSize)));
-        }
-
         void Mix(std::uint64_t& key, std::uint64_t value)
         {
             std::size_t seed = static_cast<std::size_t>(key);
@@ -163,6 +156,7 @@ namespace JBro::System
         Mix(key, Bits(text.minFontSize));
         Mix(key, Bits(text.maxFontSize));
         Mix(key, text.pixelSnap ? 1u : 0u);
+        Mix(key, text.richText ? 1u : 0u);
         return key;
     }
 
@@ -212,7 +206,7 @@ namespace JBro::System
         const float maxSize = static_cast<float>(Text::GlyphAtlas::MaxPixelSize);
         const auto sizeOf = [&](float requested) {
             return sdf ? std::clamp(std::isfinite(requested) ? requested : 1.0f, 1.0f, maxSize)
-                       : static_cast<float>(PixelSizeOf(requested));
+                       : static_cast<float>(GlyphPixelSize(requested));
         };
         float layoutSize = sizeOf(text.fontSize);
         Text::LayoutOptions options;
@@ -225,6 +219,9 @@ namespace JBro::System
         options.alignY = static_cast<Text::AlignY>(text.alignY);
         options.lineSpacing = text.lineSpacing;
         options.letterSpacing = text.letterSpacing;
+        options.richText = text.richText;
+        // 비트맵은 정수 크기마다 뜨므로 `<size>` 도 정수로 잰다.
+        options.wholePixelMarkup = false == sdf;
 
         entry.text = text.text;
         entry.textRevision = TextStore::Get().GetRevision(text.text);
@@ -265,85 +262,18 @@ namespace JBro::System
             built = entry.layout.Build(utf8, faceView, options);
         }
         entry.fittedSize = layoutSize;
-        entry.sdfPerTextPixel = sdf ? static_cast<float>(font.sdfSize) / layoutSize : 1.0f;
         if (built != Text::LayoutError::None)
         {
             return;
         }
-        const std::uint32_t pixelSize = PixelSizeOf(layoutSize);
-        // 거리장 칸 하나가 글자 픽셀 몇 개인가. 비트맵은 1 이다.
-        const float cellScale = sdf ? layoutSize / static_cast<float>(font.sdfSize) : 1.0f;
-
-        // Clip 은 상자 밖으로 나간 글리프를 잘라 낸다 - 레이아웃은 줄만 버렸고, 여기서 반쯤 걸친 글리프의 사각형과 UV 를 줄인다.
-        const bool clip = text.overflow == Component::TextOverflow::Clip && options.boxWidth > 0.0f && options.boxHeight > 0.0f;
-        const float clipLeft = entry.layout.GetMinX();
-        const float clipRight = entry.layout.GetMaxX();
-        const float clipBottom = entry.layout.GetMinY();
-        const float clipTop = entry.layout.GetMaxY();
-        for (const Text::PositionedGlyph& glyph : entry.layout.GetGlyphs())
-        {
-            // 글리프는 그것을 고른 face 의 아틀라스에 든다. 폴백 폰트의 글자는 그 폰트의 페이지로 그린다.
-            const FontView& glyphFont = views[glyph.face < count ? glyph.face : 0];
-            const float pageSize = static_cast<float>(glyphFont.atlas->GetPageSize());
-            Text::AtlasGlyph cell;
-            // SDF 텍스트의 폴백 글자도 SDF 로 뜬다 - 한 텍스트는 한 셰이더로 그린다. 크기와 퍼짐은 기본 폰트의 것이다.
-            const Text::AtlasError placed = sdf
-                ? glyphFont.atlas->EnsureSdf(*glyphFont.face, font.sdfSize, font.sdfSpread, glyph.glyph, cell)
-                : glyphFont.atlas->Ensure(*glyphFont.face, pixelSize, glyph.glyph, cell);
-            if (placed != Text::AtlasError::None || cell.empty)
-            {
-                continue;
-            }
-            GlyphQuad quad;
-            const float originX = text.pixelSnap ? std::round(glyph.x) : glyph.x;
-            const float originY = text.pixelSnap ? std::round(glyph.y) : glyph.y;
-            quad.left = originX + static_cast<float>(cell.left) * cellScale;
-            quad.top = originY + static_cast<float>(cell.top) * cellScale;
-            quad.width = static_cast<float>(cell.width) * cellScale;
-            quad.height = static_cast<float>(cell.height) * cellScale;
-            float u0 = static_cast<float>(cell.x) / pageSize;
-            float v0 = static_cast<float>(cell.y) / pageSize;
-            float u1 = static_cast<float>(cell.x + cell.width) / pageSize;
-            float v1 = static_cast<float>(cell.y + cell.height) / pageSize;
-            if (clip)
-            {
-                float right = quad.left + quad.width;
-                float bottom = quad.top - quad.height;
-                if (right <= clipLeft || quad.left >= clipRight || bottom >= clipTop || quad.top <= clipBottom)
-                {
-                    continue;
-                }
-                if (quad.left < clipLeft)
-                {
-                    u0 += (u1 - u0) * (clipLeft - quad.left) / quad.width;
-                    quad.left = clipLeft;
-                }
-                if (right > clipRight)
-                {
-                    u1 -= (u1 - u0) * (right - clipRight) / (right - quad.left);
-                    right = clipRight;
-                }
-                if (quad.top > clipTop)
-                {
-                    v0 += (v1 - v0) * (quad.top - clipTop) / quad.height;
-                    quad.top = clipTop;
-                }
-                if (bottom < clipBottom)
-                {
-                    v1 -= (v1 - v0) * (clipBottom - bottom) / (quad.top - bottom);
-                    bottom = clipBottom;
-                }
-                quad.width = right - quad.left;
-                quad.height = quad.top - bottom;
-            }
-            quad.uvRect[0] = u0;
-            quad.uvRect[1] = v0;
-            quad.uvRect[2] = u1 - u0;
-            quad.uvRect[3] = v1 - v0;
-            quad.page = cell.page;
-            quad.face = static_cast<std::uint8_t>(glyph.face < count ? glyph.face : 0);
-            entry.quads.Add(quad);
-        }
+        GlyphMeshOptions mesh;
+        mesh.sdf = sdf;
+        mesh.sdfSize = font.sdfSize;
+        mesh.sdfSpread = font.sdfSpread;
+        mesh.pixelSnap = text.pixelSnap;
+        // Clip 은 상자 밖으로 나간 글리프를 잘라 낸다 - 레이아웃은 줄만 버렸고, 반쯤 걸친 글리프의 사각형과 UV 를 줄인다.
+        mesh.clip = text.overflow == Component::TextOverflow::Clip && options.boxWidth > 0.0f && options.boxHeight > 0.0f;
+        BuildGlyphQuads(entry.layout, views, count, mesh, entry.quads);
 
         const float ppu = entry.pixelsPerUnit;
         entry.bounds[0] = entry.layout.GetMinX() / ppu;
@@ -367,15 +297,8 @@ namespace JBro::System
             return;
         }
         const float ppu = entry.pixelsPerUnit;
-        // 외곽선 폭(글자 픽셀)을 거리장의 문턱으로 바꾼다. 거리값은 외곽선에서 0.5 이고 거리장 한 칸마다 0.5 / 퍼짐씩 준다. 폭은 퍼짐보다
-        // 한 칸 안쪽까지로 자른다 - 문턱이 0 에 닿으면 글자 칸 전체가 외곽선이 된다(text-plan §1.2 의 7 번).
-        float outlineEdge = 0.5f;
-        if (entry.sdf && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f && entry.sdfSpread > 1)
-        {
-            const float spread = static_cast<float>(entry.sdfSpread);
-            const float width = std::min(text.outlineWidth * entry.sdfPerTextPixel, spread - 1.0f);
-            outlineEdge = 0.5f - width * (0.5f / spread);
-        }
+        // 외곽선 폭(글자 픽셀)의 문턱은 글자마다다 - 리치 텍스트의 `<size>` 가 섞이면 거리장 픽셀 / 글자 픽셀이 글자마다 다르다.
+        const bool outlined = entry.sdf && text.outlineWidth > 0.0f && text.outlineColor.A > 0.0f;
         for (const GlyphQuad& quad : entry.quads)
         {
             const AssetHandle page = m_library.GetPageTexture(entry.fonts[quad.face], quad.page);
@@ -400,6 +323,12 @@ namespace JBro::System
             item.uvRect[3] = quad.uvRect[3];
             item.filter = entry.filter;
             item.tint = text.color;
+            if (quad.hasTint)
+            {
+                // `<color>` 가 RGB 와 알파를 정하고, 텍스트 전체의 알파(color.A)를 곱한다 - 텍스트를 통째로 흐리게 하는 연출이 그대로 된다.
+                item.tint = Color{ quad.tint[0] / 255.0f, quad.tint[1] / 255.0f, quad.tint[2] / 255.0f,
+                    quad.tint[3] / 255.0f * text.color.A };
+            }
             item.pivot = Vec2{ 0.0f, 1.0f };
             item.size = Vec2{ quad.width / ppu, quad.height / ppu };
             item.renderOrder = text.renderOrder;
@@ -412,6 +341,7 @@ namespace JBro::System
                 {
                     item.outlineColor[channel] = static_cast<std::uint8_t>(std::lround(std::clamp(channels[channel], 0.0f, 1.0f) * 255.0f));
                 }
+                const float outlineEdge = outlined ? SdfOutlineEdge(text.outlineWidth, quad.sdfPerTextPixel, entry.sdfSpread) : 0.5f;
                 item.outlineEdge = static_cast<std::uint16_t>(std::lround(std::clamp(outlineEdge, 0.0f, 1.0f) * 65535.0f));
             }
             if (false == m_renderWorld->SubmitSprite(item))

@@ -4,7 +4,8 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/System/IText2DSystem.h>
-#include <JBro/Framework2DSystem/Rendering/TextLibrary.h>
+#include <JBro/TextRendering/GlyphMesh.h>
+#include <JBro/TextRendering/TextLibrary.h>
 #include <JBro/Text/TextLayout.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Table.h>
@@ -69,18 +70,6 @@ namespace JBro::System
         void OnShutdown(Canvas& canvas) override;
 
     private:
-        struct GlyphQuad
-        {
-            // 로컬 픽셀(블록 기준점 원점, y 위쪽)의 왼쪽 위 모서리와 크기다.
-            float         left = 0.0f;
-            float         top = 0.0f;
-            float         width = 0.0f;
-            float         height = 0.0f;
-            float         uvRect[4] = { 0.0f, 0.0f, 1.0f, 1.0f };
-            std::uint16_t page = 0;
-            std::uint8_t  face = 0; // `Entry::fonts` 안의 번호. 폴백 face 의 글리프는 그 폰트의 아틀라스에 있다
-        };
-
         // 한 텍스트가 쓰는 face 의 최대 수다: 자기 폰트 하나와 프로젝트 폴백들.
         static constexpr std::uint32_t MaxFaces = 8;
 
@@ -100,10 +89,9 @@ namespace JBro::System
             float                pixelsPerUnit = DefaultPixelsPerUnit;
             TextureFilter        filter = TextureFilter::Nearest;
             float                bounds[4] = { 0.0f, 0.0f, 0.0f, 0.0f }; // 유닛
-            // SDF 글자면 참이다. 외곽선 폭(글자 픽셀)을 거리값으로 바꾸는 데 쓰는 비(거리장 픽셀 / 글자 픽셀)와 퍼짐이다.
+            // SDF 글자면 참이다. 외곽선 폭을 문턱으로 바꾸는 비는 글자마다 쿼드에 있다(리치 텍스트는 크기가 섞인다).
             bool                 sdf = false;
             float                fittedSize = 0.0f;
-            float                sdfPerTextPixel = 1.0f;
             std::uint32_t        sdfSpread = 8;
             bool                 hasBounds = false;
             bool                 warnedMissingFont = false;

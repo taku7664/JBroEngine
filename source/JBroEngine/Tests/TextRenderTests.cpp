@@ -352,6 +352,13 @@ namespace
                 image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
             return pixel[2] / 255.0f;
         }
+
+        float Green(std::uint32_t x, std::uint32_t y) const
+        {
+            const auto* pixel = reinterpret_cast<const unsigned char*>(
+                image.Data() + static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4);
+            return pixel[1] / 255.0f;
+        }
     };
 
     struct DarkBox
@@ -948,6 +955,116 @@ namespace
         project.Close();
     }
 
+    // **리치 텍스트를 그린다**(D-217). 검은 `AA` 의 뒤 글자에 `<color=#FF0000>` 을 주면 그 글자만 빨갛다. 텍스트 전체의 알파(0.5)는 태그
+    // 색에도 곱해진다 - 흰 바탕 위 빨강 절반은 (1, 0.5, 0.5) 다. `<size>` 를 준 글자는 더 크게 그려진다. 끄면 태그가 글자로 보인다.
+    void TestRichTextDrawsTaggedColourAndSize()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; rich text drawing not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            GameObject* labelObject = canvas->CreateObject("label");
+            canvas->AttachComponent<Component::Transform2D>(labelObject);
+            auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
+            label->fontId = project.fontId;
+            label->fontSize = 24.0f;
+            label->alignX = Component::TextAlignX::Center;
+            label->alignY = Component::TextAlignY::Middle;
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+            label->richText = true;
+            const char* tagged = "A<color=#FF0000>A</color>";
+            TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
+            framework.BindCanvasAssets();
+
+            // 빨강(R 높고 G 낮음)과 검정(R 낮음) 픽셀을 센다.
+            const auto count = [&](std::uint32_t& red, std::uint32_t& black) {
+                red = 0;
+                black = 0;
+                for (std::uint32_t y = 0; y < 64; ++y)
+                {
+                    for (std::uint32_t x = 0; x < 64; ++x)
+                    {
+                        const float r = gpu.Red(x, y);
+                        const float g = gpu.Green(x, y);
+                        red += r > 0.8f && g < 0.3f ? 1u : 0u;
+                        black += r < 0.3f && g < 0.3f ? 1u : 0u;
+                    }
+                }
+            };
+            gpu.Paint(framework);
+            std::uint32_t red = 0;
+            std::uint32_t black = 0;
+            count(red, black);
+            Check(red > 20 && black > 20, "the tagged A is red and the other is black");
+
+            // 텍스트 알파가 태그 색에도 곱해진다: 순 빨강 자리가 흰 바탕 위 빨강 절반(G 0.5)이 된다.
+            label->color = {0.0f, 0.0f, 0.0f, 0.5f};
+            gpu.Paint(framework);
+            std::uint32_t halfRed = 0;
+            for (std::uint32_t y = 0; y < 64; ++y)
+            {
+                for (std::uint32_t x = 0; x < 64; ++x)
+                {
+                    const float g = gpu.Green(x, y);
+                    halfRed += gpu.Red(x, y) > 0.95f && g > 0.45f && g < 0.55f ? 1u : 0u;
+                }
+            }
+            std::uint32_t fullRed = 0;
+            count(fullRed, black);
+            Check(halfRed > 20 && fullRed == 0, "the text's alpha multiplies the tag colour");
+            label->color = {0.0f, 0.0f, 0.0f, 1.0f};
+
+            // 크기: 태그 없는 `AA` 와 뒤 글자만 두 배인 것.
+            const char* plain = "AA";
+            TextStore::Get().Assign(label->text, plain, 2);
+            gpu.Paint(framework);
+            const DarkBox small = FindDark(gpu);
+            const char* sized = "A<size=48>A</size>";
+            TextStore::Get().Assign(label->text, sized, std::strlen(sized));
+            gpu.Paint(framework);
+            const DarkBox large = FindDark(gpu);
+            Check(large.count > small.count * 2 && large.maxY - large.minY > small.maxY - small.minY,
+                "the sized A draws larger and taller");
+
+            // 끄면 태그가 글자로 보이고 빨강은 없다(글자 수가 늘어 블록이 넓다).
+            TextStore::Get().Assign(label->text, tagged, std::strlen(tagged));
+            label->richText = false;
+            gpu.Paint(framework);
+            count(red, black);
+            Check(red == 0, "without richText nothing is red");
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            auto* texts = canvas->GetSystems().FindSystem<System::Text2DSystem>();
+            Check(texts != nullptr && texts->GetLocalBounds(label->GetInstanceId(), minX, minY, maxX, maxY)
+                    && maxX - minX > 1.5f, "and the tags lay out as letters");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     struct ColourCount
     {
         std::uint32_t red = 0;
@@ -1311,6 +1428,7 @@ int RunTextRenderTests()
         TestPrewarmedFontsUploadOnce();
         TestPrewarmRunsOnWorkers();
         TestPixelSnapLandsGlyphsOnWholePixels();
+        TestRichTextDrawsTaggedColourAndSize();
     }
     catch (const std::exception&)
     {

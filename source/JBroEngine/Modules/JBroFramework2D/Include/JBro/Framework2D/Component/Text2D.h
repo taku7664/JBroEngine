@@ -93,5 +93,8 @@ namespace JBro::Component
         // 글자가 텍셀 사이를 샘플해 흐려지는 것을 막는다. 화면 픽셀과 맞으려면 오브젝트 위치·PPU·카메라도 정수 픽셀이어야 한다
         // (그것은 이 필드가 맞추지 않는다).
         JBRO_FIELD(bool, pixelSnap) = false;
+        // **리치 텍스트**다(D-217). 켜면 글자 속의 `<color=#RRGGBB>`·`<color=#RRGGBBAA>` ... `</color>` 와 `<size=픽셀>` ... `</size>` 를
+        // 태그로 읽는다. `<` 자체는 `<<` 로 쓴다. 태그 색은 RGB 와 알파를 정하고 `color` 의 알파를 곱한다.
+        JBRO_FIELD(bool, richText) = false;
     };
 }

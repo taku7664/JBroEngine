@@ -37,6 +37,7 @@
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'GameObject'">JBRO_TIER_PROBE_GAME_OBJECT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Audio'">JBRO_TIER_PROBE_AUDIO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Task'">JBRO_TIER_PROBE_TASK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'TextRendering'">JBRO_TIER_PROBE_TEXT_RENDERING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
