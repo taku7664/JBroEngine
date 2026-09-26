@@ -170,6 +170,16 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
 - 기존 질의 중 `RaycastAll`·`OverlapPoint`·`OverlapCircle`·`CircleCast`·`BoxCast`·레이어 마스크는 서비스 표면을 넓히는 일이라
   §5 의 결정을 따른다.
 
+### 3.7 스레드
+
+- **물리는 메인 스레드 전용이다.** 커널 `World` 와 어댑터 `Physics2DSystem` 은 스레드를 만들지도 태스크를 등록하지도 않는다(2026-09-26 확인).
+  스텝·되쓰기·훅 발송·질의가 모두 캔버스의 고정 스텝(`EngineInstance::Tick` → Framework2D → 시스템 목록) 안에서 돈다. 그래서 훅과
+  질의가 스크립트에 건네는 `GameObjectHandle` 은 메인 스레드 전용 규약(ProjectRule, D-54)에 맞는다. 기존 엔진 물리도 스레드를 쓰지 않았다.
+- 병렬화가 필요해지면 따로 스레드를 두지 않고 `JBroTask` 의 `TaskManager` 에 태스크로 넣는다(ProjectRule, D-209·D-212). 커널은 캔버스를
+  모르고 값만 다루므로 워커 계약(값과 raw 포인터만, `SafePtr`·`Ref<T>`·`GameObjectHandle` 을 만지지 않음)에 맞는다. 나눌 자리는 좁은 판정
+  (쌍마다)과 섬 단위 솔버이고, 되쓰기와 훅 발송은 컴포넌트를 만지므로 메인 스레드에 남는다. `[열림]` 방향을 바꾸는 판단이라 필요해질 때
+  사용자 확인 뒤 정한다 - 지금은 측정한 병목이 없다.
+
 ## 4. 단계 (D-199)
 
 각 단계는 테스트가 먼저이고, 단계마다 커밋한다. 뮤테이션은 기존 관례대로 단계 끝에 잰다.
