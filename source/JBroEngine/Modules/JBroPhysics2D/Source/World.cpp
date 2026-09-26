@@ -257,7 +257,7 @@ namespace JBro::Physics2D
         {
             return PolygonError::TooFewPoints;
         }
-        const PolygonError error = DecomposePolygon(localOutline, m_scratchPieces);
+        const PolygonError error = DecomposePolygon(localOutline, m_scratchPieces, m_decompose);
         if (error != PolygonError::None)
         {
             return error;
@@ -380,7 +380,8 @@ namespace JBro::Physics2D
         if (body.type == BodyType::Dynamic)
         {
             // 넓이 비례로 나누기 위해 밀도 1 로 모은 뒤 요청한 질량에 맞춘다.
-            Array<MassData> parts;
+            Array<MassData>& parts = m_massParts;
+            parts.Clear();
             for (const std::uint32_t shapeIndex : body.shapes)
             {
                 const Shape& shape = m_shapes[shapeIndex];

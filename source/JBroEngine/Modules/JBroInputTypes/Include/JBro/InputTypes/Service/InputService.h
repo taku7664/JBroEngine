@@ -1,6 +1,10 @@
 ﻿#pragma once
 
+#include <JBro/InputTypes/InputRebinding.h>
 #include <JBro/InputTypes/InputView.h>
+#include <JBro/Types/String.h>
+
+#include <cstdint>
 
 namespace JBro::Service
 {
@@ -30,5 +34,27 @@ namespace JBro::Service
         const TouchState& Touch() const;
         // 손가락을 스스로 만든다(가상 조이스틱·자동 검사). 다음 프레임에 보인다. `Stationary` 는 아무 일도 하지 않는다.
         void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) const;
+
+        // 액션 세트(걷기·차량·메뉴)를 켜고 끈다. 꺼진 세트의 액션은 0 으로 읽히고, 곧바로 걸린다.
+        // 세트는 막지 않는다 - 메뉴가 게임을 막아야 하면 레이어 체인의 `Block` 을 쓴다. 처음에는 `Default` 만 켜져 있다.
+        // 떼기 전에 세트를 끄면 그 액션의 뗌은 오지 않는다. 없는 세트면 거짓이다.
+        bool EnableActionSet(NameId set) const;
+        bool DisableActionSet(NameId set) const;
+        bool IsActionSetEnabled(NameId set) const;
+
+        // ── 리바인딩 (D-218, `<JBro/InputTypes/InputRebinding.h>` 의 주석) ──
+        // 키 설정 화면이 쓴다. 바꾼 것은 곧바로 걸리고, 에디터에서는 재생을 멈추면 되돌아간다. 없는 액션·자리면 거짓이다.
+        std::uint32_t GetActionBindingCount(InputActionId action) const;
+        bool GetActionBinding(InputActionId action, std::uint32_t index, InputBinding& out) const;
+        // `index` 가 바인딩 수와 같으면 뒤에 붙인다(8 개까지).
+        bool SetActionBinding(InputActionId action, std::uint32_t index, const InputBinding& binding) const;
+        bool RemoveActionBinding(InputActionId action, std::uint32_t index) const;
+        bool ResetActionBindings(InputActionId action) const;
+        void ResetAllActionBindings() const;
+        // 남은 입력에서 이번 프레임에 새로 누른 키·버튼 하나를 잡는다(`CaptureBinding`).
+        InputCaptureResult CaptureBinding(InputBinding& out) const;
+        // 프로젝트와 다른 바인딩을 글자로 쓰고 읽는다. 저장은 게임이 `SaveService` 로 한다.
+        bool WriteBindingOverrides(String& out) const;
+        bool ReadBindingOverrides(const String& text) const;
     };
 }

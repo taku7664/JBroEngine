@@ -421,13 +421,19 @@ namespace JBro::Internal
         heapProperties.CreationNodeMask = 1;
         heapProperties.VisibleNodeMask = 1;
 
+        // 깊이 자원은 지우는 값(렌더러가 늘 1.0 으로 지운다)을 만들 때 알려 둔다. 없으면 디버그 레이어가 지울 때마다 경고하고(id 821)
+        // 드라이버가 빠른 지우기를 못 쓴다. 형식은 뷰의 것(D32)이다 - 자원이 typeless 여도 그렇다.
+        D3D12_CLEAR_VALUE depthClear = {};
+        depthClear.Format = DXGI_FORMAT_D32_FLOAT;
+        depthClear.DepthStencil.Depth = 1.0f;
+        depthClear.DepthStencil.Stencil = 0;
         ComPtr<ID3D12Resource> resource;
         if (FAILED(m_device->CreateCommittedResource(
             &heapProperties,
             D3D12_HEAP_FLAG_NONE,
             &resourceDesc,
             D3D12_RESOURCE_STATE_COMMON,
-            nullptr,
+            depthStencil ? &depthClear : nullptr,
             IID_PPV_ARGS(&resource))))
         {
             return {};

@@ -120,6 +120,8 @@ namespace JBro
         constexpr const char* InputCompositeChoices[] = {"None", "Up", "Down", "Left", "Right"};
         constexpr const char* InputStickChoices[] = {"Left", "Right"};
         constexpr const char* DefaultInputLayers[] = {"Modal", "UI", "Game", "World", "Debug"};
+        // 세트 칸이 비었을 때 흐리게 보이는 이름이다. 세트 이름은 데이터라 번역하지 않는다.
+        constexpr const char* DefaultInputActionSetName = "Default";
 
         bool IsGamepadSource(InputBindingSource source)
         {
@@ -307,6 +309,12 @@ namespace JBro
                             {
                                 action.type = static_cast<InputActionType>(current);
                             }
+                        });
+                    layout.Row([] { Widget::Text("Set"); },
+                        [&] {
+                            Widget::TextField("##set", action.set).Hint(DefaultInputActionSetName).Draw();
+                            Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsInputSetHelp,
+                                "Scripts turn action sets on and off. Only Default is on when the game starts"));
                         });
                 }
                 std::size_t removeBinding = static_cast<std::size_t>(-1);

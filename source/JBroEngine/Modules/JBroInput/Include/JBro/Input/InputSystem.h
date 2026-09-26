@@ -58,8 +58,21 @@ namespace JBro::System
         std::uint64_t GetLayerRevision() const;
 
         // 프로젝트의 액션 표다(D-214). 표를 복사해 두고, 체인과 폴링의 뷰가 이것을 읽는다. 없는 이름의 경고 기억도 여기서 지운다.
+        // 프로젝트의 표를 따로 들어 두고, 게임이 바꾼 것(켠 세트·리바인딩)은 `ResetActions` 가 이 표로 되돌린다.
         void SetActionMap(const InputActionMap& actions);
         const InputActionMap& GetActionMap() const;
+        // 게임이 바꾼 액션 상태를 프로젝트의 표로 되돌린다. 에디터가 재생을 멈출 때 부른다 - 다음 재생이 지난 재생의 세트로 시작하지 않는다.
+        void ResetActions();
+        bool SetActionSetEnabled(NameId set, bool enabled) noexcept override;
+        bool IsActionSetEnabled(NameId set) const noexcept override;
+        std::uint32_t GetActionBindingCount(InputActionId action) const noexcept override;
+        bool GetActionBinding(InputActionId action, std::uint32_t index, InputBinding& out) const noexcept override;
+        bool SetActionBinding(InputActionId action, std::uint32_t index, const InputBinding& binding) noexcept override;
+        bool RemoveActionBinding(InputActionId action, std::uint32_t index) noexcept override;
+        bool ResetActionBindings(InputActionId action) noexcept override;
+        void ResetAllActionBindings() noexcept override;
+        bool WriteBindingOverrides(char* buffer, std::size_t capacity, std::size_t& outSize) const noexcept override;
+        bool ReadBindingOverrides(const char* text, std::size_t length) noexcept override;
 
         // ── 게임패드 (D-214) ──
         // 날 상태 네 자리를 이번 프레임으로 접는다: 둥근 데드존과 트리거 문턱, 누름·뗌 수(지난 폴링과 견준다), 빠진 패드는
@@ -79,6 +92,7 @@ namespace JBro::System
         void InjectTouch(std::uint32_t id, float x, float y, TouchPhase phase) noexcept override;
 
     private:
+        InputActionDesc* FindLiveAction(InputActionId action);
         void Fold(const InputEvent& event, const InputSurfaceMapping& mapping);
         void ReleaseAll();
         // 손가락 하나를 접는다. `x`·`y` 는 이미 게임 화면 픽셀이다.
@@ -89,6 +103,8 @@ namespace JBro::System
         // 체인을 따라 내려가는 뷰다. `m_residual` 과 따로 두어, 체인이 도는 동안의 폴링이 반쯤 소비된 것을 보지 않게 한다.
         InputView m_dispatch;
         InputActionMap m_actions;
+        InputActionMap m_projectActions;
+        Table<NameId, std::uint8_t> m_warnedSets;
         // 창이 포커스를 가졌는가. 게임패드는 이벤트가 아니라서 포커스를 따로 기억한다.
         bool m_focused = true;
         float m_stickDeadzone = 0.24f;

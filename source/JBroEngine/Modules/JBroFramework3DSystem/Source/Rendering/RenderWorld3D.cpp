@@ -17,11 +17,58 @@ namespace JBro
         return true;
     }
 
+    bool RenderWorld3D::ReserveTexts(std::size_t capacity)
+    {
+        try
+        {
+            m_texts.Reserve(capacity);
+            m_textOrder.Reserve(capacity);
+        }
+        catch (const std::bad_alloc&)
+        {
+            return false;
+        }
+        return true;
+    }
+
     void RenderWorld3D::BeginFrame()
     {
         m_hasCamera = false;
         m_meshes.Clear();
         m_droppedMeshCount = 0;
+        m_texts.Clear();
+        m_droppedTextCount = 0;
+    }
+
+    bool RenderWorld3D::SubmitText(const WorldTextRenderItem& item)
+    {
+        if (m_texts.Size() >= m_texts.Capacity())
+        {
+            ++m_droppedTextCount;
+            return false;
+        }
+        m_texts.Add(item);
+        return true;
+    }
+
+    std::size_t RenderWorld3D::GetTextCount() const
+    {
+        return m_texts.Size();
+    }
+
+    std::size_t RenderWorld3D::GetDroppedTextCount() const
+    {
+        return m_droppedTextCount;
+    }
+
+    const WorldTextRenderItem& RenderWorld3D::GetText(std::size_t index) const
+    {
+        return m_texts[index];
+    }
+
+    Array<std::uint32_t>& RenderWorld3D::GetTextOrderScratch() const
+    {
+        return m_textOrder;
     }
 
     void RenderWorld3D::SetCamera(const RenderCamera3D& camera)

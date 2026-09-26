@@ -4,6 +4,7 @@
 
 #include <JBro/Framework3DSystem/BuiltinComponentTypes3D.h>
 #include <JBro/Framework3DSystem/System/Audio3DSystem.h>
+#include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Framework3D/BuiltinComponentProperties3D.h>
 #include <JBro/Asset/Asset.h>
 #include <JBro/Canvas/CanvasReflection.h>
@@ -47,7 +48,8 @@ namespace JBro
         {
             // 렌더러가 없으면(시스템 테스트) 용량 하나는 두어 제출이 곧장 버려지지 않게 한다.
             const std::size_t capacity = context.renderer != nullptr ? 16384 : 64;
-            if (false == m_renderWorld.ReserveMeshes(capacity) || false == m_meshes.Initialize(context.renderer))
+            if (false == m_renderWorld.ReserveMeshes(capacity) || false == m_renderWorld.ReserveTexts(capacity)
+                || false == m_meshes.Initialize(context.renderer))
             {
                 Shutdown();
                 return false;
@@ -170,6 +172,10 @@ namespace JBro
         auto& meshes = systems.AddSystem<System::MeshRender3DSystem>();
         meshes.SetRenderWorld(&m_renderWorld);
         meshes.SetMeshLibrary(&m_meshes);
+        // 3D 텍스트(D-222). 폰트는 에셋 시스템에서, 페이지는 렌더러로 간다 - 둘 중 하나가 없으면(시스템 테스트) 그리지 않는다.
+        auto& texts = systems.AddSystem<System::Text3DSystem>();
+        texts.SetRenderWorld(&m_renderWorld);
+        texts.SetResources(m_context.assets, m_context.renderer, m_context.tasks);
         // 오디오가 있으면 소스·리스너 시스템을 세운다(D-197).
         if (m_context.audio != nullptr)
         {

@@ -106,13 +106,7 @@ namespace JBro::Physics2D
             return true;
         }
 
-        // 조각은 정리된 외곽선 꼭짓점의 번호 고리다. 번호로 들고 있어야 두 조각이 공유하는 대각선을 찾을 수 있다.
-        struct Piece
-        {
-            std::uint32_t vertices[MaxPolygonVertices];
-            std::uint32_t count = 0;
-            bool          alive = true;
-        };
+        using Piece = DecomposeScratch::Piece;
 
         bool IsConvexRing(const Array<Vec2>& points, const std::uint32_t* ring, std::uint32_t count)
         {
@@ -174,9 +168,9 @@ namespace JBro::Physics2D
             return false;
         }
 
-        bool Triangulate(const Array<Vec2>& points, Array<Piece>& pieces)
+        bool Triangulate(const Array<Vec2>& points, Array<Piece>& pieces, Array<std::uint32_t>& ring)
         {
-            Array<std::uint32_t> ring;
+            ring.Clear();
             ring.Reserve(points.Size());
             for (std::uint32_t i = 0; i < points.Size(); ++i)
             {
@@ -328,16 +322,23 @@ namespace JBro::Physics2D
 
     PolygonError DecomposePolygon(ArrayView<const Vec2> points, Array<ConvexPolygon>& outPieces)
     {
+        DecomposeScratch scratch;
+        return DecomposePolygon(points, outPieces, scratch);
+    }
+
+    PolygonError DecomposePolygon(ArrayView<const Vec2> points, Array<ConvexPolygon>& outPieces, DecomposeScratch& scratch)
+    {
         outPieces.Clear();
 
-        Array<Vec2> clean;
+        Array<Vec2>& clean = scratch.clean;
         const PolygonError error = CleanPolygon(points, clean);
         if (error != PolygonError::None)
         {
             return error;
         }
 
-        Array<Piece> pieces;
+        Array<Piece>& pieces = scratch.pieces;
+        pieces.Clear();
         pieces.Reserve(clean.Size());
         if (clean.Size() <= MaxPolygonVertices)
         {
@@ -355,7 +356,7 @@ namespace JBro::Physics2D
 
         if (pieces.IsEmpty())
         {
-            if (false == Triangulate(clean, pieces))
+            if (false == Triangulate(clean, pieces, scratch.ring))
             {
                 return PolygonError::DecompositionFailed;
             }

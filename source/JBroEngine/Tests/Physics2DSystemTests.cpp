@@ -7,6 +7,9 @@
 #include <JBro/Types/Array.h>
 
 #include <cmath>
+#if defined(_MSC_VER)
+#include <crtdbg.h>
+#endif
 #include <iostream>
 #include <stdexcept>
 
@@ -438,6 +441,66 @@ namespace
             "a box passing above everything misses");
     }
 
+#if defined(_MSC_VER) && defined(_DEBUG)
+    int g_allocations = 0;
+    int CountAllocations(int operation, void*, std::size_t, int, long, const unsigned char*, int)
+    {
+        if (operation == _HOOK_ALLOC || operation == _HOOK_REALLOC)
+        {
+            ++g_allocations;
+        }
+        return 1;
+    }
+#endif
+
+    // **어댑터의 고정 스텝도 힙을 건드리지 않는다.** 동기화·되쓰기·훅 발송(닿아 있는 동안)·크기를 움직이는 콜라이더·질의를 함께 돈다.
+    void TestTheFixedStepDoesNotAllocate()
+    {
+        Scene scene;
+        JBro::GameObject* ground = scene.Object("ground", { 0, -0.5f });
+        scene.Box(ground, { 40, 1 });
+        JBro::GameObject* cup = scene.Object("cup", { 6, 0 });
+        Collider2D* polygon = scene.canvas.AttachComponent<Collider2D>(cup);
+        polygon->shape = ColliderShape2D::Polygon;
+        polygon->points = UOutline();
+        JBro::GameObject* box = scene.Object("box", { 0, 0.5f });
+        Collider2D* animated = scene.Box(box, { 1, 1 });
+        scene.Dynamic(box);
+        scene.Probe(box);
+        JBro::GameObject* pill = scene.Object("pill", { -3, 0.5f });
+        scene.Box(pill, { 2, 1 })->shape = ColliderShape2D::Capsule;
+        scene.Dynamic(pill);
+        const JBro::System::IPhysics2DSystem& queries = scene.physics;
+        JBro::RaycastHit2D hit;
+        JBro::Array<JBro::RaycastHit2D> hits;
+        JBro::Array<JBro::GameObjectHandle> found;
+        hits.Reserve(16);
+        found.Reserve(16);
+        const auto step = [&](int i)
+        {
+            animated->size = { 1.0f + 0.04f * static_cast<float>(i % 5), 1.0f };
+            scene.physics.FixedUpdate(scene.canvas, Frame);
+            queries.Raycast({ -10, 0.25f }, { 1, 0 }, 30, hit, JBro::AllPhysicsLayers);
+            queries.RaycastAll({ -10, 0.25f }, { 1, 0 }, 30, hits, JBro::AllPhysicsLayers);
+            queries.OverlapCircle({ 6, 1 }, 1.5f, found, JBro::AllPhysicsLayers);
+        };
+        for (int i = 0; i < 120; ++i)
+        {
+            step(i);
+        }
+#if defined(_MSC_VER) && defined(_DEBUG)
+        g_allocations = 0;
+        const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
+        for (int i = 0; i < 120; ++i)
+        {
+            step(i);
+        }
+        _CrtSetAllocHook(previous);
+        std::cout << "  CRT allocations during 120 fixed steps with an animated collider and queries: " << g_allocations << '\n';
+        Check(g_allocations == 0, "the physics fixed step, an animated collider and queries do not touch the heap");
+#endif
+    }
+
     // **크기를 움직이는 콜라이더는 닿아 있는 동안 훅을 되풀이하지 않는다.** 전에는 모양이 바뀔 때마다 도형을 지우고 만들어
     // 스텝마다 끝·시작이 불렸다. 트리거로 바꾸는 것은 훅의 종류가 바뀌므로 끝나고 새로 시작한다.
     void TestAnAnimatedColliderKeepsItsContact()
@@ -486,6 +549,44 @@ namespace
         layered->layer = 0x2u;
         scene.Run(0.1f);
         Check(thirdProbe->collisionExit == 1, "and one moved to a layer the ground does not take lets go");
+    }
+
+    // **찌그러지거나 뒤집힌 부모 아래의 몸은 가만히 있으면 제 로컬 회전을 지킨다(physics-plan §4 의 4 (3)).** 물리의 각도는
+    // `Transform2D` 의 `worldRotation` 과 같이 회전의 합이다 - 캔버스 뷰가 콜라이더를 그리는 규칙이고, 되쓰기가 그 역이다.
+    // 전에는 월드 행렬 첫 행의 각도를 써서, 회전 + 비균등 크기인 부모 아래에서는 첫 스텝에 로컬 회전이 저절로 바뀌고
+    // 뒤집힌 부모 아래에서는 부호가 뒤집혔다.
+    void TestABodyUnderASkewedOrMirroredParentKeepsItsRotation()
+    {
+        Scene scene;
+        scene.physics.SetGravity({ 0, 0 });
+        JBro::GameObject* skewed = scene.Object("skewed", { 0, 0 });
+        scene.TransformOf(skewed)->rotation = 0.5f;
+        scene.TransformOf(skewed)->scale = { 2, 1 };
+        JBro::GameObject* mirrored = scene.Object("mirrored", { 10, 0 });
+        scene.TransformOf(mirrored)->scale = { -1, 1 };
+
+        JBro::GameObject* children[2] = {};
+        JBro::GameObject* parents[2] = { skewed, mirrored };
+        for (int i = 0; i < 2; ++i)
+        {
+            children[i] = scene.canvas.CreateObject(i == 0 ? "skewedChild" : "mirroredChild");
+            children[i]->SetParent(parents[i]);
+            Transform2D* local = scene.canvas.AttachComponent<Transform2D>(children[i]);
+            local->position = { 1, 0.5f };
+            local->rotation = 0.3f;
+            scene.Box(children[i], { 1, 0.5f });
+            scene.Dynamic(children[i]);
+        }
+        scene.Run(0.5f);
+
+        for (int i = 0; i < 2; ++i)
+        {
+            const Transform2D* local = scene.TransformOf(children[i]);
+            Check(Near(local->rotation, 0.3f, 1.0e-4f), i == 0
+                ? "a body at rest under a rotated, stretched parent keeps its local rotation"
+                : "and one under a mirrored parent keeps its sign");
+            Check(Near(local->position.x, 1.0f, 1.0e-4f) && Near(local->position.y, 0.5f, 1.0e-4f), "and its local place");
+        }
     }
 
     // **캡슐 콜라이더는 `size` 상자에 꼭 맞는 알약이다(physics-plan §4 의 7).** 누운 것은 반지름만큼 떠서 서고, 한 축으로 늘인
@@ -617,6 +718,8 @@ int RunPhysics2DSystemTests()
     TestAStaticBodyFollowsItsTransform();
     TestCapsuleColliders();
     TestAnAnimatedColliderKeepsItsContact();
+    TestTheFixedStepDoesNotAllocate();
+    TestABodyUnderASkewedOrMirroredParentKeepsItsRotation();
     TestAnEmptyPolygonCollidesAsItsSizeBox();
     TestScaleGrowsTheShape();
     TestAnOffCenterBodyTurnsAboutItsCenterOfMass();

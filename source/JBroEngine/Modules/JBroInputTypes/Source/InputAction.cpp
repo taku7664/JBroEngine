@@ -153,6 +153,11 @@ namespace JBro
             WarnUnknownAction(m_actions, action);
             return value;
         }
+        // 꺼진 세트의 액션이다. 없는 액션이 아니니 말하지 않는다.
+        if (false == m_actions->IsSetActive(desc->set))
+        {
+            return value;
+        }
 
         ButtonSample buttons;
         const std::uint32_t count = desc->bindingCount < MaxInputBindingsPerAction

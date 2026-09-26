@@ -93,6 +93,85 @@ namespace JBro::Internal
             }
             return accepted;
         }
+
+        // 3D 텍스트의 글자를 이 뷰의 카메라로 놓고 뒤→앞으로 낸다(D-222). 빌보드는 오브젝트 회전 대신 카메라 회전을 쓴다 - 판의 +Z 가
+        // 카메라 쪽이고 가로가 카메라의 오른쪽이다. 같은 텍스트의 글자는 한 자리(오브젝트 위치)라 거리가 같으므로 낸 순서가 남는다.
+        bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, bool editorView, const Vec3& cameraPosition,
+            const Quaternion& cameraRotation)
+        {
+            Array<std::uint32_t>& order = world.GetTextOrderScratch();
+            order.Clear();
+            for (std::size_t index = 0; index < world.GetTextCount(); ++index)
+            {
+                const WorldTextRenderItem& item = world.GetText(index);
+                if (editorView && item.owner != nullptr && item.owner->IsEditorHidden())
+                {
+                    continue;
+                }
+                order.Add(static_cast<std::uint32_t>(index));
+            }
+            const auto distance = [&](std::uint32_t index) {
+                const Vec3& position = world.GetText(index).position;
+                const float dx = position.x - cameraPosition.x;
+                const float dy = position.y - cameraPosition.y;
+                const float dz = position.z - cameraPosition.z;
+                return dx * dx + dy * dy + dz * dz;
+            };
+            std::sort(order.Data(), order.Data() + order.Size(), [&](std::uint32_t left, std::uint32_t right) {
+                const float leftDistance = distance(left);
+                const float rightDistance = distance(right);
+                if (leftDistance != rightDistance)
+                {
+                    return leftDistance > rightDistance;
+                }
+                return left < right;
+            });
+
+            constexpr std::size_t BatchSize = 64;
+            WorldTextSubmit batch[BatchSize];
+            bool accepted = world.GetDroppedTextCount() == 0;
+            std::size_t next = 0;
+            while (next < order.Size())
+            {
+                std::uint32_t count = 0;
+                while (count < BatchSize && next < order.Size())
+                {
+                    const WorldTextRenderItem& item = world.GetText(order[next]);
+                    ++next;
+                    const Matrix4x4 object = MakeTransformMatrix3D(item.position, item.billboard ? cameraRotation : item.rotation, item.scale);
+                    // 단위 쿼드(-0.5..0.5)를 글자 사각형으로: 가운데로 옮기고 폭·높이로 늘린다.
+                    const Matrix4x4 glyph = MakeTransformMatrix3D(
+                        Vec3{item.left + item.width * 0.5f, item.top - item.height * 0.5f, 0.0f}, Quaternion{},
+                        Vec3{item.width, item.height, 1.0f});
+                    WorldTextSubmit& submit = batch[count];
+                    ++count;
+                    submit.world = MultiplyMatrix4x4(object, glyph);
+                    submit.texture = item.texture;
+                    submit.tint[0] = item.tint.R;
+                    submit.tint[1] = item.tint.G;
+                    submit.tint[2] = item.tint.B;
+                    submit.tint[3] = item.tint.A;
+                    for (int channel = 0; channel < 4; ++channel)
+                    {
+                        submit.uvRect[channel] = item.uvRect[channel];
+                        submit.outlineColor[channel] = item.outlineColor[channel];
+                    }
+                    submit.filter = item.linearFilter ? SpriteFilter::Linear : SpriteFilter::Nearest;
+                    submit.sdf = item.sdf;
+                    submit.outlineEdge = item.outlineEdge;
+                }
+                if (count == 0)
+                {
+                    break;
+                }
+                if (false == renderer.SubmitWorldTexts({batch, count}))
+                {
+                    accepted = false;
+                    break;
+                }
+            }
+            return accepted;
+        }
     }
 
     RenderResult SubmitEditorView3D(
@@ -134,7 +213,9 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushMeshes(world, renderer, true);
+        const bool meshes = PushMeshes(world, renderer, true);
+        const bool texts = PushWorldTexts(world, renderer, true, editor.position, editor.rotation);
+        const bool accepted = meshes && texts;
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
@@ -152,7 +233,9 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushMeshes(world, renderer, false);
+        const bool meshes = PushMeshes(world, renderer, false);
+        const bool texts = PushWorldTexts(world, renderer, false, camera->position, camera->rotation);
+        const bool accepted = meshes && texts;
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }

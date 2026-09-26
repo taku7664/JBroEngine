@@ -21,7 +21,9 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3DSystem/System/Text3DSystem.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -2080,6 +2082,51 @@ namespace JBro
         constexpr float PickRadius = 18.0f;
         GameObject* best = nullptr;
         float bestDistance = PickRadius * PickRadius;
+        // **3D 텍스트는 글자 블록으로 고른다**(D-222). 크기를 아는 유일한 3D 그림이다 - 블록의 네 모서리를 화면으로 투영한 사각형 안을 누르면
+        // 그 텍스트다(자리 투영보다 먼저 이긴다). 빌보드의 모서리는 편집 카메라의 오른쪽·위 축으로 편다(그린 것과 같은 카메라).
+        System::Text3DSystem* texts = canvas->GetSystems().FindSystem<System::Text3DSystem>();
+        Vec3 cameraRight{1.0f, 0.0f, 0.0f};
+        Vec3 cameraUp{0.0f, 1.0f, 0.0f};
+        CameraParams drawn;
+        if (Renderer* renderer = m_editor->GetRenderer(); renderer != nullptr && renderer->GetLastEditorViewCamera(drawn))
+        {
+            // 뷰 행렬의 왼쪽 위 3x3 은 카메라 회전의 전치다 - 첫 행이 카메라의 오른쪽, 둘째 행이 위다.
+            cameraRight = Vec3{drawn.view.values[0], drawn.view.values[1], drawn.view.values[2]};
+            cameraUp = Vec3{drawn.view.values[4], drawn.view.values[5], drawn.view.values[6]};
+        }
+        const auto insideText = [&](GameObject& object, const Component::Transform3D& transform) -> bool {
+            if (texts == nullptr)
+            {
+                return false;
+            }
+            Component::Text3D* text = canvas->FindComponentRaw<Component::Text3D>(&object);
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            if (text == nullptr || false == text->visible
+                || false == texts->GetLocalBounds(text->GetInstanceId(), minX, minY, maxX, maxY))
+            {
+                return false;
+            }
+            const Vec3 origin = transform.worldValid ? transform.worldPosition : transform.position;
+            const Quaternion rotation = transform.worldValid ? transform.worldRotation : transform.rotation;
+            const Vec3 scale = transform.worldValid ? transform.worldScale : transform.scale;
+            const bool billboard = text->facing == Component::TextFacing3D::Billboard;
+            const Vec3 axisX = billboard ? Scale(cameraRight, scale.x) : Rotate(rotation, Vec3{scale.x, 0.0f, 0.0f});
+            const Vec3 axisY = billboard ? Scale(cameraUp, scale.y) : Rotate(rotation, Vec3{0.0f, scale.y, 0.0f});
+            float screenMinX = 0.0f;
+            float screenMinY = 0.0f;
+            float screenMaxX = 0.0f;
+            float screenMaxY = 0.0f;
+            if (false == GizmoModel::ProjectPlaneRect(camera, origin, axisX, axisY, minX, minY, maxX, maxY, screenMinX,
+                    screenMinY, screenMaxX, screenMaxY))
+            {
+                return false;
+            }
+            return io.MousePos.x >= screenMinX && io.MousePos.x <= screenMaxX && io.MousePos.y >= screenMinY
+                && io.MousePos.y <= screenMaxY;
+        };
         canvas->ForEachObject([&](GameObject& object)
         {
             // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`).
@@ -2091,6 +2138,12 @@ namespace JBro
                 canvas->FindComponentRaw<Component::Transform3D>(&object);
             if (transform == nullptr)
             {
+                return;
+            }
+            if (insideText(object, *transform))
+            {
+                best = &object;
+                bestDistance = -1.0f;
                 return;
             }
             const Vec3 at = transform->worldValid ? transform->worldPosition : transform->position;

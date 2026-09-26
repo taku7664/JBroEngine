@@ -3,6 +3,11 @@
 #include <windows.h>
 // `ShellExecuteW` 가 여기 있다. 탐색기에서 보여 주는 데만 쓴다.
 #include <shellapi.h>
+// `SHGetKnownFolderPath` 가 여기 있다. 세이브 폴더를 찾는 데만 쓴다.
+#include <shlobj.h>
+
+#pragma comment(lib, "Shell32.lib")
+#pragma comment(lib, "Ole32.lib")
 
 #include <chrono>
 #include <filesystem>
@@ -275,6 +280,24 @@ namespace JBro
             : std::string(reinterpret_cast<const char*>(folder.generic_u8string().c_str()));
         (void)errorCode;
         return String(utf8.c_str());
+    }
+
+    String WindowsPlatform::GetUserDataFolder() const
+    {
+        // 환경 변수(`LOCALAPPDATA`)가 아니라 셸에 묻는다. 좁은 문자 `getenv` 는 사용자 이름의 한글을 코드 페이지로 깨뜨리고
+        // (기존 엔진이 그래서 `_wdupenv_s` 를 썼다), 환경 변수는 띄운 쪽이 지우거나 바꿔 넘길 수 있다.
+        PWSTR folder = nullptr;
+        if (FAILED(SHGetKnownFolderPath(FOLDERID_LocalAppData, KF_FLAG_DEFAULT, nullptr, &folder)) || folder == nullptr)
+        {
+            if (folder != nullptr)
+            {
+                CoTaskMemFree(folder);
+            }
+            return String();
+        }
+        const fs::path path(folder);
+        CoTaskMemFree(folder);
+        return ToUtf8(path);
     }
 
     bool WindowsPlatform::GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const

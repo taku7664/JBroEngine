@@ -80,6 +80,29 @@ namespace
         JBro::GizmoCamera broken;
         Check(false == JBro::GizmoModel::MakeCamera(JBro::Matrix4x4{}, JBro::Matrix4x4{}, 0.0f, 0.0f, 0.0f, 10.0f, broken),
             "a rectangle without width is refused");
+
+        // 평면 사각형(3D 텍스트 블록, D-222). 원점 둘레 x -0.5..0.5, y -0.25..0.25 가 화면 50..150 x 75..125 다. X 축을 두 배로 늘리면 가로가
+        // 두 배이고, 그 평면을 Y 로 돌린 축(x 가 -z 로 간다)으로 주면 직교 카메라에서 가로가 사라진다.
+        float minX = 0.0f;
+        float minY = 0.0f;
+        float maxX = 0.0f;
+        float maxY = 0.0f;
+        Check(JBro::GizmoModel::ProjectPlaneRect(camera, {0.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, -0.5f, -0.25f,
+                  0.5f, 0.25f, minX, minY, maxX, maxY)
+                && Near(minX, 50.0f) && Near(maxX, 150.0f) && Near(minY, 75.0f) && Near(maxY, 125.0f),
+            "a plane rectangle projects to its screen box");
+        Check(JBro::GizmoModel::ProjectPlaneRect(camera, {0.0f, 0.0f, 0.0f}, {2.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, -0.5f, -0.25f,
+                  0.5f, 0.25f, minX, minY, maxX, maxY)
+                && Near(minX, 0.0f) && Near(maxX, 200.0f),
+            "a scaled axis widens it");
+        Check(JBro::GizmoModel::ProjectPlaneRect(camera, {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 1.0f, 0.0f}, -0.5f, -0.25f,
+                  0.5f, 0.25f, minX, minY, maxX, maxY)
+                && Near(minX, 100.0f) && Near(maxX, 100.0f) && Near(minY, 75.0f),
+            "a plane turned edge-on has no width");
+        const JBro::GizmoCamera eye = PerspectiveCamera({0.0f, 0.0f, 3.0f}, {});
+        Check(false == JBro::GizmoModel::ProjectPlaneRect(eye, {0.0f, 0.0f, 5.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, -0.5f, -0.25f,
+                  0.5f, 0.25f, minX, minY, maxX, maxY),
+            "a plane behind the camera does not project");
     }
 
     void TestHandlesAreBuiltAndPickedInPixels()

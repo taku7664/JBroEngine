@@ -1,6 +1,7 @@
 ﻿#include <JBro/Text/TextLayout.h>
 
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <limits>
 
@@ -197,6 +198,76 @@ namespace JBro::Text
         {
             return fontSize / static_cast<float>(face.GetMetrics().unitsPerEm);
         }
+
+        // 리치 텍스트 태그의 겹침 상한이다. 넘는 여는 태그는 글자로 보인다.
+        constexpr int MaxMarkupDepth = 8;
+        // 태그 하나의 최대 길이(꺾쇠 안쪽)다. `color=#RRGGBBAA` 가 14 바이트다.
+        constexpr std::size_t MaxTagLength = 24;
+
+        bool Matches(const char* text, std::size_t length, const char* word)
+        {
+            std::size_t index = 0;
+            for (; word[index] != 0; ++index)
+            {
+                if (index >= length || text[index] != word[index])
+                {
+                    return false;
+                }
+            }
+            return index == length;
+        }
+
+        bool StartsWith(const char* text, std::size_t length, const char* word)
+        {
+            std::size_t index = 0;
+            for (; word[index] != 0; ++index)
+            {
+                if (index >= length || text[index] != word[index])
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        int HexDigit(char value)
+        {
+            if (value >= '0' && value <= '9')
+            {
+                return value - '0';
+            }
+            if (value >= 'a' && value <= 'f')
+            {
+                return value - 'a' + 10;
+            }
+            if (value >= 'A' && value <= 'F')
+            {
+                return value - 'A' + 10;
+            }
+            return -1;
+        }
+
+        // `RRGGBB` 또는 `RRGGBBAA` 를 RGBA8(R 이 가장 낮은 바이트)로 읽는다. 알파가 없으면 255 다.
+        bool ParseHexColor(const char* text, std::size_t length, std::uint32_t& color)
+        {
+            if (length != 6 && length != 8)
+            {
+                return false;
+            }
+            std::uint32_t channels[4] = { 0, 0, 0, 255 };
+            for (std::size_t channel = 0; channel < length / 2; ++channel)
+            {
+                const int high = HexDigit(text[channel * 2]);
+                const int low = HexDigit(text[channel * 2 + 1]);
+                if (high < 0 || low < 0)
+                {
+                    return false;
+                }
+                channels[channel] = static_cast<std::uint32_t>(high * 16 + low);
+            }
+            color = channels[0] | (channels[1] << 8) | (channels[2] << 16) | (channels[3] << 24);
+            return true;
+        }
     }
 
     void TextLayout::Reset()
@@ -242,13 +313,102 @@ namespace JBro::Text
             return LayoutError::TooLong;
         }
 
-        // 1. 코드포인트로 푼다. CR 과 CRLF 는 LF 하나다.
+        // 1. 코드포인트로 푼다. CR 과 CRLF 는 LF 하나다. 리치 텍스트면 태그를 읽어 글자마다 크기와 색을 붙인다.
         const char* text = utf8.Data();
         const std::size_t length = utf8.Size();
+        const float markupScale = std::isfinite(options.markupScale) && options.markupScale > 0.0f ? options.markupScale : 1.0f;
+        float sizeStack[MaxMarkupDepth] = {};
+        std::uint32_t colorStack[MaxMarkupDepth] = {};
+        int sizeDepth = 0;
+        int colorDepth = 0;
+        const auto currentSize = [&]() { return sizeDepth > 0 ? sizeStack[sizeDepth - 1] : options.fontSize; };
+        const auto add = [&](char32_t value, std::uint32_t offset) {
+            Codepoint codepoint;
+            codepoint.value = value;
+            codepoint.offset = offset;
+            codepoint.size = currentSize();
+            codepoint.hasColor = colorDepth > 0;
+            codepoint.color = colorDepth > 0 ? colorStack[colorDepth - 1] : 0;
+            m_codepoints.Add(codepoint);
+        };
+        // 꺾쇠 하나를 태그로 읽는다. 태그면 스택을 바꾸고 커서를 `>` 뒤로 옮긴다. 아니면 아무것도 바꾸지 않는다.
+        const auto readTag = [&](std::size_t& at) -> bool {
+            std::size_t close = at + 1;
+            while (close < length && close - at - 1 <= MaxTagLength && text[close] != '>' && text[close] != '<')
+            {
+                ++close;
+            }
+            if (close >= length || text[close] != '>')
+            {
+                return false;
+            }
+            const char* body = text + at + 1;
+            const std::size_t bodyLength = close - at - 1;
+            if (Matches(body, bodyLength, "/color"))
+            {
+                if (colorDepth == 0)
+                {
+                    return false;
+                }
+                --colorDepth;
+            }
+            else if (Matches(body, bodyLength, "/size"))
+            {
+                if (sizeDepth == 0)
+                {
+                    return false;
+                }
+                --sizeDepth;
+            }
+            else if (StartsWith(body, bodyLength, "color=#"))
+            {
+                std::uint32_t color = 0;
+                if (colorDepth >= MaxMarkupDepth || false == ParseHexColor(body + 7, bodyLength - 7, color))
+                {
+                    return false;
+                }
+                colorStack[colorDepth++] = color;
+            }
+            else if (StartsWith(body, bodyLength, "size="))
+            {
+                float size = 0.0f;
+                const std::from_chars_result parsed = std::from_chars(body + 5, body + bodyLength, size);
+                if (sizeDepth >= MaxMarkupDepth || parsed.ec != std::errc() || parsed.ptr != body + bodyLength
+                    || false == std::isfinite(size) || false == (size > 0.0f))
+                {
+                    return false;
+                }
+                size *= markupScale;
+                if (options.wholePixelMarkup)
+                {
+                    size = std::max(1.0f, std::round(size));
+                }
+                sizeStack[sizeDepth++] = size;
+            }
+            else
+            {
+                return false;
+            }
+            at = close + 1;
+            return true;
+        };
         std::size_t cursor = 0;
         while (cursor < length)
         {
             const std::uint32_t offset = static_cast<std::uint32_t>(cursor);
+            if (options.richText && text[cursor] == '<')
+            {
+                if (cursor + 1 < length && text[cursor + 1] == '<')
+                {
+                    add(U'<', offset);
+                    cursor += 2;
+                    continue;
+                }
+                if (readTag(cursor))
+                {
+                    continue;
+                }
+            }
             char32_t value = DecodeOne(text, length, cursor);
             if (value == U'\r')
             {
@@ -258,7 +418,7 @@ namespace JBro::Text
                 }
                 value = U'\n';
             }
-            m_codepoints.Add({ value, offset });
+            add(value, offset);
         }
 
         // 2. 자모를 음절로 합치고, 글자마다 face·글리프·전진 폭·줄바꿈 성질을 정한다.
@@ -266,6 +426,7 @@ namespace JBro::Text
         {
             char32_t value = m_codepoints[index].value;
             const std::uint32_t offset = m_codepoints[index].offset;
+            const std::size_t first = index;
             if (IsLead(value) && index + 1 < m_codepoints.Size() && IsVowel(m_codepoints[index + 1].value))
             {
                 value = HangulBase + ((value - LeadBase) * VowelCount + (m_codepoints[index + 1].value - VowelBase)) * TrailCount;
@@ -280,6 +441,9 @@ namespace JBro::Text
             Item item;
             item.codepoint = value;
             item.offset = offset;
+            item.size = m_codepoints[first].size;
+            item.color = m_codepoints[first].color;
+            item.hasColor = m_codepoints[first].hasColor;
             if (value == U'\n')
             {
                 item.kind = ItemKind::Newline;
@@ -316,7 +480,7 @@ namespace JBro::Text
                 std::int32_t dy = 0;
                 if (choice.face == base.face && baseFace.GetMarkAttachment(base.glyph, choice.glyph, dx, dy))
                 {
-                    const float scale = Scale(baseFace, options.fontSize);
+                    const float scale = Scale(baseFace, base.size);
                     item.markX = static_cast<float>(dx) * scale;
                     item.markY = static_cast<float>(dy) * scale;
                 }
@@ -336,7 +500,7 @@ namespace JBro::Text
             item.breaksAnywhere = item.kind == ItemKind::Visible
                 && (options.wrapMode == WrapMode::Character || IsBreakAnywhereScript(value));
             const FontFace& face = *faces[choice.face];
-            item.advance = static_cast<float>(face.GetAdvance(choice.glyph)) * Scale(face, options.fontSize);
+            item.advance = static_cast<float>(face.GetAdvance(choice.glyph)) * Scale(face, item.size);
             m_items.Add(item);
         }
 
@@ -345,10 +509,12 @@ namespace JBro::Text
         const float wrapLimit = options.boxWidth + options.boxWidth * 1.0e-5f;
         const float primaryScale = Scale(*primaryFace, options.fontSize);
         const FontMetrics& metrics = primaryFace->GetMetrics();
-        const float ascent = static_cast<float>(metrics.ascent) * primaryScale;
-        const float descent = static_cast<float>(-metrics.descent) * primaryScale;
-        const float lineHeight = static_cast<float>(metrics.ascent - metrics.descent + metrics.lineGap)
-            * primaryScale * std::max(0.0f, options.lineSpacing);
+        // 줄의 올림과 높이는 그 줄에서 가장 큰 글자의 크기로 잰다. 리치 텍스트가 아니면 모든 줄이 fontSize 다.
+        const auto ascentOf = [&](float size) { return static_cast<float>(metrics.ascent) * Scale(*primaryFace, size); };
+        const auto lineHeightOf = [&](float size) {
+            return static_cast<float>(metrics.ascent - metrics.descent + metrics.lineGap) * Scale(*primaryFace, size)
+                * std::max(0.0f, options.lineSpacing);
+        };
         // 탭 멈춤 간격(픽셀)이다. 기본 폰트의 공백 폭으로 센다 - 폴백 폰트가 섞여도 멈춤 자리는 한 줄 안에서 같다.
         const float tabStop = options.tabSize > 0.0f && std::isfinite(options.tabSize)
             ? static_cast<float>(primaryFace->GetAdvance(primaryFace->FindGlyph(U' '))) * primaryScale * options.tabSize
@@ -362,6 +528,13 @@ namespace JBro::Text
                 return false;
             }
             LineInfo line;
+            // 빈 줄은 그 자리(개행 글자)의 크기다. 끝의 빈 줄은 마지막 글자의 크기다.
+            line.size = begin < m_items.Size() ? m_items[begin].size : (m_items.Size() > 0 ? m_items.Last().size : options.fontSize);
+            for (std::size_t index = begin; index < end; ++index)
+            {
+                line.size = std::max(line.size, m_items[index].size);
+            }
+            line.height = lineHeightOf(line.size);
             line.firstGlyph = static_cast<std::uint32_t>(m_glyphs.Size());
             line.sourceBegin = begin < m_items.Size() ? m_items[begin].offset : static_cast<std::uint32_t>(length);
             line.sourceEnd = end < m_items.Size() ? m_items[end].offset : static_cast<std::uint32_t>(length);
@@ -379,6 +552,9 @@ namespace JBro::Text
                 glyph.face = item.face;
                 glyph.line = static_cast<std::uint16_t>(m_lines.Size());
                 glyph.sourceOffset = item.offset;
+                glyph.size = item.size;
+                glyph.color = item.color;
+                glyph.hasColor = item.hasColor;
                 m_glyphs.Add(glyph);
                 line.width = std::max(line.width, item.x + item.advance);
             }
@@ -426,7 +602,7 @@ namespace JBro::Text
                 if (previous.face == item.face)
                 {
                     const FontFace& face = *faces[item.face];
-                    x += static_cast<float>(face.GetKerning(previous.glyph, item.glyph)) * Scale(face, options.fontSize);
+                    x += static_cast<float>(face.GetKerning(previous.glyph, item.glyph)) * Scale(face, item.size);
                 }
                 // 공백은 줄 끝에 매달리므로 새 줄은 공백이 아닌 글자에서만 시작한다. 금칙 글자는 줄 머리·꼬리에 오지 않게 기회를 버린다
                 // (기회가 없는 줄은 여전히 넘친 글자에서 끊는다 - 금칙은 끊을 자리가 있을 때만 지켜진다).
@@ -485,7 +661,11 @@ namespace JBro::Text
             widest = std::max(widest, line.width);
         }
         const float blockWidth = options.boxWidth > 0.0f ? options.boxWidth : widest;
-        const float contentHeight = static_cast<float>(m_lines.Size()) * lineHeight;
+        float contentHeight = 0.0f;
+        for (const LineInfo& line : m_lines)
+        {
+            contentHeight += line.height;
+        }
         m_contentWidth = widest;
         m_contentHeight = contentHeight;
         const float blockHeight = options.boxHeight > 0.0f ? options.boxHeight : contentHeight;
@@ -510,7 +690,7 @@ namespace JBro::Text
         }
         else if (options.alignY == AlignY::Baseline)
         {
-            blockTop = ascent;
+            blockTop = ascentOf(m_lines.Size() > 0 ? m_lines[0].size : options.fontSize);
         }
 
         // Clip 은 **위쪽이 상자 밖에 있는** 줄을 통째로 버린다. 걸쳐 있는 줄은 남기고, 상자 밖으로 나간 글리프 조각은
@@ -519,17 +699,20 @@ namespace JBro::Text
         if (options.overflow == Overflow::Clip && options.boxHeight > 0.0f)
         {
             keptLines = 0;
-            while (keptLines < m_lines.Size()
-                && static_cast<float>(keptLines) * lineHeight < options.boxHeight * (1.0f - 1.0e-5f))
+            float lineTop = 0.0f;
+            while (keptLines < m_lines.Size() && lineTop < options.boxHeight * (1.0f - 1.0e-5f))
             {
+                lineTop += m_lines[keptLines].height;
                 ++keptLines;
             }
         }
 
+        float linesAbove = 0.0f;
         for (std::size_t lineIndex = 0; lineIndex < m_lines.Size(); ++lineIndex)
         {
             LineInfo& line = m_lines[lineIndex];
-            line.baseline = blockTop - ascent - static_cast<float>(lineIndex) * lineHeight;
+            line.baseline = blockTop - ascentOf(line.size) - linesAbove;
+            linesAbove += line.height;
             float shift = blockLeft;
             if (options.alignX == AlignX::Center)
             {
@@ -589,6 +772,8 @@ namespace JBro::Text
         };
         const auto buildAt = [&](float size) {
             trial.fontSize = size;
+            // 태그 크기도 같은 비로 줄고 는다.
+            trial.markupScale = options.markupScale * size / options.fontSize;
             return Build(utf8, faces, trial);
         };
         // 크기를 격자로 센다. step 이 1 이면 정수, 0 이면 0.25 픽셀 칸이다. 안쪽 끝은 칸에 맞춰 줄인다.

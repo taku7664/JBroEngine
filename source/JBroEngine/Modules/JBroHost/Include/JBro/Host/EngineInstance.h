@@ -6,6 +6,8 @@
 #include <JBro/Platform/Platform.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Host/ScriptDLLLoader.h>
+#include <JBro/SaveTypes/Internal/SystemContext.h>
+#include <JBro/SaveTypes/ServiceContext.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Task/TaskManager.h>
 #include <JBro/Types/LinearAllocator.h>
@@ -20,6 +22,8 @@ namespace JBro
         class AudioSystem;
         class IAudioDeviceControl;
     }
+
+    class SaveStorage;
 
     namespace System
     {
@@ -64,6 +68,11 @@ namespace JBro
         std::uint32_t audioMaxVoices = 64;
         // 태스크 관리자의 설정이다(D-209). 워커 수가 0 이면 코어 수에서 정한다.
         TaskManagerDesc tasks;
+        // 세이브를 쓰는 폴더다(D-218). 비어 있으면 `<앱 데이터>/<제품명>/Saves` 이고, `editorSaves` 면 `EditorSaves` 다.
+        // 시험이 임시 폴더를 준다 - 사용자 폴더에 시험의 세이브가 남지 않는다.
+        String saveFolder;
+        // 참이면 에디터에서 재생한 게임의 세이브다. 실제 게임의 세이브를 덮지 않게 다른 폴더에 쓴다. **에디터만 참이다.**
+        bool editorSaves = false;
         WindowDesc window;
         JMemoryContext memory;
     };
@@ -136,6 +145,8 @@ namespace JBro
         // 호스트가 입력을 가져가는 동안 게임이 게임패드를 받는가(D-214). 에디터는 `SubmitHostInput` 과 같은 조건으로 켠다.
         // 꺼지면 다음 틱에 눌린 패드 버튼을 떼고 모터를 멈춘다.
         void SetHostGameInputActive(bool active);
+        // 게임이 바꾼 입력 상태(켠 액션 세트)를 프로젝트 설정으로 되돌린다(D-214). 에디터가 재생을 멈출 때 부른다.
+        void ResetGameInput();
         // **게임이 지난 프레임에 낼 것이 있었는가**(D-178). 거짓이면 게임 카메라가 없거나
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         bool DidGameSubmitLastFrame() const;
@@ -221,6 +232,8 @@ namespace JBro
         void ApplyAudioBuses();
         // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-214).
         void ApplyInputSettings();
+        // 프로젝트의 제품명으로 세이브 폴더를 정한다(D-218). 폴더는 처음 쓸 때 만든다.
+        void OpenSaveFolder();
         // 고른 장치(없으면 기본)를 믹서의 형식으로 열어 믹서에 잇는다.
         bool OpenAudioOutput();
         // 프레임마다: 장치가 사라졌으면 닫고 다시 연다(D-203). 창 포커스를 오디오 시스템에 알린다.
@@ -251,6 +264,12 @@ namespace JBro
         float m_audioRetrySeconds = 0.0f;
         OwnerPtr<System::IAudioDeviceControl> m_audioDevices;
         OwnerPtr<System::InputSystem> m_input;
+        // 게임의 세이브(D-218). 엔진 수명이고, 폴더만 프로젝트마다 바뀐다.
+        OwnerPtr<SaveStorage> m_save;
+        SaveSystemContext m_saveSystemContext;
+        SaveServiceContext m_saveServiceContext;
+        String m_saveFolderOverride;
+        bool m_editorSaves = false;
         // 프레임 경계에서 되감는다. m_frameworkContext.memory.frame 이 이것을 가리킨다.
         OwnerPtr<LinearAllocator> m_frameMemory;
         // 프로젝트 수명이다. 컨텍스트 바인딩 뒤에 싣고, 해제 전에 내린다.

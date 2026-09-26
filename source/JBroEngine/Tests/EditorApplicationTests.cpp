@@ -47,6 +47,7 @@
 #include <JBro/Runtime/GameObject.h>
 
 #include <JBro/InputTypes/ServiceContext.h>
+#include <JBro/InputTypes/Service/InputService.h>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -3734,6 +3735,7 @@ namespace
             "        Code: Left\n"
             "  - Name: Jump\n"
             "    Type: Bool\n"
+            "    Set: Vehicle\n"
             "    Bindings:\n"
             "      - Source: GamepadButton\n"
             "        Code: South\n"
@@ -3806,7 +3808,7 @@ namespace
             std::fclose(file);
             text.assign(buffer, read);
         }
-        Check(text.find("  - Name: Jump\n    Type: Bool\n    Bindings:\n      - Source: GamepadButton\n        Code: South\n"
+        Check(text.find("  - Name: Jump\n    Type: Bool\n    Set: Vehicle\n    Bindings:\n      - Source: GamepadButton\n        Code: South\n"
                         "      - Source: Key\n        Code: Space\n") != JBro::String::npos,
             "the edited bindings reach the file, and a pad index of -1 is not written");
         Check(text.find("InputLayers:\n  - UI\n  - Game\n") != JBro::String::npos, "the layer order stays");
@@ -3814,6 +3816,18 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must draw the saved settings");
         }
+
+        // 게임이 켠 액션 세트는 재생을 멈추면 꺼진다 - 다음 재생은 `Default` 만 켜진 채로 시작한다.
+        const JBro::NameId vehicle = JBro::MakeNameId("Vehicle");
+        const JBro::Service::InputService input;
+        Check(false == input.IsActionSetEnabled(vehicle), "a set other than Default starts off");
+        Check(editor.StartSimulation(), "play must start");
+        Check(input.EnableActionSet(vehicle), "the game turns on the set the project names");
+        Check(editor.Tick(Frame), "the editor must tick while playing");
+        Check(input.IsActionSetEnabled(vehicle), "and it stays on while the game runs");
+        editor.StopSimulation();
+        Check(false == input.IsActionSetEnabled(vehicle), "stopping play turns it back off");
+        Check(input.IsActionSetEnabled(JBro::DefaultInputActionSet), "and leaves Default on");
         editor.Shutdown();
         fs::remove_all(root, ignored);
     }
@@ -8522,6 +8536,69 @@ namespace
     // **폴리곤 콜라이더의 포인트를 캔버스 뷰에서 고친다**(physics-plan §4 의 5, 기존 `CCanvasViewTool` 의 버텍스 편집).
     // "콜라이더 편집" 을 켜면 고른 오브젝트의 폴리곤에 손잡이가 선다. 끌기·변 누르기·우클릭 지우기가 각각 되돌리기
     // 하나이고, 포인트가 없는 폴리곤은 보이는 `size` 상자에서 시작한다.
+    // **캔버스 뷰는 캡슐 콜라이더를 물리와 같은 알약으로 그린다(physics-plan §4 의 7).** 캔버스 뷰 창의 그리기 목록에서 꼭짓점을 찾는다:
+    // 둥근 끝의 꼭대기와 45° 자리에는 선이 지나고, `size` 상자의 모서리(상자로 그렸다면 지나는 곳)에는 없다.
+    void TestTheCanvasViewDrawsCapsuleColliders()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; capsule drawing not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "CapsuleDrawProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* pill = canvas->CreateObject("Pill");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(pill) != nullptr, "the pill needs a transform");
+        auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(pill);
+        Check(collider != nullptr, "and a collider");
+        // 4 x 2 상자: 코어 (-1, 0)-(1, 0), 반지름 1.
+        collider->shape = JBro::Component::ColliderShape2D::Capsule;
+        collider->size = {4.0f, 2.0f};
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr && view->DrawList != nullptr, "the canvas view must have drawn");
+
+        const auto drawnNear = [&](float worldX, float worldY) {
+            float x = 0.0f;
+            float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must map world to screen");
+            for (const ImDrawVert& vertex : view->DrawList->VtxBuffer)
+            {
+                if (std::fabs(vertex.pos.x - x) <= 2.0f && std::fabs(vertex.pos.y - y) <= 2.0f)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        // 화면에서 1 유닛이 여러 픽셀이어야 가를 수 있다.
+        float x0 = 0.0f;
+        float y0 = 0.0f;
+        float x1 = 0.0f;
+        float y1 = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, x0, y0) && editor.CanvasViewWorldToScreen(1.0f, 0.0f, x1, y1)
+            && std::fabs(x1 - x0) > 12.0f, "a unit must span enough pixels to tell a corner from an arc");
+
+        Check(drawnNear(2.0f, 0.0f) && drawnNear(-2.0f, 0.0f), "the outline passes the tips of both round ends");
+        Check(drawnNear(1.0f + 0.70710678f, 0.70710678f), "and the arc at 45 degrees");
+        Check(drawnNear(1.0f, 1.0f) && drawnNear(-1.0f, -1.0f), "and where the arcs meet the straight sides");
+        Check(false == drawnNear(2.0f, 1.0f) && false == drawnNear(-2.0f, -1.0f), "but not the corners of the size box");
+        editor.Shutdown();
+    }
+
     void TestTheCanvasViewEditsPolygonColliderPoints()
     {
         JBro::EditorApplication editor;
@@ -11086,6 +11163,7 @@ int RunEditorApplicationTests()
     TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();
     TestTheCanvasViewEditsPolygonColliderPoints();
+    TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheCanvasItselfCanBeSelectedAndPainted();

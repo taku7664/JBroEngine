@@ -37,7 +37,9 @@
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'GameObject'">JBRO_TIER_PROBE_GAME_OBJECT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Audio'">JBRO_TIER_PROBE_AUDIO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Input'">JBRO_TIER_PROBE_INPUT;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Save'">JBRO_TIER_PROBE_SAVE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Task'">JBRO_TIER_PROBE_TASK;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'TextRendering'">JBRO_TIER_PROBE_TEXT_RENDERING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -58,6 +60,9 @@
     </ProjectReference>
     <ProjectReference Include="$(JBroModulesDir)JBroInputTypes\JBroInputTypes.vcxproj">
       <Project>{1a000030-0000-4000-8000-00000001a7e5}</Project>
+    </ProjectReference>
+    <ProjectReference Include="$(JBroModulesDir)JBroSaveTypes\JBroSaveTypes.vcxproj">
+      <Project>{1a000032-0000-4000-8000-000000005a7e}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

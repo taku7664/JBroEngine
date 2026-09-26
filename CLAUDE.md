@@ -90,9 +90,11 @@
 - [tasks/audio-plan.md](./tasks/audio-plan.md) — 오디오 계획(D-197·D-198·D-201~D-203). **일곱 단계가 섰다**(믹서·장치 출력·에셋·2D/3D 소스·스크립트·에디터·버스 이펙트·라우팅과 디스크 스트리밍과 장치 고르기). `ma_engine` 을 안에 둔 `AudioMixer`,
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건·실측이 §3, `[열림]` 이 §5 에 있다
-- [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214). 1~6 단계와 7 의 터치(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
+- [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214·D-218). 1~6 단계와 7 의 터치·액션 세트(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
   `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 게임 뷰 포커스 게이트·액션과 설정 화면·게임패드·터치)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
-  전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(액션 맵 전환·입력 버퍼·리바인딩은 논의 전)이 §4 에 있다
+  전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(실기기 실측과 `[열림]`)이 §4 에 있다
+- [tasks/save-plan.md](./tasks/save-plan.md) — 세이브 저장소(D-218 (4)). 새 Tier S 모듈 `JBroSaveTypes`(`ISaveStorage`·`SaveService`)와 호스트 구현 `SaveStorage` 가 섰다.
+  기존 엔진 `CSaveStorage` 의 구조와 아팠던 것 S1~S5(제자리 덮어쓰기·DLL 경계의 `std::vector`·예약 이름·에디터와 게임이 한 폴더)가 §1, 설계가 §2, 검증이 §3, `[열림]` 이 §4 에 있다
 - [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~6 단계(커널 `JBroPhysics2D`, 어댑터 `Physics2DSystem`, 캔버스 뷰의 폴리곤 포인트 편집, 질의 확장)가 모두 섰다. 그 뒤로 캡슐 콜라이더와 제자리 모양 바꾸기(크기 애니메이션의 접촉 유지)가 섰다. 남은 뒤의 것(조인트·체인·CCD·Stay 훅)과 단계마다 남긴 `[열림]` 이 §4 에 있다.
   기존 엔진 물리의 구조와 **오목 폴리곤이 틀렸던 여섯 원인**(도형 중심으로 법선 뒤집기·통짜 오목 도형 클리핑 등)이 §1,
   캔버스를 모르는 커널 모듈 `JBroPhysics2D` 와 볼록 조각을 자식 도형으로 다루는 설계가 §3, 단계와 완료 조건이 §4 에 있다
@@ -100,7 +102,8 @@
   `TextLayout`)와 2 단계(`GlyphAtlas`·`Font` 에셋·`TextStore`(JBroRuntime, 프로세스에 하나, D-211)·`Text2D`·`Text2DSystem`·`Text2DService`),
   3 단계(에디터: 여러 줄 글자 칸·캔버스 뷰 고르기·폰트 임포트 옵션·폰트 없음 경고, `.jproject` 의 프로젝트 폰트 목록 `Fonts`, D-213)가
   4 단계(SDF 와 외곽선: 세 백엔드 셰이더·글자 픽셀 폭 외곽선, D-215), 5 단계(미리 채우기·워커 래스터화·아틀라스 부분 업로드·자동 크기·퇴출과
-  결합 표시·금칙·GPOS 직접 읽기, D-216)가 섰다. 남은 것은 없는 계층(게임 UI·로컬라이징·`.jpak`·3D)이나 사용자 결정(리치 텍스트·패밀리)이 먼저다. 기존 엔진 `Text2D` 를 깨트려 본 결과
+  결합 표시·금칙·GPOS 직접 읽기, D-216), 6 단계(리치 텍스트 `<color>`·`<size>`, D-221, 3D 텍스트 `Text3D`·렌더러 월드 텍스트 경로·공용 모듈
+  `Modules/JBroTextRendering`, D-222)가 섰다. 남은 것은 없는 계층(게임 UI·로컬라이징·`.jpak`)이나 사용자 결정(패밀리)이 먼저다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
