@@ -36,8 +36,8 @@ namespace JBro::Widget
     // `pressed` 는 잡는 프레임이다(창에 포커스를 준다).
     void OverlayHandle(const char* id, bool hovered, bool holding, bool pressed);
 
-    // 이동·회전·크기 셋 중 하나를 고르는 단추 줄이다. 라벨은 부르는 쪽이 로컬라이징해 준다.
-    // `hotkeys` 가 참이면 이 창에 포커스가 있을 때 W·E·R 로도 바뀐다. 바뀌었으면 참이다.
-    bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel,
-        bool hotkeys);
+    // 이동·회전·크기 셋 중 하나를 고르는 단추 줄이다. 라벨은 부르는 쪽이 로컬라이징해 준다. 바뀌었으면 참이다.
+    // 키(W·E·R)는 여기서 읽지 않는다 - 단축키 관리자에 패널 범위로 등록한다(D-228). 여기서 읽으면 도움말에도 안 나오고
+    // 바꿀 수도 없다.
+    bool GizmoModeBar(GizmoMode& mode, const char* translateLabel, const char* rotateLabel, const char* scaleLabel);
 }

@@ -121,6 +121,31 @@ namespace JBro
         // 폴리곤 포인트 편집을 콜라이더의 우클릭 메뉴에서도 켠다. 콜라이더가 여럿이면 누른 것을 고친다.
         editor.GetComponentMenus().Register(MakeStableTypeId(Component::Collider2D::StaticTypeName()),
             &CanvasViewPanel::DrawEditPointsItem, this, this);
+        // **기즈모 모드 단축키는 이 패널에 포커스가 있을 때만 돈다**(D-228). 기본 조합은 기존 기즈모와 같은 W·E·R 이다.
+        // 조합키 없는 글자라 글자 칸에 타자를 치는 중에는 돌지 않는다(`whileTyping` 기본 거짓).
+        struct Row
+        {
+            const char* id;
+            const char* labelKey;
+            ImGuiKey key;
+            GizmoMode mode;
+        };
+        const Row rows[] = {
+            {"canvas_view.gizmo_translate", LocKeys::GizmoTranslate, ImGuiKey_W, GizmoMode::Translate},
+            {"canvas_view.gizmo_rotate", LocKeys::GizmoRotate, ImGuiKey_E, GizmoMode::Rotate},
+            {"canvas_view.gizmo_scale", LocKeys::GizmoScale, ImGuiKey_R, GizmoMode::Scale},
+        };
+        for (std::size_t index = 0; index < sizeof(rows) / sizeof(rows[0]); ++index)
+        {
+            EditorShortcutDesc desc;
+            desc.id = rows[index].id;
+            desc.labelKey = rows[index].labelKey;
+            desc.categoryKey = LocKeys::PanelCanvasView;
+            desc.scope = GetTitle();
+            desc.primary.key = rows[index].key;
+            desc.handler = MakeOwnerPtr<GizmoModeShortcut>(*this, rows[index].mode);
+            m_shortcuts[index] = editor.GetShortcuts().Register(std::move(desc));
+        }
         return true;
     }
 
@@ -129,7 +154,24 @@ namespace JBro
         if (m_editor != nullptr)
         {
             m_editor->GetComponentMenus().Unregister(this);
+            for (ShortcutHandle& handle : m_shortcuts)
+            {
+                m_editor->GetShortcuts().Unregister(handle);
+                handle = InvalidShortcutHandle;
+            }
         }
+    }
+
+    CanvasViewPanel::GizmoModeShortcut::GizmoModeShortcut(CanvasViewPanel& panel, GizmoMode mode)
+        : m_panel(panel), m_mode(mode)
+    {
+    }
+
+    bool CanvasViewPanel::GizmoModeShortcut::Execute(EditorApplication& editor)
+    {
+        (void)editor;
+        m_panel.m_gizmoMode = m_mode;
+        return true;
     }
 
     bool CanvasViewPanel::DrawEditPointsItem(const ComponentMenuContext& context)
@@ -359,7 +401,7 @@ namespace JBro
         Widget::GizmoModeBar(m_gizmoMode,
             Loc::TextOr(LocKeys::GizmoTranslate, "Move"),
             Loc::TextOr(LocKeys::GizmoRotate, "Rotate"),
-            Loc::TextOr(LocKeys::GizmoScale, "Scale"), true);
+            Loc::TextOr(LocKeys::GizmoScale, "Scale"));
         // **로컬·월드**(D-171, 기존 기즈모의 `L`/`W`). 크기 모드에서는 쓰지 않으므로 잠근다 -
         // 눌러도 아무 일이 없으면 고장과 구분되지 않는다.
         ImGui::SameLine(0.0f, 6.0f);

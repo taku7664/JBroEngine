@@ -5,7 +5,6 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 
-#include <cstring>
 
 namespace JBro::EditorShortcuts
 {
@@ -14,70 +13,97 @@ namespace JBro::EditorShortcuts
         constexpr EditorShortcutBinding Bind(
             ImGuiKey key, bool control = false, bool shift = false)
         {
-            return EditorShortcutBinding{key, control, shift};
+            return EditorShortcutBinding{key, control, shift, false};
         }
 
+        struct BuiltinRow
+        {
+            EditorShortcut id;
+            const char* actionId;
+            const char* labelKey;
+            const char* categoryKey;
+            EditorShortcutBinding primary;
+            EditorShortcutBinding secondary;
+        };
+
         // **기본 조합은 기존 엔진과 같다.** 쓰던 사람이 손으로 기억하는 값이라,
-        // 바꿀 이유가 없으면 바꾸지 않는다.
-        constexpr EditorShortcutInfo Table[] = {
-            {EditorShortcut::SaveCanvas, LocKeys::MenuSaveCanvas, LocKeys::MenuFile,
+        // 바꿀 이유가 없으면 바꾸지 않는다. 사용자가 바꾼 것은 관리자가 이름(`actionId`)으로 덮는다.
+        constexpr BuiltinRow Table[] = {
+            {EditorShortcut::SaveCanvas, "editor.save_canvas", LocKeys::MenuSaveCanvas, LocKeys::MenuFile,
                 Bind(ImGuiKey_S, true), {}},
-            {EditorShortcut::Undo, LocKeys::MenuUndo, LocKeys::MenuEdit,
+            {EditorShortcut::Undo, "editor.undo", LocKeys::MenuUndo, LocKeys::MenuEdit,
                 Bind(ImGuiKey_Z, true), {}},
-            {EditorShortcut::Redo, LocKeys::MenuRedo, LocKeys::MenuEdit,
+            {EditorShortcut::Redo, "editor.redo", LocKeys::MenuRedo, LocKeys::MenuEdit,
                 Bind(ImGuiKey_Y, true), Bind(ImGuiKey_Z, true, true)},
-            {EditorShortcut::Copy, LocKeys::HierarchyCopy, LocKeys::MenuEdit,
+            {EditorShortcut::Copy, "editor.copy", LocKeys::HierarchyCopy, LocKeys::MenuEdit,
                 Bind(ImGuiKey_C, true), {}},
-            {EditorShortcut::Paste, LocKeys::HierarchyPaste, LocKeys::MenuEdit,
+            {EditorShortcut::Paste, "editor.paste", LocKeys::HierarchyPaste, LocKeys::MenuEdit,
                 Bind(ImGuiKey_V, true), {}},
             // Shift 를 정확히 견주므로 Ctrl+Shift+V 가 위의 Ctrl+V 를 오발동시키지 않는다(기존과 같다).
-            {EditorShortcut::PasteAsChild, LocKeys::HierarchyPasteAsChild, LocKeys::MenuEdit,
+            {EditorShortcut::PasteAsChild, "editor.paste_as_child", LocKeys::HierarchyPasteAsChild, LocKeys::MenuEdit,
                 Bind(ImGuiKey_V, true, true), {}},
-            {EditorShortcut::DeleteSelection, LocKeys::HierarchyDelete, LocKeys::MenuEdit,
+            {EditorShortcut::DeleteSelection, "editor.delete_selection", LocKeys::HierarchyDelete, LocKeys::MenuEdit,
                 Bind(ImGuiKey_Delete), {}},
-            {EditorShortcut::TogglePlay, LocKeys::MenuSimulationPlay, LocKeys::MenuSimulation,
+            {EditorShortcut::TogglePlay, "editor.toggle_play", LocKeys::MenuSimulationPlay, LocKeys::MenuSimulation,
                 Bind(ImGuiKey_F5), {}},
-            {EditorShortcut::TogglePause, LocKeys::MenuSimulationPause, LocKeys::MenuSimulation,
+            {EditorShortcut::TogglePause, "editor.toggle_pause", LocKeys::MenuSimulationPause, LocKeys::MenuSimulation,
                 Bind(ImGuiKey_F6), {}},
         };
         static_assert(
             sizeof(Table) / sizeof(Table[0]) == static_cast<std::size_t>(EditorShortcut::Count),
-            "every shortcut needs a row, or Find returns the wrong one");
+            "every shortcut needs a row, or ActionId returns the wrong one");
 
-        void Append(char* buffer, std::size_t capacity, const char* text)
+        // 표의 한 줄을 관리자에 올리는 할 일. 판단은 아래 세 함수가 든다 - 메뉴와 키가 같은 것을 부른다.
+        class BuiltinHandler final : public IEditorShortcutHandler
         {
-            const std::size_t used = std::strlen(buffer);
-            const std::size_t room = capacity - used - 1;
-            const std::size_t length = std::strlen(text);
-            std::memcpy(buffer + used, text, length < room ? length : room);
-            buffer[used + (length < room ? length : room)] = '\0';
-        }
+        public:
+            explicit BuiltinHandler(EditorShortcut id)
+                : m_id(id)
+            {
+            }
+            bool CanExecute(const EditorApplication& editor) const override
+            {
+                return EditorShortcuts::CanExecute(editor, m_id);
+            }
+            const char* WhyBlocked(const EditorApplication& editor) const override
+            {
+                return EditorShortcuts::WhyBlocked(editor, m_id);
+            }
+            bool Execute(EditorApplication& editor) override
+            {
+                return EditorShortcuts::Execute(editor, m_id);
+            }
 
-        bool Pressed(const EditorShortcutBinding& binding)
-        {
-            if (false == binding.IsSet())
-            {
-                return false;
-            }
-            const ImGuiIO& io = ImGui::GetIO();
-            if (io.KeyCtrl != binding.control || io.KeyShift != binding.shift)
-            {
-                return false;
-            }
-            return ImGui::IsKeyPressed(binding.key, false);
-        }
+        private:
+            EditorShortcut m_id;
+        };
     }
 
-    JArrayView<EditorShortcutInfo> All()
-    {
-        return {Table, static_cast<std::uint32_t>(sizeof(Table) / sizeof(Table[0]))};
-    }
-
-    const EditorShortcutInfo& Find(EditorShortcut id)
+    const char* ActionId(EditorShortcut id)
     {
         const std::size_t index = static_cast<std::size_t>(id);
         // 표는 열거 차례 그대로다(위의 static_assert 가 개수를 지킨다).
-        return Table[index < static_cast<std::size_t>(EditorShortcut::Count) ? index : 0];
+        return Table[index < static_cast<std::size_t>(EditorShortcut::Count) ? index : 0].actionId;
+    }
+
+    void RegisterBuiltins(EditorShortcutManager& shortcuts)
+    {
+        for (const BuiltinRow& row : Table)
+        {
+            EditorShortcutDesc desc;
+            desc.id = row.actionId;
+            desc.labelKey = row.labelKey;
+            desc.categoryKey = row.categoryKey;
+            desc.primary = row.primary;
+            desc.secondary = row.secondary;
+            // 저장은 예외다 - 글자를 치는 중에도 Ctrl+S 는 저장이어야 한다.
+            desc.whileTyping = row.id == EditorShortcut::SaveCanvas;
+            // **게임이 키를 받는 동안은 재생 제어만 남긴다**(D-214). 게임의 Delete 가 선택한 오브젝트를 지우고 Ctrl+Z 가
+            // 편집을 되돌리면 안 된다. 기존 엔진은 둘 다 받게 두었다.
+            desc.duringGame = row.id == EditorShortcut::TogglePlay || row.id == EditorShortcut::TogglePause;
+            desc.handler = MakeOwnerPtr<BuiltinHandler>(row.id);
+            shortcuts.Register(std::move(desc));
+        }
     }
 
     bool CanExecute(const EditorApplication& editor, EditorShortcut id)
@@ -190,57 +216,8 @@ namespace JBro::EditorShortcuts
         }
     }
 
-    EditorShortcutText Describe(const EditorShortcutBinding& binding)
+    EditorShortcutText Describe(const EditorApplication& editor, EditorShortcut id)
     {
-        EditorShortcutText text;
-        if (false == binding.IsSet())
-        {
-            return text;
-        }
-        if (binding.control)
-        {
-            Append(text.value, sizeof(text.value), "Ctrl+");
-        }
-        if (binding.shift)
-        {
-            Append(text.value, sizeof(text.value), "Shift+");
-        }
-        // ImGui 가 키 이름을 안다. 우리가 표를 또 만들면 둘이 갈린다.
-        Append(text.value, sizeof(text.value), ImGui::GetKeyName(binding.key));
-        return text;
-    }
-
-    EditorShortcutText Describe(EditorShortcut id)
-    {
-        return Describe(Find(id).primary);
-    }
-
-    void ProcessInput(EditorApplication& editor)
-    {
-        // **글자 칸이 입력을 먹고 있으면 건너뛴다.** 이름을 고치다 Ctrl+Z 를 누르면
-        // 글자를 되돌려야지 씬을 되돌리면 안 된다.
-        //
-        // 저장은 예외다 - 글자를 치는 중에도 Ctrl+S 는 저장이어야 한다.
-        const bool typing = ImGui::GetIO().WantTextInput;
-        // **게임이 키를 받는 동안은 재생 제어만 남긴다**(D-214). 게임의 Delete 가 선택한 오브젝트를 지우고 Ctrl+Z 가
-        // 편집을 되돌리면 안 된다. 기존 엔진은 둘 다 받게 두었다.
-        const bool gameInput = editor.IsGameReceivingInput();
-        for (const EditorShortcutInfo& info : Table)
-        {
-            if (typing && info.id != EditorShortcut::SaveCanvas)
-            {
-                continue;
-            }
-            if (gameInput && info.id != EditorShortcut::TogglePlay && info.id != EditorShortcut::TogglePause)
-            {
-                continue;
-            }
-            if (Pressed(info.primary) || Pressed(info.secondary))
-            {
-                Execute(editor, info.id);
-                // 한 프레임에 하나다. 같은 키에 둘이 걸려 있으면 앞의 것이 이긴다.
-                return;
-            }
-        }
+        return EditorShortcutManager::Describe(editor.GetShortcuts().Find(ActionId(id)).primary);
     }
 }

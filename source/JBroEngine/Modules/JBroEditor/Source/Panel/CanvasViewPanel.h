@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
+#include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -211,6 +212,18 @@ namespace JBro
         float m_pitchDegrees = -25.0f;
 
         GizmoMode m_gizmoMode = GizmoMode::Translate;
+        // W·E·R 을 누르면 모드를 바꾸는 할 일(D-228). 패널이 `OnDestroy` 에서 등록을 풀므로 패널보다 오래 살지 않는다.
+        class GizmoModeShortcut final : public IEditorShortcutHandler
+        {
+        public:
+            GizmoModeShortcut(CanvasViewPanel& panel, GizmoMode mode);
+            bool Execute(EditorApplication& editor) override;
+
+        private:
+            CanvasViewPanel& m_panel;
+            GizmoMode m_mode;
+        };
+        ShortcutHandle m_shortcuts[3] = {};
         // 손잡이를 오브젝트의 축에 둘지 월드 축에 둘지(D-171). 크기 모드에서는 쓰지 않는다.
         GizmoSpace m_gizmoSpace = GizmoSpace::Local;
         Widget::GizmoState m_gizmoState;
