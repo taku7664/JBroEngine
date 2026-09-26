@@ -17,6 +17,7 @@
 namespace JBro
 {
     class GameObject;
+    struct ComponentMenuContext;
     namespace Component
     {
         class Text2D;
@@ -37,6 +38,7 @@ namespace JBro
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;
+        void OnDestroy() override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Center; }
 
@@ -108,6 +110,8 @@ namespace JBro
             PolygonPose            pose;
         };
         bool FindPolygonTarget(PolygonTarget& target);
+        // `Collider2D` 의 우클릭 메뉴에 서는 "포인트 편집" 이다(D-220). `context.user` 가 이 패널이다.
+        static bool DrawEditPointsItem(const ComponentMenuContext& context);
         void DrawPolygonEditor(const ViewRect& rect);
         // 버텍스를 우클릭했으면 그 메뉴를 열고 참이다. 캔버스 메뉴 대신이다.
         bool DrawVertexMenu(const ViewRect& rect);
@@ -177,6 +181,9 @@ namespace JBro
 
         // 폴리곤 콜라이더 편집.
         bool m_editCollider = false;
+        // 우클릭 메뉴의 "포인트 편집" 으로 고른 콜라이더다(D-220). 비어 있으면 고른 오브젝트의 첫 폴리곤이다.
+        // 고른 오브젝트가 바뀌거나 그 콜라이더가 사라지면 잊는다.
+        ComponentAddress m_pointTarget;
         PolygonEditModel::Hit m_polygonHover;
         bool m_vertexDragging = false;
         bool m_vertexPressed = false;

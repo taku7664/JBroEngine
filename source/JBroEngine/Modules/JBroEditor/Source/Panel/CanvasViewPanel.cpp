@@ -4,6 +4,7 @@
 #include <JBro/Editor/Widget/Gizmo.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -114,6 +115,33 @@ namespace JBro
             // 0 일 수 없고, 0 을 그대로 쓰면 아무것도 보이지 않는 배율이 된다.
             SetCamera(centerX, centerY, size);
         }
+        // 폴리곤 포인트 편집을 콜라이더의 우클릭 메뉴에서도 켠다. 콜라이더가 여럿이면 누른 것을 고친다.
+        editor.GetComponentMenus().Register(MakeStableTypeId(Component::Collider2D::StaticTypeName()),
+            &CanvasViewPanel::DrawEditPointsItem, this, this);
+        return true;
+    }
+
+    void CanvasViewPanel::OnDestroy()
+    {
+        if (m_editor != nullptr)
+        {
+            m_editor->GetComponentMenus().Unregister(this);
+        }
+    }
+
+    bool CanvasViewPanel::DrawEditPointsItem(const ComponentMenuContext& context)
+    {
+        CanvasViewPanel* panel = static_cast<CanvasViewPanel*>(context.user);
+        const auto* collider = static_cast<const Component::Collider2D*>(context.component);
+        // 폴리곤이 아니면 회색이다. 숨기면 이 기능이 있는지 알 수 없다(D-181).
+        const bool polygon = collider != nullptr && collider->shape == Component::ColliderShape2D::Polygon;
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewEditPoints, "Edit Points"), nullptr, polygon,
+                Loc::TextOr(LocKeys::CanvasViewEditPointsNotPolygon, "shape must be Polygon")))
+        {
+            panel->m_editCollider = true;
+            panel->m_pointTarget = context.address;
+        }
+        // 값도 슬롯도 바꾸지 않는다. 편집 도구를 켤 뿐이다.
         return true;
     }
 
@@ -360,6 +388,8 @@ namespace JBro
             if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewEditCollider, "Edit Collider")))
             {
                 m_editCollider = false == m_editCollider;
+                // 끄면 메뉴로 고른 콜라이더도 잊는다. 다시 켜면 첫 폴리곤부터다.
+                m_pointTarget = {};
             }
             Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewEditColliderTooltip,
                 "edit the selected object's polygon collider"));
@@ -969,15 +999,36 @@ namespace JBro
         {
             return false;
         }
-        // 한 오브젝트에 폴리곤이 여럿이면 첫째다(기존 엔진은 한 오브젝트에 폴리곤 하나였다).
-        canvas->FindComponentsRaw<Component::Collider2D>(object, m_colliderScratch);
-        for (Component::Collider2D* collider : m_colliderScratch)
+        // 우클릭 메뉴의 "포인트 편집" 으로 고른 것이 먼저다(D-220). 고른 오브젝트가 바뀌었거나, 그 콜라이더가
+        // 사라졌거나 꺼졌거나 폴리곤이 아니게 됐으면 잊고 아래의 첫째로 돌아간다.
+        if (m_pointTarget.objectId != InvalidEditorObjectId)
         {
-            if (collider != nullptr && collider->IsEnabled()
-                && collider->shape == Component::ColliderShape2D::Polygon)
+            Component::Collider2D* chosen = nullptr;
+            if (m_editor->GetObjectIds().Resolve(m_pointTarget.objectId) == object)
             {
-                target.collider = collider;
-                break;
+                chosen = static_cast<Component::Collider2D*>(ResolveComponent(m_editor->GetObjectIds(), m_pointTarget));
+            }
+            if (chosen != nullptr && chosen->IsEnabled() && chosen->shape == Component::ColliderShape2D::Polygon)
+            {
+                target.collider = chosen;
+            }
+            else
+            {
+                m_pointTarget = {};
+            }
+        }
+        if (target.collider == nullptr)
+        {
+            // 한 오브젝트에 폴리곤이 여럿이면 첫째다(기존 엔진은 한 오브젝트에 폴리곤 하나였다).
+            canvas->FindComponentsRaw<Component::Collider2D>(object, m_colliderScratch);
+            for (Component::Collider2D* collider : m_colliderScratch)
+            {
+                if (collider != nullptr && collider->IsEnabled()
+                    && collider->shape == Component::ColliderShape2D::Polygon)
+                {
+                    target.collider = collider;
+                    break;
+                }
             }
         }
         if (target.collider == nullptr

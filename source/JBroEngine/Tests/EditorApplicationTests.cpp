@@ -10653,6 +10653,145 @@ namespace
         editor.Shutdown();
     }
 
+    // 지금 열린 하위 메뉴 창이다. `BeginMenu` 는 `Collider2D###Menu_00` 처럼 줄 이름 뒤에 깊이를 붙여 이름 짓는다.
+    ImGuiWindow* FindSubmenuWindow()
+    {
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "###Menu_") != nullptr && window->Active)
+            {
+                return window;
+            }
+        }
+        return nullptr;
+    }
+
+    // **콜라이더 우클릭 메뉴의 "포인트 편집" 은 누른 그 콜라이더를 고친다**(D-220 의 첫 사용처). 도구 막대로 켜면
+    // 여전히 첫 폴리곤이다. 폴리곤이 아니면 항목이 회색이다.
+    void TestEditPointsFromTheMenuEditsThatCollider()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; editing points from the menu not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "EditPointsMenuProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
+        auto* left = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
+        auto* right = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
+        Check(left != nullptr && right != nullptr, "and two colliders");
+        // 두 폴리곤을 좌우로 떼어 놓는다. 꼭짓점 1 은 (0.5, -0.5) 에 오프셋을 더한 자리다.
+        for (JBro::Component::Collider2D* collider : {left, right})
+        {
+            collider->shape = JBro::Component::ColliderShape2D::Polygon;
+            collider->points = { {-0.5f, -0.5f}, {0.5f, -0.5f}, {0.5f, 0.5f}, {-0.5f, 0.5f} };
+        }
+        left->offset = {-2.5f, 0.0f};
+        right->offset = {2.5f, 0.0f};
+        editor.SetSelectedObject(cup);
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        const ImGuiID vertex = LabelId(view->ID, "##vertex_1");
+
+        const auto at = [&](float worldX, float worldY) {
+            float x = 0.0f;
+            float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<int>(std::lround(x));
+            spot.y = static_cast<int>(std::lround(y));
+            return spot;
+        };
+        const auto hoveredAt = [&](const Spot& spot) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+            Check(editor.Tick(Frame), "the editor must tick while hovering");
+            Check(editor.Tick(Frame), "and once more for the hover to settle");
+            return ImGui::GetHoveredID();
+        };
+        const Spot leftCorner = at(-2.0f, -0.5f);
+        const Spot rightCorner = at(3.0f, -0.5f);
+
+        // 도구 막대로 켜면 첫 폴리곤이다 - 메뉴가 없던 때의 모양 그대로다.
+        const char* editLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditCollider, "Edit Collider");
+        Spot toggle;
+        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, editLabel), toggle),
+            "the edit collider button must be on the canvas view tool bar");
+        ClickAt(editor, hwnd, toggle);
+        Check(hoveredAt(leftCorner) == vertex, "turned on from the tool bar, the first polygon is edited");
+        Check(hoveredAt(rightCorner) != vertex, "and not the second");
+        ClickAt(editor, hwnd, toggle);
+        Check(hoveredAt(leftCorner) != vertex, "turned off, no handles");
+
+        // 계층에서 둘째 콜라이더의 "포인트 편집" 을 누른다.
+        const char* colliderLine = ComponentLine(left->GetTypeId());
+        char secondLine[128] = {};
+        std::snprintf(secondLine, sizeof(secondLine), "%s (2)", colliderLine);
+        const char* pointsLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditPoints, "Edit Points");
+        Spot row;
+        Check(FindHierarchyRow(editor, hwnd, cup, row), "the cup's row must be in the hierarchy");
+        RightClickAt(editor, hwnd, row);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the row must open the object menu");
+        Spot line;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, secondLine), line),
+            "the second collider must have its line");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        ImGuiWindow* submenu = FindSubmenuWindow();
+        Check(submenu != nullptr, "hovering the line must open its submenu");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
+            "the collider's submenu must offer to edit its points");
+        Check(false == ImGui::GetCurrentContext()->HoveredIdIsDisabled, "a polygon's points can be edited");
+        ClickAt(editor, hwnd, item);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must close");
+        }
+        Check(hoveredAt(rightCorner) == vertex, "the collider picked from the menu is the one edited");
+        Check(hoveredAt(leftCorner) != vertex, "not the first one");
+
+        // 폴리곤이 아니면 회색이다.
+        left->shape = JBro::Component::ColliderShape2D::Box;
+        RightClickAt(editor, hwnd, row);
+        menu = FindContextMenuWindow();
+        Check(menu != nullptr, "the object menu must open again");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, colliderLine), line),
+            "the first collider must have its line");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        submenu = FindSubmenuWindow();
+        Check(submenu != nullptr, "hovering the line must open its submenu");
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, pointsLabel), item),
+            "a box collider still shows the item");
+        Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled, "but grey, since a box has no points to edit");
+
+        editor.Shutdown();
+    }
+
     void TestRightClickingAnObjectInTheCanvasViewOpensItsMenu()
     {
         JBro::EditorApplication editor;
@@ -10914,6 +11053,7 @@ int RunEditorApplicationTests()
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
     TestComponentHooksAreSubmenusPerInstance();
     TestComponentHooksAppearInTheInspectorHeaderMenu();
+    TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestTheGizmoCanWorkInWorldAxes();
     TestThePathHelpersAgreeOnOneAnswer();
