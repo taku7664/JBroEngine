@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-// 텍스트 컴포넌트가 함께 쓰는 배치 값이다(D-218). 2D `Text2D` 와 3D `Text3D` 가 같은 뜻으로 쓰므로 차원과 무관한 여기에 한 번만 둔다.
+// 텍스트 컴포넌트가 함께 쓰는 배치 값이다(D-222). 2D `Text2D` 와 3D `Text3D` 가 같은 뜻으로 쓰므로 차원과 무관한 여기에 한 번만 둔다.
 // 반사 이름(`Component::TextOverflow` 따위)은 옮기기 전과 같다 - 저장한 캔버스가 그대로 읽힌다.
 
 namespace JBro::Component

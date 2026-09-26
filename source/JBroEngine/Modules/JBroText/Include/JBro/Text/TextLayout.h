@@ -66,7 +66,7 @@ namespace JBro::Text
         float    letterSpacing = 0.0f; // 글자 사이에 더하는 픽셀
         // 탭 멈춤 자리의 간격이다(기본 폰트의 공백 폭 몇 개인가). 탭은 줄 머리에서 센 다음 멈춤 자리까지 나아간다. 0 이하면 공백 하나다.
         float    tabSize = 4.0f;
-        // **리치 텍스트**(D-217). 켜면 `<color=#RRGGBB>`·`<color=#RRGGBBAA>` ... `</color>` 와 `<size=픽셀>` ... `</size>` 를 태그로 읽고
+        // **리치 텍스트**(D-221). 켜면 `<color=#RRGGBB>`·`<color=#RRGGBBAA>` ... `</color>` 와 `<size=픽셀>` ... `</size>` 를 태그로 읽고
         // 글자로 내지 않는다. `<<` 는 `<` 한 글자다. 모르는 태그·틀린 태그·짝 없는 닫는 태그·여덟 겹을 넘는 태그는 글자 그대로 보인다.
         bool     richText = false;
         // `<size>` 에 곱하는 배율이다. 자동 크기(BuildToFit)가 고른 크기 / fontSize 로 둔다.

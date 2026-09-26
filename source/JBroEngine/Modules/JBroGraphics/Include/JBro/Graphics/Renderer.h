@@ -30,7 +30,7 @@ namespace JBro
         std::uint32_t maxViews = 8;
         std::uint32_t maxSpriteSubmissions = 65536;
         std::uint32_t maxMeshSubmissions = 16384;
-        // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-218).
+        // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-222).
         std::uint32_t maxWorldTextSubmissions = 16384;
         bool validation = false;
     };
@@ -143,7 +143,7 @@ namespace JBro
         float tint[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     };
 
-    // **월드 텍스트**(D-218). 3D 뷰에 놓는 글자 사각형 하나다. 스프라이트와 같은 단위 쿼드(-0.5..0.5)를 `world`(행 우선 4x4, 열 벡터)로
+    // **월드 텍스트**(D-222). 3D 뷰에 놓는 글자 사각형 하나다. 스프라이트와 같은 단위 쿼드(-0.5..0.5)를 `world`(행 우선 4x4, 열 벡터)로
     // 월드에 놓으므로 어느 방향이든 향한다. 렌더러는 그 뷰의 **메시 뒤에** 깊이를 보되 쓰지 않고 알파로 그린다 - 메시에 가려지고,
     // 글자끼리는 가리지 않는다. 겹치는 반투명 글자의 뒤→앞 정렬은 프레임워크가 제출 전에 한다(D-53). 텍스처는 `RegisterTexture` 의 것이다.
     struct WorldTextSubmit

@@ -26,6 +26,11 @@
 - `[열림]` 물리 3D 시스템이 없다. `Rigidbody3D`·`Collider3D` 는 골격이다.
 - `[열림]` 스크립트 3D 서비스(레이캐스트 등)가 없다. `ScriptAPI.h` 는 컴포넌트 헤더만 노출한다.
 
+## 텍스트
+
+- ~~`[열림]` 3D 텍스트~~ → 완료 2026-09-26 · `aa57faa`·`0ffa0f1`·`cec17b7` · `Component::Text3D`·`System::Text3DSystem`·`RenderBridge3D`(`PushWorldTexts`)·
+  렌더러 `WorldTextSubmit`(D-222). 2D 와 같은 커널·아틀라스·레이아웃 캐시(`JBroTextRendering`)를 쓴다. 남긴 것은 text-plan §5 의 6 단계 끝에 있다.
+
 ## 편집
 
 - `[열림]` 기즈모는 대상의 로컬 축만 쓴다(월드 축 전환 없음). 스냅(격자·각도)이 없다. 여럿을 고르고 회전하면 각자 제

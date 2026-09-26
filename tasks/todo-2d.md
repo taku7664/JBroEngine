@@ -133,6 +133,7 @@
   저장소는 프로세스에 하나다(D-211). ~~3 단계(에디터: 여러 줄 글자 칸·캔버스 뷰 선택·폰트 임포트 옵션·프로젝트 기본 폰트)~~ → 완료 2026-09-26 ·
   `ef6615a` · `JBroEditor/Panel/InspectorPanel`·`CanvasViewPanel`·`ProjectSettingsPanel`, `JBroHost/ProjectFile`(`Fonts`, D-213). ~~4 단계(SDF 와 외곽선)~~ → 완료 2026-09-26 · `126e382` · `JBroGraphics/Shaders/BuiltinSdfText.hlsl`·`Renderer`(D-215). ~~5 단계(미리 채우기·워커 래스터화·부분 업로드·자동 크기·퇴출)와 §7 의 결합 표시·
   금칙·탭·GPOS·스크립트 `TextStore`~~ → 완료 2026-09-26 · `be44a20`·`a1f623c`·`e7849ab`·`b0e0558`·`3f92027` · `TextLibrary`·`TextLayout`·`FontFace`·`RHI`(D-216).
-  남은 것(리치 텍스트·패밀리, 게임 로컬라이징 키, 화면 공간 UI 텍스트, 3D 텍스트, `.jpak` 아틀라스, 옛한글)은 없는 계층이나 사용자 결정이 먼저다(text-plan §5 의 5 단계).
+  ~~리치 텍스트~~ → 완료 2026-09-26 · `7f44c37`·`a994d51` · `JBroText/TextLayout`·`Text2D::richText`(D-221). 3D 텍스트는 todo-3d 에 있다(D-222).
+  남은 것(패밀리, 게임 로컬라이징 키, 화면 공간 UI 텍스트, `.jpak` 아틀라스, 옛한글)은 없는 계층이나 사용자 결정이 먼저다(text-plan §5 의 5 단계).
 - `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·Shape 렌더러.
   렌더 패스 그래프(공용 todo)가 먼저다.

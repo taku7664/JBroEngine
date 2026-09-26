@@ -73,7 +73,7 @@ namespace JBro::System
     private:
         struct Entry
         {
-            // 레이아웃과 쿼드는 공용 캐시가 든다(D-218). 여기는 이 시스템의 몫만이다.
+            // 레이아웃과 쿼드는 공용 캐시가 든다(D-222). 여기는 이 시스템의 몫만이다.
             TextBlock            block;
             bool                 warnedMissingFont = false;
             std::uint64_t        lastSeenFrame = 0;

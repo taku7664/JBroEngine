@@ -11,7 +11,7 @@
 
 namespace JBro::Component
 {
-    // 글자 판이 어디를 보나(D-218). Transform 은 오브젝트의 회전을 따르는 판(간판·벽의 글씨), Billboard 는 늘 카메라를 보는 판(이름표)이다.
+    // 글자 판이 어디를 보나(D-222). Transform 은 오브젝트의 회전을 따르는 판(간판·벽의 글씨), Billboard 는 늘 카메라를 보는 판(이름표)이다.
     // Billboard 는 오브젝트의 위치와 크기만 쓰고 회전은 뷰마다 카메라의 것으로 바꾼다 - 게임 뷰와 편집 뷰가 각자 제 카메라를 본다.
     enum class TextFacing3D : std::uint8_t { Transform, Billboard };
 }
@@ -25,7 +25,7 @@ namespace JBro
 
 namespace JBro::Component
 {
-    // 3D 월드의 텍스트다(D-218). `Text2D` 와 같은 커널·아틀라스·레이아웃 캐시(JBroTextRendering)를 쓰고, 글자마다 월드 텍스트 사각형으로
+    // 3D 월드의 텍스트다(D-222). `Text2D` 와 같은 커널·아틀라스·레이아웃 캐시(JBroTextRendering)를 쓰고, 글자마다 월드 텍스트 사각형으로
     // 그린다 - 메시에 가려지고 글자끼리는 가리지 않는다. 크기와 상자는 **글자 픽셀**이고 유닛은 폰트 에셋의 `pixelsPerUnit` 으로 나눈다.
     // 판은 오브젝트 로컬의 XY 평면이고 +Z 쪽에서 읽힌다(카메라가 -Z 를 보므로 기본 자세에서 정면이다).
     //
@@ -74,7 +74,7 @@ namespace JBro::Component
         // 외곽선이다(폰트가 `Sdf` 일 때만). 폭은 글자 픽셀이다 - `Text2D` 와 같다.
         JBRO_FIELD(Color, outlineColor) = { 0.0f, 0.0f, 0.0f, 1.0f };
         JBRO_FIELD(float, outlineWidth, Range(0, 64)) = 0.0f;
-        // **리치 텍스트**다(D-217). `Text2D::richText` 와 같은 태그를 읽는다.
+        // **리치 텍스트**다(D-221). `Text2D::richText` 와 같은 태그를 읽는다.
         JBRO_FIELD(bool, richText) = false;
     };
 }

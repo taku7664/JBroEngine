@@ -42,7 +42,7 @@
 #endif
 
 #if defined(JBRO_TIER_PROBE_TEXT_RENDERING)
-// 텍스트 라이브러리는 Tier E 다(D-218). 렌더러와 에셋 시스템을 쥐므로 스크립트에 넘기지 않는다.
+// 텍스트 라이브러리는 Tier E 다(D-222). 렌더러와 에셋 시스템을 쥐므로 스크립트에 넘기지 않는다.
 #include <JBro/TextRendering/TextLibrary.h>
 #endif
 

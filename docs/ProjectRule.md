@@ -66,6 +66,8 @@
   프레임워크의 `SpriteLibrary` 가 들고, 렌더러 프레임 밖(렌더 추출)에서만 올린다. (MUST) (D-113)
 - 텍스처의 사각형 쓰기(`IRHIDevice::WriteTextureRegion`)는 선택 계약이다. 구현하지 않은 백엔드는 `false` 를 반환하고, 부르는 쪽은 텍스처 전체
   쓰기로 되돌아간다 - 사각형 쓰기가 없어도 그림은 같아야 한다. 텍스처 밖으로 나가는 사각형과 한 행보다 짧은 행 간격은 거절한다. (MUST) (D-216)
+- 월드 텍스트(`WorldTextSubmit`, 3D 뷰의 글자 사각형)는 행 우선 4x4 로 단위 쿼드를 놓고, 렌더러가 그 뷰의 **메시 뒤에** 깊이 테스트 켬·쓰기 끔으로
+  그린다. 반투명 글자의 뒤→앞 정렬은 프레임워크(3D 브리지)가 제출 전에 한다. 월드 텍스트가 있는 뷰는 메시가 없어도 깊이를 단다. (MUST) (D-222)
 - 스프라이트의 화면 크기와 피벗은 에셋이 정한다: 칸 픽셀 / 에셋 `pixelsPerUnit`, 칸의 피벗. `SpriteRenderer2D` 의
   `sizeMode`·`pivotMode` 가 각각 `Custom` 이거나 스프라이트가 풀리지 않았을 때만 컴포넌트의 `size`·`pivot` 이다.
   (MUST) (D-119·D-124)
@@ -174,19 +176,20 @@
 
   | 층 | 모듈 | 내용 |
   |---|---|---|
-  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator` |
+  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222) |
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
   | Tier E | `JBroCanvas` | `Canvas`·`Layer`·`GameSystem`·`SystemScheduler`·`Internal::CanvasAccess` |
-  | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216) |
+  | Tier E | `JBroFramework2DSystem` | 2D 시스템·렌더 추출·`Framework2D`(IFramework 구현). 폰트 미리 채우기를 `FrameworkContext.tasks` 의 워커에 싣느라 `JBroTask` 에 기댄다 (D-216). 텍스트 레이아웃·아틀라스는 `JBroTextRendering` 이다(D-222). 3D 의 `JBroFramework3DSystem` 도 같은 두 모듈에 기댄다 |
   | Tier E | `JBroHost` | `EngineInstance`·`IFramework`·`ScriptDLLLoader` |
   | Tier E | `JBroAsset`·`JBroGraphics`·`JBroRHI`·`JBroPlatform`·`JBroD3D12RHI`·`JBroEditor`·`JBroGameHost` | 엔진·호스트 |
   | Tier E | `JBroScriptCompiler` | JBroScript 컴파일러 `jbroc` 의 본체(렉서·파서·타입체커·이미터). `JBroCore` 에만 기댄다 (D-104) |
   | Tier E | `JBroc` | `jbroc` 의 명령줄 실행 파일. 진단을 MSVC 모양으로 낸다 (D-105) |
   | Tier E | `JBroAudio` | `AudioMixer`(내부 `ma_engine`)·`System::AudioSystem`(버스 표·클립 등록·소스 상태 기계·미리 듣기). 플랫폼을 보지 않는다 (D-197·D-198) |
   | Tier E | `JBroText` | 텍스트 커널: `FontFace`(stb_truetype + GPOS 쌍 조정·mark-to-base)·`TextLayout`(UTF-8·커닝·결합 표시·줄바꿈·금칙·정렬·자동 크기)·`GlyphAtlas`. `JBroCore` 에만 기대고 캔버스·컴포넌트·렌더러를 모른다 (D-200·D-216) |
+  | Tier E | `JBroTextRendering` | 텍스트 렌더링 공용: `TextLibrary`(폰트·아틀라스·페이지 텍스처)·`GlyphMesh`(글리프 쿼드)·`TextBlock`(레이아웃 캐시). Core·Text·AssetTypes·Asset·RHI·Graphics·Task·Platform·Runtime 에 기대고 캔버스·컴포넌트·프레임워크를 모른다. 2D·3D 텍스트 시스템이 쓴다 (D-222) |
   | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
 
   > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고

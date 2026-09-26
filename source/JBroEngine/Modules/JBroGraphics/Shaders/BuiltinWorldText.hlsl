@@ -1,4 +1,4 @@
-// World text (D-218). The same unit quad as BuiltinSprite.hlsl (-0.5..0.5), placed in the world by a row-major 4x4
+// World text (D-222). The same unit quad as BuiltinSprite.hlsl (-0.5..0.5), placed in the world by a row-major 4x4
 // matrix like BuiltinMesh.hlsl, so a glyph can face any direction. The renderer records it after the meshes of a view
 // with the depth test on and depth writes off: meshes hide it, glyphs do not hide each other.
 //

@@ -94,7 +94,7 @@ namespace JBro::Internal
             return accepted;
         }
 
-        // 3D 텍스트의 글자를 이 뷰의 카메라로 놓고 뒤→앞으로 낸다(D-218). 빌보드는 오브젝트 회전 대신 카메라 회전을 쓴다 - 판의 +Z 가
+        // 3D 텍스트의 글자를 이 뷰의 카메라로 놓고 뒤→앞으로 낸다(D-222). 빌보드는 오브젝트 회전 대신 카메라 회전을 쓴다 - 판의 +Z 가
         // 카메라 쪽이고 가로가 카메라의 오른쪽이다. 같은 텍스트의 글자는 한 자리(오브젝트 위치)라 거리가 같으므로 낸 순서가 남는다.
         bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, bool editorView, const Vec3& cameraPosition,
             const Quaternion& cameraRotation)

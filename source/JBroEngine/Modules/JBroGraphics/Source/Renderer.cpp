@@ -1024,7 +1024,7 @@ namespace JBro
 
             RenderPassDesc pass;
             pass.colorAttachments = {&colorAttachment, 1};
-            // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-218). 스프라이트만 있는 2D 프레임은
+            // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-222). 스프라이트만 있는 2D 프레임은
             // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이다.
             const bool withDepth = view.runCount != 0 || view.worldTextRunCount != 0;
             DepthStencilAttachmentDesc depthAttachment;

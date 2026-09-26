@@ -10,7 +10,7 @@
 
 #include <cstdint>
 
-// 텍스트 한 덩어리의 레이아웃 캐시다(D-218). 2D `Text2D` 와 3D `Text3D` 가 같이 쓴다 - 컴포넌트는 제 필드로 `TextBlockSettings` 를
+// 텍스트 한 덩어리의 레이아웃 캐시다(D-222). 2D `Text2D` 와 3D `Text3D` 가 같이 쓴다 - 컴포넌트는 제 필드로 `TextBlockSettings` 를
 // 채우고, 시스템은 매 프레임 `Update` 를 부른다. 글자·폰트·옵션·아틀라스가 바뀌었을 때만 다시 레이아웃하고, 결과는 글자 픽셀의 쿼드다.
 // 월드로 옮기는 것(PPU·변환·빌보드)은 각 시스템의 일이다.
 namespace JBro

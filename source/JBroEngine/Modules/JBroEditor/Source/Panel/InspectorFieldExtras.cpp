@@ -90,7 +90,7 @@ namespace JBro
             }
         }
 
-        // 3D 텍스트도 같은 경고다(D-218). 판단은 3D 텍스트 시스템이 한다.
+        // 3D 텍스트도 같은 경고다(D-222). 판단은 3D 텍스트 시스템이 한다.
         void DrawText3DFontWarning(Widget::FormLayout& layout, const FieldExtraContext& context)
         {
             Canvas* canvas = context.editor->GetCanvas();
