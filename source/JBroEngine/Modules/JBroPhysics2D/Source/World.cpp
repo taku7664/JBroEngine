@@ -50,7 +50,8 @@ namespace JBro::Physics2D
 
     std::uint32_t RecommendWorkerCount(std::uint32_t work, std::uint32_t hardwareThreads)
     {
-        if (hardwareThreads <= 1 || work < 1024)
+        // 1024 조각 아래는 나눗셈이 이미 0 이다(따로 거르던 조건은 뮤테이션으로 지워도 같아 뺐다).
+        if (hardwareThreads <= 1)
         {
             return 0;
         }
