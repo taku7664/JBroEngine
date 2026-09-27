@@ -161,6 +161,9 @@ namespace JBro::System
         AudioClipHandle AcquireClip(AssetHandle handle);
         void ReleaseClip(AssetHandle handle);
         AudioBusId ResolveBus(AudioBusName bus) const;
+        // 버스를 **조종**하는 호출(음량·음소거·이펙트)의 대상이다(D-240). 목록에 없는 이름은 Master 로 떨어지지 않고
+        // `AudioNoBus` 다 - 오타 하나가 게임 전체를 음소거하지 않게. 한 번만 알린다.
+        AudioBusId ResolveControlBus(AudioBusName bus) const;
         void StartSource(Component::AudioSource& source);
         void StopVoice(Component::AudioSource& source, float fadeOutSeconds);
         void Place(const float position[3], float out[3]) const;
@@ -182,6 +185,8 @@ namespace JBro::System
         float m_planarDepth = 0.0f;
         float m_listenerPosition[3] = {0.0f, 0.0f, 0.0f};
         bool m_listenerPlaced = false;
+        // `ConfigureBuses` 가 버스를 다시 세울 때마다 는다(D-240). 소스가 제 버스를 다시 잇는 신호다.
+        std::uint32_t m_busGeneration = 1;
         AudioSystemContext m_systemContext;
         AudioServiceContext m_serviceContext;
         bool m_initialized = false;

@@ -142,7 +142,8 @@ namespace JBro
                         "no audio device - sounds are mixed but not heard"));
                 }
                 Widget::TextF(Loc::TextOr(LocKeys::StatsAudioVoices, "voices %u / %u, peak %.2f"),
-                    sound.activeVoices, sound.maxVoices, static_cast<double>(sound.lastPeak));
+                    // 섞는 부하를 보인다 - 가상 보이스는 자리만 쥐고 섞지 않는다(D-240).
+                    sound.activeVoices - sound.virtualVoices, sound.maxAudibleVoices, static_cast<double>(sound.lastPeak));
                 if (sound.voicesStolen != 0 || sound.voicesRejected != 0)
                 {
                     Widget::SeverityTextF(Widget::Severity::Warning,

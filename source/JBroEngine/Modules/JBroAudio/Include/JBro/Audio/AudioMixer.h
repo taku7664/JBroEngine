@@ -128,6 +128,8 @@ namespace JBro
             std::uint32_t activeVoices = 0;
             // `activeVoices` 가운데 가상인 수다(D-235). 섞는 비용이 없다.
             std::uint32_t virtualVoices = 0;
+            // 실제로 섞을 수 있는 수다(D-240). 가상 보이스를 끄면 `maxVoices` 와 같다.
+            std::uint32_t maxAudibleVoices = 0;
             std::uint32_t maxVoices = 0;
             std::uint32_t registeredClips = 0;
             // 시작 이후 누계다.
@@ -164,6 +166,10 @@ namespace JBro
         bool IsInitialized() const;
         std::uint32_t GetSampleRate() const;
         std::uint32_t GetChannels() const;
+
+        // 디스크 스트림 자리가 모두 비기를(스트리머가 열던 파일을 다 닫기를) 기다린다(D-240). 스트리머 스레드는 호스트의 바이트
+        // 출처로 파일을 열므로, 호스트는 그 출처(에셋 시스템·패키지)를 내리기 전에 부른다. 기다린 끝에도 남았으면 거짓이다.
+        bool WaitForStreamsIdle(float timeoutSeconds = 2.0f);
 
         // ── 오디오 스레드 ──────────────────────────────────────────────────────
         // 인터리브 f32 로 `frameCount` 프레임을 채운다. 초기화 전이면 0 으로 채운다.

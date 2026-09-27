@@ -114,6 +114,8 @@ namespace JBro::Component
             bool playRequested = false;
             // 스크립트가 멈춰 둔 것이다. 시스템이 다시 켜지 않는다.
             bool stoppedByScript = false;
+            // 보이스를 이은 때의 버스 구성 세대다(D-240). 프로젝트 설정을 저장해 버스를 다시 세우면 바뀐다 - 그때 버스를 다시 잇는다.
+            std::uint32_t busGeneration = 0;
         };
         Runtime runtime;
     };
