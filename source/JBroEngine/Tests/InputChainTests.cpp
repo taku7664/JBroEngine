@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestClock.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -124,13 +125,13 @@ namespace
             return MakeStableTypeId(StaticTypeName());
         }
 
-        void OnUpdate(float) override
+        void OnUpdate() override
         {
             sawW = GetInputServices().Input.Keyboard().IsDown(Key::W);
             sawMouse = GetInputServices().Input.Mouse().IsDown(MouseButton::Left);
         }
 
-        void OnFixedUpdate(float) override
+        void OnFixedUpdate() override
         {
             ++fixedSteps;
             fixedSawW = GetInputServices().Input.Keyboard().IsDown(Key::W);
@@ -426,7 +427,7 @@ namespace
 
         Framework2D framework;
         FrameworkContext context;
-        context.fixedDeltaTime = 1.0f / 60.0f;
+        JBro::Testing::AttachClock(context);
         context.input = &input;
         Check(framework.Initialize(context), "the framework must initialize without a renderer");
         Canvas* canvas = framework.GetCanvas();
@@ -436,11 +437,11 @@ namespace
         modal->block = true;
 
         input.BeginFrame({});
-        framework.Update(1.0f / 60.0f);
+        JBro::Testing::Tick(framework, 1.0f / 60.0f);
         g_dispatchLog.Clear();
 
         input.BeginFrame(HeldWAndMouse);
-        framework.Update(1.0f / 60.0f);
+        JBro::Testing::Tick(framework, 1.0f / 60.0f);
         Check(g_dispatchLog.Size() == 1, "the framework must run the input chain every frame");
         Check(poller->fixedSteps > 0, "the frame must include a fixed step");
         Check(false == poller->fixedSawW, "polling in OnFixedUpdate must already see the block");
@@ -534,7 +535,7 @@ namespace
         BindInputServiceContext(input.GetServiceContext());
         Framework2D framework;
         FrameworkContext context;
-        context.fixedDeltaTime = 1.0f / 60.0f;
+        JBro::Testing::AttachClock(context);
         context.input = &input;
         Check(framework.Initialize(context), "the framework must initialize without a renderer");
         Check(framework.BindScriptContexts(), "the script contexts bind");
@@ -583,7 +584,7 @@ namespace
                 list.Add(event);
             }
             input.BeginFrame({list.Data(), static_cast<std::uint32_t>(list.Size())});
-            framework.Update(1.0f / 60.0f);
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
         };
         frameWith({});
         frameWith({});

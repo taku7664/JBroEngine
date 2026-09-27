@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypesReflection.h>
-#include <JBro/Framework3D/Math3DReflection.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
+#include <JBro/Reflection/Math3DReflection.h>
 #include <JBro/Runtime/Component.h>
 
 namespace JBro::Component

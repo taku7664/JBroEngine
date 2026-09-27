@@ -1,4 +1,5 @@
-﻿#include <JBro/Canvas/Canvas.h>
+﻿#include "TestClock.h"
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -49,15 +50,16 @@ namespace
             startCount++;
         }
 
-        void OnUpdate(float deltaTime) override
+        // 델타는 인자가 아니라 서비스에서 읽는다(D-242).
+        void OnUpdate() override
         {
-            lastDeltaTime = deltaTime;
+            lastDeltaTime = JBro::GetServiceContext().Time.DeltaTime();
             callLog.Add(mark);
         }
 
-        void OnFixedUpdate(float fixedDeltaTime) override
+        void OnFixedUpdate() override
         {
-            lastFixedDeltaTime = fixedDeltaTime;
+            lastFixedDeltaTime = JBro::GetServiceContext().Time.DeltaTime();
             fixedLog.Add(mark);
         }
 
@@ -128,11 +130,16 @@ namespace
         auto* script = canvas.AttachComponent<ProbeScript>(object);
         script->mark = 1;
 
-        scripts.Update(canvas, 0.25f);
+        // 스크립트는 델타를 시계에서 읽는다(D-242). 호스트가 하듯 시계를 먼저 연다. 0.05 초는 고정 스텝 셋이라 상한(넷) 안이다 -
+        // 상한을 넘는 프레임은 버린 스텝만큼 게임 델타도 줄어든다(TimeTests).
+        JBro::FrameworkContext clockContext;
+        JBro::Testing::AttachClock(clockContext);
+        Check(JBro::Testing::SharedClock().BeginFrame(0.05f), "the clock must open the frame");
+        scripts.Update(canvas, 0.05f);
         Check(createLog.Size() == 1 && script->startCount == 1,
             "a new script must be created and started exactly once");
-        Check(callLog.Size() == 1 && script->lastDeltaTime == 0.25f,
-            "the start hooks must be followed by an update in the same frame");
+        Check(callLog.Size() == 1 && script->lastDeltaTime == 0.05f,
+            "the start hooks must be followed by an update in the same frame, reading the clock's delta"); 
 
         scripts.Update(canvas, 0.5f);
         Check(createLog.Size() == 1 && script->startCount == 1,
@@ -259,9 +266,8 @@ namespace
             m_liveMark = 0;
         }
 
-        void OnUpdate(float deltaTime) override
+        void OnUpdate() override
         {
-            (void)deltaTime;
             if (m_liveMark == AliveMark)
             {
                 victimRanWhileAlive = true;
@@ -287,9 +293,8 @@ namespace
             return JBro::MakeStableTypeId(StaticTypeName());
         }
 
-        void OnUpdate(float deltaTime) override
+        void OnUpdate() override
         {
-            (void)deltaTime;
             if (activeCanvas == nullptr || victimObject == nullptr)
             {
                 return;

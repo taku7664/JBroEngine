@@ -1,4 +1,5 @@
-﻿#include <JBro/Core/Core.h>
+﻿#include "TestClock.h"
+#include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -70,6 +71,7 @@ namespace
     {
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         Check(framework.Initialize(context), "framework must initialize with a default allocator fallback");
         Check(framework.GetCanvas() != nullptr, "framework must own a canvas");
         Check(framework.GetCanvas()->GetLayerCount() == 1, "framework canvas must have the default layer");
@@ -101,7 +103,7 @@ namespace
         Check(framework.GetLayer2D(directLayerId) == nullptr,
             "direct runtime layer destruction must also release Framework2D state");
 
-        framework.Update(1.0f / 60.0f);
+        JBro::Testing::Tick(framework, 1.0f / 60.0f);
         framework.Shutdown();
         Check(framework.GetCanvas() == nullptr, "shutdown must release the canvas");
     }
@@ -116,6 +118,7 @@ namespace
 
         JBro::Framework3D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         Check(framework.Initialize(context), "Framework3D must initialize its runtime canvas");
         JBro::Canvas* canvas = framework.GetCanvas();
         Check(canvas != nullptr, "Framework3D must expose its runtime canvas");

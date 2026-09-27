@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/EditorTheme.h>
 
 // 세로 구분선은 공개 헤더에 없다. 그리는 규칙은 ImGui 의 것을 그대로 쓴다.
 #include <imgui_internal.h>
@@ -9,7 +10,7 @@ namespace JBro::Widget
 {
     namespace
     {
-        constexpr ImVec4 InvalidBorderColor(0.95f, 0.35f, 0.30f, 1.0f);
+        constexpr ImVec4 InvalidBorderColor = EditorTheme::Danger;
         // 도구 줄 구분선의 앞뒤 간격. 단추 사이 기본 간격보다 넓어야 무리가 갈린 것으로 읽힌다.
         constexpr float ToolBarSeparatorSpacing = 12.0f;
     }
@@ -24,14 +25,15 @@ namespace JBro::Widget
         switch (severity)
         {
         case Severity::Success:
-            return ImVec4(0.45f, 0.85f, 0.50f, 1.0f);
+            return EditorTheme::Success;
         case Severity::Warning:
-            return ImVec4(0.95f, 0.75f, 0.35f, 1.0f);
+            return EditorTheme::Amber;
         case Severity::Error:
-            return ImVec4(0.95f, 0.35f, 0.30f, 1.0f);
+            return EditorTheme::Danger;
         case Severity::Info:
         default:
-            return ImVec4(0.65f, 0.75f, 0.95f, 1.0f);
+            // **파랑을 쓰지 않는다.** 파랑은 눌리는 것과 고른 것의 색이다.
+            return ImVec4(0.576f, 0.631f, 0.710f, 1.0f); // #93A1B5
         }
     }
 

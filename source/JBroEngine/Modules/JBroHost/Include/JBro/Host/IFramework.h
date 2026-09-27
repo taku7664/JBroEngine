@@ -16,6 +16,8 @@ namespace JBro
         // 오디오 시스템은 `JBroAudio` 의 것이다. 이 헤더를 쓰는 모듈이 오디오 헤더를 보지 않게 이름만 안다.
         class AudioSystem;
         class InputSystem;
+        class TimeSystem;
+        class DebugDrawSystem;
     }
     class Renderer;
 
@@ -50,6 +52,8 @@ namespace JBro
         float clearColor[4] = {0.13f, 0.14f, 0.17f, 1.0f};
         // 참이면 화면 레이어만 그린다(UI 보기, D-237). 가운데·크기는 기준 픽셀이다. 거짓이면 월드 레이어만 그린다.
         bool screenSpace = false;
+        // 스크립트의 디버그 선을 이 뷰에 그릴지다(D-243). 캔버스 뷰는 기본으로 그린다.
+        bool debugDraw = true;
 
         // ── 3D 만 쓰는 값 ────────────────────────────────────────────
         //
@@ -70,8 +74,11 @@ namespace JBro
         JMemoryContext memory;
         AssetSystem* assets = nullptr;
         Renderer* renderer = nullptr;
-        float fixedDeltaTime = 1.0f / 60.0f;
-        std::uint32_t maxFixedStepsPerFrame = 4;
+        // 호스트가 소유하는 시계(D-242). **없으면 `Initialize` 가 거절한다.** 프레임 델타·고정 스텝 수·멈춤·한 프레임 진행이 모두
+        // 여기서 온다 - 프레임워크는 누산기를 들지 않는다(두 프레임워크가 따로 들어 3D 만 멈춤을 무시했다, time-plan T4).
+        System::TimeSystem* time = nullptr;
+        // 호스트가 소유하는 디버그 선 저장소(D-243). 있으면 렌더 브리지가 뷰마다 선을 사각형으로 그린다. 없으면(시험) 그리지 않는다.
+        const System::DebugDrawSystem* debugDraw = nullptr;
         // 호스트가 소유하는 네트워크(D-122). 있으면 프레임워크가 캔버스를 묶고 복제 풀과 수신·송신 시스템을 세운다.
         // 없으면(테스트의 가짜, 네트워크를 끈 호스트) 아무것도 세우지 않는다.
         NetworkHost* network = nullptr;
@@ -109,7 +116,8 @@ namespace JBro
         {
             (void)frame;
         }
-        virtual void Update(float deltaTime) = 0;
+        // 한 프레임을 돈다. 델타는 인자가 아니라 `FrameworkContext::time` 에서 읽는다 - 호스트가 이미 `BeginFrame` 을 불렀다(D-242).
+        virtual void Update() = 0;
         // **게임을 돌릴 것인가**(D-131). 거짓이면 스크립트·물리·네트워크는 서고,
         // 트랜스폼과 추출은 그대로 돈다 - 편집 중에도 화면은 나와야 하기 때문이다.
         // 게임 실행은 늘 참이고 에디터만 이것을 끈다. 프로젝트를 열 때 한 번 더 적용된다.

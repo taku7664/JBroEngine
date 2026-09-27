@@ -15,11 +15,11 @@ namespace JBro
     {
     }
 
-    void GameScriptBase::OnUpdate(float)
+    void GameScriptBase::OnUpdate()
     {
     }
 
-    void GameScriptBase::OnFixedUpdate(float)
+    void GameScriptBase::OnFixedUpdate()
     {
     }
 

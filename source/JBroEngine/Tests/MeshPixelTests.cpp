@@ -1,4 +1,5 @@
-﻿#include <JBro/D3D11RHI/D3D11RHI.h>
+﻿#include "TestClock.h"
+#include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
@@ -113,7 +114,7 @@ namespace
             frameTarget.texture = target;
             frameTarget.extent = {TargetWidth, TargetHeight};
             Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
-            framework.Update(1.0f / 60.0f);
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
             Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit its view");
             Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must finish");
             image.Resize(TargetWidth * TargetHeight * 4);
@@ -163,6 +164,7 @@ namespace
         }
         JBro::Framework3D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         context.renderer = &stage.renderer;
         Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
         Check(stage.renderer.GetMeshCount() == 1, "initializing must upload the builtin cube");
@@ -217,6 +219,7 @@ namespace
         }
         JBro::Framework3D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         context.renderer = &stage.renderer;
         Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
         JBro::Canvas& canvas = *framework.GetCanvas();
@@ -245,7 +248,7 @@ namespace
 
         // 같은 렌더러로 다음 프레임을 백버퍼에 그린다. 깊이 텍스처는 크기마다 따로라 둘이 공존한다.
         Check(stage.renderer.BeginFrame() == JBro::FrameStatus::Ready, "a back buffer frame must begin");
-        framework.Update(1.0f / 60.0f);
+        JBro::Testing::Tick(framework, 1.0f / 60.0f);
         Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit to the back buffer too");
         Check(stage.renderer.EndFrame() == JBro::FrameStatus::Ready, "and that frame must present");
         JBro::Array<std::byte> windowImage;

@@ -7,7 +7,7 @@
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
-#include <JBro/Framework3D/Math3D.h>
+#include <JBro/Types/Math3D.h>
 
 #include <cmath>
 

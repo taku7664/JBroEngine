@@ -3,6 +3,7 @@
 #include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <algorithm>
@@ -154,8 +155,57 @@ namespace JBro::Internal
         }
     }
 
+    namespace
+    {
+        // 디버그 선을 흰 스프라이트 사각형으로 낸다(D-243). 새 파이프라인이 없다 - 텍스처가 빈 스프라이트는 흰색이라 틴트가 선의 색이다.
+        // 사각형의 x 축은 선 방향(길이만큼), y 축은 그 수직(픽셀 두께를 이 뷰의 월드 길이로 바꾼 만큼)이다.
+        //
+        // **프레임의 성패에 들지 않는다.** 렌더러의 제출 상한에 걸려 선이 못 들어가도 게임 화면은 그대로 나간다 - 버린 것은 저장소가 센다.
+        void PushDebugLines2D(const System::DebugDrawSystem& debugDraw, Renderer& renderer, float worldPerPixel)
+        {
+            constexpr std::uint32_t BatchSize = 64;
+            SpriteSubmit batch[BatchSize];
+            std::uint32_t count = 0;
+            const std::uint32_t lineCount = debugDraw.GetLineCount();
+            for (std::uint32_t index = 0; index < lineCount; ++index)
+            {
+                const DebugLine& line = debugDraw.GetLine(index);
+                const float dx = line.to[0] - line.from[0];
+                const float dy = line.to[1] - line.from[1];
+                const float length = std::sqrt(dx * dx + dy * dy);
+                if (false == (length > 0.0f))
+                {
+                    continue;
+                }
+                const float width = line.thickness * worldPerPixel;
+                SpriteSubmit& sprite = batch[count];
+                sprite = SpriteSubmit{};
+                sprite.world.linear[0] = dx;
+                sprite.world.linear[2] = dy;
+                sprite.world.linear[1] = -dy / length * width;
+                sprite.world.linear[3] = dx / length * width;
+                sprite.world.translation[0] = (line.from[0] + line.to[0]) * 0.5f;
+                sprite.world.translation[1] = (line.from[1] + line.to[1]) * 0.5f;
+                for (int channel = 0; channel < 4; ++channel)
+                {
+                    sprite.tint[channel] = static_cast<float>(line.color[channel]) / 255.0f;
+                }
+                ++count;
+                if (count == BatchSize)
+                {
+                    renderer.SubmitSprites({batch, count});
+                    count = 0;
+                }
+            }
+            if (count > 0)
+            {
+                renderer.SubmitSprites({batch, count});
+            }
+        }
+    }
+
     RenderResult SubmitEditorView2D(
-        const RenderWorld2D& world, Renderer& renderer, const EditorViewDesc& view)
+        const RenderWorld2D& world, Renderer& renderer, const EditorViewDesc& view, const System::DebugDrawSystem* debugDraw)
     {
         if (false == view.target.IsValid() || view.extent.width == 0 || view.extent.height == 0)
         {
@@ -185,10 +235,15 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 백 배쯤 크다.
+        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 안 된다.
         SpriteFilterRule rule;
         rule.screenSpace = view.screenSpace;
         const bool accepted = PushSprites(world, renderer, true, rule);
+        // 디버그 선은 월드 좌표라 월드 보기에만 그린다(D-243).
+        if (debugDraw != nullptr && view.debugDraw && false == view.screenSpace)
+        {
+            PushDebugLines2D(*debugDraw, renderer, 2.0f * view.orthographicSize / static_cast<float>(view.extent.height));
+        }
         const bool closed = renderer.EndView();
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
@@ -272,7 +327,7 @@ namespace JBro::Internal
         }
     }
 
-    RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer)
+    RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw)
     {
         const RenderCamera2D* camera = world.GetCamera();
         // **이번 프레임이 그려지는 크기로 사각형을 다시 잰다**(D-239). 뷰포트가 대상 밖으로 나가면 렌더러가 프레임을 거절하므로 대상은 렌더러의
@@ -296,6 +351,12 @@ namespace JBro::Internal
                 return RenderResult::Failed;
             }
             const bool accepted = PushSprites(world, renderer, false, SpriteFilterRule{});
+            // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
+            if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
+            {
+                PushDebugLines2D(*debugDraw, renderer,
+                    2.0f * camera->orthographicSize / static_cast<float>(renderer.GetFrameExtent().height));
+            }
             const bool closed = renderer.EndView();
             if (false == accepted || false == closed)
             {

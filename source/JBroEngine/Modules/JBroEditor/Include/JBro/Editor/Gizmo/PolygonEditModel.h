@@ -1,9 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/Framework2D/Component/Physics2D.h>
-#include <JBro/Framework2D/Math2D.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
+#include <JBro/Types/Math2D.h>
 
 #include <cstdint>
 

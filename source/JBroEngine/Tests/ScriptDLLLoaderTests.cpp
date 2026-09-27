@@ -1,4 +1,6 @@
-﻿#include <JBro/Core/StableTypeId.h>
+﻿#include <JBro/Host/DebugDrawSystem.h>
+#include <JBro/Host/RandomSystem.h>
+#include <JBro/Core/StableTypeId.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
@@ -754,8 +756,7 @@ namespace
 
         bool BindScriptContexts() noexcept override
         {
-            JBro::BindSystemContext(m_systems);
-            JBro::BindServiceContext(m_services);
+            // 공통 컨텍스트는 호스트의 것이다(D-242) - 시계·난수를 호스트가 묶었다. 프레임워크는 제 블록만 낸다.
             m_frameworkSystems.Physics2D = reinterpret_cast<JBro::System::IPhysics2DSystem*>(
                 static_cast<std::uintptr_t>(0x0BADF00D));
             m_blocks[0] = JBro::MakeFramework2DServiceContextBlock(m_frameworkServices);
@@ -780,7 +781,7 @@ namespace
             return {m_blocks, m_blockCount};
         }
 
-        void Update(float) override
+        void Update() override
         {
         }
 
@@ -801,8 +802,6 @@ namespace
         bool unbindSawLoadedModule = false;
 
     private:
-        JBro::SystemContext               m_systems;
-        JBro::ServiceContext              m_services;
         JBro::Framework2DServiceContext   m_frameworkServices;
         JBro::Framework2DSystemContext    m_frameworkSystems;
         JBro::ScriptContextBlock          m_blocks[2];
@@ -889,6 +888,51 @@ namespace
             "a key bound in the project presses its action through the service");
         PostMessageW(window, WM_KEYUP, VK_SPACE, static_cast<LPARAM>(0xC0000001u));
         Check(engine.Tick(0.016f), "the host must keep ticking");
+
+        // 시간과 난수가 DLL 까지 닿는다(D-242). DLL 은 제 사본의 서비스로 호스트의 시계와 난수 흐름을 읽는다 - 호스트가 공통 시스템
+        // 컨텍스트를 채우지 않았으면 델타는 0 이고, DLL 이 묶지 않았으면 제 사본의 고정 씨앗 흐름에서 뽑아 엔진 씨앗이 바뀌지 않는다.
+        using GetDelta = float (*)() noexcept;
+        using GetFrames = std::uint64_t (*)() noexcept;
+        using SetSeed = void (*)(std::uint64_t) noexcept;
+        using RandomRange = std::int32_t (*)(std::int32_t, std::int32_t) noexcept;
+        const auto getDelta = reinterpret_cast<GetDelta>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_GetDeltaTime"));
+        const auto getFrames = reinterpret_cast<GetFrames>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_GetFrameCount"));
+        const auto setSeed = reinterpret_cast<SetSeed>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_SetRandomSeed"));
+        const auto randomRange = reinterpret_cast<RandomRange>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_RandomRange"));
+        Check(getDelta != nullptr && getFrames != nullptr && setSeed != nullptr && randomRange != nullptr,
+            "the probe must export its time and random queries");
+        Check(engine.Tick(0.02f), "the host must tick for the time probe");
+        Check(getDelta() == 0.02f, "the script DLL must read the host clock's delta through its own service copy");
+        Check(getFrames() == engine.GetTime()->GetFrameTime().frameCount && getFrames() > 0,
+            "and the host's frame count");
+        setSeed(99u);
+        Check(engine.GetRandom()->GetSeed() == 99u, "a seed set inside the DLL must reach the engine stream");
+        JBro::RandomStream reference(99u);
+        Check(randomRange(0, 1000) == reference.Range(0, 1000), "and the DLL must draw from that stream");
+        Check(JBro::GetServiceContext().Random.Range(0, 1000) == reference.Range(0, 1000),
+            "the host's copy of the service shares the same engine stream");
+        // DLL 이 그린 디버그 선이 엔진의 저장소에 들어오고, 엔진이 다음 프레임 첫머리에 거둔다(D-243).
+        using DrawLine = void (*)() noexcept;
+        const auto drawLine = reinterpret_cast<DrawLine>(engine.GetScriptModule().GetSymbol("JBroScriptProbe_DrawLine"));
+        Check(drawLine != nullptr && engine.GetDebugDraw() != nullptr, "the probe must export its line and the engine own a store");
+        drawLine();
+        Check(engine.GetDebugDraw()->GetLineCount() == 1, "a line drawn inside the script DLL must land in the host's store");
+        Check(engine.Tick(0.02f) && engine.GetDebugDraw()->GetLineCount() == 0, "and the engine must clear a one-frame line the next frame");
+        drawLine();
+        engine.RestartGameTime();
+        Check(engine.GetDebugDraw()->GetLineCount() == 0, "restarting the game time clears the lines of the last play");
+        // 멈춤과 한 프레임 진행은 엔진의 것이다(D-242). 멈추면 DLL 이 읽는 델타가 0 이고, 한 프레임 진행은 고정 델타 한 번이다.
+        engine.SetSimulationEnabled(false);
+        Check(engine.Tick(0.02f) && getDelta() == 0.0f, "a paused engine must hand the script a zero delta");
+        engine.StepSimulation();
+        Check(engine.Tick(0.5f) && getDelta() == engine.GetTime()->GetSettings().fixedDeltaTime,
+            "a single-frame step must move exactly one fixed delta, whatever the frame took");
+        Check(engine.Tick(0.02f) && getDelta() == 0.0f, "and the frame after it is paused again");
+        engine.GetTime()->SetTimeScale(4.0f);
+        engine.SetSimulationEnabled(true);
+        engine.RestartGameTime();
+        Check(engine.GetTime()->GetFrameTime().timeScale == 1.0f && engine.GetTime()->GetFrameTime().time == 0.0,
+            "restarting the game time must undo the scale a game set and zero the game clock");
 
         // DLL 안의 스크립트가 세이브를 쓰고 되읽는다(D-218). 읽은 바이트는 DLL 의 힙에 놓인다.
         using SaveRoundTrip = bool (*)(const char*, const char*) noexcept;

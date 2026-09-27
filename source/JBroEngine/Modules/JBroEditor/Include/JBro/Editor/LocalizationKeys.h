@@ -78,6 +78,9 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuSimulationPlay = "menu.simulation_play";
     inline constexpr const char* MenuSimulationStop = "menu.simulation_stop";
     inline constexpr const char* MenuSimulationPause = "menu.simulation_pause";
+    inline constexpr const char* MenuSimulationStep = "menu.simulation_step";
+    inline constexpr const char* MenuSimulationGameDebugDraw = "menu.simulation_game_debug_draw";
+    inline constexpr const char* MenuSimulationCanvasDebugDraw = "menu.simulation_canvas_debug_draw";
     inline constexpr const char* MenuOpenProject = "menu.open_project";
     inline constexpr const char* MenuWindowEditor = "menu.window_editor";
     inline constexpr const char* MenuWindowImporter = "menu.window_importer";
@@ -178,6 +181,11 @@ namespace JBro::LocKeys
     inline constexpr const char* StatsFrameTime = "stats.frame_time";
     inline constexpr const char* StatsPerSecond = "stats.per_second";
     inline constexpr const char* StatsFrameCount = "stats.frame_count";
+    inline constexpr const char* StatsGameTime = "stats.game_time";
+    inline constexpr const char* StatsFixedSteps = "stats.fixed_steps";
+    inline constexpr const char* StatsRandomSeed = "stats.random_seed";
+    inline constexpr const char* StatsDebugLines = "stats.debug_lines";
+    inline constexpr const char* StatsDebugLinesDropped = "stats.debug_lines_dropped";
     inline constexpr const char* StatsViews = "stats.views";
     inline constexpr const char* StatsSprites = "stats.sprites";
     inline constexpr const char* StatsDropped = "stats.dropped";
@@ -211,6 +219,7 @@ namespace JBro::LocKeys
     inline constexpr const char* BlockedNothingToRedo = "blocked.nothing_to_redo";
     inline constexpr const char* BlockedClipboardEmpty = "blocked.clipboard_empty";
     inline constexpr const char* BlockedNotPlaying = "blocked.not_playing";
+    inline constexpr const char* BlockedNotPaused = "blocked.not_paused";
     inline constexpr const char* BlockedProjectHasNoFile = "blocked.project_has_no_file";
     inline constexpr const char* BlockedPickAnImage = "blocked.pick_an_image";
     inline constexpr const char* BlockedLastLayer = "blocked.last_layer";
@@ -403,6 +412,10 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsSave = "project_settings.save";
     inline constexpr const char* ProjectSettingsRevert = "project_settings.revert";
     inline constexpr const char* ProjectSettingsSaved = "project_settings.saved";
+    inline constexpr const char* ProjectSettingsFixedDeltaTime = "project_settings.fixed_delta_time";
+    inline constexpr const char* ProjectSettingsMaxFixedSteps = "project_settings.max_fixed_steps";
+    inline constexpr const char* ProjectSettingsMaxDeltaTime = "project_settings.max_delta_time";
+    inline constexpr const char* ProjectSettingsRandomSeed = "project_settings.random_seed";
     inline constexpr const char* ProjectSettingsLinearFilter = "project_settings.linear_filter";
     inline constexpr const char* ProjectSettingsIgnorePatterns = "project_settings.ignore_patterns";
 

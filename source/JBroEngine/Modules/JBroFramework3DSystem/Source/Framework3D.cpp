@@ -10,6 +10,7 @@
 #include <JBro/Asset/Asset.h>
 #include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Graphics/Renderer.h>
+#include <JBro/Host/TimeSystem.h>
 
 #include <cmath>
 #include <new>
@@ -25,9 +26,7 @@ namespace JBro
     bool Framework3D::Initialize(const FrameworkContext& context)
     {
         if (m_initialized
-            || false == std::isfinite(context.fixedDeltaTime)
-            || context.fixedDeltaTime <= 0.0f
-            || context.maxFixedStepsPerFrame == 0
+            || context.time == nullptr
             || (context.renderer != nullptr && false == context.renderer->IsInitialized()))
         {
             return false;
@@ -108,19 +107,23 @@ namespace JBro
         }
     }
 
-    void Framework3D::Update(float deltaTime)
+    void Framework3D::Update()
     {
-        if (false == m_initialized
-            || false == std::isfinite(deltaTime)
-            || deltaTime < 0.0f)
+        if (false == m_initialized)
         {
             return;
         }
 
         m_canvas->BeginFrame();
         m_renderWorld.BeginFrame();
-        RunFixedSteps(deltaTime);
-        m_canvas->GetSystems().Update(*m_canvas, deltaTime);
+        // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-242). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
+        // 한 프레임 진행은 3D 에 켤 스크립트·물리가 아직 없어 시간만 한 스텝 간다.
+        const bool simulating = m_simulationEnabled || m_context.time->IsStepFrame();
+        if (simulating)
+        {
+            RunFixedSteps();
+        }
+        m_canvas->GetSystems().Update(*m_canvas, simulating ? m_context.time->GetFrameTime().deltaTime : 0.0f);
         m_canvas->FlushPendingDestroy();
         m_renderWorld.EndFrame();
     }
@@ -131,7 +134,7 @@ namespace JBro
         {
             return RenderResult::Failed;
         }
-        return Internal::SubmitRenderWorld3D(m_renderWorld, *m_context.renderer);
+        return Internal::SubmitRenderWorld3D(m_renderWorld, *m_context.renderer, m_context.debugDraw);
     }
 
     RenderResult Framework3D::RenderEditorView(const EditorViewDesc& view)
@@ -140,7 +143,7 @@ namespace JBro
         {
             return RenderResult::Failed;
         }
-        return Internal::SubmitEditorView3D(m_renderWorld, *m_context.renderer, view);
+        return Internal::SubmitEditorView3D(m_renderWorld, *m_context.renderer, view, m_context.debugDraw);
     }
 
     namespace
@@ -190,7 +193,6 @@ namespace JBro
         m_meshes.Shutdown();
         m_renderWorld = {};
         m_context = {};
-        m_fixedAccumulator = 0.0;
         m_initialized = false;
     }
 
@@ -246,23 +248,18 @@ namespace JBro
         }
     }
 
-    void Framework3D::RunFixedSteps(float deltaTime)
+    void Framework3D::RunFixedSteps()
     {
-        m_fixedAccumulator += deltaTime;
-        std::uint32_t steps = 0;
-        while (m_fixedAccumulator >= m_context.fixedDeltaTime
-            && steps < m_context.maxFixedStepsPerFrame)
+        System::TimeSystem& time = *m_context.time;
+        const FrameTime& frame = time.GetFrameTime();
+        for (std::uint32_t step = 0; step < frame.fixedStepCount; ++step)
         {
-            m_canvas->GetSystems().FixedUpdate(*m_canvas, m_context.fixedDeltaTime);
+            time.BeginFixedStep();
+            m_canvas->GetSystems().FixedUpdate(*m_canvas, frame.fixedDeltaTime);
             // 고정 스텝 묶음의 각 스텝 뒤가 첫 안전 지점이다(D-45).
             m_canvas->FlushPendingDestroy();
-            m_fixedAccumulator -= m_context.fixedDeltaTime;
-            ++steps;
         }
-        if (m_fixedAccumulator >= m_context.fixedDeltaTime)
-        {
-            m_fixedAccumulator = std::fmod(m_fixedAccumulator, m_context.fixedDeltaTime);
-        }
+        time.EndFixedSteps();
     }
 
     IFramework* CreateFramework3D()

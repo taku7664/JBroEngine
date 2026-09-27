@@ -210,7 +210,7 @@
 
   | 층 | 모듈 | 내용 |
   |---|---|---|
-  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222) |
+  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vec2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vec3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241) |
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
@@ -538,6 +538,30 @@
 - Time, Input 같은 핵심 서비스의 수명은 엔진이 소유한다. (MUST)
 - 서비스 접근을 위해 매 호출마다 delta time이나 서비스 참조를 전달하는 구조를 기본 방식으로 삼지 않는다. (MUST)
 - `Time`, `Input`처럼 소유권과 분리된 전역 접근 지점을 제공할 수 있다. 이 접근 지점이 서비스 수명을 소유해서는 안 된다. (MAY)
+- **스크립트 훅은 델타를 인자로 받지 않는다.** `GameScriptBase::OnUpdate()`·`OnFixedUpdate()` 이고 델타는 `GetServiceContext().Time` 에서 읽는다.
+  고정 스텝 안에서 서비스의 `DeltaTime()`·`Time()` 은 고정 델타·고정 시간이다. 엔진 시스템(`GameSystem::OnUpdate(Canvas&, float)`)은 엔진 레이어라
+  스케줄러가 주는 델타를 받는다. (MUST) (D-242)
+- **시간은 호스트의 `System::TimeSystem` 한 자리에 있다.** 프레임 델타 상한(`MaxDeltaTime`)·타임스케일·멈춤·한 프레임 진행·고정 스텝 누산(`FixedDeltaTime`·
+  `MaxFixedSteps`)을 모두 들고, 프레임워크는 누산기를 들지 않고 시계가 정한 스텝 수만큼 돈다(`FrameworkContext::time` 이 없으면 초기화를 거절한다).
+  상한을 넘어 돌지 못한 스텝만큼 게임 델타도 줄여 게임 시간과 고정 시간이 어긋나지 않는다. 누적 시간은 double 이다. 스크립트가 바꿀 수 있는 것은
+  타임스케일(0~100)뿐이다. (MUST) (D-242)
+- **난수는 `RandomStream`(PCG32)과 `RandomMapping` 으로만 뽑는다.** 표준 분포(`std::uniform_*_distribution`)는 구현마다 다른 수를 내므로 게임 경로에
+  두지 않는다 - 같은 씨앗이 컴파일러·플랫폼과 무관하게 같은 수열이어야 한다. 엔진 흐름(`Service::RandomService`)은 메인 스레드 전용이고 잠그지 않는다.
+  워커와 재현이 필요한 게임 쪽은 제 `RandomStream` 을 든다. 씨앗은 프로젝트의 `RandomSeed` 이고, 0 이면 재생마다 새로 뽑아 로그에 남긴다. (MUST) (D-242)
+- 시간·난수·디버그 선의 인터페이스는 `JBroRuntime` 에 있고 공통 `SystemContext`(`Time`·`Random`·`DebugDraw`)·`ServiceContext`(`Time`·`Random`)의 슬롯이다.
+  차원과 무관한 시스템이라 D-43 에 걸리지 않는다. 공통 컨텍스트는 호스트가 묶는다 - 프레임워크가 다시 묶지 않는다. (MUST) (D-242, D-243)
+
+### 7.2 디버그 드로
+
+- **디버그 선은 호스트의 고정 용량 저장소(`System::DebugDrawSystem`)에 쌓고, 렌더 브리지가 뷰마다 기존 사각형 경로로 그린다.** 2D 는 흰 스프라이트,
+  3D 는 월드 텍스트 사각형(메시에 가려진다)이다. 디버그 드로만의 셰이더·파이프라인·매 프레임 GPU 버퍼를 만들지 않고, 저장소는 엔진이 설 때 잡은
+  용량(`EngineConfig::maxDebugLines`)을 넘기면 버리고 센다. 선은 프레임의 성패에 들지 않는다. (MUST) (D-243)
+- **두께는 화면 픽셀이다.** 뷰마다 그 뷰의 배율(2D 는 `orthographicSize`, 3D 원근은 선까지의 깊이)로 월드 길이를 정한다 - 캔버스 뷰를 당겨도 굵기가 같다. (MUST) (D-243)
+- **수명은 셋이다.** 0 초짜리는 한 프레임, 0 보다 크면 게임 시간으로 줄고, 고정 스텝에서 그린 0 초짜리는 다음 고정 스텝이 돌 때까지 남는다. 게임이
+  멈춘 프레임에는 거두지 않는다. 에디터는 재생을 시작하고 멈출 때 비운다. (MUST) (D-243)
+- **스크립트 표면은 그리기뿐이다**(`GetFramework2DServices().DebugDraw`·`GetFramework3DServices().DebugDraw`). 비우기·읽기는 엔진의 것이다. 서비스는 도형을
+  선으로 펴 64 개씩 묶어 `AddLines` 한 번으로 넘긴다. 게임 뷰에 보일지는 게임 실행이 프로젝트의 `DebugModeEnabled`, 에디터가 제 토글로 정하고,
+  캔버스 뷰는 `EditorViewDesc::debugDraw` 다. (MUST) (D-243)
 
 ### 7.1 게임 입력
 
@@ -737,10 +761,18 @@
   정식 타입 이식은 소비자 마이그레이션, 임시 정의 제거, Core와 선택 Framework 공개 헤더의 결합
   컴파일까지 끝나야 완료다. 필드명과 기본값이 다른 임시 타입은 조용히 합치지 말고 각 소비자의
   의도를 확인해 명시적으로 보존한다.
-  **벡터·행렬은 이 규칙의 대상이 아니다.** (D-57) `Vec2`·`Rect`·`Matrix3x2` 는 `JBroFramework2D`,
-  `Vec3` 는 `JBroFramework3D`, `Matrix4x4` 는 `JBroGraphics` 가 소유한다. 차원이 곧 의미이므로
-  차원 독립 타입이 아니며, 2D 프로젝트가 3D 수학을 링크하지 않는다. 이 규칙이 말하는 것은
-  `Color` 처럼 차원 의미가 없는 값 타입이다.
+  **벡터·행렬도 이 규칙의 대상이다.** (MUST) (D-241 이 D-57 을 뒤집었다)
+  `Vec2`·`Rect`·`Matrix3x2`·`Vec3`·`Quaternion`·`Matrix4x4` 를 모두 `JBroCore` 가 소유한다.
+  값 타입은 `JBro/Types/Math2D.h`·`JBro/Types/Math3D.h`·`JBro/Types/Matrix4x4.h` 에 있고,
+  리플렉션 설명서는 `JBro/Reflection/Math2DReflection.h`·`JBro/Reflection/Math3DReflection.h` 에
+  따로 둔다 - 매 프레임 경로가 리플렉션 기계를 물고 가지 않게 하려는 것이며, 이것은 옮기기 전과 같다.
+  D-57 은 "2D 프로젝트가 3D 수학을 링크하지 않는다" 를 근거로 들었으나, 세 헤더는 모두 `struct` 와
+  `inline` 함수뿐이라 링크할 심볼 자체가 없었다. 실제 대가는 include 비용뿐이었고, 그 대신
+  2D 와 3D 를 모두 보는 코드(에디터·Graphics·물리 커널)가 양쪽 모듈을 함께 끌어와야 했다.
+  **좌표계와 깊이 범위를 전제하는 함수는 Core 로 옮기지 않는다.** 투영·뷰·회전 행렬을 만드는 것들은
+  `JBroFramework3DSystem/Math3DMatrix.h` 에 그대로 남는다. 그 규약은 시스템 단계의 계약이기 때문이다.
+  **결과로 2D 스크립트에서도 `Vec3`·`Quaternion`·`Matrix4x4` 가 보인다.** 수학 값 타입은
+  2D/3D 배타성의 대상이 아니며, 배타성은 컴포넌트와 서비스 수준에서만 유지한다.
 - 스크립트 레이어는 네임스페이스를 강제하지 않는다. 프렐류드 헤더(`ScriptAPI.h`)가
   `using namespace JBro;` 를 수행한다. (MUST)
   단 **1 뎁스 네임스페이스 사용을 적극 권장한다** — `Component::Transform2D` 처럼 쓰면
@@ -1092,6 +1124,37 @@
   기존은 `IMWINDOW_FLAG_NO_CLOSE_BUTTON` 으로 창마다 고르고, 도크 뿌리창이 그것을 쓴다.
   모든 패널에 일률적으로 X 를 달지 않는다 — 닫을 수 없어야 하는 패널이 있다.
 
+### 11.3.1 색은 뜻으로 쓴다
+
+에디터의 색·치수·글꼴은 `EditorTheme.cpp` 한 곳에서 나온다. 패널이 제 색을 만들어
+쓰지 않는다. 아래 네 가지는 화면을 읽을 수 있게 만드는 계약이고, 깨지면 무엇을 누를 수
+있는지가 색으로 드러나지 않는다. (D-245)
+
+- **파랑(`#3B82F6`)은 상호작용에만 쓴다.** (MUST)
+  고른 것·초점이 있는 것·체크된 것·슬라이더·도킹 미리보기·키보드 탐색, 그리고 그 자리의
+  주된 동작이다. 장식으로 쓰지 않는다.
+- **호박색(`#E0A33C`)은 주의에만 쓴다.** (MUST)
+  경고와 저장하지 않은 표시다. 체크 표시처럼 늘 켜져 있는 자리에 두지 않는다 —
+  그러면 경고가 경고로 보이지 않는다.
+- **빨강(`#E05A52`)은 오류와 되돌릴 수 없는 동작에만 쓴다.** (MUST)
+  값이 틀린 칸의 테두리와 `Severity::Error` 가 그 자리다. 일반 장식에 쓰지 않는다.
+- **밝기 계층을 지킨다.** (MUST)
+  깊은 곳에서 얕은 곳으로 `#11151A`(작업 공간) → `#171C23`(패널) → `#202731`(떠 있는 면)
+  → `#252E39`(글자 칸·단추) → `#303B49`(마우스 올림)이다. 누른 상태는 글자 칸보다
+  어둡다(`#1B222B`).
+
+- **띠와 탭과 패널은 서로 다른 면이다.** (MUST)
+  위아래의 띠(메뉴 줄·상태 표시줄)는 `#202731` 로 패널보다 한 단 위이고, 맞닿는 쪽에
+  `#2C3542` 선을 긋는다. 탭은 네 단으로 나뉜다 — 탭 띠 `#11151A`(초점 없음) /
+  `#161C24`(초점 있음), 고르지 않은 탭 `#1B222B`, 고른 탭 `#2A333F`.
+  **띠와 고른 탭에 같은 색을 주지 않는다** — ImGui 는 도크의 탭 띠 바탕을
+  `TitleBgActive` 로 그리므로(`imgui.cpp` 의 `DockNodeUpdateTabBar`), 그 색이
+  `TabSelected` 와 같으면 초점이 가는 순간 어느 탭이 열려 있는지 사라진다.
+- **뷰포트 바탕은 전역 스타일로 풀지 않는다.** (MUST)
+  `EditorTheme::ViewportBackground`(`#0E1115`)를 캔버스 뷰와 게임 뷰가 직접 쓴다.
+  가운데 뷰포트가 가장 깊은 작업 공간으로 읽혀야 하는데, 그만큼 `WindowBg` 를 내리면
+  패널 위의 글자 대비가 함께 무너진다.
+
 ### 11.4 "돌아간다" 는 검증이 아니다
 
 - 에디터 UI 를 바꿨으면 **띄워서 보고**, 무엇을 봤는지 보고에 적는다. (MUST)
@@ -1260,6 +1323,11 @@
 
 - 빌드와 테스트가 통과하는지 확인한다. (MUST) §12의 검증 결과를 커밋 메시지에 남긴다.
 - 의도하지 않은 파일이 스테이징되지 않았는지 diff를 확인한다. (SHOULD)
+- **임시 시험 코드는 커밋하지 않고 main 에 절대 병합하지 않는다.** (MUST) (D-244)
+  작업 중에 검증을 빠르게 하려고 넣는 것 - 시험 하나만 돌리는 진입점 훅(`JBRO_ONLY` 같은 환경 변수 분기), 값을 찍는 디버그 출력,
+  시험 함수 하나만 부르는 임시 분기, 뮤테이션 러너와 그 변이 - 은 스크래치나 커밋하지 않은 작업 트리에만 둔다. 커밋하기 전에 걷어 내고
+  `git grep` 으로 남은 것이 없는지 본 뒤 스테이징한다. 정식 시험(`Tests/*.cpp` 의 검사와 그 등록)은 이 규칙의 대상이 아니다 - §12 대로
+  변경과 같은 커밋에 들어간다.
 
 ### 히스토리를 다시 쓰는 명령을 쓸 때 · 강제 푸시가 필요할 때
 

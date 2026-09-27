@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/Asset.h>
+﻿#include "TestClock.h"
+#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetSource.h>
@@ -426,6 +427,7 @@ namespace
         fixture.Open();
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         context.memory = fixture.memory;
         context.assets = &fixture.assets;
         Check(framework.Initialize(context), "a framework without a renderer initializes");
@@ -482,6 +484,7 @@ namespace
         fixture.Open();
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         context.memory = fixture.memory;
         context.assets = &fixture.assets;
         Check(framework.Initialize(context), "a framework without a renderer initializes");

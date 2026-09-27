@@ -98,6 +98,25 @@ namespace JBro::Text
             return value >= HangulBase && value < HangulBase + SyllableCount && (value - HangulBase) % TrailCount == 0;
         }
 
+        // 옛한글까지 넣은 자모 갈래다(유니코드의 한글 자모·확장 A·확장 B, 채움 문자 포함). 한 음절은 첫소리 + 가운뎃소리 + 끝소리 * 이다(D-238).
+        bool IsAnyLead(char32_t value)
+        {
+            return (value >= 0x1100 && value <= 0x115F) || (value >= 0xA960 && value <= 0xA97C);
+        }
+
+        bool IsAnyVowel(char32_t value)
+        {
+            return (value >= 0x1160 && value <= 0x11A7) || (value >= 0xD7B0 && value <= 0xD7C6);
+        }
+
+        bool IsAnyTrail(char32_t value)
+        {
+            return (value >= 0x11A8 && value <= 0x11FF) || (value >= 0xD7CB && value <= 0xD7FB);
+        }
+
+        // 한 음절에 모아 볼 자모의 최대 수다. 넘는 것은 다음 음절로 떨어진다(실제 옛한글 음절은 서너 자모다).
+        constexpr std::size_t MaxJamoCluster = 8;
+
         bool IsSpace(char32_t value)
         {
             return value == 0x20 || value == 0x09 || value == 0x3000;
@@ -467,6 +486,101 @@ namespace JBro::Text
             char32_t value = m_codepoints[index].value;
             const std::uint32_t offset = m_codepoints[index].offset;
             const std::size_t first = index;
+            // **옛한글 음절**(D-238). 현대 자모만으로 된 음절은 아래 산술로 합친다. 옛 자모가 섞였거나(현대 음절 + 옛 끝소리 포함) 그 셋으로
+            // 나타낼 수 없으면 자모 글리프를 폰트의 GSUB 로 바꾸고, 첫 글리프 뒤의 것을 첫 글리프에 붙인다(결합 표시와 같은 길 - 자모 사이에서
+            // 줄이 나뉘지 않는다). 폰트에 그 기능이 없으면 예전처럼 자모마다 따로 선다.
+            {
+                char32_t jamo[MaxJamoCluster] = {};
+                std::uint32_t jamoOffset[MaxJamoCluster] = {};
+                std::size_t jamoCount = 0;
+                std::size_t consumed = 0;
+                if (IsSyllableWithoutTrail(value) && index + 1 < m_codepoints.Size() && IsAnyTrail(m_codepoints[index + 1].value)
+                    && false == IsTrail(m_codepoints[index + 1].value))
+                {
+                    // 받침 없는 현대 음절 + 옛 끝소리: 음절을 자모로 풀어 한 음절로 본다.
+                    const char32_t syllable = value - HangulBase;
+                    jamo[0] = LeadBase + syllable / (VowelCount * TrailCount);
+                    jamo[1] = VowelBase + (syllable % (VowelCount * TrailCount)) / TrailCount;
+                    jamoOffset[0] = offset;
+                    jamoOffset[1] = offset;
+                    jamoCount = 2;
+                    consumed = 1;
+                }
+                else if (IsAnyLead(value) && index + 1 < m_codepoints.Size() && IsAnyVowel(m_codepoints[index + 1].value))
+                {
+                    jamo[0] = value;
+                    jamoOffset[0] = offset;
+                    jamoCount = 1;
+                    consumed = 1;
+                }
+                if (jamoCount > 0)
+                {
+                    std::size_t cursor = index + consumed;
+                    while (cursor < m_codepoints.Size() && jamoCount < MaxJamoCluster && IsAnyVowel(m_codepoints[cursor].value))
+                    {
+                        jamo[jamoCount] = m_codepoints[cursor].value;
+                        jamoOffset[jamoCount] = m_codepoints[cursor].offset;
+                        ++jamoCount;
+                        ++cursor;
+                    }
+                    while (cursor < m_codepoints.Size() && jamoCount < MaxJamoCluster && IsAnyTrail(m_codepoints[cursor].value))
+                    {
+                        jamo[jamoCount] = m_codepoints[cursor].value;
+                        jamoOffset[jamoCount] = m_codepoints[cursor].offset;
+                        ++jamoCount;
+                        ++cursor;
+                    }
+                    // 현대 첫소리·가운뎃소리 하나씩(과 현대 끝소리 하나)이면 아래 산술이 맡는다.
+                    const bool modern = jamoCount >= 2 && jamoCount <= 3 && IsLead(jamo[0]) && IsVowel(jamo[1])
+                        && (jamoCount == 2 || IsTrail(jamo[2]));
+                    const FaceChoice choice = modern ? FaceChoice{} : ChooseFace(faces, primary, jamo[0]);
+                    const FontFace* clusterFace = modern ? nullptr : faces[choice.face];
+                    if (false == modern && clusterFace != nullptr && clusterFace->HasHangulJamoShaping())
+                    {
+                        GlyphIndex glyphs[MaxJamoCluster] = {};
+                        for (std::size_t k = 0; k < jamoCount; ++k)
+                        {
+                            glyphs[k] = clusterFace->FindGlyph(jamo[k]);
+                        }
+                        clusterFace->ShapeHangulJamo(glyphs, jamoCount);
+                        const float scale = Scale(*clusterFace, m_codepoints[first].size);
+                        const std::uint32_t baseIndex = static_cast<std::uint32_t>(m_items.Size());
+                        float before = 0.0f;
+                        for (std::size_t k = 0; k < jamoCount; ++k)
+                        {
+                            Item item;
+                            item.codepoint = jamo[k];
+                            item.offset = jamoOffset[k];
+                            item.size = m_codepoints[first].size;
+                            item.color = m_codepoints[first].color;
+                            item.hasColor = m_codepoints[first].hasColor;
+                            item.style = m_codepoints[first].style;
+                            item.glyph = glyphs[k];
+                            item.face = choice.face;
+                            const float advance = static_cast<float>(clusterFace->GetAdvance(glyphs[k])) * scale;
+                            if (k == 0)
+                            {
+                                item.kind = ItemKind::Visible;
+                                item.breaksAnywhere = options.wrapMode == WrapMode::Character;
+                                item.advance = advance;
+                            }
+                            else
+                            {
+                                // 첫 글리프에 붙는다. 폭이 있는 것(바뀌지 않은 자모)은 붙인 자리만큼 음절의 폭을 늘린다.
+                                item.kind = ItemKind::Mark;
+                                item.markBase = baseIndex;
+                                item.markX = before;
+                                item.breaksAnywhere = m_items[baseIndex].breaksAnywhere;
+                                m_items[baseIndex].advance += advance;
+                            }
+                            before += advance;
+                            m_items.Add(item);
+                        }
+                        index = cursor - 1;
+                        continue;
+                    }
+                }
+            }
             if (IsLead(value) && index + 1 < m_codepoints.Size() && IsVowel(m_codepoints[index + 1].value))
             {
                 value = HangulBase + ((value - LeadBase) * VowelCount + (m_codepoints[index + 1].value - VowelBase)) * TrailCount;

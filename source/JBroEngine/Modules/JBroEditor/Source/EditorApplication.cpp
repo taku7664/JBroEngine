@@ -25,7 +25,9 @@
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Host/AssetLoad.h>
+#include <JBro/Host/DebugDrawSystem.h>
 #include <JBro/Host/EngineInstance.h>
+#include <JBro/Host/RandomSystem.h>
 #include <JBro/Task/TaskManager.h>
 #include <JBro/Host/GameBuild.h>
 #include <JBro/Editor/Command/LayerCommands.h>
@@ -123,8 +125,7 @@ namespace JBro
     bool EditorApplication::Initialize(const EditorApplicationConfig& config)
     {
         if (m_initialized || config.windowWidth == 0 || config.windowHeight == 0
-            || false == std::isfinite(config.fixedDeltaTime) || config.fixedDeltaTime <= 0.0f
-            || config.maxFixedStepsPerFrame == 0
+            || false == System::TimeSystem::IsValid(config.time)
             || (config.graphicsApi != GraphicsApi::D3D12 && config.graphicsApi != GraphicsApi::D3D11
                 && config.graphicsApi != GraphicsApi::Vulkan))
         {
@@ -214,8 +215,9 @@ namespace JBro
 
             EngineConfig engineConfig;
             engineConfig.graphicsApi = config.graphicsApi;
-            engineConfig.fixedDeltaTime = config.fixedDeltaTime;
-            engineConfig.maxFixedStepsPerFrame = config.maxFixedStepsPerFrame;
+            engineConfig.time = config.time;
+            // 게임 뷰의 디버그 선은 에디터의 토글이 정한다(D-243). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
+            engineConfig.gameDebugDrawFromProject = false;
             engineConfig.enableValidation = config.enableValidation;
             engineConfig.tasks.workerCount = config.taskWorkerCount;
             engineConfig.tasks.useWorkers = config.taskWorkers;
@@ -237,6 +239,7 @@ namespace JBro
                 ReleaseProcessResources();
                 return false;
             }
+            m_engine->SetGameDebugDrawVisible(m_gameViewDebugDraw);
             // **입력은 에디터가 꺼내 간다**(D-177). 엔진이 프레임마다 비우면 UI 가 그것을
             // 보지 못한다 - 에디터는 한 프레임에 펌프를 두 번 돌기 때문이다.
             m_engine->SetInputOwnedByHost(true);
@@ -2973,6 +2976,8 @@ namespace JBro
         m_simulationLocale = GetPreviewLocale();
         m_simulationPlaying = true;
         m_simulationPaused = false;
+        // 게임 시간·타임스케일을 처음으로 두고 난수 씨앗을 건다(D-242). 씨앗은 로그에 남는다 - 같은 재생을 다시 보려면 그 수를 적는다.
+        m_engine->RestartGameTime();
         m_engine->SetSimulationEnabled(true);
         // **게임 뷰를 앞으로 가져온다**(D-178, 기존도 재생에서 그랬다). 캔버스 뷰와 탭으로
         // 겹쳐 있으면 재생을 눌러도 화면이 그대로라 아무 일도 없는 것처럼 보인다.
@@ -2994,6 +2999,8 @@ namespace JBro
         if (m_engine.Get() != nullptr)
         {
             m_engine->SetSimulationEnabled(false);
+            // 게임이 바꾼 타임스케일과 게임 시간을 되돌린다(D-242). 다음 재생도 처음 상태로 시작한다.
+            m_engine->RestartGameTime();
             // 게임이 켜고 끈 액션 세트를 되돌린다. 캔버스를 되살리는 것과 같은 까닭이다 - 다음 재생은 처음 상태로 시작한다.
             m_engine->ResetGameInput();
             // 게임이 바꾼 로케일도 되돌린다(D-226).
@@ -3062,6 +3069,59 @@ namespace JBro
     bool EditorApplication::IsSimulationPaused() const
     {
         return m_simulationPaused;
+    }
+
+    void EditorApplication::StepSimulation()
+    {
+        if (false == m_simulationPlaying || false == m_simulationPaused || m_engine.Get() == nullptr)
+        {
+            return;
+        }
+        m_engine->StepSimulation();
+    }
+
+    void EditorApplication::SetGameViewDebugDraw(bool visible)
+    {
+        m_gameViewDebugDraw = visible;
+        if (m_engine.Get() != nullptr)
+        {
+            m_engine->SetGameDebugDrawVisible(visible);
+        }
+    }
+
+    bool EditorApplication::IsGameViewDebugDrawVisible() const
+    {
+        return m_gameViewDebugDraw;
+    }
+
+    void EditorApplication::SetCanvasViewDebugDraw(bool visible)
+    {
+        m_canvasViewDebugDraw = visible;
+    }
+
+    bool EditorApplication::IsCanvasViewDebugDrawVisible() const
+    {
+        return m_canvasViewDebugDraw;
+    }
+
+    const FrameTime* EditorApplication::GetFrameTime() const
+    {
+        EngineInstance* engine = m_engine.Get();
+        const System::TimeSystem* time = engine != nullptr ? engine->GetTime() : nullptr;
+        return time != nullptr ? &time->GetFrameTime() : nullptr;
+    }
+
+    const System::DebugDrawSystem* EditorApplication::GetDebugDraw() const
+    {
+        EngineInstance* engine = m_engine.Get();
+        return engine != nullptr ? engine->GetDebugDraw() : nullptr;
+    }
+
+    std::uint64_t EditorApplication::GetRandomSeed() const
+    {
+        EngineInstance* engine = m_engine.Get();
+        const System::RandomSystem* random = engine != nullptr ? engine->GetRandom() : nullptr;
+        return random != nullptr ? random->GetSeed() : 0;
     }
 
     bool EditorApplication::EnsureCanvasViewTexture(const Extent2D& extent)
@@ -3140,6 +3200,7 @@ namespace JBro
         m_canvasViewRequest.centerX = centerX;
         m_canvasViewRequest.centerY = centerY;
         m_canvasViewRequest.orthographicSize = orthographicSize;
+        m_canvasViewRequest.debugDraw = m_canvasViewDebugDraw;
         m_canvasViewRequest.screenSpace = screenSpace;
         // **캔버스가 지우는 색을 쓴다**(D-186). 편집하는 배경이 게임에서 보일 배경과
         // 달라 보이면, 색을 고르는 일 자체를 화면에서 판단할 수 없다.
@@ -3377,6 +3438,20 @@ namespace JBro
                 : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"));
             DrawShortcutItem(EditorShortcut::TogglePause,
                 Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"));
+            DrawShortcutItem(EditorShortcut::StepFrame,
+                Loc::TextOr(LocKeys::MenuSimulationStep, "Step One Frame"));
+            ImGui::Separator();
+            bool gameDebugDraw = m_gameViewDebugDraw;
+            if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationGameDebugDraw, "Debug Lines in Game View"), gameDebugDraw))
+            {
+                SetGameViewDebugDraw(gameDebugDraw);
+            }
+            // 두 뷰의 토글을 한 메뉴에 둔다(D-243). 캔버스 뷰 도구 모음에 단추로 두면 도구 모음이 넓어져 좁은 창에서 줄이 바뀐다.
+            bool canvasDebugDraw = m_canvasViewDebugDraw;
+            if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationCanvasDebugDraw, "Debug Lines in Canvas View"), canvasDebugDraw))
+            {
+                SetCanvasViewDebugDraw(canvasDebugDraw);
+            }
             Widget::EndMenu();
         }
 
@@ -3545,11 +3620,23 @@ namespace JBro
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 2.0f));
         // 창의 최소 크기(기본 32)가 한 줄보다 커서, 풀지 않으면 띠가 창 아래로 삐져나간다(실측: 25 를 달라 해 30 이 섰다).
         ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
+        // **메뉴 줄과 같은 면이다.** 창의 위아래를 같은 띠가 감싸야 그 사이가 작업 공간으로
+        // 읽힌다. 패널과 같은 색이면 바닥의 한 줄이 어느 패널의 꼬리인지 알 수 없다.
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, EditorTheme::Raised);
         ImGui::Begin("##EditorStatusBar", nullptr,
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking
                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
                 | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoScrollbar);
+        ImGui::PopStyleColor();
         ImGui::PopStyleVar(4);
+
+        // 위를 선으로 끊는다. 메뉴 줄의 아래와 같은 선이다.
+        {
+            ImGuiWindow* bar = ImGui::GetCurrentWindow();
+            bar->DrawList->AddLine(ImVec2(bar->Pos.x, bar->Pos.y + 0.5f),
+                ImVec2(bar->Pos.x + bar->Size.x, bar->Pos.y + 0.5f),
+                ImGui::GetColorU32(EditorTheme::Line), 1.0f);
+        }
 
         const TaskManager* tasks = m_engine.Get() != nullptr ? m_engine->GetTaskManager() : nullptr;
         TaskGroupId first = InvalidTaskGroupId;

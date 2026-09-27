@@ -30,6 +30,10 @@
 > 예: `- ~~[진행 예정] 툴팁 딜레이. ...~~ → 완료 2026-09-27 · abc1234 · Widget/Common.cpp HoveredTooltip`
 > 세 문서(`todo.md`·`todo-2d.md`·`todo-3d.md`)가 모두 이렇게 한다.
 
+- ~~`[진행 예정]` **시간·난수·디버그 드로.** 스크립트 훅이 델타를 인자로 받던 것(§7 위반)을 서비스로 옮기고, 기존 엔진의 `CTime`·`CRandomService`·
+  `CDebugDraw2D` 를 다시 설계해 이식한다~~ → 완료 2026-09-27 · 0773d6d·9723b70·e1c3600·d61a086 과 에디터 커밋 · D-242·D-243,
+  [time-plan.md](./time-plan.md). 남은 것은 계획서 §4(3D 선의 맨 위 그리기·렌더 보간·디버그 글자·위키·`InputTouchTests` 의 순서 의존).
+
 ### 에디터 공용 기반 (2026-09-26 요청)
 
 패널과 툴 창(`Tool/SpriteViewerWindow` 등), 앞으로 붙을 외부 에디터가 **각자 만들지 않고 같은 API 를 부르게** 하는 것들이다.
@@ -321,7 +325,8 @@ EditorApplication::Tick
   원소 값·추가·삭제·옮기기는 고른 전부에 미치는 한 되돌리기이고, 되돌리기 값은
   컨테이너 전체의 글자다(D-86). 배열과 표는 스냅샷과 캔버스 파일에 들어가며, 셋이
   값을 쓰고 읽는 걸음은 `ReflectedYaml` 하나다.
-- **생김새**는 기존 엔진 테마 그대로(D-73), 좁은 리터럴은 UTF-8(D-74).
+- **생김새**는 뜻으로 쓰는 색 팔레트와 밝기 계층이 정한다(D-245, D-73 을 대체).
+  좁은 리터럴은 UTF-8(D-74).
 - **검증**: D3D12 디버그 레이어 + GPU 기반 검증이 테스트 프로세스에서 켜져 있고,
   테스트가 "조용했는가" 를 묻는다(D-64). 단언은 대화상자 대신 중단된다(D-69).
 
@@ -1023,8 +1028,8 @@ EditorApplication::Tick
   그리고 이 실측은 **Visual Studio 기준**이다 — 자작 Code-OSS 포크에서는 MS C/C++ 확장이
   막혀 있고 오픈 대안은 PDB 지원이 약하다. 그쪽은 아직 열린 항목이다(§18.7).
 
-- **D-57. 수학 타입은 차원별 모듈에 둔다. Core 로 올리지 않는다.**
-  Closes: Open Decision 2. Narrows: D-38.
+- **D-57. 수학 타입은 차원별 모듈에 둔다. Core 로 올리지 않는다.** [뒤집힘: D-241]
+  Closes: Open Decision 2. Narrows: D-38. Obsoleted by: D-241 (2026-09-27).
   `Vec2`·`Rect`·`Matrix3x2` 는 `JBroFramework2D/Math2D.h`, `Vec3` 는 `JBroFramework3D/Math3D.h`,
   `Matrix4x4` 는 `JBroGraphics/Renderer.h` 에 두는 현재 배치를 유지한다.
   D-38 의 "차원 독립 공개 값 타입"은 `Color` 처럼 **차원 의미가 없는 것**에만 적용된다.
@@ -1259,7 +1264,7 @@ EditorApplication::Tick
   아직 없는 것: 다중 선택, 복사/붙여넣기, 컴포넌트 추가·제거·순서 커맨드
   (기존에는 서른 개 가까이 있다).
 
-- **D-73. 에디터 생김새는 기존 엔진에서 그대로 옮긴다.** 비슷하게 새로 고르지 않는다.
+- **D-73. 에디터 생김새는 기존 엔진에서 그대로 옮긴다.** **[D-245 가 대체함]** 비슷하게 새로 고르지 않는다.
   색 일흔 개와 치수(모서리 3.0, 탭만 각지게 + 위 선 2.5, 트리선, 도킹 분리선 1.0,
   `WindowMenuButtonPosition = None`, `WindowMinSize (60,30)`)는 눈으로 맞춰 가며 깎은
   값이다. 바꿀 이유가 생기면 그 이유를 `EditorTheme.cpp` 에 적고 바꾼다.
@@ -2902,6 +2907,102 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-245. 에디터 색은 뜻으로 쓰고, 밝기 계층을 지키며, 뷰포트 바탕은 전역 스타일 밖에 둔다.** (2026-09-27, 사용자 지시:
+  "에디터 레이아웃이나 테마, 스타일 등을 관리할 거야" 에 이어 팔레트와 치수 표를 넘겨받았다. **D-73 을 대체한다** - 기존 엔진
+  테마를 그대로 옮긴다는 조항과 "바꿀 이유를 적고 바꾼다" 는 단서를 함께 걷는다)
+  (1) 색 63 개를 다시 잡았다. **파랑 `#3B82F6` 은 상호작용에만**(고른 것·초점·체크·슬라이더·도킹·탐색·주 동작),
+  **호박색 `#E0A33C` 은 주의에만**(경고·저장 안 됨), **빨강 `#E05A52` 은 오류에만**(틀린 칸·`Severity::Error`) 쓴다.
+  금색 체크 표시는 없앴다 - 늘 켜져 있는 자리가 경고와 같은 색이면 경고가 눈에 들어오지 않는다. 체크된 칸은
+  `CheckboxSelectedBg` 를 파랑으로, 표시를 흰색으로 둔다.
+  (2) 밝기 계층은 `#11151A`(작업 공간) → `#171C23`(패널) → `#202731`(떠 있는 면) → `#252E39`(글자 칸·단추) →
+  `#303B49`(올림)이고, 누른 상태(`#1B222B`)는 글자 칸보다 어둡다. 테두리는 **불투명하다**(`#2C3542`) - 반투명한 테두리는
+  뒤에 무엇이 오느냐에 따라 두께가 달라 보인다. 전에 비워 두던 `CheckboxSelectedBg`·`DragDropTargetBg`·`UnsavedMarker`
+  세 개도 채웠다.
+  (3) 치수: 창과 자식 창의 모서리를 **0 으로 되돌렸다**(도킹으로 맞닿은 자리마다 바탕이 비치는 틈이 생긴다). 팝업은 4,
+  **탭의 위 모서리는 6** 이다 - 각진 탭은 띠를 칸으로 나눈 것처럼 보였다. `FramePadding (6,4)`·`ItemSpacing (8,6)`·
+  `CellPadding (6,4)` 로 숨통을 텄고, `GrabMinSize 18`·`ScrollbarSize 12`·`IndentSpacing 18`·`SelectableTextAlign (0,0.5)`·
+  `InputTextCursorSize 1.5`·`DisabledAlpha 0.55`·`TabBarBorderSize 2`·툴팁 지연 `(0.20 / 0.25 / 0.50)` 이다.
+  `WindowMinSize` 는 (60,30) 에서 **(80,40)** 으로 올렸다.
+  (3-1) **띠와 탭을 면으로 갈랐다.** 메뉴 줄과 상태 표시줄은 `Raised`(#202731) 로 패널보다 한 단 위이고, 맞닿는 쪽에
+  `Line`(#2C3542) 선을 긋는다(`Widget::EndMenuBar` 와 `DrawStatusBar`). 탭은 띠 `#11151A`(초점 없음) / `#161C24`(초점 있음),
+  고르지 않은 탭 `#1B222B`, 고른 탭 `#2A333F` 다. **처음에는 띠(`TitleBgActive`)와 고른 탭(`TabSelected`)에 둘 다
+  `Raised` 를 주었는데, ImGui 가 도크의 탭 띠 바탕을 `TitleBgActive` 로 그리는 탓에**(`imgui.cpp` 의 `DockNodeUpdateTabBar`)
+  **초점이 가는 순간 어느 탭이 열려 있는지 사라졌다.** 고르지 않은 탭도 띠와 같은 색이면 탭이 아니라 띠에 얹힌 글자로
+  보여, 탭 사이의 틈만 도드라졌다. 화면을 직접 보고서야 드러난 것들이다.
+  (3-2) `[열림]` 고른 탭 위의 강조선은 모서리가 둥글면 ImGui 가 **호로 그린다**(`imgui_widgets.cpp` 의 `TabItemEx`,
+  `style.TabRounding > 0` 분기). 직선으로 긋고 모서리에서 끊으려면 그 자리를 고쳐야 하는데, 그러면 저장소의 첫 ImGui
+  수정본이 된다(`ThirdParty/README.md` 의 "고치지 않는다"). 지금은 호로 둔다.
+  (4) **뷰포트 바탕은 전역 스타일이 아니다.** `EditorTheme::ViewportBackground`(`#0E1115`)를 캔버스 뷰와 게임 뷰가 직접
+  쓴다. 가운데가 가장 깊은 작업 공간으로 읽혀야 하는데, 그만큼 `WindowBg` 를 내리면 패널 위 글자 대비가 함께 무너진다.
+  (5) **실측으로 드러난 것 둘.** ① `WindowMinSize.y` 를 40 으로 올리자 알림 상자가 그 높이로 늘어나 상태 표시줄을 덮었다
+  - ImGui 는 `SetNextWindowSize` 로 잡은 크기도 `WindowMinSize` 로 올린다(`CalcWindowMinSize`, `AlwaysAutoResize` 만 예외).
+  상태 표시줄이 이미 같은 이유로 풀고 있었고, 알림 더미도 `ImGuiStyleVar_WindowMinSize (1,1)` 를 밀어 고쳤다.
+  ② 글자색을 순백에서 `#E4E8EE` 로 내리자 `EditorUITests` 의 "밝은 픽셀" 셈(채널 > 200)이 글자 가장자리를 전부 놓쳐
+  무너졌다. 그 검사가 묻는 것은 폰트 아틀라스가 올라갔는지이지 글자색이 아니므로 문턱을 150 으로 내렸다.
+  (6) **에디터 테스트의 좌표를 실제 자리에서 받아 오게 고쳤다.** 창 한가운데에 픽셀을 더해 캔버스의 오브젝트를 짚던
+  네 자리(사각 선택·우클릭 메뉴·기즈모 공간·감춘 오브젝트)는 `EditorApplication::CanvasViewWorldToScreen` 으로 바꿨고,
+  인스펙터에서 항목을 훑던 세 헬퍼(`FindInspectorItem`·`FindListItem`·`FindListItemNearRightEdge`)는 패널을 굴려 가며
+  찾는다(`ScrollingInInspector`). 간격이 조금만 바뀌어도 그 자리들이 화면 밖으로 밀려 났다 - 테마를 만질 때마다
+  다시 깨질 자리라, 값이 아니라 자리를 묻게 바꿨다.
+- **D-244. 임시 시험 코드는 커밋하지 않고 main 에 절대 병합하지 않는다.** (2026-09-27, 사용자 지시: "테스트 코드는 메인에 절대 병합하지
+  않는다는 규칙 추가해" - 범위를 물었고 "임시 시험 코드만" 으로 답했다) 대상은 시험 하나만 돌리는 진입점 훅(환경 변수 분기)·디버그 출력·
+  시험 함수 하나만 부르는 임시 분기·뮤테이션 러너와 그 변이다. 스크래치나 커밋하지 않은 작업 트리에만 두고, 커밋 전에 걷어 낸 뒤 `git grep` 으로
+  확인한다. 정식 시험(`Tests/*.cpp` 의 검사와 등록)은 대상이 아니다 - `ProjectRule.md` §12 가 변경과 같은 커밋을 요구한다. 계약은 §13.
+- **D-243. 디버그 드로는 호스트의 고정 용량 선 저장소이고, 스크립트는 차원별 서비스로 그리기만 하며, 렌더 브리지가 뷰마다 픽셀 두께의 사각형으로 그린다.**
+  (2026-09-27, [time-plan.md](./time-plan.md) §2.4. 사용자 요청은 D-242 과 같다) 기존 엔진에 3D 디버그 드로는 없었다.
+  (1) `DebugLine`(36 B: 양 끝·RGBA8·픽셀 두께·게임 시간)과 `IDebugDrawSystem::AddLines` 는 `JBroRuntime`, 저장소 `System::DebugDrawSystem` 은
+  `JBroHost` 다. 공통 `SystemContext` 5 에 `DebugDraw` 슬롯. 용량은 엔진이 설 때 한 번 잡고(`EngineConfig::maxDebugLines`, 16384) 넘치면 버리고 센다.
+  (2) 수명: 0 초짜리는 한 프레임, 0 초 초과는 게임 시간으로 줄고, 고정 스텝에서 그린 0 초짜리는 다음 고정 스텝까지 남는다. 멈춘 프레임에는 거두지
+  않는다. 재생을 시작하고 멈출 때 비운다.
+  (3) 서비스 `DebugDraw2DService`(Line·Ray·Arrow·Rect·Circle·Polygon·Cross)와 `DebugDraw3DService`(Line·Ray·Arrow·Box·Sphere·Circle·Axes·Cross)가
+  차원별 서비스 컨텍스트(2D 4, 3D 2)에 있다. 도형을 선으로 펴 64 개씩 `AddLines` 한 번으로 넘긴다(`Internal::DebugLineBatch`, 힙 없음).
+  (4) 그리기는 새 파이프라인 없이 2D 는 흰 스프라이트, 3D 는 월드 텍스트 사각형이다(메시 뒤 깊이 테스트, 컬링 없음). 두께는 뷰의 배율로 바꾼 픽셀이다.
+  제출 상한에 걸린 선은 프레임을 실패로 만들지 않는다. 게임 뷰는 게임 실행이 프로젝트의 `DebugModeEnabled`(전에는 읽기만 했다), 에디터가 제 토글로,
+  캔버스 뷰는 `EditorViewDesc::debugDraw` 로 정한다.
+- **D-242. 시간과 난수는 엔진이 소유한 `TimeSystem`·`RandomSystem` 이고, 스크립트는 공통 `ServiceContext` 의 `Time`·`Random` 으로 읽으며, 훅은 델타를 인자로 받지 않는다.**
+  (2026-09-27, [time-plan.md](./time-plan.md). 사용자 요청: "스크립트 인자에 델타를 받는건 뭐냐 - 기존 엔진과 비교해 재설계해서 완전히 이식하고
+  추가 기능과 구조 개선까지") Updates: D-43(공통 `SystemContext` 가 처음으로 차원 무관 슬롯을 갖는다), D-131(멈춤은 시계가 든다).
+  (1) `GameScriptBase::OnUpdate()`·`OnFixedUpdate()` 는 인자가 없다. §7 의 "매 호출마다 delta time 을 전달하는 구조를 기본으로 삼지 않는다" 를
+  어기고 있었다. 기존 엔진도 인자가 없었다. 엔진 시스템의 `GameSystem::OnUpdate(Canvas&, float)` 는 엔진 레이어라 그대로 받는다.
+  (2) 인터페이스(`ITimeSystem`·`FrameTime`·`IRandomSystem`)와 값 서비스(`TimeService`·`RandomService`)는 `JBroRuntime` 에, 구현은
+  `JBroHost` 에 둔다. 텍스트(`ITextSystem`)가 남긴 길이다. 새 Tier S 모듈을 만들지 않는다 - 공통 블록은 `BindScriptModuleContexts` 가 이미 묶는다.
+  판번호: 공통 `SystemContext` 4, `ServiceContext` 2.
+  (3) **시간은 한 자리다.** 프레임 델타 상한(0.25 초)·타임스케일(0~100, 스크립트가 바꿀 수 있는 유일한 값)·멈춤·한 프레임 진행·고정 스텝
+  누산(상한 4)이 모두 `TimeSystem` 에 있고 두 프레임워크의 누산기를 지웠다. `IFramework::Update()` 는 인자가 없고 `FrameworkContext::time` 이
+  필수다. 상한을 넘어 버린 스텝만큼 게임 델타도 줄여 `Time()` 과 `FixedTime()` 이 어긋나지 않는다. 고정 스텝 안에서 서비스의 `DeltaTime()`·
+  `Time()` 은 고정 델타·고정 시간이다. 누적 시간은 double 이다.
+  (4) **난수는 PCG32 `RandomStream`(`JBroCore`, 16 B 값)** 이고 정수 구간(Lemire 거절)·실수 [0, 1) 매핑까지 우리 코드라 같은 씨앗이면 컴파일러와
+  무관하게 같은 수열이다. 엔진 흐름은 잠그지 않고(메인 스레드 전용), 게임은 `MakeStream` 으로 제 흐름을 든다. 씨앗은 프로젝트 `RandomSeed`
+  (0 이면 재생마다 새로 뽑아 로그에 남긴다).
+  (5) 프로젝트 파일 최상위 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime`·`RandomSeed` 를 둔다. 에디터에 한 프레임 진행이 생긴다(기존 엔진에 없었다).
+- **D-241. 수학 값 타입을 전부 `JBroCore` 로 옮긴다. D-57 을 뒤집는다.**
+  (2026-09-27, 사용자 지시 "이게 뭐 전용타입이야? 그냥 코어로 옮겨". 범위와 스크립트 노출은 사용자가 골랐다:
+  "값 타입 + 순수 연산 함수", "그냥 보이게 둔다") Obsoletes: D-57. Updates: D-38(적용 범위가 넓어진다),
+  D-199·D-200(두 커널의 의존), ProjectRule §10.1·모듈 계층 표.
+  **옮긴 것**: `Vec2`·`Rect`·`Matrix3x2` 와 `MakeTransformMatrix2D`·`MultiplyMatrix3x2` 가
+  `JBroFramework2D/Math2D.h` → `JBro/Types/Math2D.h`, `Vec3`·`Quaternion` 과 연산 함수 열셋이
+  `JBroFramework3D/Math3D.h` → `JBro/Types/Math3D.h`, `Matrix4x4` 와 `MultiplyMatrix4x4` 가
+  `JBroGraphics/Renderer.h`·`Framework3DSystem/Math3DMatrix.h` → 새 `JBro/Types/Matrix4x4.h`.
+  리플렉션 설명서 둘은 `JBro/Reflection/Math2DReflection.h`·`Math3DReflection.h` 로 간다 -
+  값 타입과 갈라 두는 이유(매 프레임 경로가 리플렉션 기계를 물지 않게)는 옮기기 전과 같다.
+  **남긴 것**: 좌표계와 깊이 범위를 전제하는 함수(`MakeRotationMatrix`·`MakeTransformMatrix3D`·
+  `MakeViewMatrix`·`MakePerspectiveMatrix`·`MakeOrthographicMatrix`·`TransformPoint`)는
+  `Framework3DSystem/Math3DMatrix.h` 에 그대로 둔다. 그 규약은 시스템 단계의 계약이다.
+  `Types/Types.h` 프렐류드에는 넣지 않았다 - `Add`·`Scale`·`Multiply`·`Dot`·`Length`·`Normalize` 가
+  `JBro` 에 전역으로 퍼지면 이름 충돌이 이 변경과 먼 자리에서 터진다.
+  **근거**: D-57 이 든 "2D 프로젝트가 3D 수학을 링크하지 않는다" 는 성립하지 않았다 - 세 헤더는 전부
+  `struct` 와 `inline` 함수라 링크할 심볼이 없고, 실제 대가는 include 비용뿐이었다. 그 대신
+  2D·3D 를 모두 보는 코드가 양쪽 모듈을 끌어와야 했다.
+  **받아들인 대가**: Core 는 모든 스크립트의 include 경로에 있으므로 2D 스크립트에서도
+  `Vec3`·`Quaternion`·`Matrix4x4` 가 보인다. 수학 값 타입은 2D/3D 배타성의 대상이 아니라고 정했고,
+  배타성은 컴포넌트와 서비스 수준에서만 유지한다.
+  **덤으로 걷은 것**: `JBroPhysics2D` 가 `Vec2` 하나 때문에 받던 `JBroFramework2D` include 경로가
+  죽어 vcxproj 에서 뺐다. 물리 커널은 이제 문서가 말하던 대로 진짜 `JBroCore` 만 본다.
+  검증: 솔루션 전체 Debug 빌드 오류 0, `JBroTests` Debug 전부 통과(`Public header composition`·
+  `Script API prelude` 포함), 자체 포함 번역 단위 275 개 재생성. 음성 테스트: `JBroPhysics2D` 소스에
+  `JBro/Framework2D/Component/Transform2D.h` 를 넣으면 `C1083` 으로 죽는다.
+  이름의 일관성 없음(`Vec` 대 `Matrix`, `Vec4` 없음)은 사용자가 이번에 손대지 말라고 해 남겼다. [열림]
+
 - **D-240. 오디오 전체 점검: 다섯 갈래(믹서·이펙트·디코드와 스트리밍·게임 쪽 시스템·시험과 문서)를 반례로 훑어 찾은 결함을 고친다.**
   (2026-09-27, [audio-plan.md](./audio-plan.md) §3-13, 사용자 요청 "오디오 싹 훑으면서 검증해봐. devil로 반례도 찾아가면서") Updates: D-203·D-205·
   D-231·D-235. (D-238·D-239 는 브랜치 `text2d`·`pixelperfect` 가 먼저 잡아 건너뛴다.)
@@ -2963,6 +3064,17 @@ EditorApplication::Tick
       안 잰 것이라 테스트를 채웠다). 게임 뷰의 까닭 글자와 인스펙터의 안내 줄은 화면 글자라 자동 검사가 닿지 않아 스크린숏(`JBRO_EDITOR_SHOT`)으로만 봤다.
     - 열림: 스프라이트 위치 스냅(움직일 때 계단처럼 보일 수 있어 옵션으로), 첫 프레임의 앵커, 레터박스 띠의 색(지금은 카메라 `clearColor`).
 
+- **D-238. 옛한글 자모 조합은 HarfBuzz 없이 커널이 GSUB 의 `hang` 자모 기능을 직접 읽고, 음절의 뒤 자모는 첫 글리프에 결합 표시처럼 붙는다.**
+  (2026-09-27, text-plan §7. 사용자 확인: "직접 읽기 + 폰트 다운로드" - 시험 폰트는 내려받지 않고 설치된 맑은 고딕을 읽게 되었다) Updates: D-200 (2)
+  (필요하면 FreeType + HarfBuzz 로 바꾼다 → 옛한글은 GPOS 처럼 직접 읽기), D-216 (8).
+  (1) `FontFace::ShapeHangulJamo` 가 `hang` 문자 체계(기본 언어 체계, 없으면 첫 언어 체계)의 `ljmo`·`vjmo`·`tjmo` 조회를 목록 차례로 한 번씩 음절 전체에
+  돈다. 읽는 형식은 단일 치환(형식 1·2)·연쇄 문맥 치환 형식 3·확장(7)이고, 조회 번호는 폰트를 열 때 한 번 모은다. (2) `TextLayout` 은 현대 자모만의
+  음절(첫소리·가운뎃소리 하나씩과 끝소리 하나까지)을 예전처럼 산술로 합치고, 그 밖(옛 자모가 섞인 음절)만 폰트에 보낸다 - DirectWrite 도 합칠 수 있는
+  음절에는 이 기능을 걸지 않는다. 받침 없는 현대 음절 뒤의 옛 끝소리는 음절을 자모로 풀어 한 음절로 모은다. (3) 음절의 첫 글리프는 보통 글자이고 뒤의
+  자모는 그 글자에 붙은 결합 표시 항목이다(자리 = 앞 글리프들의 폭 합, DirectWrite 와 같다). 그래서 자모 사이에서 줄이 나뉘지 않고 커닝·금칙은 첫 글리프가
+  맡는다. 기능이 없는 폰트는 예전처럼 자모마다 따로 선다. (4) 기대값은 맑은 고딕(설치본, 배포 불가라 저장소에 넣지 않는다)을 DirectWrite 로 모양 잡아
+  뽑았다(`Tests/Data/Fonts/DWriteShape.cpp`). 기각: HarfBuzz 들이기(옛한글 하나에 셰이핑 엔진 전체와 FreeType 연결), fontTools 로 기대값 뽑기(이 컴퓨터의
+  pip 가 깨져 있고, DirectWrite 가 같은 폰트의 독립된 답을 준다), 시험 폰트 내려받기(맑은 고딕이 이미 있다).
 - **D-237. 화면 공간 UI 는 별도 UI 트리가 아니라 캔버스 레이어의 `Space = Screen` 과 `Transform2D.anchor` 이고, 좌표는 기준 해상도의 픽셀이다.**
   (2026-09-27, [ui-plan.md](./ui-plan.md). 사용자 확인: 화면 레이어 + 앵커(기존 엔진과 같은 뼈대), 좌표 단위는 기준 해상도의 픽셀, Space·ScaleMode 는 캔버스의 `Layer`,
   캔버스 뷰는 월드/UI 보기 전환, 범위는 1~3 단계. 처음 D-233 으로 적었으나 물리(D-233·D-234)·오디오(D-235)·에디터 로딩(D-236)이 먼저 들어와 D-237 로 옮겼다 - 커밋 `9bd20dd`·`2ac226f` 의 옛 번호는 이것이다) Updates: D-46(레이어의 값), D-47(`Transform2D` 의 필드), D-214(UI 입력은 `"UI"` 레이어).

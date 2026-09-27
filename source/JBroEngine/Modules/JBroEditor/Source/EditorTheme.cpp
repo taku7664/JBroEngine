@@ -14,95 +14,200 @@ namespace JBro::EditorTheme
     {
         ImGuiStyle& style = ImGui::GetStyle();
         ImVec4* colors = style.Colors;
-        colors[ImGuiCol_Text]                   = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-        colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-        colors[ImGuiCol_WindowBg]               = ImVec4(0.11f, 0.12f, 0.15f, 1.00f);
-        colors[ImGuiCol_ChildBg]                = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-        colors[ImGuiCol_PopupBg]                = ImVec4(0.11f, 0.12f, 0.15f, 1.00f);
-        colors[ImGuiCol_Border]                 = ImVec4(0.27f, 0.31f, 0.39f, 0.47f);
-        colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-        colors[ImGuiCol_FrameBg]                = ImVec4(0.22f, 0.23f, 0.27f, 1.00f);
-        colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.29f, 0.30f, 0.36f, 1.00f);
-        colors[ImGuiCol_FrameBgActive]          = ImVec4(0.18f, 0.19f, 0.24f, 1.00f);
-        colors[ImGuiCol_TitleBg]                = ImVec4(0.11f, 0.12f, 0.15f, 1.00f);
-        colors[ImGuiCol_TitleBgActive]          = ImVec4(0.13f, 0.15f, 0.19f, 1.00f);
-        colors[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.22f, 0.23f, 0.27f, 1.00f);
-        colors[ImGuiCol_MenuBarBg]              = ImVec4(0.14f, 0.16f, 0.20f, 1.00f);
-        colors[ImGuiCol_ScrollbarBg]            = ImVec4(0.02f, 0.02f, 0.02f, 0.53f);
-        colors[ImGuiCol_ScrollbarGrab]          = ImVec4(0.31f, 0.31f, 0.31f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.41f, 0.41f, 0.41f, 1.00f);
-        colors[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.51f, 0.51f, 0.51f, 1.00f);
-        colors[ImGuiCol_CheckMark]              = ImVec4(0.80f, 0.64f, 0.27f, 1.00f);
-        colors[ImGuiCol_SliderGrab]             = ImVec4(0.80f, 0.63f, 0.27f, 1.00f);
-        colors[ImGuiCol_SliderGrabActive]       = ImVec4(0.87f, 0.72f, 0.40f, 1.00f);
-        colors[ImGuiCol_Button]                 = ImVec4(0.22f, 0.23f, 0.27f, 1.00f);
-        colors[ImGuiCol_ButtonHovered]          = ImVec4(0.31f, 0.33f, 0.37f, 1.00f);
-        colors[ImGuiCol_ButtonActive]           = ImVec4(0.18f, 0.19f, 0.24f, 1.00f);
-        colors[ImGuiCol_Header]                 = ImVec4(0.17f, 0.22f, 0.27f, 1.00f);
-        colors[ImGuiCol_HeaderHovered]          = ImVec4(0.25f, 0.31f, 0.36f, 1.00f);
-        colors[ImGuiCol_HeaderActive]           = ImVec4(0.15f, 0.19f, 0.23f, 1.00f);
-        colors[ImGuiCol_Separator]              = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-        colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.10f, 0.40f, 0.75f, 0.78f);
-        colors[ImGuiCol_SeparatorActive]        = ImVec4(0.10f, 0.40f, 0.75f, 1.00f);
-        colors[ImGuiCol_ResizeGrip]             = ImVec4(0.14f, 0.21f, 0.29f, 1.00f);
-        colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.31f, 0.41f, 0.52f, 1.00f);
-        colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.11f, 0.17f, 0.24f, 1.00f);
-        colors[ImGuiCol_InputTextCursor]        = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-        colors[ImGuiCol_TabHovered]             = ImVec4(0.32f, 0.37f, 0.43f, 1.00f);
-        colors[ImGuiCol_Tab]                    = ImVec4(0.23f, 0.27f, 0.31f, 0.00f);
-        colors[ImGuiCol_TabSelected]            = ImVec4(0.16f, 0.18f, 0.22f, 1.00f);
-        colors[ImGuiCol_TabSelectedOverline]    = ImVec4(0.52f, 0.57f, 0.62f, 1.00f);
-        colors[ImGuiCol_TabDimmed]              = ImVec4(0.16f, 0.19f, 0.21f, 0.00f);
-        colors[ImGuiCol_TabDimmedSelected]      = ImVec4(0.23f, 0.27f, 0.31f, 1.00f);
-        colors[ImGuiCol_TabDimmedSelectedOverline] = ImVec4(0.50f, 0.50f, 0.50f, 0.00f);
-        colors[ImGuiCol_DockingPreview]         = ImVec4(0.04f, 0.52f, 1.00f, 0.51f);
-        colors[ImGuiCol_DockingEmptyBg]         = ImVec4(0.20f, 0.20f, 0.20f, 1.00f);
-        colors[ImGuiCol_PlotLines]              = ImVec4(0.61f, 0.61f, 0.61f, 1.00f);
-        colors[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00f, 0.43f, 0.35f, 1.00f);
-        colors[ImGuiCol_PlotHistogram]          = ImVec4(0.90f, 0.70f, 0.00f, 1.00f);
-        colors[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00f, 0.60f, 0.00f, 1.00f);
-        colors[ImGuiCol_TableHeaderBg]          = ImVec4(0.19f, 0.19f, 0.20f, 1.00f);
-        colors[ImGuiCol_TableBorderStrong]      = ImVec4(0.31f, 0.31f, 0.35f, 1.00f);
-        colors[ImGuiCol_TableBorderLight]       = ImVec4(0.23f, 0.23f, 0.25f, 1.00f);
-        colors[ImGuiCol_TableRowBg]             = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-        colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
-        colors[ImGuiCol_TextLink]               = ImVec4(0.26f, 0.59f, 0.98f, 1.00f);
-        colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.26f, 0.59f, 0.98f, 0.35f);
-        colors[ImGuiCol_TreeLines]              = ImVec4(0.43f, 0.43f, 0.50f, 0.50f);
-        colors[ImGuiCol_DragDropTarget]         = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-        colors[ImGuiCol_NavCursor]              = ImVec4(0.26f, 0.59f, 0.98f, 0.67f);
-        colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 1.00f, 1.00f, 0.70f);
-        colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(0.80f, 0.80f, 0.80f, 0.20f);
-        colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(0.80f, 0.80f, 0.80f, 0.35f);
+
+        colors[ImGuiCol_Text]                   = Ink;
+        colors[ImGuiCol_TextDisabled]           = InkMuted;
+
+        colors[ImGuiCol_WindowBg]               = Panel;
+        colors[ImGuiCol_ChildBg]                = Clear;
+        colors[ImGuiCol_PopupBg]                = Raised;
+        colors[ImGuiCol_Border]                 = Line;
+        colors[ImGuiCol_BorderShadow]           = Clear;
+
+        colors[ImGuiCol_FrameBg]                = Input;
+        colors[ImGuiCol_FrameBgHovered]         = Hover;
+        colors[ImGuiCol_FrameBgActive]          = Pressed;
+
+        // **도크의 탭 띠 바탕이 이 색이다**(떠 있는 창의 제목 줄도 같이 쓴다).
+        // 초점이 있으면 `TitleBgActive` 로 한 단만 올린다 - 고른 탭까지 올리면 둘이
+        // 같은 면이 되어 어느 탭이 열려 있는지 보이지 않는다.
+        colors[ImGuiCol_TitleBg]                = TabStrip;
+        colors[ImGuiCol_TitleBgActive]          = TabStripActive;
+        colors[ImGuiCol_TitleBgCollapsed]       = TabStrip;
+        // 메뉴 줄은 탭 띠보다 위의 면이다. 같은 색이면 두 띠가 한 덩어리로 보인다.
+        colors[ImGuiCol_MenuBarBg]              = Raised;
+
+        colors[ImGuiCol_ScrollbarBg]            = Workspace;
+        colors[ImGuiCol_ScrollbarGrab]          = Hover;
+        colors[ImGuiCol_ScrollbarGrabHovered]   = LineStrong;
+        colors[ImGuiCol_ScrollbarGrabActive]    = Fade(Accent, 0.80f);
+
+        // 체크된 칸은 파란 바탕에 흰 표시다. 예전에는 표시만 금색이었는데,
+        // 그러면 늘 켜져 있는 자리가 경고와 같은 색을 갖는다.
+        colors[ImGuiCol_CheckMark]              = Ink;
+        colors[ImGuiCol_CheckboxSelectedBg]     = Accent;
+        colors[ImGuiCol_SliderGrab]             = Accent;
+        colors[ImGuiCol_SliderGrabActive]       = AccentBright;
+
+        colors[ImGuiCol_Button]                 = Input;
+        colors[ImGuiCol_ButtonHovered]          = Hover;
+        colors[ImGuiCol_ButtonActive]           = Pressed;
+
+        // 고른 줄이다(계층·목록·메뉴 항목). 바탕을 갈지 않고 파랑을 덮는다 -
+        // 줄마다 바탕색이 바뀌면 밝기 계층이 흐트러진다.
+        colors[ImGuiCol_Header]                 = Fade(Accent, 0.38f);
+        colors[ImGuiCol_HeaderHovered]          = Fade(Accent, 0.24f);
+        colors[ImGuiCol_HeaderActive]           = Fade(Accent, 0.52f);
+
+        colors[ImGuiCol_Separator]              = Line;
+        colors[ImGuiCol_SeparatorHovered]       = Fade(Accent, 0.70f);
+        colors[ImGuiCol_SeparatorActive]        = Accent;
+
+        colors[ImGuiCol_ResizeGrip]             = Fade(Accent, 0.20f);
+        colors[ImGuiCol_ResizeGripHovered]      = Fade(Accent, 0.55f);
+        colors[ImGuiCol_ResizeGripActive]       = Fade(Accent, 0.85f);
+
+        colors[ImGuiCol_InputTextCursor]        = Ink;
+
+        // 탭은 띠 위에 올라앉은 면이다. 고르지 않은 탭도 제 면을 가진다 - 띠와 같은
+        // 색이면 탭이 아니라 띠에 얹힌 글자로 보이고, 탭 사이의 틈만 도드라진다.
+        colors[ImGuiCol_Tab]                    = TabIdle;
+        colors[ImGuiCol_TabHovered]             = Hover;
+        colors[ImGuiCol_TabSelected]            = TabTop;
+        colors[ImGuiCol_TabSelectedOverline]    = Accent;
+        colors[ImGuiCol_TabDimmed]              = TabStripActive;
+        colors[ImGuiCol_TabDimmedSelected]      = Raised;
+        // 초점이 없는 탭바의 선은 회색이다. 파랑은 초점이 있다는 뜻이다.
+        colors[ImGuiCol_TabDimmedSelectedOverline] = LineStrong;
+
+        colors[ImGuiCol_DockingPreview]         = Fade(Accent, 0.40f);
+        colors[ImGuiCol_DockingEmptyBg]         = Workspace;
+
+        colors[ImGuiCol_PlotLines]              = InkMuted;
+        colors[ImGuiCol_PlotLinesHovered]       = AccentBright;
+        colors[ImGuiCol_PlotHistogram]          = Accent;
+        colors[ImGuiCol_PlotHistogramHovered]   = AccentBright;
+
+        colors[ImGuiCol_TableHeaderBg]          = Raised;
+        colors[ImGuiCol_TableBorderStrong]      = LineStrong;
+        colors[ImGuiCol_TableBorderLight]       = Line;
+        colors[ImGuiCol_TableRowBg]             = Clear;
+        colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.03f);
+
+        colors[ImGuiCol_TextLink]               = AccentBright;
+        colors[ImGuiCol_TextSelectedBg]         = Fade(Accent, 0.35f);
+        colors[ImGuiCol_TreeLines]              = Line;
+
+        colors[ImGuiCol_DragDropTarget]         = AccentBright;
+        colors[ImGuiCol_DragDropTargetBg]       = Fade(Accent, 0.15f);
+
+        // 저장하지 않은 표시다. 주의를 끌어야 하므로 호박색이다.
+        colors[ImGuiCol_UnsavedMarker]          = Amber;
+
+        colors[ImGuiCol_NavCursor]              = Fade(Accent, 0.80f);
+        colors[ImGuiCol_NavWindowingHighlight]  = Fade(Ink, 0.70f);
+        colors[ImGuiCol_NavWindowingDimBg]      = Fade(Workspace, 0.60f);
+        colors[ImGuiCol_ModalWindowDimBg]       = Fade(Workspace, 0.60f);
     }
 
     void ApplyLayout()
     {
         ImGuiStyle& style = ImGui::GetStyle();
-        style.WindowRounding = 3.0f;
-        style.ChildRounding = 3.0f;
-        style.FrameRounding = 3.0f;
-        style.PopupRounding = 3.0f;
-        style.GrabRounding = 3.0f;
 
-        // 탭만 각지다. 위에 선을 얹어 고른 탭을 표시한다.
-        style.TabRounding = 0.0f;
-        style.TabBarOverlineSize = 2.5f;
-        style.TabCloseButtonMinWidthSelected = 0.0f;
-        style.TabCloseButtonMinWidthUnselected = 0.0f;
-
-        style.TreeLinesSize = 1.0f;
-        style.TreeLinesFlags = ImGuiTreeNodeFlags_DrawLinesToNodes;
-
+        // 창
+        style.WindowPadding            = ImVec2(8.0f, 8.0f);
+        // **모서리를 둥글리지 않는다.** 패널은 서로 붙어 도킹되므로, 둥근 모서리는
+        // 맞닿은 자리마다 바탕이 비치는 틈을 만든다.
+        style.WindowRounding           = 0.0f;
+        style.WindowBorderSize         = 1.0f;
+        style.WindowBorderHoverPadding = 4.0f;
+        // 패널을 작게 끌어도 접히지 않게.
+        style.WindowMinSize            = ImVec2(80.0f, 40.0f);
+        style.WindowTitleAlign         = ImVec2(0.0f, 0.5f);
         // 제목 왼쪽의 접기 화살표를 없앤다. 패널에는 쓸 일이 없다.
         style.WindowMenuButtonPosition = ImGuiDir_None;
 
-        style.DockingSeparatorSize = 1.0f;
-        style.SeparatorSize = 1.0f;
-        style.SeparatorTextBorderSize = 1.0f;
+        style.ChildRounding            = 0.0f;
+        style.ChildBorderSize          = 1.0f;
 
-        // 패널을 아주 작게 끌어도 접히지 않게.
-        style.WindowMinSize = ImVec2(60.0f, 30.0f);
+        // 팝업은 떠 있는 면이라 모서리가 둥글다. 도킹되지 않으므로 틈이 생기지 않는다.
+        style.PopupRounding            = 4.0f;
+        style.PopupBorderSize          = 1.0f;
+
+        style.DisplayWindowPadding     = ImVec2(12.0f, 12.0f);
+        style.DisplaySafeAreaPadding   = ImVec2(3.0f, 3.0f);
+
+        // 위젯과 간격
+        style.FramePadding             = ImVec2(6.0f, 4.0f);
+        style.FrameRounding            = 3.0f;
+        style.FrameBorderSize          = 0.0f;
+
+        style.ItemSpacing              = ImVec2(8.0f, 6.0f);
+        style.ItemInnerSpacing         = ImVec2(6.0f, 4.0f);
+        style.CellPadding              = ImVec2(6.0f, 4.0f);
+
+        style.TouchExtraPadding        = ImVec2(0.0f, 0.0f);
+        style.IndentSpacing            = 18.0f;
+        style.ColumnsMinSpacing        = 6.0f;
+
+        // 스크롤바와 손잡이
+        style.ScrollbarSize            = 12.0f;
+        style.ScrollbarRounding        = 6.0f;
+        style.ScrollbarPadding         = 2.0f;
+
+        style.GrabMinSize              = 18.0f;
+        style.GrabRounding             = 3.0f;
+        style.LogSliderDeadzone        = 4.0f;
+
+        // **탭의 위 모서리는 둥글다.** 브라우저의 탭이 그렇듯, 둥근 위와 반듯한 아래가
+        // "띠에 꽂힌 한 장" 으로 읽힌다. 각진 탭은 띠를 칸으로 나눈 것처럼 보였다.
+        style.TabRounding              = 6.0f;
+        style.TabBorderSize            = 0.0f;
+        style.TabMinWidthBase          = 1.0f;
+        style.TabMinWidthShrink        = 80.0f;
+        style.TabCloseButtonMinWidthSelected   = 0.0f;
+        style.TabCloseButtonMinWidthUnselected = 0.0f;
+        // 띠와 패널을 가르는 선이다. 초점이 있으면 고른 탭의 색을 띤다.
+        style.TabBarBorderSize         = 2.0f;
+        style.TabBarOverlineSize       = 2.0f;
+
+        // 트리와 구분선
+        style.TreeLinesFlags           = ImGuiTreeNodeFlags_DrawLinesToNodes;
+        style.TreeLinesSize            = 1.0f;
+        style.TreeLinesRounding        = 2.0f;
+
+        style.SeparatorSize            = 1.0f;
+        style.SeparatorTextBorderSize  = 1.0f;
+        style.SeparatorTextAlign       = ImVec2(0.0f, 0.5f);
+        style.SeparatorTextPadding     = ImVec2(8.0f, 5.0f);
+
+        // 나머지 위젯
+        style.MenuItemRounding         = 2.0f;
+        style.SelectableRounding       = 2.0f;
+
+        style.ImageRounding            = 3.0f;
+        style.ImageBorderSize          = 0.0f;
+
+        style.DragDropTargetRounding   = 3.0f;
+        style.DragDropTargetBorderSize = 2.0f;
+        style.DragDropTargetPadding    = 3.0f;
+
+        style.ButtonTextAlign          = ImVec2(0.5f, 0.5f);
+        style.SelectableTextAlign      = ImVec2(0.0f, 0.5f);
+
+        style.InputTextCursorSize      = 1.5f;
+
+        // 도킹
+        style.DockingSeparatorSize     = 1.0f;
+
+        // 전역
+        style.Alpha                    = 1.0f;
+        style.DisabledAlpha            = 0.55f;
+
+        // 툴팁이 뜨는 때
+        style.HoverStationaryDelay     = 0.20f;
+        style.HoverDelayShort          = 0.25f;
+        style.HoverDelayNormal         = 0.50f;
     }
 
     namespace

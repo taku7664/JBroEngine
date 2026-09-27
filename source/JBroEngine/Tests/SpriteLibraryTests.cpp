@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/Asset.h>
+﻿#include "TestClock.h"
+#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
@@ -261,6 +262,7 @@ namespace
 
             JBro::Framework2D framework;
             JBro::FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = memory;
             context.assets = &assets;
             context.renderer = &renderer;
@@ -283,7 +285,7 @@ namespace
             image.Resize(64 * 64 * 4);
             JBro::TextureReadback readback;
             const auto paint = [&](std::uint32_t x, std::uint32_t y, float& r, float& g, float& b) {
-                framework.Update(1.0f / 60.0f);
+                JBro::Testing::Tick(framework, 1.0f / 60.0f);
                 Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the framework frame must begin");
                 Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit the hero");
                 Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the framework frame must present");

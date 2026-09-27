@@ -1,35 +1,18 @@
 ﻿#pragma once
 
-#include <JBro/Framework3D/Math3D.h>
-#include <JBro/Graphics/Renderer.h>
+#include <JBro/Types/Math3D.h>
+#include <JBro/Types/Matrix4x4.h>
 
 #include <cmath>
+#include <cstdint>
 
-// `Matrix4x4`(JBroGraphics 소유)를 3D 값에서 만드는 함수다. 컴포넌트 라이브러리에는 두지 않는다 -
-// 스크립트 프렐류드에 렌더러 타입이 새면 안 된다(framework3d-plan §2.2).
+// `Matrix4x4`(JBroCore 소유)를 3D 값에서 만드는 함수다. 컴포넌트 라이브러리에는 두지 않는다 -
+// 이 함수들은 좌표계와 깊이 범위를 전제하고, 그 규약은 시스템 단계의 것이다(framework3d-plan §2.2).
 //
 // 규약은 렌더러와 같다: `values[row * 4 + col]`, 열 벡터(`x' = row0 · v`), 오른손 좌표, 카메라는
 // -Z 를 보고, 깊이는 0(근평면)..1(원평면)이다.
 namespace JBro
 {
-    inline Matrix4x4 MultiplyMatrix4x4(const Matrix4x4& left, const Matrix4x4& right)
-    {
-        Matrix4x4 result;
-        for (std::uint32_t row = 0; row < 4; ++row)
-        {
-            for (std::uint32_t column = 0; column < 4; ++column)
-            {
-                float value = 0.0f;
-                for (std::uint32_t element = 0; element < 4; ++element)
-                {
-                    value += left.values[row * 4 + element] * right.values[element * 4 + column];
-                }
-                result.values[row * 4 + column] = value;
-            }
-        }
-        return result;
-    }
-
     // 회전(단위 사원수) 3x3 을 4x4 의 왼쪽 위에 놓는다.
     inline Matrix4x4 MakeRotationMatrix(const Quaternion& q)
     {

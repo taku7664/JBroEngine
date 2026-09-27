@@ -16,6 +16,7 @@
 #include <JBro/Types/Array.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Host/TimeSystem.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Task/TaskGroup.h>
@@ -45,6 +46,10 @@ namespace JBro
     class GameObject;
     class Renderer;
     class EngineInstance;
+    namespace System
+    {
+        class DebugDrawSystem;
+    }
     struct GameBuildReport;
     class IFramework;
     class IPlatform;
@@ -86,8 +91,8 @@ namespace JBro
     struct EditorApplicationConfig
     {
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
-        float fixedDeltaTime = 1.0f / 60.0f;
-        std::uint32_t maxFixedStepsPerFrame = 4;
+        // 시계의 처음 설정이다(D-242). 프로젝트를 열면 그 파일의 값이 이긴다.
+        TimeSettings time;
         std::uint32_t windowWidth = 1280;
         std::uint32_t windowHeight = 720;
         bool windowVisible = true;
@@ -449,6 +454,17 @@ namespace JBro
         // 재생 중에만 뜻이 있다. 멈춰 세우면 그린 것은 그대로 두고 게임만 세운다.
         void SetSimulationPaused(bool paused);
         bool IsSimulationPaused() const;
+        // 멈춘 재생을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 재생 중이고 멈춰 있을 때만 뜻이 있다.
+        void StepSimulation();
+        // 스크립트의 디버그 선을 게임 뷰·캔버스 뷰에 그릴지다(D-243). 둘 다 처음에는 켜져 있다.
+        void SetGameViewDebugDraw(bool visible);
+        bool IsGameViewDebugDrawVisible() const;
+        void SetCanvasViewDebugDraw(bool visible);
+        bool IsCanvasViewDebugDrawVisible() const;
+        // 엔진의 시계·디버그 선·난수 씨앗이다(D-242, D-243). 통계 창과 시험이 읽는다. 엔진이 없으면 null·0 이다.
+        const FrameTime* GetFrameTime() const;
+        const System::DebugDrawSystem* GetDebugDraw() const;
+        std::uint64_t GetRandomSeed() const;
 
         bool RequestCanvasView(
             const Extent2D& extent, float centerX, float centerY, float orthographicSize, bool screenSpace = false);
@@ -752,6 +768,8 @@ namespace JBro
         std::uint32_t m_stringKeysRevision = 0;
         bool m_simulationPlaying = false;
         bool m_simulationPaused = false;
+        bool m_gameViewDebugDraw = true;
+        bool m_canvasViewDebugDraw = true;
         // 게임 입력(D-214). 게임 뷰가 알린 것은 다음 프레임의 입력을 건넬지 정하는 데 쓴다 - 이번 프레임의 입력은
         // 패널을 그리기 전에 UI 에 들어가므로, 포커스를 옮긴 그 클릭은 게임에 가지 않는다(게임 뷰를 누르면 포커스부터 온다).
         bool m_gameViewFocused = false;

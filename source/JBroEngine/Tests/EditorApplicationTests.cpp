@@ -1,59 +1,61 @@
-﻿#include <JBro/LocalizationTypes/ServiceContext.h>
+﻿#include <JBro/Core/Version.h>
+#include <JBro/Host/DebugDrawSystem.h>
+#include <JBro/LocalizationTypes/ServiceContext.h>
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
-#include <JBro/Core/Version.h>
+#include <JBro/LocalizationTypes/ServiceContext.h>
 
 #include <JBro/Asset/Asset.h>
-#include <JBro/Core/Profiler.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/AssetTypes/AssetTypesReflection.h>
+#include <JBro/Audio/AudioSystem.h>
+#include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/Canvas.h>
-#include <JBro/Editor/Command/ObjectCommands.h>
-#include <JBro/Editor/EditorObjectRegistry.h>
-#include <JBro/Editor/EditorIcons.h>
-#include <JBro/Editor/EditorPanel.h>
-#include <JBro/Editor/EditorTheme.h>
-#include <JBro/Editor/EditorPopup.h>
-#include <JBro/Editor/Command/CanvasCommands.h>
 #include <JBro/Canvas/CanvasFile.h>
-#include <JBro/Editor/EditorShortcutManager.h>
-#include <JBro/Editor/EditorShortcuts.h>
-#include <JBro/Editor/EditorActions.h>
+#include <JBro/Core/Profiler.h>
+#include <JBro/Editor/Command/CanvasCommands.h>
+#include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/ConfirmPopup.h>
+#include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/EditorObjectRegistry.h>
+#include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/EditorShortcutManager.h>
+#include <JBro/Editor/EditorShortcuts.h>
+#include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/TextField.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/System/Physics2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
-#include <JBro/Physics2D/World.h>
-#include <JBro/Runtime/TextStore.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
 #include <JBro/Graphics/Renderer.h>
-#include <JBro/Reflection/PropertyInfo.h>
-#include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Physics2D/World.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
-#include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Reflection/Field.h>
+#include <JBro/Reflection/Math2DReflection.h>
+#include <JBro/Reflection/PropertyInfo.h>
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
-#include <JBro/Types/NameTable.h>
-#include <JBro/Types/Array.h>
-#include <JBro/Framework2D/Component/Camera2D.h>
-#include <JBro/Framework2D/Component/Transform2D.h>
-#include <JBro/Audio/AudioSystem.h>
-#include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/TextStore.h>
+#include <JBro/Types/Array.h>
+#include <JBro/Types/NameTable.h>
 
-#include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/InputTypes/Service/InputService.h>
+#include <JBro/InputTypes/ServiceContext.h>
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -801,7 +803,35 @@ namespace
         bool disabled = false;
     };
 
-    bool FindInspectorItem(
+    // **인스펙터를 굴려 가며 찾는다.** 컴포넌트가 쌓이면 목록이 패널 아래로 밀리는데,
+    // 잘려 나간 자리는 가리켜도 올라오지 않는다 - 굴리지 않으면 "그런 항목이 없다" 와
+    // "화면 밖에 있다" 를 구별하지 못한다.
+    template <typename TScan>
+    bool ScrollingInInspector(JBro::EditorApplication& editor, TScan&& scan)
+    {
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const float step = inspector->Size.y * 0.5f;
+        float scroll = inspector->Scroll.y;
+        for (int pass = 0; pass < 32; ++pass)
+        {
+            if (scan())
+            {
+                return true;
+            }
+            if (scroll >= inspector->ScrollMax.y)
+            {
+                return false;
+            }
+            scroll += step;
+            ImGui::SetScrollY(inspector, scroll);
+            Check(editor.Tick(Frame), "the editor must tick after scrolling");
+            Check(editor.Tick(Frame), "and once more so the scroll lands");
+        }
+        return false;
+    }
+
+    bool ScanInspector(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
@@ -822,6 +852,14 @@ namespace
             }
         }
         return false;
+    }
+
+    bool FindInspectorItem(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
+    {
+        return ScrollingInInspector(editor, [&]() {
+            return ScanInspector(editor, hwnd, target, spot);
+        });
     }
 
     void DragFrom(
@@ -1027,7 +1065,7 @@ namespace
     }
 
     // 목록 몸통을 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
-    bool FindListItem(
+    bool ScanListBody(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
     {
         ImGuiWindow* body = FindListBody();
@@ -1047,9 +1085,17 @@ namespace
         return false;
     }
 
+    bool FindListItem(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
+    {
+        return ScrollingInInspector(editor, [&]() {
+            return ScanListBody(editor, hwnd, target, x, spot);
+        });
+    }
+
     // 좁은 항목(행 끝의 삭제 표시)은 한 줄로 훑으면 빗나간다. 몸통의 오른쪽 끝 띠를
     // 위쪽 몇 줄만 격자로 훑는다.
-    bool FindListItemNearRightEdge(
+    bool ScanListBodyNearRightEdge(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int rows, Spot& spot)
     {
         ImGuiWindow* body = FindListBody();
@@ -1072,6 +1118,14 @@ namespace
             }
         }
         return false;
+    }
+
+    bool FindListItemNearRightEdge(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int rows, Spot& spot)
+    {
+        return ScrollingInInspector(editor, [&]() {
+            return ScanListBodyNearRightEdge(editor, hwnd, target, rows, spot);
+        });
     }
 
     // **목록을 만지면 고른 것 전부에 미치고, 한 손짓이 한 되돌리기다**(D-86).
@@ -5894,6 +5948,78 @@ namespace
         editor.Shutdown();
     }
 
+    // **멈춘 게임을 한 프레임씩 본다**(D-242, 기존 엔진에 없던 것). 한 프레임 진행은 멈춘 동안만 되고, 떨어지는 상자를 고정 스텝
+    // 한 번만큼만 움직인다. 디버그 선의 두 토글(게임 뷰·캔버스 뷰)은 처음에 켜져 있고 게임 뷰의 것은 엔진에 닿는다(D-243).
+    void TestSteppingAPausedGameAndTheDebugLineToggles()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 640;
+        config.windowHeight = 480;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; single-frame steps not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "StepFrameProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* box = canvas->CreateObject("Box");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
+        transform->position = {0.0f, 3.0f};
+        canvas->AttachComponent<JBro::Component::Collider2D>(box);
+        Check(canvas->AttachComponent<JBro::Component::Rigidbody2D>(box) != nullptr, "the box needs a body to fall");
+        Check(editor.Tick(Frame), "the editor must tick before play");
+
+        const char* notPlaying = JBro::Loc::TextOr(JBro::LocKeys::BlockedNotPlaying, "");
+        Check(false == JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::StepFrame), "a stopped game cannot step");
+        Check(std::strcmp(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::StepFrame), notPlaying) == 0,
+            "and the menu says it is not running");
+        Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::StepFrame).value, "F7") == 0,
+            "stepping is F7, after F5 play and F6 pause");
+
+        Check(editor.StartSimulation(), "play must start");
+        Check(editor.GetRandomSeed() != 0, "play seeds the random stream");
+        for (int frame = 0; frame < 10; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick while playing");
+        }
+        Check(editor.GetFrameTime() != nullptr && editor.GetFrameTime()->time > 0.0, "game time runs while playing");
+        Check(false == JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::StepFrame), "a running game cannot step");
+        Check(std::strcmp(JBro::EditorShortcuts::WhyBlocked(editor, JBro::EditorShortcut::StepFrame),
+                  JBro::Loc::TextOr(JBro::LocKeys::BlockedNotPaused, "")) == 0,
+            "and the menu says to pause first");
+
+        editor.SetSimulationPaused(true);
+        Check(editor.Tick(Frame), "the editor must tick while paused");
+        const float pausedAt = transform->position.y;
+        Check(editor.Tick(Frame) && transform->position.y == pausedAt, "a paused game does not move");
+        Check(JBro::EditorShortcuts::CanExecute(editor, JBro::EditorShortcut::StepFrame), "a paused game can step");
+        Check(JBro::EditorShortcuts::Execute(editor, JBro::EditorShortcut::StepFrame), "the step runs from the shortcut table");
+        Check(editor.Tick(Frame), "the stepped frame ticks");
+        const float steppedTo = transform->position.y;
+        Check(steppedTo < pausedAt, "one step moves the falling box");
+        Check(editor.GetFrameTime()->stepFrame && editor.GetFrameTime()->fixedStepCount == 1, "by exactly one fixed step");
+        Check(editor.Tick(Frame) && transform->position.y == steppedTo, "and the frame after it is paused again");
+        Check(editor.IsSimulationPaused(), "stepping does not resume the game");
+
+        Check(editor.IsGameViewDebugDrawVisible() && editor.IsCanvasViewDebugDrawVisible(), "both debug line toggles start on");
+        Check(editor.GetDebugDraw() != nullptr && editor.GetDebugDraw()->IsGameViewVisible(), "and the game view's reaches the engine");
+        editor.SetGameViewDebugDraw(false);
+        Check(false == editor.GetDebugDraw()->IsGameViewVisible(), "turning it off hides the lines in the game view");
+        editor.SetCanvasViewDebugDraw(false);
+        Check(false == editor.IsCanvasViewDebugDrawVisible(), "the canvas view keeps its own toggle");
+
+        editor.StopSimulation();
+        Check(editor.GetFrameTime()->time == 0.0 && editor.GetFrameTime()->timeScale == 1.0f,
+            "stopping puts the game clock back to the start");
+        editor.Shutdown();
+    }
+
     void TestPlayingAndStoppingRestoresTheCanvas()
     {
         JBro::EditorApplication editor;
@@ -6020,17 +6146,26 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        // 화면 한가운데가 월드 원점이다. 기본 배율에서 x -1..1 은 가운데 근처이고
-        // y 4 는 위쪽이라 상자 밖이다.
-        const float centerX = view->Pos.x + view->Size.x * 0.5f;
-        const float centerY = view->Pos.y + view->Size.y * 0.5f;
+        // 월드 원점과 배율은 캔버스 뷰에게 묻는다. 창 가운데를 원점으로, 픽셀을 손으로
+        // 세던 것은 탭 줄과 도구 줄 몫만큼 어긋나 여유가 몇 px 뿐이었고, 테마의 간격 하나만
+        // 바뀌어도 상자가 엉뚱한 자리를 쓸고 갔다.
+        float centerX = 0.0f;
+        float centerY = 0.0f;
+        float unitX = 0.0f;
+        float unitY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, centerX, centerY)
+                && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
+            "the canvas view must map world points to the screen");
+        const float pixelsPerUnit = unitX - centerX;
+        Check(pixelsPerUnit > 1.0f, "one world unit must be some pixels wide");
 
+        // x -1..1 은 상자 안이고, y 4 는 위로 한참 벗어나 상자 밖이다.
         Spot from;
-        from.x = static_cast<int>(centerX - 120.0f);
-        from.y = static_cast<int>(centerY - 40.0f);
+        from.x = static_cast<int>(centerX - pixelsPerUnit * 1.2f);
+        from.y = static_cast<int>(centerY - pixelsPerUnit * 0.4f);
         Spot to;
-        to.x = static_cast<int>(centerX + 120.0f);
-        to.y = static_cast<int>(centerY + 40.0f);
+        to.x = static_cast<int>(centerX + pixelsPerUnit * 1.2f);
+        to.y = static_cast<int>(centerY + pixelsPerUnit * 0.4f);
         DragTo(editor, hwnd, from, to);
 
         Check(editor.GetSelectionCount() == 2, "the box must pick the two it touched");
@@ -6042,7 +6177,7 @@ namespace
         // 그 점이 탭 줄 위로 올라가 뷰를 누르지 못했다. 오른쪽 가장자리 가까이, 오브젝트 줄보다 조금 아래는 늘 비어 있다.
         Spot empty;
         empty.x = static_cast<int>(centerX + view->Size.x * 0.4f);
-        empty.y = static_cast<int>(centerY + 60.0f);
+        empty.y = static_cast<int>(centerY + pixelsPerUnit * 0.6f);
         ClickAt(editor, hwnd, empty);
         Check(editor.GetSelectionCount() == 0,
             "a plain click on empty space clears the selection instead of boxing nothing");
@@ -10012,9 +10147,16 @@ namespace
         // **집히지도 않는다.** 캔버스 한가운데(오브젝트 자리)를 눌러도 고르지 않는다.
         editor.SetSelectedObject(nullptr);
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        // 오브젝트의 자리는 캔버스 뷰에게 묻는다. 창 한가운데에서 픽셀을 손으로 더하면
+        // 탭 줄과 도구 줄 몫만큼 어긋나, 테마의 간격이 바뀔 때마다 그림 밖을 누른다.
+        float middleX = 0.0f;
+        float middleY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, middleX, middleY),
+            "the canvas view must map the world origin to the screen");
         Spot middle;
-        middle.x = static_cast<int>(view->InnerRect.GetCenter().x);
-        middle.y = static_cast<int>(view->InnerRect.GetCenter().y + 20.0f);
+        middle.x = static_cast<int>(middleX);
+        middle.y = static_cast<int>(middleY);
         ClickAt(editor, hwnd, middle);
         Check(editor.GetSelectedObject() != red, "a hidden object cannot be picked in the canvas view");
 
@@ -10683,31 +10825,16 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        const int centerX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-
-        // 기즈모의 한가운데(= 오브젝트의 자리)를 찾는다. 뷰의 한가운데는 툴바만큼
-        // 창의 한가운데와 어긋나 있다.
+        // 기즈모의 한가운데는 오브젝트의 자리, 곧 월드 원점이다. 그 자리는 캔버스 뷰에게
+        // 묻는다 - 훑어 찾으면 오브젝트에 닿기만 한 자리를 한가운데로 쓰게 되어, 축을 따라
+        // 놓인 손잡이가 그 줄에 없다.
+        float originX = 0.0f;
+        float originY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY),
+            "the canvas view must map the world origin to the screen");
         Spot origin;
-        origin.x = centerX;
-        origin.y = 0;
-        bool foundOrigin = false;
-        for (int y = static_cast<int>(view->Pos.y) + 40;
-             y < static_cast<int>(view->Pos.y + view->Size.y) - 10 && false == foundOrigin;
-             y += 12)
-        {
-            editor.ClearSelection();
-            Check(editor.Tick(Frame), "the editor must tick before looking");
-            Spot probe;
-            probe.x = centerX;
-            probe.y = y;
-            ClickAt(editor, hwnd, probe);
-            if (editor.IsSelected(target))
-            {
-                origin = probe;
-                foundOrigin = true;
-            }
-        }
-        Check(foundOrigin, "the gizmo centre must be somewhere down the middle of the view");
+        origin.x = static_cast<int>(originX);
+        origin.y = static_cast<int>(originY);
 
         // ── 로컬: 오른쪽에는 손잡이가 없다. 끌어도 오브젝트는 그 자리다. ──────
         const float startX = transform->position.x;
@@ -11806,8 +11933,12 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        const int centerX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-        const int centerY = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+        // 월드 원점이 그림의 어디로 가는지는 캔버스 뷰에게 묻는다. 창 가운데는 탭 줄과
+        // 도구 줄 몫만큼 어긋나 있어, 창 좌표로 짐작하면 테마의 간격이 바뀔 때마다 빗나간다.
+        float originX = 0.0f;
+        float originY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY),
+            "the canvas view must map the world origin to the screen");
 
         const auto rightClick = [&](int x, int y) {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
@@ -11821,27 +11952,12 @@ namespace
             }
         };
 
-        // **오브젝트가 화면의 어디에 있는지는 찾아서 쓴다.** 뷰의 한가운데는 툴바와 탭 줄만큼
-        // 창의 한가운데와 어긋나 있어서, 창 좌표로 짐작하면 빗나간다.
+        // 오브젝트는 월드 원점에 있고 여덟 배로 키워 두었다. 그 자리를 그대로 누른다.
         Spot onObject;
-        onObject.x = centerX;
-        onObject.y = centerY;
-        bool foundSpot = false;
-        for (int y = static_cast<int>(view->Pos.y) + 40;
-             y < static_cast<int>(view->Pos.y + view->Size.y) - 10 && false == foundSpot;
-             y += 15)
-        {
-            Spot probe;
-            probe.x = centerX;
-            probe.y = y;
-            ClickAt(editor, hwnd, probe);
-            if (editor.IsSelected(target))
-            {
-                onObject = probe;
-                foundSpot = true;
-            }
-        }
-        Check(foundSpot, "the object must be clickable somewhere in the view");
+        onObject.x = static_cast<int>(originX);
+        onObject.y = static_cast<int>(originY);
+        ClickAt(editor, hwnd, onObject);
+        Check(editor.IsSelected(target), "the object must be clickable where it stands");
         editor.ClearSelection();
         Check(editor.Tick(Frame), "the editor must tick after clearing the selection");
 
@@ -11999,6 +12115,7 @@ int RunEditorApplicationTests()
     TestTheAssetBrowserSelectsAnAssetAndTheInspectorRewritesItsMeta();
     TestPlayingAndStoppingRestoresTheCanvas();
     TestPlayingRunsPhysicsAndStoppingPutsItBack();
+    TestSteppingAPausedGameAndTheDebugLineToggles();
     TestThePhysicsThreadsSettingReachesPlay();
     TestBoxSelectInTheCanvasViewPicksWhatItTouches();
     TestTheCanvasViewDrawsInA3DProject();

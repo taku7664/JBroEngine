@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/Asset.h>
+﻿#include "TestClock.h"
+#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AudioDecoder.h>
@@ -614,6 +615,7 @@ namespace
             BindAudioSystemContext(audio.GetSystemContext());
             BindAudioServiceContext(audio.GetServiceContext());
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = fixture.memory;
             context.assets = &fixture.assets;
             context.audio = &audio;
@@ -638,7 +640,7 @@ namespace
 
         void Frame(std::uint32_t renderFrames = 800)
         {
-            framework.Update(1.0f / 60.0f);
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
             audio.Update();
             mixer.Render(scratch, renderFrames > 800 ? 800 : renderFrames);
         }

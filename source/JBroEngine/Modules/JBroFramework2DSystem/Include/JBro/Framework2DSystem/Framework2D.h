@@ -34,7 +34,7 @@ namespace JBro
         bool Initialize(const FrameworkContext& context) override;
         bool BindScriptContexts() noexcept override;
         void UnbindScriptContexts() noexcept override;
-        void Update(float deltaTime) override;
+        void Update() override;
         JArrayView<ScriptContextBlock> GetScriptContextBlocks() const noexcept override;
         void SetSimulationEnabled(bool enabled) override;
         void SetScreenSpace(const ScreenSpaceFrame& frame) override;
@@ -60,7 +60,9 @@ namespace JBro
 
     private:
         void CreateDefaultSystems();
-        void RunFixedSteps(float deltaTime);
+        void RunFixedSteps();
+        // 멈춘 게임의 한 프레임 진행(D-242)에서 그 프레임만 스크립트·물리를 켰다 끈다. 오디오·네트워크는 건드리지 않는다.
+        void SetSteppedSystemsEnabled(bool enabled);
         // 지금 정해져 있는 값을 시스템들에 먹인다. 시스템이 선 뒤와 값이 바뀔 때 부른다.
         void ApplySimulationEnabled();
 
@@ -82,7 +84,6 @@ namespace JBro
         Framework2DServiceContext m_scriptServices;
         ScriptContextBlock        m_scriptBlocks[2];
         std::uint32_t             m_scriptBlockCount = 0;
-        double           m_fixedAccumulator = 0.0;
         bool             m_initialized      = false;
         // 게임을 돌릴 것인가(D-131). 게임 실행은 손대지 않으므로 기본이 참이다.
         bool             m_simulationEnabled = true;

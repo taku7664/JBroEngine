@@ -835,6 +835,57 @@ namespace
             && back.find("  PhysicsThreads: Auto\n") != JBro::String::npos, "turning it back to Auto rewrites the line");
     }
 
+    // **시간 설정(D-242).** 최상위 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime`·`RandomSeed` 다. 범위를 벗어나면 거절하고,
+    // 기본값이면 없던 자리에 적지 않는다.
+    void TestTheTimeSettings()
+    {
+        const auto parseWith = [](const char* lines, JBro::ProjectFile& project, JBro::ProjectFileError& error) {
+            JBro::String text = "Version: 1\nEngineVersion: 1.0.0\nFramework: 2D\n";
+            text += lines;
+            return JBro::ParseProjectFile(text.c_str(), text.size(), project, error);
+        };
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(parseWith("", project, error) && project.fixedDeltaTime == 1.0f / 60.0f && project.maxFixedSteps == 4
+                && project.maxDeltaTime == 0.25f && project.randomSeed == 0,
+            "a project without the keys has the engine defaults");
+        Check(parseWith("FixedDeltaTime: 0.02\nMaxFixedSteps: 8\nMaxDeltaTime: 0.5\nRandomSeed: 18446744073709551615\n",
+                  project, error)
+                && project.fixedDeltaTime == 0.02f && project.maxFixedSteps == 8 && project.maxDeltaTime == 0.5f
+                && project.randomSeed == 18446744073709551615ull,
+            "the four keys are read, the seed as a full 64-bit number");
+        Check(false == parseWith("FixedDeltaTime: 0\n", project, error), "a zero step is refused");
+        Check(false == parseWith("FixedDeltaTime: 2\n", project, error), "a step over a second is refused");
+        Check(false == parseWith("MaxFixedSteps: 0\n", project, error), "zero steps per frame is refused");
+        Check(false == parseWith("MaxFixedSteps: 65\n", project, error), "more than 64 steps per frame is refused");
+        Check(false == parseWith("MaxDeltaTime: -1\n", project, error), "a negative ceiling is refused");
+        Check(false == parseWith("MaxDeltaTime: 11\n", project, error), "a ceiling over ten seconds is refused");
+        Check(false == parseWith("RandomSeed: -3\n", project, error), "a negative seed is refused, not wrapped");
+        Check(false == parseWith("RandomSeed: many\n", project, error), "a seed that is not a number is refused");
+
+        const char* text = "Version: 1\nEngineVersion: 1.0.0\nFramework: 2D\n";
+        JBro::ProjectFile edited;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), edited, error), "the probe parses");
+        JBro::String written;
+        const auto hasTimeKey = [](const JBro::String& file) {
+            return file.find("FixedDeltaTime") != JBro::String::npos || file.find("MaxFixedSteps") != JBro::String::npos
+                || file.find("MaxDeltaTime") != JBro::String::npos || file.find("RandomSeed") != JBro::String::npos;
+        };
+        Check(JBro::WriteProjectFileText(edited, text, std::strlen(text), written, error) && false == hasTimeKey(written),
+            "an untouched project grows no time keys");
+        edited.fixedDeltaTime = 0.02f;
+        edited.randomSeed = 1234u;
+        Check(JBro::WriteProjectFileText(edited, text, std::strlen(text), written, error)
+                && written.find("FixedDeltaTime: 0.0199999996") != JBro::String::npos
+                && written.find("RandomSeed: 1234\n") != JBro::String::npos
+                && written.find("MaxFixedSteps") == JBro::String::npos,
+            "changed values are written and the defaults next to them are not");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error)
+                && reread.fixedDeltaTime == 0.02f && reread.randomSeed == 1234u,
+            "and they read back exactly");
+    }
+
     // **물리 레이어 이름과 충돌 표(D-233).** 이름은 자리가 비트 번호라 가운데 빈 칸이 `""` 로 남고 끝의 빈 칸은 적지 않는다.
     // 쌍은 작은 번호가 앞으로 맞춰지고, 틀린 쌍은 거절된다. 둘 다 비면 키를 적지 않는다.
     void TestThePhysicsLayerSettings()
@@ -900,6 +951,7 @@ namespace
 
 int RunProjectFileTests()
 {
+    TestTheTimeSettings();
     TestThePhysicsThreadsSetting();
     TestThePhysicsLayerSettings();
     TestAnEmptyStringIsAValueNotABlock();

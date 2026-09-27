@@ -48,6 +48,9 @@ namespace JBro::EditorShortcuts
                 Bind(ImGuiKey_F5), {}},
             {EditorShortcut::TogglePause, "editor.toggle_pause", LocKeys::MenuSimulationPause, LocKeys::MenuSimulation,
                 Bind(ImGuiKey_F6), {}},
+            // 한 프레임 진행(D-242). 기존 엔진에 없던 것이라 재생·일시정지 다음 키를 준다.
+            {EditorShortcut::StepFrame, "editor.step_frame", LocKeys::MenuSimulationStep, LocKeys::MenuSimulation,
+                Bind(ImGuiKey_F7), {}},
         };
         static_assert(
             sizeof(Table) / sizeof(Table[0]) == static_cast<std::size_t>(EditorShortcut::Count),
@@ -100,7 +103,8 @@ namespace JBro::EditorShortcuts
             desc.whileTyping = row.id == EditorShortcut::SaveCanvas;
             // **게임이 키를 받는 동안은 재생 제어만 남긴다**(D-214). 게임의 Delete 가 선택한 오브젝트를 지우고 Ctrl+Z 가
             // 편집을 되돌리면 안 된다. 기존 엔진은 둘 다 받게 두었다.
-            desc.duringGame = row.id == EditorShortcut::TogglePlay || row.id == EditorShortcut::TogglePause;
+            desc.duringGame = row.id == EditorShortcut::TogglePlay || row.id == EditorShortcut::TogglePause
+                || row.id == EditorShortcut::StepFrame;
             desc.handler = MakeOwnerPtr<BuiltinHandler>(row.id);
             shortcuts.Register(std::move(desc));
         }
@@ -133,6 +137,9 @@ namespace JBro::EditorShortcuts
             return hasCanvas;
         case EditorShortcut::TogglePause:
             return editor.IsSimulationPlaying();
+        case EditorShortcut::StepFrame:
+            // 도는 게임은 한 프레임씩 나아갈 것이 없다 - 멈춘 동안만이다.
+            return editor.IsSimulationPlaying() && editor.IsSimulationPaused();
         default:
             return false;
         }
@@ -177,6 +184,13 @@ namespace JBro::EditorShortcuts
             return Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected");
         case EditorShortcut::TogglePause:
             return Loc::TextOr(LocKeys::BlockedNotPlaying, "the simulation is not running");
+        case EditorShortcut::StepFrame:
+            // 먼저 풀 것을 말한다: 돌지 않으면 재생부터, 돌고 있으면 일시정지부터다.
+            if (false == editor.IsSimulationPlaying())
+            {
+                return Loc::TextOr(LocKeys::BlockedNotPlaying, "the simulation is not running");
+            }
+            return Loc::TextOr(LocKeys::BlockedNotPaused, "pause the simulation to step one frame");
         default:
             return nullptr;
         }
@@ -210,6 +224,9 @@ namespace JBro::EditorShortcuts
             return true;
         case EditorShortcut::TogglePause:
             editor.SetSimulationPaused(false == editor.IsSimulationPaused());
+            return true;
+        case EditorShortcut::StepFrame:
+            editor.StepSimulation();
             return true;
         default:
             return false;

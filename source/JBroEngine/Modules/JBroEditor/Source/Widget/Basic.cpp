@@ -1,6 +1,11 @@
 ﻿#include <JBro/Editor/Widget/Basic.h>
 
 #include <JBro/Editor/EditorUI.h>
+#include <JBro/Editor/EditorTheme.h>
+#include <JBro/Editor/Widget/Common.h>
+
+// 메뉴 줄의 사각형은 공개 헤더에 없다.
+#include <imgui_internal.h>
 
 #include <cstdarg>
 
@@ -127,6 +132,15 @@ namespace JBro::Widget
 
     void EndMenuBar()
     {
+        // **메뉴 줄의 아래를 선으로 끊는다.** 메뉴 줄이 둘 겹쳐 서고 그 아래에 탭 띠가
+        // 오는데, 셋 다 어두운 면이라 색만으로는 어디서 무엇이 끝나는지 보이지 않는다.
+        // 색을 더 벌리는 대신 선을 하나 긋는다 - 어두운 화면에서 면을 자꾸 밝히면
+        // 밝기 계층이 위로 밀린다.
+        ImGuiWindow* window = ImGui::GetCurrentWindow();
+        const ImRect bar = window->MenuBarRect();
+        window->DrawList->AddLine(ImVec2(bar.Min.x, bar.Max.y - 0.5f),
+            ImVec2(bar.Max.x, bar.Max.y - 0.5f),
+            ImGui::GetColorU32(EditorTheme::Line), 1.0f);
         ImGui::EndMenuBar();
     }
 
@@ -198,6 +212,13 @@ namespace JBro::Widget
 
     bool CollapsingSection(const char* title, bool defaultOpen)
     {
+        // **머리는 파랑이 아니다.** `ImGuiCol_Header` 는 고른 줄과 접기 머리가 함께 쓰는
+        // 색인데, 파랑은 고른 것의 색이다 - 늘 서 있는 컴포넌트 머리가 그 색을 쓰면
+        // 인스펙터 어디가 골라져 있는지 알 수 없게 된다. 머리는 떠 있는 면으로 둔다.
+        StyleScope scope;
+        scope.PushColor(ImGuiCol_Header, EditorTheme::Raised);
+        scope.PushColor(ImGuiCol_HeaderHovered, EditorTheme::Hover);
+        scope.PushColor(ImGuiCol_HeaderActive, EditorTheme::Pressed);
         return ImGui::CollapsingHeader(title,
             defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
     }

@@ -48,6 +48,8 @@
 - 사용자 보고는 한국어, 커밋 메시지는 영어로 작성한다.
   작업 단위마다 커밋하고 `feat` / `fix` / `refactor` / `test` / `chore` / `docs` 타입 접두어를 붙인다.
   커밋 전에 빌드·테스트 통과와 스테이징 diff를 확인한다. 히스토리 재작성과 강제 푸시는 사전 확인을 받는다
+- **임시 시험 코드(시험 하나만 돌리는 훅·디버그 출력·임시 분기·뮤테이션 러너)는 커밋하지 않고 main 에 절대 병합하지 않는다.**
+  정식 시험은 대상이 아니다(`ProjectRule.md` §13, D-244)
 - `new` / `delete`를 직접 쓰지 않는다. 고유 소유는 `MakeOwnerPtr`, 비소유 참조는 `SafePtr`다
 - 빌드 성공만으로 검증 완료로 보지 않는다. 경계 규칙은 어길 때 실제로 컴파일이 실패하는지
   음성 테스트로 확인한다
@@ -93,6 +95,10 @@
 - [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214·D-218). 1~6 단계와 7 의 터치·액션 세트(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
   `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 게임 뷰 포커스 게이트·액션과 설정 화면·게임패드·터치)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
   전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(실기기 실측과 `[열림]`)이 §4 에 있다
+- [tasks/time-plan.md](./tasks/time-plan.md) — 시간·난수·디버그 드로(D-242·D-243). 스크립트 훅은 델타를 인자로 받지 않고 `GetServiceContext().Time` 에서 읽는다.
+  호스트의 `TimeSystem` 이 델타 상한·타임스케일·멈춤·한 프레임 진행·고정 스텝을 한 자리에 들고, 난수는 PCG32 `RandomStream`, 디버그 선은 고정 용량 저장소를
+  기존 사각형 경로로 뷰마다 픽셀 두께로 그린다. 기존 엔진 `CTime`·`CRandomService`·`CDebugDraw2D` 의 구조와 아팠던 것 T1~T5·R1~R4·D1~D5 가 §1, 설계가 §2,
+  단계와 실측·뮤테이션이 §3, `[열림]` 이 §4 에 있다
 - [tasks/save-plan.md](./tasks/save-plan.md) — 세이브 저장소(D-218 (4)). 새 Tier S 모듈 `JBroSaveTypes`(`ISaveStorage`·`SaveService`)와 호스트 구현 `SaveStorage` 가 섰다.
   기존 엔진 `CSaveStorage` 의 구조와 아팠던 것 S1~S5(제자리 덮어쓰기·DLL 경계의 `std::vector`·예약 이름·에디터와 게임이 한 폴더)가 §1, 설계가 §2, 검증이 §3, `[열림]` 이 §4 에 있다
 - [tasks/physics-plan.md](./tasks/physics-plan.md) — 2D 물리 계획(D-199·D-207). 1~6 단계(커널 `JBroPhysics2D`, 어댑터 `Physics2DSystem`, 캔버스 뷰의 폴리곤 포인트 편집, 질의 확장)가 모두 섰다. 그 뒤로 캡슐 콜라이더와 제자리 모양 바꾸기(크기 애니메이션의 접촉 유지), 좁은 판정의 물리 전용 워커와 빌드 설정 `Build.PhysicsThreads`(D-223)가 섰다. 남은 뒤의 것(조인트·체인·CCD·Stay 훅)과 단계마다 남긴 `[열림]` 이 §4 에 있다.
@@ -105,7 +111,7 @@
   결합 표시·금칙·GPOS 직접 읽기, D-216), 6 단계(리치 텍스트 `<color>`·`<size>`, D-221, 3D 텍스트 `Text3D`·렌더러 월드 텍스트 경로·공용 모듈
   `Modules/JBroTextRendering`, D-222), 7 단계(텍스트 스크립트 서비스 공용화와 3D 서비스 컨텍스트, D-224, 폰트 패밀리 에셋 `FontFamily`·`<b>`·`<i>`, D-225),
   8 단계(게임 로컬라이징: 로케일마다 `.jstrings` 문자열 표·텍스트의 `textKey`·새 Tier S 모듈 `JBroLocalizationTypes`·에디터의 게임 언어, D-226)가
-  섰다. `.jpak` 에 미리 뜬 아틀라스는 패키지 계획(D-232)에서 섰다. 남은 것은 없는 계층(게임 UI)과 옛한글(GSUB)이다. 기존 엔진 `Text2D` 를 깨트려 본 결과
+  섰다. `.jpak` 에 미리 뜬 아틀라스는 패키지 계획(D-232)에서 섰다. 옛한글은 커널이 GSUB 의 자모 기능(`ljmo`·`vjmo`·`tjmo`)을 직접 읽는다(D-238). 남은 것은 일반 GSUB(합자·아랍 문자)다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.

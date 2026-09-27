@@ -10,8 +10,11 @@
 
 #include <cmath>
 #include <cstring>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <stdexcept>
+#include <string>
 
 // 텍스트 커널 1 단계(D-200, text-plan §5)의 테스트다. 기대값은 fontTools 로 시험 폰트를 따로 읽어 뽑았다
 // (Tests/Data/Fonts/README.md). 레이아웃은 fontSize 1000 으로 돌려 픽셀이 곧 폰트 단위가 되게 한다 - 숫자를 그대로 대조한다.
@@ -287,6 +290,117 @@ namespace
         // 받침이 없으면(줄 머리) 보통 글자다.
         Check(layout.Build(Utf8("\xCC\x81" "A"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 2,
             "a mark with no base still draws");
+    }
+
+    // **옛한글 자모는 폰트의 GSUB 로 한 음절이 된다**(D-238). 시험 폰트는 Windows 의 맑은 고딕(`malgun.ttf`, 13,457,164 바이트, em 2048)이다 -
+    // 배포할 수 없는 폰트라 시험 데이터로 넣지 않고 설치된 것을 읽는다(없거나 판이 다르면 건너뛴다). 기대 글리프는 같은 파일을 DirectWrite
+    // (`IDWriteTextAnalyzer::GetGlyphs`, ko-KR)로 모양 잡아 뽑았다. 바뀐 가운뎃소리·끝소리는 폭이 0 이라 첫소리 자리에 겹친다.
+    void TestOldHangulJoinsThroughGsub()
+    {
+        std::ifstream in("C:/Windows/Fonts/malgun.ttf", std::ios::binary);
+        std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        if (bytes.size() != 13457164u)
+        {
+            std::cout << "  [skip] Malgun Gothic (13,457,164 bytes) is not installed; old hangul shaping not verified" << std::endl;
+            return;
+        }
+        FontFace malgun;
+        Check(malgun.Load(ArrayView<const std::byte>(reinterpret_cast<const std::byte*>(bytes.data()), bytes.size())), "Malgun Gothic loads");
+        Check(malgun.HasHangulJamoShaping(), "Malgun Gothic has the old hangul jamo features");
+        const FontFace subset = LoadTestFont();
+        Check(false == subset.HasHangulJamoShaping(), "the Noto subset has none");
+
+        struct Case
+        {
+            char32_t input[3];
+            std::size_t count;
+            GlyphIndex expected[3];
+            const char* message;
+        };
+        const Case cases[] = {
+            { { 0x1100, 0x119E }, 2, { 20668, 21415 }, "kiyeok + arae-a" },
+            { { 0x1100, 0x119E, 0x11A8 }, 3, { 20669, 21416, 21481 }, "kiyeok + arae-a + kiyeok" },
+            { { 0x1112, 0x119E, 0x11AB }, 3, { 20759, 21416, 21484 }, "hieuh + arae-a + nieun" },
+            { { 0x1100, 0x1161, 0x11F0 }, 3, { 20667, 21294, 21553 }, "a modern syllable with the old trail yesieung" },
+            { { 0x110B, 0x1161, 0x11EB }, 3, { 20722, 21294, 21548 }, "ieung + a + pansios" },
+            { { 0xA960, 0x1161 }, 2, { 21146, 21293 }, "an extended-A lead" },
+            { { 0x1100, 0xD7B0 }, 2, { 20670, 21435 }, "an extended-B vowel" },
+            { { 0x1100, 0x1161, 0xD7CB }, 3, { 20667, 21294, 21569 }, "an extended-B trail" },
+            { { 0x41, 0x119E }, 2, { 36, 3139 }, "a vowel without a lead before it is left alone" },
+        };
+        for (const Case& item : cases)
+        {
+            GlyphIndex glyphs[3] = {};
+            for (std::size_t index = 0; index < item.count; ++index)
+            {
+                glyphs[index] = malgun.FindGlyph(item.input[index]);
+            }
+            Check(malgun.ShapeHangulJamo(glyphs, item.count), "shaping runs");
+            for (std::size_t index = 0; index < item.count; ++index)
+            {
+                if (glyphs[index] != item.expected[index])
+                {
+                    std::cout << "  " << item.message << ": glyph " << index << " is " << glyphs[index] << ", DirectWrite gives "
+                              << item.expected[index] << std::endl;
+                    Check(false, "the shaped glyph matches DirectWrite");
+                }
+            }
+        }
+        Check(malgun.GetAdvance(20669) == 2048 && malgun.GetAdvance(21416) == 0 && malgun.GetAdvance(21481) == 0,
+            "the shaped lead keeps the full width and the vowel and trail have none");
+
+        // 현대 자모만의 음절(`ᄇ ᅳ ᆼ`)은 표에 넣지 않는다 - DirectWrite 는 합칠 수 있는 음절에 이 기능을 걸지 않고(글리프 2993·3096·3164),
+        // 이 함수는 받은 것에 조회를 다 건다. 그 가름은 레이아웃이 한다: 현대 음절은 산술로 합쳐 이 함수로 오지 않는다(아래 `ᄇ ᅳ ᆼ` → U+BE21).
+        // 레이아웃: 한 음절은 첫 글리프 하나의 폭이고 나머지는 그 자리에 붙는다. em 2048 이라 fontSize 2048 이면 픽셀이 곧 폰트 단위다.
+        const FontFace* faces[] = { &malgun };
+        TextLayout layout;
+        LayoutOptions options = Unscaled();
+        options.fontSize = 2048.0f;
+        Check(layout.Build(Utf8("\u1100\u119E\u11A8\u1100\u119E\u11A8"), faces, options) == LayoutError::None, "two old syllables lay out");
+        const ArrayView<const PositionedGlyph> glyphs = layout.GetGlyphs();
+        Check(glyphs.Size() == 6 && glyphs[0].glyph == 20669 && glyphs[1].glyph == 21416 && glyphs[2].glyph == 21481,
+            "each jamo keeps its own shaped glyph");
+        // DirectWrite 와 같이 글리프 자리는 앞 글리프들의 폭 합이다: 가운뎃소리·끝소리는 첫소리 끝(2048)에 서고, 외곽선이 왼쪽(음수)으로
+        // 뻗어 첫소리 칸 안에 그려진다(가운뎃소리 21416 은 -1124..-810 → 924..1238). 다음 음절도 같은 2048 에서 시작한다.
+        Check(Near(glyphs[1].x, glyphs[0].x + 2048.0f) && Near(glyphs[2].x, glyphs[0].x + 2048.0f) && Near(glyphs[3].x, glyphs[0].x + 2048.0f),
+            "the vowel and trail stand where the lead ends, like the next syllable");
+        const GlyphBox vowelBox = malgun.GetGlyphBox(21416);
+        Check(false == vowelBox.empty && vowelBox.minX + 2048 >= 0 && vowelBox.maxX + 2048 <= 2048,
+            "and the vowel's outline reaches back into the lead's cell");
+        Check(Near(layout.GetLines()[0].width, 4096.0f), "two old syllables are two cells wide");
+        // 자간은 음절 사이에만 든다 - 뒤 자모는 첫 글리프에 붙은 것이라 자간을 받지 않는다.
+        LayoutOptions spaced = options;
+        spaced.letterSpacing = 100.0f;
+        Check(layout.Build(Utf8("ᄀᆞᆨᄀᆞᆨ"), faces, spaced) == LayoutError::None
+                && Near(layout.GetGlyphs()[1].x, layout.GetGlyphs()[0].x + 2048.0f) && Near(layout.GetGlyphs()[2].x, layout.GetGlyphs()[0].x + 2048.0f)
+                && Near(layout.GetGlyphs()[3].x, layout.GetGlyphs()[0].x + 2148.0f),
+            "letter spacing goes between syllables, not between the jamo of one");
+        Check(glyphs[0].sourceOffset == 0 && glyphs[1].sourceOffset == 3 && glyphs[2].sourceOffset == 6 && glyphs[3].sourceOffset == 9,
+            "each jamo keeps its source bytes");
+
+        // 받침 없는 현대 음절 + 옛 끝소리는 자모로 풀어 한 음절로 모은다(DirectWrite 는 이것을 모으지 않는다).
+        Check(layout.Build(Utf8("\uAC00\u11F0"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 3
+                && layout.GetGlyphs()[0].glyph == 20667 && layout.GetGlyphs()[1].glyph == 21294 && layout.GetGlyphs()[2].glyph == 21553
+                && layout.GetGlyphs()[2].sourceOffset == 3 && Near(layout.GetLines()[0].width, 2048.0f),
+            "a precomposed syllable with an old trail is decomposed and joined");
+        // 현대 자모만이면 예전처럼 음절 하나다.
+        Check(layout.Build(Utf8("\u1107\u1173\u11BC"), faces, options) == LayoutError::None && layout.GetGlyphs().Size() == 1
+                && layout.GetGlyphs()[0].glyph == malgun.FindGlyph(0xBE21),
+            "modern jamo still compose into one syllable");
+
+        // 글자마다 끊어도 음절 가운데에서는 끊지 않는다.
+        LayoutOptions narrow = options;
+        narrow.overflow = Overflow::Wrap;
+        narrow.wrapMode = WrapMode::Character;
+        narrow.boxWidth = 2100.0f;
+        Check(layout.Build(Utf8("\u1100\u119E\u11A8\u1112\u119E\u11AB"), faces, narrow) == LayoutError::None, "old syllables wrap");
+        Check(LineCounts(layout, { 3, 3 }), "a line never breaks inside an old syllable");
+
+        // 기능이 없는 폰트는 예전처럼 자모마다 따로 선다.
+        const FontFace* plain[] = { &subset };
+        Check(layout.Build(Utf8("\u1100\u119E"), plain, Unscaled()) == LayoutError::None && layout.GetGlyphs().Size() == 2
+                && layout.GetGlyphs()[1].x > layout.GetGlyphs()[0].x,
+            "a font without the features keeps each jamo on its own");
     }
 
     // **리치 텍스트**(D-221). 태그는 글자로 나오지 않고 뒤 글자에 색과 크기를 붙인다. 끄면 태그도 글자다. `<<` 는 `<` 한 글자이고,
@@ -744,6 +858,7 @@ int RunTextLayoutTests()
         TestKerningIsAppliedAcrossTheRun();
         TestKerningSurvivesGposShapesStbSkipped();
         TestCombiningMarksAttachToTheirBase();
+        TestOldHangulJoinsThroughGsub();
         TestRichTextMarkup();
         TestBoldAndItalicTagsPickStyleFaces();
         TestWordWrap();

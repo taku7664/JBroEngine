@@ -3,7 +3,7 @@
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 
-#include <JBro/Framework2D/Math2D.h>
+#include <JBro/Types/Math2D.h>
 
 namespace JBro
 {

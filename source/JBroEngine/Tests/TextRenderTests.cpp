@@ -1,4 +1,5 @@
-﻿#include <JBro/Asset/Asset.h>
+﻿#include "TestClock.h"
+#include <JBro/Asset/Asset.h>
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Canvas/Canvas.h>
@@ -503,7 +504,7 @@ namespace
         template <typename TFramework>
         void Paint(TFramework& framework)
         {
-            framework.Update(1.0f / 60.0f);
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
             Check(renderer.BeginFrame() == FrameStatus::Ready, "the frame begins");
             Check(framework.Render() == RenderResult::Submitted, "the framework submits");
             Check(renderer.EndFrame() == FrameStatus::Ready, "the frame presents");
@@ -608,6 +609,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -814,7 +816,7 @@ namespace
             TextStore::Get().Assign(longText->text, seventy.c_str(), seventy.size());
             framework.BindCanvasAssets();
             // 넘친 프레임은 프레임워크가 "다 내지 못했다" 로 알린다. 그 결과를 보고 넘어간다.
-            framework.Update(1.0f / 60.0f);
+            JBro::Testing::Tick(framework, 1.0f / 60.0f);
             Check(gpu.renderer.BeginFrame() == FrameStatus::Ready, "the frame begins");
             Check(framework.Render() != RenderResult::Submitted, "a frame that dropped glyphs says so");
             Check(gpu.renderer.EndFrame() == FrameStatus::Ready, "the frame presents");
@@ -868,6 +870,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -968,6 +971,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -1161,6 +1165,7 @@ namespace
         const auto draw = [&](AssetSystem& assets, std::uint64_t& restores, std::uint32_t& prewarmed, std::uint64_t& uploads) {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &assets;
             context.renderer = &gpu.renderer;
@@ -1241,6 +1246,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -1360,6 +1366,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -1435,6 +1442,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -1563,6 +1571,7 @@ namespace
         {
             Framework3D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -1783,6 +1792,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -1903,6 +1913,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -2052,6 +2063,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;
@@ -2242,6 +2254,7 @@ namespace
         {
             Framework2D framework;
             FrameworkContext context;
+            JBro::Testing::AttachClock(context);
             context.memory = project.memory;
             context.assets = &project.assets;
             context.renderer = &gpu.renderer;

@@ -81,6 +81,8 @@ int RunTextLayoutTests();
 int RunGlyphAtlasTests();
 int RunTextRenderTests();
 int RunTaskManagerTests();
+int RunTimeTests();
+int RunDebugDrawTests();
 int RunEditorLoadingTests();
 
 int main()
@@ -118,6 +120,10 @@ int main()
     {
         // 컴파일러 테스트는 그래픽도 파일 시스템도 거의 쓰지 않아 몇 초 안에 끝난다. 앞에 두어
         // 틀렸을 때 뒤의 긴 테스트를 기다리지 않게 한다(뮤테이션 한 개가 몇 분에서 몇 초로 준다).
+        if (RunTimeTests() != 0)
+        {
+            return 1;
+        }
         if (RunScriptCompilerLexerTests() != 0)
         {
             return 1;
@@ -313,6 +319,11 @@ int main()
             return 1;
         }
         if (RunMeshPixelTests() != 0)
+        {
+            return 1;
+        }
+        // 디버그 드로는 GPU 를 쓰므로 다른 픽셀 시험 옆이다. 앞에 두면 `InputTouchTests` 의 포인터 시험이 깨진다(time-plan §4).
+        if (RunDebugDrawTests() != 0)
         {
             return 1;
         }
