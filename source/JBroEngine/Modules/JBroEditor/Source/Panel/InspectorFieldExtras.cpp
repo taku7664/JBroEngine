@@ -10,7 +10,10 @@
 #include <JBro/Editor/Widget/FormLayout.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
+#include <JBro/Asset/Asset.h>
+#include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
+#include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework3D/Component/Text3D.h>
@@ -102,6 +105,59 @@ namespace JBro
             }
         }
 
+        void DrawHintRow(Widget::FormLayout& layout, Widget::Severity severity, const char* text)
+        {
+            layout.Row([]() {}, [&]() {
+                Widget::ValidationMessage(severity, text).Wrapped().Draw();
+            });
+        }
+
+        // **투영이 쓰지 않는 필드에 한 줄을 붙인다**(D-239). 인스펙터에는 필드를 조건부로 잠그는 장치가 없다 - 고쳐도 아무 일이 없는 칸에
+        // 까닭을 적어 둔다. `orthographicSize` 는 `Orthographic` 만, `pixelsPerUnit` 은 `PixelPerfect` 만 쓴다.
+        void DrawCameraSizeHint(Widget::FormLayout& layout, const FieldExtraContext& context)
+        {
+            const auto& camera = *static_cast<const Component::Camera2D*>(context.component);
+            if (camera.projection == Component::CameraProjection2D::PixelPerfect)
+            {
+                DrawHintRow(layout, Widget::Severity::Info, Loc::TextOr(LocKeys::InspectorCameraSizeUnused,
+                    "Not used by PixelPerfect. The view is the reference resolution divided by pixelsPerUnit."));
+            }
+        }
+
+        void DrawCameraPpuHint(Widget::FormLayout& layout, const FieldExtraContext& context)
+        {
+            const auto& camera = *static_cast<const Component::Camera2D*>(context.component);
+            if (camera.projection != Component::CameraProjection2D::PixelPerfect)
+            {
+                DrawHintRow(layout, Widget::Severity::Info,
+                    Loc::TextOr(LocKeys::InspectorCameraPpuUnused, "Used only by PixelPerfect."));
+            }
+        }
+
+        // **게임 카메라가 `PixelPerfect` 인데 스프라이트의 PPU 가 다르면 경고한다**(D-239). 원본 1 픽셀이 화면 픽셀에 맞지 않아
+        // 픽셀 아트가 고르지 않게 늘어난다 - 화면에서 알아채기 어렵고 까닭은 더 찾기 어렵다.
+        void DrawSpritePpuWarning(Widget::FormLayout& layout, const FieldExtraContext& context)
+        {
+            const RenderCamera2D* camera = context.editor->GetGameCamera2D();
+            AssetSystem* assets = context.editor->GetAssetSystem();
+            if (camera == nullptr || camera->projection != Component::CameraProjection2D::PixelPerfect || assets == nullptr)
+            {
+                return;
+            }
+            const auto& sprite = *static_cast<const Component::SpriteRenderer2D*>(context.component);
+            const SpriteData* data = assets->GetSprite(sprite.sprite);
+            if (data == nullptr)
+            {
+                return;
+            }
+            const float ppu = data->options.pixelsPerUnit > 0.0f ? data->options.pixelsPerUnit : DefaultPixelsPerUnit;
+            if (ppu != camera->pixelsPerUnit)
+            {
+                DrawHintRow(layout, Widget::Severity::Warning, Loc::TextOr(LocKeys::InspectorSpritePpuMismatch,
+                    "This sprite's pixelsPerUnit differs from the PixelPerfect camera, so its pixels do not line up."));
+            }
+        }
+
         struct Entry
         {
             ComponentTypeId typeId;
@@ -111,6 +167,9 @@ namespace JBro
 
         constexpr Entry Entries[] = {
             {MakeStableTypeId(Component::SpriteRenderer2D::StaticTypeName()), "frameIndex", &DrawSpriteFramePick},
+            {MakeStableTypeId(Component::SpriteRenderer2D::StaticTypeName()), "spriteId", &DrawSpritePpuWarning},
+            {MakeStableTypeId(Component::Camera2D::StaticTypeName()), "orthographicSize", &DrawCameraSizeHint},
+            {MakeStableTypeId(Component::Camera2D::StaticTypeName()), "pixelsPerUnit", &DrawCameraPpuHint},
             {MakeStableTypeId(Component::Text2D::StaticTypeName()), "fontId", &DrawTextFontWarning},
             {MakeStableTypeId(Component::Text3D::StaticTypeName()), "fontId", &DrawText3DFontWarning},
         };

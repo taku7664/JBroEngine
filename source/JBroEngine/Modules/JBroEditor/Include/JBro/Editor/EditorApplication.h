@@ -24,6 +24,7 @@
 
 namespace JBro
 {
+    struct RenderCamera2D;
     namespace System
     {
         // `JBroAudio` 의 것이다. 이 헤더를 쓰는 쪽이 오디오 헤더를 보지 않게 이름만 안다.
@@ -405,6 +406,10 @@ namespace JBro
         // 언제 말할지 정하는 값이다 - 텍스처가 있는지만 보면 카메라가 없어도 검은 화면을
         // "실행 중" 이라고 말하게 된다.
         bool DidGameSubmitLastFrame() const;
+        // 지난 프레임에 게임을 그린 2D 카메라다(D-239). 2D 프로젝트가 아니거나 카메라가 없으면 null 이다.
+        const RenderCamera2D* GetGameCamera2D() const;
+        // 켜져 있지만 값이 잘못되어 건너뛴 2D 카메라 수다(D-239). 게임 뷰가 "카메라 없음" 대신 그 까닭을 보인다.
+        std::uint32_t GetUnusableGameCameraCount() const;
         // 그 텍스처의 크기다. 게임 해상도이고 에디터 창과 무관하다.
         Extent2D GetGameViewExtent() const;
         // 게임 뷰 패널이 그린 프레임마다 알린다. 게임 그림이 붙은 사각형(창 클라이언트 좌표, 비어 있으면 넓이 0)과
@@ -448,6 +453,7 @@ namespace JBro
         bool RequestCanvasView(
             const Extent2D& extent, float centerX, float centerY, float orthographicSize, bool screenSpace = false);
         // 게임이 쓰는 화면 기준이다(D-237): 프로젝트의 기준 해상도와 게임 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
+        // 게임 카메라가 `PixelPerfect` 면 그 레터박스 사각형도 걸려 있다(D-239) - 게임이 쓰는 것과 같은 함수로 건다.
         ScreenSpaceFrame GetGameScreenSpace() const;
         // 캔버스 뷰가 마지막으로 UI 보기를 청했는가(D-237). 시험과 상태 표시가 읽는다.
         bool IsCanvasViewScreenSpace() const { return m_canvasViewRequest.screenSpace; }

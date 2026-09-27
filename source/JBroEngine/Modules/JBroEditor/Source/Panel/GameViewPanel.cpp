@@ -110,7 +110,10 @@ namespace JBro
             // **그림 자리가 있어도 게임이 낸 것이 없으면 카메라가 없는 것이다**(D-178).
             // 텍스처가 있는지만 보면 카메라 없는 검은 화면을 "실행 중" 이라고 말한다 -
             // 기존 게임 뷰는 그 둘을 갈랐다.
-            text = Loc::TextOr(LocKeys::GameViewNoCamera, "there is no camera");
+            // 카메라가 있는데 값이 잘못되어 건너뛴 것이면 그렇게 말한다(D-239). "카메라 없음" 이라고 하면 붙어 있는 카메라를 찾아 헤맨다.
+            text = m_editor->GetUnusableGameCameraCount() > 0
+                ? Loc::TextOr(LocKeys::GameViewCameraUnusable, "the Camera2D values cannot be drawn")
+                : Loc::TextOr(LocKeys::GameViewNoCamera, "there is no camera");
         }
         else if (playing)
         {

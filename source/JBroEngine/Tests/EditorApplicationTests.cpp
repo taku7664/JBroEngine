@@ -11666,6 +11666,83 @@ namespace
             "the canvas view takes its item off the table when it goes");
     }
 
+    // **그릴 수 없는 카메라가 있어도 에디터는 돈다**(D-239). 그 전에는 크기 0 인 카메라 하나로 첫 프레임에 꺼졌다(실제 에디터 실측).
+    // 게임 뷰는 까닭을 말할 수 있어야 하고, `PixelPerfect` 면 게임 화면 기준에 레터박스가 걸린다.
+    void TestAnUndrawableCameraKeepsTheEditorRunning()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; undrawable cameras not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "UndrawableCameraProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        Check(camera != nullptr, "the camera must attach");
+        camera->primary = true;
+        camera->orthographicSize = 0.0f;
+        JBro::GameObject* chosen[] = {eye};
+        editor.SelectObjects({chosen, 1});
+        for (int frame = 0; frame < 5; ++frame)
+        {
+            Check(editor.Tick(Frame), "a camera that cannot draw must not stop the editor");
+        }
+        Check(editor.GetUnusableGameCameraCount() == 1 && editor.GetGameCamera2D() == nullptr,
+            "the game view knows a camera was skipped, so it can say why instead of 'no camera'");
+        Check(false == editor.DidGameSubmitLastFrame(), "and the game drew nothing with it");
+
+        camera->nearPlane = 50.0f;
+        camera->farPlane = 10.0f;
+        camera->orthographicSize = 4.0f;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "a backwards depth range must not stop the editor either");
+        }
+        Check(editor.GetUnusableGameCameraCount() == 1, "that camera is still skipped");
+
+        camera->nearPlane = -100.0f;
+        camera->farPlane = 100.0f;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must tick with the fixed camera");
+        }
+        Check(editor.GetUnusableGameCameraCount() == 0 && editor.GetGameCamera2D() != nullptr,
+            "fixed, the camera draws the game again");
+        Check(editor.DidGameSubmitLastFrame(), "and the game submits");
+
+        camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
+        camera->pixelsPerUnit = 16.0f;
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "a pixel perfect camera must draw in the editor");
+        }
+        Check(editor.DidGameSubmitLastFrame(), "the pixel perfect game is drawn");
+        const JBro::ScreenSpaceFrame screen = editor.GetGameScreenSpace();
+        Check(screen.areaWidth > 0.0f && screen.areaHeight > 0.0f
+                && screen.areaX >= 0.0f && screen.areaY >= 0.0f
+                && screen.areaX + screen.areaWidth <= screen.targetWidth + 0.001f
+                && screen.areaY + screen.areaHeight <= screen.targetHeight + 0.001f,
+            "the game screen frame carries the letterbox rectangle, inside the game view");
+        const float aspect = screen.areaWidth / screen.areaHeight;
+        const float reference = screen.referenceWidth / screen.referenceHeight;
+        Check(std::fabs(aspect - reference) < 0.02f, "the rectangle keeps the reference resolution's shape");
+        // `JBRO_EDITOR_SHOT` 이 있을 때만 찍는다. 인스펙터의 투영 안내 줄을 사람이 본다.
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "pixel_perfect_camera");
+        editor.Shutdown();
+    }
+
     void TestRightClickingAnObjectInTheCanvasViewOpensItsMenu()
     {
         JBro::EditorApplication editor;
@@ -11927,6 +12004,7 @@ int RunEditorApplicationTests()
     TestDraggingInTheHierarchyReordersAndUnparents();
     TestShiftClickingTheHierarchyPicksTheWholeRange();
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
+    TestAnUndrawableCameraKeepsTheEditorRunning();
     TestComponentHooksAreSubmenusPerInstance();
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();

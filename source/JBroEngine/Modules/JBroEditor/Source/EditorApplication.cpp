@@ -20,6 +20,7 @@
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/PhysicsThreads.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Platform/WindowsPlatform.h>
@@ -2182,7 +2183,22 @@ namespace JBro
         frame.referenceHeight = static_cast<float>(GetProjectFile().resolutionHeight);
         frame.targetWidth = static_cast<float>(m_gameViewExtent.width);
         frame.targetHeight = static_cast<float>(m_gameViewExtent.height);
+        ApplyCameraArea(GetGameCamera2D(), frame);
         return frame;
+    }
+
+    const RenderCamera2D* EditorApplication::GetGameCamera2D() const
+    {
+        const RenderWorld2D* world = m_frameworkKind == FrameworkKind::Framework2D && m_framework.Get() != nullptr
+            ? static_cast<Framework2D*>(m_framework.Get())->GetRenderWorld() : nullptr;
+        return world != nullptr ? world->GetCamera() : nullptr;
+    }
+
+    std::uint32_t EditorApplication::GetUnusableGameCameraCount() const
+    {
+        const RenderWorld2D* world = m_frameworkKind == FrameworkKind::Framework2D && m_framework.Get() != nullptr
+            ? static_cast<Framework2D*>(m_framework.Get())->GetRenderWorld() : nullptr;
+        return world != nullptr ? world->GetUnusableCameraCount() : 0;
     }
 
     OwnerPtr<EditorCommand> EditorApplication::MakeLayerSpaceCommand(LayerId layerId, LayerSpace space, ScreenScaleMode scaleMode)
@@ -2195,10 +2211,11 @@ namespace JBro
         }
         Array<SetLayerSpaceCommand::RootMove> moves;
         const LayerSpace from = layer->GetSpace();
-        const RenderWorld2D* world = m_frameworkKind == FrameworkKind::Framework2D && m_framework.Get() != nullptr
-            ? static_cast<Framework2D*>(m_framework.Get())->GetRenderWorld() : nullptr;
-        const RenderCamera2D* camera = world != nullptr ? world->GetCamera() : nullptr;
+        const RenderCamera2D* camera = GetGameCamera2D();
         const ScreenSpaceFrame frame = GetGameScreenSpace();
+        // 게임 카메라가 보이는 것은 그리기와 같은 함수로 잰다(D-239) - 레터박스와 스냅이 여기도 같이 들어간다.
+        CameraView2D cameraView;
+        const bool hasView = camera != nullptr && ComputeCameraView2D(*camera, frame, cameraView);
         ScreenExtent fromExtent;
         ScreenExtent toExtent;
         const bool fromOk = ComputeScreenExtent(layer->GetScaleMode(), frame, fromExtent);
@@ -2206,12 +2223,12 @@ namespace JBro
         const auto* cameraTransform = camera != nullptr && camera->owner != nullptr
             ? canvas->FindComponentRaw<Component::Transform2D>(camera->owner) : nullptr;
         // **보이던 자리를 지킨다.** 월드 → 화면: 게임 카메라가 그 점을 화면 어디에 그렸는지를 기준 픽셀로 옮긴다. 화면 → 월드는 거꾸로다.
-        const bool convert = from != space && camera != nullptr && camera->orthographicSize > 0.0f && fromOk && toOk
-            && cameraTransform != nullptr && cameraTransform->worldValid && frame.targetHeight > 0.0f;
+        const bool convert = from != space && hasView && fromOk && toOk
+            && cameraTransform != nullptr && cameraTransform->worldValid;
         if (convert)
         {
-            const float cameraHalfHeight = camera->orthographicSize;
-            const float cameraHalfWidth = cameraHalfHeight * frame.targetWidth / frame.targetHeight;
+            const float cameraHalfHeight = cameraView.halfHeight;
+            const float cameraHalfWidth = cameraView.halfWidth;
             canvas->ForEachObject([&](GameObject& object) {
                 if (object.GetLayer() != layer || canvas->FindComponentRaw<Component::Transform2D>(object.GetParent()) != nullptr)
                 {
@@ -2226,7 +2243,7 @@ namespace JBro
                 move.object = GetObjectIds().Track(&object);
                 if (space == LayerSpace::Screen)
                 {
-                    const Matrix3x2& view = camera->view;
+                    const Matrix3x2& view = cameraView.view;
                     const float vx = transform->worldPosition.x * view.m11 + transform->worldPosition.y * view.m21 + view.m31;
                     const float vy = transform->worldPosition.x * view.m12 + transform->worldPosition.y * view.m22 + view.m32;
                     float anchorX = 0.0f;

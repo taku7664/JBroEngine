@@ -66,6 +66,7 @@ namespace JBro::LocKeys
     inline constexpr const char* GameViewStopped = "game_view.stopped";
     inline constexpr const char* GameViewNoCanvas = "game_view.no_canvas";
     inline constexpr const char* GameViewNoCamera = "game_view.no_camera";
+    inline constexpr const char* GameViewCameraUnusable = "game_view.camera_unusable";
     // `primary` 가 없어 첫 활성 카메라로 그리는데 그런 카메라가 여럿일 때(D-187).
     inline constexpr const char* GameViewCameraAmbiguous = "game_view.camera_ambiguous";
 
@@ -292,6 +293,9 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorPickFrame = "inspector.pick_frame";
     inline constexpr const char* InspectorPickFrameNoSprite = "inspector.pick_frame_no_sprite";
     inline constexpr const char* InspectorTextNoFont = "inspector.text_no_font";
+    inline constexpr const char* InspectorCameraSizeUnused = "inspector.camera_size_unused";
+    inline constexpr const char* InspectorCameraPpuUnused = "inspector.camera_ppu_unused";
+    inline constexpr const char* InspectorSpritePpuMismatch = "inspector.sprite_ppu_mismatch";
     inline constexpr const char* AssetsIconView = "assets.icon_view";
     inline constexpr const char* AssetsListView = "assets.list_view";
     inline constexpr const char* AssetsViewTooltip = "assets.view_tooltip";

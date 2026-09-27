@@ -74,6 +74,7 @@ Entries:
   game_view.stopped: Stopped
   game_view.no_canvas: no canvas is open
   game_view.no_camera: there is no camera
+  game_view.camera_unusable: the Camera2D values cannot be drawn
   game_view.camera_ambiguous: no camera is primary, so the first active one is used
   hierarchy.no_project: no project is open
   hierarchy.create_object: Create Object
@@ -354,6 +355,9 @@ Entries:
   inspector.pick_frame: Pick Frame
   inspector.pick_frame_no_sprite: set a sprite first
   inspector.text_no_font: "No usable font, so this text is not drawn. Set fontId or add a font in Project Settings."
+  inspector.camera_size_unused: "Not used by PixelPerfect. The view is the reference resolution divided by pixelsPerUnit."
+  inspector.camera_ppu_unused: Used only by PixelPerfect.
+  inspector.sprite_ppu_mismatch: "This sprite's pixelsPerUnit differs from the PixelPerfect camera, so its pixels do not line up."
   hierarchy.paste_as_child: Paste As Child
   panel.editor_settings: Editor Settings
   menu.settings_editor: Editor Settings
