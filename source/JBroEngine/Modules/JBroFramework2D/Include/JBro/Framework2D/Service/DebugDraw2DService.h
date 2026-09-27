@@ -7,7 +7,7 @@
 
 namespace JBro::Service
 {
-    // 스크립트가 2D 월드에 디버그 도형을 그리는 표면이다(D-242, 기존 `IDebugDraw2D`).
+    // 스크립트가 2D 월드에 디버그 도형을 그리는 표면이다(D-243, 기존 `IDebugDraw2D`).
     //
     //     const auto& debug = GetFramework2DServices().DebugDraw;
     //     debug.Line(from, to);                                   // 흰 선, 한 프레임, 1 픽셀

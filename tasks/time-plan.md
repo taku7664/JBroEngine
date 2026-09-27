@@ -1,6 +1,6 @@
 ﻿# 시간·난수·디버그 드로 계획
 
-> 결정은 [todo.md](./todo.md) 의 D-241(시간과 난수)·D-242(디버그 드로), 계약은 [ProjectRule.md](../docs/ProjectRule.md) §7 과 §7.2 다.
+> 결정은 [todo.md](./todo.md) 의 D-242(시간과 난수)·D-243(디버그 드로), 계약은 [ProjectRule.md](../docs/ProjectRule.md) §7 과 §7.2 다.
 > 계기(2026-09-27): 셋 다 코드에도 계획에도 없었고, 스크립트가 `OnUpdate(float deltaTime)` 인자로 델타를 받고 있었다.
 > 그것은 §7 의 "서비스 접근을 위해 매 호출마다 delta time 이나 서비스 참조를 전달하는 구조를 기본 방식으로 삼지 않는다 (MUST)" 를
 > 어긴 모양이다. 기존 엔진의 훅은 `OnUpdate()` 였고 시간은 서비스에서 읽었다.

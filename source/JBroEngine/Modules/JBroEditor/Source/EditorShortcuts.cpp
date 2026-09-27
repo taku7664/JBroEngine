@@ -48,7 +48,7 @@ namespace JBro::EditorShortcuts
                 Bind(ImGuiKey_F5), {}},
             {EditorShortcut::TogglePause, "editor.toggle_pause", LocKeys::MenuSimulationPause, LocKeys::MenuSimulation,
                 Bind(ImGuiKey_F6), {}},
-            // 한 프레임 진행(D-241). 기존 엔진에 없던 것이라 재생·일시정지 다음 키를 준다.
+            // 한 프레임 진행(D-242). 기존 엔진에 없던 것이라 재생·일시정지 다음 키를 준다.
             {EditorShortcut::StepFrame, "editor.step_frame", LocKeys::MenuSimulationStep, LocKeys::MenuSimulation,
                 Bind(ImGuiKey_F7), {}},
         };

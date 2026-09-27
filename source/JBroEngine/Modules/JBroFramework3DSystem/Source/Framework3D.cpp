@@ -116,7 +116,7 @@ namespace JBro
 
         m_canvas->BeginFrame();
         m_renderWorld.BeginFrame();
-        // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-241). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
+        // **멈춰 있으면 시간이 흐르지 않는다**(D-131, D-242). 2D 와 같다 - 전에는 3D 만 멈춘 동안에도 고정 스텝과 델타를 돌렸다.
         // 한 프레임 진행은 3D 에 켤 스크립트·물리가 아직 없어 시간만 한 스텝 간다.
         const bool simulating = m_simulationEnabled || m_context.time->IsStepFrame();
         if (simulating)

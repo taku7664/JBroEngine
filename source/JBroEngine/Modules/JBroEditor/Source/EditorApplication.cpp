@@ -215,7 +215,7 @@ namespace JBro
             EngineConfig engineConfig;
             engineConfig.graphicsApi = config.graphicsApi;
             engineConfig.time = config.time;
-            // 게임 뷰의 디버그 선은 에디터의 토글이 정한다(D-242). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
+            // 게임 뷰의 디버그 선은 에디터의 토글이 정한다(D-243). 프로젝트의 `DebugModeEnabled` 는 게임 실행의 것이다.
             engineConfig.gameDebugDrawFromProject = false;
             engineConfig.enableValidation = config.enableValidation;
             engineConfig.tasks.workerCount = config.taskWorkerCount;
@@ -2959,7 +2959,7 @@ namespace JBro
         m_simulationLocale = GetPreviewLocale();
         m_simulationPlaying = true;
         m_simulationPaused = false;
-        // 게임 시간·타임스케일을 처음으로 두고 난수 씨앗을 건다(D-241). 씨앗은 로그에 남는다 - 같은 재생을 다시 보려면 그 수를 적는다.
+        // 게임 시간·타임스케일을 처음으로 두고 난수 씨앗을 건다(D-242). 씨앗은 로그에 남는다 - 같은 재생을 다시 보려면 그 수를 적는다.
         m_engine->RestartGameTime();
         m_engine->SetSimulationEnabled(true);
         // **게임 뷰를 앞으로 가져온다**(D-178, 기존도 재생에서 그랬다). 캔버스 뷰와 탭으로
@@ -2982,7 +2982,7 @@ namespace JBro
         if (m_engine.Get() != nullptr)
         {
             m_engine->SetSimulationEnabled(false);
-            // 게임이 바꾼 타임스케일과 게임 시간을 되돌린다(D-241). 다음 재생도 처음 상태로 시작한다.
+            // 게임이 바꾼 타임스케일과 게임 시간을 되돌린다(D-242). 다음 재생도 처음 상태로 시작한다.
             m_engine->RestartGameTime();
             // 게임이 켜고 끈 액션 세트를 되돌린다. 캔버스를 되살리는 것과 같은 까닭이다 - 다음 재생은 처음 상태로 시작한다.
             m_engine->ResetGameInput();
@@ -3429,7 +3429,7 @@ namespace JBro
             {
                 SetGameViewDebugDraw(gameDebugDraw);
             }
-            // 두 뷰의 토글을 한 메뉴에 둔다(D-242). 캔버스 뷰 도구 모음에 단추로 두면 도구 모음이 넓어져 좁은 창에서 줄이 바뀐다.
+            // 두 뷰의 토글을 한 메뉴에 둔다(D-243). 캔버스 뷰 도구 모음에 단추로 두면 도구 모음이 넓어져 좁은 창에서 줄이 바뀐다.
             bool canvasDebugDraw = m_canvasViewDebugDraw;
             if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationCanvasDebugDraw, "Debug Lines in Canvas View"), canvasDebugDraw))
             {

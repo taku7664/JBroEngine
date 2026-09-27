@@ -159,7 +159,7 @@ namespace JBro::Internal
 
     namespace
     {
-        // 디버그 선을 흰 스프라이트 사각형으로 낸다(D-242). 새 파이프라인이 없다 - 텍스처가 빈 스프라이트는 흰색이라 틴트가 선의 색이다.
+        // 디버그 선을 흰 스프라이트 사각형으로 낸다(D-243). 새 파이프라인이 없다 - 텍스처가 빈 스프라이트는 흰색이라 틴트가 선의 색이다.
         // 사각형의 x 축은 선 방향(길이만큼), y 축은 그 수직(픽셀 두께를 이 뷰의 월드 길이로 바꾼 만큼)이다.
         //
         // **프레임의 성패에 들지 않는다.** 렌더러의 제출 상한에 걸려 선이 못 들어가도 게임 화면은 그대로 나간다 - 버린 것은 저장소가 센다.
@@ -237,7 +237,7 @@ namespace JBro::Internal
         SpriteFilterRule rule;
         rule.screenSpace = view.screenSpace;
         const bool accepted = PushSprites(world, renderer, true, rule);
-        // 디버그 선은 월드 좌표라 월드 보기에만 그린다(D-242).
+        // 디버그 선은 월드 좌표라 월드 보기에만 그린다(D-243).
         if (debugDraw != nullptr && view.debugDraw && false == view.screenSpace)
         {
             PushDebugLines2D(*debugDraw, renderer, 2.0f * view.orthographicSize / static_cast<float>(view.extent.height));
@@ -340,7 +340,7 @@ namespace JBro::Internal
                 return RenderResult::Failed;
             }
             const bool accepted = PushSprites(world, renderer, false, SpriteFilterRule{});
-            // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-242). 화면 레이어가 그 위에 온다.
+            // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
             if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
             {
                 PushDebugLines2D(*debugDraw, renderer,

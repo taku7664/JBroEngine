@@ -4,7 +4,7 @@
 
 namespace JBro::Service
 {
-    // 스크립트가 시간을 읽는 표면이다(D-241). 훅은 델타를 인자로 받지 않는다(ProjectRule §7) - 여기서 읽는다.
+    // 스크립트가 시간을 읽는 표면이다(D-242). 훅은 델타를 인자로 받지 않는다(ProjectRule §7) - 여기서 읽는다.
     //
     //     const float dt = GetServiceContext().Time.DeltaTime();
     //

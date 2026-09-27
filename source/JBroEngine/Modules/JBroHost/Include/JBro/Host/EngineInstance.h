@@ -52,10 +52,10 @@ namespace JBro
     struct EngineConfig
     {
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
-        // 시계의 처음 설정이다(D-241). 프로젝트 파일을 열면 그 파일의 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime` 이 이긴다.
+        // 시계의 처음 설정이다(D-242). 프로젝트 파일을 열면 그 파일의 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime` 이 이긴다.
         // 틀린 설정이면 `Initialize` 가 거절한다.
         TimeSettings time;
-        // 디버그 선 저장소의 용량이다(D-242). 넘친 선은 버리고 센다.
+        // 디버그 선 저장소의 용량이다(D-243). 넘친 선은 버리고 센다.
         std::uint32_t maxDebugLines = 16384;
         // 참이면 게임 뷰의 디버그 선을 프로젝트의 `DebugModeEnabled` 로 정한다(게임 실행). 에디터는 거짓으로 두고 제 토글로 정한다.
         bool gameDebugDrawFromProject = true;
@@ -168,15 +168,15 @@ namespace JBro
         // 그릴 것이 없다 - 게임 뷰가 그 둘을 글자로 가른다. 편집 화면의 제출은 세지 않는다.
         bool DidGameSubmitLastFrame() const;
         bool IsSimulationEnabled() const;
-        // 멈춘 게임을 다음 프레임 하나만 돌린다(D-241): 고정 스텝 하나와 `OnUpdate` 하나다. 멈추지 않았으면 아무 일도 없다.
+        // 멈춘 게임을 다음 프레임 하나만 돌린다(D-242): 고정 스텝 하나와 `OnUpdate` 하나다. 멈추지 않았으면 아무 일도 없다.
         void StepSimulation();
-        // 재생의 처음으로 되돌린다(D-241): 게임 시간과 타임스케일을 되돌리고 난수 씨앗을 다시 건다(프로젝트의 `RandomSeed`, 0 이면
+        // 재생의 처음으로 되돌린다(D-242): 게임 시간과 타임스케일을 되돌리고 난수 씨앗을 다시 건다(프로젝트의 `RandomSeed`, 0 이면
         // 새로 뽑아 로그에 남긴다). 에디터가 재생을 시작하고 멈출 때 부른다. 게임 실행은 프로젝트를 열 때 한 번 불린다.
         void RestartGameTime();
-        // 엔진의 시계와 난수 흐름(D-241). 초기화 전이거나 내린 뒤에는 null 이다.
+        // 엔진의 시계와 난수 흐름(D-242). 초기화 전이거나 내린 뒤에는 null 이다.
         System::TimeSystem* GetTime();
         System::RandomSystem* GetRandom();
-        // 디버그 선 저장소(D-242). 초기화 전이거나 내린 뒤에는 null 이다.
+        // 디버그 선 저장소(D-243). 초기화 전이거나 내린 뒤에는 null 이다.
         System::DebugDrawSystem* GetDebugDraw();
         // 게임 뷰에 디버그 선을 그릴지다. 캔버스 뷰는 `EditorViewDesc::debugDraw` 가 정한다.
         void SetGameDebugDrawVisible(bool visible);
@@ -269,7 +269,7 @@ namespace JBro
         void ApplyAudioBuses();
         // 프로젝트의 입력 레이어 순서와 액션을 입력 시스템에 넣는다(D-214).
         void ApplyInputSettings();
-        // 프로젝트의 고정 스텝·상한을 시계에 건다(D-241).
+        // 프로젝트의 고정 스텝·상한을 시계에 건다(D-242).
         void ApplyTimeSettings();
         // 프로젝트의 폴백 로케일을 건다. `resetLocale` 이면 지금 로케일도 프로젝트의 기본으로 되돌린다(D-226).
         void ApplyLocaleSettings(bool resetLocale);
@@ -308,7 +308,7 @@ namespace JBro
         float m_audioRetrySeconds = 0.0f;
         OwnerPtr<System::IAudioDeviceControl> m_audioDevices;
         OwnerPtr<System::InputSystem> m_input;
-        // 시계와 난수(D-241). 엔진 수명이고 공통 시스템 컨텍스트가 가리킨다. 스크립트 DLL 이 내려간 뒤에 내린다.
+        // 시계와 난수(D-242). 엔진 수명이고 공통 시스템 컨텍스트가 가리킨다. 스크립트 DLL 이 내려간 뒤에 내린다.
         OwnerPtr<System::TimeSystem> m_time;
         OwnerPtr<System::RandomSystem> m_random;
         OwnerPtr<System::DebugDrawSystem> m_debugDraw;
