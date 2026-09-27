@@ -187,7 +187,7 @@ namespace
             "a component keeps its fields past the vtable");
         Check(rotation.type->codec->FromText(rotation.Address(&transform), "1.25", 4),
             "a scalar field must be writable");
-        Check(transform.rotation == 1.25f, "the scalar write must reach the member");
+        Check(transform.GetRotationRadian() == 1.25f, "the scalar write must reach the member");
     }
 
     void TestTheCachesAreNotSavedAndNotEditable()

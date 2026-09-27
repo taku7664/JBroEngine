@@ -48,7 +48,7 @@ namespace
             "transform components must attach");
 
         parentLocal->position = {2.0f, 1.0f};
-        parentLocal->rotation = 1.57079632679f;
+        parentLocal->SetRotationRadian(JBro::Radian(1.57079632679f));
         childLocal->position = {1.0f, 0.0f};
         child->SetParent(parent);
 
@@ -60,7 +60,7 @@ namespace
         Check(NearlyEqual(parentLocal->worldPosition.y, 1.0f), "parent world y must match local y");
         Check(NearlyEqual(childLocal->worldPosition.x, 2.0f), "parent rotation must affect child world x");
         Check(NearlyEqual(childLocal->worldPosition.y, 2.0f), "parent rotation must affect child world y");
-        Check(NearlyEqual(childLocal->worldRotation, parentLocal->rotation), "world rotation must be decomposed");
+        Check(NearlyEqual(childLocal->worldRotation, parentLocal->GetRotationRadian()), "world rotation must be decomposed");
         Check(childLocal->worldValid, "updated world transform must be valid");
 
         childLocal->SetEnabled(false);
@@ -345,7 +345,7 @@ namespace
         Check(cameraLocal && camera && spriteLocal && sprite && secondSprite,
             "render components must attach");
         cameraLocal->position = {3.0f, 4.0f};
-        cameraLocal->rotation = 0.7f;
+        cameraLocal->SetRotationRadian(JBro::Radian(0.7f));
         cameraLocal->scale = {2.0f, 0.5f};
         camera->primary = true;
         camera->orthographicSize = 7.0f;

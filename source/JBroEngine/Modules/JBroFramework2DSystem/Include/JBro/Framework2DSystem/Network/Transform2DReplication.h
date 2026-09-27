@@ -24,7 +24,7 @@ namespace JBro
         static void Pack(const Component::Transform2D& transform, Transform2DWire& wire)
         {
             wire.position = transform.position;
-            wire.rotation = transform.rotation;
+            wire.rotation = transform.GetRotationRadian().Get();
             wire.scale = transform.scale;
         }
 
@@ -34,14 +34,14 @@ namespace JBro
             if (nullptr == from || alpha >= 1.0f)
             {
                 transform.position = to.position;
-                transform.rotation = to.rotation;
+                transform.SetRotationRadian(Radian(to.rotation));
                 transform.scale = to.scale;
                 return;
             }
             const float t = alpha < 0.0f ? 0.0f : alpha;
             transform.position = { from->position.x + (to.position.x - from->position.x) * t,
                 from->position.y + (to.position.y - from->position.y) * t };
-            transform.rotation = from->rotation + (to.rotation - from->rotation) * t;
+            transform.SetRotationRadian(Radian(from->rotation + (to.rotation - from->rotation) * t));
             transform.scale = { from->scale.x + (to.scale.x - from->scale.x) * t, from->scale.y + (to.scale.y - from->scale.y) * t };
         }
     };

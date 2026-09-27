@@ -350,7 +350,7 @@ namespace
         polygon->points = UOutline();
 
         JBro::GameObject* diamond = scene.Object("diamond", { 10, 0 });
-        scene.TransformOf(diamond)->rotation = 0.78539816f;
+        scene.TransformOf(diamond)->SetRotationRadian(JBro::Radian(0.78539816f));
         scene.Box(diamond, { 2, 2 });
 
         JBro::RaycastHit2D hit;
@@ -580,7 +580,7 @@ namespace
         Scene scene;
         scene.physics.SetGravity({ 0, 0 });
         JBro::GameObject* skewed = scene.Object("skewed", { 0, 0 });
-        scene.TransformOf(skewed)->rotation = 0.5f;
+        scene.TransformOf(skewed)->SetRotationRadian(JBro::Radian(0.5f));
         scene.TransformOf(skewed)->scale = { 2, 1 };
         JBro::GameObject* mirrored = scene.Object("mirrored", { 10, 0 });
         scene.TransformOf(mirrored)->scale = { -1, 1 };
@@ -593,7 +593,7 @@ namespace
             children[i]->SetParent(parents[i]);
             Transform2D* local = scene.canvas.AttachComponent<Transform2D>(children[i]);
             local->position = { 1, 0.5f };
-            local->rotation = 0.3f;
+            local->SetRotationRadian(JBro::Radian(0.3f));
             scene.Box(children[i], { 1, 0.5f });
             scene.Dynamic(children[i]);
         }
@@ -602,7 +602,7 @@ namespace
         for (int i = 0; i < 2; ++i)
         {
             const Transform2D* local = scene.TransformOf(children[i]);
-            Check(Near(local->rotation, 0.3f, 1.0e-4f), i == 0
+            Check(Near(local->GetRotationRadian(), 0.3f, 1.0e-4f), i == 0
                 ? "a body at rest under a rotated, stretched parent keeps its local rotation"
                 : "and one under a mirrored parent keeps its sign");
             Check(Near(local->position.x, 1.0f, 1.0e-4f) && Near(local->position.y, 0.5f, 1.0e-4f), "and its local place");
@@ -789,15 +789,15 @@ namespace
         JBro::GameObject* post = scene.Object("post", { 20, 0 });
         scene.Box(post, { 2, 1 })->shape = ColliderShape2D::Capsule;
         JBro::GameObject* upright = scene.Object("upright", { 30, 0 });
-        scene.TransformOf(upright)->rotation = 1.5707963f;
+        scene.TransformOf(upright)->SetRotationRadian(JBro::Radian(1.5707963f));
         scene.Box(upright, { 2, 1 })->shape = ColliderShape2D::Capsule;
         scene.Run(3.0f);
 
         Check(scene.physics.GetShapeCount() == 5, "every capsule collider is a shape");
         Check(Near(scene.TransformOf(lying)->position.y, 0.5f, 2.0f * Slop)
-            && Near(scene.TransformOf(lying)->rotation, 0.0f, 1.0e-3f), "a lying capsule rests a radius up, flat");
+            && Near(scene.TransformOf(lying)->GetRotationRadian(), 0.0f, 1.0e-3f), "a lying capsule rests a radius up, flat");
         Check(Near(scene.TransformOf(stretched)->position.y, 0.5f, 2.0f * Slop)
-            && Near(scene.TransformOf(stretched)->rotation, 0.0f, 1.0e-3f),
+            && Near(scene.TransformOf(stretched)->GetRotationRadian(), 0.0f, 1.0e-3f),
             "one stretched from a circle along x lies the same way");
 
         JBro::RaycastHit2D hit;
@@ -881,7 +881,7 @@ namespace
         // L 의 면적 중심은 (0.75, 1.25) 다(2x1 바닥과 1x2 기둥, 넓이가 같다). 반 바퀴 돌면 원점은 중심을 지나 맞은편으로
         // 간다: 원점 = 2·중심. 기존 엔진처럼 원점을 기준으로 돌렸다면 원점은 (0, 0) 에 남는다.
         const Vec2 position = scene.TransformOf(l)->position;
-        Check(Near(scene.TransformOf(l)->rotation, 3.14159265f, 1.0e-3f), "half a turn in a second");
+        Check(Near(JBro::Radian(scene.TransformOf(l)->GetRotationRadian()), 3.14159265f, 1.0e-3f), "half a turn in a second");
         Check(Near(position.x, 1.5f, 1.0e-3f) && Near(position.y, 2.5f, 1.0e-3f),
             "and the origin lands across the center of mass");
         Check(Near(body->angularVelocity, 3.14159265f, 1.0e-4f), "keeping its spin");
@@ -1010,7 +1010,7 @@ namespace
             Scene scene;
             const float start = 20.0f * degree;
             JBro::GameObject* rod = scene.Object("rod", { 2.0f + std::cos(start), 1.0f + std::sin(start) });
-            scene.TransformOf(rod)->rotation = start;
+            scene.TransformOf(rod)->SetRotationRadian(JBro::Radian(start));
             scene.TransformOf(rod)->scale = { 2, 1 };
             scene.Box(rod, { 1.0f, 0.2f });
             scene.Dynamic(rod);
@@ -1023,18 +1023,18 @@ namespace
             Check(scene.physics.GetJointCount() == 1, "a hinge on a body becomes one kernel joint");
             Check(Near(hinge->connectedAnchor.x, 2.0f, 1.0e-3f) && Near(hinge->connectedAnchor.y, 1.0f, 1.0e-3f),
                 "with no partner the pin is written as the scaled anchor's world point");
-            Check(Near(scene.TransformOf(rod)->rotation, -10.0f * degree, 2.0f * degree),
+            Check(Near(JBro::Radian(scene.TransformOf(rod)->GetRotationRadian()), -10.0f * degree, 2.0f * degree),
                 "the falling rod turns clockwise and the lower limit, measured from where it started, holds it");
             const Vec2 end = scene.TransformOf(rod)->position;
-            const float angle = scene.TransformOf(rod)->rotation;
-            Check(Near(end.x - std::cos(angle), 2.0f, 0.02f) && Near(end.y - std::sin(angle), 1.0f, 0.02f),
+            const JBro::Radian angle = scene.TransformOf(rod)->GetRotationRadian();
+            Check(Near(end.x - std::cos(angle.Get()), 2.0f, 0.02f) && Near(end.y - std::sin(angle.Get()), 1.0f, 0.02f),
                 "and its end stays on the pin");
             // 모터로 반시계로 들어 올리면 위 한계(시작에서 +10°)에서 선다.
             hinge->useMotor = true;
             hinge->motorSpeed = 180.0f;
             hinge->maxMotorTorque = 1000.0f;
             scene.Run(1.5f);
-            Check(Near(scene.TransformOf(rod)->rotation, 30.0f * degree, 2.0f * degree),
+            Check(Near(JBro::Radian(scene.TransformOf(rod)->GetRotationRadian()), 30.0f * degree, 2.0f * degree),
                 "a motor lifting it counterclockwise stops at the upper limit");
         }
         {

@@ -396,10 +396,17 @@ namespace JBro
 //     JBRO_FIELD(float, Elapsed, NoSerialize()) = 0.0f;
 //     JBRO_FIELD(float, Speed) = 1.0f;
 //
-// **이 매크로가 선언한 필드는 public 이다.** 등록 함수가 밖에서 불려야 하기 때문이고,
-// 인스펙터에 나오는 값이 클래스 밖에서 안 보이는 것도 앞뒤가 맞지 않는다.
+// **이 매크로가 선언한 필드는 public 이다.** 대부분의 필드는 값이 곧 뜻이라 감출 것이 없고,
+// 인스펙터에 나오는 값이 클래스 밖에서 안 보이면 앞뒤가 맞지 않는다.
+//
+// 담는 것과 내주는 것이 달라야 하면 `JBRO_FIELD_PRIVATE` 를 쓴다(D-248).
 //
 // 어트리뷰트 이름은 함수 본문 안의 using 지시로만 보인다. JBro 직속을 어지럽히지 않는다.
+//
+// **이 매크로는 클래스를 public 인 채로 둔다.** 필드 선언이 맨 끝이라 뒤에 무엇도 붙일 수
+// 없기 때문이다(`= 20;` 같은 기본값이 매크로 밖에서 이어진다). 다음 필드 매크로는 저마다
+// 자기 접근 지정으로 시작하므로 섞어 써도 안전하지만, 매크로가 아닌 멤버를 이어 쓸 때는
+// 접근 지정을 손으로 적는다.
 #define JBRO_FIELD(FieldType, FieldName, ...)                                        \
     public:                                                                          \
         static constexpr auto JBroFieldAt(                                           \
@@ -408,4 +415,31 @@ namespace JBro
             using namespace ::JBro::Attribute;                                       \
             return ::JBro::MakeFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);        \
         }                                                                            \
+        FieldType FieldName
+
+// 같은 필드를 **밖에서 만지지 못하게** 닫는다(D-248). 담는 것과 내주는 것이 다를 때 쓴다 -
+// 회전을 라디안으로 담고 사람에게는 도로 내주는 것처럼, 값을 그대로 노출하면 단위나
+// 불변식이 깨지는 자리다. 짝이 되는 접근자를 **반드시 함께 둔다.** 닫아 놓고 길을 내지
+// 않으면 스크립트가 그 값을 영영 못 만진다.
+//
+//     JBRO_FIELD_PRIVATE(Radian, rotation) = 0.0f;
+//     public:
+//         Degree GetRotation() const { return rotation.ToDegree(); }
+//         void SetRotation(Degree value) { rotation = value; }
+//
+// **리플렉션은 그대로 닿는다.** 등록 함수가 클래스 안의 static 멤버라 멤버 포인터를
+// 접근 제어 안에서 가져오고, 그 뒤로는 `MakeFieldEntry` 의 람다가 주소만 들고 다닌다.
+// 그래서 인스펙터·직렬화·되돌리기는 public 필드와 똑같이 동작한다.
+//
+// **이 매크로는 클래스를 private 인 채로 둔다.** `JBRO_FIELD` 와 반대이므로, 뒤에
+// 접근자를 이어 쓸 때는 `public:` 을 손으로 연다.
+#define JBRO_FIELD_PRIVATE(FieldType, FieldName, ...)                                \
+    public:                                                                          \
+        static constexpr auto JBroFieldAt(                                           \
+            ::JBro::FieldIndex<__COUNTER__ - JBroFieldBase - 1>)                     \
+        {                                                                            \
+            using namespace ::JBro::Attribute;                                       \
+            return ::JBro::MakeFieldEntry<&JBroSelf::FieldName>(__VA_ARGS__);        \
+        }                                                                            \
+    private:                                                                         \
         FieldType FieldName

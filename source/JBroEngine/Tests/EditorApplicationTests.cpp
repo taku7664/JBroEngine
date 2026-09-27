@@ -2353,7 +2353,7 @@ namespace
         JBro::GameObject* leaf = canvas->CreateObject("Leaf");
         leaf->SetParent(alpha);
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
-        transform->rotation = 0.5f;
+        transform->SetRotationRadian(JBro::Radian(0.5f));
 
         Check(false == editor.HasClipboard(), "the clipboard starts empty");
         Check(false == editor.CopySelection(), "copying with nothing chosen does nothing");
@@ -2377,7 +2377,7 @@ namespace
         Check(pasted->GetParent() == holder, "placed beside the source, under the same parent");
         Check(pasted->GetChildren().Size() == 1, "with its child");
         auto* pastedTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(pasted);
-        Check(pastedTransform != nullptr && pastedTransform->rotation == 0.5f,
+        Check(pastedTransform != nullptr && pastedTransform->GetRotationRadian() == 0.5f,
             "and its component values");
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(canvas->GetObjectCount() == before, "and take the pasted tree away");
@@ -2655,7 +2655,7 @@ namespace
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(source);
         Check(transform != nullptr, "the source needs a transform to copy");
         transform->position = {3.0f, -4.0f};
-        transform->rotation = 1.25f;
+        transform->SetRotationRadian(JBro::Radian(1.25f));
 
         Check(false == editor.HasComponentClipboard(), "the component clipboard starts empty");
         Check(false == editor.PasteComponent(*target), "and pasting it does nothing");
@@ -2675,15 +2675,15 @@ namespace
         auto* pasted = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
         Check(pasted != nullptr, "the target must have the component now");
         Check(pasted->position.x == 3.0f && pasted->position.y == -4.0f
-                && pasted->rotation == 1.25f,
+                && pasted->GetRotationRadian() == 1.25f,
             "with the copied values, not the defaults");
-        Check(transform->rotation == 1.25f, "and the source is untouched");
+        Check(transform->GetRotationRadian() == 1.25f, "and the source is untouched");
         Check(editor.GetCommands().Undo(), "undo must run");
         Check(canvas->FindComponentRaw<JBro::Component::Transform2D>(target) == nullptr,
             "and take the pasted component back off");
         Check(editor.GetCommands().Redo(), "redo must run");
         pasted = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
-        Check(pasted != nullptr && pasted->rotation == 1.25f,
+        Check(pasted != nullptr && pasted->GetRotationRadian() == 1.25f,
             "and bring the values back with it");
 
         // **하나만 붙는 타입은 두 번 붙지 않는다**(D-180). 기존 엔진은 붙여넣기만 다중성
@@ -2717,7 +2717,7 @@ namespace
         // **값만 붙여넣기**는 있는 컴포넌트를 덮는다. 슬롯이 늘지 않는다.
         auto* targetTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
         Check(targetTransform != nullptr, "the target still has the pasted component");
-        targetTransform->rotation = 0.0f;
+        targetTransform->SetRotationRadian(JBro::Radian(0.0f));
         targetTransform->position = {0.0f, 0.0f};
         const std::size_t before = target->GetComponents().Size();
         Check(editor.CanPasteComponentValues(*targetTransform),
@@ -2725,10 +2725,10 @@ namespace
         Check(editor.PasteComponentValues(*target, *targetTransform),
             "pasting the values must go through");
         Check(target->GetComponents().Size() == before, "without adding a slot");
-        Check(targetTransform->rotation == 1.25f && targetTransform->position.x == 3.0f,
+        Check(targetTransform->GetRotationRadian() == 1.25f && targetTransform->position.x == 3.0f,
             "and write the copied values over the old ones");
         Check(editor.GetCommands().Undo(), "undo must run");
-        Check(targetTransform->rotation == 0.0f && targetTransform->position.x == 0.0f,
+        Check(targetTransform->GetRotationRadian() == 0.0f && targetTransform->position.x == 0.0f,
             "and bring the overwritten values back");
 
         // **다른 타입에는 덮지 않는다.** 이름이 다른 것에 값을 밀어 넣을 길이 있으면 안 된다.
@@ -3187,7 +3187,7 @@ namespace
             "both components must have registered their properties");
 
         // ── 고치면 커맨드가 된다. 드래그 하나가 되돌리기 하나다. ──────────
-        transform->rotation = 0.0f;
+        transform->SetRotationRadian(JBro::Radian(0.0f));
         const std::uint32_t rotation = FieldIndexOf(*transformTable, "rotation");
         Spot spot;
         Check(FindInspectorItem(editor, hwnd,
@@ -3197,16 +3197,16 @@ namespace
 
         const std::size_t before = editor.GetCommands().GetUndoCount();
         DragFrom(editor, hwnd, spot, spot.x + 100);
-        Check(transform->rotation > 0.5f,
+        Check(transform->GetRotationRadian() > 0.5f,
             "dragging the rotation field must move the value");
         Check(editor.GetCommands().GetUndoCount() == before + 1,
             "and a whole drag must leave exactly one thing to undo");
 
-        const float dragged = transform->rotation;
+        const float dragged = transform->GetRotationRadian();
         Check(editor.GetCommands().Undo(), "undo must run");
-        Check(transform->rotation < 0.0001f && transform->rotation > -0.0001f,
+        Check(transform->GetRotationRadian() < 0.0001f && transform->GetRotationRadian() > -0.0001f,
             "and put the value back where the drag started");
-        Check(editor.GetCommands().Redo() && transform->rotation > 0.5f,
+        Check(editor.GetCommands().Redo() && transform->GetRotationRadian() > 0.5f,
             "redo must do it again");
         Check(dragged > 0.5f, "the dragged value stands");
 
@@ -4536,9 +4536,9 @@ namespace
             && gammaTransform != nullptr, "all three must have transforms");
 
         // **셋의 회전이 저마다 다르다.** 같으면 델타와 절대값을 구분할 수 없다.
-        alphaTransform->rotation = 0.0f;
-        betaTransform->rotation = 10.0f;
-        gammaTransform->rotation = 20.0f;
+        alphaTransform->SetRotationRadian(JBro::Radian(0.0f));
+        betaTransform->SetRotationRadian(JBro::Radian(10.0f));
+        gammaTransform->SetRotationRadian(JBro::Radian(20.0f));
 
         JBro::GameObject* chosen[] = {alpha, beta, gamma};
         editor.SelectObjects({chosen, 3});
@@ -4563,31 +4563,31 @@ namespace
         const std::size_t before = editor.GetCommands().GetUndoCount();
         DragFrom(editor, hwnd, spot, spot.x + 100);
 
-        const float moved = alphaTransform->rotation;
+        const float moved = alphaTransform->GetRotationRadian();
         Check(moved > 0.5f, "the one the inspector shows must move");
         Check(editor.GetCommands().GetUndoCount() == before + 1,
             "and the whole drag over three objects must leave one thing to undo");
 
         // **같은 델타가 셋 모두에.** 각자의 시작값에서 같은 만큼 움직인다.
-        Check(betaTransform->rotation > 10.0f + moved - 0.01f
-                && betaTransform->rotation < 10.0f + moved + 0.01f,
+        Check(betaTransform->GetRotationRadian() > 10.0f + moved - 0.01f
+                && betaTransform->GetRotationRadian() < 10.0f + moved + 0.01f,
             "the second must move by the same amount from where it was");
-        Check(gammaTransform->rotation > 20.0f + moved - 0.01f
-                && gammaTransform->rotation < 20.0f + moved + 0.01f,
+        Check(gammaTransform->GetRotationRadian() > 20.0f + moved - 0.01f
+                && gammaTransform->GetRotationRadian() < 20.0f + moved + 0.01f,
             "and so must the third");
-        Check(betaTransform->rotation > 10.0f,
+        Check(betaTransform->GetRotationRadian() > 10.0f,
             "they must not be flattened onto the value of the first");
 
         Check(editor.GetCommands().Undo(), "one undo must run");
-        Check(alphaTransform->rotation < 0.01f && alphaTransform->rotation > -0.01f,
+        Check(alphaTransform->GetRotationRadian() < 0.01f && alphaTransform->GetRotationRadian() > -0.01f,
             "and put the first back");
-        Check(betaTransform->rotation > 9.99f && betaTransform->rotation < 10.01f,
+        Check(betaTransform->GetRotationRadian() > 9.99f && betaTransform->GetRotationRadian() < 10.01f,
             "the second back to its own value");
-        Check(gammaTransform->rotation > 19.99f && gammaTransform->rotation < 20.01f,
+        Check(gammaTransform->GetRotationRadian() > 19.99f && gammaTransform->GetRotationRadian() < 20.01f,
             "and the third to its own");
 
         Check(editor.GetCommands().Redo(), "redo must run");
-        Check(betaTransform->rotation > 10.0f + moved - 0.01f,
+        Check(betaTransform->GetRotationRadian() > 10.0f + moved - 0.01f,
             "and move them all again");
 
         editor.Shutdown();
@@ -4625,8 +4625,8 @@ namespace
             canvas->AttachComponent<JBro::Component::Transform2D>(parent);
         auto* childTransform =
             canvas->AttachComponent<JBro::Component::Transform2D>(child);
-        parentTransform->rotation = 0.0f;
-        childTransform->rotation = 100.0f;
+        parentTransform->SetRotationRadian(JBro::Radian(0.0f));
+        childTransform->SetRotationRadian(JBro::Radian(100.0f));
 
         JBro::GameObject* chosen[] = {parent, child};
         editor.SelectObjects({chosen, 2});
@@ -4645,9 +4645,9 @@ namespace
 
         DragFrom(editor, hwnd, spot, spot.x + 100);
 
-        Check(parentTransform->rotation > 0.5f, "the parent must move");
+        Check(parentTransform->GetRotationRadian() > 0.5f, "the parent must move");
         // 자식의 **자기 회전**은 그대로여야 한다. 월드에서는 부모를 따라 돈다.
-        Check(childTransform->rotation > 99.99f && childTransform->rotation < 100.01f,
+        Check(childTransform->GetRotationRadian() > 99.99f && childTransform->GetRotationRadian() < 100.01f,
             "the child must not be turned a second time on its own account");
 
         editor.Shutdown();
@@ -4847,7 +4847,7 @@ namespace
         auto* parentTransform =
             canvas->AttachComponent<JBro::Component::Transform2D>(parent);
         parentTransform->position = {3.5f, -1.25f};
-        parentTransform->rotation = 0.75f;
+        parentTransform->SetRotationRadian(JBro::Radian(0.75f));
 
         JBro::GameObject* child = canvas->CreateObject("Child");
         child->SetParent(parent);
@@ -4882,7 +4882,7 @@ namespace
         Check(restoredTransform != nullptr, "and its transform");
         Check(restoredTransform->position.x > 3.49f && restoredTransform->position.x < 3.51f,
             "with the position it had");
-        Check(restoredTransform->rotation > 0.74f && restoredTransform->rotation < 0.76f,
+        Check(restoredTransform->GetRotationRadian() > 0.74f && restoredTransform->GetRotationRadian() < 0.76f,
             "and the rotation");
 
         JBro::GameObject* restoredChild = FindByName(*canvas, "Child");
@@ -5747,7 +5747,9 @@ namespace
         to.x += 40;
         to.y += 40;
         DragTo(editor, hwnd, spot, to);
-        Check(std::fabs(transform->rotation) > 1.0f, "dragging the ring must turn the box");
+        // 1 도 넘게 돌았으면 돈 것이다. 예전에는 기즈모가 도를 `rotation` 에 그대로 적어
+        // 이 문턱이 사실상 도였다(D-247).
+        Check(std::fabs(transform->GetRotation()) > 1.0f, "dragging the ring must turn the box");
         Check(std::fabs(transform->position.x) < 1.0e-4f, "and must not move it");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "the rotation is one undo step too");
 
@@ -5772,7 +5774,8 @@ namespace
         JBro::GameObject* parent = canvas->CreateObject("Turned");
         auto* parentTransform = canvas->AttachComponent<JBro::Component::Transform2D>(parent);
         Check(parentTransform != nullptr, "the parent needs a transform");
-        parentTransform->rotation = 90.0f;
+        // 90 **도** 다. 회전은 라디안이라 도를 그대로 넣으면 안 된다(D-247).
+        parentTransform->SetRotation(JBro::Degree(90.0f));
         JBro::GameObject* child = canvas->CreateObject("Child");
         auto* childTransform = canvas->AttachComponent<JBro::Component::Transform2D>(child);
         Check(childTransform != nullptr, "the child needs a transform");
@@ -8093,7 +8096,7 @@ namespace
 
         // **돌린 텍스트는 돌린 블록으로 잡힌다.** 90 도 돌리면 블록이 원점 왼쪽 위로 선다(로컬 x 가 월드 y, 로컬 y 가 월드 -x).
         // 돌리기 전의 사각형은 원점 오른쪽에만 있으므로, 왼쪽 위를 눌러 잡히면 회전을 따른 것이다.
-        transform->rotation = 1.5707963f;
+        transform->SetRotationRadian(JBro::Radian(1.5707963f));
         editor.ClearSelection();
         for (int frame = 0; frame < 30; ++frame)
         {
@@ -8104,7 +8107,7 @@ namespace
         turned.y = static_cast<int>(originY - 1.8f * pixelsPerUnit);
         ClickAt(editor, hwnd, turned);
         Check(editor.GetSelectedObject() == object, "a turned text is picked where its turned block is");
-        transform->rotation = 0.0f;
+        transform->SetRotationRadian(JBro::Radian(0.0f));
         transform->scale = JBro::Vec2{1.0f, 1.0f};
 
         // ── 여러 줄 글자 칸 ──────────────────────────────────────────────
@@ -10816,7 +10819,7 @@ namespace
         Check(transform != nullptr, "the object needs a transform");
         // **90도 돌려 둔다.** 그러면 로컬 X 는 화면의 위쪽이고 월드 X 는 오른쪽이라,
         // 어느 축을 쓰는지가 손잡이의 자리로 드러난다.
-        transform->rotation = 90.0f;
+        transform->SetRotation(JBro::Degree(90.0f));
         editor.SetSelectedObject(target);
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -10877,7 +10880,7 @@ namespace
         Check(transform->position.x > startX + 0.1f,
             "with world axes the handle to the right moves the object to the right");
         Check(std::fabs(transform->position.y - startY) < 0.2f, "and not up or down");
-        Check(transform->rotation == 90.0f, "the object keeps its rotation");
+        Check(transform->GetRotation() == 90.0f, "the object keeps its rotation");
         Check(editor.GetCommands().GetUndoCount() >= 1, "and the drag leaves something to undo");
 
         editor.Shutdown();

@@ -88,7 +88,7 @@ namespace JBro
         {
             placement.hasTransform = true;
             placement.position = transform->position;
-            placement.rotation = transform->rotation;
+            placement.rotation = transform->GetRotationRadian();
             placement.scale = transform->scale;
         }
         return true;
@@ -111,7 +111,7 @@ namespace JBro
             // **월드 값이 아직 안 서 있다.** 한 프레임도 돌지 않았거나 꺼져 있는
             // 오브젝트다 - 짐작해서 쓰면 엉뚱한 자리로 간다. 로컬을 그대로 둔다.
             placement.position = transform->position;
-            placement.rotation = transform->rotation;
+            placement.rotation = transform->GetRotationRadian();
             placement.scale = transform->scale;
             return true;
         }
@@ -133,9 +133,10 @@ namespace JBro
         const Vec2 offset{
             transform->worldPosition.x - parentTransform->worldPosition.x,
             transform->worldPosition.y - parentTransform->worldPosition.y};
-        const float angle = -parentTransform->worldRotation;
-        const float cosine = std::cos(angle);
-        const float sine = std::sin(angle);
+        // `worldRotation` 은 도다(D-247). 삼각함수는 라디안을 받으므로 타입이 바꿔 준다.
+        const Radian angle = -parentTransform->worldRotation;
+        const float cosine = std::cos(angle.Get());
+        const float sine = std::sin(angle.Get());
         const Vec2 rotated{
             offset.x * cosine - offset.y * sine,
             offset.x * sine + offset.y * cosine};
@@ -146,7 +147,7 @@ namespace JBro
         if (std::fabs(parentScale.x) < 0.000001f || std::fabs(parentScale.y) < 0.000001f)
         {
             placement.position = transform->position;
-            placement.rotation = transform->rotation;
+            placement.rotation = transform->GetRotationRadian();
             placement.scale = transform->scale;
             return true;
         }
@@ -187,7 +188,7 @@ namespace JBro
             if (Component::Transform2D* transform = FindTransform(*m_canvas, *object))
             {
                 transform->position = placement.position;
-                transform->rotation = placement.rotation;
+                transform->SetRotationRadian(placement.rotation);
                 transform->scale = placement.scale;
                 // 다음 프레임에 월드를 다시 세우게 한다.
                 transform->worldValid = false;

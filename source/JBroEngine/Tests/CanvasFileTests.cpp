@@ -236,7 +236,7 @@ namespace
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the transform must attach");
         transform->position = { 1.5f, -2.25f };
-        transform->rotation = 0.75f;
+        transform->SetRotationRadian(JBro::Radian(0.75f));
 
         JBro::YamlDocument document;
         const JBro::String text = Save(canvas);
@@ -677,7 +677,7 @@ namespace
             JBro::GameObject* object = canvas.CreateObject("Player");
             auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
             transform->position = { 1.5f, -2.25f };
-            transform->rotation = 0.75f;
+            transform->SetRotationRadian(JBro::Radian(0.75f));
             transform->scale = { 3.0f, 0.5f };
 
             auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(object);
@@ -710,7 +710,7 @@ namespace
         Check(transform != nullptr, "the transform must be attached by name");
         Check(transform->position.x == 1.5f && transform->position.y == -2.25f,
             "a position must come back exactly");
-        Check(transform->rotation == 0.75f, "a scalar must come back exactly");
+        Check(transform->GetRotationRadian() == 0.75f, "a scalar must come back exactly");
         Check(transform->scale.x == 3.0f && transform->scale.y == 0.5f,
             "every member of a packed value must land on its own member");
 
@@ -985,7 +985,7 @@ namespace
             JBro::GameObject* object = nullptr;
             canvas.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
             auto* transform = canvas.FindComponentRaw<JBro::Component::Transform2D>(object);
-            Check(transform->rotation == 2.0f, "what the file did say must be read");
+            Check(transform->GetRotationRadian() == 2.0f, "what the file did say must be read");
             Check(transform->scale.x == 1.0f && transform->scale.y == 1.0f,
                 "what it did not say must keep the value the code gives it");
         }

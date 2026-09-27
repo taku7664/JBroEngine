@@ -10,7 +10,8 @@ namespace JBro::Internal
 {
     namespace
     {
-        bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vec2& scale, float& rotation)
+        // 회전은 라디안으로 모은다 - 저장도 계산도 그 단위다(D-248).
+        bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vec2& scale, Radian& rotation)
         {
             Component::Transform2D* local = canvas.FindComponentRaw<Component::Transform2D>(object);
             if (local == nullptr || false == local->IsActiveComponent())
@@ -18,7 +19,7 @@ namespace JBro::Internal
                 return false;
             }
 
-            const Matrix3x2 localMatrix = MakeTransformMatrix2D(local->position, local->rotation, local->scale);
+            const Matrix3x2 localMatrix = MakeTransformMatrix2D(local->position, local->GetRotationRadian(), local->scale);
             GameObject* parent = object->GetParent();
             Component::Transform2D* parentLocal = canvas.FindComponentRaw<Component::Transform2D>(parent);
             if (parentLocal == nullptr)
@@ -26,20 +27,20 @@ namespace JBro::Internal
                 // 부모에 Transform 이 **아예 없으면** 물려받을 자리가 없으므로 자기 로컬이 곧 월드다.
                 matrix = localMatrix;
                 scale = local->scale;
-                rotation = local->rotation;
+                rotation = local->GetRotationRadian();
                 return true;
             }
 
             Matrix3x2 parentMatrix;
             Vec2 parentScale;
-            float parentRotation = 0.0f;
+            Radian parentRotation = 0.0f;
             if (false == CalculateWorldMatrix(canvas, parent, parentMatrix, parentScale, parentRotation))
             {
                 return false;
             }
             matrix = MultiplyMatrix3x2(localMatrix, parentMatrix);
             scale = { local->scale.x * parentScale.x, local->scale.y * parentScale.y };
-            rotation = local->rotation + parentRotation;
+            rotation = local->GetRotationRadian() + parentRotation;
             return true;
         }
     }

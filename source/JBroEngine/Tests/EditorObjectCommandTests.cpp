@@ -371,7 +371,7 @@ namespace
         const std::uint32_t rotation = FieldIndex(TransformTable(), "rotation");
         const JBro::SetPropertyCommand::Path path = PathTo(rotation);
 
-        transform->rotation = 0.5f;
+        transform->SetRotationRadian(JBro::Radian(0.5f));
         JBro::String before;
         Check(JBro::SetPropertyCommand::ReadValue(*component, typeId, path, before),
             "reading a leaf must work");
@@ -380,11 +380,11 @@ namespace
         JBro::SetPropertyCommand command(
             ids, AddressOf(ids, *object, *component), path, before, JBro::String("1.5"));
         Check(command.Execute(), "the edit must go through");
-        Check(NearlyEqual(transform->rotation, 1.5f), "and must have happened");
+        Check(NearlyEqual(transform->GetRotationRadian(), 1.5f), "and must have happened");
         command.Undo();
-        Check(NearlyEqual(transform->rotation, 0.5f), "undo must put the old value back");
+        Check(NearlyEqual(transform->GetRotationRadian(), 0.5f), "undo must put the old value back");
         command.Redo();
-        Check(NearlyEqual(transform->rotation, 1.5f), "and redo must do it again");
+        Check(NearlyEqual(transform->GetRotationRadian(), 1.5f), "and redo must do it again");
 
         // 한 칸 더 내려간 잎사귀도 같은 길이다.
         const std::uint32_t position = FieldIndex(TransformTable(), "position");
@@ -504,7 +504,7 @@ namespace
 
         // 같은 잎사귀: 합친다. 그리고 **처음 값은 앞쪽 것을 지킨다** - 드래그
         // 전체가 한 번에 되돌아가야 한다.
-        firstTransform->rotation = 1.0f;
+        firstTransform->SetRotationRadian(JBro::Radian(1.0f));
         JBro::SetPropertyCommand held(ids, firstAddress, rotationPath,
             JBro::String("1"), JBro::String("2"));
         Check(held.Execute(), "the first frame of the drag must apply");
@@ -513,7 +513,7 @@ namespace
         Check(next.Execute(), "and the second");
         Check(held.TryMerge(next), "the same leaf during a drag must merge");
         held.Undo();
-        Check(NearlyEqual(firstTransform->rotation, 1.0f),
+        Check(NearlyEqual(firstTransform->GetRotationRadian(), 1.0f),
             "undoing the merged drag must reach back to before it started");
 
         // 다른 잎사귀: 합치지 않는다.
@@ -561,7 +561,7 @@ namespace
         JBro::GameObject* object = canvas.CreateObject("Subject");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the subject must have a transform");
-        transform->rotation = 0.5f;
+        transform->SetRotationRadian(JBro::Radian(0.5f));
         const JBro::EditorObjectId id = ids.Track(object);
         const JBro::SetPropertyCommand::Path path =
             PathTo(FieldIndex(TransformTable(), "rotation"));
@@ -583,14 +583,14 @@ namespace
         auto* restoredTransform =
             restored->GetComponent<JBro::Component::Transform2D>().Get();
         Check(restoredTransform != nullptr, "with its transform");
-        Check(NearlyEqual(restoredTransform->rotation, 1.5f),
+        Check(NearlyEqual(restoredTransform->GetRotationRadian(), 1.5f),
             "holding the edited value");
 
         Check(commands.Undo(), "undoing the edit must run");
-        Check(NearlyEqual(restoredTransform->rotation, 0.5f),
+        Check(NearlyEqual(restoredTransform->GetRotationRadian(), 0.5f),
             "and must reach the restored object, not the one that died");
         Check(commands.Redo(), "redoing the edit must run");
-        Check(NearlyEqual(restoredTransform->rotation, 1.5f), "and reach it again");
+        Check(NearlyEqual(restoredTransform->GetRotationRadian(), 1.5f), "and reach it again");
     }
 
     // ── 삭제 ─────────────────────────────────────────────────────────────
@@ -654,7 +654,7 @@ namespace
         JBro::GameObject* object = canvas.CreateObject("Sleeping");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
-        transform->rotation = 0.25f;
+        transform->SetRotationRadian(JBro::Radian(0.25f));
         sprite->SetEnabled(false);
         object->SetActive(false);
         const JBro::EditorObjectId id = ids.Track(object);
@@ -678,7 +678,7 @@ namespace
         auto* restoredTransform =
             restored->GetComponent<JBro::Component::Transform2D>().Get();
         Check(restoredTransform != nullptr, "and its transform");
-        Check(NearlyEqual(restoredTransform->rotation, 0.25f), "with the value it had");
+        Check(NearlyEqual(restoredTransform->GetRotationRadian(), 0.25f), "with the value it had");
     }
 
     // ── 컴포넌트 붙이기·떼기 ─────────────────────────────────────────────

@@ -243,12 +243,14 @@ namespace JBro::System
             std::uint64_t       parameters = 0;
             // 지난 스텝에 이쪽에서 쓴 값. 스크립트나 에디터가 그 사이 바꿨는지를 이것과 견주어 안다.
             Vec2                writtenPosition;
-            float               writtenRotation = 0.0f;
+            // `Transform2D` 의 회전을 되비추므로 **같은 단위(라디안)** 다(D-248).
+            Radian              writtenRotation = 0.0f;
             Vec2                writtenVelocity;
             float               writtenAngularVelocity = 0.0f;
             // 정적인 몸을 마지막으로 옮겨 둔 월드 자리.
             Vec2                pushedPosition;
-            float               pushedAngle = 0.0f;
+            // 커널에 밀어 넣은 값이라 **커널의 단위(라디안)** 다.
+            Radian              pushedAngle = 0.0f;
             bool                seen = false;
             // 이번 스텝 안에서만 유효하다. 동기화마다 다시 잡는다.
             GameObject*             object = nullptr;
@@ -277,8 +279,8 @@ namespace JBro::System
             InstanceId         bodyObject = InvalidInstanceId;
             InstanceId         connectedObject = InvalidInstanceId;
             std::uint64_t      signature = 0;
-            // 경첩의 기준 각(커널의 B - A). 처음 이어질 때 정하고 몸이 다시 만들어져도 그대로 쓴다.
-            float              referenceAngle = 0.0f;
+            // 경첩의 기준 각(커널의 B - A, 라디안). 처음 이어질 때 정하고 몸이 다시 만들어져도 그대로 쓴다.
+            Radian             referenceAngle = 0.0f;
             bool               hinge = false;
             bool               seen = false;
         };
@@ -921,7 +923,7 @@ namespace JBro::System
                 fresh.rigidbody = rigidbodyId;
                 fresh.parameters = parameters;
                 fresh.writtenPosition = transform->position;
-                fresh.writtenRotation = transform->rotation;
+                fresh.writtenRotation = transform->GetRotationRadian();
                 fresh.writtenVelocity = def.linearVelocity;
                 fresh.writtenAngularVelocity = def.angularVelocity;
                 fresh.pushedPosition = pose.position;
@@ -944,7 +946,7 @@ namespace JBro::System
             {
                 // 움직이는 몸의 자세는 커널이 주인이다. 다만 지난번에 쓴 값과 다르면 그 사이 누가 옮긴 것이므로 따른다.
                 if (transform->position.x != link->writtenPosition.x || transform->position.y != link->writtenPosition.y
-                    || transform->rotation != link->writtenRotation)
+                    || transform->GetRotationRadian() != link->writtenRotation)
                 {
                     world.SetTransform(link->body, pose.position, pose.angle);
                 }
@@ -1242,8 +1244,8 @@ namespace JBro::System
             if (fresh || link->bodyObject != object->GetInstanceId() || link->connectedObject != connectedId)
             {
                 // 경첩의 한계는 이어지는 순간의 상대 각도를 0 으로 잰다.
-                const float angleA = world.GetAngle(own->body);
-                const float angleB = other != nullptr ? world.GetAngle(other->body) : 0.0f;
+                const Radian angleA = world.GetAngle(own->body);
+                const Radian angleB = other != nullptr ? Radian(world.GetAngle(other->body)) : Radian(0.0f);
                 link->referenceAngle = angleB - angleA;
             }
             world.DestroyJoint(link->joint);
@@ -1301,7 +1303,6 @@ namespace JBro::System
         });
 
         canvas.ForEach<Component::HingeJoint2D>([&](Component::HingeJoint2D& joint) {
-            constexpr float Radian = 3.14159265358979323846f / 180.0f;
             // 커널의 A 는 이 오브젝트, B 는 상대다. 커널의 각은 B - A 라서 "이 오브젝트가 상대에 대해" 의 부호를 뒤집는다.
             const auto makeDef = [&](const State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB,
                                      Vec2 scaleA, Vec2 scaleB) {
@@ -1310,12 +1311,12 @@ namespace JBro::System
                 def.bodyB = bodyB;
                 def.localAnchorA = scaled(joint.anchor, scaleA);
                 def.localAnchorB = bodyB.index != Physics2D::InvalidIndex ? scaled(joint.connectedAnchor, scaleB) : joint.connectedAnchor;
-                def.referenceAngle = link.referenceAngle;
+                def.referenceAngle = link.referenceAngle.Get();
                 def.enableLimit = joint.useLimits;
-                def.lowerAngle = -std::fmax(joint.lowerAngle, joint.upperAngle) * Radian;
-                def.upperAngle = -std::fmin(joint.lowerAngle, joint.upperAngle) * Radian;
+                def.lowerAngle = -Radian(Degree(std::fmax(joint.lowerAngle, joint.upperAngle))).Get();
+                def.upperAngle = -Radian(Degree(std::fmin(joint.lowerAngle, joint.upperAngle))).Get();
                 def.enableMotor = joint.useMotor;
-                def.motorSpeed = -joint.motorSpeed * Radian;
+                def.motorSpeed = -Radian(joint.motorSpeed).Get();
                 def.maxMotorTorque = std::fmax(joint.maxMotorTorque, 0.0f);
                 def.collideConnected = joint.collideConnected;
                 return def;
@@ -1381,10 +1382,10 @@ namespace JBro::System
                 continue;
             }
             const Vec2 origin = world.GetPosition(link.body);
-            const float angle = world.GetAngle(link.body);
+            const Radian angle = world.GetAngle(link.body);
 
             Vec2 localPosition = origin;
-            float localRotation = angle;
+            Radian localRotation = angle;
             GameObject* parent = link.object->GetParent();
             Internal::ObjectPose parentPose;
             if (parent != nullptr && Internal::CalculateObjectPose(canvas, parent, parentPose))
@@ -1404,7 +1405,7 @@ namespace JBro::System
             }
 
             link.transform->position = localPosition;
-            link.transform->rotation = localRotation;
+            link.transform->SetRotationRadian(localRotation);
             // 로컬을 움직였으니 월드 캐시는 이번 프레임의 Transform2DSystem 이 다시 채운다(D-47).
             link.transform->worldValid = false;
             link.writtenPosition = localPosition;

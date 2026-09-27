@@ -9,7 +9,6 @@ namespace JBro::Service
     namespace
     {
         constexpr std::uint32_t CircleSegments = 32;
-        constexpr float TwoPi = 6.28318530718f;
 
         void ArrowHead(Internal::DebugLineBatch& batch, Vec2 from, Vec2 to)
         {

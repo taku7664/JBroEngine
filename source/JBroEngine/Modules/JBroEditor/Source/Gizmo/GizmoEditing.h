@@ -45,7 +45,7 @@ namespace JBro
             // 로컬 시작값. 2D 는 z·w 를 쓰지 않는다.
             Vec3 localPosition;
             Quaternion localRotation;
-            float localAngleDegrees = 0.0f;
+            Radian localAngle = 0.0f;
             Vec3 localScale = {1.0f, 1.0f, 1.0f};
             // 부모의 월드 회전·스케일. 월드 델타를 로컬로 옮기는 데 쓴다.
             Quaternion parentRotation;

@@ -15,17 +15,17 @@ namespace JBro::System
             GameObject& object,
             Component::Transform2D& transform,
             const Matrix3x2& parentWorld,
-            float parentRotation,
+            Radian parentRotation,
             const Vec2& parentScale)
         {
             const Matrix3x2 localMatrix = MakeTransformMatrix2D(
                 transform.position,
-                transform.rotation,
+                transform.GetRotationRadian(),
                 transform.scale);
 
             transform.world = MultiplyMatrix3x2(localMatrix, parentWorld);
             transform.worldPosition = {transform.world.m31, transform.world.m32};
-            transform.worldRotation = transform.rotation + parentRotation;
+            transform.worldRotation = transform.GetRotationRadian() + parentRotation;
             transform.worldScale = {
                 transform.scale.x * parentScale.x,
                 transform.scale.y * parentScale.y};

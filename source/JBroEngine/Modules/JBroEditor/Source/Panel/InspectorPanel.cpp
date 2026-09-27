@@ -937,6 +937,35 @@ namespace JBro
                 ? Widget::SliderFloat("##value", value, edit->rangeMin, edit->rangeMax)
                 : Widget::DragFloat("##value").Speed(0.01f).StepButtons(false)(value);
         }
+        if (SameName(type.typeName, "JBro.Radian"))
+        {
+            // **저장되는 값은 라디안이고 보이는 값은 도다**(D-247). 사람이 인스펙터에서
+            // 1.5707 을 읽고 직각인 줄 아는 일은 없다. 되돌려 넣을 때 다시 라디안이 되므로
+            // 파일에 적히는 숫자와 델타 계산은 전과 같다.
+            Radian& value = *static_cast<Radian*>(address);
+            float degrees = value.ToDegree().Get();
+            const bool changed = hasRange
+                ? Widget::SliderFloat("##value", degrees, edit->rangeMin, edit->rangeMax)
+                : Widget::DragFloat("##value").Speed(0.5f).Format("%.2f\u00b0").StepButtons(false)(degrees);
+            if (changed)
+            {
+                value = Degree(degrees);
+            }
+            return changed;
+        }
+        if (SameName(type.typeName, "JBro.Degree"))
+        {
+            Degree& value = *static_cast<Degree*>(address);
+            float degrees = value.Get();
+            const bool changed = hasRange
+                ? Widget::SliderFloat("##value", degrees, edit->rangeMin, edit->rangeMax)
+                : Widget::DragFloat("##value").Speed(0.5f).Format("%.2f\u00b0").StepButtons(false)(degrees);
+            if (changed)
+            {
+                value = Degree(degrees);
+            }
+            return changed;
+        }
         if (SameName(type.typeName, "bool"))
         {
             return Widget::Checkbox("##value", *static_cast<bool*>(address));
@@ -1210,7 +1239,9 @@ namespace JBro
         // 델타라는 것이 없으므로 고른 값을 그대로 준다.
         ScalarRun editedRun;
         const bool numeric = CollectScalarRun(type, address, editedRun)
-            || SameName(type.typeName, "float");
+            || SameName(type.typeName, "float")
+            || SameName(type.typeName, "JBro.Radian")
+            || SameName(type.typeName, "JBro.Degree");
         float delta[ScalarRun::MaxCount] = {};
         std::uint32_t deltaCount = 0;
         if (numeric)

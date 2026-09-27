@@ -210,7 +210,7 @@
 
   | 층 | 모듈 | 내용 |
   |---|---|---|
-  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vec2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vec3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241) |
+  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vec2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vec3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247) |
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
@@ -779,6 +779,25 @@
   `JBroFramework3DSystem/Math3DMatrix.h` 에 그대로 남는다. 그 규약은 시스템 단계의 계약이기 때문이다.
   **결과로 2D 스크립트에서도 `Vec3`·`Quaternion`·`Matrix4x4` 가 보인다.** 수학 값 타입은
   2D/3D 배타성의 대상이 아니며, 배타성은 컴포넌트와 서비스 수준에서만 유지한다.
+- **각도는 단위를 타입으로 말한다.** (MUST) (D-247)
+  `JBro/Types/Angle.h` 의 `Degree` 와 `Radian` 이고, 둘 다 `float` 하나를 감싼 강타입이라
+  크기·정렬·복사 성질이 `float` 와 같다. 서로를 받는 생성자가 계수를 곱하므로 한쪽을 다른 쪽
+  자리에 넘기면 조용히 틀리는 대신 옳게 변환된다.
+  **담는 것은 라디안이고 내주는 것은 도다.** 계산하는 쪽(행렬·물리·그리기)이 매 프레임 읽으므로
+  저장은 라디안이라야 변환이 없고, 사람과 스크립트는 도로 만진다. 두 역할을 한 필드로 겸하면
+  둘 중 하나가 반드시 틀리므로, 그런 필드는 `JBRO_FIELD_PRIVATE` 로 닫고 접근자로만 연다(D-248).
+  `Transform2D` 가 그 모양이다 - `SetRotation(Degree)`·`GetRotation()` 이 사용자 쪽이고,
+  `SetRotationRadian(Radian)`·`GetRotationRadian()` 이 계산 쪽이며 변환이 없다.
+  단위를 기억해 두는 필드(되비추기·마지막으로 밀어 넣은 값·되살릴 값의 스냅숏)는 기억하는 대상과
+  같은 타입으로 적는다 - 한쪽만 `float` 로 두면 그 자리에서 단위가 섞인다.
+  각끼리의 곱과 나눗셈은 뜻이 없어 일부러 두지 않는다.
+  원주율과 변환 계수도 이 헤더에만 둔다. 파일마다 `constexpr float Pi` 를 다시 적지 않는다.
+- **담는 것과 내주는 것이 다른 필드는 `JBRO_FIELD_PRIVATE` 로 닫는다.** (MUST) (D-248)
+  등록 함수는 public 이고 필드만 private 이다. 리플렉션은 그대로 닿는다 - 멤버 포인터를
+  클래스 안의 static 멤버에서 가져오기 때문이며, 인스펙터·직렬화·되돌리기는 열린 필드와 같다.
+  **닫았으면 짝이 되는 접근자를 반드시 함께 둔다.** 길을 내지 않으면 스크립트가 그 값을 영영
+  못 만진다. 값이 곧 뜻인 보통 필드는 전처럼 `JBRO_FIELD` 로 열어 둔다 - 감출 것이 없는데
+  닫으면 읽는 쪽만 번거로워진다.
 - 스크립트 레이어는 네임스페이스를 강제하지 않는다. 프렐류드 헤더(`ScriptAPI.h`)가
   `using namespace JBro;` 를 수행한다. (MUST)
   단 **1 뎁스 네임스페이스 사용을 적극 권장한다** — `Component::Transform2D` 처럼 쓰면

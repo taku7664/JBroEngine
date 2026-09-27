@@ -765,7 +765,7 @@ namespace JBro
         // 짐작으로 행렬을 쌓는 것보다 낫다 - 한 프레임 뒤에 제자리로 온다.
         const Matrix3x2 world = transform->worldValid
             ? transform->world
-            : MakeTransformMatrix2D(transform->position, transform->rotation, transform->scale);
+            : MakeTransformMatrix2D(transform->position, transform->GetRotationRadian(), transform->scale);
         const Vec2 center{ world.m31, world.m32 };
 
         // 오브젝트 로컬(유닛)의 사각형을 월드로 옮겨 감싼다. **회전도 따른다** - 예전에는 크기만 곱해, 돌린 스프라이트와
@@ -900,9 +900,9 @@ namespace JBro
             }
             pose.center = transform->worldValid ? transform->worldPosition : transform->position;
             pose.scale = transform->worldValid ? transform->worldScale : transform->scale;
-            const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
-            pose.cosine = std::cos(angle);
-            pose.sine = std::sin(angle);
+            const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
+            pose.cosine = std::cos(angle.Get());
+            pose.sine = std::sin(angle.Get());
             return true;
         };
         const auto connectedPoint = [&](const GameObjectHandle& connected, Vec2 anchor) {
@@ -1001,9 +1001,9 @@ namespace JBro
             PolygonPose pose;
             pose.center = transform->worldValid ? transform->worldPosition : transform->position;
             pose.scale = transform->worldValid ? transform->worldScale : transform->scale;
-            const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
-            pose.cosine = std::cos(angle);
-            pose.sine = std::sin(angle);
+            const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
+            pose.cosine = std::cos(angle.Get());
+            pose.sine = std::sin(angle.Get());
             const bool isSelected = m_editor->IsSelected(&object);
             const float thickness = isSelected ? 2.0f : 1.0f;
 
@@ -1048,17 +1048,16 @@ namespace JBro
                     const float length = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
                     const Vec2 axis = length > 0.0f ? Vec2{ (b.x - a.x) / length, (b.y - a.y) / length } : Vec2{ 1.0f, 0.0f };
                     const Vec2 side{ -axis.y, axis.x };
-                    constexpr float HalfTurn = 3.14159265f;
                     constexpr int ArcSegments = 16;
                     m_screenScratch.Clear();
                     // b 쪽 반원(옆 -side 에서 축 방향을 지나 +side), 이어서 a 쪽 반원. 두 반원 사이의 곧은 변은 닫는 선이다.
                     for (int end = 0; end < 2; ++end)
                     {
                         const Vec2 cap = end == 0 ? b : a;
-                        const float start = end == 0 ? -0.5f * HalfTurn : 0.5f * HalfTurn;
+                        const float start = end == 0 ? -0.5f * Pi : 0.5f * Pi;
                         for (int k = 0; k <= ArcSegments; ++k)
                         {
-                            const float turn = start + HalfTurn * static_cast<float>(k) / static_cast<float>(ArcSegments);
+                            const float turn = start + Pi * static_cast<float>(k) / static_cast<float>(ArcSegments);
                             const float c = std::cos(turn) * capsule.radius;
                             const float s = std::sin(turn) * capsule.radius;
                             const Vec2 local{ cap.x + axis.x * c + side.x * s, cap.y + axis.y * c + side.y * s };
@@ -1278,9 +1277,9 @@ namespace JBro
         target.object = object;
         target.pose.center = transform->worldValid ? transform->worldPosition : transform->position;
         target.pose.scale = transform->worldValid ? transform->worldScale : transform->scale;
-        const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
-        target.pose.cosine = std::cos(angle);
-        target.pose.sine = std::sin(angle);
+        const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
+        target.pose.cosine = std::cos(angle.Get());
+        target.pose.sine = std::sin(angle.Get());
         return true;
     }
 
@@ -1597,9 +1596,9 @@ namespace JBro
         }
         const Vec2 center = transform->worldValid ? transform->worldPosition : transform->position;
         const Vec2 scale = transform->worldValid ? transform->worldScale : transform->scale;
-        const float angle = transform->worldValid ? transform->worldRotation : transform->rotation;
-        const float cosine = std::cos(angle);
-        const float sine = std::sin(angle);
+        const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
+        const float cosine = std::cos(angle.Get());
+        const float sine = std::sin(angle.Get());
         const float worldWidth = widthUnits * scale.x;
         const float worldHeight = heightUnits * scale.y;
 

@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Types/Angle.h>
+
 #include <cmath>
 
 // 3D 수학 값 타입과 hot-path 용 inline 함수다. 리플렉션은 `Math3DReflection.h` 에 따로 있다 -
@@ -115,11 +117,11 @@ namespace JBro
         return Add(value, Add(Scale(crossed, 2.0f * rotation.w), Scale(crossedTwice, 2.0f)));
     }
 
-    // 축은 정규화한다. 각은 라디안이고 오른손 규칙이다.
-    inline Quaternion FromAxisAngle(const Vec3& axis, float radians)
+    // 축은 정규화한다. 오른손 규칙이다.
+    inline Quaternion FromAxisAngle(const Vec3& axis, Radian angle)
     {
         const Vec3 unit = Normalize(axis);
-        const float half = radians * 0.5f;
+        const float half = angle.Get() * 0.5f;
         const float sine = std::sin(half);
         return {unit.x * sine, unit.y * sine, unit.z * sine, std::cos(half)};
     }

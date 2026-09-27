@@ -1059,7 +1059,7 @@ namespace
         camera->orthographicSize = 10.0f;
         auto* object = canvas->CreateObject("sprites");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);        transform->position = {5.0f, 7.0f};
-        transform->rotation = 1.57079632679f;
+        transform->SetRotationRadian(JBro::Radian(1.57079632679f));
         for (int index = 0; index < 70; ++index)
         {
             auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);

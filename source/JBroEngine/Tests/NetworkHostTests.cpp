@@ -93,7 +93,7 @@ namespace
             return false;
         }
         return NearlyEqual(mine->position.x, theirs->position.x) && NearlyEqual(mine->position.y, theirs->position.y)
-            && NearlyEqual(mine->rotation, theirs->rotation) && NearlyEqual(mine->scale.x, theirs->scale.x)
+            && NearlyEqual(mine->GetRotationRadian(), theirs->GetRotationRadian()) && NearlyEqual(mine->scale.x, theirs->scale.x)
             && NearlyEqual(mine->scale.y, theirs->scale.y);
     }
 
@@ -118,7 +118,7 @@ namespace
             JBro::Component::Transform2D* transform = server.canvas.AttachComponent<JBro::Component::Transform2D>(objects[index]);
             Check(nullptr != transform, "transform attaches");
             transform->position = { static_cast<float>(index), static_cast<float>(index) * 2.0f };
-            transform->rotation = 0.1f * static_cast<float>(index);
+            transform->SetRotationRadian(JBro::Radian(0.1f * static_cast<float>(index)));
             transform->scale = { 1.0f + 0.01f * static_cast<float>(index), 1.0f };
         }
 

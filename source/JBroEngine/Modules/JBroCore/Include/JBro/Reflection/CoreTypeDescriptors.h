@@ -2,6 +2,7 @@
 
 #include <JBro/Reflection/Field.h>
 #include <JBro/Reflection/ScalarCodec.h>
+#include <JBro/Types/Angle.h>
 #include <JBro/Types/Color.h>
 #include <JBro/Types/Uuid.h>
 
@@ -27,6 +28,35 @@ namespace JBro
             static const StaticPropertyTable<4> fields { entries };
             static const TypeDescriptor descriptor =
                 MakeVectorTypeDescriptor<Color>("JBro.Color", fields.Get());
+            return descriptor;
+        }
+    };
+
+    // 각도 둘이다(D-247). **필드로 쪼개지 않고 스칼라 하나로 말한다** - 안에 `float` 가 하나뿐이라
+    // 쪼갤 곳이 없다. 코덱은 `float` 의 것을 그대로 쓴다: 표준 레이아웃이라 첫 멤버의 주소가 곧
+    // 객체의 주소이고, 크기와 정렬도 `float` 와 같다는 것을 `Angle.h` 가 단언한다.
+    //
+    // 이름을 `float` 가 아니라 `JBro.Radian` 으로 주는 것이 이 설명서의 전부이자 목적이다 -
+    // 저장 파일에는 전과 같은 숫자가 적히고, 인스펙터는 그 이름을 보고 도로 바꿔 보여 준다.
+    // `MakeScalarTypeDescriptor` 가 이름을 인자로 받는 이유가 이것이다.
+    template <>
+    struct TypeDescriptorOf<Radian>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const TypeDescriptor descriptor =
+                MakeScalarTypeDescriptor<float>("JBro.Radian");
+            return descriptor;
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Degree>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const TypeDescriptor descriptor =
+                MakeScalarTypeDescriptor<float>("JBro.Degree");
             return descriptor;
         }
     };

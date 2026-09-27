@@ -3,6 +3,7 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Reflection/ScalarCodec.h>
 #include <JBro/Reflection/TypeDescriptorOf.h>
@@ -280,11 +281,11 @@ namespace JBro::Component
         // 참이면 조인트가 처음 이어지는 순간 anchor 가 놓인 자리를 상대의 로컬(없으면 월드)로 connectedAnchor 에 적는다.
         JBRO_FIELD(bool, autoConnectedAnchor) = true;
         JBRO_FIELD(bool, useLimits) = false;
-        JBRO_FIELD(float, lowerAngle, Range(-360, 360)) = -45.0f;
-        JBRO_FIELD(float, upperAngle, Range(-360, 360)) = 45.0f;
+        JBRO_FIELD(Degree, lowerAngle, Range(-360, 360)) = -45.0f;
+        JBRO_FIELD(Degree, upperAngle, Range(-360, 360)) = 45.0f;
         // 모터는 이 오브젝트를 상대에 대해 motorSpeed(도/초)로 돌린다. 그러려고 쓸 수 있는 가장 큰 토크가 maxMotorTorque 다.
         JBRO_FIELD(bool, useMotor) = false;
-        JBRO_FIELD(float, motorSpeed) = 0.0f;
+        JBRO_FIELD(Degree, motorSpeed) = 0.0f;
         JBRO_FIELD(float, maxMotorTorque, Range(0, 100000)) = 1000.0f;
         JBRO_FIELD(bool, collideConnected) = false;
     };

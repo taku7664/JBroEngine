@@ -115,7 +115,8 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
 - **커널을 따로 두는 이유.** (1) 오목 도형의 정답을 캔버스·트랜스폼 없이 숫자로 잴 수 있어야 한다 - 기존 엔진이 놓친 것이
   정확히 그 검사다(§1.3). (2) 기존 규모가 4,900 줄이라 어댑터와 섞으면 `Physics2DSystem.cpp` 가 다시 한 파일에 몰린다.
   (3) 네트워크 코어를 캔버스와 떼어 둔 선례가 있다(D-122). DLL 경계는 두지 않는다(정적 링크, ProjectRule §3).
-- 커널은 `JBroCore` 만 쓴다(`Vec2`·`Matrix3x2` 는 `JBro/Types/Math2D.h` 에 있다, D-241). 컴포넌트·`Canvas`·`GameObject` 는
+- 커널은 `JBroCore` 만 쓴다(`Vec2`·`Matrix3x2` 는 `JBro/Types/Math2D.h` 에 있다, D-241).
+  커널의 각은 라디안이다. 컴포넌트의 각은 도(`Degree`)이므로 어댑터가 경계에서 바꾼다(D-247). 컴포넌트·`Canvas`·`GameObject` 는
   모른다. 이것은 의존하지 않은 헤더를 include 하면 컴파일이 실패하는 음성 테스트로 지킨다.
 - 커널의 식별자는 번호다. 바디와 도형은 커널 배열의 `index + generation` 핸들이고, 어댑터가 컴포넌트의 `InstanceId` 와 짝을
   들고 있다. `SafePtr` 는 커널에 들어가지 않는다.

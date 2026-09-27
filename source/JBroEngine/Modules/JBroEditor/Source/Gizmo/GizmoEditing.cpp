@@ -17,13 +17,12 @@ namespace JBro
 {
     namespace
     {
-        constexpr float Pi = 3.14159265358979f;
-        constexpr float DegreesToRadians = Pi / 180.0f;
-        constexpr float RadiansToDegrees = 180.0f / Pi;
-
-        Quaternion FromDegreesAboutZ(float degrees)
+        // **Transform2D 의 회전은 라디안이다**(D-247). 전에는 이 자리가 도를 받아 π/180 을
+        // 곱했고, 그래서 기즈모로 90° 돌리면 `rotation` 에 90 이 적혀 렌더러가 90 라디안으로
+        // 그렸다. 기즈모 안에서는 읽기와 쓰기가 둘 다 도라 앞뒤가 맞아 보였을 뿐이다.
+        Quaternion FromAngleAboutZ(Radian angle)
         {
-            return FromAxisAngle({0.0f, 0.0f, 1.0f}, degrees * DegreesToRadians);
+            return FromAxisAngle({0.0f, 0.0f, 1.0f}, angle);
         }
 
         const char* FieldNameFor(GizmoMode mode)
@@ -59,7 +58,7 @@ namespace JBro
             {
                 if (auto* transform = canvas.FindComponentRaw<Component::Transform2D>(parent))
                 {
-                    rotation = FromDegreesAboutZ(transform->worldRotation);
+                    rotation = FromAngleAboutZ(transform->worldRotation);
                     scale = {transform->worldScale.x, transform->worldScale.y, 1.0f};
                 }
                 return;
@@ -92,9 +91,9 @@ namespace JBro
         if (auto* transform = canvas->FindComponentRaw<Component::Transform2D>(&object))
         {
             const Vec2 position = transform->worldValid ? transform->worldPosition : transform->position;
-            const float degrees = transform->worldValid ? transform->worldRotation : transform->rotation;
+            const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
             subject.position = {position.x, position.y, 0.0f};
-            subject.rotation = FromDegreesAboutZ(degrees);
+            subject.rotation = FromAngleAboutZ(angle);
             subject.scale = {transform->scale.x, transform->scale.y, 1.0f};
             subject.planar = true;
             return true;
@@ -137,7 +136,7 @@ namespace JBro
             }
             target.planar = true;
             target.localPosition = {transform->position.x, transform->position.y, 0.0f};
-            target.localAngleDegrees = transform->rotation;
+            target.localAngle = transform->GetRotationRadian();
             target.localScale = {transform->scale.x, transform->scale.y, 1.0f};
             ParentFrame(*canvas, object, true, target.parentRotation, target.parentScale);
             return true;
@@ -202,8 +201,8 @@ namespace JBro
             if (target.planar)
             {
                 // Z 축 회전의 각. 사원수 (0,0,sin(θ/2),cos(θ/2)).
-                const float degrees = 2.0f * std::atan2(delta.z, delta.w) * RadiansToDegrees;
-                static_cast<Component::Transform2D*>(component)->rotation = target.localAngleDegrees + degrees;
+                const Radian turned = 2.0f * std::atan2(delta.z, delta.w);
+                static_cast<Component::Transform2D*>(component)->SetRotationRadian(target.localAngle + turned);
             }
             else
             {

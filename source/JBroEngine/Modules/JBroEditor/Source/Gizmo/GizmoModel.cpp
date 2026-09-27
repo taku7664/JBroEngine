@@ -7,7 +7,6 @@ namespace JBro
 {
     namespace
     {
-        constexpr float Pi = 3.14159265358979f;
         constexpr float Epsilon = 1.0e-6f;
 
         float Length2(float x, float y)

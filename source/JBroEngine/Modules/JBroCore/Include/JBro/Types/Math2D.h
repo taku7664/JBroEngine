@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Types/Angle.h>
 #include <JBro/Types/Color.h>
 
 #include <cmath>
@@ -17,11 +18,11 @@ namespace JBro
 
     inline Matrix3x2 MakeTransformMatrix2D(
         const Vec2& position,
-        float rotation,
+        Radian rotation,
         const Vec2& scale)
     {
-        const float cosine = std::cos(rotation);
-        const float sine = std::sin(rotation);
+        const float cosine = std::cos(rotation.Get());
+        const float sine = std::sin(rotation.Get());
 
         Matrix3x2 result;
         result.m11 = cosine * scale.x;

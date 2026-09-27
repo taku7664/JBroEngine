@@ -2916,6 +2916,70 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-248. 담는 것과 내주는 것이 다른 필드는 `JBRO_FIELD_PRIVATE` 로 닫고 접근자로 연다.**
+  (2026-09-27, 사용자 지시 "로테이션은 내부에서 쓰는용 따로, 외부용 따로 둬야지" 와 "그냥 깨고 public, private
+  둘로 나눌 수 있나?". 래퍼 타입으로 `rotation = 90` 문법을 지키는 안도 보였으나 사용자가 "걍 지금대로 하자,
+  너무 헷갈린다" 로 접근자 쪽을 골랐다) Updates: D-247, D-38, D-47.
+  **매크로**: `JBRO_FIELD_PRIVATE` 는 등록 함수만 public 으로 두고 필드를 `private:` 뒤로 옮긴다.
+  리플렉션은 그대로 닿는다 - `JBroFieldAt` 이 클래스 안의 static 멤버라 멤버 포인터를 접근 제어 안에서
+  가져오고, 그 뒤로는 `MakeFieldEntry` 의 람다가 주소만 들고 다닌다(`Field.h` 주석이 전부터 "private 멤버도
+  같은 길이다" 라고 적고 있었다). 스크래치 실행으로 재 봤다: private 필드를 리플렉션이 읽고(`text=1.5707964`)
+  쓰고(`FromText` 뒤 도로 180), 같은 클래스의 public 필드는 그대로였다.
+  **`JBRO_FIELD` 는 public 인 채로 끝난다** - 필드 선언이 매크로의 맨 끝이고 `= 0.0f;` 가 매크로 밖에서
+  이어져 뒤에 무엇도 붙일 수 없다. `JBRO_FIELD_PRIVATE` 는 private 인 채로 끝난다. 둘 다 자기 접근 지정으로
+  시작하므로 섞어 써도 안전하지만, 매크로가 아닌 멤버를 이어 쓸 때는 접근 지정을 손으로 적는다.
+  **적용**: `Transform2D::rotation` 은 `Radian` 으로 담고 `GetRotation()`/`SetRotation(Degree)` 로 도를,
+  `GetRotationRadian()`/`SetRotationRadian(Radian)` 으로 라디안을 낸다. `worldRotation` 은 계산 캐시라
+  `Radian` 으로 되돌렸다(D-247 에서 한 번 `Degree` 로 만들었던 것이 잘못이었다 - 시스템이 채우고 계산하는
+  쪽만 읽는 값이다). **그래서 매 프레임 경로에는 변환이 하나도 없다.**
+  기억해 두는 값도 담는 단위를 따른다: 물리의 `writtenRotation`·`pushedAngle`·`referenceAngle` 과
+  계층 커맨드의 `Placement::rotation` 이 모두 `Radian` 이다.
+  **컴파일러가 잡은 것**: 엔진 12 곳(트랜스폼 시스템·물리 기하와 어댑터·네트워크 복제·기즈모·캔버스 뷰·계층 커맨드)과
+  시험 11 개 파일이 필드를 직접 만지고 있었다. 닫지 않았으면 그대로 남았을 자리다.
+  **되레 만든 함정 하나**: 일괄 치환이 `x->rotation = v;` 를 `x->GetRotationRadian() = v;` 로 바꿨는데,
+  `Radian` 이 클래스라 **임시 객체 대입이 컴파일을 통과하고 아무 일도 하지 않았다.** 물리 시험이 잡아 네 곳을 고쳤다.
+  기각: 래퍼 타입(`Rotation2D`)으로 `rotation = 90` 문법을 지키는 안 - 쓰는 쪽이 헷갈린다는 사용자 판단.
+  `__declspec(property)` - 멤버 포인터를 못 만들어 리플렉션이 못 잡는다. 어트리뷰트에 훅 함수 - `FieldAttributes` 가
+  정적 자료뿐이고, 인스펙터·역직렬화만 걸리고 C++ 직접 대입은 못 막는다.
+  검증: 솔루션 전체 Debug 빌드 오류 0, `JBroTests` Debug 전부 통과.
+  남긴 것: `Camera3D::verticalFieldOfView` 와 `HingeJoint2D` 는 사용자가 고치는 값이라 `Degree` 로 열어 둔 채다. [열림]
+
+- **D-247. 각도는 `Degree`·`Radian` 강타입으로 말하고, 사용자가 만지는 각은 도다.**
+  (2026-09-27, 사용자 문의 "Degree랑 Radian 있어?" 에서 시작했다. 기존 엔진에 있는지를 내가 한 번 잘못 답했고,
+  사용자가 "분명 있을텐데" 로 되짚어 `Engine/Utillity/Types/Degree.h`·`Radian.h` 를 찾았다.
+  범위는 사용자가 "타입 + 쓰는 자리까지", 표기는 "외부 사용자 표기는 디그리" 로 정했다)
+  Updates: D-38, D-47(`Transform2D` 의 필드), D-199(물리 커널 경계), D-241(Core 의 값 타입).
+  **타입**: `JBro/Types/Angle.h` 에 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`.
+  둘 다 `float` 하나를 감싸고 `sizeof`·`alignof`·trivially copyable·standard layout 이 `float` 와 같다.
+  서로를 받는 생성자가 계수를 곱한다. 각끼리의 곱·나눗셈은 뜻이 없어 두지 않고, `/` 는 좌항 전용이다.
+  리플렉션 설명서는 `CoreTypeDescriptors.h` 에 있고 `float` 코덱을 이름만 바꿔 쓴다
+  (`MakeScalarTypeDescriptor` 가 이름을 인자로 받는 이유가 이것이었다 - 주석에 적혀 있던 `JBro.Degree` 가 이제 실제로 있다).
+  **단위의 자리**: 사용자가 고치는 컴포넌트 필드는 도다 - `HingeJoint2D` 의 한계와 모터가 `Degree` 이고
+  `Camera3D::verticalFieldOfView` 는 전부터 도였다. 엔진 안쪽은 전부 라디안이다 -
+  `MakeTransformMatrix2D`·`FromAxisAngle`·`ObjectPose::angle`·`Transform2D` 의 회전과 월드 캐시가 `Radian` 이다.
+  **`Transform2D` 의 회전은 담는 것과 내주는 것이 다르다**(D-248 로 이어진다): 라디안으로 담고
+  `GetRotation()`·`SetRotation(Degree)` 로 도를 내준다. 저장 파일과 인스펙터도 도다.
+  변경 전 조사에서 **엔진 계산에 도를 쓰던 자리는 하나도 없었다** - 도는 사용자가 고치는 필드와
+  에디터 궤도 카메라뿐이었고, 기즈모만 예외였는데 그것이 아래의 결함 (1) 이다.
+  **암시 변환은 열어 둔다.** `Float`·`Int`·`UInt` 와 같은 모양이라야 `angle = 0.0f` 가 된다. 그래서
+  `Radian r = 30.0f`(사실은 도) 는 여전히 막지 못한다 - 얻는 것은 경계에서의 안전이고 리터럴의 단위는 사람이 맞춘다.
+  양쪽으로 변환이 열려 있어 `Degree = Radian` 대입이 모호해지므로 정확 일치 대입을 양쪽에 따로 둔다.
+  **깨워 낸 결함 (1)**: 에디터 기즈모가 `Transform2D` 의 회전을 **도로 읽고 도로 썼다**
+  (`FromDegreesAboutZ(worldRotation)`, `localAngleDegrees = transform->rotation`). 렌더러·물리는 라디안이므로,
+  캔버스 뷰에서 기즈모로 90° 돌리면 `rotation` 에 90 이 적히고 화면에는 90 라디안으로 그려졌다.
+  기즈모 안에서는 읽기와 쓰기가 둘 다 도라 자기들끼리 앞뒤가 맞아 테스트를 통과했고, 기즈모와 렌더러를
+  한 번에 재는 테스트가 없어 지금까지 드러나지 않았다. 사용자 확인 뒤 라디안으로 고쳤다.
+  **깨워 낸 결함 (2)**: 물리 어댑터의 `writtenRotation` 이 한 곳에서는 도(컴포넌트를 되비추며), 다른 곳에서는
+  라디안(커널에서 되받으며)으로 채워졌다. 그래서 "사용자가 그 사이 옮겼나" 를 재는 비교가 늘 참이 되어
+  **몸이 영원히 잠들지 않았다.** 되비추는 필드는 되비추는 대상과 같은 타입이어야 한다.
+  **깨워 낸 결함 (3)**: 캔버스 뷰의 콜라이더·폴리곤·스프라이트 그리기 네 곳과 계층 커맨드 하나가
+  회전을 `float` 로 받아 `std::cos` 에 바로 넣고 있었다. 도가 되면 전부 틀리므로 `Radian` 으로 받게 했다.
+  **걷어낸 중복**: `Pi` 세 벌(기즈모 편집·기즈모 모델·캔버스 뷰의 `HalfTurn`), `TwoPi` 두 벌(2D·3D 디버그 그리기),
+  그리고 물리 어댑터의 `constexpr float Radian`(이름이 타입과 같은 변환 계수).
+  검증: 솔루션 전체 Debug 빌드 오류 0, `JBroTests` Debug 전부 통과. 변환·정규화·코덱은 스크래치 실행으로 실측했다
+  (180° → 3.141593 rad, 되돌려 180.000, `Normalized180(370°)` → 10°, `NormalizedPi(2π+1)` → 1.0000, size 4·align 4).
+  남긴 것: 스크립트 문법(JBroScript)에서 각을 어떻게 적을지는 언어가 설 때 정한다. [열림]
+
 - **D-246. 경계를 넘는 콜백은 함수 포인터와 사용자 자료를 묶은 `Delegate<Sig>` 한 값으로 적는다.** (2026-09-27, 사용자 문의: "게임엔진에서 사용할만한 특이한 유틸같은거 또 없을까" 에서 후보를 추려 첫째로 고른 것이다)
   (1) 엔진은 경계를 넘는 콜백을 `void (*)(void* user, ...)` 와 그 짝인 `void* user` **두 칸**으로 적어 왔다(`AudioMixerDesc::openStream`·`openStreamUser`, `AudioBusProcessCallback`, `IPlatform::AudioRenderCallback`, `JAllocator::AllocateThunk`). 모양 자체는 옳다 - POD 라서 경계를 넘고 캡처를 소유하지 않아 프레임 경로에서 할당하지 않는다. **틀린 것은 둘이 별개의 변수라는 점이다** - 한쪽만 대입하거나 엉뚱한 `user` 를 건네는 실수를 컴파일러가 잡지 못하고 실행 중에야 드러난다.
   (2) `JBroCore` 의 `JBro/Types/Delegate.h` 에 `Delegate<R(Args...)>` 를 두었다. 칸은 `function`(첫 인자가 `void*` 인 썽크)과 `user` 둘뿐이고, 거는 길은 셋이다 - 멤버 함수 `Bind<&Cls::Method>(instance)`, 자유 함수 `Bind<&Func>()`, 기존 짝을 그대로 받는 `FromThunk(thunk, user)`. 부르는 것은 `IsBound()` 로 본 뒤 `Invoke(...)` 다. **비었을 때 무엇을 돌려줄지 타입이 정하지 않는다** - 반환값이 있는 델리게이트에서 임의의 기본값을 만들지 않기 위해서다.
