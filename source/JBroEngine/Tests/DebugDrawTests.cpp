@@ -291,7 +291,7 @@ namespace
             "rotated a quarter turn, the first corner (-2, -1) goes to (1, -2)");
 
         store.Clear();
-        const JBro::Vec2 points[3] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}};
+        const JBro::Vector2 points[3] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}};
         debug.Polygon(points, 3, false);
         Check(store.GetLineCount() == 2, "an open polyline of three points is two lines");
         debug.Polygon(points, 3, true);
@@ -300,7 +300,7 @@ namespace
         Check(store.GetLineCount() == 5, "one point draws nothing");
 
         store.Clear();
-        JBro::Vec2 many[200];
+        JBro::Vector2 many[200];
         for (int index = 0; index < 200; ++index)
         {
             many[index] = {static_cast<float>(index), 0.0f};

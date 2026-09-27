@@ -130,20 +130,20 @@ namespace JBro
 
         // 부모의 월드를 되돌린다. 우리 월드는 이동·회전·크기로 분해되어 있어
         // 행렬을 뒤집지 않아도 된다.
-        const Vec2 offset{
+        const Vector2 offset{
             transform->worldPosition.x - parentTransform->worldPosition.x,
             transform->worldPosition.y - parentTransform->worldPosition.y};
         // `worldRotation` 은 도다(D-247). 삼각함수는 라디안을 받으므로 타입이 바꿔 준다.
         const Radian angle = -parentTransform->worldRotation;
         const float cosine = std::cos(angle.Get());
         const float sine = std::sin(angle.Get());
-        const Vec2 rotated{
+        const Vector2 rotated{
             offset.x * cosine - offset.y * sine,
             offset.x * sine + offset.y * cosine};
 
         // **0 으로 나누지 않는다.** 크기가 0 인 부모 밑에서는 월드 자리를 지킬
         // 방법이 없다(그 부모 아래의 모든 점이 한 점이다). 로컬을 그대로 둔다.
-        const Vec2 parentScale = parentTransform->worldScale;
+        const Vector2 parentScale = parentTransform->worldScale;
         if (std::fabs(parentScale.x) < 0.000001f || std::fabs(parentScale.y) < 0.000001f)
         {
             placement.position = transform->position;

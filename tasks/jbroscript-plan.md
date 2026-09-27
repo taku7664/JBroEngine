@@ -326,7 +326,7 @@ class SpriteRenderer2D final : public ComponentBase
 {
     JBRO_COMPONENT_BODY(SpriteRenderer2D, "SpriteRenderer2D")
 
-    JBRO_FIELD(Vec2,  size,  Name("크기"))          = {1.0f, 1.0f};
+    JBRO_FIELD(Vector2,  size,  Name("크기"))          = {1.0f, 1.0f};
     JBRO_FIELD(bool,  flipX)                        = false;
     JBRO_FIELD(Color, tint,  Category("Rendering")) = {1, 1, 1, 1};
 
@@ -367,7 +367,7 @@ SpriteRenderer2D
 ```
 
 패널이 저걸 그리려면 누가 알려 줘야 한다 — "SpriteRenderer2D 에는 `size` 라는 필드가 있고,
-Vec2 이고, 메모리 어디에 있고, 화면엔 '크기' 라고 써라." 그 쪽지가 `PropertyInfo` 다.
+Vector2 이고, 메모리 어디에 있고, 화면엔 '크기' 라고 써라." 그 쪽지가 `PropertyInfo` 다.
 **필드 하나당 쪽지 하나.** 저장 파일을 쓸 때도 같은 쪽지를 본다.
 
 ### 8.2 기존 엔진 쪽지의 문제 넷
@@ -398,7 +398,7 @@ Vec2 이고, 메모리 어디에 있고, 화면엔 '크기' 라고 써라." 그 
 // PropertyInfo 는 가리키기만 한다 — 같은 사실을 두 군데 적지 않는다.
 struct TypeDescriptor
 {
-    NameId        typeName  = InvalidNameId;   // "float", "JBro.Vec2", "Ref<Sprite>"
+    NameId        typeName  = InvalidNameId;   // "float", "JBro.Vector2", "Ref<Sprite>"
     std::uint32_t size      = 0;
     std::uint32_t alignment = 0;
     bool          triviallyCopyable = false;
@@ -914,7 +914,7 @@ class std::basic_string_view<...> __cdecl JBro::Detail::FieldSignature<&Game::Pl
 `TypeDescriptorOf<T>` 특수화가 없는 타입을 필드로 쓰면 멈춘다. 기존 엔진은 모르는 타입을
 만나면 로그 경고를 남기고 그 필드를 **조용히 빠뜨렸다** — 저장 파일에서 값이 사라지는데
 아무도 모르는 실패다. 지금 등록된 것은 `bool`, 고정폭 정수 8개, `float`, `double` 이다.
-`Vec2` 처럼 구조를 가진 타입은 **자기 모듈에서** 특수화한다 — Core 가 Framework 타입을
+`Vector2` 처럼 구조를 가진 타입은 **자기 모듈에서** 특수화한다 — Core 가 Framework 타입을
 알 필요가 없다.
 
 ### 14.6 아직 아닌 것
@@ -949,13 +949,13 @@ class std::basic_string_view<...> __cdecl JBro::Detail::FieldSignature<&Game::Pl
 
 ### 15.2 구조체와 enum (`ff94c69`)
 
-컴포넌트 필드가 스칼라만이 아니었다. `Vec2`, `Color`, `Matrix3x2`, enum 넷, `AssetHandle`.
+컴포넌트 필드가 스칼라만이 아니었다. `Vector2`, `Color`, `Matrix3x2`, enum 넷, `AssetHandle`.
 
 **`TypeDescriptor` 에 `fields` 를 더했다.** 규칙은 하나다:
 
 > 구조를 가진 타입은 **필드로** 말하고, 잎사귀 값은 **코덱으로** 말한다. 둘 다는 없다.
 
-인스펙터도 직렬화도 필드를 타고 내려가다 코덱을 만나면 멈춘다. `Vec2` 가 무엇인지 아무도
+인스펙터도 직렬화도 필드를 타고 내려가다 코덱을 만나면 멈춘다. `Vector2` 가 무엇인지 아무도
 알 필요가 없다 — 기존 엔진에서 같은 지식이 여섯 군데 흩어진 이유가 그것이었다.
 크기는 88 → **96 바이트**(재서 넣었고, `static_assert` 가 변경을 먼저 잡았다).
 
@@ -1335,7 +1335,7 @@ Unity 도 C# 디버깅을 자기 에디터가 하지 않고 Rider/VS 로 넘긴�
 
 - **엔진 타입의 진실을 새로 적지 않아도 된다.** `jbroc` 이 `JBroCore` 와 Framework 등록 코드를 링크하면
   `PropertyRegistry` 에서 빌트인 컴포넌트의 필드와 타입(§15)을 그대로 읽는다. 다른 언어로 만들면
-  "`Transform2D` 에 `position` 이 있고 `Vec2` 다" 를 두 번째 파일에 다시 적어야 하고, 기존 엔진이
+  "`Transform2D` 에 `position` 이 있고 `Vector2` 다" 를 두 번째 파일에 다시 적어야 하고, 기존 엔진이
   겪은 이중 진실(§2.3, §8.2)이 돌아온다.
 - **툴체인이 늘지 않는다.** VS 는 이미 필수다. 설치본에는 실행 파일 하나가 더해질 뿐이다.
 - **생성 C++ 를 컴파일해 보는 테스트가 같은 빌드 안에서 돈다.**
@@ -1349,7 +1349,7 @@ Unity 도 C# 디버깅을 자기 에디터가 하지 않고 Rider/VS 로 넘긴�
 ### 20.2 지원 타입 범위 (v1)
 
 > **Updated(2026-09-15)**: 스크립트는 **엔진이 제공한 타입만** 쓴다. `int`/`float`/`bool` 대신 `Int`(64비트)/`Float`/`Bool`,
-> `Vec2` 대신 `Vector2` 다. 현재 타입 표는 [jbroscript-syntax.md](./jbroscript-syntax.md) §7 에 있다.
+> `Vector2` 대신 `Vector2` 다. 현재 타입 표는 [jbroscript-syntax.md](./jbroscript-syntax.md) §7 에 있다.
 
 **제안**: 리플렉션이 이미 설명할 수 있는 타입만 받는다. 설명자가 없는 타입은 필드로 저장도 인스펙터도
 안 되므로, 언어가 먼저 받아 봐야 쓸 수 없다.
@@ -1357,7 +1357,7 @@ Unity 도 C# 디버깅을 자기 에디터가 하지 않고 Rider/VS 로 넘긴�
 | 분류 | v1 에 넣는 것 | C++ 로 내려가는 모양 |
 |---|---|---|
 | 스칼라 | `bool`, `int`, `float`, `String` | `bool`, `int32`, `float32`, `String` |
-| 엔진 값 타입 | `Vec2`, `Rect`, `Color` | 같은 이름 |
+| 엔진 값 타입 | `Vector2`, `Rect`, `Color` | 같은 이름 |
 | 엔진 enum | 리플렉션에 `enumNames` 가 있는 것 | 같은 이름 |
 | 참조 | `GameObjectHandle`, `Ref<T>`(T 는 빌트인 컴포넌트 또는 스크립트) | 같은 이름 |
 | 컨테이너 | `Array<T>`, `Table<K, V>`(K 는 `int`·`String`) | 같은 이름 |

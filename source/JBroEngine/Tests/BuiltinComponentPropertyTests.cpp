@@ -92,8 +92,8 @@ namespace
     void TestA3DPositionHasThreeAxes()
     {
         const JBro::PropertyInfo& position = Field(Table("Component::Transform3D"), "position");
-        Check(position.type->fields != nullptr, "Vec3 must decompose into its members");
-        Check(position.type->fields->count == 3, "Vec3 has three members");
+        Check(position.type->fields != nullptr, "Vector3 must decompose into its members");
+        Check(position.type->fields->count == 3, "Vector3 has three members");
 
         const char* const axes[] = { "x", "y", "z" };
         for (std::uint32_t i = 0; i < 3; ++i)
@@ -169,8 +169,8 @@ namespace
 
         // position 은 구조체다. 그 안의 y 까지 두 단계로 닿는다.
         const JBro::PropertyInfo& position = Field(table, "position");
-        Check(position.type->fields != nullptr, "Vec2 must decompose into its members");
-        Check(position.type->fields->count == 2, "Vec2 has two members");
+        Check(position.type->fields != nullptr, "Vector2 must decompose into its members");
+        Check(position.type->fields->count == 2, "Vector2 has two members");
 
         void* positionAddress = position.Address(&transform);
         const JBro::PropertyInfo& y = position.type->fields->properties[1];

@@ -10,7 +10,7 @@ namespace JBro::Service
     {
         constexpr std::uint32_t CircleSegments = 32;
 
-        void ArrowHead(Internal::DebugLineBatch& batch, Vec2 from, Vec2 to)
+        void ArrowHead(Internal::DebugLineBatch& batch, Vector2 from, Vector2 to)
         {
             const float dx = to.x - from.x;
             const float dy = to.y - from.y;
@@ -34,25 +34,25 @@ namespace JBro::Service
         }
     }
 
-    void DebugDraw2DService::Line(Vec2 from, Vec2 to, const Color& color, float duration, float thickness) const
+    void DebugDraw2DService::Line(Vector2 from, Vector2 to, const Color& color, float duration, float thickness) const
     {
         Internal::DebugLineBatch batch(color, duration, thickness);
         batch.Add(from.x, from.y, 0.0f, to.x, to.y, 0.0f);
     }
 
-    void DebugDraw2DService::Ray(Vec2 origin, Vec2 direction, const Color& color, float duration, float thickness) const
+    void DebugDraw2DService::Ray(Vector2 origin, Vector2 direction, const Color& color, float duration, float thickness) const
     {
-        Line(origin, Vec2{origin.x + direction.x, origin.y + direction.y}, color, duration, thickness);
+        Line(origin, Vector2{origin.x + direction.x, origin.y + direction.y}, color, duration, thickness);
     }
 
-    void DebugDraw2DService::Arrow(Vec2 from, Vec2 to, const Color& color, float duration, float thickness) const
+    void DebugDraw2DService::Arrow(Vector2 from, Vector2 to, const Color& color, float duration, float thickness) const
     {
         Internal::DebugLineBatch batch(color, duration, thickness);
         batch.Add(from.x, from.y, 0.0f, to.x, to.y, 0.0f);
         ArrowHead(batch, from, to);
     }
 
-    void DebugDraw2DService::Rect(Vec2 center, Vec2 size, float angle, const Color& color, float duration, float thickness) const
+    void DebugDraw2DService::Rect(Vector2 center, Vector2 size, float angle, const Color& color, float duration, float thickness) const
     {
         const float cosine = std::cos(angle);
         const float sine = std::sin(angle);
@@ -60,7 +60,7 @@ namespace JBro::Service
         const float halfY = size.y * 0.5f;
         const float localX[4] = {-halfX, halfX, halfX, -halfX};
         const float localY[4] = {-halfY, -halfY, halfY, halfY};
-        Vec2 corners[4];
+        Vector2 corners[4];
         for (int index = 0; index < 4; ++index)
         {
             corners[index].x = center.x + localX[index] * cosine - localY[index] * sine;
@@ -69,7 +69,7 @@ namespace JBro::Service
         Polygon(corners, 4, true, color, duration, thickness);
     }
 
-    void DebugDraw2DService::Circle(Vec2 center, float radius, const Color& color, float duration, float thickness) const
+    void DebugDraw2DService::Circle(Vector2 center, float radius, const Color& color, float duration, float thickness) const
     {
         Internal::DebugLineBatch batch(color, duration, thickness);
         float previousX = center.x + radius;
@@ -85,7 +85,7 @@ namespace JBro::Service
         }
     }
 
-    void DebugDraw2DService::Polygon(const Vec2* points, std::uint32_t count, bool closed, const Color& color, float duration,
+    void DebugDraw2DService::Polygon(const Vector2* points, std::uint32_t count, bool closed, const Color& color, float duration,
         float thickness) const
     {
         if (points == nullptr || count < 2)
@@ -103,7 +103,7 @@ namespace JBro::Service
         }
     }
 
-    void DebugDraw2DService::Cross(Vec2 at, float size, const Color& color, float duration, float thickness) const
+    void DebugDraw2DService::Cross(Vector2 at, float size, const Color& color, float duration, float thickness) const
     {
         Internal::DebugLineBatch batch(color, duration, thickness);
         const float arm = size * 0.70710678f;

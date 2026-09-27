@@ -15,8 +15,8 @@ namespace JBro::Physics2D
         // 월드로 옮긴 볼록 조각. 법선은 반시계 변의 오른쪽, 즉 바깥이다.
         struct WorldPolygon
         {
-            Vec2          points[MaxPolygonVertices];
-            Vec2          normals[MaxPolygonVertices];
+            Vector2          points[MaxPolygonVertices];
+            Vector2          normals[MaxPolygonVertices];
             std::uint32_t count = 0;
         };
 
@@ -30,9 +30,9 @@ namespace JBro::Physics2D
             }
             for (std::uint32_t i = 0; i < polygon.count; ++i)
             {
-                const Vec2 edge = Subtract(world.points[(i + 1) % world.count], world.points[i]);
+                const Vector2 edge = Subtract(world.points[(i + 1) % world.count], world.points[i]);
                 const float length = Length(edge);
-                world.normals[i] = length > 0.0f ? Vec2{ edge.y / length, -edge.x / length } : Vec2{};
+                world.normals[i] = length > 0.0f ? Vector2{ edge.y / length, -edge.x / length } : Vector2{};
             }
             return world;
         }
@@ -62,13 +62,13 @@ namespace JBro::Physics2D
 
         struct ClipVertex
         {
-            Vec2          point;
+            Vector2          point;
             std::uint32_t id = 0;
         };
 
         // 평면 dot(normal, p) <= offset 쪽만 남긴다. 선분이 평면을 가로지르면 교점을 만든다.
         std::uint32_t ClipSegment(
-            ClipVertex out[2], const ClipVertex in[2], Vec2 normal, float offset, std::uint32_t crossingId)
+            ClipVertex out[2], const ClipVertex in[2], Vector2 normal, float offset, std::uint32_t crossingId)
         {
             std::uint32_t count = 0;
             const float d0 = Dot(normal, in[0].point) - offset;
@@ -99,17 +99,17 @@ namespace JBro::Physics2D
         {
             float fraction1 = 0.0f;
             float fraction2 = 0.0f;
-            Vec2  closest1;
-            Vec2  closest2;
+            Vector2  closest1;
+            Vector2  closest2;
             float distanceSquared = 0.0f;
         };
 
-        SegmentDistance ComputeSegmentDistance(Vec2 p1, Vec2 q1, Vec2 p2, Vec2 q2)
+        SegmentDistance ComputeSegmentDistance(Vector2 p1, Vector2 q1, Vector2 p2, Vector2 q2)
         {
             SegmentDistance result;
-            const Vec2 d1 = Subtract(q1, p1);
-            const Vec2 d2 = Subtract(q2, p2);
-            const Vec2 r = Subtract(p1, p2);
+            const Vector2 d1 = Subtract(q1, p1);
+            const Vector2 d2 = Subtract(q2, p2);
+            const Vector2 r = Subtract(p1, p2);
             const float dd1 = Dot(d1, d1);
             const float dd2 = Dot(d2, d2);
             const float rd1 = Dot(r, d1);
@@ -160,15 +160,15 @@ namespace JBro::Physics2D
 
     namespace
     {
-        bool RaySegment(Vec2 origin, Vec2 direction, Vec2 a, Vec2 b, float& t);
+        bool RaySegment(Vector2 origin, Vector2 direction, Vector2 a, Vector2 b, float& t);
     }
 
-    Vec2 RotateVector(Rotation rotation, Vec2 local)
+    Vector2 RotateVector(Rotation rotation, Vector2 local)
     {
         return { rotation.c * local.x - rotation.s * local.y, rotation.s * local.x + rotation.c * local.y };
     }
 
-    Vec2 TransformPoint(const Pose& pose, Vec2 local)
+    Vector2 TransformPoint(const Pose& pose, Vector2 local)
     {
         return Add(RotateVector(pose.rotation, local), pose.position);
     }
@@ -176,9 +176,9 @@ namespace JBro::Physics2D
     Manifold CollideCircles(const Circle& a, const Pose& poseA, const Circle& b, const Pose& poseB)
     {
         Manifold manifold;
-        const Vec2 centerA = TransformPoint(poseA, a.center);
-        const Vec2 centerB = TransformPoint(poseB, b.center);
-        const Vec2 delta = Subtract(centerB, centerA);
+        const Vector2 centerA = TransformPoint(poseA, a.center);
+        const Vector2 centerB = TransformPoint(poseB, b.center);
+        const Vector2 delta = Subtract(centerB, centerA);
         const float distance = Length(delta);
         const float separation = distance - a.radius - b.radius;
         if (separation > SpeculativeDistance)
@@ -187,7 +187,7 @@ namespace JBro::Physics2D
         }
 
         // 중심이 겹치면 방향이 없다. 아무 방향이든 일관되면 되므로 위로 민다.
-        manifold.normal = distance > FLT_EPSILON ? Scale(delta, 1.0f / distance) : Vec2{ 0.0f, 1.0f };
+        manifold.normal = distance > FLT_EPSILON ? Scale(delta, 1.0f / distance) : Vector2{ 0.0f, 1.0f };
         manifold.points[0].point = Add(centerA, Scale(manifold.normal, a.radius + 0.5f * separation));
         manifold.points[0].separation = separation;
         manifold.points[0].id = 0;
@@ -205,7 +205,7 @@ namespace JBro::Physics2D
         }
 
         const WorldPolygon polygon = ToWorld(a, poseA);
-        const Vec2 center = TransformPoint(poseB, b.center);
+        const Vector2 center = TransformPoint(poseB, b.center);
         // 둥근 폴리곤(캡슐)의 두께는 원의 반지름에 더해 재면 된다. 가운데 점만 두 표면 사이로 다시 잡는다.
         const float radius = b.radius + a.radius;
 
@@ -225,9 +225,9 @@ namespace JBro::Physics2D
             }
         }
 
-        const Vec2 v1 = polygon.points[face];
-        const Vec2 v2 = polygon.points[(face + 1) % polygon.count];
-        Vec2 normal = polygon.normals[face];
+        const Vector2 v1 = polygon.points[face];
+        const Vector2 v2 = polygon.points[(face + 1) % polygon.count];
+        Vector2 normal = polygon.normals[face];
         // 원 중심에서 도형 표면까지, 법선을 따라 잰 거리. 중심이 안에 있으면 음수다.
         float surfaceDistance = faceSeparation;
         std::uint32_t id = face;
@@ -240,8 +240,8 @@ namespace JBro::Physics2D
             const float u2 = Dot(Subtract(center, v2), Subtract(v1, v2));
             if (u1 <= 0.0f || u2 <= 0.0f)
             {
-                const Vec2 vertex = u1 <= 0.0f ? v1 : v2;
-                const Vec2 delta = Subtract(center, vertex);
+                const Vector2 vertex = u1 <= 0.0f ? v1 : v2;
+                const Vector2 delta = Subtract(center, vertex);
                 const float distance = Length(delta);
                 if (distance - radius > SpeculativeDistance)
                 {
@@ -270,7 +270,7 @@ namespace JBro::Physics2D
     {
         // 두 선분(캡슐 코어)끼리. 선분에는 옆 법선뿐이라 같은 줄 위에서 끝끼리 다가오는 둘을 SAT 가 가르지 못한다 -
         // 가장 가까운 두 점으로 잰다. 나란히 겹쳐 누우면 B 를 A 의 범위로 잘라 두 점을 만든다(쌓인 캡슐이 구르지 않게).
-        Manifold CollideSegments(Vec2 p1, Vec2 q1, float radiusA, Vec2 p2, Vec2 q2, float radiusB)
+        Manifold CollideSegments(Vector2 p1, Vector2 q1, float radiusA, Vector2 p2, Vector2 q2, float radiusB)
         {
             Manifold manifold;
             const float radius = radiusA + radiusB;
@@ -281,20 +281,20 @@ namespace JBro::Physics2D
                 return manifold;
             }
             const float distance = std::sqrt(closest.distanceSquared);
-            const Vec2 d1 = Subtract(q1, p1);
+            const Vector2 d1 = Subtract(q1, p1);
             const float length1 = Length(d1);
 
             if (length1 > FLT_EPSILON)
             {
-                const Vec2 u1 = Scale(d1, 1.0f / length1);
+                const Vector2 u1 = Scale(d1, 1.0f / length1);
                 const float fp2 = Dot(Subtract(p2, p1), u1);
                 const float fq2 = Dot(Subtract(q2, p1), u1);
                 const bool beyondA = (fp2 <= 0.0f && fq2 <= 0.0f) || (fp2 >= length1 && fq2 >= length1);
                 if (false == beyondA)
                 {
                     // B 의 두 끝을 A 의 [0, length1] 로 자른다.
-                    Vec2 lower = fp2 < fq2 ? p2 : q2;
-                    Vec2 upper = fp2 < fq2 ? q2 : p2;
+                    Vector2 lower = fp2 < fq2 ? p2 : q2;
+                    Vector2 upper = fp2 < fq2 ? q2 : p2;
                     const float fLower = std::fmin(fp2, fq2);
                     const float fUpper = std::fmax(fp2, fq2);
                     if (fLower < 0.0f && fUpper - fLower > FLT_EPSILON)
@@ -305,14 +305,14 @@ namespace JBro::Physics2D
                     {
                         upper = Add(upper, Scale(Subtract(lower, upper), (fUpper - length1) / (fUpper - fLower)));
                     }
-                    const Vec2 side{ -u1.y, u1.x };
+                    const Vector2 side{ -u1.y, u1.x };
                     const float sideLower = Dot(Subtract(lower, p1), side);
                     const float sideUpper = Dot(Subtract(upper, p1), side);
                     // 두 점이 A 의 같은 쪽에 있을 때만 면 접촉이다. 가로지르면 아래의 가장 가까운 점 하나로 간다.
                     if (sideLower * sideUpper > 0.0f)
                     {
-                        const Vec2 normal = sideLower > 0.0f ? side : Scale(side, -1.0f);
-                        const Vec2 clipped[2] = { lower, upper };
+                        const Vector2 normal = sideLower > 0.0f ? side : Scale(side, -1.0f);
+                        const Vector2 clipped[2] = { lower, upper };
                         const float gaps[2] = { std::fabs(sideLower), std::fabs(sideUpper) };
                         manifold.normal = normal;
                         for (std::uint32_t i = 0; i < 2; ++i)
@@ -334,7 +334,7 @@ namespace JBro::Physics2D
             }
 
             // 끝끼리이거나 가로지른다. 가장 가까운 두 점 사이로 한 점이다.
-            Vec2 normal;
+            Vector2 normal;
             if (distance > FLT_EPSILON)
             {
                 normal = Scale(Subtract(closest.closest2, closest.closest1), 1.0f / distance);
@@ -406,7 +406,7 @@ namespace JBro::Physics2D
             flip = true;
         }
 
-        const Vec2 referenceNormal = reference->normals[referenceEdge];
+        const Vector2 referenceNormal = reference->normals[referenceEdge];
 
         // 입사면은 상대 도형에서 기준 법선과 가장 반대로 향한 변이다.
         std::uint32_t incidentEdge = 0;
@@ -421,10 +421,10 @@ namespace JBro::Physics2D
             }
         }
 
-        const Vec2 v11 = reference->points[referenceEdge];
-        const Vec2 v12 = reference->points[(referenceEdge + 1) % reference->count];
-        const Vec2 v21 = incident->points[incidentEdge];
-        const Vec2 v22 = incident->points[(incidentEdge + 1) % incident->count];
+        const Vector2 v11 = reference->points[referenceEdge];
+        const Vector2 v12 = reference->points[(referenceEdge + 1) % reference->count];
+        const Vector2 v21 = incident->points[incidentEdge];
+        const Vector2 v22 = incident->points[(incidentEdge + 1) % incident->count];
 
         // 둥근 도형의 코어가 떨어져 있으면 가장 가까운 것이 모서리끼리일 수 있다. 면 법선만으로는 둥근 모서리를 돌아가는
         // 방향이 나오지 않아(모서리 옆의 틈을 닿은 것으로 본다) 두 모서리를 잇는 방향으로 한 점을 만든다(Box2D v3 와 같다).
@@ -434,7 +434,7 @@ namespace JBro::Physics2D
         {
             const SegmentDistance closest = ComputeSegmentDistance(v11, v12, v21, v22);
             const float distance = std::sqrt(closest.distanceSquared);
-            const Vec2 normal = distance > FLT_EPSILON
+            const Vector2 normal = distance > FLT_EPSILON
                 ? Scale(Subtract(closest.closest2, closest.closest1), 1.0f / distance)
                 : referenceNormal;
             // 모서리가 기준면 바로 앞이면(두 모서리를 잇는 방향이 기준 법선이면) 면 판정이 같은 거리를 주고 두 점을 지킨다 -
@@ -461,13 +461,13 @@ namespace JBro::Physics2D
             }
         }
 
-        const Vec2 edge = Subtract(v12, v11);
+        const Vector2 edge = Subtract(v12, v11);
         const float edgeLength = Length(edge);
         if (edgeLength <= 0.0f)
         {
             return manifold;
         }
-        const Vec2 tangent = Scale(edge, 1.0f / edgeLength);
+        const Vector2 tangent = Scale(edge, 1.0f / edgeLength);
 
         // 번호는 (기준이 누구인가, 기준 변, 입사 변, 그 안의 자리) 다. 같은 두 면이 계속 맞닿아 있으면 같은 번호다.
         const std::uint32_t base = (flip ? 0x8000u : 0u) | (referenceEdge << 8) | (incidentEdge << 4);
@@ -525,7 +525,7 @@ namespace JBro::Physics2D
     }
 
     bool RaycastPolygon(const ConvexPolygon& polygon, const Pose& pose,
-        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal)
+        Vector2 origin, Vector2 direction, float maxDistance, float& distance, Vector2& normal)
     {
         if (polygon.radius > 0.0f)
         {
@@ -535,20 +535,20 @@ namespace JBro::Physics2D
         if (polygon.count == 2 && maxDistance >= 0.0f)
         {
             // 두께 없는 선분(체인)이다. 양면으로 맞고, 법선은 쏜 쪽을 향한다.
-            const Vec2 a = TransformPoint(pose, polygon.points[0]);
-            const Vec2 b = TransformPoint(pose, polygon.points[1]);
+            const Vector2 a = TransformPoint(pose, polygon.points[0]);
+            const Vector2 b = TransformPoint(pose, polygon.points[1]);
             float t = 0.0f;
             if (false == RaySegment(origin, direction, a, b, t) || t > maxDistance)
             {
                 return false;
             }
-            const Vec2 edge = Subtract(b, a);
+            const Vector2 edge = Subtract(b, a);
             const float length = Length(edge);
             if (length <= 0.0f)
             {
                 return false;
             }
-            Vec2 n{ edge.y / length, -edge.x / length };
+            Vector2 n{ edge.y / length, -edge.x / length };
             if (Dot(n, direction) > 0.0f)
             {
                 n = Scale(n, -1.0f);
@@ -607,14 +607,14 @@ namespace JBro::Physics2D
     }
 
     bool RaycastCircle(const Circle& circle, const Pose& pose,
-        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal)
+        Vector2 origin, Vector2 direction, float maxDistance, float& distance, Vector2& normal)
     {
         if (circle.radius <= 0.0f || maxDistance < 0.0f)
         {
             return false;
         }
-        const Vec2 center = TransformPoint(pose, circle.center);
-        const Vec2 offset = Subtract(origin, center);
+        const Vector2 center = TransformPoint(pose, circle.center);
+        const Vector2 offset = Subtract(origin, center);
         const float c = Dot(offset, offset) - circle.radius * circle.radius;
         if (c <= 0.0f)
         {
@@ -634,7 +634,7 @@ namespace JBro::Physics2D
             return false;
         }
         distance = t;
-        const Vec2 hit = Add(origin, Scale(direction, t));
+        const Vector2 hit = Add(origin, Scale(direction, t));
         normal = Scale(Subtract(hit, center), 1.0f / circle.radius);
         return true;
     }
@@ -678,7 +678,7 @@ namespace JBro::Physics2D
     namespace
     {
         // 점 모음의 볼록 껍질(반시계, Andrew 의 단조 사슬). 일직선 점은 뺀다. `out` 은 `count + 1` 칸이면 된다.
-        std::uint32_t ConvexHull(Vec2* points, std::uint32_t count, Vec2* out)
+        std::uint32_t ConvexHull(Vector2* points, std::uint32_t count, Vector2* out)
         {
             if (count < 3)
             {
@@ -688,7 +688,7 @@ namespace JBro::Physics2D
                 }
                 return count;
             }
-            std::sort(points, points + count, [](Vec2 a, Vec2 b)
+            std::sort(points, points + count, [](Vector2 a, Vector2 b)
             {
                 return a.x != b.x ? a.x < b.x : a.y < b.y;
             });
@@ -705,7 +705,7 @@ namespace JBro::Physics2D
             const std::uint32_t lower = size + 1;
             for (std::uint32_t i = count - 1; i > 0; --i)
             {
-                const Vec2 point = points[i - 1];
+                const Vector2 point = points[i - 1];
                 while (size >= lower && Cross(Subtract(out[size - 1], out[size - 2]), Subtract(point, out[size - 2])) <= 0.0f)
                 {
                     --size;
@@ -717,8 +717,8 @@ namespace JBro::Physics2D
         }
 
         // 반시계 볼록 껍질에 원점에서 반직선을 쏜다(Cyrus-Beck). 원점이 안이면 거리 0 이다.
-        bool RaycastHull(const Vec2* hull, std::uint32_t count, Vec2 direction, float maxDistance,
-            float& distance, Vec2& normal)
+        bool RaycastHull(const Vector2* hull, std::uint32_t count, Vector2 direction, float maxDistance,
+            float& distance, Vector2& normal)
         {
             if (count < 3)
             {
@@ -727,18 +727,18 @@ namespace JBro::Physics2D
             float lower = 0.0f;
             float upper = maxDistance;
             bool entered = false;
-            Vec2 enteredNormal;
+            Vector2 enteredNormal;
             for (std::uint32_t i = 0; i < count; ++i)
             {
-                const Vec2 a = hull[i];
-                const Vec2 b = hull[(i + 1) % count];
-                const Vec2 edge = Subtract(b, a);
+                const Vector2 a = hull[i];
+                const Vector2 b = hull[(i + 1) % count];
+                const Vector2 edge = Subtract(b, a);
                 const float length = Length(edge);
                 if (length <= 0.0f)
                 {
                     continue;
                 }
-                const Vec2 outward{ edge.y / length, -edge.x / length };
+                const Vector2 outward{ edge.y / length, -edge.x / length };
                 const float numerator = Dot(outward, a);
                 const float denominator = Dot(outward, direction);
                 if (denominator == 0.0f)
@@ -771,15 +771,15 @@ namespace JBro::Physics2D
         }
 
         // 선분(반직선이 뒤에서 들어오지 않는 쪽)과 반직선. 맞으면 원점에서의 거리.
-        bool RaySegment(Vec2 origin, Vec2 direction, Vec2 a, Vec2 b, float& t)
+        bool RaySegment(Vector2 origin, Vector2 direction, Vector2 a, Vector2 b, float& t)
         {
-            const Vec2 edge = Subtract(b, a);
+            const Vector2 edge = Subtract(b, a);
             const float denominator = Cross(direction, edge);
             if (denominator == 0.0f)
             {
                 return false;
             }
-            const Vec2 toA = Subtract(a, origin);
+            const Vector2 toA = Subtract(a, origin);
             const float along = Cross(toA, edge) / denominator;
             const float across = Cross(toA, direction) / denominator;
             if (along < 0.0f || across < 0.0f || across > 1.0f)
@@ -791,7 +791,7 @@ namespace JBro::Physics2D
         }
 
         // 원점에서 반시계 볼록 점 모음(두 점이면 선분, 한 점이면 점)까지의 거리. 안이면 0 이다.
-        float DistanceToHull(const Vec2* hull, std::uint32_t count)
+        float DistanceToHull(const Vector2* hull, std::uint32_t count)
         {
             if (count == 1)
             {
@@ -801,9 +801,9 @@ namespace JBro::Physics2D
             float best = FLT_MAX;
             for (std::uint32_t i = 0; i < count; ++i)
             {
-                const Vec2 a = hull[i];
-                const Vec2 b = hull[(i + 1) % count];
-                const Vec2 edge = Subtract(b, a);
+                const Vector2 a = hull[i];
+                const Vector2 b = hull[(i + 1) % count];
+                const Vector2 edge = Subtract(b, a);
                 if (Cross(edge, Scale(a, -1.0f)) < 0.0f)
                 {
                     inside = false;
@@ -817,8 +817,8 @@ namespace JBro::Physics2D
 
         // 반시계 볼록 점 모음을 radius 만큼 부풀린 모양에 원점에서 반직선을 쏜다: 앞면마다 민 선분, 꼭짓점마다 원.
         // 원점이 이미 안이면 거리 0 이다.
-        bool RaycastRoundedHull(const Vec2* hull, std::uint32_t count, float radius, Vec2 direction, float maxDistance,
-            float& distance, Vec2& normal)
+        bool RaycastRoundedHull(const Vector2* hull, std::uint32_t count, float radius, Vector2 direction, float maxDistance,
+            float& distance, Vector2& normal)
         {
             if (count == 0)
             {
@@ -830,19 +830,19 @@ namespace JBro::Physics2D
                 normal = Scale(direction, -1.0f);
                 return true;
             }
-            const Vec2 origin{};
+            const Vector2 origin{};
             bool hit = false;
             float best = maxDistance;
-            Vec2 bestNormal;
+            Vector2 bestNormal;
             for (std::uint32_t i = 0; count >= 2 && i < count; ++i)
             {
-                const Vec2 edge = Subtract(hull[(i + 1) % count], hull[i]);
+                const Vector2 edge = Subtract(hull[(i + 1) % count], hull[i]);
                 const float length = Length(edge);
                 if (length <= 0.0f)
                 {
                     continue;
                 }
-                const Vec2 n{ edge.y / length, -edge.x / length };
+                const Vector2 n{ edge.y / length, -edge.x / length };
                 if (Dot(n, direction) >= 0.0f)
                 {
                     continue;
@@ -862,7 +862,7 @@ namespace JBro::Physics2D
                 corner.center = hull[i];
                 corner.radius = radius;
                 float t = 0.0f;
-                Vec2 n;
+                Vector2 n;
                 if (RaycastCircle(corner, Pose{}, origin, direction, best, t, n) && t <= best)
                 {
                     hit = true;
@@ -879,7 +879,7 @@ namespace JBro::Physics2D
         }
     }
 
-    bool ContainsPoint(const ConvexPolygon& polygon, const Pose& pose, Vec2 point)
+    bool ContainsPoint(const ConvexPolygon& polygon, const Pose& pose, Vector2 point)
     {
         if (polygon.radius > 0.0f)
         {
@@ -904,7 +904,7 @@ namespace JBro::Physics2D
         return true;
     }
 
-    bool ContainsPoint(const Circle& circle, const Pose& pose, Vec2 point)
+    bool ContainsPoint(const Circle& circle, const Pose& pose, Vector2 point)
     {
         return LengthSquared(Subtract(point, TransformPoint(pose, circle.center))) <= circle.radius * circle.radius;
     }
@@ -915,8 +915,8 @@ namespace JBro::Physics2D
         return LengthSquared(Subtract(TransformPoint(poseB, b.center), TransformPoint(poseA, a.center))) <= reach * reach;
     }
 
-    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
-        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal)
+    bool CastCircle(Vector2 center, float radius, Vector2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vector2& normal)
     {
         if (target.count < 2 || (target.count < 3 && radius + target.radius <= 0.0f) || radius < 0.0f || maxDistance < 0.0f)
         {
@@ -940,16 +940,16 @@ namespace JBro::Physics2D
         const float grown = radius + target.radius;
         bool hit = false;
         float best = maxDistance;
-        Vec2 bestNormal;
+        Vector2 bestNormal;
         for (std::uint32_t i = 0; i < world.count; ++i)
         {
-            const Vec2 n = world.normals[i];
+            const Vector2 n = world.normals[i];
             if (Dot(n, direction) >= 0.0f)
             {
                 continue;
             }
-            const Vec2 a = Add(world.points[i], Scale(n, grown));
-            const Vec2 b = Add(world.points[(i + 1) % world.count], Scale(n, grown));
+            const Vector2 a = Add(world.points[i], Scale(n, grown));
+            const Vector2 b = Add(world.points[(i + 1) % world.count], Scale(n, grown));
             float t = 0.0f;
             if (RaySegment(center, direction, a, b, t) && t <= best)
             {
@@ -964,7 +964,7 @@ namespace JBro::Physics2D
             corner.center = world.points[i];
             corner.radius = grown;
             float t = 0.0f;
-            Vec2 n;
+            Vector2 n;
             if (grown > 0.0f && RaycastCircle(corner, Pose{}, center, direction, best, t, n) && t <= best)
             {
                 hit = true;
@@ -980,8 +980,8 @@ namespace JBro::Physics2D
         return hit;
     }
 
-    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
-        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal)
+    bool CastCircle(Vector2 center, float radius, Vector2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vector2& normal)
     {
         // 두 원은 반지름을 더한 한 원에 중심을 쏘는 것과 같다.
         Circle grown = target;
@@ -989,8 +989,8 @@ namespace JBro::Physics2D
         return RaycastCircle(grown, targetPose, center, direction, maxDistance, distance, normal);
     }
 
-    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
-        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal)
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vector2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vector2& normal)
     {
         const float grown = moving.radius + target.radius;
         if (moving.count < 2 || target.count < 2 || (grown <= 0.0f && moving.count < 3 && target.count < 3)
@@ -1001,7 +1001,7 @@ namespace JBro::Physics2D
         // 미는 조각이 s 만큼 옮겨졌을 때 닿는 것은 s 가 (target - moving) 안에 들 때다. 그 껍질에 원점에서 쏜다.
         const WorldPolygon a = ToWorld(moving, start);
         const WorldPolygon b = ToWorld(target, targetPose);
-        Vec2 differences[MaxPolygonVertices * MaxPolygonVertices];
+        Vector2 differences[MaxPolygonVertices * MaxPolygonVertices];
         std::uint32_t count = 0;
         for (std::uint32_t i = 0; i < b.count; ++i)
         {
@@ -1011,7 +1011,7 @@ namespace JBro::Physics2D
                 ++count;
             }
         }
-        Vec2 hull[MaxPolygonVertices * MaxPolygonVertices + 1];
+        Vector2 hull[MaxPolygonVertices * MaxPolygonVertices + 1];
         const std::uint32_t hullCount = ConvexHull(differences, count, hull);
         if (grown > 0.0f)
         {
@@ -1021,12 +1021,12 @@ namespace JBro::Physics2D
         return RaycastHull(hull, hullCount, direction, maxDistance, distance, normal);
     }
 
-    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
-        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal)
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vector2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vector2& normal)
     {
         // 조각이 원 쪽으로 가는 것은 원이 거꾸로 조각 쪽으로 오는 것과 같다. 원 스윕의 법선은 조각의 바깥이므로
         // 뒤집으면 원 표면에서 조각을 향한 법선이다.
-        const Vec2 back = Scale(direction, -1.0f);
+        const Vector2 back = Scale(direction, -1.0f);
         if (false == CastCircle(TransformPoint(targetPose, target.center), target.radius, back, maxDistance,
                 moving, start, distance, normal))
         {
@@ -1038,7 +1038,7 @@ namespace JBro::Physics2D
 
     Rect ComputeCircleBounds(const Circle& circle, const Pose& pose)
     {
-        const Vec2 center = TransformPoint(pose, circle.center);
+        const Vector2 center = TransformPoint(pose, circle.center);
         return { { center.x - circle.radius, center.y - circle.radius },
                  { center.x + circle.radius, center.y + circle.radius } };
     }
@@ -1073,16 +1073,16 @@ namespace JBro::Physics2D
 
         // 선분(월드)과 만난 법선을 받을지, 면 법선으로 바꿀지, 버릴지 정한다. face 는 만난 쪽의 면 법선이다. 어느 쪽인지는 상대의
         // 중심으로 정한다 - 이음매의 유령 법선은 가로라 그 부호로는 위·아래를 가를 수 없다.
-        ChainVerdict JudgeChainNormal(const ChainSegment& segment, Vec2 point, Vec2 normal, Vec2 otherCenter, Vec2& face)
+        ChainVerdict JudgeChainNormal(const ChainSegment& segment, Vector2 point, Vector2 normal, Vector2 otherCenter, Vector2& face)
         {
-            const Vec2 edge = Subtract(segment.p2, segment.p1);
+            const Vector2 edge = Subtract(segment.p2, segment.p1);
             const float length = Length(edge);
             if (length <= 0.0f)
             {
                 return ChainVerdict::Drop;
             }
-            const Vec2 tangent = Scale(edge, 1.0f / length);
-            const Vec2 segmentNormal{ tangent.y, -tangent.x };
+            const Vector2 tangent = Scale(edge, 1.0f / length);
+            const Vector2 segmentNormal{ tangent.y, -tangent.x };
             face = Dot(Subtract(otherCenter, segment.p1), segmentNormal) >= 0.0f ? segmentNormal : Scale(segmentNormal, -1.0f);
             if (Dot(normal, face) >= 1.0f - 1.0e-3f)
             {
@@ -1094,8 +1094,8 @@ namespace JBro::Physics2D
             {
                 return ChainVerdict::Keep;
             }
-            const Vec2 vertex = atEnd ? segment.p2 : segment.p1;
-            const Vec2 toGhost = Subtract(atEnd ? segment.next : segment.previous, vertex);
+            const Vector2 vertex = atEnd ? segment.p2 : segment.p1;
+            const Vector2 toGhost = Subtract(atEnd ? segment.next : segment.previous, vertex);
             const float ghostLength = Length(toGhost);
             if (ghostLength <= 0.0f)
             {
@@ -1108,13 +1108,13 @@ namespace JBro::Physics2D
             }
             // 이웃도 자기가 만난 쪽에서 볼록하게 보면 둘 중 그 꼭짓점을 끝(p2)으로 가진 선분만 맡는다. 이웃이 오목하게 보면
             // 이웃은 면으로 보고 놓으니 내가 맡는다 - 양면 체인이라 두 선분이 고른 쪽이 다를 수 있다.
-            const Vec2 ghostDirection = Scale(toGhost, 1.0f / ghostLength);
-            Vec2 neighborFace{ ghostDirection.y, -ghostDirection.x };
+            const Vector2 ghostDirection = Scale(toGhost, 1.0f / ghostLength);
+            Vector2 neighborFace{ ghostDirection.y, -ghostDirection.x };
             if (Dot(Subtract(otherCenter, vertex), neighborFace) < 0.0f)
             {
                 neighborFace = Scale(neighborFace, -1.0f);
             }
-            const Vec2 toMine = Subtract(atEnd ? segment.p1 : segment.p2, vertex);
+            const Vector2 toMine = Subtract(atEnd ? segment.p1 : segment.p2, vertex);
             const bool neighborConvex = Dot(toMine, neighborFace) < -LinearSlop * length;
             if (neighborConvex && false == atEnd)
             {
@@ -1122,7 +1122,7 @@ namespace JBro::Physics2D
             }
             // 맡은 꼭짓점에서는 상대의 법선을 그대로 받는다(다각형 면이 꼭짓점에 닿으면 내 면보다 기울어도 그 면 법선이 맞다).
             // 내 면도, 이웃의 바깥 법선(내 선분에서 멀어지는 쪽)도 등지면 쐐기 안으로 박힌 것이라 내 면으로 민다.
-            Vec2 neighborOut{ ghostDirection.y, -ghostDirection.x };
+            Vector2 neighborOut{ ghostDirection.y, -ghostDirection.x };
             if (Dot(neighborOut, toMine) > 0.0f)
             {
                 neighborOut = Scale(neighborOut, -1.0f);
@@ -1144,13 +1144,13 @@ namespace JBro::Physics2D
             return raw;
         }
         const ChainSegment world = ToWorld(segment, poseA);
-        Vec2 centroid;
+        Vector2 centroid;
         for (std::uint32_t i = 0; i < polygon.count; ++i)
         {
             centroid = Add(centroid, polygon.points[i]);
         }
         centroid = TransformPoint(poseB, Scale(centroid, 1.0f / static_cast<float>(polygon.count)));
-        Vec2 face;
+        Vector2 face;
         const ChainVerdict verdict = JudgeChainNormal(world, raw.points[0].point, raw.normal, centroid, face);
         if (verdict == ChainVerdict::Keep)
         {
@@ -1174,8 +1174,8 @@ namespace JBro::Physics2D
                 incidentEdge = i;
             }
         }
-        const Vec2 edge = Subtract(world.p2, world.p1);
-        const Vec2 tangent = Scale(edge, 1.0f / Length(edge));
+        const Vector2 edge = Subtract(world.p2, world.p1);
+        const Vector2 tangent = Scale(edge, 1.0f / Length(edge));
         const std::uint32_t base = 0x4000u | (incidentEdge << 4);
         const ClipVertex incident[2] = {
             { other.points[incidentEdge], base | 0u },
@@ -1217,7 +1217,7 @@ namespace JBro::Physics2D
             return raw;
         }
         const ChainSegment world = ToWorld(segment, poseA);
-        Vec2 face;
+        Vector2 face;
         const ChainVerdict verdict =
             JudgeChainNormal(world, raw.points[0].point, raw.normal, TransformPoint(poseB, circle.center), face);
         if (verdict == ChainVerdict::Keep)
@@ -1230,10 +1230,10 @@ namespace JBro::Physics2D
             return manifold;
         }
         // 중심이 선분 범위 밖이면 이웃 선분의 면이 맡는다(그쪽에서는 면 영역이다).
-        const Vec2 center = TransformPoint(poseB, circle.center);
-        const Vec2 edge = Subtract(world.p2, world.p1);
+        const Vector2 center = TransformPoint(poseB, circle.center);
+        const Vector2 edge = Subtract(world.p2, world.p1);
         const float length = Length(edge);
-        const Vec2 tangent = Scale(edge, 1.0f / length);
+        const Vector2 tangent = Scale(edge, 1.0f / length);
         const float along = Dot(Subtract(center, world.p1), tangent);
         if (along < 0.0f || along > length)
         {

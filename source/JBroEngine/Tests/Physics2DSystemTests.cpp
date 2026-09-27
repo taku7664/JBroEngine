@@ -24,7 +24,7 @@
 namespace
 {
     using JBro::Array;
-    using JBro::Vec2;
+    using JBro::Vector2;
     using JBro::Component::BodyType2D;
     using JBro::Component::Collider2D;
     using JBro::Component::ColliderShape2D;
@@ -123,14 +123,14 @@ namespace
             physics.Shutdown(canvas);
         }
 
-        JBro::GameObject* Object(const char* name, Vec2 position)
+        JBro::GameObject* Object(const char* name, Vector2 position)
         {
             JBro::GameObject* object = canvas.CreateObject(name);
             canvas.AttachComponent<Transform2D>(object)->position = position;
             return object;
         }
 
-        Collider2D* Box(JBro::GameObject* object, Vec2 size)
+        Collider2D* Box(JBro::GameObject* object, Vector2 size)
         {
             Collider2D* collider = canvas.AttachComponent<Collider2D>(object);
             collider->shape = ColliderShape2D::Box;
@@ -163,7 +163,7 @@ namespace
         }
     };
 
-    Array<Vec2> UOutline()
+    Array<Vector2> UOutline()
     {
         return { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
     }
@@ -234,7 +234,7 @@ namespace
 
         scene.Run(2.0f);
         Check(Near(scene.TransformOf(lid)->position.y, 3.5f, 2.0f * Slop), "the lid rests on both pillars");
-        const Vec2 pebblePosition = scene.TransformOf(pebble)->position;
+        const Vector2 pebblePosition = scene.TransformOf(pebble)->position;
         Check(Near(pebblePosition.y, 1.3f, 2.0f * Slop), "the pebble lands on the notch floor");
         Check(pebblePosition.x > 1.3f - Slop && pebblePosition.x < 1.7f + Slop, "between the inner walls");
         Check(cupProbe->collisionEnter == 2, "the cup hears each of the two once, though the lid touches two pieces");
@@ -641,8 +641,8 @@ namespace
 #endif
         for (int i = 0; i < 60; ++i)
         {
-            const JBro::Vec2 a = serial.TransformOf(serialBoxes[i])->position;
-            const JBro::Vec2 b = parallel.TransformOf(parallelBoxes[i])->position;
+            const JBro::Vector2 a = serial.TransformOf(serialBoxes[i])->position;
+            const JBro::Vector2 b = parallel.TransformOf(parallelBoxes[i])->position;
             Check(a.x == b.x && a.y == b.y, "every box lands where the single-thread canvas put it");
         }
     }
@@ -683,7 +683,7 @@ namespace
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(Near(body->linearVelocity.x, 2.0f * Frame, 1.0e-6f), "only that one");
         body->linearVelocity = { 0, 0 };
-        const JBro::Vec2 at = scene.TransformOf(box)->position;
+        const JBro::Vector2 at = scene.TransformOf(box)->position;
         body->AddImpulseAtPosition({ 1, 0 }, { at.x, at.y + 0.5f });
         scene.physics.FixedUpdate(scene.canvas, Frame);
         Check(Near(body->linearVelocity.x, 0.5f, 1.0e-5f) && Near(body->angularVelocity, -1.5f, 1.0e-4f),
@@ -880,7 +880,7 @@ namespace
         scene.Run(1.0f);
         // L 의 면적 중심은 (0.75, 1.25) 다(2x1 바닥과 1x2 기둥, 넓이가 같다). 반 바퀴 돌면 원점은 중심을 지나 맞은편으로
         // 간다: 원점 = 2·중심. 기존 엔진처럼 원점을 기준으로 돌렸다면 원점은 (0, 0) 에 남는다.
-        const Vec2 position = scene.TransformOf(l)->position;
+        const Vector2 position = scene.TransformOf(l)->position;
         Check(Near(JBro::Radian(scene.TransformOf(l)->GetRotationRadian()), 3.14159265f, 1.0e-3f), "half a turn in a second");
         Check(Near(position.x, 1.5f, 1.0e-3f) && Near(position.y, 2.5f, 1.0e-3f),
             "and the origin lands across the center of mass");
@@ -1025,7 +1025,7 @@ namespace
                 "with no partner the pin is written as the scaled anchor's world point");
             Check(Near(JBro::Radian(scene.TransformOf(rod)->GetRotationRadian()), -10.0f * degree, 2.0f * degree),
                 "the falling rod turns clockwise and the lower limit, measured from where it started, holds it");
-            const Vec2 end = scene.TransformOf(rod)->position;
+            const Vector2 end = scene.TransformOf(rod)->position;
             const JBro::Radian angle = scene.TransformOf(rod)->GetRotationRadian();
             Check(Near(end.x - std::cos(angle.Get()), 2.0f, 0.02f) && Near(end.y - std::sin(angle.Get()), 1.0f, 0.02f),
                 "and its end stays on the pin");

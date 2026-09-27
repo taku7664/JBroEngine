@@ -300,7 +300,7 @@ public:
 | §7 Layer는 순서를 표현 | 렌더가 순서·가시성을 읽지 않음, `LayerIndex`는 식별자 | P-5 |
 | §8 순회 중 생성·파괴 금지·재진입 가드 | 가드 없음 | P-4 |
 | §9 매 프레임 힙 할당 금지 | `TObjectPool::Create`의 `new`, `GetComponents<T>()`의 `Array` 반환 | 3.1, P-12(`GetComponents`는 out-param 판만 남김) |
-| §10.2 이름 순서 | `MeshRenderer`(3D 마커 없음), `Vec3`·`Quaternion`이 `Framework3D.h` 안 | 단계 1에서 `MeshRenderer3D`, OD2와 함께 Core 수학 타입 확정 |
+| §10.2 이름 순서 | `MeshRenderer`(3D 마커 없음), `Vector3`·`Quaternion`이 `Framework3D.h` 안 | 단계 1에서 `MeshRenderer3D`, OD2와 함께 Core 수학 타입 확정 |
 | §10.3 `Manager` 폐기 | `AssetManager`·`GetAssetManager` | P-9 |
 | CLAUDE.md 한 줄 제어문 금지 | `GameSystem.cpp:5-8` | 단계 1 정리 |
 | todo Success Criteria "3D 구성은 Runtime Canvas 실행 경계 사용" | 3D 호스트가 첫 프레임 종료 `[코드 정독]` | P-8 |

@@ -37,7 +37,7 @@ namespace
         return camera;
     }
 
-    JBro::GizmoCamera PerspectiveCamera(const JBro::Vec3& eye, const JBro::Quaternion& rotation)
+    JBro::GizmoCamera PerspectiveCamera(const JBro::Vector3& eye, const JBro::Quaternion& rotation)
     {
         JBro::Matrix4x4 projection;
         Check(JBro::MakePerspectiveMatrix(60.0f * Pi / 180.0f, 1.0f, 0.1f, 100.0f, projection),
@@ -67,7 +67,7 @@ namespace
             "+x must go right");
         Check(JBro::GizmoModel::Project(camera, {0.0f, 1.0f, 0.0f}, x, y) && Near(x, 100.0f) && Near(y, 0.0f),
             "+y must go up the screen, which is towards smaller y");
-        JBro::Vec3 world;
+        JBro::Vector3 world;
         Check(JBro::GizmoModel::Unproject(camera, 150.0f, 50.0f, 0.5f, world) && Near(world.x, 0.5f) && Near(world.y, 0.5f),
             "unprojecting a pixel must give the world point back");
 
@@ -252,7 +252,7 @@ namespace
         Check(JBro::GizmoModel::UpdateDrag(drag, camera, mouseX, mouseY, result), "and update");
         // 잡은 점은 축 위의 점이다. 그 점이 마우스 광선 위에 있으려면 다시 투영했을 때 마우스 자리여야 한다 -
         // 마우스가 축에서 벗어난 만큼은 축에 가장 가까운 점으로 흡수된다.
-        const JBro::Vec3 grabbed = JBro::Add(result.position, JBro::Scale(drag.axisDirection, drag.startParameter));
+        const JBro::Vector3 grabbed = JBro::Add(result.position, JBro::Scale(drag.axisDirection, drag.startParameter));
         float px = 0.0f;
         float py = 0.0f;
         Check(JBro::GizmoModel::Project(camera, grabbed, px, py), "the grabbed point must stay in front of the camera");

@@ -13,22 +13,22 @@ namespace JBro::Service
     {
     public:
         // Replaces hit. A miss or an unavailable system clears the previous result.
-        bool Raycast(Vec2 origin, Vec2 direction, float distance, RaycastHit2D& hit,
+        bool Raycast(Vector2 origin, Vector2 direction, float distance, RaycastHit2D& hit,
             std::uint32_t layerMask = AllPhysicsLayers) const;
-        void RaycastAll(Vec2 origin, Vec2 direction, float distance, Array<RaycastHit2D>& hits,
+        void RaycastAll(Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits,
             std::uint32_t layerMask = AllPhysicsLayers) const;
 
         // Replaces results with unique object handles. Reserve before repeated queries.
         // An unavailable system clears results without releasing the caller's capacity.
         void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
             std::uint32_t layerMask = AllPhysicsLayers) const;
-        GameObjectHandle OverlapPoint(Vec2 point, std::uint32_t layerMask = AllPhysicsLayers) const;
-        void OverlapCircle(Vec2 center, float radius, Array<GameObjectHandle>& results,
+        GameObjectHandle OverlapPoint(Vector2 point, std::uint32_t layerMask = AllPhysicsLayers) const;
+        void OverlapCircle(Vector2 center, float radius, Array<GameObjectHandle>& results,
             std::uint32_t layerMask = AllPhysicsLayers) const;
 
-        bool CircleCast(Vec2 origin, float radius, Vec2 direction, float distance, RaycastHit2D& hit,
+        bool CircleCast(Vector2 origin, float radius, Vector2 direction, float distance, RaycastHit2D& hit,
             std::uint32_t layerMask = AllPhysicsLayers) const;
-        bool BoxCast(Vec2 center, Vec2 halfExtents, float angle, Vec2 direction, float distance,
+        bool BoxCast(Vector2 center, Vector2 halfExtents, float angle, Vector2 direction, float distance,
             RaycastHit2D& hit, std::uint32_t layerMask = AllPhysicsLayers) const;
     };
 }

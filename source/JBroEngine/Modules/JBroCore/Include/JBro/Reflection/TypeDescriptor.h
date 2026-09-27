@@ -71,7 +71,7 @@ namespace JBro
         // 거짓이고 배열은 그대로다.
         //
         // 원소 타입을 아는 쪽이 옮긴다. 처음에는 부르는 쪽이 원소 코덱의 `Assign` 을 빌려
-        // 밀었는데, 필드로 말하는 타입(`Vec2`·`Color`·사용자 구조체)에는 코덱이 없어 옮기지
+        // 밀었는데, 필드로 말하는 타입(`Vector2`·`Color`·사용자 구조체)에는 코덱이 없어 옮기지
         // 못했다(D-89). 옮기다 원소의 이동이 던지면 거짓이고, 그때 배열은 반쯤 밀려 있을 수 있다.
         bool        (*Move)(void* array, std::size_t from, std::size_t to) noexcept = nullptr;
         void        (*Clear)(void* array) noexcept = nullptr;
@@ -127,16 +127,16 @@ namespace JBro
     // 기존 엔진은 18값 enum 을 두었고, 그 switch 가 직렬화기 한 파일에만 여섯 벌 있었다.
     struct TypeDescriptor
     {
-        NameId        typeName  = InvalidNameId;   // "float", "JBro.Vec2", "Ref<Sprite>"
+        NameId        typeName  = InvalidNameId;   // "float", "JBro.Vector2", "Ref<Sprite>"
         std::uint32_t size      = 0;
         std::uint32_t alignment = 0;
         // 참고용이다. 복사는 언제나 codec->Assign 을 거친다.
         bool          triviallyCopyable = false;
 
-        // 저장 파일에 필드를 **이름 없이 나열한다**. `Vec2` 는 `- 1.5` / `- 2` 로 적힌다.
+        // 저장 파일에 필드를 **이름 없이 나열한다**. `Vector2` 는 `- 1.5` / `- 2` 로 적힌다.
         // 좌표와 색은 씬 파일에서 압도적으로 흔해서 이름을 붙이면 파일이 세 배로 길어지고,
         // 기존 엔진도 같은 모양으로 적는다. 대가는 **필드 선언 순서가 파일 형식이 된다**는 것이다 —
-        // 그래서 이 표시는 필드가 늘지 않는 타입에만 붙인다(`Vec2`, `Color`, `Matrix3x2` 같은 것).
+        // 그래서 이 표시는 필드가 늘지 않는 타입에만 붙인다(`Vector2`, `Color`, `Matrix3x2` 같은 것).
         bool          writeFieldsAsSequence = false;
 
         // 구조는 ops 의 존재로 드러난다. 별도 Kind 축을 두지 않는다.
@@ -150,10 +150,10 @@ namespace JBro
         const EnumNames* enumNames = nullptr;   // enum 일 때만
         const RefTarget* refTarget = nullptr;   // Ref<T> 일 때만
 
-        // 구조를 가진 타입이 내놓는 자기 필드다. `Vec2` 면 x, y 다.
+        // 구조를 가진 타입이 내놓는 자기 필드다. `Vector2` 면 x, y 다.
         //
         // 이것이 있으면 **인스펙터도 직렬화도 이 타입을 몰라도 된다** — 필드를 타고 내려가
-        // 잎사귀에서 코덱을 만난다. 없으면 소비자마다 "Vec2 는 이렇게 그린다" 를 알아야 하고,
+        // 잎사귀에서 코덱을 만난다. 없으면 소비자마다 "Vector2 는 이렇게 그린다" 를 알아야 하고,
         // 그것이 기존 엔진에서 같은 지식이 여섯 군데 흩어진 이유다.
         const PropertyTable* fields = nullptr;
 

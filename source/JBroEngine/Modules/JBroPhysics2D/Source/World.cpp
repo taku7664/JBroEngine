@@ -24,14 +24,14 @@ namespace JBro::Physics2D
         // 한 방향 발판이 막는 법선의 부채꼴(위에서 60° 안, cos 60°).
         constexpr float OneWayCosine = 0.5f;
 
-        Vec2 Tangent(Vec2 normal)
+        Vector2 Tangent(Vector2 normal)
         {
             return { normal.y, -normal.x };
         }
 
         // 방향 d 로 본 역질량. 축을 고정하면 그 축의 성분이 빠진다(고정하지 않으면 inverseMass 와 같다).
         template <typename TBody>
-        float InverseMassAlong(const TBody& body, Vec2 d)
+        float InverseMassAlong(const TBody& body, Vector2 d)
         {
             return d.x * d.x * body.inverseMassAxes.x + d.y * d.y * body.inverseMassAxes.y;
         }
@@ -40,7 +40,7 @@ namespace JBro::Physics2D
         // 움직이는 몸만 쓴다. 정적·키네마틱 몸은 역질량이 0 이라 바뀔 것이 없고, 색 하나 안의 접촉 여럿이 같은 정적 몸을
         // 함께 쓰므로 쓰면 워커끼리 겹쳐 쓴다(D-234).
         template <typename TBody>
-        void PushVelocity(TBody& a, TBody& b, Vec2 rA, Vec2 rB, Vec2 impulse)
+        void PushVelocity(TBody& a, TBody& b, Vector2 rA, Vector2 rB, Vector2 impulse)
         {
             if (a.type == BodyType::Dynamic)
             {
@@ -55,7 +55,7 @@ namespace JBro::Physics2D
         }
 
         template <typename TBody>
-        void PushPosition(TBody& a, TBody& b, Vec2 rA, Vec2 rB, Vec2 impulse)
+        void PushPosition(TBody& a, TBody& b, Vector2 rA, Vector2 rB, Vector2 impulse)
         {
             if (a.type == BodyType::Dynamic)
             {
@@ -314,7 +314,7 @@ namespace JBro::Physics2D
     }
 
     PolygonError World::CreatePolygonShape(
-        BodyId bodyId, ArrayView<const Vec2> localOutline, const ShapeDef& def, ShapeId& out)
+        BodyId bodyId, ArrayView<const Vector2> localOutline, const ShapeDef& def, ShapeId& out)
     {
         out = {};
         Body* body = FindBody(bodyId);
@@ -349,7 +349,7 @@ namespace JBro::Physics2D
         return id;
     }
 
-    ShapeId World::CreateCapsuleShape(BodyId bodyId, Vec2 localA, Vec2 localB, float radius, const ShapeDef& def)
+    ShapeId World::CreateCapsuleShape(BodyId bodyId, Vector2 localA, Vector2 localB, float radius, const ShapeDef& def)
     {
         if (FindBody(bodyId) == nullptr || radius <= 0.0f)
         {
@@ -373,12 +373,12 @@ namespace JBro::Physics2D
         return id;
     }
 
-    bool World::BuildChain(ArrayView<const Vec2> points, bool loop, Array<Vec2>& filtered, Array<ChainSegment>& out)
+    bool World::BuildChain(ArrayView<const Vector2> points, bool loop, Array<Vector2>& filtered, Array<ChainSegment>& out)
     {
         out.Clear();
         filtered.Clear();
         // 이웃과 LinearSlop 안인 점은 한 점으로 본다. 닫힌 체인은 끝점이 첫 점과 같으면 한 번만 센다.
-        for (const Vec2& point : points)
+        for (const Vector2& point : points)
         {
             if (false == filtered.IsEmpty()
                 && LengthSquared(Subtract(point, filtered.Last())) <= LinearSlop * LinearSlop)
@@ -418,7 +418,7 @@ namespace JBro::Physics2D
         return true;
     }
 
-    ShapeId World::CreateChainShape(BodyId bodyId, ArrayView<const Vec2> localPoints, bool loop, const ShapeDef& def)
+    ShapeId World::CreateChainShape(BodyId bodyId, ArrayView<const Vector2> localPoints, bool loop, const ShapeDef& def)
     {
         if (FindBody(bodyId) == nullptr)
         {
@@ -436,7 +436,7 @@ namespace JBro::Physics2D
         return id;
     }
 
-    bool World::SetChainGeometry(ShapeId id, ArrayView<const Vec2> localPoints, bool loop)
+    bool World::SetChainGeometry(ShapeId id, ArrayView<const Vector2> localPoints, bool loop)
     {
         Shape* shape = FindShape(id);
         if (shape == nullptr || false == BuildChain(localPoints, loop, m_scratchChainPoints, m_scratchSegments))
@@ -452,7 +452,7 @@ namespace JBro::Physics2D
         return true;
     }
 
-    PolygonError World::SetPolygonGeometry(ShapeId id, ArrayView<const Vec2> localOutline)
+    PolygonError World::SetPolygonGeometry(ShapeId id, ArrayView<const Vector2> localOutline)
     {
         Shape* shape = FindShape(id);
         if (shape == nullptr)
@@ -489,7 +489,7 @@ namespace JBro::Physics2D
         return true;
     }
 
-    bool World::SetCapsuleGeometry(ShapeId id, Vec2 localA, Vec2 localB, float radius)
+    bool World::SetCapsuleGeometry(ShapeId id, Vector2 localA, Vector2 localB, float radius)
     {
         Shape* shape = FindShape(id);
         if (shape == nullptr || radius <= 0.0f)
@@ -659,7 +659,7 @@ namespace JBro::Physics2D
             }
             for (const ConvexPolygon& piece : shape.pieces)
             {
-                Vec2 middle;
+                Vector2 middle;
                 for (std::uint32_t i = 0; i < piece.count; ++i)
                 {
                     middle = Add(middle, piece.points[i]);
@@ -668,8 +668,8 @@ namespace JBro::Physics2D
                 float nearest = piece.count > 2 ? FLT_MAX : 0.0f;
                 for (std::uint32_t i = 0; piece.count > 2 && i < piece.count; ++i)
                 {
-                    const Vec2 a = piece.points[i];
-                    const Vec2 edge = Subtract(piece.points[(i + 1) % piece.count], a);
+                    const Vector2 a = piece.points[i];
+                    const Vector2 edge = Subtract(piece.points[(i + 1) % piece.count], a);
                     const float length = Length(edge);
                     if (length > 0.0f)
                     {
@@ -689,7 +689,7 @@ namespace JBro::Physics2D
         body.center = Add(body.origin, RotateVector(body.rotation, body.localCenter));
     }
 
-    void World::SetTransform(BodyId id, Vec2 position, float angle)
+    void World::SetTransform(BodyId id, Vector2 position, float angle)
     {
         Body* body = FindBody(id);
         if (body == nullptr)
@@ -703,10 +703,10 @@ namespace JBro::Physics2D
         WakeBody(*body);
     }
 
-    Vec2 World::GetPosition(BodyId id) const
+    Vector2 World::GetPosition(BodyId id) const
     {
         const Body* body = FindBody(id);
-        return body != nullptr ? body->origin : Vec2{};
+        return body != nullptr ? body->origin : Vector2{};
     }
 
     float World::GetAngle(BodyId id) const
@@ -715,19 +715,19 @@ namespace JBro::Physics2D
         return body != nullptr ? body->angle : 0.0f;
     }
 
-    Vec2 World::GetWorldCenter(BodyId id) const
+    Vector2 World::GetWorldCenter(BodyId id) const
     {
         const Body* body = FindBody(id);
-        return body != nullptr ? body->center : Vec2{};
+        return body != nullptr ? body->center : Vector2{};
     }
 
-    Vec2 World::GetLinearVelocity(BodyId id) const
+    Vector2 World::GetLinearVelocity(BodyId id) const
     {
         const Body* body = FindBody(id);
-        return body != nullptr ? body->linearVelocity : Vec2{};
+        return body != nullptr ? body->linearVelocity : Vector2{};
     }
 
-    void World::SetLinearVelocity(BodyId id, Vec2 velocity)
+    void World::SetLinearVelocity(BodyId id, Vector2 velocity)
     {
         Body* body = FindBody(id);
         if (body != nullptr && body->type != BodyType::Static)
@@ -787,7 +787,7 @@ namespace JBro::Physics2D
         UpdateMass(*body);
     }
 
-    void World::ApplyForce(BodyId id, Vec2 force, Vec2 worldPoint)
+    void World::ApplyForce(BodyId id, Vector2 force, Vector2 worldPoint)
     {
         Body* body = FindBody(id);
         if (body == nullptr || body->type != BodyType::Dynamic)
@@ -799,7 +799,7 @@ namespace JBro::Physics2D
         body->torque += Cross(Subtract(worldPoint, body->center), force);
     }
 
-    void World::ApplyForceToCenter(BodyId id, Vec2 force)
+    void World::ApplyForceToCenter(BodyId id, Vector2 force)
     {
         Body* body = FindBody(id);
         if (body == nullptr || body->type != BodyType::Dynamic)
@@ -821,7 +821,7 @@ namespace JBro::Physics2D
         body->torque += torque;
     }
 
-    void World::ApplyLinearImpulse(BodyId id, Vec2 impulse, Vec2 worldPoint)
+    void World::ApplyLinearImpulse(BodyId id, Vector2 impulse, Vector2 worldPoint)
     {
         Body* body = FindBody(id);
         if (body == nullptr || body->type != BodyType::Dynamic)
@@ -833,7 +833,7 @@ namespace JBro::Physics2D
         body->angularVelocity += body->inverseInertia * Cross(Subtract(worldPoint, body->center), impulse);
     }
 
-    void World::ApplyLinearImpulseToCenter(BodyId id, Vec2 impulse)
+    void World::ApplyLinearImpulseToCenter(BodyId id, Vector2 impulse)
     {
         Body* body = FindBody(id);
         if (body == nullptr || body->type != BodyType::Dynamic)
@@ -1066,8 +1066,8 @@ namespace JBro::Physics2D
                 Rect bounds;
                 if (shape.isChain)
                 {
-                    const Vec2 a = TransformPoint(pose, shape.segments[child].p1);
-                    const Vec2 b = TransformPoint(pose, shape.segments[child].p2);
+                    const Vector2 a = TransformPoint(pose, shape.segments[child].p1);
+                    const Vector2 b = TransformPoint(pose, shape.segments[child].p2);
                     bounds = UnionRect(MakeRectFromPoint(a), b);
                 }
                 else
@@ -1286,13 +1286,13 @@ namespace JBro::Physics2D
             }
             const Body& a = m_bodies[contact.bodyA];
             const Body& b = m_bodies[contact.bodyB];
-            const Vec2 normal = contact.manifold.normal;
-            const Vec2 tangent = Tangent(normal);
+            const Vector2 normal = contact.manifold.normal;
+            const Vector2 tangent = Tangent(normal);
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
                 const ManifoldPoint& point = contact.manifold.points[i];
-                const Vec2 rA = Subtract(point.point, a.center);
-                const Vec2 rB = Subtract(point.point, b.center);
+                const Vector2 rA = Subtract(point.point, a.center);
+                const Vector2 rB = Subtract(point.point, b.center);
                 contact.anchorA[i] = rA;
                 contact.anchorB[i] = rB;
                 // 현재 깊이 = dot(중심 변위 + 돌아간 팔의 차, n) + base. 시작에서는 manifold 의 깊이와 같다.
@@ -1310,7 +1310,7 @@ namespace JBro::Physics2D
                     + a.inverseInertia * rtA * rtA + b.inverseInertia * rtB * rtB;
                 contact.tangentMass[i] = tangentK > 0.0f ? 1.0f / tangentK : 0.0f;
 
-                const Vec2 relative = Subtract(
+                const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                     Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
                 contact.approachSpeed[i] = Dot(relative, normal);
@@ -1328,11 +1328,11 @@ namespace JBro::Physics2D
         {
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
-            const Vec2 normal = contact.manifold.normal;
-            const Vec2 tangent = Tangent(normal);
+            const Vector2 normal = contact.manifold.normal;
+            const Vector2 tangent = Tangent(normal);
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
-                const Vec2 impulse = Add(
+                const Vector2 impulse = Add(
                     Scale(normal, contact.normalImpulse[i]), Scale(tangent, contact.tangentImpulse[i]));
                 PushVelocity(a, b, contact.anchorA[i], contact.anchorB[i], impulse);
             }
@@ -1350,31 +1350,31 @@ namespace JBro::Physics2D
         {
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
-            const Vec2 normal = contact.manifold.normal;
-            const Vec2 tangent = Tangent(normal);
+            const Vector2 normal = contact.manifold.normal;
+            const Vector2 tangent = Tangent(normal);
 
             // 마찰을 먼저 푼다. 한계는 지금까지 쌓인 법선 임펄스의 μ 배다.
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
-                const Vec2 rA = contact.anchorA[i];
-                const Vec2 rB = contact.anchorB[i];
-                const Vec2 relative = Subtract(
+                const Vector2 rA = contact.anchorA[i];
+                const Vector2 rB = contact.anchorB[i];
+                const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                     Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
                 const float speed = Dot(relative, tangent);
                 const float limit = contact.friction * contact.normalImpulse[i];
                 const float old = contact.tangentImpulse[i];
                 const float next = std::clamp(old - contact.tangentMass[i] * speed, -limit, limit);
-                const Vec2 impulse = Scale(tangent, next - old);
+                const Vector2 impulse = Scale(tangent, next - old);
                 contact.tangentImpulse[i] = next;
                 PushVelocity(a, b, rA, rB, impulse);
             }
 
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
-                const Vec2 rA = contact.anchorA[i];
-                const Vec2 rB = contact.anchorB[i];
-                const Vec2 relative = Subtract(
+                const Vector2 rA = contact.anchorA[i];
+                const Vector2 rB = contact.anchorB[i];
+                const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                     Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
                 const float speed = Dot(relative, normal);
@@ -1384,7 +1384,7 @@ namespace JBro::Physics2D
                 const float bias = separation > 0.0f ? separation * inverseH : 0.0f;
                 const float old = contact.normalImpulse[i];
                 const float next = std::fmax(old - contact.normalMass[i] * (speed + bias), 0.0f);
-                const Vec2 impulse = Scale(normal, next - old);
+                const Vector2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
                 PushVelocity(a, b, rA, rB, impulse);
             }
@@ -1405,7 +1405,7 @@ namespace JBro::Physics2D
         {
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
-            const Vec2 normal = contact.manifold.normal;
+            const Vector2 normal = contact.manifold.normal;
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
                 // 빠르게 다가왔고 실제로 밀어낸 점만 튕긴다.
@@ -1413,16 +1413,16 @@ namespace JBro::Physics2D
                 {
                     continue;
                 }
-                const Vec2 rA = contact.anchorA[i];
-                const Vec2 rB = contact.anchorB[i];
-                const Vec2 relative = Subtract(
+                const Vector2 rA = contact.anchorA[i];
+                const Vector2 rB = contact.anchorB[i];
+                const Vector2 relative = Subtract(
                     Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                     Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
                 const float speed = Dot(relative, normal);
                 const float old = contact.normalImpulse[i];
                 const float next = std::fmax(
                     old - contact.normalMass[i] * (speed + contact.restitution * contact.approachSpeed[i]), 0.0f);
-                const Vec2 impulse = Scale(normal, next - old);
+                const Vector2 impulse = Scale(normal, next - old);
                 contact.normalImpulse[i] = next;
                 PushVelocity(a, b, rA, rB, impulse);
             }
@@ -1587,7 +1587,7 @@ namespace JBro::Physics2D
             {
                 body.angularVelocity *= MaxRotationPerSubStep / rotation;
             }
-            const Vec2 startCenter = body.center;
+            const Vector2 startCenter = body.center;
             body.center = Add(body.center, Scale(body.linearVelocity, h));
             body.angle += body.angularVelocity * h;
             // 이 서브스텝에 자기 두께의 절반보다 멀리 가는 동적 몸만 이어서 본다. 그보다 느리면 미리 만든 접촉이 잡는다.
@@ -1598,15 +1598,15 @@ namespace JBro::Physics2D
         }
     }
 
-    void World::ClampToFirstHit(Body& body, std::uint32_t bodyIndex, Vec2 startCenter)
+    void World::ClampToFirstHit(Body& body, std::uint32_t bodyIndex, Vector2 startCenter)
     {
-        const Vec2 move = Subtract(body.center, startCenter);
+        const Vector2 move = Subtract(body.center, startCenter);
         const float length = Length(move);
         if (length <= LinearSlop)
         {
             return;
         }
-        const Vec2 direction = Scale(move, 1.0f / length);
+        const Vector2 direction = Scale(move, 1.0f / length);
         // 도형은 돌지 않는다고 보고 끝 각도로 민다. 도는 몸의 모서리는 다음 서브스텝의 접촉이 맡는다.
         const Rotation rotation = Rotation::FromAngle(body.angle);
         const Pose start{ Subtract(startCenter, RotateVector(rotation, body.localCenter)), rotation };
@@ -1667,11 +1667,11 @@ namespace JBro::Physics2D
                             continue;
                         }
                         float distance = 0.0f;
-                        Vec2 normal;
+                        Vector2 normal;
                         bool found = false;
                         if (own.isCircle)
                         {
-                            const Vec2 center = TransformPoint(start, own.circle.center);
+                            const Vector2 center = TransformPoint(start, own.circle.center);
                             found = piece != nullptr
                                 ? CastCircle(center, own.circle.radius, direction, best, *piece, targetPose, distance, normal)
                                 : CastCircle(center, own.circle.radius, direction, best, target.circle, targetPose, distance, normal);
@@ -1711,13 +1711,13 @@ namespace JBro::Physics2D
         {
             Body& a = m_bodies[contact.bodyA];
             Body& b = m_bodies[contact.bodyB];
-            const Vec2 normal = contact.manifold.normal;
+            const Vector2 normal = contact.manifold.normal;
             for (std::uint32_t i = 0; i < contact.manifold.count; ++i)
             {
                 // 서브스텝 시작 뒤로 돈 만큼 팔을 돌린다.
-                const Vec2 rA = RotateVector(Rotation::FromAngle(a.angle - a.startAngle), contact.anchorA[i]);
-                const Vec2 rB = RotateVector(Rotation::FromAngle(b.angle - b.startAngle), contact.anchorB[i]);
-                const Vec2 moved = Subtract(Subtract(b.center, b.startCenter), Subtract(a.center, a.startCenter));
+                const Vector2 rA = RotateVector(Rotation::FromAngle(a.angle - a.startAngle), contact.anchorA[i]);
+                const Vector2 rB = RotateVector(Rotation::FromAngle(b.angle - b.startAngle), contact.anchorB[i]);
+                const Vector2 moved = Subtract(Subtract(b.center, b.startCenter), Subtract(a.center, a.startCenter));
                 const float separation = Dot(Add(moved, Subtract(rB, rA)), normal) + contact.baseSeparation[i];
 
                 // LinearSlop 만큼은 박힌 채 둔다. 0 으로 맞추면 닿았다 떨어졌다 하며 접촉이 끊긴다.
@@ -1735,7 +1735,7 @@ namespace JBro::Physics2D
                 {
                     continue;
                 }
-                const Vec2 impulse = Scale(normal, -correction / k);
+                const Vector2 impulse = Scale(normal, -correction / k);
                 PushPosition(a, b, rA, rB, impulse);
             }
         }
@@ -1768,8 +1768,8 @@ namespace JBro::Physics2D
             {
                 return false;
             }
-            const Vec2 up = RotateVector(m_bodies[shape.body].rotation, Vec2{ 0.0f, 1.0f });
-            const Vec2 outward = isA ? contact.manifold.normal : Scale(contact.manifold.normal, -1.0f);
+            const Vector2 up = RotateVector(m_bodies[shape.body].rotation, Vector2{ 0.0f, 1.0f });
+            const Vector2 outward = isA ? contact.manifold.normal : Scale(contact.manifold.normal, -1.0f);
             return Dot(outward, up) < OneWayCosine;
         };
         return passes(contact.shapeA, true) || passes(contact.shapeB, false);
@@ -1965,7 +1965,7 @@ namespace JBro::Physics2D
                 // 쌍은 도형 번호 순으로 적으므로, 번호가 뒤집혔으면 법선도 뒤집어 A→B 를 지킨다.
                 const bool swapped = pair.shapeA != contact.shapeA;
                 pair.normal = swapped
-                    ? Vec2{ -contact.manifold.normal.x, -contact.manifold.normal.y }
+                    ? Vector2{ -contact.manifold.normal.x, -contact.manifold.normal.y }
                     : contact.manifold.normal;
             }
             m_touching.Add(pair);

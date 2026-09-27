@@ -115,7 +115,7 @@ namespace JBro::Widget
     // 색 하나. 견본과 고르개가 붙는다 - 숫자 네 개가 아니라 색이다(§11.3).
     bool ColorField(const char* id, float rgba[4]);
 
-    // 한 줄에 칸 여럿의 실수 묶음(`Vec2`·`Rect`). 칸마다 번호를 쌓으므로 첫 칸의 Id 는
+    // 한 줄에 칸 여럿의 실수 묶음(`Vector2`·`Rect`). 칸마다 번호를 쌓으므로 첫 칸의 Id 는
     // `PushID(0)` 아래다. 범위를 주면 슬라이더, 아니면 끌기다.
     bool ScalarRunField(const char* id, float* values, int count, float speed,
         bool hasRange, float rangeMin, float rangeMax);

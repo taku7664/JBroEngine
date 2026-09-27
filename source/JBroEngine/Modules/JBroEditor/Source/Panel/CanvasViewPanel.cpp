@@ -766,7 +766,7 @@ namespace JBro
         const Matrix3x2 world = transform->worldValid
             ? transform->world
             : MakeTransformMatrix2D(transform->position, transform->GetRotationRadian(), transform->scale);
-        const Vec2 center{ world.m31, world.m32 };
+        const Vector2 center{ world.m31, world.m32 };
 
         // 오브젝트 로컬(유닛)의 사각형을 월드로 옮겨 감싼다. **회전도 따른다** - 예전에는 크기만 곱해, 돌린 스프라이트와
         // 글자의 모서리를 눌러도 잡히지 않았다(text-plan §7). 결과는 돌린 사각형을 감싸는 축 정렬 사각형이다.
@@ -905,13 +905,13 @@ namespace JBro
             pose.sine = std::sin(angle.Get());
             return true;
         };
-        const auto connectedPoint = [&](const GameObjectHandle& connected, Vec2 anchor) {
+        const auto connectedPoint = [&](const GameObjectHandle& connected, Vector2 anchor) {
             PolygonPose other;
             if (poseOf(Internal::GameObjectHandleAccess::Resolve(connected), other))
             {
                 return LocalToScreen(rect, other, {}, anchor);
             }
-            Vec2 screen;
+            Vector2 screen;
             WorldToScreen(rect, anchor.x, anchor.y, screen.x, screen.y);
             return screen;
         };
@@ -933,8 +933,8 @@ namespace JBro
                 {
                     continue;
                 }
-                const Vec2 a = LocalToScreen(rect, pose, {}, joint->anchor);
-                const Vec2 b = connectedPoint(joint->connectedObject, joint->connectedAnchor);
+                const Vector2 a = LocalToScreen(rect, pose, {}, joint->anchor);
+                const Vector2 b = connectedPoint(joint->connectedObject, joint->connectedAnchor);
                 draw->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), color, thickness);
                 draw->AddCircleFilled(ImVec2(a.x, a.y), 3.0f, color);
                 draw->AddCircleFilled(ImVec2(b.x, b.y), 3.0f, color);
@@ -946,12 +946,12 @@ namespace JBro
                 {
                     continue;
                 }
-                const Vec2 pin = LocalToScreen(rect, pose, {}, joint->anchor);
+                const Vector2 pin = LocalToScreen(rect, pose, {}, joint->anchor);
                 draw->AddCircle(ImVec2(pin.x, pin.y), 6.0f, color, 16, thickness);
                 // 자동이 아니면 상대 쪽 핀도 그린다 - 두 핀이 떨어져 있으면 재생할 때 그 사이를 당겨 붙인다.
                 if (false == joint->autoConnectedAnchor)
                 {
-                    const Vec2 other = connectedPoint(joint->connectedObject, joint->connectedAnchor);
+                    const Vector2 other = connectedPoint(joint->connectedObject, joint->connectedAnchor);
                     draw->AddLine(ImVec2(pin.x, pin.y), ImVec2(other.x, other.y), color, thickness);
                     draw->AddCircle(ImVec2(other.x, other.y), 3.0f, color, 12, thickness);
                 }
@@ -1025,7 +1025,7 @@ namespace JBro
                     const float scaleX = std::fabs(pose.scale.x);
                     const float scaleY = std::fabs(pose.scale.y);
                     const float radius = collider->radius * (scaleX > scaleY ? scaleX : scaleY);
-                    const Vec2 middle = LocalToScreen(rect, pose, collider->offset, {});
+                    const Vector2 middle = LocalToScreen(rect, pose, collider->offset, {});
                     float edgeX = 0.0f;
                     float edgeY = 0.0f;
                     float centerX = 0.0f;
@@ -1043,28 +1043,28 @@ namespace JBro
                     const Physics2D::ConvexPolygon capsule = Physics2D::MakeCapsuleInBox(
                         { collider->offset.x * pose.scale.x, collider->offset.y * pose.scale.y },
                         { collider->size.x * 0.5f * pose.scale.x, collider->size.y * 0.5f * pose.scale.y });
-                    const Vec2 a = capsule.points[0];
-                    const Vec2 b = capsule.points[1];
+                    const Vector2 a = capsule.points[0];
+                    const Vector2 b = capsule.points[1];
                     const float length = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
-                    const Vec2 axis = length > 0.0f ? Vec2{ (b.x - a.x) / length, (b.y - a.y) / length } : Vec2{ 1.0f, 0.0f };
-                    const Vec2 side{ -axis.y, axis.x };
+                    const Vector2 axis = length > 0.0f ? Vector2{ (b.x - a.x) / length, (b.y - a.y) / length } : Vector2{ 1.0f, 0.0f };
+                    const Vector2 side{ -axis.y, axis.x };
                     constexpr int ArcSegments = 16;
                     m_screenScratch.Clear();
                     // b 쪽 반원(옆 -side 에서 축 방향을 지나 +side), 이어서 a 쪽 반원. 두 반원 사이의 곧은 변은 닫는 선이다.
                     for (int end = 0; end < 2; ++end)
                     {
-                        const Vec2 cap = end == 0 ? b : a;
+                        const Vector2 cap = end == 0 ? b : a;
                         const float start = end == 0 ? -0.5f * Pi : 0.5f * Pi;
                         for (int k = 0; k <= ArcSegments; ++k)
                         {
                             const float turn = start + Pi * static_cast<float>(k) / static_cast<float>(ArcSegments);
                             const float c = std::cos(turn) * capsule.radius;
                             const float s = std::sin(turn) * capsule.radius;
-                            const Vec2 local{ cap.x + axis.x * c + side.x * s, cap.y + axis.y * c + side.y * s };
+                            const Vector2 local{ cap.x + axis.x * c + side.x * s, cap.y + axis.y * c + side.y * s };
                             // 캡슐은 크기와 offset 을 이미 곱한 바디 로컬이다. 돌리고 옮기기만 한다.
                             const float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
                             const float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
-                            Vec2 screen;
+                            Vector2 screen;
                             WorldToScreen(rect, worldX, worldY, screen.x, screen.y);
                             m_screenScratch.Add(screen);
                         }
@@ -1072,8 +1072,8 @@ namespace JBro
                     const std::size_t count = m_screenScratch.Size();
                     for (std::size_t index = 0; index < count; ++index)
                     {
-                        const Vec2 from = m_screenScratch[index];
-                        const Vec2 to = m_screenScratch[(index + 1) % count];
+                        const Vector2 from = m_screenScratch[index];
+                        const Vector2 to = m_screenScratch[(index + 1) % count];
                         draw->AddLine(ImVec2(from.x, from.y), ImVec2(to.x, to.y), color, thickness);
                     }
                     continue;
@@ -1092,7 +1092,7 @@ namespace JBro
                     PolygonEditModel::SeedPoints(box, m_outlineScratch);
                 }
                 m_screenScratch.Clear();
-                for (const Vec2& point : m_outlineScratch)
+                for (const Vector2& point : m_outlineScratch)
                 {
                     m_screenScratch.Add(LocalToScreen(rect, pose, collider->offset, point));
                 }
@@ -1112,7 +1112,7 @@ namespace JBro
                             for (std::uint32_t k = 0; k < convex.count; ++k)
                             {
                                 // 조각은 크기와 offset 을 이미 곱한 바디 로컬이다. 돌리고 옮기기만 한다.
-                                const Vec2 local = convex.points[k];
+                                const Vector2 local = convex.points[k];
                                 const float worldX = pose.center.x + local.x * pose.cosine - local.y * pose.sine;
                                 const float worldY = pose.center.y + local.x * pose.sine + local.y * pose.cosine;
                                 float screenX = 0.0f;
@@ -1130,27 +1130,27 @@ namespace JBro
                 const std::size_t edges = PolygonEditModel::IsClosedOutline(*collider) ? count : (count > 0 ? count - 1 : 0);
                 for (std::size_t index = 0; count >= 2 && index < edges; ++index)
                 {
-                    const Vec2 a = m_screenScratch[index];
-                    const Vec2 b = m_screenScratch[(index + 1) % count];
+                    const Vector2 a = m_screenScratch[index];
+                    const Vector2 b = m_screenScratch[(index + 1) % count];
                     draw->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), outlineColor, thickness);
                 }
             }
         });
     }
 
-    Vec2 CanvasViewPanel::LocalToScreen(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 local) const
+    Vector2 CanvasViewPanel::LocalToScreen(const ViewRect& rect, const PolygonPose& pose, Vector2 offset, Vector2 local) const
     {
         // 콜라이더의 점은 오브젝트 로컬이다. offset 을 더하고, 커지고, 돌고, 옮겨진다(물리와 같은 순서).
         const float x = (local.x + offset.x) * pose.scale.x;
         const float y = (local.y + offset.y) * pose.scale.y;
         const float worldX = pose.center.x + x * pose.cosine - y * pose.sine;
         const float worldY = pose.center.y + x * pose.sine + y * pose.cosine;
-        Vec2 screen;
+        Vector2 screen;
         WorldToScreen(rect, worldX, worldY, screen.x, screen.y);
         return screen;
     }
 
-    Vec2 CanvasViewPanel::ScreenToLocal(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 screen) const
+    Vector2 CanvasViewPanel::ScreenToLocal(const ViewRect& rect, const PolygonPose& pose, Vector2 offset, Vector2 screen) const
     {
         float worldX = 0.0f;
         float worldY = 0.0f;
@@ -1175,7 +1175,7 @@ namespace JBro
         return true;
     }
 
-    const CanvasViewPanel::PieceCache& CanvasViewPanel::PiecesFor(const Component::Collider2D& collider, Vec2 scale)
+    const CanvasViewPanel::PieceCache& CanvasViewPanel::PiecesFor(const Component::Collider2D& collider, Vector2 scale)
     {
         // 지문: 꼭짓점·offset·크기·size. 물리의 어댑터와 같은 판단을 하되 그 코드를 끌어오지 않는다 - 에디터는
         // 시스템이 돌지 않는 편집 중에도 그린다.
@@ -1189,7 +1189,7 @@ namespace JBro
             signature *= 1099511628211ull;
         };
         mix(static_cast<float>(collider.points.Size()));
-        for (const Vec2& point : collider.points)
+        for (const Vector2& point : collider.points)
         {
             mix(point.x);
             mix(point.y);
@@ -1213,7 +1213,7 @@ namespace JBro
         {
             cache->signature = signature;
             PolygonEditModel::SeedPoints(collider, m_outlineScratch);
-            for (Vec2& point : m_outlineScratch)
+            for (Vector2& point : m_outlineScratch)
             {
                 point = { (point.x + collider.offset.x) * scale.x, (point.y + collider.offset.y) * scale.y };
             }
@@ -1283,7 +1283,7 @@ namespace JBro
         return true;
     }
 
-    void CanvasViewPanel::CommitPoints(const ComponentAddress& address, const String& before, const Array<Vec2>& after)
+    void CanvasViewPanel::CommitPoints(const ComponentAddress& address, const String& before, const Array<Vector2>& after)
     {
         ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), address);
         SetPropertyCommand::Path path;
@@ -1329,7 +1329,7 @@ namespace JBro
             return;
         }
         Component::Collider2D& collider = *target.collider;
-        const Vec2 mouse{ io.MousePos.x, io.MousePos.y };
+        const Vector2 mouse{ io.MousePos.x, io.MousePos.y };
 
         if (m_vertexDragging)
         {
@@ -1349,14 +1349,14 @@ namespace JBro
             {
                 Widget::OverlayHandle(id, false, false, false);
                 m_vertexDragging = false;
-                const Array<Vec2> after = m_dragPoints;
+                const Array<Vector2> after = m_dragPoints;
                 CommitPoints(m_dragAddress, m_dragBefore, after);
             }
         }
 
         PolygonEditModel::SeedPoints(collider, m_outlineScratch);
         m_screenScratch.Clear();
-        for (const Vec2& point : m_outlineScratch)
+        for (const Vector2& point : m_outlineScratch)
         {
             m_screenScratch.Add(LocalToScreen(rect, target.pose, collider.offset, point));
         }
@@ -1403,7 +1403,7 @@ namespace JBro
                 if (SetPropertyCommand::MakeFieldPath(target.address.typeId, "points", path)
                     && SetPropertyCommand::ReadValue(collider, target.address.typeId, path, before))
                 {
-                    Array<Vec2> after = m_outlineScratch;
+                    Array<Vector2> after = m_outlineScratch;
                     PolygonEditModel::InsertOnEdge(after, m_polygonHover.index,
                         ScreenToLocal(rect, target.pose, collider.offset, m_polygonHover.point));
                     CommitPoints(target.address, before, after);
@@ -1424,13 +1424,13 @@ namespace JBro
         const std::size_t edges = PolygonEditModel::IsClosedOutline(collider) ? count : (count > 0 ? count - 1 : 0);
         for (std::size_t index = 0; count >= 2 && index < edges; ++index)
         {
-            const Vec2 a = m_screenScratch[index];
-            const Vec2 b = m_screenScratch[(index + 1) % count];
+            const Vector2 a = m_screenScratch[index];
+            const Vector2 b = m_screenScratch[(index + 1) % count];
             draw->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), edgeColor, 2.0f);
         }
         for (std::size_t index = 0; index < count; ++index)
         {
-            const Vec2 p = m_screenScratch[index];
+            const Vector2 p = m_screenScratch[index];
             const bool hot = (m_vertexDragging && index == m_dragVertex)
                 || (m_polygonHover.kind == PolygonEditModel::HitKind::Vertex && index == m_polygonHover.index);
             draw->AddCircleFilled(ImVec2(p.x + 1.0f, p.y + 1.0f), HandleRadius, shadow);
@@ -1438,7 +1438,7 @@ namespace JBro
         }
         if (m_polygonHover.kind == PolygonEditModel::HitKind::Edge)
         {
-            const Vec2 p = m_polygonHover.point;
+            const Vector2 p = m_polygonHover.point;
             draw->AddCircleFilled(ImVec2(p.x + 1.0f, p.y + 1.0f), HandleRadius, shadow);
             draw->AddCircleFilled(ImVec2(p.x, p.y), HandleRadius, insertColor);
         }
@@ -1454,7 +1454,7 @@ namespace JBro
             {
                 PolygonEditModel::SeedPoints(*target.collider, m_outlineScratch);
                 m_screenScratch.Clear();
-                for (const Vec2& point : m_outlineScratch)
+                for (const Vector2& point : m_outlineScratch)
                 {
                     m_screenScratch.Add(LocalToScreen(rect, target.pose, target.collider->offset, point));
                 }
@@ -1490,7 +1490,7 @@ namespace JBro
                 if (SetPropertyCommand::MakeFieldPath(m_menuAddress.typeId, "points", path)
                     && SetPropertyCommand::ReadValue(*collider, m_menuAddress.typeId, path, before))
                 {
-                    Array<Vec2> after = m_outlineScratch;
+                    Array<Vector2> after = m_outlineScratch;
                     if (PolygonEditModel::RemoveVertex(after, m_menuVertex, minimum))
                     {
                         CommitPoints(m_menuAddress, before, after);
@@ -1594,8 +1594,8 @@ namespace JBro
             pivotX = sprite->pivot.x;
             pivotY = sprite->pivot.y;
         }
-        const Vec2 center = transform->worldValid ? transform->worldPosition : transform->position;
-        const Vec2 scale = transform->worldValid ? transform->worldScale : transform->scale;
+        const Vector2 center = transform->worldValid ? transform->worldPosition : transform->position;
+        const Vector2 scale = transform->worldValid ? transform->worldScale : transform->scale;
         const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
         const float cosine = std::cos(angle.Get());
         const float sine = std::sin(angle.Get());
@@ -2157,7 +2157,7 @@ namespace JBro
         }
         // **바닥은 y=0 평면이다.** 격자를 카메라의 높이에 맞춰 띄우면 무엇이 바닥인지
         // 알 수 없게 되고, 오브젝트를 놓을 때 기준이 사라진다.
-        const Vec3 look{m_centerX, m_centerY, m_centerZ};
+        const Vector3 look{m_centerX, m_centerY, m_centerZ};
 
         // 간격은 2D 와 같은 눈금(1·2·5·10 …)을 쓴다. 다만 배율을 직교 크기가 아니라
         // **바라보는 점에서 한 단위가 몇 픽셀로 보이는지**로 잰다 - 원근에서는 거리가
@@ -2168,7 +2168,7 @@ namespace JBro
         float unitScreenY = 0.0f;
         if (false == GizmoModel::Project(camera, look, centerScreenX, centerScreenY)
             || false == GizmoModel::Project(
-                camera, Vec3{look.x + 1.0f, look.y, look.z}, unitScreenX, unitScreenY))
+                camera, Vector3{look.x + 1.0f, look.y, look.z}, unitScreenX, unitScreenY))
         {
             return;
         }
@@ -2201,7 +2201,7 @@ namespace JBro
         // 한 선을 토막 내어 잇는다. **양 끝만 투영하면 안 된다** - 선이 카메라 평면을
         // 가로지르면 한쪽 끝이 뒤에 있어 투영이 없고, 그러면 선 전체가 사라진다.
         constexpr int Segments = 16;
-        auto drawWorldLine = [&](const Vec3& from, const Vec3& to, ImU32 color, float thickness)
+        auto drawWorldLine = [&](const Vector3& from, const Vector3& to, ImU32 color, float thickness)
         {
             float previousX = 0.0f;
             float previousY = 0.0f;
@@ -2209,7 +2209,7 @@ namespace JBro
             for (int index = 0; index <= Segments; ++index)
             {
                 const float t = static_cast<float>(index) / static_cast<float>(Segments);
-                const Vec3 point{
+                const Vector3 point{
                     from.x + (to.x - from.x) * t,
                     from.y + (to.y - from.y) * t,
                     from.z + (to.z - from.z) * t};
@@ -2238,15 +2238,15 @@ namespace JBro
             // 열 칸마다 한 줄은 진하게. 2D 와 같은 규칙이라 배율이 같은 방식으로 읽힌다.
             const bool tenthX = std::fabs(std::fmod(x / step, 10.0f)) < 0.001f;
             const bool tenthZ = std::fabs(std::fmod(z / step, 10.0f)) < 0.001f;
-            drawWorldLine(Vec3{x, 0.0f, baseZ - half}, Vec3{x, 0.0f, baseZ + half},
+            drawWorldLine(Vector3{x, 0.0f, baseZ - half}, Vector3{x, 0.0f, baseZ + half},
                 tenthX ? strong : line, 1.0f);
-            drawWorldLine(Vec3{baseX - half, 0.0f, z}, Vec3{baseX + half, 0.0f, z},
+            drawWorldLine(Vector3{baseX - half, 0.0f, z}, Vector3{baseX + half, 0.0f, z},
                 tenthZ ? strong : line, 1.0f);
         }
 
         // 원점의 두 축. 어디가 (0,0,0) 인지 바닥에서 바로 보여야 한다.
-        drawWorldLine(Vec3{baseX - half, 0.0f, 0.0f}, Vec3{baseX + half, 0.0f, 0.0f}, axisX, 1.5f);
-        drawWorldLine(Vec3{0.0f, 0.0f, baseZ - half}, Vec3{0.0f, 0.0f, baseZ + half}, axisZ, 1.5f);
+        drawWorldLine(Vector3{baseX - half, 0.0f, 0.0f}, Vector3{baseX + half, 0.0f, 0.0f}, axisX, 1.5f);
+        drawWorldLine(Vector3{0.0f, 0.0f, baseZ - half}, Vector3{0.0f, 0.0f, baseZ + half}, axisZ, 1.5f);
     }
 
     void CanvasViewPanel::DrawSelectionMarkers3D(const ViewRect& rect)
@@ -2280,7 +2280,7 @@ namespace JBro
             {
                 continue;
             }
-            const Vec3 at = transform->worldValid ? transform->worldPosition : transform->position;
+            const Vector3 at = transform->worldValid ? transform->worldPosition : transform->position;
             float x = 0.0f;
             float y = 0.0f;
             if (false == GizmoModel::Project(camera, at, x, y))
@@ -2324,14 +2324,14 @@ namespace JBro
         // **3D 텍스트는 글자 블록으로 고른다**(D-222). 크기를 아는 유일한 3D 그림이다 - 블록의 네 모서리를 화면으로 투영한 사각형 안을 누르면
         // 그 텍스트다(자리 투영보다 먼저 이긴다). 빌보드의 모서리는 편집 카메라의 오른쪽·위 축으로 편다(그린 것과 같은 카메라).
         System::Text3DSystem* texts = canvas->GetSystems().FindSystem<System::Text3DSystem>();
-        Vec3 cameraRight{1.0f, 0.0f, 0.0f};
-        Vec3 cameraUp{0.0f, 1.0f, 0.0f};
+        Vector3 cameraRight{1.0f, 0.0f, 0.0f};
+        Vector3 cameraUp{0.0f, 1.0f, 0.0f};
         CameraParams drawn;
         if (Renderer* renderer = m_editor->GetRenderer(); renderer != nullptr && renderer->GetLastEditorViewCamera(drawn))
         {
             // 뷰 행렬의 왼쪽 위 3x3 은 카메라 회전의 전치다 - 첫 행이 카메라의 오른쪽, 둘째 행이 위다.
-            cameraRight = Vec3{drawn.view.values[0], drawn.view.values[1], drawn.view.values[2]};
-            cameraUp = Vec3{drawn.view.values[4], drawn.view.values[5], drawn.view.values[6]};
+            cameraRight = Vector3{drawn.view.values[0], drawn.view.values[1], drawn.view.values[2]};
+            cameraUp = Vector3{drawn.view.values[4], drawn.view.values[5], drawn.view.values[6]};
         }
         const auto insideText = [&](GameObject& object, const Component::Transform3D& transform) -> bool {
             if (texts == nullptr)
@@ -2348,12 +2348,12 @@ namespace JBro
             {
                 return false;
             }
-            const Vec3 origin = transform.worldValid ? transform.worldPosition : transform.position;
+            const Vector3 origin = transform.worldValid ? transform.worldPosition : transform.position;
             const Quaternion rotation = transform.worldValid ? transform.worldRotation : transform.rotation;
-            const Vec3 scale = transform.worldValid ? transform.worldScale : transform.scale;
+            const Vector3 scale = transform.worldValid ? transform.worldScale : transform.scale;
             const bool billboard = text->facing == Component::TextFacing3D::Billboard;
-            const Vec3 axisX = billboard ? Scale(cameraRight, scale.x) : Rotate(rotation, Vec3{scale.x, 0.0f, 0.0f});
-            const Vec3 axisY = billboard ? Scale(cameraUp, scale.y) : Rotate(rotation, Vec3{0.0f, scale.y, 0.0f});
+            const Vector3 axisX = billboard ? Scale(cameraRight, scale.x) : Rotate(rotation, Vector3{scale.x, 0.0f, 0.0f});
+            const Vector3 axisY = billboard ? Scale(cameraUp, scale.y) : Rotate(rotation, Vector3{0.0f, scale.y, 0.0f});
             float screenMinX = 0.0f;
             float screenMinY = 0.0f;
             float screenMaxX = 0.0f;
@@ -2385,7 +2385,7 @@ namespace JBro
                 bestDistance = -1.0f;
                 return;
             }
-            const Vec3 at = transform->worldValid ? transform->worldPosition : transform->position;
+            const Vector3 at = transform->worldValid ? transform->worldPosition : transform->position;
             float x = 0.0f;
             float y = 0.0f;
             if (false == GizmoModel::Project(camera, at, x, y))

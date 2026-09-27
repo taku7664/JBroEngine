@@ -32,23 +32,23 @@ namespace JBro::Physics2D
     // 크기(scale)는 들지 않는다. 트랜스폼의 크기는 도형의 로컬 점에 미리 곱해 둔다.
     struct Pose
     {
-        Vec2     position;
+        Vector2     position;
         Rotation rotation;
     };
 
-    Vec2 TransformPoint(const Pose& pose, Vec2 local);
-    Vec2 RotateVector(Rotation rotation, Vec2 local);
+    Vector2 TransformPoint(const Pose& pose, Vector2 local);
+    Vector2 RotateVector(Rotation rotation, Vector2 local);
 
     struct Circle
     {
-        Vec2  center;
+        Vector2  center;
         float radius = 0.0f;
     };
 
     struct ManifoldPoint
     {
         // 두 표면의 가운데 점(월드).
-        Vec2          point;
+        Vector2          point;
         // 음수면 박힌 깊이, 양수면 아직 남은 틈이다.
         float         separation = 0.0f;
         // 같은 두 도형의 다음 스텝 접촉과 짝을 짓는 번호. 누적 임펄스를 이어 준다.
@@ -57,7 +57,7 @@ namespace JBro::Physics2D
 
     struct Manifold
     {
-        Vec2          normal;
+        Vector2          normal;
         ManifoldPoint points[2];
         std::uint32_t count = 0;
     };
@@ -73,10 +73,10 @@ namespace JBro::Physics2D
     // 꼭짓점을 끝(p2)으로 가진 선분만 맡는다. has* 가 거짓이면 체인의 끝이라 모서리를 그대로 받는다.
     struct ChainSegment
     {
-        Vec2 p1;
-        Vec2 p2;
-        Vec2 previous;
-        Vec2 next;
+        Vector2 p1;
+        Vector2 p2;
+        Vector2 previous;
+        Vector2 next;
         bool hasPrevious = false;
         bool hasNext = false;
     };
@@ -93,9 +93,9 @@ namespace JBro::Physics2D
     // 반직선 질의. direction 은 단위 벡터다. 맞으면 origin 에서 표면까지의 거리와 그 자리의 바깥 법선을 준다.
     // 출발점이 이미 도형 안이면 거리 0, 법선은 -direction 으로 알린다 - 박힌 상태를 감추지 않는다(기존 엔진의 스윕과 같다).
     bool RaycastPolygon(const ConvexPolygon& polygon, const Pose& pose,
-        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal);
+        Vector2 origin, Vector2 direction, float maxDistance, float& distance, Vector2& normal);
     bool RaycastCircle(const Circle& circle, const Pose& pose,
-        Vec2 origin, Vec2 direction, float maxDistance, float& distance, Vec2& normal);
+        Vector2 origin, Vector2 direction, float maxDistance, float& distance, Vector2& normal);
 
     // 겹침 질의. 맞닿기만 해도 겹친 것이다.
     bool OverlapPolygons(const ConvexPolygon& a, const Pose& poseA, const ConvexPolygon& b, const Pose& poseB);
@@ -105,19 +105,19 @@ namespace JBro::Physics2D
     // 스윕은 모양을 `direction`(단위 벡터)으로 `maxDistance` 까지 밀면서 **처음 닿는** 자리를 찾는다. 도형은 돌지 않는다.
     // 닿으면 그때까지 간 거리와 상대 표면의 바깥 법선(민 쪽을 향한다)을 준다. **출발부터 겹쳐 있으면 거리 0, 법선
     // -direction** 이다 - 파고든 상태를 감추지 않는다(기존 엔진과 같다).
-    bool ContainsPoint(const ConvexPolygon& polygon, const Pose& pose, Vec2 point);
-    bool ContainsPoint(const Circle& circle, const Pose& pose, Vec2 point);
+    bool ContainsPoint(const ConvexPolygon& polygon, const Pose& pose, Vector2 point);
+    bool ContainsPoint(const Circle& circle, const Pose& pose, Vector2 point);
     bool OverlapCircles(const Circle& a, const Pose& poseA, const Circle& b, const Pose& poseB);
 
     // 월드의 원(중심·반지름)을 민다.
-    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
-        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal);
-    bool CastCircle(Vec2 center, float radius, Vec2 direction, float maxDistance,
-        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal);
+    bool CastCircle(Vector2 center, float radius, Vector2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vector2& normal);
+    bool CastCircle(Vector2 center, float radius, Vector2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vector2& normal);
     // 볼록 조각을 `start` 자세에서 민다. 조각끼리는 민코프스키 차의 볼록 껍질에 반직선을 쏜다.
-    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
-        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vec2& normal);
-    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vec2 direction, float maxDistance,
-        const Circle& target, const Pose& targetPose, float& distance, Vec2& normal);
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vector2 direction, float maxDistance,
+        const ConvexPolygon& target, const Pose& targetPose, float& distance, Vector2& normal);
+    bool CastPolygon(const ConvexPolygon& moving, const Pose& start, Vector2 direction, float maxDistance,
+        const Circle& target, const Pose& targetPose, float& distance, Vector2& normal);
 
 }

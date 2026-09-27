@@ -40,8 +40,8 @@ namespace JBro
         TextureFilter filter = TextureFilter::Nearest;
         AssetHandle   material;
         Color         tint{ 1.0f, 1.0f, 1.0f, 1.0f };
-        Vec2          pivot;
-        Vec2          size;
+        Vector2          pivot;
+        Vector2          size;
         std::int32_t  renderOrder = 0;
         // 텍스처 알파를 거리장으로 읽는 SDF 글자다(4 단계). 참이면 외곽선 색과 외곽선이 끝나는 거리값을 쓴다. 렌더러 패킷과 같은 정규화
         // 정수다(`SpriteSubmit`) - 아이템을 정렬 뒤 옮기는 비용을 스프라이트에 물리지 않는다.

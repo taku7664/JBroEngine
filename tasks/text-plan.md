@@ -223,7 +223,7 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
                               TextStore(호스트 소유 UTF-8 저장소, TextId 발급)
 ```
 
-- 커널은 `JBroCore` 만 쓴다. `Vec2` 가 필요하면 `JBro/Types/Math2D.h` 를 본다(D-241). 의존하지 않은 헤더를 include 하면 실패하는
+- 커널은 `JBroCore` 만 쓴다. `Vector2` 가 필요하면 `JBro/Types/Math2D.h` 를 본다(D-241). 의존하지 않은 헤더를 include 하면 실패하는
   음성 테스트로 지킨다. 3D 텍스트가 오면 같은 커널을 쓴다.
 - 커널의 식별자는 번호다(face 번호, 아틀라스 페이지 번호). `SafePtr` 는 커널에 들어가지 않는다.
 
@@ -236,7 +236,7 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
 | `text` | `TextId` | 저장소 핸들. 인스펙터는 여러 줄 입력 칸으로 보이고, 캔버스 파일에는 글자로 적힌다 |
 | `fontId` | `AssetId` | 비면 프로젝트 기본. `Id` 로 끝나므로 에셋 해석 패스와 `AssetField` 가 그대로 붙는다(D-115·D-118) |
 | `fontSize` | `float` | 글자 픽셀. 유닛 크기는 폰트 에셋 PPU 로 나눈다(D-119 와 같은 규칙) |
-| `boxSize` | `Vec2` | 글자 픽셀. 0 이면 무제한 |
+| `boxSize` | `Vector2` | 글자 픽셀. 0 이면 무제한 |
 | `overflow` | `enum { Overflow, Wrap, Clip }` | 기존과 같다 |
 | `wrapMode` | `enum { Word, Character }` | §3.8 |
 | `alignX`·`alignY` | `enum` | Left·Center·Right / Top·Middle·Baseline·Bottom |

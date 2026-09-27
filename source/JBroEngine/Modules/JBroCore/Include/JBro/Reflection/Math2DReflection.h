@@ -13,18 +13,18 @@
 namespace JBro
 {
     template <>
-    struct TypeDescriptorOf<Vec2>
+    struct TypeDescriptorOf<Vector2>
     {
         static const TypeDescriptor& Get()
         {
             static const FieldEntry entries[] =
             {
-                MakeFieldEntry<&Vec2::x>(),
-                MakeFieldEntry<&Vec2::y>(),
+                MakeFieldEntry<&Vector2::x>(),
+                MakeFieldEntry<&Vector2::y>(),
             };
             static const StaticPropertyTable<2> fields { entries };
             static const TypeDescriptor descriptor =
-                MakeVectorTypeDescriptor<Vec2>("JBro.Vec2", fields.Get());
+                MakeVectorTypeDescriptor<Vector2>("JBro.Vector2", fields.Get());
             return descriptor;
         }
     };
@@ -34,7 +34,7 @@ namespace JBro
     {
         static const TypeDescriptor& Get()
         {
-            // min·max 가 Vec2 이므로 이 표는 한 단계 더 내려간다.
+            // min·max 가 Vector2 이므로 이 표는 한 단계 더 내려간다.
             // 소비자는 "필드가 있으면 내려간다" 하나만 알면 된다.
             static const FieldEntry entries[] =
             {

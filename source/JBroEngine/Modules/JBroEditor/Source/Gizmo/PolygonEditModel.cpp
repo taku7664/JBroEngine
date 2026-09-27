@@ -4,7 +4,7 @@
 
 namespace JBro::PolygonEditModel
 {
-    Hit Pick(ArrayView<const Vec2> screen, Vec2 mouse, bool closed)
+    Hit Pick(ArrayView<const Vector2> screen, Vector2 mouse, bool closed)
     {
         Hit hit;
         const std::uint32_t count = static_cast<std::uint32_t>(screen.Size());
@@ -35,8 +35,8 @@ namespace JBro::PolygonEditModel
         const std::uint32_t edges = closed ? count : count - 1;
         for (std::uint32_t i = 0; i < edges; ++i)
         {
-            const Vec2 a = screen[i];
-            const Vec2 b = screen[(i + 1) % count];
+            const Vector2 a = screen[i];
+            const Vector2 b = screen[(i + 1) % count];
             const float abx = b.x - a.x;
             const float aby = b.y - a.y;
             const float lengthSquared = abx * abx + aby * aby;
@@ -46,7 +46,7 @@ namespace JBro::PolygonEditModel
             }
             float t = ((mouse.x - a.x) * abx + (mouse.y - a.y) * aby) / lengthSquared;
             t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
-            const Vec2 foot = { a.x + abx * t, a.y + aby * t };
+            const Vector2 foot = { a.x + abx * t, a.y + aby * t };
             const float dx = mouse.x - foot.x;
             const float dy = mouse.y - foot.y;
             const float distanceSquared = dx * dx + dy * dy;
@@ -61,7 +61,7 @@ namespace JBro::PolygonEditModel
         return hit;
     }
 
-    void SeedPoints(const Component::Collider2D& collider, Array<Vec2>& out)
+    void SeedPoints(const Component::Collider2D& collider, Array<Vector2>& out)
     {
         out.Clear();
         if (false == collider.points.IsEmpty())
@@ -83,7 +83,7 @@ namespace JBro::PolygonEditModel
         out.Add({ -halfWidth, halfHeight });
     }
 
-    bool InsertOnEdge(Array<Vec2>& points, std::uint32_t edge, Vec2 point)
+    bool InsertOnEdge(Array<Vector2>& points, std::uint32_t edge, Vector2 point)
     {
         if (edge >= points.Size())
         {
@@ -93,7 +93,7 @@ namespace JBro::PolygonEditModel
         return true;
     }
 
-    bool RemoveVertex(Array<Vec2>& points, std::uint32_t index, std::uint32_t minimum)
+    bool RemoveVertex(Array<Vector2>& points, std::uint32_t index, std::uint32_t minimum)
     {
         if (index >= points.Size() || points.Size() <= minimum)
         {

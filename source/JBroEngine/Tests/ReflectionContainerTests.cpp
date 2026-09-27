@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 // 컨테이너를 **타입을 모른 채** 만지는 길이다. 인스펙터와 직렬화가 이 길만 써야
-// `Array<Vec2>` 라는 것을 아무도 몰라도 된다(D-56).
+// `Array<Vector2>` 라는 것을 아무도 몰라도 된다(D-56).
 
 namespace
 {

@@ -47,10 +47,10 @@ namespace JBro
             EditorObjectId parentId = InvalidEditorObjectId;
             std::size_t siblingIndex = 0;
             bool hasTransform = false;
-            Vec2 position{0.0f, 0.0f};
+            Vector2 position{0.0f, 0.0f};
             // `Transform2D` 가 담는 단위 그대로다 - 뜬 값을 되돌려 놓을 때 변환이 끼면 안 된다.
             Radian rotation = 0.0f;
-            Vec2 scale{1.0f, 1.0f};
+            Vector2 scale{1.0f, 1.0f};
         };
 
         bool Apply(const Placement& placement);

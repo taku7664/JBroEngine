@@ -263,14 +263,14 @@ Framework3D
 
 ```text
 Transform2D
-    Vec2 position
+    Vector2 position
     float rotation
-    Vec2 scale
+    Vector2 scale
 
 Transform3D
-    Vec3 position
+    Vector3 position
     Quaternion rotation
-    Vec3 scale
+    Vector3 scale
 ```
 
 ---

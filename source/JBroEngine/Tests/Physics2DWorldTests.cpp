@@ -17,7 +17,7 @@ namespace
 {
     using JBro::Array;
     using JBro::ArrayView;
-    using JBro::Vec2;
+    using JBro::Vector2;
     using JBro::Physics2D::BodyDef;
     using JBro::Physics2D::BodyId;
     using JBro::Physics2D::BodyType;
@@ -41,28 +41,28 @@ namespace
         return std::fabs(actual - expected) <= tolerance;
     }
 
-    float Length(Vec2 v)
+    float Length(Vector2 v)
     {
         return std::sqrt(v.x * v.x + v.y * v.y);
     }
 
-    Array<Vec2> BoxOutline(float halfWidth, float halfHeight)
+    Array<Vector2> BoxOutline(float halfWidth, float halfHeight)
     {
         return { { -halfWidth, -halfHeight }, { halfWidth, -halfHeight },
                  { halfWidth, halfHeight }, { -halfWidth, halfHeight } };
     }
 
-    Array<Vec2> UOutline()
+    Array<Vector2> UOutline()
     {
         return { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
     }
 
-    Array<Vec2> LOutline()
+    Array<Vector2> LOutline()
     {
         return { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
     }
 
-    ShapeId AddPolygon(World& world, BodyId body, const Array<Vec2>& outline, const ShapeDef& def = {})
+    ShapeId AddPolygon(World& world, BodyId body, const Array<Vector2>& outline, const ShapeDef& def = {})
     {
         ShapeId shape;
         Check(world.CreatePolygonShape(body, outline.View(), def, shape) == JBro::Physics2D::PolygonError::None,
@@ -70,7 +70,7 @@ namespace
         return shape;
     }
 
-    BodyId AddBody(World& world, BodyType type, Vec2 position, float angle = 0.0f)
+    BodyId AddBody(World& world, BodyType type, Vector2 position, float angle = 0.0f)
     {
         BodyDef def;
         def.type = type;
@@ -115,7 +115,7 @@ namespace
         AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
         Run(world, 3.0f);
 
-        const Vec2 position = world.GetPosition(box);
+        const Vector2 position = world.GetPosition(box);
         Check(Near(position.y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "the box rests on the ground");
         Check(Near(position.x, 0.0f, 1.0e-3f), "without drifting sideways");
         Check(Near(world.GetAngle(box), 0.0f, 1.0e-3f), "or tipping");
@@ -133,7 +133,7 @@ namespace
         const BodyId dropped = AddBody(world, BodyType::Dynamic, { 1.5f, 2.5f });
         AddPolygon(world, dropped, BoxOutline(0.3f, 0.3f));
         Run(world, 2.0f);
-        Vec2 position = world.GetPosition(dropped);
+        Vector2 position = world.GetPosition(dropped);
         Check(Near(position.y, 1.3f, 2.0f * JBro::Physics2D::LinearSlop), "a box dropped into the notch lands on its floor");
         Check(position.x > 1.3f - JBro::Physics2D::LinearSlop && position.x < 1.7f + JBro::Physics2D::LinearSlop,
             "between the inner walls");
@@ -170,19 +170,19 @@ namespace
         Check(Near(mass.mass, 1.0f, 1.0e-6f), "and it weighs what was asked");
         Check(Near(mass.inertia, outline.inertia / outline.mass, 1.0e-4f), "with the L's inertia scaled to that mass");
 
-        const Vec2 center = world.GetWorldCenter(l);
+        const Vector2 center = world.GetWorldCenter(l);
         Run(world, 1.0f);
-        const Vec2 after = world.GetWorldCenter(l);
+        const Vector2 after = world.GetWorldCenter(l);
         Check(Near(after.x, center.x, 1.0e-4f) && Near(after.y, center.y, 1.0e-4f), "the center of mass stays put");
         Check(Near(world.GetAngle(l), 2.0f, 1.0e-3f), "while the body turns two radians in a second");
         Check(Near(world.GetAngularVelocity(l), 2.0f, 1.0e-4f), "and keeps its spin");
         // 원점 = 중심 - R(각도)·로컬 중심. 원점이 중심을 따라 붙거나 제자리에 있으면 트랜스폼이 그림과 어긋난다.
         const float angle = world.GetAngle(l);
-        const Vec2 local = mass.center;
-        const Vec2 expected = {
+        const Vector2 local = mass.center;
+        const Vector2 expected = {
             after.x - (std::cos(angle) * local.x - std::sin(angle) * local.y),
             after.y - (std::sin(angle) * local.x + std::cos(angle) * local.y) };
-        const Vec2 origin = world.GetPosition(l);
+        const Vector2 origin = world.GetPosition(l);
         Check(Near(origin.x, expected.x, 1.0e-4f) && Near(origin.y, expected.y, 1.0e-4f),
             "so the origin swings around the center, a rotated local center away from it");
     }
@@ -227,7 +227,7 @@ namespace
         Run(world, 5.0f);
         for (int i = 0; i < 10; ++i)
         {
-            const Vec2 position = world.GetPosition(boxes[i]);
+            const Vector2 position = world.GetPosition(boxes[i]);
             Check(Length(world.GetLinearVelocity(boxes[i])) < 0.05f, "every box in the stack comes to rest");
             Check(Near(position.x, 0.0f, 0.05f), "and the stack stays upright");
             Check(Near(position.y, 0.5f + static_cast<float>(i), 0.1f), "each box sits on the one below");
@@ -272,9 +272,9 @@ namespace
             const BodyId c = AddBody(world, BodyType::Dynamic, { -1.0f, 4.0f });
             world.CreateCircleShape(c, circle, {});
             Run(world, 2.0f);
-            const Vec2 pa = world.GetPosition(a);
-            const Vec2 pb = world.GetPosition(b);
-            const Vec2 pc = world.GetPosition(c);
+            const Vector2 pa = world.GetPosition(a);
+            const Vector2 pb = world.GetPosition(b);
+            const Vector2 pc = world.GetPosition(c);
             const float values[6] = { pa.x, pa.y, pb.x, pb.y, pc.x, pc.y };
             std::memcpy(results[run], values, sizeof(values));
         }
@@ -292,12 +292,12 @@ namespace
             const float angle = 0.52359878f;
             const BodyId slope = AddBody(world, BodyType::Static, { 0, 0 }, angle);
             AddPolygon(world, slope, BoxOutline(20.0f, 0.5f), def);
-            const Vec2 normal = { -std::sin(angle), std::cos(angle) };
-            const Vec2 start = { normal.x * 1.0f, normal.y * 1.0f };
+            const Vector2 normal = { -std::sin(angle), std::cos(angle) };
+            const Vector2 start = { normal.x * 1.0f, normal.y * 1.0f };
             const BodyId box = AddBody(world, BodyType::Dynamic, start, angle);
             AddPolygon(world, box, BoxOutline(0.5f, 0.5f), def);
             Run(world, 2.0f);
-            const Vec2 end = world.GetPosition(box);
+            const Vector2 end = world.GetPosition(box);
             const float moved = Length({ end.x - start.x, end.y - start.y });
             if (friction > 0.6f)
             {
@@ -494,7 +494,7 @@ namespace
         world.DestroyShape(trigger);
 
         ShapeId bad;
-        const Array<Vec2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
+        const Array<Vector2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
         Check(world.CreatePolygonShape(body, bowTie.View(), {}, bad) == JBro::Physics2D::PolygonError::SelfIntersecting,
             "a self-intersecting outline is refused");
         Check(false == world.IsValid(bad), "and makes no shape");
@@ -564,7 +564,7 @@ namespace
             "a reshaped box turns with the inertia of its new shape: m(w^2 + h^2)/12");
         Check(Near(world.GetPosition(box).y, 0.5f, 2.0f * JBro::Physics2D::LinearSlop), "and it stays on the ground");
 
-        const Array<Vec2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
+        const Array<Vector2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
         Check(world.SetPolygonGeometry(shape, bowTie.View()) == JBro::Physics2D::PolygonError::SelfIntersecting
             && world.GetChildCount(shape) == 1, "a wrong outline is refused and the old box stays");
 
@@ -602,7 +602,7 @@ namespace
         world.CreateCapsuleShape(pill, { -0.5f, 0 }, { 0.5f, 0 }, 0.4f, {});
         const BodyId growing = AddBody(world, BodyType::Dynamic, { 8, 0.5f });
         const ShapeId growingShape = AddPolygon(world, growing, BoxOutline(0.5f, 0.5f));
-        Array<Array<Vec2>> outlines;
+        Array<Array<Vector2>> outlines;
         for (int i = 0; i < 5; ++i)
         {
             outlines.Add(BoxOutline(0.5f + 0.02f * static_cast<float>(i), 0.5f));
@@ -696,8 +696,8 @@ namespace
             "only the world with workers splits its narrow phase, every substep");
         for (std::size_t i = 0; i < serialBodies.Size(); ++i)
         {
-            const Vec2 a = serial.GetPosition(serialBodies[i]);
-            const Vec2 b = parallel.GetPosition(parallelBodies[i]);
+            const Vector2 a = serial.GetPosition(serialBodies[i]);
+            const Vector2 b = parallel.GetPosition(parallelBodies[i]);
             const float angleA = serial.GetAngle(serialBodies[i]);
             const float angleB = parallel.GetAngle(parallelBodies[i]);
             Check(std::memcmp(&a, &b, sizeof(a)) == 0 && std::memcmp(&angleA, &angleB, sizeof(angleA)) == 0,
@@ -769,7 +769,7 @@ namespace
         world.Step(Frame);
         Check(Near(world.GetAngularVelocity(box), 3.0f * Frame, 1.0e-5f), "a torque of 1 on an inertia of 1/3 spins it up by 3 rad/s²");
         world.SetAngularVelocity(box, 0.0f);
-        const Vec2 center = world.GetWorldCenter(box);
+        const Vector2 center = world.GetWorldCenter(box);
         world.ApplyLinearImpulse(box, { 1, 0 }, { center.x, center.y + 0.5f });
         Check(Near(world.GetAngularVelocity(box), -1.5f, 1.0e-5f), "an impulse half a unit above the center turns it by -0.5 / (1/3)");
 
@@ -868,7 +868,7 @@ namespace
         World world;
         world.Settings().enableSleep = false;
         const BodyId ground = AddBody(world, BodyType::Static, { 0, 0 });
-        Array<Vec2> points;
+        Array<Vector2> points;
         for (int i = 0; i <= 40; ++i)
         {
             points.Add({ -20.0f + static_cast<float>(i), 0.0f });
@@ -891,7 +891,7 @@ namespace
         }
         Check(lowest > 4.95f, "the box keeps its speed across every seam");
         Check(highest < 0.05f, "and never hops");
-        const Array<Vec2> tooFew = { { 0, 0 } };
+        const Array<Vector2> tooFew = { { 0, 0 } };
         Check(false == world.IsValid(world.CreateChainShape(ground, tooFew.View(), false, {})), "one point is no chain");
     }
 
@@ -912,7 +912,7 @@ namespace
         Run(world, 1.5f);
         Check(false == world.IsAwake(box) && world.IsAwake(awake), "after resting it sleeps, but not one that cannot");
         Check(world.GetLastStepStats().sleepingBodies == 1 && world.GetLastStepStats().awakeBodies == 1, "the stats count them");
-        const Vec2 asleep = world.GetPosition(box);
+        const Vector2 asleep = world.GetPosition(box);
         Run(world, 1.0f);
         Check(world.GetPosition(box).x == asleep.x && world.GetPosition(box).y == asleep.y, "a sleeping body does not move at all");
 
@@ -1153,7 +1153,7 @@ namespace
         return ball;
     }
 
-    float DistanceBetween(Vec2 a, Vec2 b)
+    float DistanceBetween(Vector2 a, Vector2 b)
     {
         const float dx = b.x - a.x;
         const float dy = b.y - a.y;
@@ -1257,9 +1257,9 @@ namespace
             {
                 world.Step(Frame);
                 highest = std::fmax(highest, world.GetHingeAngle(hinge));
-                const Vec2 end = world.GetPosition(rod);
+                const Vector2 end = world.GetPosition(rod);
                 const float angle = world.GetAngle(rod);
-                const Vec2 pin{ end.x - std::cos(angle), end.y - std::sin(angle) };
+                const Vector2 pin{ end.x - std::cos(angle), end.y - std::sin(angle) };
                 pinDrift = std::fmax(pinDrift, DistanceBetween(pin, { 0, 0 }));
             }
             Check(pinDrift < 0.02f, "a hinged rod keeps its end on the pin");
@@ -1308,7 +1308,7 @@ namespace
             def.upperAngle = 0.1f;
             const JointId hinge = world.CreateHingeJoint(def);
             Run(world, 1.0f);
-            const Vec2 end = world.GetPosition(rod);
+            const Vector2 end = world.GetPosition(rod);
             const float angle = world.GetAngle(rod);
             Check(DistanceBetween({ end.x - std::cos(angle), end.y - std::sin(angle) }, { -0.5f, 0 }) < 0.02f,
                 "a hinge that starts apart pulls its pins together");
@@ -1361,7 +1361,7 @@ namespace
         world.CreateDistanceJoint(def);
         Run(world, 2.0f);
         Check(false == world.IsAwake(box) && false == world.IsAwake(ball), "a box and the ball tied to it sleep together");
-        const Vec2 boxBefore = world.GetPosition(box);
+        const Vector2 boxBefore = world.GetPosition(box);
         world.ApplyLinearImpulseToCenter(ball, { 6, 0 });
         world.Step(Frame);
         Check(world.IsAwake(box), "waking the ball wakes the box it is tied to");
@@ -1434,7 +1434,7 @@ namespace
         {
             World world;
             const BodyId line = AddBody(world, BodyType::Static, { 5, 0 });
-            const Array<Vec2> points{ { 0, -3 }, { 0, 3 } };
+            const Array<Vector2> points{ { 0, -3 }, { 0, 3 } };
             world.CreateChainShape(line, points.View(), false, {});
             const auto [ball, hits] = fire(world, true);
             Check(world.GetPosition(ball).x < 5.0f && hits > 0, "a chain segment stops it too");
@@ -1508,8 +1508,8 @@ namespace
         float lowest = 1.0e9f;
         for (std::size_t i = 0; i < singleBoxes.Size(); ++i)
         {
-            const Vec2 a = single.GetPosition(singleBoxes[i]);
-            const Vec2 b = parallel.GetPosition(parallelBoxes[i]);
+            const Vector2 a = single.GetPosition(singleBoxes[i]);
+            const Vector2 b = parallel.GetPosition(parallelBoxes[i]);
             same = same && a.x == b.x && a.y == b.y && single.GetAngle(singleBoxes[i]) == parallel.GetAngle(parallelBoxes[i]);
             lowest = std::fmin(lowest, a.y);
         }

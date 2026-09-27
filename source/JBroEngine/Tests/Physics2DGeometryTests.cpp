@@ -13,7 +13,7 @@ namespace
 {
     using JBro::Array;
     using JBro::ArrayView;
-    using JBro::Vec2;
+    using JBro::Vector2;
     using JBro::Physics2D::ConvexPolygon;
     using JBro::Physics2D::MassData;
     using JBro::Physics2D::PolygonError;
@@ -32,18 +32,18 @@ namespace
         return std::fabs(actual - expected) <= tolerance;
     }
 
-    ArrayView<const Vec2> View(const Array<Vec2>& points)
+    ArrayView<const Vector2> View(const Array<Vector2>& points)
     {
         return points.View();
     }
 
     // 3x3 정사각형에서 가운데 위쪽 1x2 를 판 U. 면적 중심 (1.5, 1.357) 이 파인 홈 안, 즉 도형 밖에 있다.
-    Array<Vec2> MakeU()
+    Array<Vector2> MakeU()
     {
         return { { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
     }
 
-    Array<Vec2> MakeL()
+    Array<Vector2> MakeL()
     {
         return { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
     }
@@ -56,9 +56,9 @@ namespace
         }
         for (std::uint32_t i = 0; i < polygon.count; ++i)
         {
-            const Vec2 a = polygon.points[(i + polygon.count - 1) % polygon.count];
-            const Vec2 b = polygon.points[i];
-            const Vec2 c = polygon.points[(i + 1) % polygon.count];
+            const Vector2 a = polygon.points[(i + polygon.count - 1) % polygon.count];
+            const Vector2 b = polygon.points[i];
+            const Vector2 c = polygon.points[(i + 1) % polygon.count];
             const float cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
             if (cross <= 0.0f)
             {
@@ -73,7 +73,7 @@ namespace
         float sum = 0.0f;
         for (const ConvexPolygon& piece : pieces)
         {
-            sum += JBro::Physics2D::SignedArea(ArrayView<const Vec2>(piece.points, piece.count));
+            sum += JBro::Physics2D::SignedArea(ArrayView<const Vector2>(piece.points, piece.count));
         }
         return sum;
     }
@@ -89,14 +89,14 @@ namespace
     }
 
     // 짝홀 규칙. 외곽선이 시계든 반시계든 같다.
-    bool PointInOutline(Vec2 point, const Array<Vec2>& outline)
+    bool PointInOutline(Vector2 point, const Array<Vector2>& outline)
     {
         bool inside = false;
         const std::size_t count = outline.Size();
         for (std::size_t i = 0, j = count - 1; i < count; j = i++)
         {
-            const Vec2 a = outline[i];
-            const Vec2 b = outline[j];
+            const Vector2 a = outline[i];
+            const Vector2 b = outline[j];
             if ((a.y > point.y) != (b.y > point.y)
                 && point.x < (b.x - a.x) * (point.y - a.y) / (b.y - a.y) + a.x)
             {
@@ -106,12 +106,12 @@ namespace
         return inside;
     }
 
-    bool PointInPiece(Vec2 point, const ConvexPolygon& piece)
+    bool PointInPiece(Vector2 point, const ConvexPolygon& piece)
     {
         for (std::uint32_t i = 0; i < piece.count; ++i)
         {
-            const Vec2 a = piece.points[i];
-            const Vec2 b = piece.points[(i + 1) % piece.count];
+            const Vector2 a = piece.points[i];
+            const Vector2 b = piece.points[(i + 1) % piece.count];
             if ((b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x) <= 0.0f)
             {
                 return false;
@@ -124,11 +124,11 @@ namespace
     // 다른 곳이 겹쳐도 부호 있는 넓이의 합은 같다. 격자점마다 "외곽선 안이면 조각 하나, 밖이면 조각 없음" 을 본다.
     // 격자를 무리수 비율로 어긋나게 두어 점이 변 위에 떨어지지 않게 한다. 두 축의 어긋남을 더해 정수가 되면
     // `x + y = 정수` 인 대각선 위에 점이 줄지어 떨어진다(첫 판이 0.382 + 0.618 = 1 로 U 의 대각선을 밟았다).
-    void CheckCoverage(const Array<Vec2>& outline, const Array<ConvexPolygon>& pieces, const char* message)
+    void CheckCoverage(const Array<Vector2>& outline, const Array<ConvexPolygon>& pieces, const char* message)
     {
-        Vec2 low = outline[0];
-        Vec2 high = outline[0];
-        for (const Vec2& point : outline)
+        Vector2 low = outline[0];
+        Vector2 high = outline[0];
+        for (const Vector2& point : outline)
         {
             low = { std::fmin(low.x, point.x), std::fmin(low.y, point.y) };
             high = { std::fmax(high.x, point.x), std::fmax(high.y, point.y) };
@@ -138,7 +138,7 @@ namespace
         {
             for (int iy = 0; iy < Steps; ++iy)
             {
-                const Vec2 point = {
+                const Vector2 point = {
                     low.x + (high.x - low.x) * (static_cast<float>(ix) + 0.3819660f) / Steps,
                     low.y + (high.y - low.y) * (static_cast<float>(iy) + 0.2360680f) / Steps };
                 int covering = 0;
@@ -169,7 +169,7 @@ namespace
 
     // 분해가 지켜야 할 것을 한 자리에서 본다: 성공, 모든 조각이 엄격한 볼록·반시계·8 점 이하, 넓이 합 = 원래 넓이,
     // 도형을 한 겹으로 덮음.
-    void CheckDecomposition(const Array<Vec2>& outline, const char* message)
+    void CheckDecomposition(const Array<Vector2>& outline, const char* message)
     {
         Array<ConvexPolygon> pieces;
         Check(JBro::Physics2D::DecomposePolygon(View(outline), pieces) == PolygonError::None, message);
@@ -187,7 +187,7 @@ namespace
     // 11 로 쟀고(참값 7), 정사각형의 관성도 두 배로 냈다(physics-plan §1.2 의 4).
     void TestOutlineMassOfTheUMatchesTheAnalyticValue()
     {
-        const Array<Vec2> u = MakeU();
+        const Array<Vector2> u = MakeU();
         Check(Near(JBro::Physics2D::SignedArea(View(u)), 7.0f, 1.0e-5f), "the U has area 7, not 11");
 
         const MassData mass = JBro::Physics2D::ComputeOutlineMass(View(u), 1.0f);
@@ -216,8 +216,8 @@ namespace
     // 잃었으면 여기서 어긋난다.
     void TestPieceMassEqualsOutlineMass()
     {
-        const Array<Vec2> shapes[] = { MakeU(), MakeL() };
-        for (const Array<Vec2>& outline : shapes)
+        const Array<Vector2> shapes[] = { MakeU(), MakeL() };
+        for (const Array<Vector2>& outline : shapes)
         {
             Array<ConvexPolygon> pieces;
             Check(JBro::Physics2D::DecomposePolygon(View(outline), pieces) == PolygonError::None,
@@ -241,13 +241,13 @@ namespace
     // 기존 엔진이 주석으로 남긴 수평 법선 버그다(`Physics2DSystem.cpp:3048`).
     void TestAConvexOutlineStaysWhole()
     {
-        const Array<Vec2> box = { { 0, 0 }, { 4, 0 }, { 4, 1 }, { 0, 1 } };
+        const Array<Vector2> box = { { 0, 0 }, { 4, 0 }, { 4, 1 }, { 0, 1 } };
         Array<ConvexPolygon> pieces;
         Check(JBro::Physics2D::DecomposePolygon(View(box), pieces) == PolygonError::None, "a box decomposes");
         Check(pieces.Size() == 1 && pieces[0].count == 4, "into itself");
 
         // 8 점을 넘는 볼록 다각형은 상한 때문에 나뉘지만, 조각마다 여전히 볼록이고 넓이가 남는다.
-        Array<Vec2> circle;
+        Array<Vector2> circle;
         for (int i = 0; i < 20; ++i)
         {
             const float angle = 6.2831853f * static_cast<float>(i) / 20.0f;
@@ -264,13 +264,13 @@ namespace
     void TestCollinearAndDuplicatePointsLeaveNoHole()
     {
         // U 의 모든 변에 가운데 점을 넣고, 몇 점은 두 번 적는다.
-        const Array<Vec2> noisy = {
+        const Array<Vector2> noisy = {
             { 0, 0 }, { 1.5f, 0 }, { 3, 0 }, { 3, 0 }, { 3, 1.5f }, { 3, 3 }, { 2.5f, 3 }, { 2, 3 },
             { 2, 2 }, { 2, 1 }, { 1.5f, 1 }, { 1, 1 }, { 1, 1 }, { 1, 2 }, { 1, 3 }, { 0.5f, 3 }, { 0, 3 },
             { 0, 1.5f }, { 0, 0 } };
         CheckDecomposition(noisy, "a noisy U decomposes without losing area");
 
-        Array<Vec2> clean;
+        Array<Vector2> clean;
         Check(JBro::Physics2D::CleanPolygon(View(noisy), clean) == PolygonError::None, "the noisy U cleans");
         Check(clean.Size() == 8, "back to the eight corners of the U");
         Check(Near(JBro::Physics2D::SignedArea(clean.View()), 7.0f, 1.0e-5f), "with the same area");
@@ -279,7 +279,7 @@ namespace
     // **감긴 방향이 시계여도 결과는 같다.** 편집기에서 꼭짓점을 어느 방향으로 찍든 도형은 같아야 한다.
     void TestClockwiseInputIsNormalized()
     {
-        Array<Vec2> reversed = MakeU();
+        Array<Vector2> reversed = MakeU();
         std::reverse(reversed.begin(), reversed.end());
         Check(JBro::Physics2D::SignedArea(View(reversed)) < 0.0f, "the reversed U is clockwise");
         CheckDecomposition(reversed, "a clockwise U decomposes to counter-clockwise pieces");
@@ -295,26 +295,26 @@ namespace
         Array<ConvexPolygon> pieces;
         pieces.Emplace();
 
-        const Array<Vec2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
+        const Array<Vector2> bowTie = { { 0, 0 }, { 2, 2 }, { 2, 0 }, { 0, 2 } };
         Check(JBro::Physics2D::DecomposePolygon(View(bowTie), pieces) == PolygonError::SelfIntersecting,
             "a bow tie crosses itself");
         Check(pieces.IsEmpty(), "and a refused outline leaves no pieces");
 
         // 두 정사각형이 한 꼭짓점에서만 만난다. 넓이는 있지만 단순 다각형이 아니다.
-        const Array<Vec2> pinched = {
+        const Array<Vector2> pinched = {
             { 0, 0 }, { 1, 0 }, { 1, 1 }, { 2, 1 }, { 2, 2 }, { 1, 2 }, { 1, 1 }, { 0, 1 } };
         Check(JBro::Physics2D::DecomposePolygon(View(pinched), pieces) == PolygonError::SelfIntersecting,
             "two squares touching at a corner are not a simple polygon");
 
-        const Array<Vec2> twoPoints = { { 0, 0 }, { 1, 0 } };
+        const Array<Vector2> twoPoints = { { 0, 0 }, { 1, 0 } };
         Check(JBro::Physics2D::DecomposePolygon(View(twoPoints), pieces) == PolygonError::TooFewPoints,
             "two points are too few");
 
-        const Array<Vec2> line = { { 0, 0 }, { 1, 0 }, { 2, 0 }, { 3, 0 } };
+        const Array<Vector2> line = { { 0, 0 }, { 1, 0 }, { 2, 0 }, { 3, 0 } };
         Check(JBro::Physics2D::DecomposePolygon(View(line), pieces) == PolygonError::TooFewPoints,
             "points on one line clean down to fewer than three");
 
-        const Array<Vec2> samePoint = { { 1, 1 }, { 1, 1 }, { 1, 1 } };
+        const Array<Vector2> samePoint = { { 1, 1 }, { 1, 1 }, { 1, 1 } };
         Check(JBro::Physics2D::DecomposePolygon(View(samePoint), pieces) == PolygonError::TooFewPoints,
             "one point written three times is one point");
     }
@@ -334,7 +334,7 @@ namespace
         for (int shape = 0; shape < 200; ++shape)
         {
             const int count = 5 + static_cast<int>(next() * 20.0f);
-            Array<Vec2> outline;
+            Array<Vector2> outline;
             for (int i = 0; i < count; ++i)
             {
                 const float angle = 6.2831853f * (static_cast<float>(i) + 0.8f * next()) / static_cast<float>(count);
@@ -354,14 +354,14 @@ namespace
                 Check(IsStrictlyConvexCcw(piece), "every random piece is strictly convex and small enough");
             }
 
-            Array<Vec2> clean;
+            Array<Vector2> clean;
             JBro::Physics2D::CleanPolygon(View(outline), clean);
             const float expected = JBro::Physics2D::SignedArea(clean.View());
             if (false == Near(PieceAreaSum(pieces), expected, expected * 1.0e-4f))
             {
                 std::cout << "random shape " << shape << ": " << clean.Size() << " points, " << pieces.Size()
                     << " pieces, area " << PieceAreaSum(pieces) << " instead of " << expected << '\n';
-                for (const Vec2& point : clean)
+                for (const Vector2& point : clean)
                 {
                     std::cout << "  (" << point.x << ", " << point.y << ")\n";
                 }

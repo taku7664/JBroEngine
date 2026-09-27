@@ -10,19 +10,38 @@
 namespace JBro
 {
     template <>
-    struct TypeDescriptorOf<Vec3>
+    struct TypeDescriptorOf<Vector3>
     {
         static const TypeDescriptor& Get()
         {
             static const FieldEntry entries[] =
             {
-                MakeFieldEntry<&Vec3::x>(),
-                MakeFieldEntry<&Vec3::y>(),
-                MakeFieldEntry<&Vec3::z>(),
+                MakeFieldEntry<&Vector3::x>(),
+                MakeFieldEntry<&Vector3::y>(),
+                MakeFieldEntry<&Vector3::z>(),
             };
             static const StaticPropertyTable<3> fields { entries };
             static const TypeDescriptor descriptor =
-                MakeVectorTypeDescriptor<Vec3>("JBro.Vec3", fields.Get());
+                MakeVectorTypeDescriptor<Vector3>("JBro.Vector3", fields.Get());
+            return descriptor;
+        }
+    };
+
+    template <>
+    struct TypeDescriptorOf<Vector4>
+    {
+        static const TypeDescriptor& Get()
+        {
+            static const FieldEntry entries[] =
+            {
+                MakeFieldEntry<&Vector4::x>(),
+                MakeFieldEntry<&Vector4::y>(),
+                MakeFieldEntry<&Vector4::z>(),
+                MakeFieldEntry<&Vector4::w>(),
+            };
+            static const StaticPropertyTable<4> fields { entries };
+            static const TypeDescriptor descriptor =
+                MakeVectorTypeDescriptor<Vector4>("JBro.Vector4", fields.Get());
             return descriptor;
         }
     };

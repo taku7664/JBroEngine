@@ -8,7 +8,7 @@
 
 namespace JBro
 {
-    struct Vec2  { float x = 0.0f; float y = 0.0f; };
+    struct Vector2  { float x = 0.0f; float y = 0.0f; };
 
     // 축에 나란한 사각형이다. `min` 은 성분마다의 최솟값, `max` 는 최댓값이다.
     //
@@ -18,15 +18,15 @@ namespace JBro
     // 답한다 - 물리의 점 질의가 `Rect{ point, point }` 로 그 자리를 쓴다.
     struct Rect
     {
-        Vec2 min;
-        Vec2 max;
+        Vector2 min;
+        Vector2 max;
 
         constexpr float Width() const noexcept { return max.x - min.x; }
         constexpr float Height() const noexcept { return max.y - min.y; }
         constexpr Size GetSize() const noexcept { return Size(Width(), Height()); }
-        constexpr Vec2 Center() const noexcept
+        constexpr Vector2 Center() const noexcept
         {
-            return Vec2{ (min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f };
+            return Vector2{ (min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f };
         }
 
         // 넓이나 높이가 0 이하다. 뒤집힌 사각형도 여기에 걸린다.
@@ -37,7 +37,7 @@ namespace JBro
 
         // 경계에 놓인 점도 담은 것으로 본다. 맞닿은 두 사각형이 같은 점을 담게 되지만,
         // 담지 않는 것으로 하면 넓이 0 인 사각형이 자기 점조차 담지 못한다.
-        constexpr bool Contains(const Vec2& point) const noexcept
+        constexpr bool Contains(const Vector2& point) const noexcept
         {
             return point.x >= min.x && point.x <= max.x
                 && point.y >= min.y && point.y <= max.y;
@@ -59,23 +59,23 @@ namespace JBro
     };
 
     // 왼쪽 아래 구석과 크기로 만든다.
-    inline constexpr Rect MakeRect(const Vec2& corner, const Size& size) noexcept
+    inline constexpr Rect MakeRect(const Vector2& corner, const Size& size) noexcept
     {
-        return Rect{ corner, Vec2{ corner.x + size.width, corner.y + size.height } };
+        return Rect{ corner, Vector2{ corner.x + size.width, corner.y + size.height } };
     }
 
     // 가운데와 크기로 만든다. 카메라·화면 영역이 이 모양이다.
-    inline constexpr Rect MakeRectFromCenter(const Vec2& center, const Size& size) noexcept
+    inline constexpr Rect MakeRectFromCenter(const Vector2& center, const Size& size) noexcept
     {
         const float halfWidth = size.width * 0.5f;
         const float halfHeight = size.height * 0.5f;
         return Rect{
-            Vec2{ center.x - halfWidth, center.y - halfHeight },
-            Vec2{ center.x + halfWidth, center.y + halfHeight } };
+            Vector2{ center.x - halfWidth, center.y - halfHeight },
+            Vector2{ center.x + halfWidth, center.y + halfHeight } };
     }
 
     // 점 하나를 감싸는 사각형이다. 여기에 점을 더해 가며 경계를 넓힌다.
-    inline constexpr Rect MakeRectFromPoint(const Vec2& point) noexcept
+    inline constexpr Rect MakeRectFromPoint(const Vector2& point) noexcept
     {
         return Rect{ point, point };
     }
@@ -90,39 +90,39 @@ namespace JBro
     inline Rect IntersectRect(const Rect& left, const Rect& right) noexcept
     {
         return Rect{
-            Vec2{ std::fmax(left.min.x, right.min.x), std::fmax(left.min.y, right.min.y) },
-            Vec2{ std::fmin(left.max.x, right.max.x), std::fmin(left.max.y, right.max.y) } };
+            Vector2{ std::fmax(left.min.x, right.min.x), std::fmax(left.min.y, right.min.y) },
+            Vector2{ std::fmin(left.max.x, right.max.x), std::fmin(left.max.y, right.max.y) } };
     }
 
     // 둘을 다 담는 가장 작은 사각형이다.
     inline Rect UnionRect(const Rect& left, const Rect& right) noexcept
     {
         return Rect{
-            Vec2{ std::fmin(left.min.x, right.min.x), std::fmin(left.min.y, right.min.y) },
-            Vec2{ std::fmax(left.max.x, right.max.x), std::fmax(left.max.y, right.max.y) } };
+            Vector2{ std::fmin(left.min.x, right.min.x), std::fmin(left.min.y, right.min.y) },
+            Vector2{ std::fmax(left.max.x, right.max.x), std::fmax(left.max.y, right.max.y) } };
     }
 
     // 점 하나를 더 담도록 넓힌다.
-    inline Rect UnionRect(const Rect& rect, const Vec2& point) noexcept
+    inline Rect UnionRect(const Rect& rect, const Vector2& point) noexcept
     {
         return Rect{
-            Vec2{ std::fmin(rect.min.x, point.x), std::fmin(rect.min.y, point.y) },
-            Vec2{ std::fmax(rect.max.x, point.x), std::fmax(rect.max.y, point.y) } };
+            Vector2{ std::fmin(rect.min.x, point.x), std::fmin(rect.min.y, point.y) },
+            Vector2{ std::fmax(rect.max.x, point.x), std::fmax(rect.max.y, point.y) } };
     }
 
-    inline constexpr Rect OffsetRect(const Rect& rect, const Vec2& offset) noexcept
+    inline constexpr Rect OffsetRect(const Rect& rect, const Vector2& offset) noexcept
     {
         return Rect{
-            Vec2{ rect.min.x + offset.x, rect.min.y + offset.y },
-            Vec2{ rect.max.x + offset.x, rect.max.y + offset.y } };
+            Vector2{ rect.min.x + offset.x, rect.min.y + offset.y },
+            Vector2{ rect.max.x + offset.x, rect.max.y + offset.y } };
     }
 
     // 네 방향으로 넓힌다. 음수를 넘기면 줄어들고, 많이 줄이면 뒤집힌다.
     inline constexpr Rect ExpandRect(const Rect& rect, float margin) noexcept
     {
         return Rect{
-            Vec2{ rect.min.x - margin, rect.min.y - margin },
-            Vec2{ rect.max.x + margin, rect.max.y + margin } };
+            Vector2{ rect.min.x - margin, rect.min.y - margin },
+            Vector2{ rect.max.x + margin, rect.max.y + margin } };
     }
 
     struct Matrix3x2
@@ -133,9 +133,9 @@ namespace JBro
     };
 
     inline Matrix3x2 MakeTransformMatrix2D(
-        const Vec2& position,
+        const Vector2& position,
         Radian rotation,
-        const Vec2& scale)
+        const Vector2& scale)
     {
         const float cosine = std::cos(rotation.Get());
         const float sine = std::sin(rotation.Get());

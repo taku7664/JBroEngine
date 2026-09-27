@@ -13,11 +13,27 @@
 // `JBroFramework3DSystem/Math3DMatrix.h` 에 있다.
 namespace JBro
 {
-    struct Vec3
+    struct Vector3
     {
         float x = 0.0f;
         float y = 0.0f;
         float z = 0.0f;
+    };
+
+    // 성분 넷짜리 벡터다(D-250). **`Quaternion` 과 배치는 같지만 뜻이 다르다** - 사원수는 회전이고
+    // `w` 가 실수부라 기본값이 1 이다. 이쪽은 그냥 숫자 넷이라 전부 0 에서 시작한다. 둘을 한 타입으로
+    // 겸하면 "기본값이 무엇이냐" 에서 반드시 틀린다.
+    //
+    // 쓰는 자리는 동차 좌표(`Matrix4x4` 와 곱하는 점·방향), 셰이더 상수, 평면의 방정식이다.
+    // 색은 `Color` 가 따로 들고 있으니 이것으로 대신하지 않는다 - 색은 감마와 알파 규약이 붙는다.
+    //
+    // 2D·3D 어느 쪽 것도 아니지만 `Matrix4x4` 와 짝이라 여기 둔다.
+    struct Vector4
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        float w = 0.0f;
     };
 
     struct Quaternion
@@ -28,33 +44,33 @@ namespace JBro
         float w = 1.0f;
     };
 
-    inline Vec3 Add(const Vec3& left, const Vec3& right)
+    inline Vector3 Add(const Vector3& left, const Vector3& right)
     {
         return {left.x + right.x, left.y + right.y, left.z + right.z};
     }
 
-    inline Vec3 Subtract(const Vec3& left, const Vec3& right)
+    inline Vector3 Subtract(const Vector3& left, const Vector3& right)
     {
         return {left.x - right.x, left.y - right.y, left.z - right.z};
     }
 
-    inline Vec3 Scale(const Vec3& value, float factor)
+    inline Vector3 Scale(const Vector3& value, float factor)
     {
         return {value.x * factor, value.y * factor, value.z * factor};
     }
 
     // 성분마다 곱한다. 스케일을 겹칠 때 쓴다.
-    inline Vec3 Multiply(const Vec3& left, const Vec3& right)
+    inline Vector3 Multiply(const Vector3& left, const Vector3& right)
     {
         return {left.x * right.x, left.y * right.y, left.z * right.z};
     }
 
-    inline float Dot(const Vec3& left, const Vec3& right)
+    inline float Dot(const Vector3& left, const Vector3& right)
     {
         return left.x * right.x + left.y * right.y + left.z * right.z;
     }
 
-    inline Vec3 Cross(const Vec3& left, const Vec3& right)
+    inline Vector3 Cross(const Vector3& left, const Vector3& right)
     {
         return {
             left.y * right.z - left.z * right.y,
@@ -62,13 +78,13 @@ namespace JBro
             left.x * right.y - left.y * right.x};
     }
 
-    inline float Length(const Vec3& value)
+    inline float Length(const Vector3& value)
     {
         return std::sqrt(Dot(value, value));
     }
 
     // 길이가 0 이면 그대로 0 벡터다. 나눗셈으로 NaN 을 만들지 않는다.
-    inline Vec3 Normalize(const Vec3& value)
+    inline Vector3 Normalize(const Vector3& value)
     {
         const float length = Length(value);
         if (length <= 0.0f)
@@ -109,18 +125,18 @@ namespace JBro
     }
 
     // q v q*. 단위 사원수를 전제한다.
-    inline Vec3 Rotate(const Quaternion& rotation, const Vec3& value)
+    inline Vector3 Rotate(const Quaternion& rotation, const Vector3& value)
     {
-        const Vec3 axis{rotation.x, rotation.y, rotation.z};
-        const Vec3 crossed = Cross(axis, value);
-        const Vec3 crossedTwice = Cross(axis, crossed);
+        const Vector3 axis{rotation.x, rotation.y, rotation.z};
+        const Vector3 crossed = Cross(axis, value);
+        const Vector3 crossedTwice = Cross(axis, crossed);
         return Add(value, Add(Scale(crossed, 2.0f * rotation.w), Scale(crossedTwice, 2.0f)));
     }
 
     // 축은 정규화한다. 오른손 규칙이다.
-    inline Quaternion FromAxisAngle(const Vec3& axis, Radian angle)
+    inline Quaternion FromAxisAngle(const Vector3& axis, Radian angle)
     {
-        const Vec3 unit = Normalize(axis);
+        const Vector3 unit = Normalize(axis);
         const float half = angle.Get() * 0.5f;
         const float sine = std::sin(half);
         return {unit.x * sine, unit.y * sine, unit.z * sine, std::cos(half)};
@@ -128,7 +144,7 @@ namespace JBro
 
     // 오일러각(라디안). Z(roll) → X(pitch) → Y(yaw) 순으로 적용한다 - Unity 와 같은 차례라 인스펙터가
     // 사람에게 보여 주는 값으로 쓴다. `[가정]`
-    inline Quaternion FromEuler(const Vec3& radians)
+    inline Quaternion FromEuler(const Vector3& radians)
     {
         const Quaternion yaw = FromAxisAngle({0.0f, 1.0f, 0.0f}, radians.y);
         const Quaternion pitch = FromAxisAngle({1.0f, 0.0f, 0.0f}, radians.x);
@@ -136,10 +152,85 @@ namespace JBro
         return Normalize(Multiply(yaw, Multiply(pitch, roll)));
     }
 
-    inline bool NearlyEqual(const Vec3& left, const Vec3& right, float tolerance = 0.0001f)
+    inline bool NearlyEqual(const Vector3& left, const Vector3& right, float tolerance = 0.0001f)
     {
         return std::fabs(left.x - right.x) <= tolerance
             && std::fabs(left.y - right.y) <= tolerance
             && std::fabs(left.z - right.z) <= tolerance;
+    }
+
+    // ── Vector4 ─────────────────────────────────────────────────────────────
+    // 외적은 두지 않는다 - 4 차원에서 벡터 둘의 외적은 뜻이 없다.
+
+    inline Vector4 Add(const Vector4& left, const Vector4& right)
+    {
+        return {left.x + right.x, left.y + right.y, left.z + right.z, left.w + right.w};
+    }
+
+    inline Vector4 Subtract(const Vector4& left, const Vector4& right)
+    {
+        return {left.x - right.x, left.y - right.y, left.z - right.z, left.w - right.w};
+    }
+
+    inline Vector4 Scale(const Vector4& value, float factor)
+    {
+        return {value.x * factor, value.y * factor, value.z * factor, value.w * factor};
+    }
+
+    inline Vector4 Multiply(const Vector4& left, const Vector4& right)
+    {
+        return {left.x * right.x, left.y * right.y, left.z * right.z, left.w * right.w};
+    }
+
+    inline float Dot(const Vector4& left, const Vector4& right)
+    {
+        return left.x * right.x + left.y * right.y + left.z * right.z + left.w * right.w;
+    }
+
+    inline float Length(const Vector4& value)
+    {
+        return std::sqrt(Dot(value, value));
+    }
+
+    inline Vector4 Normalize(const Vector4& value)
+    {
+        const float length = Length(value);
+        if (length <= 0.0001f)
+        {
+            return {};
+        }
+        return Scale(value, 1.0f / length);
+    }
+
+    // 점은 `w = 1`, 방향은 `w = 0` 이다. 동차 좌표에서 이 둘을 가르는 것이 `w` 다 -
+    // 평행이동이 붙는 점과 안 붙는 방향이 갈린다.
+    inline Vector4 MakePoint(const Vector3& value)
+    {
+        return {value.x, value.y, value.z, 1.0f};
+    }
+
+    inline Vector4 MakeDirection(const Vector3& value)
+    {
+        return {value.x, value.y, value.z, 0.0f};
+    }
+
+    // **`w` 로 나눈다**(원근 나눗셈). `w` 가 0 이면 무한히 먼 점이라 나눌 수 없으므로
+    // 나누지 않고 앞의 셋을 그대로 준다 - 여기서 무한을 만들면 그 값이 뒤로 번진다.
+    inline Vector3 ToVector3(const Vector4& value)
+    {
+        if (value.w == 0.0f || value.w == 1.0f)
+        {
+            return {value.x, value.y, value.z};
+        }
+        const float inverse = 1.0f / value.w;
+        return {value.x * inverse, value.y * inverse, value.z * inverse};
+    }
+
+    inline bool NearlyEqual(const Vector4& left, const Vector4& right, float tolerance = 0.0001f)
+    {
+        return std::fabs(left.x - right.x) <= tolerance
+            && std::fabs(left.y - right.y) <= tolerance
+            && std::fabs(left.z - right.z) <= tolerance
+            && std::fabs(left.w - right.w) <= tolerance;
     }
 }

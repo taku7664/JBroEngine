@@ -26,7 +26,7 @@ namespace JBro::System
             return transform;
         }
 
-        void Store(const Vec3& value, float out[3])
+        void Store(const Vector3& value, float out[3])
         {
             out[0] = value.x;
             out[1] = value.y;
@@ -99,8 +99,8 @@ namespace JBro::System
         if (listener != nullptr)
         {
             Store(listener->worldPosition, position);
-            Store(Rotate(listener->worldRotation, Vec3{0.0f, 0.0f, -1.0f}), forward);
-            Store(Rotate(listener->worldRotation, Vec3{0.0f, 1.0f, 0.0f}), up);
+            Store(Rotate(listener->worldRotation, Vector3{0.0f, 0.0f, -1.0f}), forward);
+            Store(Rotate(listener->worldRotation, Vector3{0.0f, 1.0f, 0.0f}), up);
         }
         m_audio.SetListener(position, forward, up, 0.0f, deltaTime);
 

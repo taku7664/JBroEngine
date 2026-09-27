@@ -20,9 +20,9 @@ namespace JBro::Internal
     struct ObjectPose
     {
         Matrix3x2 matrix;
-        Vec2      position;
+        Vector2      position;
         Radian    angle = 0.0f;
-        Vec2      scale{ 1.0f, 1.0f };
+        Vector2      scale{ 1.0f, 1.0f };
     };
 
     // 활성 `Transform2D` 가 없으면 false 다. 부모에 Transform 이 꺼져 있으면 그 아래도 자세가 없다(ProjectRule §6).

@@ -24,7 +24,7 @@ namespace JBro::Physics2D
     // (physics-plan §3·§4 의 7). 판정·질의는 radius 를 알고, 질량은 두 점 조각을 캡슐로 잰다.
     struct ConvexPolygon
     {
-        Vec2          points[MaxPolygonVertices];
+        Vector2          points[MaxPolygonVertices];
         std::uint32_t count = 0;
         float         radius = 0.0f;
     };
@@ -42,16 +42,16 @@ namespace JBro::Physics2D
     struct MassData
     {
         float mass = 0.0f;
-        Vec2  center;
+        Vector2  center;
         float inertia = 0.0f;
     };
 
     // 부호 있는 넓이. 반시계면 양수다. 오목 도형에서도 맞다(부채꼴 삼각형의 부호를 버리지 않는다).
-    float SignedArea(ArrayView<const Vec2> points);
+    float SignedArea(ArrayView<const Vector2> points);
 
     // 거의 같은 점을 합치고, 일직선 점을 빼고, 반시계로 돌린 뒤 단순 다각형인지 검사한다.
     // 실패하면 out 을 비운다. 입력은 건드리지 않는다.
-    PolygonError CleanPolygon(ArrayView<const Vec2> points, Array<Vec2>& out);
+    PolygonError CleanPolygon(ArrayView<const Vector2> points, Array<Vector2>& out);
 
     // 분해의 작업 공간이다. 모양을 자주 바꾸는 쪽(크기를 움직이는 콜라이더)이 들고 있으면 용량이 남아 두 번째부터 할당하지 않는다.
     struct DecomposeScratch
@@ -64,31 +64,31 @@ namespace JBro::Physics2D
             bool          alive = true;
         };
 
-        Array<Vec2>          clean;
+        Array<Vector2>          clean;
         Array<std::uint32_t> ring;
         Array<Piece>         pieces;
     };
 
     // CleanPolygon 뒤에 귀 자르기 + Hertel-Mehlhorn 병합으로 볼록 조각을 만든다. 조각의 꼭짓점은
     // MaxPolygonVertices 이하다. 볼록한 입력이 상한 안이면 조각 하나다. 실패하면 outPieces 를 비운다.
-    PolygonError DecomposePolygon(ArrayView<const Vec2> points, Array<ConvexPolygon>& outPieces);
-    PolygonError DecomposePolygon(ArrayView<const Vec2> points, Array<ConvexPolygon>& outPieces, DecomposeScratch& scratch);
+    PolygonError DecomposePolygon(ArrayView<const Vector2> points, Array<ConvexPolygon>& outPieces);
+    PolygonError DecomposePolygon(ArrayView<const Vector2> points, Array<ConvexPolygon>& outPieces, DecomposeScratch& scratch);
 
     // 볼록 조각의 질량 속성(밀도 × 넓이). 두 점 조각은 캡슐로 잰다(ComputeCapsuleMass).
     MassData ComputePolygonMass(const ConvexPolygon& polygon, float density);
 
     // 단순 다각형(오목 가능, 반시계) 외곽선에서 바로 구한 질량 속성. 조각 합과 독립인 두 번째 계산이라
     // 분해가 넓이나 관성을 잃지 않았는지 대조하는 데 쓴다.
-    MassData ComputeOutlineMass(ArrayView<const Vec2> ccwPoints, float density);
+    MassData ComputeOutlineMass(ArrayView<const Vector2> ccwPoints, float density);
 
-    MassData ComputeCircleMass(Vec2 center, float radius, float density);
+    MassData ComputeCircleMass(Vector2 center, float radius, float density);
 
     // 선분 a-b 에 반지름을 두른 캡슐의 질량 속성. 가운데 직사각형과 양 끝 반원 둘이다.
-    MassData ComputeCapsuleMass(Vec2 a, Vec2 b, float radius, float density);
+    MassData ComputeCapsuleMass(Vector2 a, Vector2 b, float radius, float density);
 
     // 가운데가 center, 반폭이 halfExtents 인 축 정렬 상자에 꼭 맞는 캡슐. 긴 축을 따라 눕고 반지름은 짧은 쪽 반폭이다.
     // 두 반폭이 같으면 두 점이 겹친다 - 원이다. 반폭은 절댓값으로 본다.
-    ConvexPolygon MakeCapsuleInBox(Vec2 center, Vec2 halfExtents);
+    ConvexPolygon MakeCapsuleInBox(Vector2 center, Vector2 halfExtents);
 
     // 여러 도형의 질량을 합친다. 관성은 합친 중심 기준으로 평행축 정리로 옮긴다.
     MassData CombineMass(ArrayView<const MassData> parts);

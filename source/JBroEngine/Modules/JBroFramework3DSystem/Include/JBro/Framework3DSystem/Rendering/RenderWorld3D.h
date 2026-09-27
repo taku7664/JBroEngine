@@ -16,7 +16,7 @@ namespace JBro
     struct RenderCamera3D
     {
         GameObject* owner = nullptr;
-        Vec3 position;
+        Vector3 position;
         Quaternion rotation;
         Component::CameraProjection3D projection = Component::CameraProjection3D::Perspective;
         float verticalFieldOfView = 60.0f;
@@ -29,9 +29,9 @@ namespace JBro
     struct MeshRenderItem
     {
         GameObject* owner = nullptr;
-        Vec3 position;
+        Vector3 position;
         Quaternion rotation;
-        Vec3 scale{1.0f, 1.0f, 1.0f};
+        Vector3 scale{1.0f, 1.0f, 1.0f};
         AssetHandle mesh;
         AssetHandle material;
         Color tint{1.0f, 1.0f, 1.0f, 1.0f};
@@ -42,9 +42,9 @@ namespace JBro
     struct WorldTextRenderItem
     {
         GameObject* owner = nullptr;
-        Vec3 position;
+        Vector3 position;
         Quaternion rotation;
-        Vec3 scale{1.0f, 1.0f, 1.0f};
+        Vector3 scale{1.0f, 1.0f, 1.0f};
         bool billboard = false;
         float left = 0.0f;
         float top = 0.0f;

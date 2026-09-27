@@ -97,7 +97,7 @@ namespace JBro::Internal
 
         // 3D 텍스트의 글자를 이 뷰의 카메라로 놓고 뒤→앞으로 낸다(D-222). 빌보드는 오브젝트 회전 대신 카메라 회전을 쓴다 - 판의 +Z 가
         // 카메라 쪽이고 가로가 카메라의 오른쪽이다. 같은 텍스트의 글자는 한 자리(오브젝트 위치)라 거리가 같으므로 낸 순서가 남는다.
-        bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, bool editorView, const Vec3& cameraPosition,
+        bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, bool editorView, const Vector3& cameraPosition,
             const Quaternion& cameraRotation)
         {
             Array<std::uint32_t>& order = world.GetTextOrderScratch();
@@ -112,7 +112,7 @@ namespace JBro::Internal
                 order.Add(static_cast<std::uint32_t>(index));
             }
             const auto distance = [&](std::uint32_t index) {
-                const Vec3& position = world.GetText(index).position;
+                const Vector3& position = world.GetText(index).position;
                 const float dx = position.x - cameraPosition.x;
                 const float dy = position.y - cameraPosition.y;
                 const float dz = position.z - cameraPosition.z;
@@ -142,8 +142,8 @@ namespace JBro::Internal
                     const Matrix4x4 object = MakeTransformMatrix3D(item.position, item.billboard ? cameraRotation : item.rotation, item.scale);
                     // 단위 쿼드(-0.5..0.5)를 글자 사각형으로: 가운데로 옮기고 폭·높이로 늘린다.
                     const Matrix4x4 glyph = MakeTransformMatrix3D(
-                        Vec3{item.left + item.width * 0.5f, item.top - item.height * 0.5f, 0.0f}, Quaternion{},
-                        Vec3{item.width, item.height, 1.0f});
+                        Vector3{item.left + item.width * 0.5f, item.top - item.height * 0.5f, 0.0f}, Quaternion{},
+                        Vector3{item.width, item.height, 1.0f});
                     WorldTextSubmit& submit = batch[count];
                     ++count;
                     submit.world = MultiplyMatrix4x4(object, glyph);
@@ -185,7 +185,7 @@ namespace JBro::Internal
         {
             const bool perspective = camera.projection == Component::CameraProjection3D::Perspective;
             const float halfFieldTangent = std::tan(camera.verticalFieldOfView * (3.14159265f / 180.0f) * 0.5f);
-            const Vec3 forward = Rotate(camera.rotation, Vec3{0.0f, 0.0f, -1.0f});
+            const Vector3 forward = Rotate(camera.rotation, Vector3{0.0f, 0.0f, -1.0f});
             constexpr std::uint32_t BatchSize = 64;
             WorldTextSubmit batch[BatchSize];
             std::uint32_t count = 0;
@@ -193,16 +193,16 @@ namespace JBro::Internal
             for (std::uint32_t index = 0; index < lineCount; ++index)
             {
                 const DebugLine& line = debugDraw.GetLine(index);
-                const Vec3 from{line.from[0], line.from[1], line.from[2]};
-                const Vec3 to{line.to[0], line.to[1], line.to[2]};
-                const Vec3 along = Subtract(to, from);
+                const Vector3 from{line.from[0], line.from[1], line.from[2]};
+                const Vector3 to{line.to[0], line.to[1], line.to[2]};
+                const Vector3 along = Subtract(to, from);
                 const float length = Length(along);
                 if (false == (length > 0.0f))
                 {
                     continue;
                 }
-                const Vec3 center = Scale(Add(from, to), 0.5f);
-                const Vec3 toCenter = Subtract(center, camera.position);
+                const Vector3 center = Scale(Add(from, to), 0.5f);
+                const Vector3 toCenter = Subtract(center, camera.position);
                 float worldPerPixel = 2.0f * camera.orthographicSize / viewportHeight;
                 if (perspective)
                 {
@@ -214,15 +214,15 @@ namespace JBro::Internal
                     }
                     worldPerPixel = 2.0f * depth * halfFieldTangent / viewportHeight;
                 }
-                const Vec3 sight = perspective ? toCenter : forward;
-                Vec3 side = Cross(along, sight);
+                const Vector3 sight = perspective ? toCenter : forward;
+                Vector3 side = Cross(along, sight);
                 if (Length(side) <= length * 1e-4f)
                 {
                     // 선이 시선과 나란하다. 아무 수직이나 쓴다 - 점으로 보인다.
-                    side = Cross(along, std::fabs(along.y) < 0.9f * length ? Vec3{0.0f, 1.0f, 0.0f} : Vec3{1.0f, 0.0f, 0.0f});
+                    side = Cross(along, std::fabs(along.y) < 0.9f * length ? Vector3{0.0f, 1.0f, 0.0f} : Vector3{1.0f, 0.0f, 0.0f});
                 }
                 side = Scale(Normalize(side), line.thickness * worldPerPixel);
-                const Vec3 normal = Normalize(Cross(along, side));
+                const Vector3 normal = Normalize(Cross(along, side));
                 WorldTextSubmit& quad = batch[count];
                 quad = WorldTextSubmit{};
                 float* matrix = quad.world.values;
@@ -276,12 +276,12 @@ namespace JBro::Internal
         RenderCamera3D editor;
         editor.projection = Component::CameraProjection3D::Perspective;
         editor.verticalFieldOfView = view.verticalFieldOfView;
-        editor.rotation = FromEuler(Vec3{
+        editor.rotation = FromEuler(Vector3{
             view.pitchDegrees * Degrees, view.yawDegrees * Degrees, 0.0f});
         // 카메라가 보는 쪽은 -z 다(오른손 좌표계의 뷰 규약). 그 반대로 물러난다.
-        const Vec3 forward = Rotate(editor.rotation, Vec3{0.0f, 0.0f, -1.0f});
-        const Vec3 target{view.centerX, view.centerY, view.centerZ};
-        editor.position = Vec3{
+        const Vector3 forward = Rotate(editor.rotation, Vector3{0.0f, 0.0f, -1.0f});
+        const Vector3 target{view.centerX, view.centerY, view.centerZ};
+        editor.position = Vector3{
             target.x - forward.x * view.distance,
             target.y - forward.y * view.distance,
             target.z - forward.z * view.distance};

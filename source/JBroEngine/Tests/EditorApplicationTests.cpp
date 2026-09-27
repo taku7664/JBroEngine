@@ -1302,7 +1302,7 @@ namespace
         editor.Shutdown();
     }
 
-    using Points = JBro::Array<JBro::Vec2>;
+    using Points = JBro::Array<JBro::Vector2>;
 
     // 원소가 실수 묶음인 목록이다. 한 줄에 칸 둘로 그려지는 원소는 목록 편집에서
     // 따로 가는 길(실수 묶음을 모아 델타로 적는 길)이라 따로 잰다.
@@ -2983,7 +2983,7 @@ namespace
         editor.Shutdown();
     }
 
-    // **필드로 말하는 값(`Vec2`)도 커맨드로 고친다**(D-89). 한 줄 숫자 묶음은 코덱이 없어
+    // **필드로 말하는 값(`Vector2`)도 커맨드로 고친다**(D-89). 한 줄 숫자 묶음은 코덱이 없어
     // 전 글자를 뜨지 못했고, 뜨지 못하면 커밋을 건너뛰었다 - 위젯이 쓴 값이 그대로 남아
     // 되돌릴 수 없었고 여럿 골라도 주된 것만 움직였다. 회전(실수)만 재서 드러나지 않았다.
     void TestAVectorFieldEditsThroughACommand()
@@ -3012,8 +3012,8 @@ namespace
         auto* a = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
         auto* b = canvas->AttachComponent<JBro::Component::Transform2D>(beta);
         Check(a != nullptr && b != nullptr, "both must have transforms");
-        a->position = JBro::Vec2{0.0f, 0.0f};
-        b->position = JBro::Vec2{50.0f, 7.0f};
+        a->position = JBro::Vector2{0.0f, 0.0f};
+        b->position = JBro::Vector2{50.0f, 7.0f};
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
@@ -3091,11 +3091,11 @@ namespace
         auto* a = canvas->AttachComponent<Pointed>(alpha);
         auto* b = canvas->AttachComponent<Pointed>(beta);
         Check(a != nullptr && b != nullptr, "both must hold a list of points");
-        a->points.Add(JBro::Vec2{1.0f, 1.0f});
-        a->points.Add(JBro::Vec2{100.0f, 100.0f});
-        b->points.Add(JBro::Vec2{10.0f, 10.0f});
-        b->points.Add(JBro::Vec2{50.0f, 50.0f});
-        b->points.Add(JBro::Vec2{0.0f, 0.0f});
+        a->points.Add(JBro::Vector2{1.0f, 1.0f});
+        a->points.Add(JBro::Vector2{100.0f, 100.0f});
+        b->points.Add(JBro::Vector2{10.0f, 10.0f});
+        b->points.Add(JBro::Vector2{50.0f, 50.0f});
+        b->points.Add(JBro::Vector2{0.0f, 0.0f});
         JBro::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
@@ -5848,7 +5848,7 @@ namespace
         {
             JBro::GameObject* box = canvas->CreateObject("Box");
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
-            transform->position = JBro::Vec2{static_cast<float>(i % 100) * 2.0f, static_cast<float>(i / 100) * 2.0f};
+            transform->position = JBro::Vector2{static_cast<float>(i % 100) * 2.0f, static_cast<float>(i / 100) * 2.0f};
             canvas->AttachComponent<JBro::Component::Collider2D>(box);
         }
         JBro::CanvasFileError canvasError;
@@ -5902,7 +5902,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        const auto place = [&](const char* tag, JBro::Vec2 position, JBro::Vec2 size,
+        const auto place = [&](const char* tag, JBro::Vector2 position, JBro::Vector2 size,
                                JBro::Component::ColliderShape2D shape, bool dynamic) {
             JBro::GameObject* object = canvas->CreateObject(tag);
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
@@ -6046,7 +6046,7 @@ namespace
         JBro::GameObject* kept = canvas->CreateObject("Kept");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(kept);
         Check(transform != nullptr, "the object needs a transform");
-        transform->position = JBro::Vec2{3.0f, 4.0f};
+        transform->position = JBro::Vector2{3.0f, 4.0f};
         Check(editor.Tick(Frame), "the editor must tick before play");
 
         // **게임 뷰를 뒤로 보내 두고 재생한다**(D-178, 기존도 재생에서 앞으로 가져왔다).
@@ -6071,7 +6071,7 @@ namespace
         // 게임이 하는 일을 흉내 낸다: 오브젝트를 하나 만들고 값을 고친다.
         JBro::GameObject* spawned = canvas->CreateObject("Spawned");
         Check(spawned != nullptr, "the running game may spawn");
-        transform->position = JBro::Vec2{-9.0f, -9.0f};
+        transform->position = JBro::Vector2{-9.0f, -9.0f};
         Check(editor.Tick(Frame), "the editor must tick while playing");
 
         // **재생 중에는 캔버스를 파일로 쓰지 않는다**(D-153). 게임이 만든 오브젝트가 파일이 되면
@@ -6139,9 +6139,9 @@ namespace
         auto* farTransform = canvas->AttachComponent<JBro::Component::Transform2D>(far_);
         Check(leftTransform != nullptr && rightTransform != nullptr && farTransform != nullptr,
             "all three need transforms");
-        leftTransform->position = JBro::Vec2{-1.0f, 0.0f};
-        rightTransform->position = JBro::Vec2{1.0f, 0.0f};
-        farTransform->position = JBro::Vec2{0.0f, 4.0f};
+        leftTransform->position = JBro::Vector2{-1.0f, 0.0f};
+        rightTransform->position = JBro::Vector2{1.0f, 0.0f};
+        farTransform->position = JBro::Vector2{0.0f, 4.0f};
         for (int frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
@@ -7510,7 +7510,7 @@ namespace
         arm->SetParent(body);
         // 팔은 몸에서 왼쪽 아래로 두 유닛이다. 둘의 집는 칸이 겹치지 않고, 몸을 고르면 서는
         // 기즈모의 손잡이(오른쪽·위)와도 겹치지 않는다 - 겹치면 누름이 손잡이로 간다.
-        armTransform->position = JBro::Vec2{-2.0f, -2.0f};
+        armTransform->position = JBro::Vector2{-2.0f, -2.0f};
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
         for (int frame = 0; frame < 4; ++frame)
@@ -7813,7 +7813,7 @@ namespace
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(transform != nullptr && sprite != nullptr, "the hero needs both components");
-        transform->scale = JBro::Vec2{100.0f, 100.0f};
+        transform->scale = JBro::Vector2{100.0f, 100.0f};
         sprite->spriteId = spriteAsset;
         // 해석은 커맨드가 돌 때 따라 도는데(D-115) 여기서는 값을 손으로 놓았다.
         // 다시 훑으면 해석도 함께 돈다.
@@ -8023,7 +8023,7 @@ namespace
         std::cout << "  [measure] text block " << minX << ".." << maxX << " x " << minY << ".." << maxY << std::endl;
         // 오브젝트를 두 배로 키워 고른다. 블록은 오브젝트 로컬이라 캔버스 뷰가 크기를 곱해야 그림과 맞는다.
         constexpr float Scale = 2.0f;
-        transform->scale = JBro::Vec2{Scale, Scale};
+        transform->scale = JBro::Vector2{Scale, Scale};
         // 블록의 오른쪽 가까이다. 크기를 곱하지 않은 블록이라면 그 밖이다.
         const float pickX = (minX + (maxX - minX) * 0.8f) * Scale;
         const float pickY = (minY + maxY) * 0.5f * Scale;
@@ -8108,7 +8108,7 @@ namespace
         ClickAt(editor, hwnd, turned);
         Check(editor.GetSelectedObject() == object, "a turned text is picked where its turned block is");
         transform->SetRotationRadian(JBro::Radian(0.0f));
-        transform->scale = JBro::Vec2{1.0f, 1.0f};
+        transform->scale = JBro::Vector2{1.0f, 1.0f};
 
         // ── 여러 줄 글자 칸 ──────────────────────────────────────────────
         editor.SetSelectedObject(object);
@@ -11925,10 +11925,10 @@ namespace
         JBro::GameObject* target = canvas->CreateObject("Target");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(target);
         Check(transform != nullptr, "the object needs a transform to be pickable");
-        transform->position = JBro::Vec2{0.0f, 0.0f};
+        transform->position = JBro::Vector2{0.0f, 0.0f};
         // **집는 칸을 넉넉히 키운다.** 뷰의 한가운데는 툴바 높이만큼 창의 한가운데와
         // 어긋나 있어서, 빈 오브젝트의 기본 칸으로는 그 차이에 빗나간다.
-        transform->scale = JBro::Vec2{8.0f, 8.0f};
+        transform->scale = JBro::Vector2{8.0f, 8.0f};
         for (int frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");

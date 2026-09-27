@@ -16,7 +16,7 @@ namespace JBro::System
             Component::Transform2D& transform,
             const Matrix3x2& parentWorld,
             Radian parentRotation,
-            const Vec2& parentScale)
+            const Vector2& parentScale)
         {
             const Matrix3x2 localMatrix = MakeTransformMatrix2D(
                 transform.position,

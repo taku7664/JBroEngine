@@ -44,13 +44,13 @@ namespace JBro::System
 
         InputResult OnInput(InputView& input) override;
 
-        bool ScreenToLayer(Vec2 pixel, GameObjectHandle object, Vec2& point) const override;
-        bool LayerToScreen(Vec2 point, GameObjectHandle object, Vec2& pixel) const override;
+        bool ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const override;
+        bool LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const override;
         bool IsPointerOverButton() const override;
 
         // 픽셀을 이 레이어의 좌표로 옮긴다. 월드 레이어는 주 카메라(`Camera2DSystem` 과 같은 고르기)를 쓴다.
-        bool PixelToLayer(const Layer& layer, float pixelX, float pixelY, Vec2& point) const;
-        bool LayerToPixel(const Layer& layer, Vec2 point, float& pixelX, float& pixelY) const;
+        bool PixelToLayer(const Layer& layer, float pixelX, float pixelY, Vector2& point) const;
+        bool LayerToPixel(const Layer& layer, Vector2 point, float& pixelX, float& pixelY) const;
 
     protected:
         void OnInitialize(Canvas& canvas) override;

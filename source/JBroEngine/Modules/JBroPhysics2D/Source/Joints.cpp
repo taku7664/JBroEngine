@@ -20,13 +20,13 @@ namespace JBro::Physics2D
         constexpr float MaxJointAngularCorrection = 8.0f * Pi / 180.0f;
 
         template <typename TBody>
-        float InverseMassAlong(const TBody& body, Vec2 d)
+        float InverseMassAlong(const TBody& body, Vector2 d)
         {
             return d.x * d.x * body.inverseMassAxes.x + d.y * d.y * body.inverseMassAxes.y;
         }
 
         template <typename TBody>
-        void ApplyImpulse(TBody& a, TBody& b, Vec2 rA, Vec2 rB, Vec2 impulse)
+        void ApplyImpulse(TBody& a, TBody& b, Vector2 rA, Vector2 rB, Vector2 impulse)
         {
             a.linearVelocity = Subtract(a.linearVelocity, Multiply(impulse, a.inverseMassAxes));
             a.angularVelocity -= a.inverseInertia * Cross(rA, impulse);
@@ -35,7 +35,7 @@ namespace JBro::Physics2D
         }
 
         template <typename TBody>
-        void ApplyPositionImpulse(TBody& a, TBody& b, Vec2 rA, Vec2 rB, Vec2 impulse)
+        void ApplyPositionImpulse(TBody& a, TBody& b, Vector2 rA, Vector2 rB, Vector2 impulse)
         {
             a.center = Subtract(a.center, Multiply(impulse, a.inverseMassAxes));
             a.angle -= a.inverseInertia * Cross(rA, impulse);
@@ -44,14 +44,14 @@ namespace JBro::Physics2D
         }
 
         template <typename TBody>
-        Vec2 RelativeVelocity(const TBody& a, const TBody& b, Vec2 rA, Vec2 rB)
+        Vector2 RelativeVelocity(const TBody& a, const TBody& b, Vector2 rA, Vector2 rB)
         {
             return Subtract(Add(b.linearVelocity, Cross(b.angularVelocity, rB)),
                 Add(a.linearVelocity, Cross(a.angularVelocity, rA)));
         }
 
         // 2x2 대칭 행렬 [k11 k12; k12 k22] 로 x 를 푼다. 풀 수 없으면 0 이다.
-        Vec2 Solve22(float k11, float k12, float k22, Vec2 b)
+        Vector2 Solve22(float k11, float k12, float k22, Vector2 b)
         {
             const float determinant = k11 * k22 - k12 * k12;
             if (determinant == 0.0f)
@@ -304,16 +304,16 @@ namespace JBro::Physics2D
             {
                 continue;
             }
-            const Vec2 localA = joint.type == JointType::Distance ? joint.distance.localAnchorA : joint.hinge.localAnchorA;
-            const Vec2 localB = joint.type == JointType::Distance ? joint.distance.localAnchorB : joint.hinge.localAnchorB;
+            const Vector2 localA = joint.type == JointType::Distance ? joint.distance.localAnchorA : joint.hinge.localAnchorA;
+            const Vector2 localB = joint.type == JointType::Distance ? joint.distance.localAnchorB : joint.hinge.localAnchorB;
             joint.rA = RotateVector(Rotation::FromAngle(a.angle), Subtract(localA, a.localCenter));
             joint.rB = RotateVector(Rotation::FromAngle(b.angle), Subtract(localB, b.localCenter));
 
             if (joint.type == JointType::Distance)
             {
-                const Vec2 d = Subtract(Add(b.center, joint.rB), Add(a.center, joint.rA));
+                const Vector2 d = Subtract(Add(b.center, joint.rB), Add(a.center, joint.rA));
                 joint.currentLength = Length(d);
-                joint.axis = joint.currentLength > LinearSlop ? Scale(d, 1.0f / joint.currentLength) : Vec2{ 1.0f, 0.0f };
+                joint.axis = joint.currentLength > LinearSlop ? Scale(d, 1.0f / joint.currentLength) : Vector2{ 1.0f, 0.0f };
                 const float crA = Cross(joint.rA, joint.axis);
                 const float crB = Cross(joint.rB, joint.axis);
                 const float k = InverseMassAlong(a, joint.axis) + InverseMassAlong(b, joint.axis)
@@ -341,8 +341,8 @@ namespace JBro::Physics2D
             }
             else
             {
-                const Vec2 rA = joint.rA;
-                const Vec2 rB = joint.rB;
+                const Vector2 rA = joint.rA;
+                const Vector2 rB = joint.rB;
                 joint.k11 = a.inverseMassAxes.x + b.inverseMassAxes.x + a.inverseInertia * rA.y * rA.y + b.inverseInertia * rB.y * rB.y;
                 joint.k12 = -a.inverseInertia * rA.x * rA.y - b.inverseInertia * rB.x * rB.y;
                 joint.k22 = a.inverseMassAxes.y + b.inverseMassAxes.y + a.inverseInertia * rA.x * rA.x + b.inverseInertia * rB.x * rB.x;
@@ -451,8 +451,8 @@ namespace JBro::Physics2D
                 }
             }
             // 점을 맞춘다.
-            const Vec2 relative = RelativeVelocity(a, b, joint.rA, joint.rB);
-            const Vec2 impulse = Scale(Solve22(joint.k11, joint.k12, joint.k22, relative), -1.0f);
+            const Vector2 relative = RelativeVelocity(a, b, joint.rA, joint.rB);
+            const Vector2 impulse = Scale(Solve22(joint.k11, joint.k12, joint.k22, relative), -1.0f);
             joint.linearImpulse = Add(joint.linearImpulse, impulse);
             ApplyImpulse(a, b, joint.rA, joint.rB, impulse);
         }
@@ -477,15 +477,15 @@ namespace JBro::Physics2D
                 {
                     continue;
                 }
-                const Vec2 rA = RotateVector(Rotation::FromAngle(a.angle), Subtract(def.localAnchorA, a.localCenter));
-                const Vec2 rB = RotateVector(Rotation::FromAngle(b.angle), Subtract(def.localAnchorB, b.localCenter));
-                const Vec2 d = Subtract(Add(b.center, rB), Add(a.center, rA));
+                const Vector2 rA = RotateVector(Rotation::FromAngle(a.angle), Subtract(def.localAnchorA, a.localCenter));
+                const Vector2 rB = RotateVector(Rotation::FromAngle(b.angle), Subtract(def.localAnchorB, b.localCenter));
+                const Vector2 d = Subtract(Add(b.center, rB), Add(a.center, rA));
                 const float length = Length(d);
                 if (length <= LinearSlop)
                 {
                     continue;
                 }
-                const Vec2 axis = Scale(d, 1.0f / length);
+                const Vector2 axis = Scale(d, 1.0f / length);
                 float error = length - def.length;
                 if (def.maxLengthOnly && error <= 0.0f)
                 {
@@ -521,9 +521,9 @@ namespace JBro::Physics2D
                 a.angle -= a.inverseInertia * impulse;
                 b.angle += b.inverseInertia * impulse;
             }
-            const Vec2 rA = RotateVector(Rotation::FromAngle(a.angle), Subtract(def.localAnchorA, a.localCenter));
-            const Vec2 rB = RotateVector(Rotation::FromAngle(b.angle), Subtract(def.localAnchorB, b.localCenter));
-            Vec2 error = Subtract(Add(b.center, rB), Add(a.center, rA));
+            const Vector2 rA = RotateVector(Rotation::FromAngle(a.angle), Subtract(def.localAnchorA, a.localCenter));
+            const Vector2 rB = RotateVector(Rotation::FromAngle(b.angle), Subtract(def.localAnchorB, b.localCenter));
+            Vector2 error = Subtract(Add(b.center, rB), Add(a.center, rA));
             const float errorLength = Length(error);
             if (errorLength > MaxJointLinearCorrection)
             {

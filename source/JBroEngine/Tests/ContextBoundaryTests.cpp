@@ -105,7 +105,7 @@ namespace
         mutable int overlapCalls = 0;
         bool hasHit = true;
 
-        bool Raycast(JBro::Vec2 origin, JBro::Vec2 direction, float distance,
+        bool Raycast(JBro::Vector2 origin, JBro::Vector2 direction, float distance,
             JBro::RaycastHit2D& hit, std::uint32_t layerMask) const override
         {
             ++raycastCalls;
@@ -135,7 +135,7 @@ namespace
         }
 
         // 늘어난 질의는 서비스가 인자를 그대로 넘기는지만 센다.
-        void RaycastAll(JBro::Vec2, JBro::Vec2, float distance, JBro::Array<JBro::RaycastHit2D>& hits,
+        void RaycastAll(JBro::Vector2, JBro::Vector2, float distance, JBro::Array<JBro::RaycastHit2D>& hits,
             std::uint32_t layerMask) const override
         {
             ++otherCalls;
@@ -143,13 +143,13 @@ namespace
             lastDistance = distance;
             hits.Clear();
         }
-        JBro::GameObjectHandle OverlapPoint(JBro::Vec2, std::uint32_t layerMask) const override
+        JBro::GameObjectHandle OverlapPoint(JBro::Vector2, std::uint32_t layerMask) const override
         {
             ++otherCalls;
             lastMask = layerMask;
             return {};
         }
-        void OverlapCircle(JBro::Vec2, float radius, JBro::Array<JBro::GameObjectHandle>& results,
+        void OverlapCircle(JBro::Vector2, float radius, JBro::Array<JBro::GameObjectHandle>& results,
             std::uint32_t layerMask) const override
         {
             ++otherCalls;
@@ -157,7 +157,7 @@ namespace
             lastDistance = radius;
             results.Clear();
         }
-        bool CircleCast(JBro::Vec2, float radius, JBro::Vec2, float, JBro::RaycastHit2D& hit,
+        bool CircleCast(JBro::Vector2, float radius, JBro::Vector2, float, JBro::RaycastHit2D& hit,
             std::uint32_t layerMask) const override
         {
             ++otherCalls;
@@ -167,7 +167,7 @@ namespace
             hit.distance = 1.5f;
             return true;
         }
-        bool BoxCast(JBro::Vec2, JBro::Vec2 halfExtents, float angle, JBro::Vec2, float,
+        bool BoxCast(JBro::Vector2, JBro::Vector2 halfExtents, float angle, JBro::Vector2, float,
             JBro::RaycastHit2D& hit, std::uint32_t layerMask) const override
         {
             ++otherCalls;

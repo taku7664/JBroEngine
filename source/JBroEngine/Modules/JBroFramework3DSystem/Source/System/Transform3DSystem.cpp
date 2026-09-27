@@ -13,9 +13,9 @@ namespace JBro::System
             Canvas& canvas,
             GameObject& object,
             Component::Transform3D& transform,
-            const Vec3& parentPosition,
+            const Vector3& parentPosition,
             const Quaternion& parentRotation,
-            const Vec3& parentScale)
+            const Vector3& parentScale)
         {
             // 분해된 값으로 겹친다(framework3d-plan §2.1). 자식의 위치는 부모의 스케일·회전을 거쳐
             // 부모 위치에 더해진다. 비균등 스케일 아래의 회전이 만드는 전단은 잃는다.

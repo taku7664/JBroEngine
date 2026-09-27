@@ -56,9 +56,9 @@ namespace JBro
     // 기즈모가 붙는 대상이다. 월드 위치·회전과 로컬 스케일 - 손잡이는 월드에 그리고, 스케일은 대상의 축을 따른다.
     struct GizmoSubject
     {
-        Vec3 position;
+        Vector3 position;
         Quaternion rotation;
-        Vec3 scale = {1.0f, 1.0f, 1.0f};
+        Vector3 scale = {1.0f, 1.0f, 1.0f};
         bool planar = false;
     };
 
@@ -69,9 +69,9 @@ namespace JBro
         GizmoMode mode = GizmoMode::Translate;
         GizmoAxis axis = GizmoAxis::None;
         GizmoSubject start;
-        Vec3 axisDirection;
-        Vec3 planeNormal;
-        Vec3 startHit;
+        Vector3 axisDirection;
+        Vector3 planeNormal;
+        Vector3 startHit;
         float startParameter = 0.0f;
         float startAngle = 0.0f;
         float angleSign = 1.0f;
@@ -110,20 +110,20 @@ namespace JBro
             float left, float top, float width, float height, GizmoCamera& out);
 
         // 월드 점을 화면 픽셀로. 카메라 뒤에 있으면 거짓이다. `depth` 는 NDC z(0..1).
-        static bool Project(const GizmoCamera& camera, const Vec3& world, float& x, float& y, float* depth = nullptr);
+        static bool Project(const GizmoCamera& camera, const Vector3& world, float& x, float& y, float* depth = nullptr);
 
         // 월드의 평면 사각형(원점에서 `axisX`·`axisY` 로 편 [minX, maxX] x [minY, maxY])의 네 모서리를 화면으로 투영해 감싸는 사각형을 준다
         // (D-222, 3D 텍스트 고르기). 축은 크기까지 곱한 월드 벡터다. 모서리 하나라도 카메라 뒤면 거짓이다.
-        static bool ProjectPlaneRect(const GizmoCamera& camera, const Vec3& origin, const Vec3& axisX, const Vec3& axisY,
+        static bool ProjectPlaneRect(const GizmoCamera& camera, const Vector3& origin, const Vector3& axisX, const Vector3& axisY,
             float minX, float minY, float maxX, float maxY, float& screenMinX, float& screenMinY, float& screenMaxX,
             float& screenMaxY);
         // 화면 픽셀과 NDC 깊이를 월드 점으로.
-        static bool Unproject(const GizmoCamera& camera, float x, float y, float ndcDepth, Vec3& world);
+        static bool Unproject(const GizmoCamera& camera, float x, float y, float ndcDepth, Vector3& world);
         // 화면 점을 지나는 월드 광선. 직교 카메라면 광선들이 평행하다.
-        static bool MakeRay(const GizmoCamera& camera, float x, float y, Vec3& origin, Vec3& direction);
+        static bool MakeRay(const GizmoCamera& camera, float x, float y, Vector3& origin, Vector3& direction);
 
         // 대상의 로컬 축을 월드 단위 벡터로. `Free` 는 영벡터다.
-        static Vec3 AxisDirection(const GizmoSubject& subject, GizmoAxis axis);
+        static Vector3 AxisDirection(const GizmoSubject& subject, GizmoAxis axis);
 
         // 그릴 손잡이들이다. 보이지 않는 것(카메라를 정면으로 가리키는 축)은 빠진다.
         static std::uint32_t BuildHandles(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,

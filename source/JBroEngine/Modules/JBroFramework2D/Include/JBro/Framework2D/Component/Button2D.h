@@ -29,8 +29,8 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(Button2D)
 
-        JBRO_FIELD(Vec2, size) { 160.0f, 48.0f };
-        JBRO_FIELD(Vec2, offset);
+        JBRO_FIELD(Vector2, size) { 160.0f, 48.0f };
+        JBRO_FIELD(Vector2, offset);
         // 꺼져 있으면 누르지 못하고 `disabledTint` 로 보인다. 포인터는 그래도 소비한다 - 꺼진 단추 뒤의 게임이 눌리면 안 된다.
         JBRO_FIELD(bool, interactable) = true;
         JBRO_FIELD(bool, tintSprite) = true;

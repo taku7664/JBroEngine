@@ -115,7 +115,7 @@ namespace JBro::System
         m_hookTargets.Clear();
     }
 
-    bool Button2DSystem::PixelToLayer(const Layer& layer, float pixelX, float pixelY, Vec2& point) const
+    bool Button2DSystem::PixelToLayer(const Layer& layer, float pixelX, float pixelY, Vector2& point) const
     {
         if (IsScreenLayer(layer))
         {
@@ -139,7 +139,7 @@ namespace JBro::System
         return Apply(cameraWorld, nx * view.halfWidth, ny * view.halfHeight, point.x, point.y);
     }
 
-    bool Button2DSystem::LayerToPixel(const Layer& layer, Vec2 point, float& pixelX, float& pixelY) const
+    bool Button2DSystem::LayerToPixel(const Layer& layer, Vector2 point, float& pixelX, float& pixelY) const
     {
         if (IsScreenLayer(layer))
         {
@@ -161,14 +161,14 @@ namespace JBro::System
         return NormalizedToScreenPixel(m_screen, vx / view.halfWidth, vy / view.halfHeight, pixelX, pixelY);
     }
 
-    bool Button2DSystem::ScreenToLayer(Vec2 pixel, GameObjectHandle object, Vec2& point) const
+    bool Button2DSystem::ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const
     {
         const GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
         const Layer* layer = found != nullptr ? found->GetLayer() : nullptr;
         return layer != nullptr && PixelToLayer(*layer, pixel.x, pixel.y, point);
     }
 
-    bool Button2DSystem::LayerToScreen(Vec2 point, GameObjectHandle object, Vec2& pixel) const
+    bool Button2DSystem::LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const
     {
         const GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
         const Layer* layer = found != nullptr ? found->GetLayer() : nullptr;
@@ -217,7 +217,7 @@ namespace JBro::System
         {
             return false;
         }
-        Vec2 point;
+        Vector2 point;
         Matrix3x2 inverse;
         float localX = 0.0f;
         float localY = 0.0f;

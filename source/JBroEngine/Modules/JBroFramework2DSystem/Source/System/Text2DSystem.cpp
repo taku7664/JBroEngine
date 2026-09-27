@@ -166,8 +166,8 @@ namespace JBro::System
                 item.tint = Color{ quad.tint[0] / 255.0f, quad.tint[1] / 255.0f, quad.tint[2] / 255.0f,
                     quad.tint[3] / 255.0f * text.color.A };
             }
-            item.pivot = Vec2{ 0.0f, 1.0f };
-            item.size = Vec2{ quad.width / ppu, quad.height / ppu };
+            item.pivot = Vector2{ 0.0f, 1.0f };
+            item.size = Vector2{ quad.width / ppu, quad.height / ppu };
             item.renderOrder = text.renderOrder;
             if (block.IsSdf())
             {

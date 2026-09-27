@@ -16,7 +16,7 @@ namespace
     using JBro::Array;
     using JBro::ArrayView;
     using JBro::Rect;
-    using JBro::Vec2;
+    using JBro::Vector2;
     using JBro::Physics2D::Circle;
     using JBro::Physics2D::ConvexPolygon;
     using JBro::Physics2D::Manifold;
@@ -37,7 +37,7 @@ namespace
         return std::fabs(actual - expected) <= tolerance;
     }
 
-    bool NearVector(Vec2 actual, Vec2 expected, float tolerance)
+    bool NearVector(Vector2 actual, Vector2 expected, float tolerance)
     {
         return Near(actual.x, expected.x, tolerance) && Near(actual.y, expected.y, tolerance);
     }
@@ -61,7 +61,7 @@ namespace
         return box;
     }
 
-    Array<ConvexPolygon> Decompose(const Array<Vec2>& outline)
+    Array<ConvexPolygon> Decompose(const Array<Vector2>& outline)
     {
         Array<ConvexPolygon> pieces;
         Check(JBro::Physics2D::DecomposePolygon(outline.View(), pieces) == JBro::Physics2D::PolygonError::None,
@@ -89,7 +89,7 @@ namespace
     // 상자 중심으로 향하게 뒤집었고, 그 중심은 홈 안에 있어 왼쪽 안벽에서 법선이 -x 로 나왔다(physics-plan §1.2 의 1).
     void TestABoxInTheNotchOfAUIsPushedOutOfTheWall()
     {
-        const Array<Vec2> u = {
+        const Array<Vector2> u = {
             { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
         const Array<ConvexPolygon> pieces = Decompose(u);
         const ConvexPolygon box = MakeBox(0.3f, 0.3f);
@@ -118,7 +118,7 @@ namespace
     // **순서를 바꾸면 법선만 뒤집힌다.** 법선은 언제나 A→B 이고 기준면에서만 나온다.
     void TestSwappingTheShapesFlipsOnlyTheNormal()
     {
-        const Array<Vec2> u = {
+        const Array<Vector2> u = {
             { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
         const Array<ConvexPolygon> pieces = Decompose(u);
         const ConvexPolygon box = MakeBox(0.3f, 0.3f);
@@ -166,7 +166,7 @@ namespace
     // 남기고 다시 쌍마다 법선 하나로 합쳐, 한쪽 벽만 밀었다(physics-plan §1.2 의 6).
     void TestACircleInTheInnerCornerOfAnLGetsBothWalls()
     {
-        const Array<Vec2> l = { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
+        const Array<Vector2> l = { { 0, 0 }, { 2, 0 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
         const Array<ConvexPolygon> pieces = Decompose(l);
         Check(pieces.Size() == 2, "the L is two pieces");
 
@@ -319,7 +319,7 @@ namespace
             const int count = 1 + static_cast<int>(next() * 60.0f);
             for (int i = 0; i < count; ++i)
             {
-                const Vec2 min = { next() * 20.0f, next() * 20.0f };
+                const Vector2 min = { next() * 20.0f, next() * 20.0f };
                 // 한 줄로 늘어선 경우(같은 x)도 섞는다.
                 const float x = (i % 5 == 0) ? 3.0f : min.x;
                 boxes.Add({ { x, min.y }, { x + next() * 3.0f, min.y + next() * 3.0f } });
@@ -359,14 +359,14 @@ namespace
     }
 
     // 조각 전부에 쏘아 가장 가까운 것을 고른다. 어댑터의 Raycast 가 하는 일과 같다.
-    bool RaycastPieces(const Array<ConvexPolygon>& pieces, Vec2 origin, Vec2 direction, float maxDistance,
-        float& distance, Vec2& normal)
+    bool RaycastPieces(const Array<ConvexPolygon>& pieces, Vector2 origin, Vector2 direction, float maxDistance,
+        float& distance, Vector2& normal)
     {
         bool hit = false;
         for (const ConvexPolygon& piece : pieces)
         {
             float candidate = 0.0f;
-            Vec2 candidateNormal;
+            Vector2 candidateNormal;
             if (JBro::Physics2D::RaycastPolygon(piece, At(0, 0), origin, direction, maxDistance, candidate, candidateNormal)
                 && (false == hit || candidate < distance))
             {
@@ -384,7 +384,7 @@ namespace
     {
         const ConvexPolygon box = MakeBox(1.0f, 1.0f);
         float distance = 0.0f;
-        Vec2 normal;
+        Vector2 normal;
         Check(JBro::Physics2D::RaycastPolygon(box, At(3, 0), { 0, 0 }, { 1, 0 }, 10.0f, distance, normal),
             "a ray along x hits a box ahead");
         Check(Near(distance, 2.0f, 1.0e-5f) && NearVector(normal, { -1, 0 }, 1.0e-5f), "on its near face");
@@ -403,7 +403,7 @@ namespace
             "a ray starting inside reports a hit");
         Check(distance == 0.0f && NearVector(normal, { -1, 0 }, 0.0f), "at distance zero against its direction");
 
-        const Array<Vec2> u = {
+        const Array<Vector2> u = {
             { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
         const Array<ConvexPolygon> pieces = Decompose(u);
         Check(RaycastPieces(pieces, { 1.5f, 5.0f }, { 0, -1 }, 10.0f, distance, normal),
@@ -471,7 +471,7 @@ namespace
     {
         const ConvexPolygon target = MakeBox(1.0f, 1.0f);
         float distance = 0.0f;
-        Vec2 normal;
+        Vector2 normal;
 
         // 원: 면, 모서리, 출발부터 겹침, 빗나감, 거리 모자람, 원 대 원.
         Check(JBro::Physics2D::CastCircle({ 0, 0 }, 0.5f, { 1, 0 }, 10.0f, target, At(3, 0), distance, normal),
@@ -515,12 +515,12 @@ namespace
             "and one swept away from the target misses");
 
         // U 의 홈으로 내리꽂은 원은 홈 바닥에 선다 - 조각마다 쏘아 가장 가까운 것이다.
-        const Array<Vec2> u = {
+        const Array<Vector2> u = {
             { 0, 0 }, { 3, 0 }, { 3, 3 }, { 2, 3 }, { 2, 1 }, { 1, 1 }, { 1, 3 }, { 0, 3 } };
         const Array<ConvexPolygon> pieces = Decompose(u);
         bool hit = false;
         float closest = 100.0f;
-        Vec2 closestNormal;
+        Vector2 closestNormal;
         for (const ConvexPolygon& piece : pieces)
         {
             if (JBro::Physics2D::CastCircle({ 1.5f, 5.0f }, 0.3f, { 0, -1 }, 10.0f, piece, At(0, 0), distance, normal)
@@ -536,7 +536,7 @@ namespace
     }
 
     // **캡슐(physics-plan §4 의 7).** 가로 캡슐: 코어 (-1, 0)-(1, 0), 반지름 0.5. 값은 손으로 푼 것이다.
-    ConvexPolygon MakeCapsule(Vec2 a, Vec2 b, float radius)
+    ConvexPolygon MakeCapsule(Vector2 a, Vector2 b, float radius)
     {
         ConvexPolygon capsule;
         capsule.points[0] = a;
@@ -562,7 +562,7 @@ namespace
         const JBro::Physics2D::MassData mass = JBro::Physics2D::ComputePolygonMass(MakeCapsule({ -1, 0 }, { 1, 0 }, 0.5f), 1.0f);
         Check(Near(mass.mass, 2.0f + 3.14159265f * 0.25f, 1.0e-5f) && NearVector(mass.center, {}, 1.0e-6f),
             "a two-point piece weighs as a capsule: a 2 x 1 middle and a circle");
-        Array<Vec2> outline;
+        Array<Vector2> outline;
         constexpr int Segments = 2000;
         for (int end = 0; end < 2; ++end)
         {
@@ -638,7 +638,7 @@ namespace
             "the bounds include the thickness");
 
         float distance = 0.0f;
-        Vec2 normal;
+        Vector2 normal;
         Check(JBro::Physics2D::RaycastPolygon(capsule, At(0, 0), { 0, 5 }, { 0, -1 }, 10, distance, normal)
             && Near(distance, 4.5f, 1.0e-5f) && NearVector(normal, { 0, 1 }, 1.0e-6f), "a ray down hits the side");
         Check(JBro::Physics2D::RaycastPolygon(capsule, At(0, 0), { 5, 0.4f }, { -1, 0 }, 10, distance, normal)
@@ -757,8 +757,8 @@ namespace
         // 모서리에 면으로 기댄 가파른 판자: 판자의 면 법선은 윗면보다 아래로 기울었지만 맞는 법선이다. 윗면이 받는다.
         // (판자 아래 끝은 벽 면에도 닿는다. 그것은 다른 곳의 접촉이라 여기서 보지 않는다.)
         const float angle = -0.20135792f;
-        const Vec2 facing{ std::cos(angle), std::sin(angle) };
-        const Vec2 along{ -std::sin(angle), std::cos(angle) };
+        const Vector2 facing{ std::cos(angle), std::sin(angle) };
+        const Vector2 along{ -std::sin(angle), std::cos(angle) };
         const Pose leaning = At(0.04f * facing.x + 0.3f * along.x, 0.04f * facing.y + 0.3f * along.y, angle);
         const ConvexPolygon plank = MakeBox(0.05f, 0.5f);
         const Manifold plankTop = JBro::Physics2D::CollideChainSegmentAndPolygon(top, At(0, 0), plank, leaning);

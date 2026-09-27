@@ -42,7 +42,7 @@ namespace JBro::Component
         JBRO_FIELD(AssetHandle, font, NoSerialize() | ReadOnly() | Tooltip("fontId 에서 해석된 값"));
         JBRO_FIELD(float, fontSize, Range(1, 512)) = 32.0f;
         // 글자 픽셀이다. 0 이면 그 방향으로 제한이 없다.
-        JBRO_FIELD(Vec2, boxSize);
+        JBRO_FIELD(Vector2, boxSize);
         JBRO_FIELD(TextOverflow, overflow) = TextOverflow::Wrap;
         JBRO_FIELD(TextWrapMode, wrapMode) = TextWrapMode::Word;
         JBRO_FIELD(TextAlignX, alignX) = TextAlignX::Left;

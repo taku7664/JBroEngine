@@ -28,7 +28,7 @@ namespace JBro
 
     // T * R * S. 열마다 스케일이 곱해지고 평행이동은 마지막 열이다.
     inline Matrix4x4 MakeTransformMatrix3D(
-        const Vec3& position, const Quaternion& rotation, const Vec3& scale)
+        const Vector3& position, const Quaternion& rotation, const Vector3& scale)
     {
         Matrix4x4 result = MakeRotationMatrix(rotation);
         for (std::uint32_t row = 0; row < 3; ++row)
@@ -45,10 +45,10 @@ namespace JBro
 
     // 카메라 TRS 의 역이다. 스케일은 무시한다 - 카메라를 키우면 세상이 줄어 보이는 것이 아니라
     // 아무 일도 없어야 한다. view = R(q*) * T(-p).
-    inline Matrix4x4 MakeViewMatrix(const Vec3& position, const Quaternion& rotation)
+    inline Matrix4x4 MakeViewMatrix(const Vector3& position, const Quaternion& rotation)
     {
         Matrix4x4 result = MakeRotationMatrix(Conjugate(Normalize(rotation)));
-        const Vec3 translated = Rotate(Conjugate(Normalize(rotation)), Scale(position, -1.0f));
+        const Vector3 translated = Rotate(Conjugate(Normalize(rotation)), Scale(position, -1.0f));
         result.values[3] = translated.x;
         result.values[7] = translated.y;
         result.values[11] = translated.z;
@@ -99,7 +99,7 @@ namespace JBro
     }
 
     // 점 하나를 행렬로 옮긴다(w 나눗셈 포함). 테스트와 기즈모가 쓴다.
-    inline bool TransformPoint(const Matrix4x4& matrix, const Vec3& point, Vec3& out)
+    inline bool TransformPoint(const Matrix4x4& matrix, const Vector3& point, Vector3& out)
     {
         const float* m = matrix.values;
         const float x = m[0] * point.x + m[1] * point.y + m[2] * point.z + m[3];

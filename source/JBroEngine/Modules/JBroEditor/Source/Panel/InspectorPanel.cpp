@@ -1222,7 +1222,7 @@ namespace JBro
             return;
         }
         // **글자는 커맨드가 쓰는 길로 뜬다.** 처음에는 코덱으로 떠서, 코덱이 없는 숫자 묶음
-        // (`Vec2`·`Color`)은 여기서 돌아갔다 - 위젯이 쓴 값이 커맨드 없이 남았다(D-89).
+        // (`Vector2`·`Color`)은 여기서 돌아갔다 - 위젯이 쓴 값이 커맨드 없이 남았다(D-89).
         String after;
         if (false == SetPropertyCommand::ReadValue(
                 *context.component, context.typeId, context.path, after)

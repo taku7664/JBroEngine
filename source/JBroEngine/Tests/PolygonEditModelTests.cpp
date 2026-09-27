@@ -8,7 +8,7 @@
 namespace
 {
     using JBro::Array;
-    using JBro::Vec2;
+    using JBro::Vector2;
     using JBro::PolygonEditModel::HitKind;
 
     void Check(bool condition, const char* message)
@@ -21,14 +21,14 @@ namespace
     }
 
     // 화면의 100 픽셀 정사각형.
-    Array<Vec2> Square()
+    Array<Vector2> Square()
     {
         return { { 100, 100 }, { 200, 100 }, { 200, 200 }, { 100, 200 } };
     }
 
     void TestPickPrefersAVertexOverItsEdges()
     {
-        const Array<Vec2> screen = Square();
+        const Array<Vector2> screen = Square();
         auto hit = JBro::PolygonEditModel::Pick(screen.View(), { 203, 98 });
         Check(hit.kind == HitKind::Vertex && hit.index == 1,
             "next to a corner the vertex wins, though two edges are just as close");
@@ -47,7 +47,7 @@ namespace
         Check(hit.kind == HitKind::Edge, "just past the vertex radius on its edge the edge takes over");
 
         // 두 버텍스가 모두 닿으면 더 가까운 쪽이다.
-        const Array<Vec2> tight = { { 0, 0 }, { 6, 0 }, { 3, 50 } };
+        const Array<Vector2> tight = { { 0, 0 }, { 6, 0 }, { 3, 50 } };
         hit = JBro::PolygonEditModel::Pick(tight.View(), { 5, 0 });
         Check(hit.kind == HitKind::Vertex && hit.index == 1, "of two vertices in reach the nearer one is taken");
     }
@@ -56,7 +56,7 @@ namespace
     {
         JBro::Component::Collider2D collider;
         collider.size = { 2, 4 };
-        Array<Vec2> seed;
+        Array<Vector2> seed;
         JBro::PolygonEditModel::SeedPoints(collider, seed);
         Check(seed.Size() == 4, "an empty polygon starts from the four corners of its size box");
         Check(seed[0].x == -1.0f && seed[0].y == -2.0f && seed[2].x == 1.0f && seed[2].y == 2.0f,
@@ -69,7 +69,7 @@ namespace
 
     void TestInsertAndRemove()
     {
-        Array<Vec2> points = { { 0, 0 }, { 2, 0 }, { 2, 2 }, { 0, 2 } };
+        Array<Vector2> points = { { 0, 0 }, { 2, 0 }, { 2, 2 }, { 0, 2 } };
         Check(JBro::PolygonEditModel::InsertOnEdge(points, 0, { 1, 0 }), "a point goes onto the first edge");
         Check(points.Size() == 5 && points[1].x == 1.0f && points[2].x == 2.0f, "between its two ends");
         Check(JBro::PolygonEditModel::InsertOnEdge(points, 4, { 0, 1 }), "and onto the closing edge");
@@ -78,7 +78,7 @@ namespace
 
         Check(JBro::PolygonEditModel::RemoveVertex(points, 1), "a point comes off");
         Check(points.Size() == 5 && points[1].x == 2.0f, "and the rest close up");
-        Array<Vec2> triangle = { { 0, 0 }, { 1, 0 }, { 0, 1 } };
+        Array<Vector2> triangle = { { 0, 0 }, { 1, 0 }, { 0, 1 } };
         Check(false == JBro::PolygonEditModel::RemoveVertex(triangle, 0), "a triangle keeps its three points");
         Check(triangle.Size() == 3, "untouched");
         Check(false == JBro::PolygonEditModel::RemoveVertex(points, 9), "a point past the last is refused");
@@ -90,7 +90,7 @@ namespace
         JBro::Component::Collider2D chain;
         chain.shape = JBro::Component::ColliderShape2D::Chain;
         chain.size = { 4, 1 };
-        JBro::Array<JBro::Vec2> seeded;
+        JBro::Array<JBro::Vector2> seeded;
         JBro::PolygonEditModel::SeedPoints(chain, seeded);
         Check(seeded.Size() == 2 && seeded[0].x == -2.0f && seeded[1].x == 2.0f && seeded[0].y == 0.0f, "an empty chain starts as a flat line");
         Check(JBro::PolygonEditModel::EditsPoints(chain) && false == JBro::PolygonEditModel::IsClosedOutline(chain)
@@ -100,13 +100,13 @@ namespace
             "a looped one is closed and keeps three");
 
         // 화면의 세 점 (0,0) (100,0) (100,100). 닫는 변 (100,100)-(0,0) 위의 점은 열린 체인에서 변이 아니다.
-        const JBro::Vec2 screen[] = { { 0, 0 }, { 100, 0 }, { 100, 100 } };
-        const JBro::ArrayView<const JBro::Vec2> view(screen, 3);
+        const JBro::Vector2 screen[] = { { 0, 0 }, { 100, 0 }, { 100, 100 } };
+        const JBro::ArrayView<const JBro::Vector2> view(screen, 3);
         Check(JBro::PolygonEditModel::Pick(view, { 50, 50 }, true).kind == JBro::PolygonEditModel::HitKind::Edge,
             "on a closed outline the closing edge is pickable");
         Check(JBro::PolygonEditModel::Pick(view, { 50, 50 }, false).kind == JBro::PolygonEditModel::HitKind::None,
             "on an open chain it is not there");
-        JBro::Array<JBro::Vec2> two = { { 0, 0 }, { 1, 0 }, { 2, 0 } };
+        JBro::Array<JBro::Vector2> two = { { 0, 0 }, { 1, 0 }, { 2, 0 } };
         Check(JBro::PolygonEditModel::RemoveVertex(two, 1, 2) && two.Size() == 2, "a chain of three may lose a point");
         Check(false == JBro::PolygonEditModel::RemoveVertex(two, 0, 2), "but not below two");
     }

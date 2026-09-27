@@ -105,10 +105,10 @@ namespace JBro
         // 끌기는 놓을 때 커맨드 하나(`points` 전체의 앞뒤 글자)이고, 변 누르기와 지우기도 하나씩이다.
         struct PolygonPose
         {
-            Vec2  center;
+            Vector2  center;
             float cosine = 1.0f;
             float sine = 0.0f;
-            Vec2  scale{1.0f, 1.0f};
+            Vector2  scale{1.0f, 1.0f};
         };
         struct PolygonTarget
         {
@@ -123,10 +123,10 @@ namespace JBro
         void DrawPolygonEditor(const ViewRect& rect);
         // 버텍스를 우클릭했으면 그 메뉴를 열고 참이다. 캔버스 메뉴 대신이다.
         bool DrawVertexMenu(const ViewRect& rect);
-        Vec2 LocalToScreen(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 local) const;
-        Vec2 ScreenToLocal(const ViewRect& rect, const PolygonPose& pose, Vec2 offset, Vec2 screen) const;
+        Vector2 LocalToScreen(const ViewRect& rect, const PolygonPose& pose, Vector2 offset, Vector2 local) const;
+        Vector2 ScreenToLocal(const ViewRect& rect, const PolygonPose& pose, Vector2 offset, Vector2 screen) const;
         // `points` 를 `after` 로 바꾸는 커맨드 하나를 올린다. 쓰기 전 값으로 되돌려 둔 뒤 커맨드가 쓴다.
-        void CommitPoints(const ComponentAddress& address, const String& before, const Array<Vec2>& after);
+        void CommitPoints(const ComponentAddress& address, const String& before, const Array<Vector2>& after);
         // 폴리곤의 볼록 조각. 꼭짓점과 크기가 바뀔 때만 다시 나눈다 - 그리기는 매 프레임이다.
         struct PieceCache
         {
@@ -134,7 +134,7 @@ namespace JBro
             Physics2D::PolygonError         error = Physics2D::PolygonError::None;
             Array<Physics2D::ConvexPolygon> pieces;
         };
-        const PieceCache& PiecesFor(const Component::Collider2D& collider, Vec2 scale);
+        const PieceCache& PiecesFor(const Component::Collider2D& collider, Vector2 scale);
         void DrawGizmo(const ViewRect& rect);
         // 화면과 월드를 잇는 카메라를 만든다. 2D 는 우리가 아는 직교 행렬로, 3D 는
         // **렌더러가 이번 프레임에 실제로 쓴 편집 카메라**로 만든다(D-140) - 여기서 같은
@@ -198,15 +198,15 @@ namespace JBro
         std::uint32_t m_dragVertex = 0;
         ComponentAddress m_dragAddress;
         String m_dragBefore;
-        Array<Vec2> m_dragPoints;
+        Array<Vector2> m_dragPoints;
         ComponentAddress m_menuAddress;
         std::uint32_t m_menuVertex = 0;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
         Array<Component::DistanceJoint2D*> m_distanceJointScratch;
         Array<Component::HingeJoint2D*> m_hingeJointScratch;
-        Array<Vec2> m_screenScratch;
-        Array<Vec2> m_outlineScratch;
+        Array<Vector2> m_screenScratch;
+        Array<Vector2> m_outlineScratch;
         Table<InstanceId, PieceCache> m_pieceCache;
 
         float m_centerX = 0.0f;

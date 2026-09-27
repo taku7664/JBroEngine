@@ -43,13 +43,13 @@ namespace JBro
             SetPropertyCommand::Path path;
             String before;
             // 로컬 시작값. 2D 는 z·w 를 쓰지 않는다.
-            Vec3 localPosition;
+            Vector3 localPosition;
             Quaternion localRotation;
             Radian localAngle = 0.0f;
-            Vec3 localScale = {1.0f, 1.0f, 1.0f};
+            Vector3 localScale = {1.0f, 1.0f, 1.0f};
             // 부모의 월드 회전·스케일. 월드 델타를 로컬로 옮기는 데 쓴다.
             Quaternion parentRotation;
-            Vec3 parentScale = {1.0f, 1.0f, 1.0f};
+            Vector3 parentScale = {1.0f, 1.0f, 1.0f};
             bool planar = false;
         };
 

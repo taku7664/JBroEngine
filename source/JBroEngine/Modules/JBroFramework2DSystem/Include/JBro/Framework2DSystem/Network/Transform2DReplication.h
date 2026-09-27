@@ -11,9 +11,9 @@ namespace JBro
     // `Transform2D` 가 와이어에 실리는 모양. 저작 값 셋이다. 월드 캐시는 받는 쪽의 `Transform2DSystem` 이 다시 계산한다.
     struct Transform2DWire
     {
-        Vec2 position;
+        Vector2 position;
         float rotation = 0.0f;
-        Vec2 scale{ 1.0f, 1.0f };
+        Vector2 scale{ 1.0f, 1.0f };
     };
 
     static_assert(std::is_trivially_copyable_v<Transform2DWire>);

@@ -1478,13 +1478,13 @@ namespace
         // 누르는 자리: 사각형 가운데는 붙은 카메라 자리, 오른쪽 끝은 반폭만큼 오른쪽이다. 거꾸로도 같다.
         auto* buttons = canvas->GetSystems().FindSystem<JBro::System::Button2DSystem>();
         Check(buttons != nullptr, "the button system does the picking");
-        JBro::Vec2 point;
+        JBro::Vector2 point;
         Check(buttons->ScreenToLayer({500.0f, 350.0f}, thing->GetScriptHandle(), point)
                 && close(point.x, 1.0f) && close(point.y, 0.5f),
             "the middle of the rectangle is where the snapped camera looks");
         Check(buttons->ScreenToLayer({980.0f, 350.0f}, thing->GetScriptHandle(), point) && close(point.x, 11.0f),
             "the right edge of the rectangle is half the view to the right");
-        JBro::Vec2 pixel;
+        JBro::Vector2 pixel;
         Check(buttons->LayerToScreen({11.0f, 0.5f}, thing->GetScriptHandle(), pixel)
                 && close(pixel.x, 980.0f) && close(pixel.y, 350.0f),
             "and a world point goes back to the pixel it was drawn at");

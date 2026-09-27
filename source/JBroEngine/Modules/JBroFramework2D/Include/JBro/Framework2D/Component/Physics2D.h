@@ -90,12 +90,12 @@ namespace JBro::Component
     // 두고, 물리가 그 스텝의 질량 중심으로 토크를 푼다 - 컴포넌트는 질량 중심을 모른다.
     struct PendingForces2D
     {
-        Vec2  forceAtCenter;
-        Vec2  forceAtPoints;
+        Vector2  forceAtCenter;
+        Vector2  forceAtPoints;
         float forceMoment = 0.0f;
         float torque = 0.0f;
-        Vec2  impulseAtCenter;
-        Vec2  impulseAtPoints;
+        Vector2  impulseAtCenter;
+        Vector2  impulseAtPoints;
         float impulseMoment = 0.0f;
         float angularImpulse = 0.0f;
         // 잠든 몸을 깨운다(D-229).
@@ -120,7 +120,7 @@ namespace JBro::Component
         JBRO_FIELD(BodyType2D, bodyType) = BodyType2D::Dynamic;
         // 속도는 시뮬레이션이 매 프레임 다시 쓴다. 저장하면 씬을 열 때마다
         // 물체가 저장된 순간의 속도로 튀어 나간다.
-        JBRO_FIELD(Vec2,  linearVelocity,  NoSerialize());
+        JBRO_FIELD(Vector2,  linearVelocity,  NoSerialize());
         JBRO_FIELD(float, angularVelocity, NoSerialize()) = 0.0f;
         JBRO_FIELD(float, mass,          Range(0, 1000)) = 1.0f;
         JBRO_FIELD(float, gravityScale)  = 1.0f;
@@ -135,11 +135,11 @@ namespace JBro::Component
 
         // 힘·토크는 다음 고정 스텝 한 번 동안 가해지고, 충격량은 그 스텝이 시작할 때 속도를 바꾼다(D-227). 월드 좌표다.
         // Dynamic 이 아니면 물리가 버린다.
-        void AddForce(Vec2 force)
+        void AddForce(Vector2 force)
         {
             m_pending.forceAtCenter = { m_pending.forceAtCenter.x + force.x, m_pending.forceAtCenter.y + force.y };
         }
-        void AddForceAtPosition(Vec2 force, Vec2 worldPoint)
+        void AddForceAtPosition(Vector2 force, Vector2 worldPoint)
         {
             m_pending.forceAtPoints = { m_pending.forceAtPoints.x + force.x, m_pending.forceAtPoints.y + force.y };
             m_pending.forceMoment += worldPoint.x * force.y - worldPoint.y * force.x;
@@ -148,11 +148,11 @@ namespace JBro::Component
         {
             m_pending.torque += torque;
         }
-        void AddImpulse(Vec2 impulse)
+        void AddImpulse(Vector2 impulse)
         {
             m_pending.impulseAtCenter = { m_pending.impulseAtCenter.x + impulse.x, m_pending.impulseAtCenter.y + impulse.y };
         }
-        void AddImpulseAtPosition(Vec2 impulse, Vec2 worldPoint)
+        void AddImpulseAtPosition(Vector2 impulse, Vector2 worldPoint)
         {
             m_pending.impulseAtPoints = { m_pending.impulseAtPoints.x + impulse.x, m_pending.impulseAtPoints.y + impulse.y };
             m_pending.impulseMoment += worldPoint.x * impulse.y - worldPoint.y * impulse.x;
@@ -203,13 +203,13 @@ namespace JBro::Component
         JBRO_REFLECT_BODY(Collider2D)
 
         JBRO_FIELD(ColliderShape2D, shape) = ColliderShape2D::Box;
-        JBRO_FIELD(Vec2,  offset);
-        JBRO_FIELD(Vec2,  size) { 1.0f, 1.0f };
+        JBRO_FIELD(Vector2,  offset);
+        JBRO_FIELD(Vector2,  size) { 1.0f, 1.0f };
         JBRO_FIELD(float, radius) = 0.5f;
         JBRO_FIELD(bool,  isTrigger) = false;
         // Polygon 의 꼭짓점이다(D-199). 오브젝트 로컬이고 offset 을 더한 뒤 트랜스폼의 크기를 곱한다. 오목해도 되고
         // 감긴 방향은 상관없다 - 물리 커널이 정리해 볼록 조각으로 나눈다. 자기 교차하면 그 콜라이더는 충돌하지 않는다.
-        JBRO_FIELD(Array<Vec2>, points);
+        JBRO_FIELD(Array<Vector2>, points);
         // Chain 이 끝과 처음을 잇는가(D-229). Chain 은 points 를 이은 선분 모음이고 두께와 질량이 없으며 두 면 모두에서 부딪힌다 -
         // 오목 폴리곤을 조각으로 나눈 바닥과 달리 이음매에서 걸리지 않는다. 포인트가 없으면 `size.x` 폭의 가로 선분이다.
         JBRO_FIELD(bool, loop) = false;
@@ -244,8 +244,8 @@ namespace JBro::Component
         JBRO_REFLECT_BODY(DistanceJoint2D)
 
         JBRO_FIELD(GameObjectHandle, connectedObject);
-        JBRO_FIELD(Vec2, anchor);
-        JBRO_FIELD(Vec2, connectedAnchor);
+        JBRO_FIELD(Vector2, anchor);
+        JBRO_FIELD(Vector2, connectedAnchor);
         // 참이면 조인트가 처음 이어지는 순간 두 앵커 사이의 거리를 distance 에 적는다.
         JBRO_FIELD(bool, autoDistance) = true;
         JBRO_FIELD(float, distance, Range(0, 1000)) = 1.0f;
@@ -276,8 +276,8 @@ namespace JBro::Component
         JBRO_REFLECT_BODY(HingeJoint2D)
 
         JBRO_FIELD(GameObjectHandle, connectedObject);
-        JBRO_FIELD(Vec2, anchor);
-        JBRO_FIELD(Vec2, connectedAnchor);
+        JBRO_FIELD(Vector2, anchor);
+        JBRO_FIELD(Vector2, connectedAnchor);
         // 참이면 조인트가 처음 이어지는 순간 anchor 가 놓인 자리를 상대의 로컬(없으면 월드)로 connectedAnchor 에 적는다.
         JBRO_FIELD(bool, autoConnectedAnchor) = true;
         JBRO_FIELD(bool, useLimits) = false;
@@ -298,8 +298,8 @@ namespace JBro
     {
         GameObjectHandle other;
         Component::BodyType2D bodyType = Component::BodyType2D::Dynamic;
-        Vec2 point;
-        Vec2 normal;
+        Vector2 point;
+        Vector2 normal;
     };
 
     // 질의가 모든 레이어를 본다(콜라이더의 `layer` 비트와 AND 해서 0 이 아니면 대상이다).
@@ -312,8 +312,8 @@ namespace JBro
     {
         GameObjectHandle other;
         Component::BodyType2D bodyType = Component::BodyType2D::Static;
-        Vec2 point;
-        Vec2 normal;
+        Vector2 point;
+        Vector2 normal;
         float distance = 0.0f;
     };
 }

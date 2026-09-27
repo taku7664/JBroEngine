@@ -45,7 +45,7 @@ namespace JBro
         }
 
         // 부모의 월드 회전·스케일. 부모가 없거나 트랜스폼이 없으면 항등이다.
-        void ParentFrame(Canvas& canvas, GameObject& object, bool planar, Quaternion& rotation, Vec3& scale)
+        void ParentFrame(Canvas& canvas, GameObject& object, bool planar, Quaternion& rotation, Vector3& scale)
         {
             rotation = {};
             scale = {1.0f, 1.0f, 1.0f};
@@ -90,7 +90,7 @@ namespace JBro
         }
         if (auto* transform = canvas->FindComponentRaw<Component::Transform2D>(&object))
         {
-            const Vec2 position = transform->worldValid ? transform->worldPosition : transform->position;
+            const Vector2 position = transform->worldValid ? transform->worldPosition : transform->position;
             const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
             subject.position = {position.x, position.y, 0.0f};
             subject.rotation = FromAngleAboutZ(angle);
@@ -179,11 +179,11 @@ namespace JBro
         case GizmoMode::Translate:
         {
             // 월드 델타를 부모의 축으로 돌려 로컬 델타로 만든다.
-            const Vec3 worldDelta = Subtract(primaryNow.position, m_primaryStart.position);
-            Vec3 localDelta = Rotate(parentInverse, worldDelta);
+            const Vector3 worldDelta = Subtract(primaryNow.position, m_primaryStart.position);
+            Vector3 localDelta = Rotate(parentInverse, worldDelta);
             localDelta = {SafeDivide(localDelta.x, target.parentScale.x), SafeDivide(localDelta.y, target.parentScale.y),
                 SafeDivide(localDelta.z, target.parentScale.z)};
-            const Vec3 position = Add(target.localPosition, localDelta);
+            const Vector3 position = Add(target.localPosition, localDelta);
             if (target.planar)
             {
                 static_cast<Component::Transform2D*>(component)->position = {position.x, position.y};
@@ -214,10 +214,10 @@ namespace JBro
         }
         case GizmoMode::Scale:
         {
-            const Vec3 factor = {SafeDivide(primaryNow.scale.x, m_primaryStart.scale.x),
+            const Vector3 factor = {SafeDivide(primaryNow.scale.x, m_primaryStart.scale.x),
                 SafeDivide(primaryNow.scale.y, m_primaryStart.scale.y),
                 SafeDivide(primaryNow.scale.z, m_primaryStart.scale.z)};
-            const Vec3 scale = Multiply(target.localScale, factor);
+            const Vector3 scale = Multiply(target.localScale, factor);
             if (target.planar)
             {
                 static_cast<Component::Transform2D*>(component)->scale = {scale.x, scale.y};

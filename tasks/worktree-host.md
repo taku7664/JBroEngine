@@ -189,7 +189,7 @@ namespace JBro
         class Physics2DService
         {
         public:
-            bool Raycast(Vec2 origin, Vec2 dir, float dist, Collision2D& hit) const;
+            bool Raycast(Vector2 origin, Vector2 dir, float dist, Collision2D& hit) const;
             void OverlapBox(const Rect& area, Array<GameObjectHandle>& out) const;
 
         private:

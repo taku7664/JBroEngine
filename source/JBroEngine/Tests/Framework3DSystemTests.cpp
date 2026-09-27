@@ -48,7 +48,7 @@ namespace
     void TestQuaternionsRotateRightHanded()
     {
         const JBro::Quaternion quarter = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, HalfPi);
-        const JBro::Vec3 turned = JBro::Rotate(quarter, {1.0f, 0.0f, 0.0f});
+        const JBro::Vector3 turned = JBro::Rotate(quarter, {1.0f, 0.0f, 0.0f});
         Check(JBro::NearlyEqual(turned, {0.0f, 0.0f, -1.0f}),
             "a quarter turn about +Y must take +X to -Z");
 
@@ -58,7 +58,7 @@ namespace
             "two quarter turns must be a half turn");
 
         // 역은 되돌린다.
-        const JBro::Vec3 back = JBro::Rotate(JBro::Conjugate(quarter), turned);
+        const JBro::Vector3 back = JBro::Rotate(JBro::Conjugate(quarter), turned);
         Check(JBro::NearlyEqual(back, {1.0f, 0.0f, 0.0f}), "the conjugate must undo the turn");
 
         // 오일러 Y 하나만 주면 축각과 같다.
@@ -66,7 +66,7 @@ namespace
         Check(JBro::NearlyEqual(JBro::Rotate(euler, {1.0f, 0.0f, 0.0f}), {0.0f, 0.0f, -1.0f}),
             "a yaw-only Euler angle must match the axis-angle turn");
 
-        Check(JBro::NearlyEqual(JBro::Normalize(JBro::Vec3{}), {}), "normalizing zero stays zero");
+        Check(JBro::NearlyEqual(JBro::Normalize(JBro::Vector3{}), {}), "normalizing zero stays zero");
         Check(JBro::NearlyEqual(JBro::Cross({1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f}), {0.0f, 0.0f, 1.0f}),
             "x cross y is z");
     }
@@ -76,13 +76,13 @@ namespace
     {
         const JBro::Quaternion quarter = JBro::FromAxisAngle({0.0f, 1.0f, 0.0f}, HalfPi);
         const JBro::Matrix4x4 world = JBro::MakeTransformMatrix3D({1.0f, 2.0f, 3.0f}, quarter, {2.0f, 2.0f, 2.0f});
-        JBro::Vec3 moved;
+        JBro::Vector3 moved;
         Check(JBro::TransformPoint(world, {1.0f, 0.0f, 0.0f}, moved), "a point must transform");
         // (1,0,0) → 스케일 2 → (2,0,0) → 회전 → (0,0,-2) → 이동 → (1,2,1)
         Check(JBro::NearlyEqual(moved, {1.0f, 2.0f, 1.0f}), "TRS must scale, then rotate, then move");
 
         const JBro::Matrix4x4 view = JBro::MakeViewMatrix({0.0f, 0.0f, 3.0f}, {});
-        JBro::Vec3 seen;
+        JBro::Vector3 seen;
         Check(JBro::TransformPoint(view, {0.0f, 0.0f, 0.0f}, seen), "the origin must transform");
         Check(JBro::NearlyEqual(seen, {0.0f, 0.0f, -3.0f}),
             "a camera at z=3 looking down -Z must see the origin 3 units in front");
@@ -94,13 +94,13 @@ namespace
 
         JBro::Matrix4x4 projection;
         Check(JBro::MakePerspectiveMatrix(HalfPi, 1.0f, 1.0f, 11.0f, projection), "the projection must build");
-        JBro::Vec3 nearPoint;
-        JBro::Vec3 farPoint;
+        JBro::Vector3 nearPoint;
+        JBro::Vector3 farPoint;
         Check(JBro::TransformPoint(projection, {0.0f, 0.0f, -1.0f}, nearPoint)
                 && JBro::TransformPoint(projection, {0.0f, 0.0f, -11.0f}, farPoint),
             "points on the planes must project");
         Check(Near(nearPoint.z, 0.0f) && Near(farPoint.z, 1.0f), "depth must run 0 at near to 1 at far");
-        JBro::Vec3 edge;
+        JBro::Vector3 edge;
         Check(JBro::TransformPoint(projection, {1.0f, 1.0f, -1.0f}, edge), "an edge point must project");
         Check(Near(edge.x, 1.0f) && Near(edge.y, 1.0f), "with a 90 degree field of view the near plane's edge is the clip edge");
         Check(false == JBro::MakePerspectiveMatrix(HalfPi, 1.0f, 5.0f, 1.0f, projection),
@@ -108,7 +108,7 @@ namespace
 
         JBro::Matrix4x4 ortho;
         Check(JBro::MakeOrthographicMatrix(2.0f, 2.0f, 0.0f, 10.0f, ortho), "the orthographic projection must build");
-        JBro::Vec3 corner;
+        JBro::Vector3 corner;
         Check(JBro::TransformPoint(ortho, {4.0f, 2.0f, -10.0f}, corner), "a corner must project");
         Check(Near(corner.x, 1.0f) && Near(corner.y, 1.0f) && Near(corner.z, 1.0f),
             "orthographic half height 2 with aspect 2 spans 4 by 2, and -Z far is depth 1");

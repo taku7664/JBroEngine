@@ -64,7 +64,7 @@
   새 Tier S 모듈을 만들지 않는다. **공통 `SystemContext` 와 `ServiceContext` 가 처음으로 슬롯을 갖는다** - §10.3 의 예시
   (`struct ServiceContext { Service::TimeService Time; }`)가 이 자리를 그렸다. 공통 블록은 `BindScriptModuleContexts` 가 이미 묶으므로
   확장 블록을 더하지 않는다.
-- 디버그 드로의 **표면만** 차원별이다(`Vec2`·`Vec3`). 저장소는 3D 좌표 하나로 두고 2D 는 z 를 0 으로 쓴다. 서비스는 도형을 선으로 펴서
+- 디버그 드로의 **표면만** 차원별이다(`Vector2`·`Vector3`). 저장소는 3D 좌표 하나로 두고 2D 는 z 를 0 으로 쓴다. 서비스는 도형을 선으로 펴서
   `AddLines` 한 번으로 넘긴다.
 - 구현 셋은 `EngineInstance` 가 소유한다(§7 "Time, Input 같은 핵심 서비스의 수명은 엔진이 소유한다"). 스크립트가
   `<JBro/Host/TimeSystem.h>` 를 include 하면 C1083 이다(`/p:JBroTierProbe=Time`).

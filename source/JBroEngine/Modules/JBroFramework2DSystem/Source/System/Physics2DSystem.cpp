@@ -59,27 +59,27 @@ namespace JBro::System
                 Mix(&normalized, sizeof(normalized));
             }
 
-            void Mix(Vec2 vector)
+            void Mix(Vector2 vector)
             {
                 Mix(vector.x);
                 Mix(vector.y);
             }
         };
 
-        float MaxAbs(Vec2 scale)
+        float MaxAbs(Vector2 scale)
         {
             return std::fmax(std::fabs(scale.x), std::fabs(scale.y));
         }
 
-        Vec2 Bake(Vec2 local, Vec2 offset, Vec2 scale)
+        Vector2 Bake(Vector2 local, Vector2 offset, Vector2 scale)
         {
             return { (local.x + offset.x) * scale.x, (local.y + offset.y) * scale.y };
         }
 
         // 크기를 곱한 바디 로컬의 상자 네 점. 크기가 음수면 감긴 방향이 뒤집히지만 커널의 정리가 되돌린다.
-        void BakeBox(const Component::Collider2D& collider, Vec2 scale, Vec2 out[4])
+        void BakeBox(const Component::Collider2D& collider, Vector2 scale, Vector2 out[4])
         {
-            const Vec2 half = { collider.size.x * 0.5f, collider.size.y * 0.5f };
+            const Vector2 half = { collider.size.x * 0.5f, collider.size.y * 0.5f };
             out[0] = Bake({ -half.x, -half.y }, collider.offset, scale);
             out[1] = Bake({ half.x, -half.y }, collider.offset, scale);
             out[2] = Bake({ half.x, half.y }, collider.offset, scale);
@@ -87,7 +87,7 @@ namespace JBro::System
         }
 
         // 질의용 상자. 커널의 정리를 거치지 않으므로 뒤집혔으면 여기서 반시계로 되돌린다.
-        Physics2D::ConvexPolygon BoxPolygon(const Vec2 corners[4])
+        Physics2D::ConvexPolygon BoxPolygon(const Vector2 corners[4])
         {
             Physics2D::ConvexPolygon polygon;
             const float cross = (corners[1].x - corners[0].x) * (corners[2].y - corners[1].y)
@@ -100,7 +100,7 @@ namespace JBro::System
             return polygon;
         }
 
-        Physics2D::Circle BakeCircle(const Component::Collider2D& collider, Vec2 scale)
+        Physics2D::Circle BakeCircle(const Component::Collider2D& collider, Vector2 scale)
         {
             // 원은 한 축으로만 커져도 원으로 남으므로 더 큰 쪽으로 잰다(에디터 그림과 같다, D-143).
             Physics2D::Circle circle;
@@ -111,14 +111,14 @@ namespace JBro::System
 
         // 크기를 곱한 `size` 상자에 꼭 맞는 캡슐(physics-plan §4 의 7). 긴 축으로 눕고 반지름은 짧은 쪽 반폭이라, 한 축으로만
         // 늘여도 캡슐로 남는다. 캔버스 뷰가 같은 함수로 그린다.
-        Physics2D::ConvexPolygon BakeCapsule(const Component::Collider2D& collider, Vec2 scale)
+        Physics2D::ConvexPolygon BakeCapsule(const Component::Collider2D& collider, Vector2 scale)
         {
             return Physics2D::MakeCapsuleInBox(Bake({}, collider.offset, scale),
                 { collider.size.x * 0.5f * scale.x, collider.size.y * 0.5f * scale.y });
         }
 
         // 체인의 점들(D-229). 포인트가 없으면 `size.x` 폭의 가로 선분이다.
-        void BakeChain(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
+        void BakeChain(const Component::Collider2D& collider, Vector2 scale, Array<Vector2>& outline)
         {
             outline.Clear();
             if (collider.points.IsEmpty())
@@ -128,33 +128,33 @@ namespace JBro::System
                 outline.Add(Bake({ half, 0.0f }, collider.offset, scale));
                 return;
             }
-            for (const Vec2& point : collider.points)
+            for (const Vector2& point : collider.points)
             {
                 outline.Add(Bake(point, collider.offset, scale));
             }
         }
 
-        void BakeOutline(const Component::Collider2D& collider, Vec2 scale, Array<Vec2>& outline)
+        void BakeOutline(const Component::Collider2D& collider, Vector2 scale, Array<Vector2>& outline)
         {
             outline.Clear();
             // 꼭짓점이 없는 폴리곤은 `size` 상자다. 모양을 Polygon 으로 막 바꾼 콜라이더가 아무것에도 부딪히지 않으면
             // 캔버스 뷰가 그 상자를 그려 편집의 출발점으로 주는 것(기존 엔진의 절차적 빌드)과 어긋난다.
             if (collider.points.IsEmpty())
             {
-                Vec2 corners[4];
+                Vector2 corners[4];
                 BakeBox(collider, scale, corners);
                 outline.Append(corners, 4);
                 return;
             }
-            for (const Vec2& point : collider.points)
+            for (const Vector2& point : collider.points)
             {
                 outline.Add(Bake(point, collider.offset, scale));
             }
         }
 
         // 이미 있는 도형의 모양을 콜라이더에 맞춘다. 만들 때와 같은 갈래다. 틀린 외곽선이면 false 이고 모양은 그대로다.
-        bool Reshape(Physics2D::World& world, Physics2D::ShapeId shape, const Component::Collider2D& collider, Vec2 scale,
-            Array<Vec2>& outline)
+        bool Reshape(Physics2D::World& world, Physics2D::ShapeId shape, const Component::Collider2D& collider, Vector2 scale,
+            Array<Vector2>& outline)
         {
             if (collider.shape == Component::ColliderShape2D::Circle)
             {
@@ -172,7 +172,7 @@ namespace JBro::System
             }
             if (collider.shape == Component::ColliderShape2D::Box)
             {
-                Vec2 corners[4];
+                Vector2 corners[4];
                 BakeBox(collider, scale, corners);
                 outline.Clear();
                 outline.Append(corners, 4);
@@ -190,7 +190,7 @@ namespace JBro::System
         }
 
         // 콜라이더 모양의 지문. 크기(트랜스폼)를 섞는 것은 크기를 도형에 미리 곱해 두기 때문이다.
-        std::uint64_t ShapeSignature(const Component::Collider2D& collider, Vec2 scale)
+        std::uint64_t ShapeSignature(const Component::Collider2D& collider, Vector2 scale)
         {
             Fingerprint print;
             const std::uint8_t shape = static_cast<std::uint8_t>(collider.shape);
@@ -208,7 +208,7 @@ namespace JBro::System
             print.Mix(&collider.mask, sizeof(collider.mask));
             const std::uint64_t count = collider.points.Size();
             print.Mix(&count, sizeof(count));
-            for (const Vec2& point : collider.points)
+            for (const Vector2& point : collider.points)
             {
                 print.Mix(point);
             }
@@ -242,13 +242,13 @@ namespace JBro::System
             InstanceId          rigidbody = InvalidInstanceId;
             std::uint64_t       parameters = 0;
             // 지난 스텝에 이쪽에서 쓴 값. 스크립트나 에디터가 그 사이 바꿨는지를 이것과 견주어 안다.
-            Vec2                writtenPosition;
+            Vector2                writtenPosition;
             // `Transform2D` 의 회전을 되비추므로 **같은 단위(라디안)** 다(D-248).
             Radian              writtenRotation = 0.0f;
-            Vec2                writtenVelocity;
+            Vector2                writtenVelocity;
             float               writtenAngularVelocity = 0.0f;
             // 정적인 몸을 마지막으로 옮겨 둔 월드 자리.
-            Vec2                pushedPosition;
+            Vector2                pushedPosition;
             // 커널에 밀어 넣은 값이라 **커널의 단위(라디안)** 다.
             Radian              pushedAngle = 0.0f;
             bool                seen = false;
@@ -304,9 +304,9 @@ namespace JBro::System
         Array<InstanceId>             removals;
         // 질의용 폴리곤 조각. 질의는 지금의 컴포넌트를 보지만 분해는 꼭짓점이 바뀔 때 한 번만 한다.
         Table<InstanceId, PieceCache> pieces;
-        Array<Vec2>                   outline;
+        Array<Vector2>                   outline;
         // 질의가 체인 점을 굽는 자리. 동기화의 outline 과 따로 둔다 - 질의는 스텝 밖에서도 불린다.
-        Array<Vec2>                   queryOutline;
+        Array<Vector2>                   queryOutline;
         Physics2D::DecomposeScratch   decompose;
 
         // 오브젝트의 컴포넌트 중 스크립트를 가려내는 표(주소 정렬). ScriptSystem 과 같은 방식이고, 실행 순서 판번호가
@@ -316,7 +316,7 @@ namespace JBro::System
         std::uint64_t                 scriptRevision = std::numeric_limits<std::uint64_t>::max();
         Array<GameScript2D*>          hookTargets;
 
-        const Array<Physics2D::ConvexPolygon>& PiecesFor(const Component::Collider2D& collider, Vec2 scale)
+        const Array<Physics2D::ConvexPolygon>& PiecesFor(const Component::Collider2D& collider, Vector2 scale)
         {
             const InstanceId id = collider.GetInstanceId();
             PieceCache* cache = pieces.Find(id);
@@ -356,12 +356,12 @@ namespace JBro::System
         return 200;
     }
 
-    void Physics2DSystem::SetGravity(Vec2 gravity)
+    void Physics2DSystem::SetGravity(Vector2 gravity)
     {
         m_gravity = gravity;
     }
 
-    Vec2 Physics2DSystem::GetGravity() const
+    Vector2 Physics2DSystem::GetGravity() const
     {
         return m_gravity;
     }
@@ -421,7 +421,7 @@ namespace JBro::System
             Physics2D::Pose                 pose;
         };
 
-        bool NormalizeDirection(Vec2& direction)
+        bool NormalizeDirection(Vector2& direction)
         {
             const float lengthSquared = direction.x * direction.x + direction.y * direction.y;
             if (lengthSquared <= DirectionEpsilonSquared)
@@ -463,9 +463,9 @@ namespace JBro::System
             // **경계로 먼저 거른다**(D-234). 도형을 굽고(폴리곤은 분해 캐시를 찾고) 조각마다 판정하기 전에, 콜라이더를 감싸는 원이
             // 질의 영역과 겹치는지만 본다. 콜라이더가 많은 캔버스에서 먼 것들이 값을 치르지 않는다.
             {
-                const Vec2 magnitude{ std::fabs(objectPose.scale.x), std::fabs(objectPose.scale.y) };
+                const Vector2 magnitude{ std::fabs(objectPose.scale.x), std::fabs(objectPose.scale.y) };
                 const float largest = std::fmax(magnitude.x, magnitude.y);
-                const auto halfDiagonal = [&](Vec2 size) {
+                const auto halfDiagonal = [&](Vector2 size) {
                     return 0.5f * std::sqrt(size.x * size.x * magnitude.x * magnitude.x + size.y * size.y * magnitude.y * magnitude.y);
                 };
                 float reach = 0.0f;
@@ -482,7 +482,7 @@ namespace JBro::System
                             ? 0.5f * std::fabs(collider.size.x) * magnitude.x
                             : halfDiagonal(collider.size);
                     }
-                    for (const Vec2& point : collider.points)
+                    for (const Vector2& point : collider.points)
                     {
                         reach = std::fmax(reach, std::sqrt(point.x * point.x * magnitude.x * magnitude.x
                             + point.y * point.y * magnitude.y * magnitude.y));
@@ -492,7 +492,7 @@ namespace JBro::System
                     reach = halfDiagonal(collider.size);
                     break;
                 }
-                const Vec2 middle = Physics2D::TransformPoint(shape.pose,
+                const Vector2 middle = Physics2D::TransformPoint(shape.pose,
                     { collider.offset.x * objectPose.scale.x, collider.offset.y * objectPose.scale.y });
                 if (middle.x + reach < area.min.x || middle.x - reach > area.max.x
                     || middle.y + reach < area.min.y || middle.y - reach > area.max.y)
@@ -510,7 +510,7 @@ namespace JBro::System
             }
             if (collider.shape == Component::ColliderShape2D::Box)
             {
-                Vec2 corners[4];
+                Vector2 corners[4];
                 BakeBox(collider, objectPose.scale, corners);
                 const Physics2D::ConvexPolygon box = BoxPolygon(corners);
                 shape.polygon = &box;
@@ -556,14 +556,14 @@ namespace JBro::System
     namespace
     {
         // 원(반지름 radius)을 from 에서 direction 으로 distance 만큼 민 자리를 감싸는 상자다. 반직선은 반지름 0 이다.
-        Rect SweptArea(Vec2 from, Vec2 direction, float distance, float radius)
+        Rect SweptArea(Vector2 from, Vector2 direction, float distance, float radius)
         {
-            const Vec2 to{ from.x + direction.x * distance, from.y + direction.y * distance };
+            const Vector2 to{ from.x + direction.x * distance, from.y + direction.y * distance };
             return { { std::fmin(from.x, to.x) - radius, std::fmin(from.y, to.y) - radius },
                 { std::fmax(from.x, to.x) + radius, std::fmax(from.y, to.y) + radius } };
         }
 
-        RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vec2 point, Vec2 normal, float distance)
+        RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vector2 point, Vector2 normal, float distance)
         {
             RaycastHit2D hit;
             hit.other = owner->GetScriptHandle();
@@ -587,8 +587,8 @@ namespace JBro::System
             results.Add(owner->GetScriptHandle());
         }
 
-        bool RayShape(const QueryShape& shape, Vec2 origin, Vec2 direction, float maxDistance,
-            float& distance, Vec2& normal)
+        bool RayShape(const QueryShape& shape, Vector2 origin, Vector2 direction, float maxDistance,
+            float& distance, Vector2& normal)
         {
             return shape.circle != nullptr
                 ? Physics2D::RaycastCircle(*shape.circle, shape.pose, origin, direction, maxDistance, distance, normal)
@@ -597,7 +597,7 @@ namespace JBro::System
     }
 
     bool Physics2DSystem::Raycast(
-        Vec2 origin, Vec2 direction, float distance, RaycastHit2D& hit, std::uint32_t layerMask) const
+        Vector2 origin, Vector2 direction, float distance, RaycastHit2D& hit, std::uint32_t layerMask) const
     {
         hit = {};
         if (m_canvas == nullptr || distance < 0.0f || false == NormalizeDirection(direction))
@@ -608,7 +608,7 @@ namespace JBro::System
         ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
-            Vec2 normal;
+            Vector2 normal;
             if (RayShape(shape, origin, direction, distance, candidate, normal)
                 && (false == found || candidate < hit.distance))
             {
@@ -621,7 +621,7 @@ namespace JBro::System
     }
 
     void Physics2DSystem::RaycastAll(
-        Vec2 origin, Vec2 direction, float distance, Array<RaycastHit2D>& hits, std::uint32_t layerMask) const
+        Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits, std::uint32_t layerMask) const
     {
         hits.Clear();
         if (m_canvas == nullptr || distance < 0.0f || false == NormalizeDirection(direction))
@@ -634,7 +634,7 @@ namespace JBro::System
         ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, 0.0f), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
-            Vec2 normal;
+            Vector2 normal;
             if (false == RayShape(shape, origin, direction, distance, candidate, normal))
             {
                 return;
@@ -682,7 +682,7 @@ namespace JBro::System
         });
     }
 
-    GameObjectHandle Physics2DSystem::OverlapPoint(Vec2 point, std::uint32_t layerMask) const
+    GameObjectHandle Physics2DSystem::OverlapPoint(Vector2 point, std::uint32_t layerMask) const
     {
         GameObjectHandle found;
         ForEachQueryShape(layerMask, Rect{ point, point }, [&](const QueryShape& shape)
@@ -703,7 +703,7 @@ namespace JBro::System
     }
 
     void Physics2DSystem::OverlapCircle(
-        Vec2 center, float radius, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
+        Vector2 center, float radius, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
     {
         results.Clear();
         if (radius < 0.0f)
@@ -726,7 +726,7 @@ namespace JBro::System
         });
     }
 
-    bool Physics2DSystem::CircleCast(Vec2 origin, float radius, Vec2 direction, float distance,
+    bool Physics2DSystem::CircleCast(Vector2 origin, float radius, Vector2 direction, float distance,
         RaycastHit2D& hit, std::uint32_t layerMask) const
     {
         hit = {};
@@ -738,25 +738,25 @@ namespace JBro::System
         ForEachQueryShape(layerMask, SweptArea(origin, direction, distance, radius), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
-            Vec2 normal;
+            Vector2 normal;
             const bool touched = shape.circle != nullptr
                 ? Physics2D::CastCircle(origin, radius, direction, distance, *shape.circle, shape.pose, candidate, normal)
                 : Physics2D::CastCircle(origin, radius, direction, distance, *shape.polygon, shape.pose, candidate, normal);
             if (touched && (false == found || candidate < hit.distance))
             {
                 found = true;
-                const Vec2 center{ origin.x + direction.x * candidate, origin.y + direction.y * candidate };
+                const Vector2 center{ origin.x + direction.x * candidate, origin.y + direction.y * candidate };
                 // 맞은 순간 원이 표면에 닿는 자리다. 출발부터 겹쳤으면 원의 중심이다.
-                const Vec2 point = candidate == 0.0f
+                const Vector2 point = candidate == 0.0f
                     ? center
-                    : Vec2{ center.x - normal.x * radius, center.y - normal.y * radius };
+                    : Vector2{ center.x - normal.x * radius, center.y - normal.y * radius };
                 hit = MakeHit(*m_canvas, shape.owner, point, normal, candidate);
             }
         });
         return found;
     }
 
-    bool Physics2DSystem::BoxCast(Vec2 center, Vec2 halfExtents, float angle, Vec2 direction, float distance,
+    bool Physics2DSystem::BoxCast(Vector2 center, Vector2 halfExtents, float angle, Vector2 direction, float distance,
         RaycastHit2D& hit, std::uint32_t layerMask) const
     {
         hit = {};
@@ -776,7 +776,7 @@ namespace JBro::System
         ForEachQueryShape(layerMask, SweptArea(center, direction, distance, std::sqrt(halfExtents.x * halfExtents.x + halfExtents.y * halfExtents.y)), [&](const QueryShape& shape)
         {
             float candidate = 0.0f;
-            Vec2 normal;
+            Vector2 normal;
             const bool touched = shape.circle != nullptr
                 ? Physics2D::CastPolygon(box, start, direction, distance, *shape.circle, shape.pose, candidate, normal)
                 : Physics2D::CastPolygon(box, start, direction, distance, *shape.polygon, shape.pose, candidate, normal);
@@ -785,23 +785,23 @@ namespace JBro::System
                 return;
             }
             found = true;
-            const Vec2 moved{ center.x + direction.x * candidate, center.y + direction.y * candidate };
-            Vec2 point = moved;
+            const Vector2 moved{ center.x + direction.x * candidate, center.y + direction.y * candidate };
+            Vector2 point = moved;
             if (candidate > 0.0f)
             {
                 // 상자에서 법선의 반대쪽으로 가장 나온 점들(면이 닿으면 그 면의 가운데)이 닿은 자리다.
                 const Physics2D::Pose at{ moved, start.rotation };
                 float lowest = 0.0f;
-                Vec2 corners[4];
+                Vector2 corners[4];
                 for (std::uint32_t k = 0; k < 4; ++k)
                 {
                     corners[k] = Physics2D::TransformPoint(at, box.points[k]);
                     const float along = corners[k].x * normal.x + corners[k].y * normal.y;
                     lowest = k == 0 ? along : std::fmin(lowest, along);
                 }
-                Vec2 sum;
+                Vector2 sum;
                 int count = 0;
-                for (const Vec2& corner : corners)
+                for (const Vector2& corner : corners)
                 {
                     if (corner.x * normal.x + corner.y * normal.y <= lowest + Physics2D::LinearSlop)
                     {
@@ -979,12 +979,12 @@ namespace JBro::System
             {
                 // 스크립트가 쌓은 힘·충격량을 이번 스텝에 먹인다. 위치를 준 것의 토크는 지금의 질량 중심으로 푼다.
                 const Component::PendingForces2D pending = rigidbody->TakePendingForces();
-                const Vec2 center = world.GetWorldCenter(link->body);
-                const Vec2 force{ pending.forceAtCenter.x + pending.forceAtPoints.x,
+                const Vector2 center = world.GetWorldCenter(link->body);
+                const Vector2 force{ pending.forceAtCenter.x + pending.forceAtPoints.x,
                     pending.forceAtCenter.y + pending.forceAtPoints.y };
                 const float torque = pending.torque + pending.forceMoment
                     - (center.x * pending.forceAtPoints.y - center.y * pending.forceAtPoints.x);
-                const Vec2 impulse{ pending.impulseAtCenter.x + pending.impulseAtPoints.x,
+                const Vector2 impulse{ pending.impulseAtCenter.x + pending.impulseAtPoints.x,
                     pending.impulseAtCenter.y + pending.impulseAtPoints.y };
                 const float angularImpulse = pending.angularImpulse + pending.impulseMoment
                     - (center.x * pending.impulseAtPoints.y - center.y * pending.impulseAtPoints.x);
@@ -1108,7 +1108,7 @@ namespace JBro::System
             {
                 if (collider.shape == Component::ColliderShape2D::Box)
                 {
-                    Vec2 corners[4];
+                    Vector2 corners[4];
                     BakeBox(collider, pose.scale, corners);
                     state.outline.Clear();
                     state.outline.Append(corners, 4);
@@ -1172,26 +1172,26 @@ namespace JBro::System
             State::BodyLink* link = objectId != InvalidInstanceId ? state.bodies.Find(objectId) : nullptr;
             return link != nullptr && link->seen ? link : nullptr;
         };
-        const auto localToWorld = [&](Physics2D::BodyId body, Vec2 local) {
-            const Vec2 origin = world.GetPosition(body);
+        const auto localToWorld = [&](Physics2D::BodyId body, Vector2 local) {
+            const Vector2 origin = world.GetPosition(body);
             const float angle = world.GetAngle(body);
             const float c = std::cos(angle);
             const float s = std::sin(angle);
-            return Vec2{ origin.x + c * local.x - s * local.y, origin.y + s * local.x + c * local.y };
+            return Vector2{ origin.x + c * local.x - s * local.y, origin.y + s * local.x + c * local.y };
         };
-        const auto worldToLocal = [&](Physics2D::BodyId body, Vec2 point) {
-            const Vec2 origin = world.GetPosition(body);
+        const auto worldToLocal = [&](Physics2D::BodyId body, Vector2 point) {
+            const Vector2 origin = world.GetPosition(body);
             const float angle = world.GetAngle(body);
             const float c = std::cos(angle);
             const float s = std::sin(angle);
-            const Vec2 d{ point.x - origin.x, point.y - origin.y };
-            return Vec2{ c * d.x + s * d.y, -s * d.x + c * d.y };
+            const Vector2 d{ point.x - origin.x, point.y - origin.y };
+            return Vector2{ c * d.x + s * d.y, -s * d.x + c * d.y };
         };
-        const auto scaled = [](Vec2 value, Vec2 scale) {
-            return Vec2{ value.x * scale.x, value.y * scale.y };
+        const auto scaled = [](Vector2 value, Vector2 scale) {
+            return Vector2{ value.x * scale.x, value.y * scale.y };
         };
-        const auto unscaled = [](Vec2 value, Vec2 scale) {
-            return Vec2{ scale.x != 0.0f ? value.x / scale.x : 0.0f, scale.y != 0.0f ? value.y / scale.y : 0.0f };
+        const auto unscaled = [](Vector2 value, Vector2 scale) {
+            return Vector2{ scale.x != 0.0f ? value.x / scale.x : 0.0f, scale.y != 0.0f ? value.y / scale.y : 0.0f };
         };
         // 조인트 하나를 맞춘다. 두 몸이 없으면 연결을 두지 않는다(보이지 않은 연결은 아래에서 지운다).
         const auto syncJoint = [&](ComponentBase& component, GameObjectHandle connected, bool hinge,
@@ -1257,7 +1257,7 @@ namespace JBro::System
         };
 
         canvas.ForEach<Component::DistanceJoint2D>([&](Component::DistanceJoint2D& joint) {
-            const auto makeDef = [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+            const auto makeDef = [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vector2 scaleA, Vector2 scaleB) {
                 Physics2D::DistanceJointDef def;
                 def.bodyA = bodyA;
                 def.bodyB = bodyB;
@@ -1271,17 +1271,17 @@ namespace JBro::System
                 return def;
             };
             syncJoint(joint, joint.connectedObject, false,
-                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vector2 scaleA, Vector2 scaleB) {
                     if (false == joint.autoDistance)
                     {
                         return;
                     }
-                    const Vec2 a = localToWorld(bodyA, scaled(joint.anchor, scaleA));
-                    const Vec2 b = bodyB.index != Physics2D::InvalidIndex ? localToWorld(bodyB, scaled(joint.connectedAnchor, scaleB))
+                    const Vector2 a = localToWorld(bodyA, scaled(joint.anchor, scaleA));
+                    const Vector2 b = bodyB.index != Physics2D::InvalidIndex ? localToWorld(bodyB, scaled(joint.connectedAnchor, scaleB))
                                                                           : joint.connectedAnchor;
                     joint.distance = std::sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y));
                 },
-                [&](Vec2 scaleA, Vec2 scaleB) {
+                [&](Vector2 scaleA, Vector2 scaleB) {
                     Fingerprint print;
                     print.Mix(joint.anchor);
                     print.Mix(joint.connectedAnchor);
@@ -1294,10 +1294,10 @@ namespace JBro::System
                     print.Mix(&flags, sizeof(flags));
                     return print.value;
                 },
-                [&](State::JointLink&, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                [&](State::JointLink&, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vector2 scaleA, Vector2 scaleB) {
                     return world.CreateDistanceJoint(makeDef(bodyA, bodyB, scaleA, scaleB));
                 },
-                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vector2 scaleA, Vector2 scaleB) {
                     world.SetDistanceJoint(link.joint, makeDef(bodyA, bodyB, scaleA, scaleB));
                 });
         });
@@ -1305,7 +1305,7 @@ namespace JBro::System
         canvas.ForEach<Component::HingeJoint2D>([&](Component::HingeJoint2D& joint) {
             // 커널의 A 는 이 오브젝트, B 는 상대다. 커널의 각은 B - A 라서 "이 오브젝트가 상대에 대해" 의 부호를 뒤집는다.
             const auto makeDef = [&](const State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB,
-                                     Vec2 scaleA, Vec2 scaleB) {
+                                     Vector2 scaleA, Vector2 scaleB) {
                 Physics2D::HingeJointDef def;
                 def.bodyA = bodyA;
                 def.bodyB = bodyB;
@@ -1322,15 +1322,15 @@ namespace JBro::System
                 return def;
             };
             syncJoint(joint, joint.connectedObject, true,
-                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                [&](Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vector2 scaleA, Vector2 scaleB) {
                     if (false == joint.autoConnectedAnchor)
                     {
                         return;
                     }
-                    const Vec2 pin = localToWorld(bodyA, scaled(joint.anchor, scaleA));
+                    const Vector2 pin = localToWorld(bodyA, scaled(joint.anchor, scaleA));
                     joint.connectedAnchor = bodyB.index != Physics2D::InvalidIndex ? unscaled(worldToLocal(bodyB, pin), scaleB) : pin;
                 },
-                [&](Vec2 scaleA, Vec2 scaleB) {
+                [&](Vector2 scaleA, Vector2 scaleB) {
                     Fingerprint print;
                     print.Mix(joint.anchor);
                     print.Mix(joint.connectedAnchor);
@@ -1345,10 +1345,10 @@ namespace JBro::System
                     print.Mix(&flags, sizeof(flags));
                     return print.value;
                 },
-                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vector2 scaleA, Vector2 scaleB) {
                     return world.CreateHingeJoint(makeDef(link, bodyA, bodyB, scaleA, scaleB));
                 },
-                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vec2 scaleA, Vec2 scaleB) {
+                [&](State::JointLink& link, Physics2D::BodyId bodyA, Physics2D::BodyId bodyB, Vector2 scaleA, Vector2 scaleB) {
                     world.SetHingeJoint(link.joint, makeDef(link, bodyA, bodyB, scaleA, scaleB));
                 });
         });
@@ -1381,10 +1381,10 @@ namespace JBro::System
             {
                 continue;
             }
-            const Vec2 origin = world.GetPosition(link.body);
+            const Vector2 origin = world.GetPosition(link.body);
             const Radian angle = world.GetAngle(link.body);
 
-            Vec2 localPosition = origin;
+            Vector2 localPosition = origin;
             Radian localRotation = angle;
             GameObject* parent = link.object->GetParent();
             Internal::ObjectPose parentPose;

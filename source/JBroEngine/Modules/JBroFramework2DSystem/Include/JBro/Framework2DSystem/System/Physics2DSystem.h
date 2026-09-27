@@ -28,26 +28,26 @@ namespace JBro::System
         ~Physics2DSystem() override;
 
         int  GetExecutionOrder() const override;
-        void SetGravity(Vec2 gravity);
-        Vec2 GetGravity() const;
+        void SetGravity(Vector2 gravity);
+        Vector2 GetGravity() const;
         // 좁은 판정을 나눌 물리 전용 워커 수(D-223). 다음 고정 스텝에서 커널에 먹인다. 0 이면 메인 한 스레드다.
         void          SetWorkerCount(std::uint32_t count);
         std::uint32_t GetWorkerCount() const;
         // 레이어 충돌 표(D-233). 비트 j 가 선 행 i 는 레이어 i 와 j 가 서로 지나간다. 다음 고정 스텝부터 먹는다.
         void SetIgnoredLayers(const std::uint32_t (&rows)[PhysicsLayerCount]);
 
-        bool Raycast(Vec2 origin, Vec2 direction, float distance, RaycastHit2D& hit,
+        bool Raycast(Vector2 origin, Vector2 direction, float distance, RaycastHit2D& hit,
             std::uint32_t layerMask) const override;
-        void RaycastAll(Vec2 origin, Vec2 direction, float distance, Array<RaycastHit2D>& hits,
+        void RaycastAll(Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits,
             std::uint32_t layerMask) const override;
         void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
             std::uint32_t layerMask) const override;
-        GameObjectHandle OverlapPoint(Vec2 point, std::uint32_t layerMask) const override;
-        void OverlapCircle(Vec2 center, float radius, Array<GameObjectHandle>& results,
+        GameObjectHandle OverlapPoint(Vector2 point, std::uint32_t layerMask) const override;
+        void OverlapCircle(Vector2 center, float radius, Array<GameObjectHandle>& results,
             std::uint32_t layerMask) const override;
-        bool CircleCast(Vec2 origin, float radius, Vec2 direction, float distance, RaycastHit2D& hit,
+        bool CircleCast(Vector2 origin, float radius, Vector2 direction, float distance, RaycastHit2D& hit,
             std::uint32_t layerMask) const override;
-        bool BoxCast(Vec2 center, Vec2 halfExtents, float angle, Vec2 direction, float distance,
+        bool BoxCast(Vector2 center, Vector2 halfExtents, float angle, Vector2 direction, float distance,
             RaycastHit2D& hit, std::uint32_t layerMask) const override;
 
         // 커널에 올라간 바디와 도형의 수. 동기화가 만들고 지우는 것을 테스트가 붙잡는 손잡이다.
@@ -73,7 +73,7 @@ namespace JBro::System
         void ForEachQueryShape(std::uint32_t layerMask, const Rect& area, Fn&& visit) const;
 
         Canvas*         m_canvas = nullptr;
-        Vec2            m_gravity{ 0.0f, -9.81f };
+        Vector2            m_gravity{ 0.0f, -9.81f };
         std::uint32_t   m_workerCount = 0;
         mutable std::size_t m_lastQueryColliders = 0;
         std::uint32_t   m_ignoredLayers[PhysicsLayerCount] = {};

@@ -11,7 +11,7 @@ namespace JBro::Internal
     namespace
     {
         // 회전은 라디안으로 모은다 - 저장도 계산도 그 단위다(D-248).
-        bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vec2& scale, Radian& rotation)
+        bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vector2& scale, Radian& rotation)
         {
             Component::Transform2D* local = canvas.FindComponentRaw<Component::Transform2D>(object);
             if (local == nullptr || false == local->IsActiveComponent())
@@ -32,7 +32,7 @@ namespace JBro::Internal
             }
 
             Matrix3x2 parentMatrix;
-            Vec2 parentScale;
+            Vector2 parentScale;
             Radian parentRotation = 0.0f;
             if (false == CalculateWorldMatrix(canvas, parent, parentMatrix, parentScale, parentRotation))
             {

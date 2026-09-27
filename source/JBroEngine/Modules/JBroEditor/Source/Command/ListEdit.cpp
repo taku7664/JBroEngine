@@ -108,7 +108,7 @@ namespace JBro
             return ops.RemoveAt(array, edit.index);
         case ListEdit::Kind::Move:
             // 옮기기도 원소 타입을 아는 조작 함수가 한다(D-89). 처음에는 여기서 원소 코덱의
-            // `Assign` 으로 밀었고, 코덱이 없는 `Vec2`·`Color` 목록은 옮기지 못했다.
+            // `Assign` 으로 밀었고, 코덱이 없는 `Vector2`·`Color` 목록은 옮기지 못했다.
             return ops.Move(array, edit.index, edit.to);
         }
         return false;

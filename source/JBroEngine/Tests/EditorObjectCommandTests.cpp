@@ -451,7 +451,7 @@ namespace
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         JBro::ComponentBase* component = transform;
         const JBro::ComponentTypeId typeId = component->GetTypeId();
-        transform->position = JBro::Vec2{1.5f, -2.0f};
+        transform->position = JBro::Vector2{1.5f, -2.0f};
 
         const JBro::SetPropertyCommand::Path position =
             PathTo(FieldIndex(TransformTable(), "position"));
@@ -464,7 +464,7 @@ namespace
         JBro::String before;
         Check(JBro::SetPropertyCommand::ReadValue(*component, typeId, position, before),
             "its value must read as text");
-        transform->position = JBro::Vec2{9.0f, 9.0f};
+        transform->position = JBro::Vector2{9.0f, 9.0f};
         Check(JBro::SetPropertyCommand::ApplyValue(*component, typeId, position, before),
             "and that text must write back");
         Check(NearlyEqual(transform->position.x, 1.5f) && NearlyEqual(transform->position.y, -2.0f),

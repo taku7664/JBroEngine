@@ -138,8 +138,8 @@ namespace
         }
     };
 
-    JBro::GameObject* PlaceCube(JBro::Canvas& canvas, const char* name, const JBro::Vec3& position,
-        const JBro::Vec3& scale, const JBro::Color& tint)
+    JBro::GameObject* PlaceCube(JBro::Canvas& canvas, const char* name, const JBro::Vector3& position,
+        const JBro::Vector3& scale, const JBro::Color& tint)
     {
         JBro::GameObject* object = canvas.CreateObject(name);
         auto* transform = canvas.AttachComponent<JBro::Component::Transform3D>(object);
@@ -371,7 +371,7 @@ namespace
         cube.mesh = library.Resolve(JBro::MeshLibrary::BuiltinCubeId());
         cube.tint[1] = 0.0f;
         cube.tint[2] = 0.0f;
-        const auto quad = [](const JBro::Vec3& position, float size, const JBro::Quaternion& rotation, float r, float g, float b) {
+        const auto quad = [](const JBro::Vector3& position, float size, const JBro::Quaternion& rotation, float r, float g, float b) {
             JBro::WorldTextSubmit text;
             text.world = JBro::MakeTransformMatrix3D(position, rotation, {size, size, 1.0f});
             text.tint[0] = r;

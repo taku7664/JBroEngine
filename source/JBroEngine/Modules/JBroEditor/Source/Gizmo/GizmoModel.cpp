@@ -43,9 +43,9 @@ namespace JBro
         }
 
         // 축에 수직인 단위 벡터 하나. 축과 가장 덜 나란한 기본 축을 골라 외적한다.
-        Vec3 Perpendicular(const Vec3& axis)
+        Vector3 Perpendicular(const Vector3& axis)
         {
-            const Vec3 candidate = std::fabs(axis.x) < 0.9f ? Vec3{1.0f, 0.0f, 0.0f} : Vec3{0.0f, 1.0f, 0.0f};
+            const Vector3 candidate = std::fabs(axis.x) < 0.9f ? Vector3{1.0f, 0.0f, 0.0f} : Vector3{0.0f, 1.0f, 0.0f};
             return Normalize(Cross(axis, candidate));
         }
 
@@ -67,10 +67,10 @@ namespace JBro
         }
 
         // 축 직선(o + a t)에서 광선(r + d s)에 가장 가까운 점의 t. 둘이 나란하면 거짓이다.
-        bool ClosestAxisParameter(const Vec3& origin, const Vec3& axis, const Vec3& rayOrigin,
-            const Vec3& rayDirection, float& t)
+        bool ClosestAxisParameter(const Vector3& origin, const Vector3& axis, const Vector3& rayOrigin,
+            const Vector3& rayDirection, float& t)
         {
-            const Vec3 w = Subtract(origin, rayOrigin);
+            const Vector3 w = Subtract(origin, rayOrigin);
             const float b = Dot(axis, rayDirection);
             const float denominator = 1.0f - b * b;
             if (denominator < 1.0e-4f)
@@ -81,8 +81,8 @@ namespace JBro
             return std::isfinite(t);
         }
 
-        bool RayPlane(const Vec3& rayOrigin, const Vec3& rayDirection, const Vec3& planePoint,
-            const Vec3& planeNormal, Vec3& hit)
+        bool RayPlane(const Vector3& rayOrigin, const Vector3& rayDirection, const Vector3& planePoint,
+            const Vector3& planeNormal, Vector3& hit)
         {
             const float denominator = Dot(rayDirection, planeNormal);
             if (std::fabs(denominator) < 1.0e-5f)
@@ -99,7 +99,7 @@ namespace JBro
         }
 
         // 화면에서 단위 월드 길이가 몇 픽셀인지, 축 `u` 방향으로 잰다.
-        bool PixelsPerUnit(const GizmoCamera& camera, const Vec3& origin, const Vec3& u, float& pixels)
+        bool PixelsPerUnit(const GizmoCamera& camera, const Vector3& origin, const Vector3& u, float& pixels)
         {
             float cx = 0.0f;
             float cy = 0.0f;
@@ -116,9 +116,9 @@ namespace JBro
 
         bool BuildRing(const GizmoCamera& camera, const GizmoSubject& subject, GizmoAxis axis, GizmoHandleShape& out)
         {
-            const Vec3 a = GizmoModel::AxisDirection(subject, axis);
-            const Vec3 u = Perpendicular(a);
-            const Vec3 v = Cross(a, u);
+            const Vector3 a = GizmoModel::AxisDirection(subject, axis);
+            const Vector3 u = Perpendicular(a);
+            const Vector3 v = Cross(a, u);
             // 고리의 월드 반지름은 화면에서 `RingRadiusPixels` 가 되게 잡는다. 두 수직 방향 중 더 길게 보이는 쪽으로 잰다.
             float pixelsU = 0.0f;
             float pixelsV = 0.0f;
@@ -134,7 +134,7 @@ namespace JBro
             for (std::uint32_t index = 0; index < GizmoHandleShape::RingPoints; ++index)
             {
                 const float angle = 2.0f * Pi * static_cast<float>(index) / GizmoHandleShape::RingPoints;
-                const Vec3 point = Add(subject.position,
+                const Vector3 point = Add(subject.position,
                     Add(Scale(u, radius * std::cos(angle)), Scale(v, radius * std::sin(angle))));
                 if (false == GizmoModel::Project(camera, point, out.ringX[index], out.ringY[index]))
                 {
@@ -151,7 +151,7 @@ namespace JBro
             float cy = 0.0f;
             float ex = 0.0f;
             float ey = 0.0f;
-            const Vec3 a = GizmoModel::AxisDirection(subject, axis);
+            const Vector3 a = GizmoModel::AxisDirection(subject, axis);
             if (false == GizmoModel::Project(camera, subject.position, cx, cy)
                 || false == GizmoModel::Project(camera, Add(subject.position, a), ex, ey))
             {
@@ -189,7 +189,7 @@ namespace JBro
             return true;
         }
 
-        float ScaleComponent(const Vec3& scale, GizmoAxis axis)
+        float ScaleComponent(const Vector3& scale, GizmoAxis axis)
         {
             switch (axis)
             {
@@ -204,7 +204,7 @@ namespace JBro
             }
         }
 
-        void SetScaleComponent(Vec3& scale, GizmoAxis axis, float value)
+        void SetScaleComponent(Vector3& scale, GizmoAxis axis, float value)
         {
             switch (axis)
             {
@@ -306,7 +306,7 @@ namespace JBro
         return true;
     }
 
-    bool GizmoModel::Project(const GizmoCamera& camera, const Vec3& world, float& x, float& y, float* depth)
+    bool GizmoModel::Project(const GizmoCamera& camera, const Vector3& world, float& x, float& y, float* depth)
     {
         const float* m = camera.viewProjection.values;
         const float cx = m[0] * world.x + m[1] * world.y + m[2] * world.z + m[3];
@@ -329,7 +329,7 @@ namespace JBro
         return std::isfinite(x) && std::isfinite(y);
     }
 
-    bool GizmoModel::ProjectPlaneRect(const GizmoCamera& camera, const Vec3& origin, const Vec3& axisX, const Vec3& axisY,
+    bool GizmoModel::ProjectPlaneRect(const GizmoCamera& camera, const Vector3& origin, const Vector3& axisX, const Vector3& axisY,
         float minX, float minY, float maxX, float maxY, float& screenMinX, float& screenMinY, float& screenMaxX,
         float& screenMaxY)
     {
@@ -337,7 +337,7 @@ namespace JBro
         const float cornersY[4] = {minY, minY, maxY, maxY};
         for (int corner = 0; corner < 4; ++corner)
         {
-            const Vec3 world = Add(origin, Add(Scale(axisX, cornersX[corner]), Scale(axisY, cornersY[corner])));
+            const Vector3 world = Add(origin, Add(Scale(axisX, cornersX[corner]), Scale(axisY, cornersY[corner])));
             float x = 0.0f;
             float y = 0.0f;
             if (false == Project(camera, world, x, y))
@@ -352,7 +352,7 @@ namespace JBro
         return true;
     }
 
-    bool GizmoModel::Unproject(const GizmoCamera& camera, float x, float y, float ndcDepth, Vec3& world)
+    bool GizmoModel::Unproject(const GizmoCamera& camera, float x, float y, float ndcDepth, Vector3& world)
     {
         const float ndcX = (x - camera.left) / camera.width * 2.0f - 1.0f;
         const float ndcY = 1.0f - (y - camera.top) / camera.height * 2.0f;
@@ -369,15 +369,15 @@ namespace JBro
         return std::isfinite(world.x) && std::isfinite(world.y) && std::isfinite(world.z);
     }
 
-    bool GizmoModel::MakeRay(const GizmoCamera& camera, float x, float y, Vec3& origin, Vec3& direction)
+    bool GizmoModel::MakeRay(const GizmoCamera& camera, float x, float y, Vector3& origin, Vector3& direction)
     {
-        Vec3 near;
-        Vec3 far;
+        Vector3 near;
+        Vector3 far;
         if (false == Unproject(camera, x, y, 0.0f, near) || false == Unproject(camera, x, y, 1.0f, far))
         {
             return false;
         }
-        const Vec3 delta = Subtract(far, near);
+        const Vector3 delta = Subtract(far, near);
         const float length = Length(delta);
         if (length < Epsilon)
         {
@@ -388,9 +388,9 @@ namespace JBro
         return true;
     }
 
-    Vec3 GizmoModel::AxisDirection(const GizmoSubject& subject, GizmoAxis axis)
+    Vector3 GizmoModel::AxisDirection(const GizmoSubject& subject, GizmoAxis axis)
     {
-        Vec3 local;
+        Vector3 local;
         switch (axis)
         {
         case GizmoAxis::X:
@@ -492,14 +492,14 @@ namespace JBro
         {
             return false;
         }
-        Vec3 rayOrigin;
-        Vec3 rayDirection;
+        Vector3 rayOrigin;
+        Vector3 rayDirection;
         if (false == MakeRay(camera, mouseX, mouseY, rayOrigin, rayDirection))
         {
             return false;
         }
         // 화면 평면의 법선은 가운데를 지나는 광선의 방향이다. 직교면 모든 광선이 그 방향이다.
-        Vec3 centerRayOrigin;
+        Vector3 centerRayOrigin;
         if (false == MakeRay(camera, drag.centerX, drag.centerY, centerRayOrigin, drag.planeNormal))
         {
             return false;
@@ -531,11 +531,11 @@ namespace JBro
             drag.startAngle = std::atan2(mouseY - drag.centerY, mouseX - drag.centerX);
             // 축을 도는 양의 회전이 화면에서 어느 쪽으로 보이는지 작은 회전 하나로 잰다. 카메라가 축의 어느
             // 쪽에 있든 부호가 맞는다.
-            const Vec3 u = Perpendicular(drag.axisDirection);
-            const Vec3 v = Cross(drag.axisDirection, u);
+            const Vector3 u = Perpendicular(drag.axisDirection);
+            const Vector3 v = Cross(drag.axisDirection, u);
             constexpr float probe = 0.1f;
-            const Vec3 a = Add(subject.position, u);
-            const Vec3 b = Add(subject.position, Add(Scale(u, std::cos(probe)), Scale(v, std::sin(probe))));
+            const Vector3 a = Add(subject.position, u);
+            const Vector3 b = Add(subject.position, Add(Scale(u, std::cos(probe)), Scale(v, std::sin(probe))));
             float ax = 0.0f;
             float ay = 0.0f;
             float bx = 0.0f;
@@ -562,8 +562,8 @@ namespace JBro
         GizmoSubject& result)
     {
         result = drag.start;
-        Vec3 rayOrigin;
-        Vec3 rayDirection;
+        Vector3 rayOrigin;
+        Vector3 rayDirection;
         if (false == MakeRay(camera, mouseX, mouseY, rayOrigin, rayDirection))
         {
             return false;
@@ -573,7 +573,7 @@ namespace JBro
         case GizmoMode::Translate:
             if (drag.axis == GizmoAxis::Free)
             {
-                Vec3 hit;
+                Vector3 hit;
                 if (false == RayPlane(rayOrigin, rayDirection, drag.start.position, drag.planeNormal, hit))
                 {
                     return false;

@@ -69,8 +69,8 @@ namespace JBro::Component
         // `Custom` 일 때만 `pivot`·`size` 가 쓰인다(D-117). 기본은 에셋이 정한다.
         JBRO_FIELD(SpriteSizeMode, sizeMode) = SpriteSizeMode::FromSprite;
         JBRO_FIELD(SpritePivotMode, pivotMode) = SpritePivotMode::FromSprite;
-        JBRO_FIELD(Vec2,  pivot) { 0.5f, 0.5f };
-        JBRO_FIELD(Vec2,  size)  { 1.0f, 1.0f };
+        JBRO_FIELD(Vector2,  pivot) { 0.5f, 0.5f };
+        JBRO_FIELD(Vector2,  size)  { 1.0f, 1.0f };
         JBRO_FIELD(SpriteFlip,   flip)        = SpriteFlip::None;
         // 시트의 어느 칸인가(D-113). 슬라이싱이 없는 스프라이트는 언제나 0 이고, 넘치면 마지막 칸이다.
         JBRO_FIELD(std::uint32_t, frameIndex) = 0;

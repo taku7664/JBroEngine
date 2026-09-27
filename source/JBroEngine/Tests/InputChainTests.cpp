@@ -555,7 +555,7 @@ namespace
 
         Layer& hud = canvas->CreateLayer("HUD");
         hud.SetSpace(LayerSpace::Screen);
-        const auto makeButton = [&](const char* name, Layer* layer, Vec2 position, Vec2 size) {
+        const auto makeButton = [&](const char* name, Layer* layer, Vector2 position, Vector2 size) {
             GameObject* object = canvas->CreateObject(name);
             if (layer != nullptr)
             {
@@ -664,12 +664,12 @@ namespace
 
         // 역투영 서비스: 화면 레이어는 기준 픽셀, 월드 레이어는 월드 좌표다. 거꾸로도 같은 자리다.
         const auto closeTo = [](float a, float b) { return std::fabs(a - b) < 0.001f; };
-        Vec2 point;
+        Vector2 point;
         Check(screen.ScreenToLayer({150.0f, 25.0f}, play->GetScriptHandle(), point) && closeTo(point.x, 50.0f) && closeTo(point.y, 25.0f),
             "a pixel lands on the screen layer in reference pixels");
         Check(screen.ScreenToLayer({160.0f, 50.0f}, sign->GetScriptHandle(), point) && closeTo(point.x, 60.0f) && closeTo(point.y, 0.0f),
             "and on a world layer in world units");
-        Vec2 pixel;
+        Vector2 pixel;
         Check(screen.LayerToScreen({60.0f, 0.0f}, sign->GetScriptHandle(), pixel) && closeTo(pixel.x, 160.0f) && closeTo(pixel.y, 50.0f),
             "a world point goes back to its pixel");
         Check(false == screen.ScreenToLayer({1.0f, 1.0f}, GameObjectHandle{}, point), "an empty handle has no layer");

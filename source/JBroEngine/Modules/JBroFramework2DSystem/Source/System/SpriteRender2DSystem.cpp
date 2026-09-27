@@ -71,10 +71,10 @@ namespace JBro::System
             // 크기와 피벗은 에셋이 정한다(D-117). 풀리지 않은 스프라이트와 `Custom` 만 저작 값이다. 둘은 따로 고른다.
             // 화면 레이어의 좌표는 기준 픽셀이라 에셋 크기도 픽셀이다(D-237).
             item.size = (resolved && sprite.sizeMode == Component::SpriteSizeMode::FromSprite)
-                ? (item.screenSpace ? Vec2{ frame.widthPixels, frame.heightPixels } : Vec2{ frame.widthUnits, frame.heightUnits })
+                ? (item.screenSpace ? Vector2{ frame.widthPixels, frame.heightPixels } : Vector2{ frame.widthUnits, frame.heightUnits })
                 : sprite.size;
             item.pivot = (resolved && sprite.pivotMode == Component::SpritePivotMode::FromSprite)
-                ? Vec2{ frame.pivotX, frame.pivotY } : sprite.pivot;
+                ? Vector2{ frame.pivotX, frame.pivotY } : sprite.pivot;
             item.renderOrder = sprite.renderOrder;
             if (sprite.flip == Component::SpriteFlip::Horizontal || sprite.flip == Component::SpriteFlip::Both)
             {

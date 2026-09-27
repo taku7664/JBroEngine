@@ -20,25 +20,25 @@ namespace JBro::Service
     class DebugDraw2DService
     {
     public:
-        void Line(Vec2 from, Vec2 to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
+        void Line(Vector2 from, Vector2 to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
             float thickness = 1.0f) const;
         // origin 에서 origin + direction 까지다. 방향의 길이가 선의 길이다.
-        void Ray(Vec2 origin, Vec2 direction, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
+        void Ray(Vector2 origin, Vector2 direction, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
             float thickness = 1.0f) const;
         // 끝에 촉이 달린 선이다. 촉의 길이는 선 길이의 1/4 이다.
-        void Arrow(Vec2 from, Vec2 to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
+        void Arrow(Vector2 from, Vector2 to, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
             float thickness = 1.0f) const;
         // 가운데·크기·각(라디안)의 사각형 테두리다.
-        void Rect(Vec2 center, Vec2 size, float angle = 0.0f, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+        void Rect(Vector2 center, Vector2 size, float angle = 0.0f, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f},
             float duration = 0.0f, float thickness = 1.0f) const;
         // 원 테두리다. 32 조각이다.
-        void Circle(Vec2 center, float radius, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
+        void Circle(Vector2 center, float radius, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
             float thickness = 1.0f) const;
         // 점들을 차례로 잇는다. closed 면 끝과 처음도 잇는다. 점이 둘보다 적으면 아무 일도 없다.
-        void Polygon(const Vec2* points, std::uint32_t count, bool closed = true, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f},
+        void Polygon(const Vector2* points, std::uint32_t count, bool closed = true, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f},
             float duration = 0.0f, float thickness = 1.0f) const;
         // 한 점에 ✕ 표를 둔다. size 는 팔 하나의 길이(월드)다.
-        void Cross(Vec2 at, float size, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
+        void Cross(Vector2 at, float size, const Color& color = Color{1.0f, 1.0f, 1.0f, 1.0f}, float duration = 0.0f,
             float thickness = 1.0f) const;
     };
 }

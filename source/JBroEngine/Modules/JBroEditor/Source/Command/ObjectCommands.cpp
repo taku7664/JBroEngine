@@ -18,7 +18,7 @@ namespace JBro
     {
         // 만들 자리를 트랜스폼에 써 넣는다(D-168).
         //
-        // **커맨드는 `Vec2` 인지 `Vec3` 인지 모른다.** 잎사귀가 내놓는 필드를 앞에서부터
+        // **커맨드는 `Vector2` 인지 `Vector3` 인지 모른다.** 잎사귀가 내놓는 필드를 앞에서부터
         // 채우므로 둘 다 맞는다 - 타입을 견주기 시작하면 프레임워크가 늘 때마다 여기가 는다.
         void WriteSpawnPosition(
             ComponentBase& component, ComponentTypeId typeId, const float (&position)[3])

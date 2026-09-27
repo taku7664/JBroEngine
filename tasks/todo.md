@@ -367,7 +367,7 @@ EditorApplication::Tick
   되돌리기, 표를 끊고 줄 전체. 끌어 옮기기와 bool·int·enum 원소 목록도 마우스로 재었다.
   잔여 결함 둘도 고쳤다 - 펼침 상태가 원소를 따라가고, 행 배경이 그린 만큼 덮는다(D-89 끝).
   남은 것은 인스펙터의 `ImGui::` 직접 호출(§11.1)이다.
-- `Vec2`·`Color` 필드 편집이 커맨드를 거치지 않던 결함을 고쳤다(D-89) - 한 줄 숫자 묶음은 이제
+- `Vector2`·`Color` 필드 편집이 커맨드를 거치지 않던 결함을 고쳤다(D-89) - 한 줄 숫자 묶음은 이제
   `SetPropertyCommand` 의 잎사귀다.
 - 게임 뷰 **매 프레임 opt-in** 이 들어갔다(2026-09-15, D-63 끝). 패널이 그려지지 않은 프레임에는
   뷰를 기록하지 않고 텍스처는 그대로 둔다.
@@ -624,8 +624,8 @@ EditorApplication::Tick
   `namespace JBro` 여닫는 두 줄뿐이며 포인터·수명·캐스트 로직 차이는 0건이다.
 - `TObjectPool<T>`의 32슬롯 청크는 생성자에서 받은 `JAllocator`로 할당·반환한다. 200개 생성 시
   7개 청크 할당, 풀 파괴 시 7개 반환, 첫 객체 주소 불변을 Debug/Release 테스트로 확인했다.
-- 구 엔진의 `Utillity/Math`는 아직 이식되지 않았다. 현재 `Vec2`/`Rect`/`Matrix3x2`는 Framework2D,
-  `Vec3`는 Framework3D, `Matrix4x4`는 Graphics에 분산돼 있다. 공통 수학 타입의 이름과 Core 입주
+- 구 엔진의 `Utillity/Math`는 아직 이식되지 않았다. 현재 `Vector2`/`Rect`/`Matrix3x2`는 Framework2D,
+  `Vector3`는 Framework3D, `Matrix4x4`는 Graphics에 분산돼 있다. 공통 수학 타입의 이름과 Core 입주
   범위를 확정하기 전에는 임시 타입을 정식 계약으로 간주하지 않는다.
 - Framework3D의 기존 5개 타입은 `ComponentBase` 파생 컴포넌트가 되었고 Runtime Canvas를 사용한다.
   3D 전용 시스템과 렌더 추출은 아직 골격이므로 Framework3D 전체를 완료로 표시하지 않는다.
@@ -661,7 +661,7 @@ EditorApplication::Tick
    차원 독립 공개 타입을 JBroCore에 한 번만 정의한다는 소유권은 D-38로 이미 확정됐다. 여기서 정할
    것은 Core로 옮길지 여부가 아니라 정식 이름·필드 계약과 한 번에 옮길 범위다.
    구 엔진의 `Utillity/Math`에는 `Vector2T`/`Vector2`, `RectT`/`Rect`, `Size`, `Matrix3x2`,
-   `Layout2D`가 있다. 신규 트리의 `Vec2`, `Vec3`, `Rect`, `Matrix3x2`, `Matrix4x4`를 한 번에 정식
+   `Layout2D`가 있다. 신규 트리의 `Vector2`, `Vector3`, `Rect`, `Matrix3x2`, `Matrix4x4`를 한 번에 정식
    타입으로 통합할지, 구 엔진의 2D 타입부터 순차 이식할지 결정해야 한다. 순차 이식을 선택해도 남은
    차원 독립 임시 타입의 Core 통합 의무는 없어지지 않는다. `Layout2D`는 차원 의미가 있으므로
    Framework2D에 남기는 안이 기본 제안이다.
@@ -1039,7 +1039,7 @@ EditorApplication::Tick
 
 - **D-57. 수학 타입은 차원별 모듈에 둔다. Core 로 올리지 않는다.** [뒤집힘: D-241]
   Closes: Open Decision 2. Narrows: D-38. Obsoleted by: D-241 (2026-09-27).
-  `Vec2`·`Rect`·`Matrix3x2` 는 `JBroFramework2D/Math2D.h`, `Vec3` 는 `JBroFramework3D/Math3D.h`,
+  `Vector2`·`Rect`·`Matrix3x2` 는 `JBroFramework2D/Math2D.h`, `Vector3` 는 `JBroFramework3D/Math3D.h`,
   `Matrix4x4` 는 `JBroGraphics/Renderer.h` 에 두는 현재 배치를 유지한다.
   D-38 의 "차원 독립 공개 값 타입"은 `Color` 처럼 **차원 의미가 없는 것**에만 적용된다.
   벡터·행렬은 차원이 곧 의미이므로 그 대상이 아니며, 2D 프로젝트가 3D 수학을 링크하지 않는다.
@@ -1354,7 +1354,7 @@ EditorApplication::Tick
   넘긴다** - 라벨은 표의 왼쪽 칸이 그린다. 우리는 위젯에 라벨을 넘겨 ImGui 가 오른쪽에
   붙이게 두었고, 좁은 패널에서 `orthographicSi…` 로 잘렸다.
   **한 값 한 줄**도 여기서 갈렸다. 기존은 잎사귀를 **타입으로 분기**해
-  `Vec2`→`DragFloat2`, `Rect`→`DragFloat4`, `Color`→`ColorEdit4` 로 **한 줄**에 그린다.
+  `Vector2`→`DragFloat2`, `Rect`→`DragFloat4`, `Color`→`ColorEdit4` 로 **한 줄**에 그린다.
   우리는 필드가 있으면 무조건 타고 내려가 색 하나가 네 줄을 먹었다. 우리 리플렉션에도
   이미 표시가 있다 - `TypeDescriptor::writeFieldsAsSequence`(`MakeVectorTypeDescriptor`)
   가 "같은 종류 값을 늘어놓은 구조체" 를 뜻한다.
@@ -1403,7 +1403,7 @@ EditorApplication::Tick
   위젯에 라벨을 넘기면 ImGui 가 오른쪽에 붙이고 좁은 패널에서 **잘린다**
   (`orthographicSi…` 로 실제로 났다). 기존 인스펙터의 모든 위젯이 라벨을 `""` 로
   넘기는 것이 이 때문이다.
-  **잎사귀가 전부 실수이고 넷 이하인 구조는 한 줄이다.** `Vec2`→`DragFloat2`,
+  **잎사귀가 전부 실수이고 넷 이하인 구조는 한 줄이다.** `Vector2`→`DragFloat2`,
   `Rect`→`DragFloat4`, `Color`→`ColorEdit4`(견본과 알파 막대). 필드가 있다고
   무조건 타고 내려가면 색 하나가 네 줄을 먹고, 사용자는 색을 고르는 대신 숫자를
   맞추게 된다. **주소를 모아서 넘긴다** - 실수 넷이 붙어 있다고 믿지 않는다.
@@ -1599,7 +1599,7 @@ EditorApplication::Tick
   ④ 인스펙터가 그리기와 커밋을 나눠 원소 안에서도 같은 잎사귀 규칙을 쓴다 ⑤ 마우스 테스트·
   스크린샷·뮤테이션.
   **① 에서 진짜 결함이 나왔다.** 옮기기가 원소 코덱의 `Assign` 을 빌렸는데, 필드로 말하는
-  타입(`Vec2`·`Color`)에는 코덱이 없다 - **`Vec2`·`Color` 목록을 끌어 놓으면 대상이 전부 빠지고
+  타입(`Vector2`·`Color`)에는 코덱이 없다 - **`Vector2`·`Color` 목록을 끌어 놓으면 대상이 전부 빠지고
   아무 일도 없었다.** 옮기기 테스트가 `Array<float>` 뿐이라 드러나지 않았다. `ArrayOpsOf<T>` 가
   `std::rotate` 로 제자리에서 돌리게 했고, 끝에 임시 자리를 늘리던 수(늘기 전 주소가 죽던 위험)도
   함께 없어졌다. `ArrayOps` 가 48 에서 56 바이트가 되어 경계 단언의 잰 값을 고쳤다 - 지금은
@@ -1628,7 +1628,7 @@ EditorApplication::Tick
   잰 한 줄 행 사이 틈(4)을 테스트에 박았다 - 모든 행에 같은 만큼 틈이 늘면 "키 큰 행 뒤의 틈이
   짧은 행 뒤와 같다" 는 비교로는 드러나지 않는다. 배경과 끌기 자리는 여전히 첫 줄만 덮는다.
   뮤테이션 2/2(한 줄 높이로 되돌리기, 모든 행 1픽셀 키우기).
-  **④ 를 시작하다 두 번째 진짜 결함이 나왔다: `Vec2`·`Color` 필드 편집이 커맨드를 거치지 않았다.**
+  **④ 를 시작하다 두 번째 진짜 결함이 나왔다: `Vector2`·`Color` 필드 편집이 커맨드를 거치지 않았다.**
   인스펙터는 커밋 전에 코덱으로 전 글자를 떴는데, 한 줄 숫자 묶음에는 코덱이 없어 뜨지 못했고
   뜨지 못하면 커밋을 건너뛰었다 - 위젯이 쓴 값이 그대로 남았다. `Transform2D.position`·`scale`,
   `SpriteRenderer2D.tint`·`pivot`·`size`, 콜라이더 `offset`·`size` 를 끌면 **되돌릴 수 없었고 여럿
@@ -1648,7 +1648,7 @@ EditorApplication::Tick
   **스크립트 타입과의 관계(사용자 메모, 2026-09-15)**: 스크립트는 엔진 타입만 쓰고 `Int`(64비트)·
   `Float`·`Vector2` 만 있다(jbroscript-syntax §7.1). 인스펙터는 위젯을 타입 이름(`"float"`·`"int32"`·
   `"JBro.Color"`)으로 고르므로, 스크립트 타입이 리플렉션으로 들어오면 그 이름 비교를 고쳐야 한다.
-  엔진 `Vec2` 는 `Vector2` 로 바꾸기로 확정됐지만(jbroscript-syntax §12 의 2번) 이름 변경 작업은 따로
+  엔진 `Vector2` 는 `Vector2` 로 바꾸기로 확정됐지만(jbroscript-syntax §12 의 2번) 이름 변경 작업은 따로
   남아 있어 여기서 바꾸지 않았다. 바꿀 때 인스펙터의 `"JBro.Color"` 같은 타입 이름 비교도 함께 본다.
   **④ 구조체 원소를 그린다(2026-09-15).** 목록 원소 하나를 필드와 같은 잎사귀 규칙(`DrawValue`)으로
   그리고, 필드를 가진 구조체면 접기 마디(기본은 접힘) 안에 필드마다 한 줄씩 그린다. 원소 안의 편집은
@@ -2916,44 +2916,47 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
-- **D-250. 벡터 타입의 이름은 `Vector2`·`Vector3`·`Vector4` 다. 줄이지 않는다.**
-  (2026-09-27, 사용자 지시 "Vec 대 Matrix도 이후에 고치자. 일관성 맞게 Vector2,3,4로 고치는걸로")
+- **D-250. 벡터 타입의 이름을 `Vector2`·`Vector3`·`Vector4` 로 바꾼다. 줄이지 않는다.**
+  (2026-09-27 이름 확정, 2026-09-28 적용. 사용자 지시 "Vec 대 Matrix도 이후에 고치자. 일관성 맞게
+  Vector2,3,4로 고치는걸로" 와 "지금 아니면 아예 못 바꿔. 지금 바꿔야 해. 다 바꿔")
   Updates: D-241, D-57. 2026-09-15 에 스크립트 쪽에서 이미 `Vec2` → `Vector2` 로 정해져 있었고
-  (jbroscript-syntax §7.1·§12 의 2 번), 여기서 **3·4 차원까지 같은 규칙으로 넓혀 확정한다.**
+  (jbroscript-syntax §7.1·§12 의 2 번), 여기서 **3·4 차원까지 넓혀 확정하고 실제로 바꿨다.**
   **왜**: `Vec` 은 줄이고 `Matrix` 는 안 줄여서 같은 헤더 안에서 규칙이 둘이었다. 줄이는 쪽으로
-  맞추면(`Mat3x2`) 이미 `Matrix3x2`·`Matrix4x4` 로 적힌 자리와 저장 파일의 타입 이름이 전부
-  바뀌므로, **안 줄이는 쪽으로 맞춘다.** 스크립트가 보는 이름도 `Vector2` 라 양쪽이 같아진다.
-  **바뀌는 것**: `Vec2`→`Vector2`, `Vec3`→`Vector3`, 그리고 **없던 `Vector4` 를 새로 만든다**
-  (지금은 색을 `Color`, 사원수를 `Quaternion` 이 따로 들고 있어 4 차원 벡터 자리가 비어 있다).
+  맞추면(`Mat3x2`) 이미 `Matrix` 로 적힌 자리가 전부 바뀌는데 그쪽이 더 많고, 스크립트가 보는
+  이름도 `Vector2` 다. **안 줄이는 쪽으로 맞춰야 엔진과 스크립트가 같은 말을 쓴다.**
+  **바꾼 것**: `Vec2`→`Vector2`, `Vec3`→`Vector3`. 소스 87 개 파일, 문서 13 개 파일.
   `Matrix3x2`·`Matrix4x4`·`Quaternion`·`Color`·`Size`·`Rect` 는 그대로다.
-  **실제로 무엇이 걸리는지 재 봤다**(2026-09-28). 처음에 "저장 파일에 타입 이름이 적히니 옛 파일을
-  읽는 길이 필요하다" 고 적었는데 **그것은 틀렸다.** 확인한 것:
+  **`Vector4` 는 새로 만들었다** - 4 차원 자리가 비어 있었다(`Color` 와 `Quaternion` 이 각자 들고
+  있었다). `Math3D.h` 에 `Quaternion` 옆에 두었고, **배치가 같아도 뜻이 달라 겸하지 않는다**:
+  사원수는 회전이라 `w` 기본값이 1 이고 `Vector4` 는 숫자 넷이라 전부 0 이다. 겸하면 "기본값이
+  무엇이냐" 에서 반드시 틀린다. 연산은 `Add`·`Subtract`·`Scale`·`Multiply`·`Dot`·`Length`·
+  `Normalize`·`NearlyEqual` 과 동차 좌표의 `MakePoint`(`w=1`)·`MakeDirection`(`w=0`)·`ToVector3`
+  (원근 나눗셈, **`w` 가 0 이면 나누지 않는다** - 무한히 먼 점이라 나눌 수 없고, 여기서 무한을
+  만들면 그 값이 뒤로 번진다)다. 외적은 두지 않았다 - 4 차원에서 벡터 둘의 외적은 뜻이 없다.
+  리플렉션 서술자 `"JBro.Vector4"` 도 함께 넣었다. **쓰는 자리는 아직 없다.**
+  **걸릴 줄 알았는데 안 걸린 것**(2026-09-28 실측, 처음 적었던 경고는 틀렸다):
   - **저장 파일은 타입 이름을 담지 않는다.** `ReflectedYaml` 은 갈래(`Scalar`·`Sequence`·`Map`)로만
     읽고 쓴다 - 소스에 `typeName` 이 한 번도 나오지 않는다. 캔버스 파일의 `Type` 은 **컴포넌트**
-    이름(`Transform2D`)이지 필드의 값 타입이 아니다. **파일을 옮길 일도 별칭을 둘 일도 없다.**
-  - **인스펙터도 안 걸린다.** 타입 이름으로 위젯을 고르는 자리는 `Color`·`Radian`·`Degree`·
-    `AudioBusName`·`PhysicsLayerMask`·`GameObjectHandle`·`Uuid`·`TextId` 여덟이고 **`Vec2` 는 없다.**
+    이름(`Transform2D`)이지 필드의 값 타입이 아니다. **파일을 옮길 일도 별칭을 둘 일도 없었다.**
+  - **인스펙터도 안 걸렸다.** 타입 이름으로 위젯을 고르는 자리는 `Color`·`Radian`·`Degree`·
+    `AudioBusName`·`PhysicsLayerMask`·`GameObjectHandle`·`Uuid`·`TextId` 여덟이고 벡터는 없다.
   - **스크립트 컴파일러도 이 이름을 모른다**(`JBroScriptCompiler`·`JBroc` 에 나오지 않는다).
-  - `"JBro.Vec2"`·`"JBro.Vec3"` 문자열이 나오는 자리는 **등록 두 줄과 주석 하나뿐이다**.
-  - 이름 충돌 없음: `Vector` 로 시작하는 타입이 트리에 하나도 없다.
-  **그래서 남는 것은 크기뿐이다**: 소스 1,244 자리(86 개 파일)와 문서 77 자리.
-  **진짜 위험은 일괄 치환 그 자체다.** D-248 에서 일괄 치환이 `x->rotation = v` 를
-  `x->GetRotationRadian() = v` 로 바꿨는데 **컴파일을 통과하고 아무 일도 하지 않았다.** 이름 바꾸기는
-  그보다 안전하지만(`Vec2` 는 토큰 하나다), 단어 경계를 안 잡으면 `Vec2D`·`MyVec2` 같은 것을 함께
-  먹는다. 바꿀 때는 `\bVec2\b` 로 걸고 컴파일러가 아니라 **바뀐 줄 수를 세어** 확인한다.
-  **두 번째 위험은 다른 세션이다.** 86 개 파일을 건드리므로 같은 리포에서 도는 다른 작업과 거의
-  반드시 부딪힌다. 다른 세션이 조용할 때 한 번에 끝내고 바로 커밋한다.
-  `Vector4` 는 바꾸기가 아니라 **새로 만드는 것**이다 - 지금 4 차원 자리는 `Color` 와 `Quaternion` 이
-  각자 들고 있어서 비어 있다. 리플렉션 서술자와 인스펙터 위젯도 함께 필요하다.
-  D-57·D-241 의 본문도 `Vec2` 로 적혀 있으니 같이 고친다.
-  **작업은 아직 하지 않았다** - 사용자가 "이후에 고치자" 로 미뤘다. 이 항목은 이름만 확정한다. [열림]
+  - 이름 충돌 없음: `Vector` 로 시작하는 타입이 트리에 하나도 없었다.
+  **어떻게 바꿨나**: 단어 경계(`\bVec2\b`)로 걸어 `source`·`docs`·`tasks` 의 `.h`·`.cpp`·`.md`·
+  `.vcxproj` 를 훑었다. `ThirdParty`·`Build`·`.vs` 는 뺐다. 단어 경계 덕에 ImGui 의 `ImVec2`·
+  `ImVec4` 는 애초에 걸리지 않는다(`m` 과 `V` 사이가 경계가 아니다). 바꾼 뒤 남은 자리 0 으로 확인.
+  **되레 물린 것 하나**: 치환이 **이 항목의 본문까지 먹어서** `Vec2`→`Vector2` 라고 적어 둔 줄이
+  `Vector2`→`Vector2` 가 되었다. 뜻이 깨진 것을 보고 이 항목을 통째로 다시 썼다.
+  문서를 일괄 치환할 때는 **그 문서가 자기 자신을 설명하고 있지 않은지** 먼저 본다.
+  검증: Debug·Release 솔루션 전체 빌드 오류 0, `JBroTests` 양쪽 전부 통과.
+  남긴 것: `Vector4` 를 쓰는 자리가 없다. 셰이더 상수와 동차 좌표를 다룰 때 쓰게 된다. [열림]
 
 - **D-249. 기존 엔진에 있었는데 옮기지 않은 공용 값 타입을 Core 로 들인다.**
   (2026-09-27, 사용자 지시 "기존 엔진이 구현했던 걸 놓쳤던 거나 획기적인 타입들 있으면 말해봐" 와
   "다 필요해. 다 추가해") Updates: D-38, D-241, D-247. 기존 엔진 `Engine/Utillity` 를 훑어
   신규 트리와 대조한 결과다.
   **`Size`**(`Types/Size.h`): `SizeT<T>` 와 별칭 `Size`(실수)·`SizeU`(픽셀)·`SizeI`. 크기가 세 갈래로
-  흩어져 있었다 - `Vec2 size`(렌더 월드·디버그 드로·물리 질의), `std::uint32_t width/height`
+  흩어져 있었다 - `Vector2 size`(렌더 월드·디버그 드로·물리 질의), `std::uint32_t width/height`
   (에셋·이미지 디코더·스프라이트 외곽선), `float width/height`(화면 좌표·기즈모 모델).
   **RHI 의 `Extent2D` 가 이미 `SizeU` 와 같은 모양이었으나 렌더 계층에 있어서** 에셋과 에디터가
   그것을 쓰지 못하고 낱개 멤버를 들고 다녔다. `Extent2D` 를 `SizeU` 의 별칭으로 만들어 합쳤다
@@ -2977,7 +2980,7 @@ EditorApplication::Tick
   글자까지 똑같이 두 벌로 들고 있었다. 하나로 합쳤다. **도는 중에 지우지 않는다** - `Table` 은
   지우면 자리를 다시 놓으므로 아직 보지 않은 항목을 건너뛴다.
   **프렐류드**(`Types/Types.h`): D-241 로 수학 타입을 Core 로 올리고도 목록을 고치지 않아, 이 헤더
-  하나만 넣어서는 `Vec2` 도 `Degree` 도 쓸 수 없었다. 각·수학·크기·`Delegate`·`Uuid`·`NameTable` 을
+  하나만 넣어서는 `Vector2` 도 `Degree` 도 쓸 수 없었다. 각·수학·크기·`Delegate`·`Uuid`·`NameTable` 을
   더했다. `Simd128.h`(플랫폼 내장 함수)와 `TextOptions.h`(리플렉션 계층에 기댄다)는 뺐다.
   **프로파일러의 호출 횟수를 평균한다**: 기존 엔진 `CFrameSectionProfiler` 가 남긴 교훈이다.
   시간은 눌러 보여 주면서 횟수는 그때그때 값을 그대로 보여 주고 있었는데, 50Hz 고정 스텝을
@@ -3153,8 +3156,8 @@ EditorApplication::Tick
   (2026-09-27, 사용자 지시 "이게 뭐 전용타입이야? 그냥 코어로 옮겨". 범위와 스크립트 노출은 사용자가 골랐다:
   "값 타입 + 순수 연산 함수", "그냥 보이게 둔다") Obsoletes: D-57. Updates: D-38(적용 범위가 넓어진다),
   D-199·D-200(두 커널의 의존), ProjectRule §10.1·모듈 계층 표.
-  **옮긴 것**: `Vec2`·`Rect`·`Matrix3x2` 와 `MakeTransformMatrix2D`·`MultiplyMatrix3x2` 가
-  `JBroFramework2D/Math2D.h` → `JBro/Types/Math2D.h`, `Vec3`·`Quaternion` 과 연산 함수 열셋이
+  **옮긴 것**: `Vector2`·`Rect`·`Matrix3x2` 와 `MakeTransformMatrix2D`·`MultiplyMatrix3x2` 가
+  `JBroFramework2D/Math2D.h` → `JBro/Types/Math2D.h`, `Vector3`·`Quaternion` 과 연산 함수 열셋이
   `JBroFramework3D/Math3D.h` → `JBro/Types/Math3D.h`, `Matrix4x4` 와 `MultiplyMatrix4x4` 가
   `JBroGraphics/Renderer.h`·`Framework3DSystem/Math3DMatrix.h` → 새 `JBro/Types/Matrix4x4.h`.
   리플렉션 설명서 둘은 `JBro/Reflection/Math2DReflection.h`·`Math3DReflection.h` 로 간다 -
@@ -3168,14 +3171,14 @@ EditorApplication::Tick
   `struct` 와 `inline` 함수라 링크할 심볼이 없고, 실제 대가는 include 비용뿐이었다. 그 대신
   2D·3D 를 모두 보는 코드가 양쪽 모듈을 끌어와야 했다.
   **받아들인 대가**: Core 는 모든 스크립트의 include 경로에 있으므로 2D 스크립트에서도
-  `Vec3`·`Quaternion`·`Matrix4x4` 가 보인다. 수학 값 타입은 2D/3D 배타성의 대상이 아니라고 정했고,
+  `Vector3`·`Quaternion`·`Matrix4x4` 가 보인다. 수학 값 타입은 2D/3D 배타성의 대상이 아니라고 정했고,
   배타성은 컴포넌트와 서비스 수준에서만 유지한다.
-  **덤으로 걷은 것**: `JBroPhysics2D` 가 `Vec2` 하나 때문에 받던 `JBroFramework2D` include 경로가
+  **덤으로 걷은 것**: `JBroPhysics2D` 가 `Vector2` 하나 때문에 받던 `JBroFramework2D` include 경로가
   죽어 vcxproj 에서 뺐다. 물리 커널은 이제 문서가 말하던 대로 진짜 `JBroCore` 만 본다.
   검증: 솔루션 전체 Debug 빌드 오류 0, `JBroTests` Debug 전부 통과(`Public header composition`·
   `Script API prelude` 포함), 자체 포함 번역 단위 275 개 재생성. 음성 테스트: `JBroPhysics2D` 소스에
   `JBro/Framework2D/Component/Transform2D.h` 를 넣으면 `C1083` 으로 죽는다.
-  이름의 일관성 없음(`Vec` 대 `Matrix`, `Vec4` 없음)은 사용자가 이번에 손대지 말라고 해 남겼다.
+  이름의 일관성 없음(`Vec` 대 `Matrix`, `Vector4` 없음)은 사용자가 이번에 손대지 말라고 해 남겼다.
   **→ 이름은 D-250 에서 `Vector2`·`Vector3`·`Vector4` 로 정해졌다. 바꾸는 작업은 아직 남았다.**
 
 - **D-240. 오디오 전체 점검: 다섯 갈래(믹서·이펙트·디코드와 스트리밍·게임 쪽 시스템·시험과 문서)를 반례로 훑어 찾은 결함을 고친다.**
@@ -3943,7 +3946,7 @@ EditorApplication::Tick
   §1.2: 도형 중심으로 법선 뒤집기, 통짜 오목 도형으로 접촉점 클리핑, 중심 기준의 면 바깥 판정, 절댓값 넓이의 관성, 회전 중심과
   적분 중심의 어긋남, 조각 결과를 하나로 줄이기)을 고친다. 정한 것: (1) 새 Tier E 모듈 `JBroPhysics2D` - 월드·바디·도형·브로드페이즈·
   좁은 판정·솔버·질의·기하. `JBroCore` 와 `JBroFramework2D` 의 `Math2D.h` 만 보고 컴포넌트·`Canvas` 는 모른다. `Physics2DSystem` 은
-  어댑터가 된다. (2) `Collider2D` 에 `points`(`Array<Vec2>`)를 더한다. 도형별 컴포넌트로 나누지 않는다. 조각 같은 파생 자료는
+  어댑터가 된다. (2) `Collider2D` 에 `points`(`Array<Vector2>`)를 더한다. 도형별 컴포넌트로 나누지 않는다. 조각 같은 파생 자료는
   컴포넌트가 아니라 커널이 든다. (3) 오목 도형은 정리·검증(자기 교차 거절) 뒤 귀 자르기 + 병합으로 볼록 조각(8 점 이하)을 만들고,
   조각 하나가 자식 도형이다. 법선은 조각의 면에서만 나오고 도형 중심으로 뒤집지 않는다. (4) 마찰·반발·레이어·마스크는 넷 다
   `Collider2D` 필드다. (5) 스크립트 훅은 `OnTriggerEnter/Exit` 를 더하고 Stay 는 두지 않는다 - 훅은 차후 더 늘린다.
@@ -4528,7 +4531,7 @@ EditorApplication::Tick
     그 번호의 레이어가 그 사이에 사라졌으면 기본 레이어다 - 없는 번호를 들고 있으면 어느 칸에도 나오지 않는다.
   - **자리와 레이어는 만들기 커맨드 안에 있다.** 레이어 칸의 `오브젝트 추가` 는 만들기와 레이어 옮기기를 둘로 쌓아
     실행 취소가 두 번 들었다. 이제 `CreateObjectCommand` 가 둘 다 받아 한 번이다.
-  - **커맨드는 `Vec2` 인지 `Vec3` 인지 모른다.** 트랜스폼의 `position` 잎사귀가 내놓는 필드를 앞에서부터 채우므로
+  - **커맨드는 `Vector2` 인지 `Vector3` 인지 모른다.** 트랜스폼의 `position` 잎사귀가 내놓는 필드를 앞에서부터 채우므로
     둘 다 맞는다. 타입을 견주기 시작하면 프레임워크가 늘 때마다 그 자리가 는다.
   - **`ResolveTargetLayer` 는 한 곳이다**(`EditorActions`): 부모가 있으면 부모의 레이어, 없으면 고른 것의 레이어,
     둘 다 없으면 캔버스 기본 레이어다. 부모가 고른 것보다 먼저다 - 자식만 다른 칸에 있으면 부모를 감춰도 자식이 남는다.

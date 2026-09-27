@@ -210,7 +210,7 @@
 
   | 층 | 모듈 | 내용 |
   |---|---|---|
-  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vec2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vec3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247)·**크기**(`Types/Size.h` 의 `Size`·`SizeU`·`SizeI`, RHI 의 `Extent2D` 가 `SizeU` 다)·**비트 묶음**(`Types/BitFlag.h`)·**안전 영역**(`Types/SafeArea.h`)·**프레임 생존 표시**(`Types/FrameLiveness.h` 의 `RemoveStaleEntries`, 모두 D-249) |
+  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vector2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vector3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247)·**크기**(`Types/Size.h` 의 `Size`·`SizeU`·`SizeI`, RHI 의 `Extent2D` 가 `SizeU` 다)·**비트 묶음**(`Types/BitFlag.h`)·**안전 영역**(`Types/SafeArea.h`)·**프레임 생존 표시**(`Types/FrameLiveness.h` 의 `RemoveStaleEntries`, 모두 D-249) |
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
@@ -768,7 +768,7 @@
   컴파일까지 끝나야 완료다. 필드명과 기본값이 다른 임시 타입은 조용히 합치지 말고 각 소비자의
   의도를 확인해 명시적으로 보존한다.
   **벡터·행렬도 이 규칙의 대상이다.** (MUST) (D-241 이 D-57 을 뒤집었다)
-  `Vec2`·`Rect`·`Matrix3x2`·`Vec3`·`Quaternion`·`Matrix4x4` 를 모두 `JBroCore` 가 소유한다.
+  `Vector2`·`Rect`·`Matrix3x2`·`Vector3`·`Quaternion`·`Matrix4x4` 를 모두 `JBroCore` 가 소유한다.
   값 타입은 `JBro/Types/Math2D.h`·`JBro/Types/Math3D.h`·`JBro/Types/Matrix4x4.h` 에 있고,
   리플렉션 설명서는 `JBro/Reflection/Math2DReflection.h`·`JBro/Reflection/Math3DReflection.h` 에
   따로 둔다 - 매 프레임 경로가 리플렉션 기계를 물고 가지 않게 하려는 것이며, 이것은 옮기기 전과 같다.
@@ -777,7 +777,7 @@
   2D 와 3D 를 모두 보는 코드(에디터·Graphics·물리 커널)가 양쪽 모듈을 함께 끌어와야 했다.
   **좌표계와 깊이 범위를 전제하는 함수는 Core 로 옮기지 않는다.** 투영·뷰·회전 행렬을 만드는 것들은
   `JBroFramework3DSystem/Math3DMatrix.h` 에 그대로 남는다. 그 규약은 시스템 단계의 계약이기 때문이다.
-  **결과로 2D 스크립트에서도 `Vec3`·`Quaternion`·`Matrix4x4` 가 보인다.** 수학 값 타입은
+  **결과로 2D 스크립트에서도 `Vector3`·`Quaternion`·`Matrix4x4` 가 보인다.** 수학 값 타입은
   2D/3D 배타성의 대상이 아니며, 배타성은 컴포넌트와 서비스 수준에서만 유지한다.
 - **각도는 단위를 타입으로 말한다.** (MUST) (D-247)
   `JBro/Types/Angle.h` 의 `Degree` 와 `Radian` 이고, 둘 다 `float` 하나를 감싼 강타입이라
@@ -799,7 +799,7 @@
   못 만진다. 값이 곧 뜻인 보통 필드는 전처럼 `JBRO_FIELD` 로 열어 둔다 - 감출 것이 없는데
   닫으면 읽는 쪽만 번거로워진다.
 - **크기는 위치와 다른 타입으로 말한다.** (MUST) (D-249)
-  넓이와 높이는 `Size`(실수)·`SizeU`(픽셀 개수)·`SizeI`(부호 있는 픽셀)로 담는다. `Vec2` 하나로
+  넓이와 높이는 `Size`(실수)·`SizeU`(픽셀 개수)·`SizeI`(부호 있는 픽셀)로 담는다. `Vector2` 하나로
   위치도 크기도 담으면 둘을 뒤바꿔 넣어도 컴파일러가 잡아 주지 않는다 - 도와 라디안을 섞었던
   것과 같은 자리다(D-247). RHI 의 `Extent2D` 는 `SizeU` 의 다른 이름이지 다른 타입이 아니다.
   `width`·`height` 를 낱개의 멤버로 나란히 두지 않는다.
@@ -818,7 +818,7 @@
   않은 항목을 건너뛴다. 그래서 지울 열쇠를 먼저 모으고 그 뒤에 지운다.
 - **`Types/Types.h` 는 공용 값 타입의 목록이다.** (MUST) (D-249)
   Core 에 값 타입을 더하면 이 프렐류드에도 더한다. 수학 타입을 Core 로 올리고도(D-241) 목록을
-  고치지 않아 한동안 이 헤더만 넣어서는 `Vec2` 도 `Degree` 도 쓸 수 없었다.
+  고치지 않아 한동안 이 헤더만 넣어서는 `Vector2` 도 `Degree` 도 쓸 수 없었다.
 - 스크립트 레이어는 네임스페이스를 강제하지 않는다. 프렐류드 헤더(`ScriptAPI.h`)가
   `using namespace JBro;` 를 수행한다. (MUST)
   단 **1 뎁스 네임스페이스 사용을 적극 권장한다** — `Component::Transform2D` 처럼 쓰면
@@ -860,8 +860,8 @@
   줄이지 않으면서 벡터만 줄이면 같은 헤더 안에서 규칙이 둘이 된다. 줄이는 쪽으로 맞추면
   (`Mat3x2`) 이미 `Matrix` 로 적힌 자리가 전부 바뀌는데, 그쪽이 더 많고 스크립트가 보는 이름도
   `Vector2` 다. 안 줄이는 쪽으로 맞춰야 엔진과 스크립트가 같은 말을 쓴다.
-  **지금 코드는 아직 `Vec2`·`Vec3` 이고 `Vector4` 는 없다** - 바꾸는 작업이 남아 있다(D-250 `[열림]`).
-  새로 만드는 값 타입은 이 규칙을 지금부터 따른다.
+  **`Vector4` 는 `Quaternion` 과 배치가 같아도 다른 타입이다** - 사원수는 회전이라 `w` 기본값이 1 이고
+  벡터는 숫자 넷이라 0 이다. 겸하면 기본값에서 틀린다.
 
 ### 10.3 System 과 Service
 
@@ -1157,7 +1157,7 @@
   `SetNextItemWidth(-FLT_MIN)` 위젯을 둔다. 위젯에 라벨을 넘기면 **패널이 좁아질 때
   라벨이 잘린다** — 잘린 이름은 없는 이름보다 나쁘다. 실제로 그렇게 났다(D-78).
 - **한 값은 한 줄이다.** (MUST)
-  `Vec2` 는 `DragFloat2` 한 줄, `Rect` 는 `DragFloat4` 한 줄, `Color` 는 `ColorEdit4`
+  `Vector2` 는 `DragFloat2` 한 줄, `Rect` 는 `DragFloat4` 한 줄, `Color` 는 `ColorEdit4`
   한 줄이다. 필드가 있다고 무조건 타고 내려가면 색 하나가 네 줄을 먹고, 사용자는
   색을 고르는 대신 숫자 네 개를 맞춰야 한다.
   우리 리플렉션에는 이미 표시가 있다 — `TypeDescriptor::writeFieldsAsSequence` 가
@@ -1223,7 +1223,7 @@
   인스펙터는 위젯이 바꾼 값을 **도로 되돌려 놓고** 커맨드로 다시 적용한다 —
   쓰는 길이 하나로 남아야 한다.
 - **인스펙터가 한 줄에 한 값으로 그리는 것은 커맨드도 한 값으로 든다.** (MUST) (D-89)
-  코덱이 없는 한 줄 숫자 묶음(`Vec2`·`Color`·`Rect`)도 `SetPropertyCommand` 의 잎사귀이고,
+  코덱이 없는 한 줄 숫자 묶음(`Vector2`·`Color`·`Rect`)도 `SetPropertyCommand` 의 잎사귀이고,
   글자는 컨테이너처럼 값 전체의 YAML 이다. 전 값을 코덱으로만 뜨려 하면 숫자 묶음에서 뜨지 못해
   커밋을 건너뛰고, 위젯이 쓴 값이 커맨드 없이 남는다 — `Transform2D.position` 이 그랬다.
 - **막히는 호출은 프레임 밖에서 한다.** (MUST) (D-93)

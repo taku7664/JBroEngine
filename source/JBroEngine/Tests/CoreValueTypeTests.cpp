@@ -88,24 +88,24 @@ namespace
     // 맞닿은 것을 안 겹친 것으로 세면 그 질의가 아무것도 못 맞힌다.
     void TestATouchingRectCounts()
     {
-        const JBro::Rect box{ JBro::Vec2{0.0f, 0.0f}, JBro::Vec2{10.0f, 10.0f} };
-        const JBro::Rect point = JBro::MakeRectFromPoint(JBro::Vec2{3.0f, 3.0f});
+        const JBro::Rect box{ JBro::Vector2{0.0f, 0.0f}, JBro::Vector2{10.0f, 10.0f} };
+        const JBro::Rect point = JBro::MakeRectFromPoint(JBro::Vector2{3.0f, 3.0f});
         Check(box.Intersects(point), "a point inside the box hits it");
-        Check(point.Contains(JBro::Vec2{3.0f, 3.0f}), "a zero-area rect still contains its own point");
-        const JBro::Rect edge{ JBro::Vec2{10.0f, 0.0f}, JBro::Vec2{20.0f, 10.0f} };
+        Check(point.Contains(JBro::Vector2{3.0f, 3.0f}), "a zero-area rect still contains its own point");
+        const JBro::Rect edge{ JBro::Vector2{10.0f, 0.0f}, JBro::Vector2{20.0f, 10.0f} };
         Check(box.Intersects(edge), "two rects that share an edge overlap");
     }
 
     // 겹치지 않으면 뒤집힌 사각형이 나온다. 부른 쪽이 `IsEmpty` 로 확인한다.
     void TestAMissedIntersectionComesBackEmpty()
     {
-        const JBro::Rect left{ JBro::Vec2{0.0f, 0.0f}, JBro::Vec2{10.0f, 10.0f} };
-        const JBro::Rect right{ JBro::Vec2{5.0f, 5.0f}, JBro::Vec2{20.0f, 20.0f} };
+        const JBro::Rect left{ JBro::Vector2{0.0f, 0.0f}, JBro::Vector2{10.0f, 10.0f} };
+        const JBro::Rect right{ JBro::Vector2{5.0f, 5.0f}, JBro::Vector2{20.0f, 20.0f} };
         const JBro::Rect hit = JBro::IntersectRect(left, right);
         Check(false == hit.IsEmpty(), "an overlap is not empty");
         Check(Near(hit.min.x, 5.0f) && Near(hit.max.x, 10.0f), "and it is the shared part");
 
-        const JBro::Rect far{ JBro::Vec2{50.0f, 50.0f}, JBro::Vec2{60.0f, 60.0f} };
+        const JBro::Rect far{ JBro::Vector2{50.0f, 50.0f}, JBro::Vector2{60.0f, 60.0f} };
         Check(JBro::IntersectRect(left, far).IsEmpty(), "no overlap comes back empty");
         Check(false == left.Intersects(far), "and the two do not intersect");
     }
@@ -115,23 +115,23 @@ namespace
     void TestOneBadPointDoesNotPoisonTheBounds()
     {
         const float nan = std::nanf("");
-        JBro::Rect bounds = JBro::MakeRectFromPoint(JBro::Vec2{1.0f, 1.0f});
-        bounds = JBro::UnionRect(bounds, JBro::Vec2{nan, 4.0f});
+        JBro::Rect bounds = JBro::MakeRectFromPoint(JBro::Vector2{1.0f, 1.0f});
+        bounds = JBro::UnionRect(bounds, JBro::Vector2{nan, 4.0f});
         Check(false == std::isnan(bounds.min.x), "the x side survived the bad point");
         Check(Near(bounds.max.y, 4.0f), "and the good axis still grew");
     }
 
     void TestRectsGrowAndMove()
     {
-        const JBro::Rect box{ JBro::Vec2{0.0f, 0.0f}, JBro::Vec2{10.0f, 10.0f} };
+        const JBro::Rect box{ JBro::Vector2{0.0f, 0.0f}, JBro::Vector2{10.0f, 10.0f} };
         Check(Near(JBro::ExpandRect(box, 2.0f).Width(), 14.0f), "expanding grows both sides");
-        Check(Near(JBro::OffsetRect(box, JBro::Vec2{3.0f, 0.0f}).min.x, 3.0f), "offsetting moves it");
-        Check(box.Contains(JBro::Rect{ JBro::Vec2{1.0f, 1.0f}, JBro::Vec2{9.0f, 9.0f} }),
+        Check(Near(JBro::OffsetRect(box, JBro::Vector2{3.0f, 0.0f}).min.x, 3.0f), "offsetting moves it");
+        Check(box.Contains(JBro::Rect{ JBro::Vector2{1.0f, 1.0f}, JBro::Vector2{9.0f, 9.0f} }),
             "a box contains a smaller box inside it");
         Check(Near(box.GetSize().width, 10.0f) && Near(box.Center().x, 5.0f),
             "and it can say its own size and middle");
 
-        const JBro::Rect fromCenter = JBro::MakeRectFromCenter(JBro::Vec2{0.0f, 0.0f}, JBro::Size(4.0f, 6.0f));
+        const JBro::Rect fromCenter = JBro::MakeRectFromCenter(JBro::Vector2{0.0f, 0.0f}, JBro::Size(4.0f, 6.0f));
         Check(Near(fromCenter.min.x, -2.0f) && Near(fromCenter.max.y, 3.0f),
             "a rect built from a centre is centred on it");
     }
@@ -146,6 +146,51 @@ namespace
         JBro::SafeAreaInsets notch;
         notch.top = 44.0f;
         Check(notch.IsAny(), "one filled side is enough to matter");
+    }
+
+    // ── Vector4 ─────────────────────────────────────────────────────────────
+
+    // **`Quaternion` 과 배치는 같아도 기본값이 다르다**(D-250). 사원수는 회전이라 `w` 가 1 이고,
+    // 벡터는 숫자 넷이라 0 이다. 한 타입으로 겸했다면 둘 중 하나가 반드시 틀린다.
+    void TestAVectorIsNotAQuaternion()
+    {
+        const JBro::Vector4 vector;
+        const JBro::Quaternion rotation;
+        Check(vector.w == 0.0f, "a fresh vector is all zeroes");
+        Check(rotation.w == 1.0f, "a fresh quaternion is the identity");
+        static_assert(sizeof(JBro::Vector4) == sizeof(JBro::Quaternion));
+    }
+
+    // 동차 좌표에서 점과 방향을 가르는 것은 `w` 다. 평행이동이 붙느냐 마느냐가 갈린다.
+    void TestPointsAndDirectionsDifferByW()
+    {
+        const JBro::Vector3 source{ 1.0f, 2.0f, 3.0f };
+        Check(JBro::MakePoint(source).w == 1.0f, "a point carries w = 1");
+        Check(JBro::MakeDirection(source).w == 0.0f, "a direction carries w = 0");
+    }
+
+    // **`w` 가 0 이면 나누지 않는다.** 무한히 먼 점이라 나눌 수 없고, 여기서 무한을 만들면
+    // 그 값이 뒤로 번져 어디서 터졌는지 못 찾는다.
+    void TestThePerspectiveDivideDoesNotMakeInfinities()
+    {
+        const JBro::Vector3 halved = JBro::ToVector3(JBro::Vector4{ 4.0f, 6.0f, 8.0f, 2.0f });
+        Check(Near(halved.x, 2.0f) && Near(halved.z, 4.0f), "a real w divides through");
+
+        const JBro::Vector3 atInfinity = JBro::ToVector3(JBro::Vector4{ 4.0f, 6.0f, 8.0f, 0.0f });
+        Check(std::isfinite(atInfinity.x), "a zero w leaves the value finite");
+        Check(Near(atInfinity.x, 4.0f), "and hands back what it was given");
+    }
+
+    void TestVector4Arithmetic()
+    {
+        const JBro::Vector4 left{ 1.0f, 2.0f, 3.0f, 4.0f };
+        const JBro::Vector4 right{ 5.0f, 6.0f, 7.0f, 8.0f };
+        Check(Near(JBro::Dot(left, right), 70.0f), "the dot product spans all four parts");
+        Check(Near(JBro::Add(left, right).w, 12.0f), "adding reaches w");
+        Check(Near(JBro::Length(JBro::Vector4{ 0.0f, 0.0f, 0.0f, 3.0f }), 3.0f), "so does the length");
+        // 길이 0 을 정규화하면 나눌 수가 없다. 0 을 돌려준다 - NaN 을 흘리지 않는다.
+        Check(JBro::Normalize(JBro::Vector4{}).x == 0.0f, "normalizing nothing gives nothing, not NaN");
+        Check(Near(JBro::Length(JBro::Normalize(left)), 1.0f), "and a real vector normalizes to 1");
     }
 
     // ── FrameLiveness ───────────────────────────────────────────────────────
@@ -209,6 +254,10 @@ int RunCoreValueTypeTests()
     TestOneBadPointDoesNotPoisonTheBounds();
     TestRectsGrowAndMove();
     TestNoInsetsByDefault();
+    TestAVectorIsNotAQuaternion();
+    TestPointsAndDirectionsDifferByW();
+    TestThePerspectiveDivideDoesNotMakeInfinities();
+    TestVector4Arithmetic();
     TestOnlyWhatWasSeenThisFrameSurvives();
     TestNothingSeenClearsTheCache();
     std::cout << "Core value type tests passed.\n";

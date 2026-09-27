@@ -24,7 +24,7 @@ namespace JBro
     class SetPropertyCommand final : public EditorCommand
     {
     public:
-        // 컴포넌트에서 잎사귀까지 내려가는 길이다. `Vec2 position` 의 `y` 면 [0, 1] 이다.
+        // 컴포넌트에서 잎사귀까지 내려가는 길이다. `Vector2 position` 의 `y` 면 [0, 1] 이다.
         //
         // 이름이 아니라 인덱스인 이유는 커맨드마다 문자열을 잡지 않기 위해서이고,
         // 표의 순서는 타입이 살아 있는 동안 바뀌지 않는다.
@@ -53,7 +53,7 @@ namespace JBro
         bool TryMerge(const EditorCommand& newer) override;
 
         // 길을 따라 잎사귀의 주소와 타입을 찾는다. 잎사귀는 코덱을 가진 값, **컨테이너**(D-86),
-        // **한 줄 숫자 묶음**(`Vec2`·`Color`·`Rect`, D-89) 셋이고, 뒤의 둘의 글자는 전체를 담은
+        // **한 줄 숫자 묶음**(`Vector2`·`Color`·`Rect`, D-89) 셋이고, 뒤의 둘의 글자는 전체를 담은
         // YAML 이다. 숫자 묶음은 인스펙터가 한 줄에 한 값으로 그리므로 커맨드도 한 값으로 든다 -
         // 처음에는 가지로 보고 거절해, 인스펙터가 커밋하지 못하고 위젯이 쓴 값이 그대로 남았다.
         // 중간이 사라졌거나 잎사귀가 아니면 거짓이다. **스냅샷을 뜨고 되살리는 쪽도 같은 길을 쓴다** -

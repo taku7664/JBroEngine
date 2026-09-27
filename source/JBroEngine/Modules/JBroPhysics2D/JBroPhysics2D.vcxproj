@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!--
     2D 물리 커널이다(D-199). Tier E 이고 캔버스·컴포넌트를 모른다.
-    JBroCore 만 본다. Vec2 가 Core 로 옮겨가면서 Framework2D 의 include 경로는 필요 없어졌다.
+    JBroCore 만 본다. Vector2 가 Core 로 옮겨가면서 Framework2D 의 include 경로는 필요 없어졌다.
     JBroFramework2D 와 JBroRuntime 의 include 경로를 모두 받지 않으므로,
     컴포넌트 헤더(그것이 Runtime 을 include 한다)를 넣으면 컴파일이 실패한다.
   -->
