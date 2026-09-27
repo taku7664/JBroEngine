@@ -87,7 +87,7 @@ namespace JBro
     struct EditorApplicationConfig
     {
         GraphicsApi graphicsApi = GraphicsApi::D3D12;
-        // 시계의 처음 설정이다(D-233). 프로젝트를 열면 그 파일의 값이 이긴다.
+        // 시계의 처음 설정이다(D-241). 프로젝트를 열면 그 파일의 값이 이긴다.
         TimeSettings time;
         std::uint32_t windowWidth = 1280;
         std::uint32_t windowHeight = 720;
@@ -440,14 +440,14 @@ namespace JBro
         // 재생 중에만 뜻이 있다. 멈춰 세우면 그린 것은 그대로 두고 게임만 세운다.
         void SetSimulationPaused(bool paused);
         bool IsSimulationPaused() const;
-        // 멈춘 재생을 다음 프레임 하나만 돌린다(D-233): 고정 스텝 하나와 `OnUpdate` 하나다. 재생 중이고 멈춰 있을 때만 뜻이 있다.
+        // 멈춘 재생을 다음 프레임 하나만 돌린다(D-241): 고정 스텝 하나와 `OnUpdate` 하나다. 재생 중이고 멈춰 있을 때만 뜻이 있다.
         void StepSimulation();
-        // 스크립트의 디버그 선을 게임 뷰·캔버스 뷰에 그릴지다(D-234). 둘 다 처음에는 켜져 있다.
+        // 스크립트의 디버그 선을 게임 뷰·캔버스 뷰에 그릴지다(D-242). 둘 다 처음에는 켜져 있다.
         void SetGameViewDebugDraw(bool visible);
         bool IsGameViewDebugDrawVisible() const;
         void SetCanvasViewDebugDraw(bool visible);
         bool IsCanvasViewDebugDrawVisible() const;
-        // 엔진의 시계·디버그 선·난수 씨앗이다(D-233, D-234). 통계 창과 시험이 읽는다. 엔진이 없으면 null·0 이다.
+        // 엔진의 시계·디버그 선·난수 씨앗이다(D-241, D-242). 통계 창과 시험이 읽는다. 엔진이 없으면 null·0 이다.
         const FrameTime* GetFrameTime() const;
         const System::DebugDrawSystem* GetDebugDraw() const;
         std::uint64_t GetRandomSeed() const;

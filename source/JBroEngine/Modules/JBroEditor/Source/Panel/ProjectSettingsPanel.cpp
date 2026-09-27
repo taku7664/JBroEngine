@@ -555,7 +555,7 @@ namespace JBro
             layout.Row(
                 [] { Widget::Text("DebugModeEnabled"); },
                 [&] { Widget::Checkbox("##debug", m_draft.debugModeEnabled); });
-            // 시간(D-233). 범위는 파일을 읽을 때와 같다(`TimeSystem::IsValid`).
+            // 시간(D-241). 범위는 파일을 읽을 때와 같다(`TimeSystem::IsValid`).
             layout.Row(
                 [] { Widget::Text("FixedDeltaTime"); },
                 [&]

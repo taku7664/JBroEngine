@@ -29,7 +29,7 @@
 #include <crtdbg.h>
 #endif
 
-// 디버그 드로(D-234): 저장소의 수명 셋, 서비스가 도형을 펴는 모양, 두 브리지가 뷰마다 픽셀 두께로 그리는 것을 본다.
+// 디버그 드로(D-242): 저장소의 수명 셋, 서비스가 도형을 펴는 모양, 두 브리지가 뷰마다 픽셀 두께로 그리는 것을 본다.
 namespace
 {
     void Check(bool condition, const char* message)

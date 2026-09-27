@@ -54,7 +54,7 @@
 
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Time
 #if defined(JBRO_TIER_PROBE_TIME)
-// 시계와 난수 흐름은 호스트의 것이다(D-233). 스크립트는 `TimeService`·`RandomService` 만 본다.
+// 시계와 난수 흐름은 호스트의 것이다(D-241). 스크립트는 `TimeService`·`RandomService` 만 본다.
 #include <JBro/Host/TimeSystem.h>
 #endif
 
@@ -109,7 +109,7 @@ namespace
 
         void OnUpdate() override
         {
-            // 델타는 서비스에서 읽는다(D-233). 프렐류드만으로 닿아야 한다.
+            // 델타는 서비스에서 읽는다(D-241). 프렐류드만으로 닿아야 한다.
             m_elapsed += GetServiceContext().Time.DeltaTime();
             if (Component::Transform2D* transform = m_transform.Get())
             {

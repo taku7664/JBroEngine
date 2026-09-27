@@ -834,7 +834,7 @@ namespace
             && back.find("  PhysicsThreads: Auto\n") != JBro::String::npos, "turning it back to Auto rewrites the line");
     }
 
-    // **시간 설정(D-233).** 최상위 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime`·`RandomSeed` 다. 범위를 벗어나면 거절하고,
+    // **시간 설정(D-241).** 최상위 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime`·`RandomSeed` 다. 범위를 벗어나면 거절하고,
     // 기본값이면 없던 자리에 적지 않는다.
     void TestTheTimeSettings()
     {

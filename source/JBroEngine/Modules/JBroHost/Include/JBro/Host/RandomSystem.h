@@ -6,7 +6,7 @@
 
 namespace JBro::System
 {
-    // 엔진 난수 흐름의 호스트 구현이다(D-233, 기존 `CRandomService`). `EngineInstance` 가 소유한다.
+    // 엔진 난수 흐름의 호스트 구현이다(D-241, 기존 `CRandomService`). `EngineInstance` 가 소유한다.
     //
     // 기존 엔진과 다른 것:
     //   - `std::mt19937` 와 표준 분포 대신 `RandomStream`(PCG32)과 제 매핑이다. 같은 씨앗이면 컴파일러가 달라도 같은 수열이다.

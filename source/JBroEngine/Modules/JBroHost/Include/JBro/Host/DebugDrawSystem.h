@@ -9,7 +9,7 @@ namespace JBro::System
 {
     class TimeSystem;
 
-    // 디버그 선의 저장소다(D-234, 기존 `CDebugDraw2D`). `EngineInstance` 가 소유하고, 두 프레임워크의 렌더 브리지가 뷰마다 읽어
+    // 디버그 선의 저장소다(D-242, 기존 `CDebugDraw2D`). `EngineInstance` 가 소유하고, 두 프레임워크의 렌더 브리지가 뷰마다 읽어
     // 스프라이트·월드 텍스트 사각형으로 그린다.
     //
     // 기존 엔진과 다른 것:

@@ -135,13 +135,13 @@ namespace JBro
                 }
                 m_frameworkContext.memory.frame = m_frameMemory->GetInterface();
             }
-            // 시계와 난수(D-233). 엔진 수명이다. 이 모듈 사본의 공통 시스템 컨텍스트에 묶는다 - 호스트 안에서 붙인 스크립트도 같은 것을
+            // 시계와 난수(D-241). 엔진 수명이다. 이 모듈 사본의 공통 시스템 컨텍스트에 묶는다 - 호스트 안에서 붙인 스크립트도 같은 것을
             // 읽고, 스크립트 DLL 은 로더가 이 컨텍스트를 넘긴다(`ScriptDLLLoader` 가 `GetSystemContext()` 를 준다).
             m_time = MakeOwnerPtr<System::TimeSystem>();
             m_time->Configure(config.time);
             m_time->SetPaused(false == m_simulationEnabled);
             m_random = MakeOwnerPtr<System::RandomSystem>();
-            // 디버그 선(D-234). 용량은 여기서 한 번 잡는다 - 매 프레임 자라지 않는다.
+            // 디버그 선(D-242). 용량은 여기서 한 번 잡는다 - 매 프레임 자라지 않는다.
             m_debugDraw = MakeOwnerPtr<System::DebugDrawSystem>();
             m_debugDraw->Initialize(config.maxDebugLines, m_time.Get());
             m_gameDebugDrawFromProject = config.gameDebugDrawFromProject;
@@ -288,12 +288,12 @@ namespace JBro
         ApplyAudioBuses();
         ApplyInputSettings();
         ApplyTimeSettings();
-        // 게임 실행은 프로젝트의 디버그 모드가 게임 화면의 디버그 선을 켠다(D-234). 이 키는 전에는 읽기만 하고 쓰는 곳이 없었다.
+        // 게임 실행은 프로젝트의 디버그 모드가 게임 화면의 디버그 선을 켠다(D-242). 이 키는 전에는 읽기만 하고 쓰는 곳이 없었다.
         if (m_gameDebugDrawFromProject && m_debugDraw.Get() != nullptr)
         {
             m_debugDraw->SetGameViewVisible(m_project.debugModeEnabled);
         }
-        // 게임의 시간은 여기서 처음이고 씨앗도 여기서 걸린다(D-233). 에디터는 재생을 누를 때 한 번 더 건다.
+        // 게임의 시간은 여기서 처음이고 씨앗도 여기서 걸린다(D-241). 에디터는 재생을 누를 때 한 번 더 건다.
         RestartGameTime();
         OpenSaveFolder();
 
@@ -845,13 +845,13 @@ namespace JBro
             m_lastFrameStatus = FrameStatus::DeviceLost;
             return false;
         }
-        // 프레임의 시간을 연다(D-233). 무효한 델타(NaN·음수)는 시계가 거절한다. 프레임워크·스크립트·서비스가 이번 프레임 내내 이 값을 읽는다.
+        // 프레임의 시간을 연다(D-241). 무효한 델타(NaN·음수)는 시계가 거절한다. 프레임워크·스크립트·서비스가 이번 프레임 내내 이 값을 읽는다.
         if (false == m_time->BeginFrame(deltaTime))
         {
             m_lastFrameStatus = FrameStatus::InvalidState;
             return false;
         }
-        // 지난 프레임의 디버그 선을 이번 프레임의 시간으로 거둔다(D-234). 스크립트가 그리기 전이다.
+        // 지난 프레임의 디버그 선을 이번 프레임의 시간으로 거둔다(D-242). 스크립트가 그리기 전이다.
         m_debugDraw->BeginFrame();
         // 프레임의 시작에서 되감는다. 지난 프레임이 나눠 준 포인터는 여기서 전부 무효가 된다.
         if (m_frameMemory)
@@ -1018,7 +1018,7 @@ namespace JBro
         ApplyAudioBuses();
         // 입력도 같다(D-214). 설정 창에서 저장한 바인딩으로 곧바로 움직인다.
         ApplyInputSettings();
-        // 고정 스텝·상한도 다음 프레임부터다(D-233). 씨앗은 다음 재생에 걸린다.
+        // 고정 스텝·상한도 다음 프레임부터다(D-241). 씨앗은 다음 재생에 걸린다.
         ApplyTimeSettings();
         // 제품명을 고치면 세이브 폴더도 옮긴다(D-218).
         OpenSaveFolder();
@@ -1336,7 +1336,7 @@ namespace JBro
     void EngineInstance::SetSimulationEnabled(bool enabled)
     {
         m_simulationEnabled = enabled;
-        // 멈춤은 시계가 든다(D-233). 멈춘 동안 게임 델타가 0 이고 고정 스텝이 돌지 않는다 - 두 프레임워크가 같은 규칙을 본다.
+        // 멈춤은 시계가 든다(D-241). 멈춘 동안 게임 델타가 0 이고 고정 스텝이 돌지 않는다 - 두 프레임워크가 같은 규칙을 본다.
         if (m_time.Get() != nullptr)
         {
             m_time->SetPaused(false == enabled);
@@ -1375,7 +1375,7 @@ namespace JBro
         {
             m_random->Reseed(m_project.randomSeed);
         }
-        // 지난 재생의 선이 다음 재생에 남지 않는다(D-234).
+        // 지난 재생의 선이 다음 재생에 남지 않는다(D-242).
         if (m_debugDraw.Get() != nullptr)
         {
             m_debugDraw->Clear();
@@ -1518,7 +1518,7 @@ namespace JBro
             m_frameworkContext.input = nullptr;
             m_input.Reset();
         }
-        // 시계와 난수도 DLL 뒤에 내린다(D-233). DLL 이 그 주소를 들고 있었다.
+        // 시계와 난수도 DLL 뒤에 내린다(D-241). DLL 이 그 주소를 들고 있었다.
         BindSystemContext({});
         BindServiceContext({});
         m_frameworkContext.time = nullptr;

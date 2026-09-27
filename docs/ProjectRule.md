@@ -514,28 +514,28 @@
 - `Time`, `Input`처럼 소유권과 분리된 전역 접근 지점을 제공할 수 있다. 이 접근 지점이 서비스 수명을 소유해서는 안 된다. (MAY)
 - **스크립트 훅은 델타를 인자로 받지 않는다.** `GameScriptBase::OnUpdate()`·`OnFixedUpdate()` 이고 델타는 `GetServiceContext().Time` 에서 읽는다.
   고정 스텝 안에서 서비스의 `DeltaTime()`·`Time()` 은 고정 델타·고정 시간이다. 엔진 시스템(`GameSystem::OnUpdate(Canvas&, float)`)은 엔진 레이어라
-  스케줄러가 주는 델타를 받는다. (MUST) (D-233)
+  스케줄러가 주는 델타를 받는다. (MUST) (D-241)
 - **시간은 호스트의 `System::TimeSystem` 한 자리에 있다.** 프레임 델타 상한(`MaxDeltaTime`)·타임스케일·멈춤·한 프레임 진행·고정 스텝 누산(`FixedDeltaTime`·
   `MaxFixedSteps`)을 모두 들고, 프레임워크는 누산기를 들지 않고 시계가 정한 스텝 수만큼 돈다(`FrameworkContext::time` 이 없으면 초기화를 거절한다).
   상한을 넘어 돌지 못한 스텝만큼 게임 델타도 줄여 게임 시간과 고정 시간이 어긋나지 않는다. 누적 시간은 double 이다. 스크립트가 바꿀 수 있는 것은
-  타임스케일(0~100)뿐이다. (MUST) (D-233)
+  타임스케일(0~100)뿐이다. (MUST) (D-241)
 - **난수는 `RandomStream`(PCG32)과 `RandomMapping` 으로만 뽑는다.** 표준 분포(`std::uniform_*_distribution`)는 구현마다 다른 수를 내므로 게임 경로에
   두지 않는다 - 같은 씨앗이 컴파일러·플랫폼과 무관하게 같은 수열이어야 한다. 엔진 흐름(`Service::RandomService`)은 메인 스레드 전용이고 잠그지 않는다.
-  워커와 재현이 필요한 게임 쪽은 제 `RandomStream` 을 든다. 씨앗은 프로젝트의 `RandomSeed` 이고, 0 이면 재생마다 새로 뽑아 로그에 남긴다. (MUST) (D-233)
+  워커와 재현이 필요한 게임 쪽은 제 `RandomStream` 을 든다. 씨앗은 프로젝트의 `RandomSeed` 이고, 0 이면 재생마다 새로 뽑아 로그에 남긴다. (MUST) (D-241)
 - 시간·난수·디버그 선의 인터페이스는 `JBroRuntime` 에 있고 공통 `SystemContext`(`Time`·`Random`·`DebugDraw`)·`ServiceContext`(`Time`·`Random`)의 슬롯이다.
-  차원과 무관한 시스템이라 D-43 에 걸리지 않는다. 공통 컨텍스트는 호스트가 묶는다 - 프레임워크가 다시 묶지 않는다. (MUST) (D-233, D-234)
+  차원과 무관한 시스템이라 D-43 에 걸리지 않는다. 공통 컨텍스트는 호스트가 묶는다 - 프레임워크가 다시 묶지 않는다. (MUST) (D-241, D-242)
 
 ### 7.2 디버그 드로
 
 - **디버그 선은 호스트의 고정 용량 저장소(`System::DebugDrawSystem`)에 쌓고, 렌더 브리지가 뷰마다 기존 사각형 경로로 그린다.** 2D 는 흰 스프라이트,
   3D 는 월드 텍스트 사각형(메시에 가려진다)이다. 디버그 드로만의 셰이더·파이프라인·매 프레임 GPU 버퍼를 만들지 않고, 저장소는 엔진이 설 때 잡은
-  용량(`EngineConfig::maxDebugLines`)을 넘기면 버리고 센다. 선은 프레임의 성패에 들지 않는다. (MUST) (D-234)
-- **두께는 화면 픽셀이다.** 뷰마다 그 뷰의 배율(2D 는 `orthographicSize`, 3D 원근은 선까지의 깊이)로 월드 길이를 정한다 - 캔버스 뷰를 당겨도 굵기가 같다. (MUST) (D-234)
+  용량(`EngineConfig::maxDebugLines`)을 넘기면 버리고 센다. 선은 프레임의 성패에 들지 않는다. (MUST) (D-242)
+- **두께는 화면 픽셀이다.** 뷰마다 그 뷰의 배율(2D 는 `orthographicSize`, 3D 원근은 선까지의 깊이)로 월드 길이를 정한다 - 캔버스 뷰를 당겨도 굵기가 같다. (MUST) (D-242)
 - **수명은 셋이다.** 0 초짜리는 한 프레임, 0 보다 크면 게임 시간으로 줄고, 고정 스텝에서 그린 0 초짜리는 다음 고정 스텝이 돌 때까지 남는다. 게임이
-  멈춘 프레임에는 거두지 않는다. 에디터는 재생을 시작하고 멈출 때 비운다. (MUST) (D-234)
+  멈춘 프레임에는 거두지 않는다. 에디터는 재생을 시작하고 멈출 때 비운다. (MUST) (D-242)
 - **스크립트 표면은 그리기뿐이다**(`GetFramework2DServices().DebugDraw`·`GetFramework3DServices().DebugDraw`). 비우기·읽기는 엔진의 것이다. 서비스는 도형을
   선으로 펴 64 개씩 묶어 `AddLines` 한 번으로 넘긴다. 게임 뷰에 보일지는 게임 실행이 프로젝트의 `DebugModeEnabled`, 에디터가 제 토글로 정하고,
-  캔버스 뷰는 `EditorViewDesc::debugDraw` 다. (MUST) (D-234)
+  캔버스 뷰는 `EditorViewDesc::debugDraw` 다. (MUST) (D-242)
 
 ### 7.1 게임 입력
 

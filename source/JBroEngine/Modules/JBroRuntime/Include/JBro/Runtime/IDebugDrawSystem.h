@@ -5,7 +5,7 @@
 
 namespace JBro
 {
-    // 디버그 선 하나다(D-234). 스크립트의 도형(원·상자·화살표)은 서비스가 이것들로 펴서 넘긴다. 2D 는 z 를 0 으로 쓴다.
+    // 디버그 선 하나다(D-242). 스크립트의 도형(원·상자·화살표)은 서비스가 이것들로 펴서 넘긴다. 2D 는 z 를 0 으로 쓴다.
     struct DebugLine
     {
         float from[3] = {0.0f, 0.0f, 0.0f};
@@ -24,7 +24,7 @@ namespace JBro
 
 namespace JBro::System
 {
-    // 서비스가 디버그 선을 쌓는 길이다(D-234). 호스트의 `DebugDrawSystem` 이 구현한다. **쌓기만 있다** - 비우기와 읽기는 엔진의 것이다
+    // 서비스가 디버그 선을 쌓는 길이다(D-242). 호스트의 `DebugDrawSystem` 이 구현한다. **쌓기만 있다** - 비우기와 읽기는 엔진의 것이다
     // (기존 엔진은 스크립트가 `Clear()` 로 엔진의 버퍼를 비울 수 있었다).
     // 가상 함수 표는 스크립트 DLL 과의 ABI 다. 바꾸면 공통 `SystemContext` 의 판번호를 올린다(D-28).
     class IDebugDrawSystem

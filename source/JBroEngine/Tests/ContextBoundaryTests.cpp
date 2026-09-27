@@ -50,7 +50,7 @@ namespace
         static_assert(false == std::is_polymorphic_v<JBro::Service::Text3DService>);
         static_assert(std::is_same_v<decltype(JBro::Framework2DSystemContext::Text2D), JBro::System::ITextSystem*>);
         static_assert(std::is_same_v<decltype(JBro::Framework3DSystemContext::Text3D), JBro::System::ITextSystem*>);
-        // 공통 SystemContext 는 차원별 시스템 슬롯을 갖지 않는다(D-43). 차원과 무관한 시간·난수·디버그 선만 든다(D-233, D-234).
+        // 공통 SystemContext 는 차원별 시스템 슬롯을 갖지 않는다(D-43). 차원과 무관한 시간·난수·디버그 선만 든다(D-241, D-242).
         static_assert(std::is_same_v<decltype(JBro::SystemContext::Time), JBro::System::ITimeSystem*>);
         static_assert(std::is_same_v<decltype(JBro::SystemContext::Random), JBro::System::IRandomSystem*>);
         static_assert(std::is_same_v<decltype(JBro::SystemContext::DebugDraw), JBro::System::IDebugDrawSystem*>);
