@@ -3520,7 +3520,10 @@ namespace
     void TestTheInspectorPreviewsAudioAndPicksABus()
     {
         namespace fs = std::filesystem;
-        const fs::path root(TempPath("JBroAudioInspectorProbe").c_str());
+        // 프로세스 번호를 붙인다 - 다른 세션의 시험과 같은 폴더를 지우지 않게.
+        JBro::String audioProbeFolder("JBroAudioInspectorProbe");
+        audioProbeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(audioProbeFolder.c_str()).c_str());
         std::error_code ignored;
         fs::remove_all(root, ignored);
         fs::create_directories(root / "Assets" / "sound", ignored);
@@ -3553,7 +3556,9 @@ namespace
             std::ofstream file(root / "Assets" / "sound" / "blip.wav", std::ios::binary);
             file.write(reinterpret_cast<const char*>(wav.data()), static_cast<std::streamsize>(wav.size()));
         }
-        const JBro::String projectPath = TempPath("JBroAudioInspectorProbe\\Audio.jproject");
+        JBro::String projectName(audioProbeFolder);
+        projectName.append("\\Audio.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
             "EngineVersion: 0.1.0\n"
@@ -3844,11 +3849,15 @@ namespace
     void TestTheAudioSettingsAndMetersDraw()
     {
         namespace fs = std::filesystem;
-        const fs::path root(TempPath("JBroAudioSettingsProbe").c_str());
+        JBro::String audioProbeFolder("JBroAudioSettingsProbe");
+        audioProbeFolder.append(std::to_string(GetCurrentProcessId()).c_str());
+        const fs::path root(TempPath(audioProbeFolder.c_str()).c_str());
         std::error_code ignored;
         fs::remove_all(root, ignored);
         fs::create_directories(root / "Assets", ignored);
-        const JBro::String projectPath = TempPath("JBroAudioSettingsProbe\\Audio.jproject");
+        JBro::String projectName(audioProbeFolder);
+        projectName.append("\\Audio.jproject");
+        const JBro::String projectPath = TempPath(projectName.c_str());
         Check(WriteTextFile(projectPath,
             "Version: 1\n"
             "EngineVersion: 0.1.0\n"

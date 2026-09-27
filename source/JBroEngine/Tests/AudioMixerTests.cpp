@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <thread>
 
@@ -998,7 +999,9 @@ namespace
                   << " (unshifted 880)" << '\n';
         Check(upCrossings > 1600 && upCrossings < 1950, "+12 semitones doubles the frequency");
         Check(downCrossings > 380 && downCrossings < 520, "-12 semitones halves it");
-        Check(pitch.mixer.IsAlive(pitch.voice) && std::fabs(pitch.mixer.GetPlaybackSeconds(pitch.voice)) >= 0.0,
+        // 두 번 가라앉혀 (0.1 + 1) × 2 = 2.2 초를 섞었다 - 1 초 루프의 커서는 0.2 초여야 한다.
+        const double cursor = pitch.mixer.GetPlaybackSeconds(pitch.voice);
+        Check(pitch.mixer.IsAlive(pitch.voice) && std::fabs(cursor - 0.2) < 0.01,
             "shifting pitch does not change how fast the voice plays");
     }
 
@@ -1033,7 +1036,8 @@ namespace
         std::cout << "  limiter: two 0.8 tones -> peak " << limited.Peak(0, 4800) << ", before the limiter "
                   << mixer.GetStats().lastPeak << '\n';
         Check(mixer.IsOutputLimiterEnabled(), "the output limiter is on by default");
-        Check(limited.Peak(0, 4800) <= 0.981f && limited.Peak(0, 4800) > 0.9f, "the limiter holds the sum under its ceiling");
+        Check(limited.Peak(0, 4800) > 0.9f, "the limiter lets the sum reach its ceiling");
+        Check(limited.Peak(0) <= 0.981f && limited.Peak(1) <= 0.981f, "the limiter holds the sum under its ceiling from the first sample");
         Check(mixer.GetStats().lastPeak > 1.5f, "the meter still shows how far the sum went over");
         mixer.SetOutputLimiter(false);
         Check(Render(mixer, 9600).Peak(0, 4800) == 1.0f, "with the limiter off the sum is clipped at 1");
@@ -1240,6 +1244,12 @@ namespace
         Check(mixer.Play(inverse).IsSet(), "an inverse one-shot past its maximum distance keeps that distance's gain and plays");
         inverse.volume = 0.01f;
         Check(false == mixer.Play(inverse).IsSet(), "the same sound at 1% volume falls under -60 dB and is culled");
+        // 지수 감쇠도 최대 거리의 값((20/1)^-1 = -26 dB)을 지킨다.
+        AudioPlayDesc exponential = far;
+        exponential.attenuation = AudioAttenuation::Exponential;
+        Check(mixer.Play(exponential).IsSet(), "an exponential one-shot past its maximum distance keeps that distance's gain");
+        exponential.volume = 0.01f;
+        Check(false == mixer.Play(exponential).IsSet(), "and at 1% volume it is culled");
         AudioPlayDesc looping = far;
         looping.loop = true;
         Check(mixer.Play(looping).IsSet(), "a loop is never culled - it may come closer");
@@ -1249,7 +1259,7 @@ namespace
         AudioPlayDesc near = far;
         near.position[0] = 5.0f;
         Check(mixer.Play(near).IsSet(), "a one-shot inside its range plays");
-        Check(mixer.GetStats().voicesCulled == 2, "only the inaudible starts were culled");
+        Check(mixer.GetStats().voicesCulled == 3, "only the inaudible starts were culled");
 
         // 걸러진 재생은 쿨다운 시계를 건드리지 않는다.
         AudioClipDesc cooledDesc;
@@ -1522,6 +1532,268 @@ namespace
         bench.mixer.Shutdown();
     }
 
+    // 오디오 전체 점검(D-240)에서 찾은 보이스의 반례들이다. 각 검사는 고치기 전의 코드에서 떨어진다.
+    void TestVoiceAuditRegressions()
+    {
+        const Array<float> longTone = MakeSine(1, 440.0f, 0.3f, 1.0f);
+        const Array<float> blip = MakeSine(1, 440.0f, 0.3f, 0.05f);
+        {
+            // 섞는 수가 찼고 새 소리를 받을 자리가 없으면 아무것도 죽이지 않고 거절한다.
+            AudioMixerDesc desc = SmallDesc(4);
+            desc.maxAudibleVoices = 2;
+            AudioMixer mixer;
+            Check(mixer.Initialize(desc), "mixer initializes");
+            const AudioClipHandle clip = RegisterPcm(mixer, longTone, 1);
+            AudioPlayDesc shot;
+            shot.clip = clip;
+            shot.priority = 200;
+            mixer.Play(shot);
+            mixer.Play(shot);
+            AudioPlayDesc loop;
+            loop.clip = clip;
+            loop.loop = true;
+            loop.priority = 100;
+            const AudioVoiceHandle loopA = mixer.Play(loop);
+            const AudioVoiceHandle loopB = mixer.Play(loop);
+            Check(mixer.GetStats().virtualVoices == 2, "two loops wait as virtual voices");
+            shot.priority = 128;
+            const std::uint64_t stolen = mixer.GetStats().voicesStolen;
+            Check(false == mixer.Play(shot).IsSet(), "a one-shot that outranks no mixing voice is refused");
+            Check(mixer.IsAlive(loopA) && mixer.IsAlive(loopB) && mixer.GetStats().voicesStolen == stolen,
+                "and nothing was stolen for it");
+
+            // 동시 수로 바꿀 인스턴스가 있어도, 거절되면 그 인스턴스를 끄지 않는다.
+            mixer.StopAll();
+            AudioClipDesc limitedDesc;
+            limitedDesc.encoding = AudioClipEncoding::Pcm;
+            limitedDesc.pcm = longTone.Data();
+            limitedDesc.channels = 1;
+            limitedDesc.sampleRate = Rate;
+            limitedDesc.frameCount = longTone.Size();
+            limitedDesc.maxInstances = 1;
+            const AudioClipHandle limited = mixer.RegisterClip(limitedDesc);
+            shot.clip = clip;
+            shot.priority = 255;
+            mixer.Play(shot);
+            mixer.Play(shot);
+            AudioPlayDesc limitedLoop;
+            limitedLoop.clip = limited;
+            limitedLoop.loop = true;
+            const AudioVoiceHandle instance = mixer.Play(limitedLoop);
+            AudioPlayDesc limitedShot;
+            limitedShot.clip = limited;
+            Check(false == mixer.Play(limitedShot).IsSet(), "a play with no mixing room is refused");
+            Check(mixer.IsAlive(instance) && false == mixer.IsPaused(instance) && mixer.GetStats().voicesReplaced == 0,
+                "and the instance it would have replaced keeps playing");
+            mixer.Shutdown();
+        }
+        {
+            // 낮은 우선순위의 한 번짜리가 높은 우선순위의 루프(음악)를 가상으로 밀어내지 않는다.
+            AudioMixerDesc desc = SmallDesc(4);
+            desc.maxAudibleVoices = 1;
+            AudioMixer mixer;
+            Check(mixer.Initialize(desc), "mixer initializes");
+            const AudioClipHandle clip = RegisterPcm(mixer, longTone, 1);
+            AudioPlayDesc music;
+            music.clip = clip;
+            music.loop = true;
+            music.priority = 255;
+            mixer.Play(music);
+            AudioPlayDesc shot;
+            shot.clip = clip;
+            shot.priority = 0;
+            Check(false == mixer.Play(shot).IsSet() && mixer.GetStats().virtualVoices == 0,
+                "a priority 0 one-shot does not park a priority 255 loop");
+            mixer.Shutdown();
+        }
+        {
+            AudioMixer mixer;
+            Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+            // 끝났지만 아직 거두지 않은 한 번짜리를 멈추면 거둔다 - 다시 틀 때 처음부터 다시 울리지 않게.
+            AudioPlayDesc once;
+            once.clip = RegisterPcm(mixer, blip, 1);
+            const AudioVoiceHandle ended = mixer.Play(once);
+            Render(mixer, 4800);
+            mixer.Pause(ended);
+            Check(false == mixer.IsAlive(ended), "pausing a one-shot that already ended collects it");
+
+            // 자리를 다시 쓰는 클립은 옛 클립의 쿨다운을 물려받지 않는다.
+            AudioClipDesc cooled;
+            cooled.encoding = AudioClipEncoding::Pcm;
+            cooled.pcm = longTone.Data();
+            cooled.channels = 1;
+            cooled.sampleRate = Rate;
+            cooled.frameCount = longTone.Size();
+            cooled.cooldownSeconds = 1.0f;
+            AudioPlayDesc first;
+            first.clip = mixer.RegisterClip(cooled);
+            Check(mixer.Play(first).IsSet(), "the cooled clip plays");
+            mixer.UnregisterClip(first.clip);
+            AudioPlayDesc second;
+            second.clip = mixer.RegisterClip(cooled);
+            Check(second.clip.index == first.clip.index, "the next clip reuses the slot");
+            Check(mixer.Play(second).IsSet(), "a new clip in a reused slot is not throttled by the old clip's cooldown");
+            mixer.Shutdown();
+        }
+        {
+            // 시작 지연 중에 가상이 된 루프는 지연이 끝나는 때부터 센다.
+            AudioMixerDesc desc = SmallDesc(4);
+            desc.maxAudibleVoices = 1;
+            AudioMixer mixer;
+            Check(mixer.Initialize(desc), "mixer initializes");
+            const AudioClipHandle clip = RegisterPcm(mixer, longTone, 1);
+            AudioPlayDesc delayed;
+            delayed.clip = clip;
+            delayed.loop = true;
+            delayed.volume = 0.2f;
+            delayed.startDelaySeconds = 0.5f;
+            const AudioVoiceHandle late = mixer.Play(delayed);
+            AudioPlayDesc loud;
+            loud.clip = clip;
+            loud.loop = true;
+            mixer.Play(loud);
+            mixer.Update();
+            Render(mixer, Rate * 3 / 10);
+            Check(mixer.GetStats().virtualVoices == 1 && mixer.GetPlaybackSeconds(late) < 0.01,
+                "a loop parked during its start delay has not advanced before the delay ends");
+            Render(mixer, Rate * 4 / 10);
+            Check(std::fabs(mixer.GetPlaybackSeconds(late) - 0.2) < 0.02, "and counts from the end of the delay");
+            mixer.Shutdown();
+        }
+    }
+
+    bool FailToOpen(void*, const char*, AudioFileDecoder&)
+    {
+        return false;
+    }
+
+    // 열지 못한 디스크 스트림 루프는 거둬지고 스트림 자리를 돌려준다(D-240). 전에는 소리 없이 영원히 자리를 쥐었다.
+    void TestFailedLoopingStreamIsCollected()
+    {
+        AudioMixerDesc desc = SmallDesc(4);
+        desc.maxStreams = 1;
+        desc.openStream = &FailToOpen;
+        AudioMixer mixer;
+        Check(mixer.Initialize(desc), "mixer initializes");
+        AudioClipDesc file;
+        file.encoding = AudioClipEncoding::File;
+        file.path = "missing.wav";
+        file.channels = 2;
+        file.sampleRate = Rate;
+        file.frameCount = Rate;
+        AudioPlayDesc play;
+        play.clip = mixer.RegisterClip(file);
+        play.loop = true;
+        const AudioVoiceHandle voice = mixer.Play(play);
+        Check(voice.IsSet(), "the stream starts opening");
+        const auto begin = std::chrono::steady_clock::now();
+        while (mixer.IsAlive(voice) && std::chrono::steady_clock::now() - begin < std::chrono::seconds(2))
+        {
+            Render(mixer, 480);
+            mixer.Update();
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
+        }
+        Check(false == mixer.IsAlive(voice), "a looping stream whose file cannot open is collected");
+        Check(mixer.WaitForStreamsIdle(), "and its stream slot comes back");
+        Check(mixer.Play(play).IsSet(), "so the next stream can start");
+        mixer.Shutdown();
+    }
+
+    // 버스 이펙트의 반례들(D-240).
+    void TestEffectAuditRegressions()
+    {
+        {
+            // 유한하지 않은 샘플 하나가 부모 버스의 필터·컴프레서에 박혀 그 뒤를 모두 먹통으로 만들지 않는다.
+            AudioMixer mixer;
+            Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+            AudioBusEffects master;
+            master.lowPassHz = 8000.0f;
+            master.compRatio = 4.0f;
+            mixer.SetBusEffects(AudioMasterBus, master);
+            const AudioBusId child = mixer.CreateBus(1.0f);
+            struct Poison
+            {
+                static void Run(void*, float* frames, std::uint32_t, std::uint32_t, std::uint32_t)
+                {
+                    frames[0] = std::numeric_limits<float>::infinity();
+                    frames[1] = std::numeric_limits<float>::quiet_NaN();
+                }
+            };
+            mixer.SetBusProcessor(child, &Poison::Run, nullptr);
+            const Array<float> tone = MakeSine(2, 440.0f, 0.5f, 1.0f);
+            AudioPlayDesc play;
+            play.clip = RegisterPcm(mixer, tone, 2);
+            play.loop = true;
+            play.bus = child;
+            mixer.Play(play);
+            Render(mixer, 2400);
+            mixer.SetBusProcessor(child, nullptr, nullptr);
+            const Rendered after = Render(mixer, 9600);
+            Check(after.Peak(0, 4800) > 0.1f, "a bus fed a non-finite sample recovers once the source is clean");
+            mixer.Shutdown();
+        }
+        {
+            // 끈 메아리를 다시 켜면 끈 동안 멈춰 있던 옛 소리가 다시 나지 않는다.
+            AudioMixer mixer;
+            Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+            const AudioBusId bus = mixer.CreateBus(1.0f);
+            AudioBusEffects echo;
+            echo.echoMix = 0.5f;
+            echo.echoDelay = 0.5f;
+            echo.echoFeedback = 0.5f;
+            echo.reverbMix = 0.5f;
+            mixer.SetBusEffects(bus, echo);
+            const Array<float> tone = MakeSine(2, 440.0f, 0.5f, 1.0f);
+            AudioPlayDesc play;
+            play.clip = RegisterPcm(mixer, tone, 2);
+            play.loop = true;
+            play.bus = bus;
+            const AudioVoiceHandle voice = mixer.Play(play);
+            Render(mixer, Rate / 2);
+            mixer.Stop(voice);
+            mixer.SetBusEffects(bus, AudioBusEffects{});
+            Render(mixer, 4800);
+            mixer.SetBusEffects(bus, echo);
+            const Rendered revived = Render(mixer, Rate / 2);
+            std::cout << "  echo and reverb turned back on over silence: peak " << revived.Peak(0) << '\n';
+            Check(revived.Peak(0) < 0.001f, "turning echo and reverb back on does not replay the old tail");
+            mixer.Shutdown();
+        }
+        {
+            AudioMixer mixer;
+            Check(mixer.Initialize(SmallDesc()), "mixer initializes");
+            // 제 소리를 받는 버스(조상)를 트리거로 두면 늘 제 소리에 눌린다 - 거절한다.
+            const AudioBusId music = mixer.CreateBus(1.0f);
+            mixer.SetBusDucking(music, AudioMasterBus, 0.5f, 0.3f);
+            Check(mixer.GetBusDuckTrigger(music) == AudioNoBus, "a bus cannot duck under a bus its own sound reaches");
+
+            // 버스 자리를 다시 쓰면 옛 버스의 로우패스가 남지 않는다.
+            AudioBusEffects dull;
+            dull.lowPassHz = 200.0f;
+            mixer.SetBusEffects(music, dull);
+            mixer.DestroyProjectBuses();
+            const AudioBusId fresh = mixer.CreateBus(1.0f);
+            const Array<float> bright = MakeSine(2, 5000.0f, 0.5f, 1.0f);
+            AudioPlayDesc play;
+            play.clip = RegisterPcm(mixer, bright, 2);
+            play.loop = true;
+            play.bus = fresh;
+            mixer.Play(play);
+            Render(mixer, 4800);
+            Check(Render(mixer, 4800).Peak(0) > 0.45f, "a reused bus slot starts without the old bus's effects");
+
+            // 페이드 도중에 되돌리면 남은 거리만큼의 속도로 간다(10 초 페이드의 1 초 뒤에 되돌리면 1 초 만에 끝나지 않는다).
+            mixer.SetBusVolume(fresh, 0.0f, 10.0f);
+            Render(mixer, Rate);
+            mixer.SetBusVolume(fresh, 1.0f, 10.0f);
+            Render(mixer, Rate / 2);
+            const float level = Render(mixer, 4800).Peak(0);
+            std::cout << "  fade reversed after 1 s of a 10 s fade, 0.5 s later: " << level << " of 0.5\n";
+            Check(level < 0.5f * 0.93f, "reversing a fade keeps the requested duration");
+            mixer.Shutdown();
+        }
+    }
+
     void TestSteadyStateDoesNotAllocate()
     {
         AudioMixer mixer;
@@ -1615,6 +1887,11 @@ namespace
             {
                 worstStallMicroseconds = stall;
             }
+            // 돌아온 뒤에 읽으면 들리도록 표지값으로 덮고 푼다. 디버그 힙의 채움이나 같은 크기의 새 사인에 기대지 않는다.
+            for (float& sample : sine)
+            {
+                sample = 0.9f;
+            }
             sine.Reset();
         }
         running.store(false, std::memory_order_release);
@@ -1680,6 +1957,9 @@ int RunAudioMixerTests()
         MeasureResampleCost();
         TestVirtualVoices();
         TestVirtualVoicesDoNotAllocate();
+        TestVoiceAuditRegressions();
+        TestFailedLoopingStreamIsCollected();
+        TestEffectAuditRegressions();
         TestSteadyStateDoesNotAllocate();
         TestUnregisterWhileRendering();
         TestLifetimeRepeats();

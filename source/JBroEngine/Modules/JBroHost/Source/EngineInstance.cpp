@@ -196,6 +196,7 @@ namespace JBro
                 }
                 if (m_audioMixer)
                 {
+                    m_audioSilentBuffer.Resize(static_cast<std::size_t>(1024) * m_audioMixer->GetChannels());
                     m_audioDevices = MakeOwnerPtr<EngineAudioDevices>(*this);
                     m_audioRetrySeconds = 2.0f;
                 }
@@ -856,6 +857,20 @@ namespace JBro
             m_audioMixer->Update();
         }
         UpdateAudioDevice(deltaTime);
+        // 장치가 없는 동안에도 믹서의 시간은 흐른다(D-240): 이 프레임의 길이만큼 소리 없이 섞는다. 한 번에 0.25 초까지다.
+        if (m_audioMixer.Get() != nullptr && m_audioDeviceWanted && m_audioOutput.Get() == nullptr
+            && false == m_audioSilentBuffer.IsEmpty() && std::isfinite(deltaTime) && deltaTime > 0.0f)
+        {
+            const float seconds = deltaTime < 0.25f ? deltaTime : 0.25f;
+            std::uint32_t frames = static_cast<std::uint32_t>(seconds * static_cast<float>(m_audioMixer->GetSampleRate()));
+            const std::uint32_t chunk = static_cast<std::uint32_t>(m_audioSilentBuffer.Size() / m_audioMixer->GetChannels());
+            while (frames > 0)
+            {
+                const std::uint32_t count = frames < chunk ? frames : chunk;
+                m_audioMixer->Render(m_audioSilentBuffer.Data(), count);
+                frames -= count;
+            }
+        }
         if (m_exitRequested)
         {
             return false;
@@ -1374,6 +1389,11 @@ namespace JBro
             BindAudioServiceContext({});
             m_audio->Shutdown();
             m_audio.Reset();
+        }
+        // 스트리머가 열던 파일을 다 닫은 뒤에 에셋의 바이트 출처를 내린다(D-240) - 여는 중에 출처가 풀리면 풀린 메모리를 읽는다.
+        if (m_audioMixer)
+        {
+            m_audioMixer->WaitForStreamsIdle();
         }
         m_frameworkContext.audio = nullptr;
         // 문자열 표는 에셋보다 먼저 놓는다(D-226).
