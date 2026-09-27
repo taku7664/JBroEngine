@@ -1493,6 +1493,20 @@ namespace
             "an orthographic camera draws on the whole target");
         Check(close(vp[5], 0.2f) && close(vp[0], 0.2f * 700.0f / 1000.0f) && close(vp[3], -1.03f * vp[0]),
             "with its own size and no snapping");
+
+        // 화면 레이어도 레터박스 안에 그린다(D-237 과 만남). 화면 뷰가 마지막 뷰라 기록된 뷰포트가 그것이다.
+        camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
+        JBro::Layer& hud = canvas->CreateLayer("HUD");
+        hud.SetSpace(JBro::LayerSpace::Screen);
+        auto* badge = canvas->CreateObject("badge");
+        Check(canvas->SetObjectLayer(badge, hud.GetId())
+                && canvas->AttachComponent<JBro::Component::Transform2D>(badge) != nullptr
+                && canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(badge) != nullptr, "a screen sprite");
+        renderFrame("a pixel perfect frame with a screen layer must be drawn");
+        Check(close(viewport.x, 20.0f) && close(viewport.y, 80.0f) && close(viewport.width, 960.0f) && close(viewport.height, 540.0f),
+            "the screen layer is drawn inside the same rectangle, not over the bars");
+        // FixedHeight: 기준 높이 180 을 다 보이고 폭은 사각형(960x540)의 비를 따른다 - 반높이 90, 반폭 160.
+        Check(close(vp[5], 1.0f / 90.0f) && close(vp[0], 1.0f / 160.0f), "and measured in reference pixels of that rectangle");
         framework.Shutdown();
     }
 

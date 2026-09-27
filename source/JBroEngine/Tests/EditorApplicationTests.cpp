@@ -11688,7 +11688,8 @@ namespace
 
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::GameObject* eye = canvas->CreateObject("Eye");
-        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
+        auto* eyePlace = canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+        Check(eyePlace != nullptr, "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the camera must attach");
         camera->primary = true;
@@ -11740,6 +11741,24 @@ namespace
         Check(std::fabs(aspect - reference) < 0.02f, "the rectangle keeps the reference resolution's shape");
         // `JBRO_EDITOR_SHOT` 이 있을 때만 찍는다. 인스펙터의 투영 안내 줄을 사람이 본다.
         SaveScreenshot(*editor.GetRenderer(), 1280, 720, "pixel_perfect_camera");
+
+        // **레이어를 화면으로 옮길 때도 게임이 그린 뷰(스냅한 뷰)로 잰다.** 카메라 (1.03, 0.51) 은 원본 격자의 (1.0, 0.5) 로 붙으므로
+        // 월드 (1.0, 0.5) 에 있던 것은 화면 한가운데였다 - 화면 레이어에서 (0, 0) 이어야 한다. 스냅 전 뷰로 재면 한가운데에서 벗어난다.
+        eyePlace->position = {1.03f, 0.51f};
+        JBro::Layer& ui = canvas->CreateLayer("UI");
+        JBro::GameObject* badge = canvas->CreateObject("Badge");
+        Check(canvas->SetObjectLayer(badge, ui.GetId()), "the badge goes on the layer");
+        auto* badgePlace = canvas->AttachComponent<JBro::Component::Transform2D>(badge);
+        badgePlace->position = {1.0f, 0.5f};
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle with the moved camera");
+        }
+        JBro::OwnerPtr<JBro::EditorCommand> toScreen =
+            editor.MakeLayerSpaceCommand(ui.GetId(), JBro::LayerSpace::Screen, JBro::ScreenScaleMode::FixedHeight);
+        Check(toScreen.Get() != nullptr && editor.GetCommands().Execute(std::move(toScreen)), "the layer becomes a screen layer");
+        Check(std::fabs(badgePlace->position.x) < 0.01f && std::fabs(badgePlace->position.y) < 0.01f,
+            "what the snapped camera showed in the middle stays in the middle");
         editor.Shutdown();
     }
 
