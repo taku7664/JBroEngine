@@ -105,7 +105,7 @@
   결합 표시·금칙·GPOS 직접 읽기, D-216), 6 단계(리치 텍스트 `<color>`·`<size>`, D-221, 3D 텍스트 `Text3D`·렌더러 월드 텍스트 경로·공용 모듈
   `Modules/JBroTextRendering`, D-222), 7 단계(텍스트 스크립트 서비스 공용화와 3D 서비스 컨텍스트, D-224, 폰트 패밀리 에셋 `FontFamily`·`<b>`·`<i>`, D-225),
   8 단계(게임 로컬라이징: 로케일마다 `.jstrings` 문자열 표·텍스트의 `textKey`·새 Tier S 모듈 `JBroLocalizationTypes`·에디터의 게임 언어, D-226)가
-  섰다. `.jpak` 에 미리 뜬 아틀라스는 패키지 계획(D-232)에서 섰다. 남은 것은 없는 계층(게임 UI)과 옛한글(GSUB)이다. 기존 엔진 `Text2D` 를 깨트려 본 결과
+  섰다. `.jpak` 에 미리 뜬 아틀라스는 패키지 계획(D-232)에서 섰다. 옛한글은 커널이 GSUB 의 자모 기능(`ljmo`·`vjmo`·`tjmo`)을 직접 읽는다(D-238). 남은 것은 일반 GSUB(합자·아랍 문자)다. 기존 엔진 `Text2D` 를 깨트려 본 결과
   (HarfBuzz 를 글자 묶음마다 불러 커닝이 없었다·텍스트마다 GPU 버퍼·외곽선 상한)가 §1, D-51 과의 충돌과 갈림길이 §3,
   글자마다 스프라이트 인스턴스로 제출하는 설계가 §4, 단계와 실측이 §5, 결정이 §6 에 있다. 시험 폰트와 기대값은 `source/JBroEngine/Tests/Data/Fonts/README.md`
 - [tasks/package-plan.md](./tasks/package-plan.md) — 에셋 패키지 `.jpak` 와 게임 빌드(D-232). 네 단계(형식·패키지에서 싣기·게임 빌드·미리 뜬 아틀라스)가 섰다.
