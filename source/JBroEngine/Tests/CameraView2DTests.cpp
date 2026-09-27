@@ -66,7 +66,7 @@ namespace
             "a target smaller than the reference is shrunk to fit");
         // float 로 100 x (54 / 100) 은 54.0000038 이다 - 잘라 두지 않으면 뷰포트가 대상을 한 올 넘어 렌더러가 프레임을 거절한다.
         Check(JBro::ComputePixelPerfectArea(Frame(100.0f, 50.0f, 54.0f, 40.0f), area, scale)
-                && area.x + area.width <= 54.0f && area.y + area.height <= 40.0f,
+                && area.x >= 0.0f && area.y >= 0.0f && area.x + area.width <= 54.0f && area.y + area.height <= 40.0f,
             "a shrunk rectangle never reaches past the target by rounding");
         const JBro::ScreenArea before = area;
         Check(false == JBro::ComputePixelPerfectArea(Frame(0.0f, 180.0f, 200.0f, 100.0f), area, scale)
