@@ -7,6 +7,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorActions.h>
+#include <JBro/Editor/EditorTheme.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorUI.h>
@@ -360,7 +361,7 @@ namespace JBro
             draw->AddRectFilled(
                 ImVec2(rect.left, rect.top),
                 ImVec2(rect.left + rect.width, rect.top + rect.height),
-                IM_COL32(20, 21, 26, 255));
+                ImGui::GetColorU32(EditorTheme::ViewportBackground));
         }
 
         // 입력을 받는 자리다. 그림 위 어디를 눌러도 이 창이 받는다.

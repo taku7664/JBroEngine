@@ -3,6 +3,7 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -47,7 +48,7 @@ namespace JBro
         // 그림이 붙지 않는 자리의 바탕이다. 레터박스가 창 배경과 같은 색이면
         // 게임 화면이 어디까지인지 보이지 않는다.
         draw->AddRectFilled(origin, ImVec2(origin.x + panel.x, origin.y + panel.y),
-            IM_COL32(20, 20, 24, 255));
+            ImGui::GetColorU32(EditorTheme::ViewportBackground));
 
         const bool hasImage = gameView.IsValid() && extent.width != 0 && extent.height != 0;
         float imageLeft = 0.0f;

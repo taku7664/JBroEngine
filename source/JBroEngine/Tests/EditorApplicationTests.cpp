@@ -803,7 +803,35 @@ namespace
         bool disabled = false;
     };
 
-    bool FindInspectorItem(
+    // **인스펙터를 굴려 가며 찾는다.** 컴포넌트가 쌓이면 목록이 패널 아래로 밀리는데,
+    // 잘려 나간 자리는 가리켜도 올라오지 않는다 - 굴리지 않으면 "그런 항목이 없다" 와
+    // "화면 밖에 있다" 를 구별하지 못한다.
+    template <typename TScan>
+    bool ScrollingInInspector(JBro::EditorApplication& editor, TScan&& scan)
+    {
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const float step = inspector->Size.y * 0.5f;
+        float scroll = inspector->Scroll.y;
+        for (int pass = 0; pass < 32; ++pass)
+        {
+            if (scan())
+            {
+                return true;
+            }
+            if (scroll >= inspector->ScrollMax.y)
+            {
+                return false;
+            }
+            scroll += step;
+            ImGui::SetScrollY(inspector, scroll);
+            Check(editor.Tick(Frame), "the editor must tick after scrolling");
+            Check(editor.Tick(Frame), "and once more so the scroll lands");
+        }
+        return false;
+    }
+
+    bool ScanInspector(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Inspector");
@@ -824,6 +852,14 @@ namespace
             }
         }
         return false;
+    }
+
+    bool FindInspectorItem(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, Spot& spot)
+    {
+        return ScrollingInInspector(editor, [&]() {
+            return ScanInspector(editor, hwnd, target, spot);
+        });
     }
 
     void DragFrom(
@@ -1029,7 +1065,7 @@ namespace
     }
 
     // 목록 몸통을 `x` 에서 위아래로 훑어 `target` 이 가리켜지는 자리를 찾는다.
-    bool FindListItem(
+    bool ScanListBody(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
     {
         ImGuiWindow* body = FindListBody();
@@ -1049,9 +1085,17 @@ namespace
         return false;
     }
 
+    bool FindListItem(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int x, Spot& spot)
+    {
+        return ScrollingInInspector(editor, [&]() {
+            return ScanListBody(editor, hwnd, target, x, spot);
+        });
+    }
+
     // 좁은 항목(행 끝의 삭제 표시)은 한 줄로 훑으면 빗나간다. 몸통의 오른쪽 끝 띠를
     // 위쪽 몇 줄만 격자로 훑는다.
-    bool FindListItemNearRightEdge(
+    bool ScanListBodyNearRightEdge(
         JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int rows, Spot& spot)
     {
         ImGuiWindow* body = FindListBody();
@@ -1074,6 +1118,14 @@ namespace
             }
         }
         return false;
+    }
+
+    bool FindListItemNearRightEdge(
+        JBro::EditorApplication& editor, HWND hwnd, ImGuiID target, int rows, Spot& spot)
+    {
+        return ScrollingInInspector(editor, [&]() {
+            return ScanListBodyNearRightEdge(editor, hwnd, target, rows, spot);
+        });
     }
 
     // **목록을 만지면 고른 것 전부에 미치고, 한 손짓이 한 되돌리기다**(D-86).
@@ -6094,17 +6146,26 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        // 화면 한가운데가 월드 원점이다. 기본 배율에서 x -1..1 은 가운데 근처이고
-        // y 4 는 위쪽이라 상자 밖이다.
-        const float centerX = view->Pos.x + view->Size.x * 0.5f;
-        const float centerY = view->Pos.y + view->Size.y * 0.5f;
+        // 월드 원점과 배율은 캔버스 뷰에게 묻는다. 창 가운데를 원점으로, 픽셀을 손으로
+        // 세던 것은 탭 줄과 도구 줄 몫만큼 어긋나 여유가 몇 px 뿐이었고, 테마의 간격 하나만
+        // 바뀌어도 상자가 엉뚱한 자리를 쓸고 갔다.
+        float centerX = 0.0f;
+        float centerY = 0.0f;
+        float unitX = 0.0f;
+        float unitY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, centerX, centerY)
+                && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
+            "the canvas view must map world points to the screen");
+        const float pixelsPerUnit = unitX - centerX;
+        Check(pixelsPerUnit > 1.0f, "one world unit must be some pixels wide");
 
+        // x -1..1 은 상자 안이고, y 4 는 위로 한참 벗어나 상자 밖이다.
         Spot from;
-        from.x = static_cast<int>(centerX - 120.0f);
-        from.y = static_cast<int>(centerY - 40.0f);
+        from.x = static_cast<int>(centerX - pixelsPerUnit * 1.2f);
+        from.y = static_cast<int>(centerY - pixelsPerUnit * 0.4f);
         Spot to;
-        to.x = static_cast<int>(centerX + 120.0f);
-        to.y = static_cast<int>(centerY + 40.0f);
+        to.x = static_cast<int>(centerX + pixelsPerUnit * 1.2f);
+        to.y = static_cast<int>(centerY + pixelsPerUnit * 0.4f);
         DragTo(editor, hwnd, from, to);
 
         Check(editor.GetSelectionCount() == 2, "the box must pick the two it touched");
@@ -6116,7 +6177,7 @@ namespace
         // 그 점이 탭 줄 위로 올라가 뷰를 누르지 못했다. 오른쪽 가장자리 가까이, 오브젝트 줄보다 조금 아래는 늘 비어 있다.
         Spot empty;
         empty.x = static_cast<int>(centerX + view->Size.x * 0.4f);
-        empty.y = static_cast<int>(centerY + 60.0f);
+        empty.y = static_cast<int>(centerY + pixelsPerUnit * 0.6f);
         ClickAt(editor, hwnd, empty);
         Check(editor.GetSelectionCount() == 0,
             "a plain click on empty space clears the selection instead of boxing nothing");
@@ -10086,9 +10147,16 @@ namespace
         // **집히지도 않는다.** 캔버스 한가운데(오브젝트 자리)를 눌러도 고르지 않는다.
         editor.SetSelectedObject(nullptr);
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        // 오브젝트의 자리는 캔버스 뷰에게 묻는다. 창 한가운데에서 픽셀을 손으로 더하면
+        // 탭 줄과 도구 줄 몫만큼 어긋나, 테마의 간격이 바뀔 때마다 그림 밖을 누른다.
+        float middleX = 0.0f;
+        float middleY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, middleX, middleY),
+            "the canvas view must map the world origin to the screen");
         Spot middle;
-        middle.x = static_cast<int>(view->InnerRect.GetCenter().x);
-        middle.y = static_cast<int>(view->InnerRect.GetCenter().y + 20.0f);
+        middle.x = static_cast<int>(middleX);
+        middle.y = static_cast<int>(middleY);
         ClickAt(editor, hwnd, middle);
         Check(editor.GetSelectedObject() != red, "a hidden object cannot be picked in the canvas view");
 
@@ -10757,31 +10825,16 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        const int centerX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-
-        // 기즈모의 한가운데(= 오브젝트의 자리)를 찾는다. 뷰의 한가운데는 툴바만큼
-        // 창의 한가운데와 어긋나 있다.
+        // 기즈모의 한가운데는 오브젝트의 자리, 곧 월드 원점이다. 그 자리는 캔버스 뷰에게
+        // 묻는다 - 훑어 찾으면 오브젝트에 닿기만 한 자리를 한가운데로 쓰게 되어, 축을 따라
+        // 놓인 손잡이가 그 줄에 없다.
+        float originX = 0.0f;
+        float originY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY),
+            "the canvas view must map the world origin to the screen");
         Spot origin;
-        origin.x = centerX;
-        origin.y = 0;
-        bool foundOrigin = false;
-        for (int y = static_cast<int>(view->Pos.y) + 40;
-             y < static_cast<int>(view->Pos.y + view->Size.y) - 10 && false == foundOrigin;
-             y += 12)
-        {
-            editor.ClearSelection();
-            Check(editor.Tick(Frame), "the editor must tick before looking");
-            Spot probe;
-            probe.x = centerX;
-            probe.y = y;
-            ClickAt(editor, hwnd, probe);
-            if (editor.IsSelected(target))
-            {
-                origin = probe;
-                foundOrigin = true;
-            }
-        }
-        Check(foundOrigin, "the gizmo centre must be somewhere down the middle of the view");
+        origin.x = static_cast<int>(originX);
+        origin.y = static_cast<int>(originY);
 
         // ── 로컬: 오른쪽에는 손잡이가 없다. 끌어도 오브젝트는 그 자리다. ──────
         const float startX = transform->position.x;
@@ -11784,8 +11837,12 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        const int centerX = static_cast<int>(view->Pos.x + view->Size.x * 0.5f);
-        const int centerY = static_cast<int>(view->Pos.y + view->Size.y * 0.5f);
+        // 월드 원점이 그림의 어디로 가는지는 캔버스 뷰에게 묻는다. 창 가운데는 탭 줄과
+        // 도구 줄 몫만큼 어긋나 있어, 창 좌표로 짐작하면 테마의 간격이 바뀔 때마다 빗나간다.
+        float originX = 0.0f;
+        float originY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY),
+            "the canvas view must map the world origin to the screen");
 
         const auto rightClick = [&](int x, int y) {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
@@ -11799,27 +11856,12 @@ namespace
             }
         };
 
-        // **오브젝트가 화면의 어디에 있는지는 찾아서 쓴다.** 뷰의 한가운데는 툴바와 탭 줄만큼
-        // 창의 한가운데와 어긋나 있어서, 창 좌표로 짐작하면 빗나간다.
+        // 오브젝트는 월드 원점에 있고 여덟 배로 키워 두었다. 그 자리를 그대로 누른다.
         Spot onObject;
-        onObject.x = centerX;
-        onObject.y = centerY;
-        bool foundSpot = false;
-        for (int y = static_cast<int>(view->Pos.y) + 40;
-             y < static_cast<int>(view->Pos.y + view->Size.y) - 10 && false == foundSpot;
-             y += 15)
-        {
-            Spot probe;
-            probe.x = centerX;
-            probe.y = y;
-            ClickAt(editor, hwnd, probe);
-            if (editor.IsSelected(target))
-            {
-                onObject = probe;
-                foundSpot = true;
-            }
-        }
-        Check(foundSpot, "the object must be clickable somewhere in the view");
+        onObject.x = static_cast<int>(originX);
+        onObject.y = static_cast<int>(originY);
+        ClickAt(editor, hwnd, onObject);
+        Check(editor.IsSelected(target), "the object must be clickable where it stands");
         editor.ClearSelection();
         Check(editor.Tick(Frame), "the editor must tick after clearing the selection");
 

@@ -3603,11 +3603,23 @@ namespace JBro
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(8.0f, 2.0f));
         // 창의 최소 크기(기본 32)가 한 줄보다 커서, 풀지 않으면 띠가 창 아래로 삐져나간다(실측: 25 를 달라 해 30 이 섰다).
         ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
+        // **메뉴 줄과 같은 면이다.** 창의 위아래를 같은 띠가 감싸야 그 사이가 작업 공간으로
+        // 읽힌다. 패널과 같은 색이면 바닥의 한 줄이 어느 패널의 꼬리인지 알 수 없다.
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, EditorTheme::Raised);
         ImGui::Begin("##EditorStatusBar", nullptr,
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking
                 | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoBringToFrontOnFocus
                 | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoScrollbar);
+        ImGui::PopStyleColor();
         ImGui::PopStyleVar(4);
+
+        // 위를 선으로 끊는다. 메뉴 줄의 아래와 같은 선이다.
+        {
+            ImGuiWindow* bar = ImGui::GetCurrentWindow();
+            bar->DrawList->AddLine(ImVec2(bar->Pos.x, bar->Pos.y + 0.5f),
+                ImVec2(bar->Pos.x + bar->Size.x, bar->Pos.y + 0.5f),
+                ImGui::GetColorU32(EditorTheme::Line), 1.0f);
+        }
 
         const TaskManager* tasks = m_engine.Get() != nullptr ? m_engine->GetTaskManager() : nullptr;
         TaskGroupId first = InvalidTaskGroupId;

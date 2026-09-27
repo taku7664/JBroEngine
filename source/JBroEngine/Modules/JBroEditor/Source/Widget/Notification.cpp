@@ -94,6 +94,10 @@ namespace JBro::Widget
             ImGui::SetNextWindowPos(position, ImGuiCond_Always);
             ImGui::SetNextWindowSize(ImVec2(style.width, height), ImGuiCond_Always);
             StyleScope scope;
+            // **창의 최소 크기를 푼다.** 알림 하나는 그 최소보다 낮을 수 있는데, 그러면
+            // ImGui 가 상자를 늘려 버려 우리가 잡은 자리보다 아래로 삐져나간다 - 바닥이
+            // 상태 표시줄을 덮는다. 상태 표시줄도 같은 이유로 이것을 푼다.
+            scope.PushVar(ImGuiStyleVar_WindowMinSize, ImVec2(1.0f, 1.0f));
             scope.PushVar(ImGuiStyleVar_Alpha, view.alpha);
             scope.PushVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
             scope.PushVar(ImGuiStyleVar_WindowRounding, 6.0f);
