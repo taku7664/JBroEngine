@@ -114,7 +114,10 @@
 
 ## 카메라
 
-- `[진행 중]` (D-239 로 결정, 브랜치 `pixelperfect`) **`Camera2D.projection = PixelPerfect` 이면 에디터가 첫 프레임에 꺼진다**(2026-09-27 실측, 사용자 보고 "픽셀 퍼펙트로 배치하니 팅긴다").
+- ~~`[진행 중]` (D-239 로 결정, 브랜치 `pixelperfect`) **`Camera2D.projection = PixelPerfect` 이면 에디터가 첫 프레임에 꺼진다**~~
+  → 완료 2026-09-27 · bf6df09·eba21da · `Framework2DSystem/Rendering/CameraView2D`·`Camera2DSystem::SelectCamera`·`RenderBridge2D`·`Canvas/ScreenSpace`,
+  에디터 `GameViewPanel`·`InspectorFieldExtras`. 그릴 수 없는 카메라는 건너뛰고 `PixelPerfect` 는 정수 배율 레터박스로 그린다. 실측·검증·열림은 D-239 끝의 "구현" 절.
+  아래는 착수 전의 분석이다.(2026-09-27 실측, 사용자 보고 "픽셀 퍼펙트로 배치하니 팅긴다").
   - 사슬: `RenderBridge2D.cpp` `BuildCamera` 가 `Orthographic` 이 아니면 거짓("PixelPerfect's reference resolution/scaling contract awaits user definition")
     → `SubmitRenderWorld2D` 가 `Failed` → `EngineInstance::TickFrame` 이 `InvalidState` 로 거짓 → `Tick` 이 `ReleaseResources` → `EditorApplication::Tick` 거짓 →
     `EditorHostMain` 루프가 끝난다. 게임 뷰는 편집 중에도 게임 카메라로 매 프레임 그리므로 **재생하지 않아도** 인스펙터에서 값을 바꾸는 순간 꺼진다.

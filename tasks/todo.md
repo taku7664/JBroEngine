@@ -2944,6 +2944,24 @@ EditorApplication::Tick
     그리기(`BuildCamera`), 버튼의 월드 역투영(`Button2DSystem::PixelToLayer`·`LayerToPixel`), 에디터의 레이어 공간 바꾸기(`MakeLayerSpaceCommand`).
     레터박스를 한 곳에만 넣으면 그린 자리와 누르는 자리가 어긋난다(기존 엔진이 두 곳에서 따로 계산해 피킹이 빗나간 것과 같은 모양).
   - 에디터의 캔버스 뷰는 편집 카메라라 이것을 따르지 않는다. 게임 뷰는 게임이 그린 것을 보이므로 따른다.
+  - **구현**(2026-09-27, 브랜치 `pixelperfect`): `Framework2DSystem/Rendering/CameraView2D.h`(`IsDrawableCamera2D`·`ApplyCameraArea`·`ComputeCameraView2D`),
+    `Canvas/ScreenSpace.h`(`ScreenArea`·`GetScreenArea`·`ComputePixelPerfectArea`, `ComputeScreenExtent`·`ScreenPixelToNormalized` 가 사각형을 씀),
+    `Camera2D.pixelsPerUnit`, `Camera2DSystem::SelectCamera` 의 건너뛰기와 수, 렌더 브리지의 뷰포트, `Framework2D::Update` 가 앵커 전에 사각형을 건다.
+    에디터: `GetGameCamera2D`·`GetUnusableGameCameraCount`, `GetGameScreenSpace` 가 레터박스를 싣고, 게임 뷰가 "Camera2D 값이 잘못되어 그릴 수 없습니다" 를 말하며,
+    인스펙터가 투영이 쓰지 않는 필드(`orthographicSize`·`pixelsPerUnit`) 밑에 한 줄을, PPU 가 다른 스프라이트의 `spriteId` 밑에 경고를 붙인다.
+    - 실측: 카메라 하나만 있는 캔버스로 실제 `JBroEditorHost --frames 120` - 고치기 전 `PixelPerfect`·`orthographicSize 0`·`nearPlane 200` 이 모두 0 프레임
+      `invalid state`, 고친 뒤 넷(`Orthographic` 포함) 모두 120 프레임 `ready` 이고 잘못된 둘은 경고를 한 번 남긴다.
+    - **첫 프레임**: `Framework2D::Update` 는 이번 프레임의 트랜스폼이 돌기 전이라 지난 프레임의 카메라로 사각형을 건다. 캔버스를 연 첫 프레임에는 그 카메라가
+      아직 없어 앵커가 대상 전체로 잰다. 그리기는 이번에 뽑힌 카메라로 같은 함수를 다시 불러 첫 프레임부터 레터박스에 그린다 - 첫 프레임의 화면 레이어 앵커
+      하나만 한 프레임 어긋날 수 있다(열림).
+    - **float 넘침**: 기준 폭 100 을 대상 폭 54 에 줄이면 `100 x (54 / 100)` 이 float 로 `54.0000038` 이라 사각형이 대상을 넘고 가운데 맞춤의 왼쪽이 -1 이 된다.
+      렌더러는 대상 밖의 뷰포트를 거절하므로(그러면 다시 프레임 실패다) 사각형을 대상 크기로 자른다. 뮤테이션이 이 검사가 안 재어진다고 알려 준 뒤 찾았다.
+    - 검증: `Tests/CameraView2DTests.cpp`(순수 계산 5 묶음), `RendererContractTests` 의 `TestAPixelPerfectCameraLetterboxesSnapsAndPicks`(가짜 장치로 뷰포트·뷰-투영·
+      버튼 역투영·화면 레이어 뷰포트)와 `TestAnUndrawableCameraIsSkippedNotFatal`, `EditorApplicationTests` 의 `TestAnUndrawableCameraKeepsTheEditorRunning`
+      (실제 에디터가 크기 0·깊이 역전에서 계속 돌고, 레터박스가 게임 화면 기준에 실리고, 레이어를 화면으로 옮길 때 스냅한 뷰로 잰다).
+      뮤테이션 `tools/mutations-camera1.txt` 35 개가 모두 각자 겨눈 검사에서 잡혔다(첫 판 생존 3 개 - float 넘침·화면 레이어 뷰포트·에디터 레이어 바꾸기 - 모두
+      안 잰 것이라 테스트를 채웠다). 게임 뷰의 까닭 글자와 인스펙터의 안내 줄은 화면 글자라 자동 검사가 닿지 않아 스크린숏(`JBRO_EDITOR_SHOT`)으로만 봤다.
+    - 열림: 스프라이트 위치 스냅(움직일 때 계단처럼 보일 수 있어 옵션으로), 첫 프레임의 앵커, 레터박스 띠의 색(지금은 카메라 `clearColor`).
 
 - **D-237. 화면 공간 UI 는 별도 UI 트리가 아니라 캔버스 레이어의 `Space = Screen` 과 `Transform2D.anchor` 이고, 좌표는 기준 해상도의 픽셀이다.**
   (2026-09-27, [ui-plan.md](./ui-plan.md). 사용자 확인: 화면 레이어 + 앵커(기존 엔진과 같은 뼈대), 좌표 단위는 기준 해상도의 픽셀, Space·ScaleMode 는 캔버스의 `Layer`,
