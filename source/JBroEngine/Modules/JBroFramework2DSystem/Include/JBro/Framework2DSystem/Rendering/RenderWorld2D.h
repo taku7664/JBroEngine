@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Canvas/ScreenSpace.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Math2D.h>
@@ -46,6 +47,9 @@ namespace JBro
         bool          sdfText = false;
         std::uint16_t outlineEdge = 32768; // 0..1 을 65535 로. 32768 은 0.5(외곽선 없음)
         std::uint8_t  outlineColor[4] = { 0, 0, 0, 0 };
+        // 화면 레이어의 것이다(D-237). 참이면 좌표는 기준 해상도의 픽셀이고 월드 뷰 뒤의 화면 뷰에 그려진다.
+        bool          screenSpace = false;
+        ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
     };
 
     // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).
@@ -62,6 +66,10 @@ namespace JBro
         bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
+        // 화면 레이어의 기준이다(D-237). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.
+        void SetScreenSpace(const ScreenSpaceFrame& frame);
+        const ScreenSpaceFrame& GetScreenSpace() const;
+        std::size_t GetScreenSpriteCount() const;
         // Reserve outside frame processing. Full storage rejects submissions without allocation.
         bool SubmitSprite(const SpriteRenderItem& item);
         void Sort();
@@ -82,6 +90,8 @@ namespace JBro
 
         RenderCamera2D          m_camera;
         bool                    m_hasCamera = false;
+        ScreenSpaceFrame        m_screen;
+        std::size_t             m_screenSprites = 0;
         Array<SpriteRenderItem> m_sprites;
         Array<SpriteSortKey>    m_order;
         std::size_t             m_droppedSpriteCount = 0;

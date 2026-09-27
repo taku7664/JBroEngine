@@ -186,7 +186,8 @@ namespace JBro
             if (config.audioEnabled)
             {
                 AudioMixerDesc mixerDesc;
-                mixerDesc.maxVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
+                mixerDesc.maxAudibleVoices = config.audioMaxVoices > 0 ? config.audioMaxVoices : 64;
+                mixerDesc.maxVoices = mixerDesc.maxAudibleVoices * 4;
                 // 디스크 스트리밍의 파일은 플랫폼이 연다(D-203). 스트리머 스레드에서 불린다 - `OpenFileStream` 은 어느
                 // 스레드에서 불러도 된다.
                 // 패키지로 연 프로젝트는 패키지의 창 스트림이다(D-232) - 에셋 시스템의 바이트 출처가 연다.
@@ -218,6 +219,7 @@ namespace JBro
                 }
                 if (m_audioMixer)
                 {
+                    m_audioSilentBuffer.Resize(static_cast<std::size_t>(1024) * m_audioMixer->GetChannels());
                     m_audioDevices = MakeOwnerPtr<EngineAudioDevices>(*this);
                     m_audioRetrySeconds = 2.0f;
                 }
@@ -864,6 +866,17 @@ namespace JBro
         if (m_framework != nullptr && false == m_projectCloseRequested)
         {
             const ProfileScope scope("Update");
+            {
+                // 화면 기준(D-237): 프로젝트의 기준 해상도와 이번 프레임에 게임이 그려지는 크기(에디터는 게임 뷰 텍스처, 게임은 창).
+                ScreenSpaceFrame screen;
+                screen.referenceWidth = static_cast<float>(m_project.resolutionWidth);
+                screen.referenceHeight = static_cast<float>(m_project.resolutionHeight);
+                const Extent2D target = m_gameViewTarget.texture.IsValid() ? m_gameViewTarget.extent
+                    : m_renderer ? m_renderer->GetSurfaceExtent() : Extent2D{};
+                screen.targetWidth = static_cast<float>(target.width);
+                screen.targetHeight = static_cast<float>(target.height);
+                m_framework->SetScreenSpace(screen);
+            }
             m_framework->Update();
         }
         // 끝난 보이스를 거둔다. 프레임워크 갱신이 이번 프레임의 재생 요청을 다 낸 뒤다.
@@ -876,6 +889,20 @@ namespace JBro
             m_audioMixer->Update();
         }
         UpdateAudioDevice(deltaTime);
+        // 장치가 없는 동안에도 믹서의 시간은 흐른다(D-240): 이 프레임의 길이만큼 소리 없이 섞는다. 한 번에 0.25 초까지다.
+        if (m_audioMixer.Get() != nullptr && m_audioDeviceWanted && m_audioOutput.Get() == nullptr
+            && false == m_audioSilentBuffer.IsEmpty() && std::isfinite(deltaTime) && deltaTime > 0.0f)
+        {
+            const float seconds = deltaTime < 0.25f ? deltaTime : 0.25f;
+            std::uint32_t frames = static_cast<std::uint32_t>(seconds * static_cast<float>(m_audioMixer->GetSampleRate()));
+            const std::uint32_t chunk = static_cast<std::uint32_t>(m_audioSilentBuffer.Size() / m_audioMixer->GetChannels());
+            while (frames > 0)
+            {
+                const std::uint32_t count = frames < chunk ? frames : chunk;
+                m_audioMixer->Render(m_audioSilentBuffer.Data(), count);
+                frames -= count;
+            }
+        }
         if (m_exitRequested)
         {
             return false;
@@ -1471,6 +1498,11 @@ namespace JBro
             BindAudioServiceContext({});
             m_audio->Shutdown();
             m_audio.Reset();
+        }
+        // 스트리머가 열던 파일을 다 닫은 뒤에 에셋의 바이트 출처를 내린다(D-240) - 여는 중에 출처가 풀리면 풀린 메모리를 읽는다.
+        if (m_audioMixer)
+        {
+            m_audioMixer->WaitForStreamsIdle();
         }
         m_frameworkContext.audio = nullptr;
         // 문자열 표는 에셋보다 먼저 놓는다(D-226).

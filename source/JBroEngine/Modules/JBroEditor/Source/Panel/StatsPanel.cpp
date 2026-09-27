@@ -164,7 +164,8 @@ namespace JBro
                         "no audio device - sounds are mixed but not heard"));
                 }
                 Widget::TextF(Loc::TextOr(LocKeys::StatsAudioVoices, "voices %u / %u, peak %.2f"),
-                    sound.activeVoices, sound.maxVoices, static_cast<double>(sound.lastPeak));
+                    // 섞는 부하를 보인다 - 가상 보이스는 자리만 쥐고 섞지 않는다(D-240).
+                    sound.activeVoices - sound.virtualVoices, sound.maxAudibleVoices, static_cast<double>(sound.lastPeak));
                 if (sound.voicesStolen != 0 || sound.voicesRejected != 0)
                 {
                     Widget::SeverityTextF(Widget::Severity::Warning,
@@ -172,6 +173,13 @@ namespace JBro
                             "%llu voice(s) stolen, %llu refused - raise the voice count or lower priorities"),
                         static_cast<unsigned long long>(sound.voicesStolen),
                         static_cast<unsigned long long>(sound.voicesRejected));
+                }
+                // 섞지 않고 위치만 세는 루프다(D-235).
+                if (sound.virtualVoices != 0)
+                {
+                    Widget::HintTextF(Loc::TextOr(LocKeys::StatsAudioVirtual,
+                            "%u virtual voice(s) - too quiet or crowded out, counted but not mixed"),
+                        sound.virtualVoices);
                 }
                 // 일부러 건너뛴 재생이다(D-231). 경고가 아니라 절약한 양이다.
                 if (sound.voicesCulled != 0 || sound.voicesThrottled != 0 || sound.voicesReplaced != 0)

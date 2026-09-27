@@ -1,0 +1,11 @@
+Modules\JBroText\Source\FontFace.cpp	gsub:backtrack-unchecked	|| CoverageIndex(subtable + offset, glyphs[position - 1 - index]) < 0)	|| false)
+Modules\JBroText\Source\FontFace.cpp	gsub:lookahead-unchecked	|| CoverageIndex(subtable + offset, glyphs[position + inputCount + index]) < 0)	|| false)
+Modules\JBroText\Source\FontFace.cpp	gsub:lookups-unsorted	                std::sort(lookups.begin(), lookups.end());	                (void)0;
+Modules\JBroText\Source\FontFace.cpp	gsub:single-format2-ignored	                    glyph = value;	                    (void)value;
+Modules\JBroText\Source\FontFace.cpp	gsub:tjmo-skipped	&& tag != Tag('t', 'j', 'm', 'o'))	)
+Modules\JBroText\Source\FontFace.cpp	gsub:first-position-only	for (std::size_t position = 0; position < count; ++position)	for (std::size_t position = 0; position < 1; ++position)
+Modules\JBroText\Source\FontFace.cpp	gsub:nested-at-wrong-place	ApplyAt(gsub, lookupIndex, glyphs, count, position + sequenceIndex, 1);	ApplyAt(gsub, lookupIndex, glyphs, count, position, 1);
+Modules\JBroText\Source\TextLayout.cpp	layout:no-decompose	&& false == IsTrail(m_codepoints[index + 1].value))	&& false)
+Modules\JBroText\Source\TextLayout.cpp	layout:modern-shaped	const bool modern = jamoCount >= 2	const bool modern = false && jamoCount >= 2
+Modules\JBroText\Source\TextLayout.cpp	layout:marks-at-origin	                                item.markX = before;	                                item.markX = 0.0f;
+Modules\JBroText\Source\TextLayout.cpp	layout:jamo-not-marks	                                item.kind = ItemKind::Mark;	                                item.kind = ItemKind::Visible;

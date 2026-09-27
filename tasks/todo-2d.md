@@ -25,8 +25,8 @@
   `[열림]` 질의의 경계 거르기, 큰 폴리곤의 크기 애니메이션 분해 비용 - 계획서 §4 의 6.
   ~~물리 병렬 - 좁은 판정을 물리 전용 워커로, 빌드 설정 `Build.PhysicsThreads`(기본 Auto)와 "추천 값 사용"~~ → 2026-09-26 · `ca4b9df`·`2a9ebc9` · D-223.
   `[열림]` 솔버 병렬(좁은 판정만으로는 약 20%), 웹 빌드 확인 - 계획서 §4 의 8.
-  `[진행]` 추천순 전부(계획서 §4 의 9): ~~9-1 힘·충격량·토크·축 고정·각 감쇠~~ → 2026-09-27 · `38bd2f4` · D-227. ~~9-2 체인·수면~~ → 2026-09-27 · `0f6c39c` · D-229. 9-3 조인트·단방향 플랫폼·
-  Stay 훅·레이어 이름과 충돌 표, 9-4 CCD·솔버 병렬·질의 경계 거르기.
+  `[진행]` 추천순 전부(계획서 §4 의 9): ~~9-1 힘·충격량·토크·축 고정·각 감쇠~~ → 2026-09-27 · `38bd2f4` · D-227. ~~9-2 체인·수면~~ → 2026-09-27 · `0f6c39c` · D-229. ~~9-3 조인트·단방향 플랫폼·
+  Stay 훅·레이어 이름과 충돌 표~~ → 2026-09-27 · D-233. ~~9-4 CCD·솔버 병렬·질의 경계 거르기~~ → 2026-09-27 · D-234.
 
 ## 오디오 (audio-plan §3-3, D-197)
 
@@ -112,6 +112,27 @@
    레코드는 빠지고 자료는 남음), 에디터(열린 채로 생긴 파일이 등록됨). 뮤테이션: 9/9 잡힘(백슬래시 유지, 이름 바꾸기의 옛 이름 버림, 멈춤 신호 없음 - 워커 합류가 영원히 기다려 테스트가 멈추는 것으로 잡힘, 첫 요청을 늦게 걺, 변경을 재로드 안 함, 생성을 다시 스캔 안 함, 삭제를 안 뺌, 감시를 안 켬, 에디터가 안 꺼냄).
 
 
+## 카메라
+
+- `[진행 예정]` **`Camera2D.projection = PixelPerfect` 이면 에디터가 첫 프레임에 꺼진다**(2026-09-27 실측, 사용자 보고 "픽셀 퍼펙트로 배치하니 팅긴다").
+  - 사슬: `RenderBridge2D.cpp` `BuildCamera` 가 `Orthographic` 이 아니면 거짓("PixelPerfect's reference resolution/scaling contract awaits user definition")
+    → `SubmitRenderWorld2D` 가 `Failed` → `EngineInstance::TickFrame` 이 `InvalidState` 로 거짓 → `Tick` 이 `ReleaseResources` → `EditorApplication::Tick` 거짓 →
+    `EditorHostMain` 루프가 끝난다. 게임 뷰는 편집 중에도 게임 카메라로 매 프레임 그리므로 **재생하지 않아도** 인스펙터에서 값을 바꾸는 순간 꺼진다.
+    사용자에게는 아무 말도 남지 않는다(콘솔의 `last frame: invalid state` 한 줄뿐). `physics-plan` 의 "확인 중 에디터가 한 번 꺼진 것" 도 이것이다.
+  - 실측: 카메라 하나만 있는 캔버스로 `JBroEditorHost --frames 120` 을 두 번 띄웠다. `Orthographic` 은 120 프레임·`ready`, `PixelPerfect` 는 **0 프레임·`invalid state`**.
+    두 파일의 차이는 `projection` 한 줄이다. **투영만의 문제가 아니다**: 같은 방법으로 `orthographicSize: 0` 과 `nearPlane: 200`(`farPlane` 100 보다 큼)도
+    둘 다 0 프레임·`invalid state` 였다 - `BuildCamera` 가 거절하는 값이면 무엇이든 인스펙터에서 한 번 넣는 순간 에디터가 꺼진다.
+  - `Orthographic` 카메라는 동작한다: `RendererContractTests` 가 카메라 위치·크기로 뷰-투영 값을 재고(`vp[0] = 0.05` 등), `D3D12SmokeTests` 가 실제 장치로 그린다.
+    `PixelPerfect` 는 추출(`Framework2DSystemTests` - 값이 렌더 월드로 옮겨지는지)만 재고 **그리기는 한 번도 재지 않았다** - 그래서 이 종료가 테스트에 걸리지 않았다.
+  - **D-58 의 전제가 틀렸다.** D-58 은 "세부 계약은 기존 엔진의 것을 읽고 따른다" 인데, 기존 엔진 `Camera2D` 에는 PixelPerfect 가 없다
+    (`ECameraProjectionMode2D { Orthographic, PerspectiveReady }`, `Engine/GameFramework/Component/Camera2D.h`). 기존 엔진의 `PixelsPerUnit`·기준 해상도는
+    스프라이트 크기와 화면 공간(UI) 투영에만 쓰였고(`Render2DPipeline.cpp` `ScreenSpaceReference`), 카메라를 픽셀 격자에 맞추는 코드는 없다.
+    따를 계약이 없으므로 새로 정해야 한다(사용자 결정).
+  - 정할 것: (1) 당장의 안전장치 - 카메라 값이 그릴 수 없는 것(구현 안 된 투영, 크기 0 이하, `nearPlane ≥ farPlane`)이면 에디터를 끄지 말고 그 카메라를 쓰지 못하는
+    것으로 칠지(월드를 그리지 않고 게임 뷰가 까닭을 보이며 경고를 한 번 남긴다), 그리고 인스펙터가 그런 값을 애초에 막을지.
+    (2) PixelPerfect 계약 - 기준 해상도(`.jproject` `ResolutionWidth/Height`)와 PPU(`.jproject` `PixelsPerUnit`, 스프라이트마다 다를 수 있다)로 `orthographicSize` 를 정할지,
+    정수 배율과 남는 영역(레터박스·잘라내기), 카메라 위치를 화면 픽셀에 맞추는 스냅, 에디터 게임 뷰와 캔버스 뷰가 그것을 따를지.
+
 ## 스프라이트
 
 - `[완료]` **스프라이트 크기 정책** (D-117 로 결정, D-119 로 섰다 - 위 4 단계 순서의 3). 지금 `SpriteRenderer2D` 는 `size`(유닛)·`pivot` 을 저작 값으로 들고 텍스처 크기와
@@ -147,6 +168,8 @@
   ~~패밀리~~ → 완료 2026-09-26 · `1c000e3`·`7d73728`·`5f2c9b1`·`a027da5` · 에셋 `FontFamily`·`<b>`·`<i>`(D-225).
   ~~게임 로컬라이징 키~~ → 완료 2026-09-26 · `bdcd4f3`·`f687872` · 에셋 `StringTable`(`.jstrings`)·`textKey`·Tier S `JBroLocalizationTypes`(D-226).
   ~~`.jpak` 아틀라스~~ → 완료 2026-09-27 · 패키지·게임 빌드와 함께(D-232, package-plan).
-  남은 것(화면 공간 UI 텍스트, 옛한글)은 없는 계층이나 사용자 결정이 먼저다(text-plan §5 의 5 단계).
+  ~~화면 공간 UI 텍스트~~ → 완료 2026-09-27 · 화면 레이어와 앵커(D-237, [ui-plan.md](./ui-plan.md)). 그리기·에디터·입력(`Button2D`)의 세 단계가 섰다.
+  레이아웃 컨테이너·스크롤·마스크·텍스트 입력·게임패드 포커스는 ui-plan §4 의 `[열림]` 이다.
+  ~~옛한글~~ → 완료 2026-09-27 · GSUB 의 옛한글 자모 기능을 커널이 직접 읽는다(D-238, text-plan §7). 다른 옛한글 폰트의 실측과 일반 GSUB 는 `[열림]` 이다.
 - `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·Shape 렌더러.
   렌더 패스 그래프(공용 todo)가 먼저다.

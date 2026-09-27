@@ -1,4 +1,5 @@
 ﻿#include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework2DSystem/System/Transform2DSystem.h>
 
 #include <JBro/Asset/Asset.h>
 #include <JBro/Core/Profiler.h>
@@ -13,6 +14,7 @@
 #include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
+#include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include "Rendering/RenderBridge2D.h"
@@ -106,6 +108,7 @@ namespace JBro
         m_scriptSystems.Physics2D = physics;
         // 텍스트 시스템은 늘 선다(CreateDefaultSystems). 없으면 서비스가 아무것도 하지 않을 뿐이다.
         m_scriptSystems.Text2D = m_canvas->GetSystems().FindSystem<System::Text2DSystem>();
+        m_scriptSystems.Screen2D = m_canvas->GetSystems().FindSystem<System::Button2DSystem>();
         m_scriptServices = {};
         BindFramework2DSystemContext(m_scriptSystems);
         BindFramework2DServiceContext(m_scriptServices);
@@ -146,6 +149,26 @@ namespace JBro
         const FrameTime& time = m_context.time->GetFrameTime();
         m_renderWorld.BeginFrame();
         m_canvas->BeginFrame();
+        {
+            // 화면 기준을 갱신 전에 건다 - 트랜스폼이 이번 프레임의 앵커를 잰다(D-237).
+            ScreenSpaceFrame frame = m_screenSpace;
+            if ((false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f)) && m_context.renderer != nullptr)
+            {
+                const Extent2D extent = m_context.renderer->GetFrameExtent();
+                frame.targetWidth = static_cast<float>(extent.width);
+                frame.targetHeight = static_cast<float>(extent.height);
+            }
+            m_renderWorld.SetScreenSpace(frame);
+            if (System::Transform2DSystem* transforms = m_canvas->GetSystems().FindSystem<System::Transform2DSystem>())
+            {
+                transforms->SetScreenSpace(frame);
+            }
+            // 버튼은 입력 체인 안에서 지난 프레임의 화면을 누른다 - 같은 기준이어야 그린 자리를 누른다.
+            if (System::Button2DSystem* buttons = m_canvas->GetSystems().FindSystem<System::Button2DSystem>())
+            {
+                buttons->SetScreenSpace(frame);
+            }
+        }
         // **한 프레임 진행**(D-241). 멈춘 동안 이 프레임만 게임이 돈다: 스크립트·물리를 켰다가 끝에 다시 끈다.
         const bool stepping = false == m_simulationEnabled && m_context.time->IsStepFrame();
         const bool simulating = m_simulationEnabled || stepping;
@@ -197,6 +220,19 @@ namespace JBro
         }
     }
 
+    void Framework2D::SetPhysicsIgnoredLayers(const std::uint32_t (&rows)[32])
+    {
+        static_assert(PhysicsLayerCount == 32, "the framework passes one row per physics layer");
+        if (m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        if (System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>())
+        {
+            physics->SetIgnoredLayers(rows);
+        }
+    }
+
     std::uint32_t Framework2D::GetPhysicsWorkerCount()
     {
         if (m_canvas.Get() == nullptr)
@@ -205,6 +241,16 @@ namespace JBro
         }
         System::Physics2DSystem* physics = m_canvas->GetSystems().FindSystem<System::Physics2DSystem>();
         return physics != nullptr ? physics->GetWorkerCount() : 0;
+    }
+
+    void Framework2D::SetScreenSpace(const ScreenSpaceFrame& frame)
+    {
+        m_screenSpace = frame;
+    }
+
+    const ScreenSpaceFrame& Framework2D::GetScreenSpace() const
+    {
+        return m_screenSpace;
     }
 
     void Framework2D::SetSimulationEnabled(bool enabled)
@@ -275,6 +321,20 @@ namespace JBro
             auto* binding = static_cast<std::pair<AssetSystem*, Array<AssetHandle>*>*>(user);
             binding->first->BindComponentAssets(table, &component, *binding->second);
         }
+
+        void CollectComponentAssetIdsVisitor(const PropertyTable& table, ComponentBase& component, void* user)
+        {
+            AssetSystem::CollectComponentAssetIds(table, &component, *static_cast<Array<AssetId>*>(user));
+        }
+    }
+
+    void Framework2D::CollectCanvasAssetIds(Array<AssetId>& ids)
+    {
+        if (m_context.assets == nullptr || m_canvas.Get() == nullptr)
+        {
+            return;
+        }
+        ForEachReflectedComponent(*m_canvas, &CollectComponentAssetIdsVisitor, &ids);
     }
 
     void Framework2D::BindCanvasAssets()
@@ -408,7 +468,10 @@ namespace JBro
         auto& systems = m_canvas->GetSystems();
         systems.AddSystem<System::Transform2DSystem>();
         // 변환 뒤, 렌더 추출 전이다. 실행 순서는 GetExecutionOrder 가 정한다.
-        systems.AddSystem<System::ScriptSystem>().SetInputSystem(m_context.input);
+        System::ScriptSystem& scripts = systems.AddSystem<System::ScriptSystem>();
+        scripts.SetInputSystem(m_context.input);
+        // 버튼은 입력 체인의 `"UI"` 레이어에 선다(D-237).
+        systems.AddSystem<System::Button2DSystem>().SetScriptSystem(&scripts);
         systems.AddSystem<System::Physics2DSystem>();
         systems.AddSystem<System::Camera2DSystem>().SetRenderWorld(&m_renderWorld);
         System::SpriteRender2DSystem& sprites = systems.AddSystem<System::SpriteRender2DSystem>();

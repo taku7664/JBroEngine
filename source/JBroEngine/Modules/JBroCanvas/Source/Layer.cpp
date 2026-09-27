@@ -48,4 +48,24 @@ namespace JBro
     {
         m_visible = visible;
     }
+
+    LayerSpace Layer::GetSpace() const
+    {
+        return m_space;
+    }
+
+    void Layer::SetSpace(LayerSpace space)
+    {
+        m_space = space;
+    }
+
+    ScreenScaleMode Layer::GetScaleMode() const
+    {
+        return m_scaleMode;
+    }
+
+    void Layer::SetScaleMode(ScreenScaleMode mode)
+    {
+        m_scaleMode = mode;
+    }
 }

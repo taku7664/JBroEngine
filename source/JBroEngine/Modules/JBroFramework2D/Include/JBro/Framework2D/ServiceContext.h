@@ -2,6 +2,7 @@
 
 #include <JBro/Framework2D/Service/DebugDraw2DService.h>
 #include <JBro/Framework2D/Service/Physics2DService.h>
+#include <JBro/Framework2D/Service/Screen2DService.h>
 #include <JBro/Framework2D/Service/Text2DService.h>
 
 #include <cstdint>
@@ -12,8 +13,10 @@ namespace JBro
     // 사용자 스크립트가 그 표를 물려받으므로 훅을 더하면 옛 DLL 은 받아들이면 안 된다(D-28).
     // 2: `OnTriggerEnter`·`OnTriggerExit` 를 더했다(D-207).
     // 3: `Text2DService` 를 더했다(D-211).
-    // 4: `DebugDraw2DService` 를 더했고(D-242) 공통 훅이 인자를 잃었다(D-241).
-    inline constexpr std::uint32_t Framework2DServiceContextAbiVersion = 4;
+    // 4: `OnCollisionStay`·`OnTriggerStay` 를 더했다(D-233).
+    // 5: 버튼 훅 다섯(`OnPointerEnter`~`OnClick`)과 `Screen2DService` 를 더했다(D-237).
+    // 6: `DebugDraw2DService` 를 더했고(D-242) 공통 훅이 인자를 잃었다(D-241).
+    inline constexpr std::uint32_t Framework2DServiceContextAbiVersion = 6;
 
     // Non-owning value services. Kept outside Runtime's dimension-independent context.
     struct Framework2DServiceContext
@@ -21,6 +24,7 @@ namespace JBro
         std::uint32_t AbiVersion = Framework2DServiceContextAbiVersion;
         Service::Physics2DService Physics2D;
         Service::Text2DService Text2D;
+        Service::Screen2DService Screen2D;
         Service::DebugDraw2DService DebugDraw;
     };
 

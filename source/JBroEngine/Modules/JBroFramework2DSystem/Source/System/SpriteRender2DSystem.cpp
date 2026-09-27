@@ -50,6 +50,8 @@ namespace JBro::System
             item.sourceId = sprite.GetInstanceId();
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.world = world->world;
+            item.screenSpace = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
+            item.scaleMode = layer != nullptr ? layer->GetScaleMode() : ScreenScaleMode::FixedHeight;
             // 해석 패스가 채운 에셋 핸들을 렌더러 텍스처와 칸으로 푼다. 이 시점은 렌더러 프레임 밖(Update)이라
             // 처음 만난 텍스처의 업로드가 여기서 일어난다. 풀리지 않으면 흰색이다.
             SpriteFrameView frame;
@@ -67,8 +69,10 @@ namespace JBro::System
             item.material = sprite.material;
             item.tint = sprite.tint;
             // 크기와 피벗은 에셋이 정한다(D-117). 풀리지 않은 스프라이트와 `Custom` 만 저작 값이다. 둘은 따로 고른다.
+            // 화면 레이어의 좌표는 기준 픽셀이라 에셋 크기도 픽셀이다(D-237).
             item.size = (resolved && sprite.sizeMode == Component::SpriteSizeMode::FromSprite)
-                ? Vec2{ frame.widthUnits, frame.heightUnits } : sprite.size;
+                ? (item.screenSpace ? Vec2{ frame.widthPixels, frame.heightPixels } : Vec2{ frame.widthUnits, frame.heightUnits })
+                : sprite.size;
             item.pivot = (resolved && sprite.pivotMode == Component::SpritePivotMode::FromSprite)
                 ? Vec2{ frame.pivotX, frame.pivotY } : sprite.pivot;
             item.renderOrder = sprite.renderOrder;

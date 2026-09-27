@@ -19,6 +19,7 @@
 #include <JBro/Host/TimeSystem.h>
 #include <JBro/Platform/Platform.h>
 #include <JBro/RHI/RHI.h>
+#include <JBro/Task/TaskGroup.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/String.h>
 
@@ -30,6 +31,8 @@ namespace JBro
         class AudioSystem;
     }
 
+    struct AssetLoadResult;
+    class TaskManager;
     class Canvas;
     class EditorThumbnails;
     // 단축키 관리자는 ImGui 의 키 값을 든다. 이 헤더를 보는 쪽(에디터 호스트)은 ImGui 를 보지 않으므로 이름만 안다.
@@ -116,6 +119,10 @@ namespace JBro
         bool userPreferences = false;
         // 설정 파일 경로를 직접 준다. 있으면 `userPreferences` 보다 앞선다(테스트가 제 임시 파일을 주는 자리).
         const char* preferencesPath = nullptr;
+        // 엔진 태스크 관리자의 워커다(D-212). 0 이면 코어 수에서 정한다. 거짓이면 워커 없이 엔진 틱마다 메인 스레드에서 돈다 -
+        // 시험이 로드가 끝나는 틱을 정확히 알려고 끈다.
+        std::uint32_t taskWorkerCount = 0;
+        bool taskWorkers = true;
         JMemoryContext memory;
     };
 
@@ -212,6 +219,8 @@ namespace JBro
         const AssetRegistry& GetAssetRegistry() const;
         // 열린 프로젝트의 에셋 시스템이다. 프로젝트가 없으면 nullptr 다.
         AssetSystem* GetAssetSystem();
+        // 엔진이 든 태스크 관리자다(D-212). 패널·툴이 로드 태스크를 등록하는 곳이다. 엔진이 없으면 null 이다.
+        TaskManager* GetTaskManager();
         // 열린 프로젝트의 오디오 시스템이다(D-197). 프로젝트가 없거나 오디오를 끈 엔진이면 nullptr 다.
         // 인스펙터의 미리 듣기가 이것을 쓴다.
         System::AudioSystem* GetAudio();
@@ -453,7 +462,14 @@ namespace JBro
         std::uint64_t GetRandomSeed() const;
 
         bool RequestCanvasView(
-            const Extent2D& extent, float centerX, float centerY, float orthographicSize);
+            const Extent2D& extent, float centerX, float centerY, float orthographicSize, bool screenSpace = false);
+        // 게임이 쓰는 화면 기준이다(D-237): 프로젝트의 기준 해상도와 게임 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
+        ScreenSpaceFrame GetGameScreenSpace() const;
+        // 캔버스 뷰가 마지막으로 UI 보기를 청했는가(D-237). 시험과 상태 표시가 읽는다.
+        bool IsCanvasViewScreenSpace() const { return m_canvasViewRequest.screenSpace; }
+        // **레이어의 공간·맞춤 방식을 바꾸는 커맨드를 만든다**(D-237). 월드↔화면을 오가면 그 레이어 루트의 자리를 지난 프레임의 게임 카메라로
+        // 옮겨, 게임 화면에서 보이던 자리가 남는다. 카메라가 없으면 자리는 그대로다. 캔버스나 레이어가 없으면 null 이다.
+        OwnerPtr<EditorCommand> MakeLayerSpaceCommand(LayerId layer, LayerSpace space, ScreenScaleMode scaleMode);
         // 3D 의 편집 화면이다(D-136). 바라보는 점과 그 둘레를 도는 거리·각을 준다 -
         // 평면을 밀고 당기는 것으로는 3D 의 뒤를 볼 수 없다.
         bool RequestCanvasView3D(
@@ -474,6 +490,15 @@ namespace JBro
         // 열려 있는 캔버스로 `.jcanvas` 를 읽고 쓴다.
         // 읽기는 **빈 캔버스에만** 들어간다 — 이미 내용이 있으면 거절한다.
         bool LoadCanvas(const char* path, CanvasFileError& error);
+        // **워커로 여는 캔버스**(D-236). 읽기는 `LoadCanvas` 와 같고, 컴포넌트가 쓰는 에셋(텍스처·오디오)은 워커가 디코드한 뒤
+        // 다음 틱에 바인딩한다 - 그동안 화면은 멈추지 않고 상태 표시줄에 진행이 보인다. 프로젝트를 열 때와 에셋 브라우저에서
+        // 캔버스를 열 때 이 길로 간다. 앞서 돌던 캔버스 로드는 거두고(취소하고 기다린다) 시작한다. 읽지 못하면 거짓이다.
+        bool LoadCanvasAsync(const char* path, CanvasFileError& error);
+        bool IsCanvasLoading() const;
+        // 도는 캔버스 로드의 묶음이다. 없으면 `InvalidTaskGroupId` 다.
+        TaskGroupId GetCanvasLoadGroup() const;
+        // 도는 캔버스 로드를 끝까지 기다려 바인딩까지 마친다. 기다려야 하는 자리(시험)가 부른다.
+        void FinishCanvasLoadNow();
         bool SaveCanvas(const char* path, CanvasFileError& error);
         // **복사·붙여넣기.** 고른 것 중 맨 위 것들의 나무를 떠 둔다(뜨지 못하면 거짓이고
         // 클립보드는 그대로다). 붙여넣기는 커맨드 하나로 가고, 붙인 뿌리들을 고른다 -
@@ -623,10 +648,22 @@ namespace JBro
         void PerformBrowseRequest();
         // `RequestOpenCanvas` 를 프레임 밖에서 처리한다(D-174).
         void PerformOpenCanvasRequest();
+        // 캔버스 파일을 읽어 빈 캔버스에 넣는다. 바인딩은 하지 않는다 - 부르는 쪽이 동기로 하거나 워커 로드 뒤에 한다.
+        bool ReadCanvasFile(const char* path, CanvasFileError& error);
+        // 끝난 캔버스 로드를 거둔다: 바인딩하고, 로드가 잡던 참조를 놓고, 실패는 알린다.
+        void PollCanvasLoad();
+        void CompleteCanvasLoad();
+        // 도는 캔버스 로드를 취소하고 기다린 뒤 잡던 참조를 놓는다. 바인딩하지 않는다. 프로젝트를 닫거나 다른 캔버스를 읽기 전에
+        // 부른다 - 워커가 내린 에셋 시스템을 읽지 않게(D-212 의 닫기 규칙).
+        void CancelCanvasLoad();
+        // 창 바닥의 상태 표시줄이다(13 번). 도는 태스크 묶음과 마지막 알림이 거기에 내려앉는다.
+        float StatusBarHeight() const;
+        void DrawStatusBar(const Extent2D& display, float height);
         // 그림·외곽선 캐시를 지금 프로젝트의 에셋 시스템에 잇는다. 프로젝트가 없으면 끊는다(D-165).
         void BindAssetTools();
         // 프로젝트의 물리 스레드 설정을 풀어 2D 프레임워크에 먹인다(D-223). 열 때와 설정을 저장할 때 부른다.
-        void ApplyPhysicsThreads();
+        // 물리 스레드(D-223)와 레이어 충돌 표(D-233)를 프로젝트 설정대로 프레임워크에 넘긴다.
+        void ApplyPhysicsSettings();
         // 지금 연 것을 닫고 그 프로젝트를 연다. 열기와 새 프로젝트가 같은 길로 간다. 프레임 밖에서 부른다.
         bool SwitchToProject(const char* projectFilePath);
         void PerformImportRequest();
@@ -662,6 +699,11 @@ namespace JBro
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
         std::uint64_t m_trashCounter = 0;
         String m_canvasPath;
+        // 워커로 여는 캔버스의 로드(D-236). 결과는 묶음의 콜백이 적으므로 주소가 움직이지 않게 따로 든다.
+        TaskGroupId m_canvasLoadGroup = InvalidTaskGroupId;
+        OwnerPtr<AssetLoadResult> m_canvasLoad;
+        // 상태 표시줄에서 태스크 목록을 펼쳤다.
+        bool m_taskListOpen = false;
         bool m_saveRequested = false;
         bool m_openProjectRequested = false;
         bool m_newProjectRequested = false;

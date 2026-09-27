@@ -109,20 +109,34 @@ namespace JBro::Internal
         //
         // `editorView` 면 **에디터에서 감춘 오브젝트를 건너뛴다**(D-163, 기존 `EditorHidden`). 게임 뷰는 보지 않는다 -
         // 감추는 것은 편집을 위한 것이지 게임의 모습이 아니다.
-        bool PushSprites(const RenderWorld2D& world, Renderer& renderer, bool editorView)
+        // 어느 아이템을 그 뷰에 넣는가. 월드 뷰는 월드 레이어만, 화면 뷰는 그 맞춤 방식의 화면 레이어만이다(D-237).
+        struct SpriteFilterRule
+        {
+            bool screenSpace = false;
+            ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
+            bool anyScaleMode = true;
+        };
+
+        bool PushSprites(const RenderWorld2D& world, Renderer& renderer, bool editorView, const SpriteFilterRule& rule,
+            std::size_t first = 0, std::size_t last = static_cast<std::size_t>(-1))
         {
             constexpr std::size_t BatchSize = 64;
             SpriteSubmit batch[BatchSize];
             bool accepted = world.GetDroppedSpriteCount() == 0;
-            std::size_t next = 0;
-            while (next < world.GetSpriteCount())
+            std::size_t next = first;
+            const std::size_t end = last < world.GetSpriteCount() ? last : world.GetSpriteCount();
+            while (next < end)
             {
                 std::size_t count = 0;
-                while (count < BatchSize && next < world.GetSpriteCount())
+                while (count < BatchSize && next < end)
                 {
                     const SpriteRenderItem& item = world.GetSprite(next);
                     ++next;
                     if (editorView && item.owner != nullptr && item.owner->IsEditorHidden())
+                    {
+                        continue;
+                    }
+                    if (item.screenSpace != rule.screenSpace || (false == rule.anyScaleMode && item.scaleMode != rule.scaleMode))
                     {
                         continue;
                     }
@@ -219,8 +233,12 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushSprites(world, renderer, true);
-        if (debugDraw != nullptr && view.debugDraw)
+        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 안 된다.
+        SpriteFilterRule rule;
+        rule.screenSpace = view.screenSpace;
+        const bool accepted = PushSprites(world, renderer, true, rule);
+        // 디버그 선은 월드 좌표라 월드 보기에만 그린다(D-242).
+        if (debugDraw != nullptr && view.debugDraw && false == view.screenSpace)
         {
             PushDebugLines2D(*debugDraw, renderer, 2.0f * view.orthographicSize / static_cast<float>(view.extent.height));
         }
@@ -228,30 +246,119 @@ namespace JBro::Internal
         return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
     }
 
+    namespace
+    {
+        // 화면 레이어의 정사영이다(D-237). 가운데 원점, y 위, 기준 픽셀 - 앵커와 같은 `ComputeScreenExtent` 로 잰다.
+        bool BuildScreenCamera(const ScreenExtent& extent, Extent2D target, CameraParams& result)
+        {
+            if (target.width == 0 || target.height == 0 || false == (extent.halfWidth > 0.0f) || false == (extent.halfHeight > 0.0f))
+            {
+                return false;
+            }
+            result.view = Matrix4x4{};
+            result.projection = {{1.0f / extent.halfWidth, 0.0f, 0.0f, 0.0f,
+                0.0f, 1.0f / extent.halfHeight, 0.0f, 0.0f,
+                0.0f, 0.0f, 0.5f, 0.5f,
+                0.0f, 0.0f, 0.0f, 1.0f}};
+            result.viewport.width = static_cast<float>(target.width);
+            result.viewport.height = static_cast<float>(target.height);
+            // 월드 뷰가 없으면(카메라 없음) 이 뷰가 처음이라 대상을 지운다. 검정이다.
+            result.clearColor[0] = 0.0f;
+            result.clearColor[1] = 0.0f;
+            result.clearColor[2] = 0.0f;
+            result.clearColor[3] = 1.0f;
+            return true;
+        }
+
+        // 그리는 순서의 화면 아이템을 맞춤 방식이 같은 것끼리 이어진 덩어리로 나눠 덩어리마다 뷰 하나에 그린다.
+        bool SubmitScreenViews(const RenderWorld2D& world, Renderer& renderer, bool& submitted)
+        {
+            submitted = false;
+            if (world.GetScreenSpriteCount() == 0)
+            {
+                return true;
+            }
+            ScreenSpaceFrame frame = world.GetScreenSpace();
+            const Extent2D target = renderer.GetFrameExtent();
+            if (false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f))
+            {
+                frame.targetWidth = static_cast<float>(target.width);
+                frame.targetHeight = static_cast<float>(target.height);
+            }
+            std::size_t index = 0;
+            const std::size_t count = world.GetSpriteCount();
+            while (index < count)
+            {
+                if (false == world.GetSprite(index).screenSpace)
+                {
+                    ++index;
+                    continue;
+                }
+                const ScreenScaleMode mode = world.GetSprite(index).scaleMode;
+                std::size_t end = index + 1;
+                while (end < count && (false == world.GetSprite(end).screenSpace || world.GetSprite(end).scaleMode == mode))
+                {
+                    ++end;
+                }
+                ScreenExtent extent;
+                CameraParams parameters;
+                if (false == ComputeScreenExtent(mode, frame, extent) || false == BuildScreenCamera(extent, target, parameters)
+                    || false == renderer.BeginView(parameters))
+                {
+                    return false;
+                }
+                SpriteFilterRule rule;
+                rule.screenSpace = true;
+                rule.scaleMode = mode;
+                rule.anyScaleMode = false;
+                const bool accepted = PushSprites(world, renderer, false, rule, index, end);
+                if (false == renderer.EndView() || false == accepted)
+                {
+                    return false;
+                }
+                submitted = true;
+                index = end;
+            }
+            return true;
+        }
+    }
+
     RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw)
     {
         const RenderCamera2D* camera = world.GetCamera();
-        if (camera == nullptr)
+        bool worldSubmitted = false;
+        // 카메라가 없는 것은 오류가 아니다. 월드를 그리지 않을 뿐이다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
+        if (camera != nullptr)
         {
-            // 카메라가 없는 것은 오류가 아니다. 그릴 대상이 없을 뿐이다.
-            return RenderResult::NothingToSubmit;
+            CameraParams parameters;
+            // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은
+            // 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
+            // 에디터 창 모양을 따라가고, 뷰포트가 타깃 밖으로 나간다.
+            if (false == BuildCamera(*camera, renderer.GetFrameExtent(), parameters)
+                || false == renderer.BeginView(parameters))
+            {
+                return RenderResult::Failed;
+            }
+            const bool accepted = PushSprites(world, renderer, false, SpriteFilterRule{});
+            // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-242). 화면 레이어가 그 위에 온다.
+            if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
+            {
+                PushDebugLines2D(*debugDraw, renderer,
+                    2.0f * camera->orthographicSize / static_cast<float>(renderer.GetFrameExtent().height));
+            }
+            const bool closed = renderer.EndView();
+            if (false == accepted || false == closed)
+            {
+                return RenderResult::Failed;
+            }
+            worldSubmitted = true;
         }
-        CameraParams parameters;
-        // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은
-        // 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
-        // 에디터 창 모양을 따라가고, 뷰포트가 타깃 밖으로 나간다.
-        if (false == BuildCamera(*camera, renderer.GetFrameExtent(), parameters)
-            || false == renderer.BeginView(parameters))
+        // 화면 레이어는 월드 위에 그린다(D-237). 렌더러는 대상을 첫 뷰에서만 지운다.
+        bool screenSubmitted = false;
+        if (false == SubmitScreenViews(world, renderer, screenSubmitted))
         {
             return RenderResult::Failed;
         }
-        const bool accepted = PushSprites(world, renderer, false);
-        if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
-        {
-            PushDebugLines2D(*debugDraw, renderer,
-                2.0f * camera->orthographicSize / static_cast<float>(renderer.GetFrameExtent().height));
-        }
-        const bool closed = renderer.EndView();
-        return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
+        return worldSubmitted || screenSubmitted ? RenderResult::Submitted : RenderResult::NothingToSubmit;
     }
 }

@@ -3,6 +3,7 @@
 #include <JBro/AudioTypes/Component/AudioSource.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -31,10 +32,16 @@ namespace JBro::Component
             all = RegisterComponentType<Rigidbody2D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider2D>(ComponentCategory::Physics) && all;
+            // 조인트는 한 오브젝트에 여럿 붙는다(사슬의 양쪽 고리, D-233).
+            all = RegisterComponentType<DistanceJoint2D>(ComponentCategory::Physics) && all;
+            all = RegisterComponentType<HingeJoint2D>(ComponentCategory::Physics) && all;
             // 소스는 한 오브젝트에 여럿 붙는다(발소리와 숨소리). 리스너는 하나다(D-197).
             all = RegisterComponentType<AudioSource>(ComponentCategory::Audio) && all;
             all = RegisterComponentType<AudioListener2D>(
                       ComponentCategory::Audio, ComponentMultiplicity::Single) && all;
+            // 누름 사각형은 하나다 - 둘이면 어느 것이 훅을 부르는지 사용자가 알 수 없다(D-237).
+            all = RegisterComponentType<Button2D>(
+                      ComponentCategory::UI, ComponentMultiplicity::Single) && all;
             return all;
         }();
         return registered;

@@ -141,6 +141,10 @@ namespace JBro::System
         m_buses.Clear();
         m_busConfigs.Clear();
         m_warnedBuses.Clear();
+        ++m_busGeneration;
+        // 목록에 Master 가 없으면 옛 프로젝트가 건 Master 의 음량·이펙트를 남기지 않는다(D-240).
+        m_mixer->SetBusVolume(AudioMasterBus, 1.0f);
+        m_mixer->SetBusEffects(AudioMasterBus, AudioBusEffects{});
         const NameId master = MakeNameId(AudioMasterBusName);
         for (std::uint32_t index = 0; index < buses.size; ++index)
         {
@@ -295,6 +299,26 @@ namespace JBro::System
         return clip;
     }
 
+    AudioBusId AudioSystem::ResolveControlBus(AudioBusName bus) const
+    {
+        if (bus.IsMaster())
+        {
+            return AudioMasterBus;
+        }
+        if (const AudioBusId* found = m_buses.Find(bus.id))
+        {
+            return *found;
+        }
+        if (false == m_warnedBuses.Contains(bus.id))
+        {
+            m_warnedBuses.TryAdd(bus.id, true);
+            const char* text = NameTable::Get().Resolve(bus.id);
+            Log::Write(LogLevel::Warning, "audio", "bus '%s' is not in the project's audio buses - the call does nothing",
+                text[0] != '\0' ? text : "?");
+        }
+        return AudioNoBus;
+    }
+
     AudioBusId AudioSystem::ResolveBus(AudioBusName bus) const
     {
         if (bus.IsMaster())
@@ -399,6 +423,7 @@ namespace JBro::System
         runtime.lastPitch = play.pitch;
         runtime.lastLoop = play.loop;
         runtime.lastBus = source.bus;
+        runtime.busGeneration = m_busGeneration;
         runtime.lastLowPass = play.lowPassHz;
         runtime.lastHighPass = play.highPassHz;
         // 보이스가 모자라 거절되면 끝난 것과 같다 - 매 프레임 다시 시도하지 않는다.
@@ -447,7 +472,8 @@ namespace JBro::System
         if (runtime.voice.IsSet() && false == m_mixer->IsAlive(runtime.voice))
         {
             runtime.voice = {};
-            if (source.state == Component::AudioSourceState::Playing)
+            // 멈춰 둔 보이스도 훔쳐지거나 거둬질 수 있다(D-240) - 그대로 두면 `Paused` 에 영원히 남는다.
+            if (source.state == Component::AudioSourceState::Playing || source.state == Component::AudioSourceState::Paused)
             {
                 source.state = Component::AudioSourceState::Finished;
             }
@@ -507,10 +533,11 @@ namespace JBro::System
             m_mixer->SetLooping(runtime.voice, source.loop);
             runtime.lastLoop = source.loop;
         }
-        if (false == (source.bus == runtime.lastBus))
+        if (false == (source.bus == runtime.lastBus) || runtime.busGeneration != m_busGeneration)
         {
             m_mixer->SetBus(runtime.voice, ResolveBus(source.bus));
             runtime.lastBus = source.bus;
+            runtime.busGeneration = m_busGeneration;
         }
         const float lowPass = Finite(source.lowPass, 0.0f);
         const float highPass = Finite(source.highPass, 0.0f);
@@ -538,6 +565,8 @@ namespace JBro::System
         {
             m_mixer->StopAllWithTag(GameTag);
         }
+        // 다시 켠 첫 프레임에 멈추기 전 자리와의 차이로 도플러가 튀지 않게 한다(D-240).
+        m_listenerPlaced = false;
     }
 
     bool AudioSystem::PlayPreview(AssetHandle clip, bool loop)
@@ -678,7 +707,11 @@ namespace JBro::System
         if (m_initialized && m_mixer->IsAlive(source.runtime.voice))
         {
             m_mixer->Pause(source.runtime.voice);
-            source.state = Component::AudioSourceState::Paused;
+            // 줄여 끄는 중인 보이스나 방금 끝난 한 번짜리는 멈추지 않는다 - 그때는 상태를 바꾸지 않는다.
+            if (m_mixer->IsPaused(source.runtime.voice))
+            {
+                source.state = Component::AudioSourceState::Paused;
+            }
         }
     }
 
@@ -723,39 +756,39 @@ namespace JBro::System
     {
         if (m_initialized)
         {
-            m_mixer->SetBusVolume(ResolveBus(bus), volume);
+            m_mixer->SetBusVolume(ResolveControlBus(bus), volume);
         }
     }
 
     float AudioSystem::GetBusVolume(AudioBusName bus) const
     {
-        return m_initialized ? m_mixer->GetBusVolume(ResolveBus(bus)) : 0.0f;
+        return m_initialized ? m_mixer->GetBusVolume(ResolveControlBus(bus)) : 0.0f;
     }
 
     void AudioSystem::SetBusMuted(AudioBusName bus, bool muted)
     {
         if (m_initialized)
         {
-            m_mixer->SetBusMuted(ResolveBus(bus), muted);
+            m_mixer->SetBusMuted(ResolveControlBus(bus), muted);
         }
     }
 
     bool AudioSystem::IsBusMuted(AudioBusName bus) const
     {
-        return m_initialized && m_mixer->IsBusMuted(ResolveBus(bus));
+        return m_initialized && m_mixer->IsBusMuted(ResolveControlBus(bus));
     }
 
     void AudioSystem::SetBusEffects(AudioBusName bus, const AudioBusEffects& effects)
     {
         if (m_initialized)
         {
-            m_mixer->SetBusEffects(ResolveBus(bus), effects);
+            m_mixer->SetBusEffects(ResolveControlBus(bus), effects);
         }
     }
 
     AudioBusEffects AudioSystem::GetBusEffects(AudioBusName bus) const
     {
-        return m_initialized ? m_mixer->GetBusEffects(ResolveBus(bus)) : AudioBusEffects{};
+        return m_initialized ? m_mixer->GetBusEffects(ResolveControlBus(bus)) : AudioBusEffects{};
     }
 
     void AudioSystem::StopAll()
@@ -767,7 +800,7 @@ namespace JBro::System
     {
         if (m_initialized)
         {
-            m_mixer->SetBusVolume(ResolveBus(bus), volume, seconds);
+            m_mixer->SetBusVolume(ResolveControlBus(bus), volume, seconds);
         }
     }
 

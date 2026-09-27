@@ -76,6 +76,13 @@ namespace JBro::Text
         // 결합 표시를 받침에 붙이는 자리다(GPOS mark-to-base, 확장 조회 포함). 찾으면 받침 원점에서 표시 원점까지의 거리(폰트 단위,
         // y 위쪽)이고 참이다. 폰트에 그 짝의 앵커가 없으면 거짓이다.
         bool GetMarkAttachment(GlyphIndex base, GlyphIndex mark, std::int32_t& dx, std::int32_t& dy) const;
+        // **옛한글 자모를 한 음절로 모은다**(D-238). 한 음절의 자모 글리프(첫소리·가운뎃소리·끝소리 차례)를 폰트 GSUB 의 `hang` 문자 체계
+        // `ljmo`·`vjmo`·`tjmo` 조회로 제자리에서 바꾼다. 조회는 목록 차례로 한 번씩 음절 전체를 돈다(OpenType 의 적용 순서).
+        // 읽는 형식은 단일 치환(1)·연쇄 문맥 형식 3(6)·확장(7)이고, 연쇄 문맥 형식 1·2 와 조회 플래그의 건너뛰기는 읽지 않는다.
+        // 바뀐 가운뎃소리·끝소리는 대개 전진 폭이 0 이라 앞 글자 위에 겹친다. 폰트에 그 기능이 없으면 거짓이고 글리프를 건드리지 않는다.
+        // 받은 음절에는 조회를 다 건다 - 현대 자모만의 음절을 음절 글자로 합칠지는 부르는 쪽(`TextLayout`)이 먼저 가른다.
+        bool ShapeHangulJamo(GlyphIndex* glyphs, std::size_t count) const;
+        bool HasHangulJamoShaping() const;
         GlyphBox GetGlyphBox(GlyphIndex glyph) const;
 
         // em 픽셀 크기 pixelSize 로 그린 글리프의 비트맵 자리를 잰다. 그릴 것이 없으면 크기가 0 이다.
@@ -99,6 +106,9 @@ namespace JBro::Text
         Array<std::byte> m_bytes;
         FontMetrics      m_metrics;
         bool             m_loaded = false;
+        // GSUB 표의 자리(없으면 0)와, 옛한글 자모 기능이 부르는 조회 번호(목록 차례)다. 불러올 때 한 번 모은다.
+        std::size_t           m_gsub = 0;
+        Array<std::uint16_t>  m_jamoLookups;
         alignas(8) unsigned char m_info[InfoStorageSize] = {};
     };
 }

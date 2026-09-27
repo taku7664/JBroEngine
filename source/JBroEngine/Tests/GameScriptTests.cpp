@@ -21,7 +21,9 @@ namespace
     concept HasTriggerHooks = requires
     {
         &T::OnTriggerEnter;
+        &T::OnTriggerStay;
         &T::OnTriggerExit;
+        &T::OnCollisionStay;
     };
 
     static_assert(HasTriggerHooks<JBro::GameScript2D>, "2D scripts receive trigger hooks (D-207)");

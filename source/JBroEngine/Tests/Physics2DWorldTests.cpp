@@ -1,6 +1,7 @@
 ﻿#include <JBro/Physics2D/World.h>
 
 #include <cmath>
+#include <utility>
 #if defined(_MSC_VER)
 #include <crtdbg.h>
 #endif
@@ -1019,6 +1020,502 @@ namespace
             Check(world.GetPosition(box).x < -0.05f, "a new wall overlapping it wakes it and pushes it out");
         }
     }
+
+    // **한 방향 발판(D-233).** 위에서 떨어진 상자는 얹히고, 밑에서 뛰어오른 상자는 뚫고 올라가 위에 얹히며, 옆에서 미끄러져
+    // 들어온 상자는 지나간다. 뒤집은 발판(180°)은 위가 아래라 위에서 떨어진 상자가 지나간다. 흘려보내는 동안에는 닿은 것이
+    // 아니라 시작 이벤트가 없다.
+    void TestOneWayPlatforms()
+    {
+        ShapeDef oneWay;
+        oneWay.oneWay = true;
+        {
+            World world;
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 2 });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 1.5f);
+            Check(Near(world.GetPosition(box).y, 0.75f, 0.02f), "a box dropped from above rests on the platform");
+        }
+        {
+            World world;
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, -1.5f });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            world.SetLinearVelocity(box, { 0, 8 });
+            bool beganWhileBelow = false;
+            for (int i = 0; i < 90; ++i)
+            {
+                world.Step(Frame);
+                if (world.GetPosition(box).y < 0.7f && false == world.GetBeginEvents().IsEmpty())
+                {
+                    beganWhileBelow = true;
+                }
+            }
+            Check(false == beganWhileBelow, "passing up through it is not a contact");
+            Check(Near(world.GetPosition(box).y, 0.75f, 0.02f), "a box jumping from below goes through and lands on top");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 });
+            AddPolygon(world, platform, BoxOutline(1.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -3, 0 });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            world.SetLinearVelocity(box, { 4, 0 });
+            Run(world, 1.5f);
+            Check(world.GetPosition(box).x > 2.5f, "a box sliding in from the side passes through");
+        }
+        {
+            World world;
+            const BodyId platform = AddBody(world, BodyType::Static, { 0, 0 }, 3.14159265f);
+            AddPolygon(world, platform, BoxOutline(3.0f, 0.25f), oneWay);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 2 });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+            Run(world, 1.0f);
+            Check(world.GetPosition(box).y < -1.0f, "an upside-down platform lets a box from above fall through");
+        }
+    }
+
+    // **이어지는 접촉은 Stay 로 온다(D-233).** 시작한 스텝은 시작만, 그 뒤는 스텝마다 이어짐이다. 몸이 잠들면 이어짐이 멈춘다.
+    void TestStayEventsFollowTouchingPairs()
+    {
+        World world;
+        AddGround(world);
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.52f });
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        int begins = 0;
+        int beganAt = -1;
+        int staysBefore = 0;
+        int staysAfter = 0;
+        for (int i = 0; i < 20; ++i)
+        {
+            world.Step(Frame);
+            begins += static_cast<int>(world.GetBeginEvents().Size());
+            if (beganAt < 0 && false == world.GetBeginEvents().IsEmpty())
+            {
+                beganAt = i;
+            }
+            const int stays = static_cast<int>(world.GetStayEvents().Size());
+            if (beganAt < 0 || beganAt == i)
+            {
+                staysBefore += stays;
+            }
+            else
+            {
+                staysAfter += stays;
+            }
+        }
+        Check(begins == 1 && beganAt >= 0 && staysBefore == 0, "no stay comes before or with the step that begins the contact");
+        Check(staysAfter == 19 - beganAt, "every later step reports the pair as staying once");
+        Run(world, 2.0f);
+        Check(false == world.IsAwake(box), "the box sleeps");
+        world.Step(Frame);
+        Check(world.GetStayEvents().IsEmpty(), "and a sleeping pair reports nothing");
+    }
+
+    // **레이어 충돌 표(D-233).** 레이어 1 과 2 를 떼어 두면 둘은 서로 지나가고, 둘 다 여전히 바닥(레이어 0)에는 선다.
+    // 표의 한 행만 채워도 된다 - 두 쪽 비트 쌍 가운데 떼지 않은 것이 있는지를 본다.
+    void TestTheLayerTableSeparatesLayers()
+    {
+        World world;
+        world.Settings().ignoredLayers[1] = 1u << 2;
+        world.Settings().ignoredLayers[2] = 1u << 1;
+        AddGround(world);
+        ShapeDef first;
+        first.layer = 1u << 1;
+        ShapeDef second;
+        second.layer = 1u << 2;
+        const BodyId lower = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(world, lower, BoxOutline(0.5f, 0.5f), first);
+        const BodyId upper = AddBody(world, BodyType::Dynamic, { 0, 3 });
+        AddPolygon(world, upper, BoxOutline(0.5f, 0.5f), second);
+        Run(world, 1.5f);
+        Check(Near(world.GetPosition(lower).y, 0.5f, 0.02f) && Near(world.GetPosition(upper).y, 0.5f, 0.02f),
+            "boxes on separated layers fall into each other and both stand on the ground");
+
+        World same;
+        AddGround(same);
+        const BodyId bottom = AddBody(same, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(same, bottom, BoxOutline(0.5f, 0.5f), first);
+        const BodyId top = AddBody(same, BodyType::Dynamic, { 0, 3 });
+        AddPolygon(same, top, BoxOutline(0.5f, 0.5f), second);
+        same.Settings().ignoredLayers[1] = 1u << 2;
+        Run(same, 1.5f);
+        Check(Near(same.GetPosition(top).y, 0.5f, 0.02f), "one row of the table is enough to separate them");
+    }
+
+    JBro::Physics2D::Circle MakeBall(float radius)
+    {
+        JBro::Physics2D::Circle ball;
+        ball.radius = radius;
+        return ball;
+    }
+
+    float DistanceBetween(Vec2 a, Vec2 b)
+    {
+        const float dx = b.x - a.x;
+        const float dy = b.y - a.y;
+        return std::sqrt(dx * dx + dy * dy);
+    }
+
+    // **거리 조인트(D-233).** 단단하면 월드의 점에서 늘 같은 거리로 흔들리고, 밧줄은 그 거리 안에서는 자유롭게 떨어지다가
+    // 거기서 멈추며, 용수철은 중력에 늘어난 채 선다. 밧줄·용수철로 바꾸면 쌓인 임펄스를 비운다.
+    void TestDistanceJoints()
+    {
+        using JBro::Physics2D::DistanceJointDef;
+        using JBro::Physics2D::JointId;
+        {
+            World world;
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2, 0 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef def;
+            def.bodyA = ball;
+            def.localAnchorB = { 0, 0 };
+            def.length = 2.0f;
+            const JointId joint = world.CreateDistanceJoint(def);
+            Check(world.IsValid(joint) && world.GetJointCount() == 1, "a distance joint to the world is made");
+            float worst = 0.0f;
+            for (int i = 0; i < 120; ++i)
+            {
+                world.Step(Frame);
+                worst = std::fmax(worst, std::fabs(DistanceBetween(world.GetPosition(ball), { 0, 0 }) - 2.0f));
+            }
+            Check(worst < 0.02f, "a rigid distance joint keeps the ball two metres from the pin");
+            Check(world.GetPosition(ball).y < -0.5f, "and the ball swings down");
+        }
+        {
+            World world;
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, -1 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef rope;
+            rope.bodyA = ball;
+            rope.length = 2.0f;
+            rope.maxLengthOnly = true;
+            world.CreateDistanceJoint(rope);
+            Run(world, 0.2f);
+            Check(world.GetPosition(ball).y < -1.1f, "inside its length a rope lets the ball fall freely");
+            Run(world, 1.5f);
+            const float hanging = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            Check(hanging > 1.95f && hanging < 2.02f, "and it stops the ball at its length");
+        }
+        {
+            // 팽팽한 밧줄 끝의 공을 핀 쪽으로 던지면 밧줄은 막지 않는다 - 당기기만 하고 밀지 않는다.
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 2, 0 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef rope;
+            rope.bodyA = ball;
+            rope.length = 2.0f;
+            rope.maxLengthOnly = true;
+            world.CreateDistanceJoint(rope);
+            world.SetLinearVelocity(ball, { -10, 0 });
+            Run(world, 0.15f);
+            Check(DistanceBetween(world.GetPosition(ball), { 0, 0 }) < 1.0f, "a rope never pushes a ball thrown toward its pin");
+        }
+        {
+            World world;
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, -1 });
+            world.CreateCircleShape(ball, MakeBall(0.1f), {});
+            DistanceJointDef spring;
+            spring.bodyA = ball;
+            spring.length = 1.0f;
+            spring.hertz = 1.0f;
+            spring.dampingRatio = 0.5f;
+            world.CreateDistanceJoint(spring);
+            Run(world, 4.0f);
+            // 고유 진동수 1 Hz 인 질량-용수철은 g / ω² ≈ 0.248 m 늘어나 선다.
+            const float stretched = DistanceBetween(world.GetPosition(ball), { 0, 0 });
+            Check(stretched > 1.2f && stretched < 1.3f, "a spring stretches under gravity by about g over omega squared");
+        }
+    }
+
+    // **경첩(D-233).** 월드에 건 막대는 핀 둘레로만 돌고, 한계를 주면 그 각을 넘지 않으며, 모터는 목표 속도로 돌린다.
+    // 이은 두 몸은 collideConnected 가 거짓이면 겹쳐도 밀지 않고, 참이면 떨어진다. 몸을 지우면 조인트도 사라진다.
+    void TestHingeJoints()
+    {
+        using JBro::Physics2D::HingeJointDef;
+        using JBro::Physics2D::JointId;
+        const float degree = 3.14159265f / 180.0f;
+        {
+            World world;
+            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1, 0 });
+            AddPolygon(world, rod, BoxOutline(1.0f, 0.1f));
+            HingeJointDef def;
+            def.bodyA = rod;
+            def.localAnchorA = { -1, 0 };
+            def.localAnchorB = { 0, 0 };
+            def.enableLimit = true;
+            def.lowerAngle = -30.0f * degree;
+            def.upperAngle = 30.0f * degree;
+            const JointId hinge = world.CreateHingeJoint(def);
+            float highest = 0.0f;
+            float pinDrift = 0.0f;
+            for (int i = 0; i < 120; ++i)
+            {
+                world.Step(Frame);
+                highest = std::fmax(highest, world.GetHingeAngle(hinge));
+                const Vec2 end = world.GetPosition(rod);
+                const float angle = world.GetAngle(rod);
+                const Vec2 pin{ end.x - std::cos(angle), end.y - std::sin(angle) };
+                pinDrift = std::fmax(pinDrift, DistanceBetween(pin, { 0, 0 }));
+            }
+            Check(pinDrift < 0.02f, "a hinged rod keeps its end on the pin");
+            // A 가 막대이고 B 가 월드라 막대가 아래로 돌면 상대 각(B - A)이 커진다 - 위 한계가 막는다.
+            Check(highest < 31.5f * degree && highest > 28.0f * degree, "and the upper limit stops it at thirty degrees");
+            // 한계를 끄면 막대가 아래로 늘어진다. 같은 조인트를 제자리에서 바꾼다.
+            def.enableLimit = false;
+            Check(world.SetHingeJoint(hinge, def), "the hinge changes in place");
+            Run(world, 3.0f);
+            Check(world.GetHingeAngle(hinge) > 60.0f * degree, "without the limit the rod hangs down");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId wheel = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            world.CreateCircleShape(wheel, MakeBall(0.5f), {});
+            HingeJointDef def;
+            def.bodyA = wheel;
+            def.enableMotor = true;
+            def.motorSpeed = 2.0f;
+            def.maxMotorTorque = 100.0f;
+            const JointId motor = world.CreateHingeJoint(def);
+            Run(world, 0.5f);
+            // A 가 바퀴이고 B 가 월드라 상대 각속도(B - A)가 목표다: 바퀴는 거꾸로 돈다.
+            Check(Near(world.GetAngularVelocity(wheel), -2.0f, 0.01f), "a motor spins the wheel at its speed");
+            def.maxMotorTorque = 0.0f;
+            def.motorSpeed = -5.0f;
+            world.SetHingeJoint(motor, def);
+            Run(world, 0.5f);
+            Check(Near(world.GetAngularVelocity(wheel), -2.0f, 0.05f), "with no torque a new target is not followed and the wheel coasts");
+        }
+        {
+            // 핀에서 0.5 m 떨어져 시작하고 한계 밖(-0.5 rad, 한계 ±0.1)에 놓인 막대는 위치 보정이 핀으로 끌어오고 한계 안으로 돌린다.
+            // 속도만 맞추면 벌어진 틈과 넘은 각은 그대로 남는다.
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId rod = AddBody(world, BodyType::Dynamic, { 1, 0 });
+            AddPolygon(world, rod, BoxOutline(1.0f, 0.1f));
+            HingeJointDef def;
+            def.bodyA = rod;
+            def.localAnchorA = { -1, 0 };
+            def.localAnchorB = { -0.5f, 0 };
+            def.referenceAngle = 0.5f;
+            def.enableLimit = true;
+            def.lowerAngle = -0.1f;
+            def.upperAngle = 0.1f;
+            const JointId hinge = world.CreateHingeJoint(def);
+            Run(world, 1.0f);
+            const Vec2 end = world.GetPosition(rod);
+            const float angle = world.GetAngle(rod);
+            Check(DistanceBetween({ end.x - std::cos(angle), end.y - std::sin(angle) }, { -0.5f, 0 }) < 0.02f,
+                "a hinge that starts apart pulls its pins together");
+            Check(world.GetHingeAngle(hinge) > -0.12f, "and one that starts past its limit turns back inside it");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            const BodyId first = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            AddPolygon(world, first, BoxOutline(0.5f, 0.5f));
+            const BodyId second = AddBody(world, BodyType::Dynamic, { 0.5f, 0 });
+            AddPolygon(world, second, BoxOutline(0.5f, 0.5f));
+            HingeJointDef def;
+            def.bodyA = first;
+            def.bodyB = second;
+            def.localAnchorA = { 0.25f, 0 };
+            def.localAnchorB = { -0.25f, 0 };
+            const JointId hinge = world.CreateHingeJoint(def);
+            Run(world, 0.5f);
+            Check(Near(world.GetPosition(second).x - world.GetPosition(first).x, 0.5f, 0.01f),
+                "hinged boxes that overlap do not push each other apart");
+            def.collideConnected = true;
+            world.SetHingeJoint(hinge, def);
+            Run(world, 0.5f);
+            Check(world.GetPosition(second).x - world.GetPosition(first).x > 0.52f
+                    || std::fabs(world.GetAngle(second) - world.GetAngle(first)) > 0.2f,
+                "with collideConnected they do");
+            world.DestroyBody(first);
+            Check(false == world.IsValid(hinge) && world.GetJointCount() == 0, "destroying a body removes its joints");
+            HingeJointDef stray = def;
+            Check(false == world.IsValid(world.CreateHingeJoint(stray)), "a joint to a destroyed body is not made");
+        }
+    }
+
+    // **조인트로 이은 몸은 한 섬이다(D-233).** 잠든 상자에 매달린 공을 깨우면 상자도 깬다.
+    void TestJointedBodiesSleepTogether()
+    {
+        using JBro::Physics2D::DistanceJointDef;
+        World world;
+        AddGround(world);
+        const BodyId box = AddBody(world, BodyType::Dynamic, { 0, 0.5f });
+        AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+        const BodyId ball = AddBody(world, BodyType::Dynamic, { 3, 0.25f });
+        world.CreateCircleShape(ball, MakeBall(0.25f), {});
+        DistanceJointDef def;
+        def.bodyA = box;
+        def.bodyB = ball;
+        def.localAnchorB = { 0, 0 };
+        def.length = 3.0f;
+        world.CreateDistanceJoint(def);
+        Run(world, 2.0f);
+        Check(false == world.IsAwake(box) && false == world.IsAwake(ball), "a box and the ball tied to it sleep together");
+        const Vec2 boxBefore = world.GetPosition(box);
+        world.ApplyLinearImpulseToCenter(ball, { 6, 0 });
+        world.Step(Frame);
+        Check(world.IsAwake(box), "waking the ball wakes the box it is tied to");
+        Check(world.GetPosition(box).x > boxBefore.x, "and the pull moves the box in the same step");
+
+        // 무거워서 거의 서 있는 몸도 이어진 몸이 도는 동안은 잠들지 않는다 - 섬의 가장 짧은 시간이 기준이다.
+        World orbit;
+        orbit.Settings().gravity = { 0, 0 };
+        const BodyId hub = AddBody(orbit, BodyType::Dynamic, { 0, 0 });
+        orbit.CreateCircleShape(hub, MakeBall(0.5f), {});
+        JBro::Physics2D::BodyDef heavy;
+        heavy.mass = 1000.0f;
+        orbit.SetBodyProperties(hub, heavy);
+        const BodyId moon = AddBody(orbit, BodyType::Dynamic, { 2, 0 });
+        orbit.CreateCircleShape(moon, MakeBall(0.1f), {});
+        DistanceJointDef tether;
+        tether.bodyA = hub;
+        tether.bodyB = moon;
+        tether.length = 2.0f;
+        orbit.CreateDistanceJoint(tether);
+        orbit.SetLinearVelocity(moon, { 0, 2 });
+        int hubAsleep = 0;
+        for (int i = 0; i < 120; ++i)
+        {
+            orbit.Step(Frame);
+            hubAsleep += orbit.IsAwake(hub) ? 0 : 1;
+        }
+        Check(hubAsleep == 0, "a heavy hub never sleeps while the moon tied to it circles");
+    }
+
+    // **이어지는 판정(CCD, D-234).** 서브스텝마다 0.8 m 를 가는 반지름 5 cm 공과 상자는 두께 10 cm 벽도, 체인 선분도 뚫지 않는다.
+    // 바닥에 얹혀 빠르게 미끄러지는 상자는 바닥(출발부터 닿아 있다) 때문에 서지 않고, 한 방향 발판은 밑에서 오면 지나간다.
+    void TestFastBodiesDoNotTunnel()
+    {
+        using JBro::Physics2D::StepStats;
+        const auto fire = [](World& world, bool round) {
+            world.Settings().gravity = { 0, 0 };
+            const BodyId bullet = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            if (round)
+            {
+                world.CreateCircleShape(bullet, MakeBall(0.05f), {});
+            }
+            else
+            {
+                AddPolygon(world, bullet, BoxOutline(0.05f, 0.05f));
+            }
+            world.SetLinearVelocity(bullet, { 200, 0 });
+            std::uint32_t hits = 0;
+            for (int i = 0; i < 30; ++i)
+            {
+                world.Step(Frame);
+                hits += world.GetLastStepStats().continuousHits;
+            }
+            return std::make_pair(bullet, hits);
+        };
+        {
+            World world;
+            const BodyId wall = AddBody(world, BodyType::Static, { 5, 0 });
+            AddPolygon(world, wall, BoxOutline(0.05f, 3.0f));
+            const auto [ball, hits] = fire(world, true);
+            Check(world.GetPosition(ball).x < 5.0f && hits > 0, "a fast ball stops at a thin wall instead of passing it");
+        }
+        {
+            World world;
+            const BodyId wall = AddBody(world, BodyType::Static, { 5, 0 });
+            AddPolygon(world, wall, BoxOutline(0.05f, 3.0f));
+            const auto [box, hits] = fire(world, false);
+            Check(world.GetPosition(box).x < 5.0f && hits > 0, "and so does a fast box");
+        }
+        {
+            World world;
+            const BodyId line = AddBody(world, BodyType::Static, { 5, 0 });
+            const Array<Vec2> points{ { 0, -3 }, { 0, 3 } };
+            world.CreateChainShape(line, points.View(), false, {});
+            const auto [ball, hits] = fire(world, true);
+            Check(world.GetPosition(ball).x < 5.0f && hits > 0, "a chain segment stops it too");
+        }
+        {
+            World world;
+            ShapeDef slippery;
+            slippery.friction = 0.0f;
+            AddGround(world, slippery);
+            const BodyId box = AddBody(world, BodyType::Dynamic, { -15, 0.5f });
+            AddPolygon(world, box, BoxOutline(0.5f, 0.5f), slippery);
+            Run(world, 0.5f);
+            // 서브스텝마다 0.375 m - 반폭 0.5 의 절반을 넘으므로 이어지는 판정이 돈다.
+            world.SetLinearVelocity(box, { 90, 0 });
+            Run(world, 0.25f);
+            Check(world.GetPosition(box).x > 5.0f, "a box sliding fast on the ground is not held back by the ground it touches");
+        }
+        {
+            World world;
+            world.Settings().gravity = { 0, 0 };
+            ShapeDef oneWay;
+            oneWay.oneWay = true;
+            const BodyId ledge = AddBody(world, BodyType::Static, { 0, 5 });
+            AddPolygon(world, ledge, BoxOutline(3.0f, 0.05f), oneWay);
+            const BodyId ball = AddBody(world, BodyType::Dynamic, { 0, 0 });
+            world.CreateCircleShape(ball, MakeBall(0.05f), {});
+            world.SetLinearVelocity(ball, { 0, 200 });
+            Run(world, 0.1f);
+            Check(world.GetPosition(ball).y > 6.0f, "a fast ball from below goes through a one-way ledge");
+        }
+    }
+
+    // **큰 장면의 접촉은 색으로 나눠 푼다(D-234).** 상자 600 개(기둥 24 개 × 25 층)는 풀 접촉이 512 를 넘어 색칠되고, 워커 셋이
+    // 색 묶음을 나눠 풀어도 워커 없이 푼 것과 비트까지 같다. 더미는 무너지지 않는다.
+    void TestColoredContactsSolveTheSameOnAnyWorkerCount()
+    {
+        const auto build = [](World& world, Array<BodyId>& boxes) {
+            ShapeDef wide;
+            AddGround(world, wide);
+            for (int column = 0; column < 24; ++column)
+            {
+                for (int row = 0; row < 25; ++row)
+                {
+                    const BodyId box = AddBody(world, BodyType::Dynamic,
+                        { -18.0f + 1.5f * static_cast<float>(column), 0.5f + static_cast<float>(row) });
+                    AddPolygon(world, box, BoxOutline(0.5f, 0.5f));
+                    boxes.Add(box);
+                }
+            }
+        };
+        World single;
+        Array<BodyId> singleBoxes;
+        build(single, singleBoxes);
+        World parallel;
+        parallel.SetWorkerCount(3);
+        Array<BodyId> parallelBoxes;
+        build(parallel, parallelBoxes);
+        std::uint32_t parallelColors = 0;
+        for (int i = 0; i < 30; ++i)
+        {
+            single.Step(Frame);
+            parallel.Step(Frame);
+            parallelColors += parallel.GetLastStepStats().parallelColors;
+        }
+        Check(single.GetLastStepStats().parallelColors == 0, "without workers every color is solved on the main thread");
+        if (parallel.GetWorkerCount() > 0)
+        {
+            Check(parallelColors > 0, "with workers the big colors are split");
+        }
+        bool same = true;
+        float lowest = 1.0e9f;
+        for (std::size_t i = 0; i < singleBoxes.Size(); ++i)
+        {
+            const Vec2 a = single.GetPosition(singleBoxes[i]);
+            const Vec2 b = parallel.GetPosition(parallelBoxes[i]);
+            same = same && a.x == b.x && a.y == b.y && single.GetAngle(singleBoxes[i]) == parallel.GetAngle(parallelBoxes[i]);
+            lowest = std::fmin(lowest, a.y);
+        }
+        Check(same, "the parallel solve matches the single-threaded one bit for bit");
+        Check(lowest > 0.45f && Near(single.GetPosition(singleBoxes[24]).y, 24.5f, 0.1f), "and the columns stand");
+    }
 }
 
 int RunPhysics2DWorldTests()
@@ -1051,6 +1548,14 @@ int RunPhysics2DWorldTests()
     TestBodiesFallAsleepAndWake();
     TestAStackSleeps();
     TestWhatWakesASleepingBody();
+    TestOneWayPlatforms();
+    TestTheLayerTableSeparatesLayers();
+    TestDistanceJoints();
+    TestHingeJoints();
+    TestJointedBodiesSleepTogether();
+    TestFastBodiesDoNotTunnel();
+    TestColoredContactsSolveTheSameOnAnyWorkerCount();
+    TestStayEventsFollowTouchingPairs();
     std::cout << "Physics2D world tests passed.\n";
     return 0;
 }

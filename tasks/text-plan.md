@@ -605,7 +605,14 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
   - ~~결합 문자(U+0301 등)의 위치 잡기(GPOS mark)~~ → 완료 2026-09-26 · `3f92027` · `JBroText/FontFace`(`GetMarkAttachment`)·`TextLayout`(`ItemKind::Mark`).
     앵커가 없으면 받침의 전진 폭 끝이다. 표시 위의 표시(mark-to-mark, 형식 6)는 읽지 않아 같은 받침의 두 표시는 한 앵커에 겹친다.
   - ~~탭 멈춤 자리, 줄 머리·꼬리 금칙(닫는 괄호로 줄을 시작하지 않기 등)~~ → 완료 2026-09-26 · `ebe1de9` · `JBroText/TextLayout`(`IsNoLineStart`·`IsNoLineEnd`, `tabSize`)
-  - 옛한글 자모 조합. GSUB 가 있어야 한다(합자·아랍 문자와 같이). 필요해지면 D-200 (2) 대로 커널 안을 FreeType + HarfBuzz 로 바꾼다.
+  - ~~옛한글 자모 조합. GSUB 가 있어야 한다(합자·아랍 문자와 같이). 필요해지면 D-200 (2) 대로 커널 안을 FreeType + HarfBuzz 로 바꾼다.~~
+    → 완료 2026-09-27 · D-238 · `JBroText/FontFace`(`GsubReader`·`ShapeHangulJamo`)·`TextLayout`(옛한글 음절). HarfBuzz 대신 GPOS 처럼 커널이 GSUB 의
+    `hang` 문자 체계 `ljmo`·`vjmo`·`tjmo` 를 직접 읽는다(단일 치환·연쇄 문맥 형식 3·확장). 음절의 첫 글리프 뒤는 결합 표시 길로 붙어 자모 사이에서
+    줄이 나뉘지 않는다. 받침 없는 현대 음절 + 옛 끝소리는 자모로 풀어 모은다. 기대값은 맑은 고딕을 DirectWrite 로 모양 잡아 뽑았다
+    (`Tests/Data/Fonts/README.md`). `[열림]` 연쇄 문맥 형식 1·2, 조회 플래그의 건너뛰기(표시 무시 등), `ccmp` 의 분해·합자(형식 2·4), 다른 옛한글 폰트
+    (함초롬·Source Han 등)의 실측 - 맑은 고딕은 형식 3 만 쓴다. 합자·아랍 문자 같은 일반 GSUB 는 여전히 없다.
+    뮤테이션 11 개 가운데 10 개가 죽는다(`tools/mutations-gsub.txt`). 산 하나(연쇄 문맥의 치환 자리를 늘 0 으로)는 이 폰트에서 같은 뜻이다 - 맑은 고딕의
+    연쇄 문맥은 입력이 모두 한 글리프다. 처음에는 앞 문맥 검사 빼기와 "뒤 자모를 보통 글자로" 도 살아, 첫소리 없는 가운뎃소리(`A` + `ᆞ`)와 자간 검사를 더해 죽였다.
   - (글리프를 반만 자르는 `Clip` 은 2 단계에서 섰다.)
 - `[열림]` 2 단계에서 하지 않은 것:
   - ~~**프로젝트 기본 폰트와 폴백 목록**(D-200 (6)). 지금은 `fontId` 가 비면 그리지 않고 경고한다.~~ → 완료 2026-09-26 · `ef6615a` ·

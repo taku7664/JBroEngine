@@ -386,6 +386,44 @@ Tier E  JBroFramework2DSystem  Physics2DSystem = 어댑터: 컴포넌트 → 커
      - 알아낸 것: 따뜻한 시작 병합에서 짝을 찾은 뒤 이전 목록을 넘기지 않아, 새로 넣은 "사라진 접촉은 깨운다" 가 매 스텝 모두를 깨웠다(잠이 오지 않았다).
      - 남긴 것 `[열림]`: 체인은 양면이라 닫힌 체인 안쪽에서도 막는다(Box2D 는 한면이다). 체인끼리의 충돌은 없다. 잠든 섬이 크면 한 몸만 깨워도 다음
        스텝에 섬 전체가 깬다.
+   - ~~**9-3. Stay 훅·한 방향 발판·레이어 이름과 충돌 표·거리와 경첩 조인트(D-233)**~~ → 2026-09-27 · `9e7bbba`·`c14ebfe`·`ec97c00`·`ab61b29`·`7d538ff`·`d4997be` ·
+     `JBroPhysics2D/Source/Joints.cpp`, `World.cpp`(`GetStayEvents`·`PassesOneWay`·`LayersMeet`·조인트 거르기와 섬), `Physics2DSystem.cpp`(3.5 조인트·
+     Stay 발송·표 복사), `Framework2D/Component/Physics2D.h`(`PhysicsLayerMask`·`DistanceJoint2D`·`HingeJoint2D`), `Runtime/GameObjectHandleReflection.h`,
+     `Canvas/Source/CanvasFile.cpp`(두 패스), `Editor/Source/Command/ObjectTreeSnapshot.cpp`(옛 번호로 되살리기·`RetargetReferences`), `Host/ProjectFile.cpp`,
+     `Editor/Source/Panel/InspectorPanel.cpp`·`ProjectSettingsPanel.cpp`·`CanvasViewPanel.cpp`(`DrawJoints`), `Editor/Source/Widget/Fields.cpp`(`LayerMaskField`·`ObjectField`).
+     - 테스트: `Physics2DWorldTests`(`TestOneWayPlatforms` - 위에서 얹힘·밑에서 뚫고 올라 얹힘·옆에서 지나감·뒤집은 발판, `TestStayEventsFollowTouchingPairs`,
+       `TestTheLayerTableSeparatesLayers`, `TestDistanceJoints` - 단단함·밧줄·용수철(g/ω² 만큼 늘어남), `TestHingeJoints` - 핀·한계·제자리 바꾸기·모터·
+       collideConnected·몸 지우기, `TestJointedBodiesSleepTogether`), `Physics2DSystemTests`(`TestStayHooksComeEveryStepWhileTouching`,
+       `TestAOneWayColliderLetsThingsUpThrough` - 켜면 같은 도형이 흘려보냄, `TestJointComponents` - 크기 2 배·기울어 시작한 막대의 비대칭 한계와
+       핀 적기·모터 부호·자동 거리·제자리 거리 바꾸기·밧줄·끄고 켜기·상대가 사라짐, `TestTheLayerTableReachesTheKernel`,
+       `TestAnObjectReferenceSurvivesTheCanvasFile`), `EditorObjectCommandTests`(`TestObjectReferencesFollowDeleteAndPaste`),
+       `ProjectFileTests`(`TestThePhysicsLayerSettings`), `GameScriptTests`(Stay 훅이 있다), `BuiltinComponentPropertyTests`(필드 수),
+       `EditorWidgetTests`(`TestTheLayerMaskFieldTogglesNamedBits`·`TestTheObjectFieldPicksByName`).
+     - 뮤테이션(`tools/mutations-physics12.txt`): 첫 판 52 개 가운데 진짜로 살아남은 것이 일곱이었다 - 조인트 섬(기존 테스트에서는 풀기 전 깨우기가 대신 깨웠다), 풀기 전 깨우기(섬이 스텝 끝에 깨워 가렸다), 미는 밧줄, 토크 없는 모터(목표가 그대로라 차이가 없었다), 한계와 핀의 위치 보정(속도 보정만으로 오차 안에 들었다), 위 한계의 부호(아래 한계만 쟀다). 각각 무거운 허브의 공전·같은 스텝의 끌림·핀 쪽으로 던진 공·목표 바꾸기·떨어져 시작한 핀과 한계 밖에서 시작한 막대·모터로 들어 올리기로 잡았다. 그 밖에 다섯은 뮤테이션 워크트리에 번역 표가 없어(에디터 호스트를 빌드하지 않았다) 앞선 에디터 테스트가 번역 비교로 죽은 가짜 잡힘이었고, 하나는 멈출 자리를 잘못 줬다 - 다시 돌려 모두 잡혔다. 최종 52/52.
+     - 알아낸 것: 경첩을 "이 오브젝트(A) 대 상대(B)" 로 두면 커널의 각(B - A)이 사용자가 보는 각과 부호가 반대다. 대칭 한계(±30°)로 재면 뒤집힌
+       부호가 드러나지 않아 비대칭 한계와 기울어 시작한 막대로 쟀다.
+     - 실제 에디터 확인(2026-09-27, `JBroEditorHost` 를 확인용 프로젝트 `F:/AI/wt/physics-probe` 로 띄우고 PostMessage·PrintWindow 로 조작): 캔버스 뷰에
+       거리 조인트의 선과 경첩의 핀이 그려진다. 인스펙터의 `layer` 칸이 프로젝트 레이어 이름(Default·Player·Enemy·Platform)을 펴고, Player 를 켜면
+       "Default, Player" 가 되며 팝업은 열린 채다. `mask` 는 "모두", `connectedObject` 는 "Hook" 으로 보인다. 프로젝트 설정의 물리 절에 레이어 충돌
+       삼각형이 서고 Player-Enemy 칸이 꺼져 있다. 재생하면 밧줄 무게가 걸리고 경첩 막대가 -30° 에서 서며, **오목 폴리곤**: 정적 U 컵의 두 기둥에
+       뚜껑이 얹히고 조약돌이 홈 바닥에 서고, 동적 작은 U 가 막대 위에 안정되게 선다. L 에 떨어뜨린 공은 모서리에서 튕겨 L 바닥을 지나 굴러 바닥
+       끝(x = 15)에서 떨어졌다 - 헤드리스로 같은 배치를 돌려 뚫림이 아니라 굴러 떨어진 것임을 확인했다.
+     - 남긴 것 `[열림]`: 레이어 충돌 삼각형에 열 머리글이 없어 칸이 어느 쌍인지는 툴팁으로만 안다. (확인 중 에디터가 한 번 꺼진 것은
+       같은 때 사용자가 카메라를 더하고 픽셀 퍼펙트를 켜다 난 것으로, 물리와 무관하다.) 목록·구조체 안의
+       오브젝트 참조는 붙여넣을 때 옮기지 않는다(맨 위 필드만). 한 방향 발판은 한 발판 안에서 조각을 건너갈 때 새 조각을 다시 잰다. 스크립트가
+       레이어를 이름으로 찾는 API(`LayerMask("Enemy")`)는 없다. 조인트는 끊어짐(break force)과 반작용 힘 읽기가 없다.
+   - ~~**9-4. CCD·솔버 병렬·질의 경계 거르기(D-234)**~~ → 2026-09-27 · `099af29`·`34fbc1b`·`74547b8`·`204594c`·`85298f2` ·
+     `JBroPhysics2D/Source/World.cpp`(`ClampToFirstHit`·`coreExtent`·`ColorContacts`·`ForEachColor`·`PushVelocity`/`PushPosition`),
+     `Physics2DSystem.cpp`(`ForEachQueryShape` 의 영역과 경계 원, `SweptArea`).
+     - 테스트: `Physics2DWorldTests`(`TestFastBodiesDoNotTunnel` - 서브스텝마다 0.8 m 가는 5 cm 공·상자가 10 cm 벽과 체인에서 섬, 바닥을 60 m/s 로
+       미끄러지는 상자는 서지 않음, 한 방향 발판은 밑에서 지나감, `TestColoredContactsSolveTheSameOnAnyWorkerCount` - 상자 600 개가 워커 0 과 3 에서
+       비트까지 같음), `Physics2DSystemTests`(`TestQueriesSkipFarColliders` - 격자 100 개에서 짧은 반직선·작은 원·먼 질의가 들여다본 수, 원의 가장자리와
+       늘린 상자의 먼 끝).
+     - 실측(스크래치 `/O2`, 16 스레드, 다른 워크트리가 빌드하던 중이라 잡음이 크다): 스텝 시간 상자 200 1.29→0.95ms, 600 3.69→1.61~2.97ms,
+       2000 13.1→6.5~6.8ms(워커 2~3), 3000 21.3→12.5ms. 좁은 판정만 나누던 D-223 의 20% 에서 약 2 배가 되었다.
+     - 뮤테이션(`tools/mutations-physics13.txt`): 첫 판 17 개 가운데 넷이 살아남았다. 바닥을 미끄러지는 상자 검사가 60 m/s 라 서브스텝 이동(0.25 m)이 문턱(반폭의 절반, 0.25 m)과 같아 이어지는 판정이 아예 돌지 않았다 - 90 m/s 로 잡았다. 원 스윕 영역의 반지름은 선 옆의 콜라이더를 미는 검사가 없어 더해 잡았다. 남은 둘은 잡지 않았다: 닿는 자리에서 LinearSlop 앞에 세우기를 빼는 것(정확히 닿는 자리에 서도 다음 서브스텝의 접촉이 같은 일을 해 드러나는 차이가 없다), 동적 몸을 대상에서 빼는 것(의도한 제외이고 검사가 없다 - 아래 `[열림]`). 최종 15/17.
+     - 남긴 것 `[열림]`: CCD 는 동적 몸끼리와 도는 몸의 모서리를 보지 않는다. 색칠은 서브스텝마다 다시 한다(접촉 수에 비례). 조인트 풀이는 병렬이
+       아니다. 질의는 여전히 콜라이더를 모두 훑는다(경계만 싸게 본다) - 공간 나눔(브로드페이즈 재사용)은 뒤의 일이다.
 
 ## 5. 결정 (2026-09-25 확인, D-199)
 

@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Framework2D/System/IPhysics2DSystem.h>
+#include <JBro/Framework2D/System/IScreen2DSystem.h>
 #include <JBro/Runtime/ITextSystem.h>
 
 #include <cstdint>
@@ -12,7 +13,8 @@ namespace JBro
     // 3: 물리 질의가 늘고(`RaycastAll`·`OverlapPoint`·`OverlapCircle`·`CircleCast`·`BoxCast`, 레이어 마스크) 반직선 결과가
     //    `RaycastHit2D` 가 되었다 - `IPhysics2DSystem` 의 가상 함수 표가 바뀌었다(physics-plan §4 의 6).
     // 4: 텍스트 슬롯이 차원 무관 `ITextSystem`(TextId 로 받는다)이 되었다 - 가상 함수 표가 바뀌었다(D-224).
-    inline constexpr std::uint32_t Framework2DSystemContextAbiVersion = 4;
+    // 5: 화면 역투영과 버튼 상태의 슬롯이 붙었다(D-237).
+    inline constexpr std::uint32_t Framework2DSystemContextAbiVersion = 5;
 
     // 차원별 시스템 인터페이스 묶음. 공통 SystemContext 는 Framework 타입을 알지 않으므로
     // 이 블록이 D-37 확장 Context 로 전달된다. 사용자에게 공개하지 않기 위해 Internal 경계에 둔다.
@@ -22,6 +24,7 @@ namespace JBro
         std::uint32_t AbiVersion = Framework2DSystemContextAbiVersion;
         System::IPhysics2DSystem* Physics2D = nullptr;
         System::ITextSystem*      Text2D = nullptr;
+        System::IScreen2DSystem*  Screen2D = nullptr;
     };
 
     static_assert(std::is_standard_layout_v<Framework2DSystemContext>);

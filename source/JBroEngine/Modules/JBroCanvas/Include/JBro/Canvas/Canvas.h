@@ -38,6 +38,9 @@ namespace JBro
 
         // 오브젝트
         GameObject* CreateObject(const char* name = nullptr);
+        // 되살리기용이다(D-233): 지운 오브젝트를 되돌릴 때 옛 오브젝트 번호를 다시 쓴다 - 그 오브젝트를 가리키던 참조 필드가
+        // 그대로 이어진다. 그 번호가 살아 있으면(다른 오브젝트가 쓴다) 새 번호를 받는다.
+        GameObject* CreateObject(const char* name, InstanceId preferredId);
         bool        DestroyObject(GameObject* object);
         std::size_t GetObjectCount() const;
 

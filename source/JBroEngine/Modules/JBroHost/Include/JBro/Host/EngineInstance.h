@@ -80,7 +80,8 @@ namespace JBro
         // 참이면 플랫폼의 출력 장치를 연다. **게임 호스트와 에디터만 참이다** - 테스트는 장치 없이 믹서만 세운다.
         // 장치를 열지 못해도(스피커 없음) 엔진은 소리 없이 선다.
         bool audioDeviceEnabled = false;
-        // 동시에 울리는 보이스 수다(D-197, 기존 엔진과 같은 64). 다 차면 우선순위가 낮은 것부터 훔친다.
+        // 동시에 실제로 섞는 보이스 수다(D-197, 기존 엔진과 같은 64). 살아 있을 수 있는 소리는 그 네 배이고, 넘친 루프는
+        // 가상 보이스가 되어 섞는 비용 없이 재생 위치만 센다(D-235). 섞는 수가 차면 우선순위가 낮은 것부터 훔친다.
         std::uint32_t audioMaxVoices = 64;
         // 태스크 관리자의 설정이다(D-209). 워커 수가 0 이면 코어 수에서 정한다.
         TaskManagerDesc tasks;
@@ -294,6 +295,9 @@ namespace JBro
         // 멈춘다 - 멈춘 뒤에는 오디오 스레드가 믹서를 부르지 않는다.
         OwnerPtr<IAudioOutput> m_audioOutput;
         OwnerPtr<AudioMixer> m_audioMixer;
+        // 장치를 원하는데 없을 때(열지 못함·사라져 다시 여는 중) 믹서를 소리 없이 당기는 칸이다(D-240). 믹서의 시계가 멈추면
+        // 끝난 한 번짜리가 거둬지지 않고 쿨다운이 풀리지 않는다.
+        Array<float> m_audioSilentBuffer;
         OwnerPtr<System::AudioSystem> m_audio;
         // 태스크 관리자(D-209). 프로세스 수명이고, 내릴 때는 프로젝트보다 먼저 내린다 - 남은 콜백이 프로젝트의 것을
         // 만질 수 있다.

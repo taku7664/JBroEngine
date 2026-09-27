@@ -1,4 +1,6 @@
 ﻿#include <JBro/Editor/Command/LayerCommands.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Runtime/GameObject.h>
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Runtime/GameObject.h>
@@ -110,6 +112,8 @@ namespace JBro
         }
         m_name = found->GetName();
         m_visible = found->IsVisible();
+        m_space = found->GetSpace();
+        m_scaleMode = found->GetScaleMode();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
         canvas.ForEachObject([this, layer](GameObject& object)
         {
@@ -145,6 +149,8 @@ namespace JBro
         // 오브젝트)은 같고, 번호를 들고 있던 오브젝트는 여기서 다시 잇는다.
         Layer& restored = m_canvas->CreateLayer(m_name.c_str());
         restored.SetVisible(m_visible);
+        restored.SetSpace(m_space);
+        restored.SetScaleMode(m_scaleMode);
         m_layerId = restored.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
@@ -281,6 +287,86 @@ namespace JBro
     }
 
     // ── SetLayerVisibleCommand ───────────────────────────────────────────
+
+    SetLayerSpaceCommand::SetLayerSpaceCommand(Canvas& canvas, EditorObjectRegistry& registry, LayerId layer, LayerSpace space,
+        ScreenScaleMode scaleMode, const Array<RootMove>& moves)
+        : m_canvas(&canvas)
+        , m_registry(&registry)
+        , m_layerId(layer)
+        , m_spaceAfter(space)
+        , m_modeAfter(scaleMode)
+        , m_after(moves)
+    {
+        const Layer* found = canvas.FindLayer(layer);
+        if (found == nullptr)
+        {
+            return;
+        }
+        m_spaceBefore = found->GetSpace();
+        m_modeBefore = found->GetScaleMode();
+        // 옮길 루트의 옛 자리를 먼저 뜬다. 하나라도 못 뜨면 실행하지 않는다.
+        for (const RootMove& move : moves)
+        {
+            GameObject* object = registry.Resolve(move.object);
+            const auto* transform = object != nullptr ? canvas.FindComponentRaw<Component::Transform2D>(object) : nullptr;
+            if (transform == nullptr)
+            {
+                return;
+            }
+            m_before.Add(RootMove{ move.object, transform->position.x, transform->position.y });
+        }
+        m_captured = true;
+    }
+
+    const char* SetLayerSpaceCommand::GetName() const
+    {
+        return "Change Layer Space";
+    }
+
+    void SetLayerSpaceCommand::Apply(bool after)
+    {
+        Layer* layer = m_canvas->FindLayer(m_layerId);
+        if (layer == nullptr)
+        {
+            return;
+        }
+        layer->SetSpace(after ? m_spaceAfter : m_spaceBefore);
+        layer->SetScaleMode(after ? m_modeAfter : m_modeBefore);
+        const Array<RootMove>& moves = after ? m_after : m_before;
+        for (const RootMove& move : moves)
+        {
+            GameObject* object = m_registry->Resolve(move.object);
+            auto* transform = object != nullptr ? m_canvas->FindComponentRaw<Component::Transform2D>(object) : nullptr;
+            if (transform != nullptr)
+            {
+                transform->position = { move.x, move.y };
+            }
+        }
+    }
+
+    bool SetLayerSpaceCommand::Execute()
+    {
+        if (false == m_captured || (m_spaceBefore == m_spaceAfter && m_modeBefore == m_modeAfter && m_after.IsEmpty()))
+        {
+            return false;
+        }
+        if (m_canvas->FindLayer(m_layerId) == nullptr)
+        {
+            return false;
+        }
+        Apply(true);
+        return true;
+    }
+
+    void SetLayerSpaceCommand::Undo()
+    {
+        Apply(false);
+    }
+
+    void SetLayerSpaceCommand::Redo()
+    {
+        Apply(true);
+    }
 
     SetLayerVisibleCommand::SetLayerVisibleCommand(Canvas& canvas, LayerId layer, bool visible)
         : m_canvas(&canvas)

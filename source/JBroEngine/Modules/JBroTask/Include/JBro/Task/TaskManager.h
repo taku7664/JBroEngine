@@ -42,7 +42,7 @@ namespace JBro
 
         bool Initialize(const TaskManagerDesc& desc = {});
         // 남은 태스크에 모두 취소 표시를 하고, 돌고 있는 태스크가 끝나기를 기다린 뒤 남은 콜백을 모두 부르고
-        // 묶음을 지운다. 콜백 안에서 부르면 아무 일도 하지 않는다.
+        // 묶음을 지운다. 콜백 안에서 부르면 아무 일도 하지 않는다 - 부르고 있는 태스크가 그 안에서 지워진다.
         void Shutdown();
         bool IsInitialized() const;
         bool UsesWorkers() const;
@@ -53,11 +53,12 @@ namespace JBro
         TaskGroupId Submit(OwnerPtr<TaskGroup> group);
 
         // 프레임마다 한 번 부른다. 워커가 없으면 예산만큼 태스크를 돌리고, 끝난 태스크와 묶음의 `OnFinished` 를
-        // 부른다. 콜백 안에서 부르면 아무 일도 하지 않는다.
+        // 부른다. 콜백 안에서 불러도 된다 - 남은 콜백을 이어서 부르고, 끝난 묶음은 지우지 않는다.
+        // 콜백이 던지면 그 예외가 여기서 나온다. 이미 부른 콜백은 다시 불리지 않고 남은 것은 다음 `Update` 에서 불린다.
         void Update();
 
         // 그 묶음이 끝날 때까지(콜백까지) 메인 스레드를 세운다. 소유자를 부수기 직전에 부른다.
-        // 없는 묶음이면 이미 끝나 지워진 것이라 참이다. 콜백 안에서 부르면 거짓이다.
+        // 없는 묶음이면 이미 끝나 지워진 것이라 참이다. 콜백 안에서 불러도 된다. 초기화 전이면 거짓이다.
         bool Wait(TaskGroupId id);
 
         // 현황표용이다. 돌려받은 포인터는 다음 `Update` 전까지만 쓴다 - 끝난 묶음은 거기서 지워질 수 있다.
@@ -75,20 +76,20 @@ namespace JBro
         Task* PopReadyLocked();
         void RunOnMainThread(bool unlimited);
         void DrainFinished();
-        void FinishEmptyGroups();
-        void FinishGroup(TaskGroup& group);
+        // 태스크가 모두 끝난(빈 묶음 포함) 묶음의 `OnFinished` 를 부른다.
+        void FinishReadyGroups();
         void TrimFinishedGroups();
 
         TaskManagerDesc m_desc;
         bool m_initialized = false;
         bool m_useWorkers = false;
-        // 콜백을 부르는 중이다. 그 안에서 `Update`·`Wait`·`Shutdown` 이 다시 들어오지 않게 한다.
-        bool m_inCallback = false;
+        // 콜백을 부르는 깊이다. 0 이 아니면 `Shutdown` 은 거절하고 `Update` 는 묶음을 지우지 않는다.
+        std::uint32_t m_callbackDepth = 0;
         TaskGroupId m_nextGroupId = 1;
         // 메인 스레드만 만진다.
         Array<OwnerPtr<TaskGroup>> m_groups;
-        // 제출했지만 아직 끝내지 않은 빈 묶음 수다. 0 이면 `Update` 가 묶음을 훑지 않는다.
-        std::uint32_t m_emptyGroupsPending = 0;
+        // 끝낼 묶음이 있을 수 있다. 거짓이면 `Update` 가 묶음을 훑지 않는다.
+        bool m_groupsMayBeReady = false;
         // 아래는 `m_mutex` 아래에서만 만진다. 큐는 앞에서 꺼내므로 머리 번호를 따로 두고 비면 되감는다 -
         // 프레임마다 힙 할당을 하지 않는다.
         std::mutex m_mutex;
@@ -98,10 +99,10 @@ namespace JBro
         std::uint32_t m_startedWorkers = 0;
         Array<Task*> m_ready;
         std::uint32_t m_readyHead = 0;
+        // 끝난 태스크다. `m_ready` 처럼 앞에서 꺼내고 비면 되감는다.
         Array<Task*> m_finished;
+        std::uint32_t m_finishedHead = 0;
         bool m_stopRequested = false;
-        // `DrainFinished` 가 `m_finished` 와 맞바꿔 잠금 밖에서 콜백을 부르는 자리다.
-        Array<Task*> m_draining;
         Array<std::thread> m_workers;
     };
 }

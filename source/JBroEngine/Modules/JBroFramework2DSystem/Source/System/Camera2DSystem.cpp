@@ -54,6 +54,15 @@ namespace JBro::System
         {
             return;
         }
+        RenderCamera2D camera;
+        if (SelectCamera(canvas, camera))
+        {
+            m_renderWorld->SetCamera(camera);
+        }
+    }
+
+    bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result)
+    {
         // **`primary` 가 먼저고, 하나도 없으면 첫 활성 카메라로 그린다**(D-187).
         //
         // 그전에는 `primary` 가 아니면 아예 그리지 않았다. 카메라를 붙이고 재생을 누른
@@ -88,7 +97,7 @@ namespace JBro::System
             item.clearColor = camera.clearColor;
             if (camera.primary)
             {
-                m_renderWorld->SetCamera(item);
+                result = item;
                 selected = true;
                 return;
             }
@@ -102,8 +111,10 @@ namespace JBro::System
         });
         if (false == selected && hasFallback)
         {
-            m_renderWorld->SetCamera(fallback);
+            result = fallback;
+            selected = true;
         }
+        return selected;
     }
 
     void Camera2DSystem::OnUpdate(Canvas& canvas, float deltaTime)

@@ -7,6 +7,7 @@
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
+#include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 
@@ -25,8 +26,11 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Camera2D>()         && all;
             all = RegisterBuiltinProperties<SpriteRenderer2D>() && all;
             all = RegisterBuiltinProperties<Text2D>()           && all;
+            all = RegisterBuiltinProperties<Button2D>()         && all;
             all = RegisterBuiltinProperties<Rigidbody2D>()      && all;
             all = RegisterBuiltinProperties<Collider2D>()       && all;
+            all = RegisterBuiltinProperties<DistanceJoint2D>()  && all;
+            all = RegisterBuiltinProperties<HingeJoint2D>()     && all;
             all = RegisterBuiltinProperties<AudioListener2D>()  && all;
             // 소스는 차원과 무관한 모듈의 것이다(D-197). 두 프레임워크가 함께 부르고 한 번만 등록된다.
             all = RegisterBuiltinAudioComponentProperties()    && all;

@@ -75,6 +75,16 @@ namespace JBro
         }
     }
 
+    const char* EditorNotifications::GetLastTitle() const
+    {
+        return m_lastTitle.c_str();
+    }
+
+    NotificationLevel EditorNotifications::GetLastLevel() const
+    {
+        return m_lastLevel;
+    }
+
     NotificationHandle EditorNotifications::Notify(NotificationLevel level, const char* title, const char* message)
     {
         NotificationDesc desc;
@@ -90,6 +100,8 @@ namespace JBro
         {
             return InvalidNotificationHandle;
         }
+        m_lastTitle = desc.title;
+        m_lastLevel = desc.level;
         const float duration = desc.durationSeconds < 0.0f ? DefaultDuration(desc.level) : desc.durationSeconds;
         if (desc.writeLog)
         {

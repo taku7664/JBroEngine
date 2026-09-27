@@ -17,6 +17,7 @@
 #include <JBro/Editor/Widget/PathField.h>
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/TextField.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
 
 #include <imgui.h>
 
@@ -213,6 +214,104 @@ namespace JBro
         Widget::FormLayout layout("##gameLanguages");
         layout.Row([] { Widget::Text("DefaultLocale"); }, [&] { pick("##default", m_draft.defaultLocale); });
         layout.Row([] { Widget::Text("FallbackLocale"); }, [&] { pick("##fallback", m_draft.fallbackLocale); });
+    }
+
+    void ProjectSettingsPanel::DrawPhysicsSettings()
+    {
+        // **물리 레이어**(D-233). 이름은 자리가 비트 번호라 서른두 칸이 늘 있고, 충돌 표는 이름을 붙인 레이어끼리만 보인다.
+        Widget::SectionHeader(Loc::TextOr(LocKeys::ProjectSettingsPhysics, "Physics")).SpacingBefore().Draw();
+        while (m_draft.physicsLayers.Size() < PhysicsLayerCount)
+        {
+            m_draft.physicsLayers.Add(String());
+        }
+        if (Widget::FoldNode(Loc::TextOr(LocKeys::ProjectSettingsPhysicsLayers, "Layer Names")))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsPhysicsLayersHelp,
+                "The names colliders' layer and mask fields pick from. The number in front is the bit"));
+            {
+                Widget::FormLayout layout("##physicsLayers");
+                for (std::uint32_t index = 0; index < PhysicsLayerCount; ++index)
+                {
+                    char label[8];
+                    std::snprintf(label, sizeof(label), "%u", static_cast<unsigned>(index));
+                    Widget::IdScope scope(static_cast<int>(index));
+                    layout.Row([&] { Widget::Text(label); },
+                        [&] { Widget::TextField("##name", m_draft.physicsLayers[index]).Draw(); });
+                }
+            }
+            Widget::TreePop();
+        }
+        if (Widget::FoldNode(Loc::TextOr(LocKeys::ProjectSettingsPhysicsMatrix, "Layer Collisions")))
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::ProjectSettingsPhysicsMatrixHelp,
+                "Clear a box to let two layers pass through each other. Only named layers are shown"));
+            std::uint32_t named[PhysicsLayerCount] = {};
+            std::uint32_t namedCount = 0;
+            for (std::uint32_t index = 0; index < PhysicsLayerCount; ++index)
+            {
+                if (false == m_draft.physicsLayers[index].empty())
+                {
+                    named[namedCount++] = index;
+                }
+            }
+            const auto findPair = [&](std::uint32_t first, std::uint32_t second) -> std::size_t {
+                for (std::size_t at = 0; at < m_draft.physicsIgnoredLayerPairs.Size(); ++at)
+                {
+                    const ProjectLayerPair& pair = m_draft.physicsIgnoredLayerPairs[at];
+                    if (pair.first == first && pair.second == second)
+                    {
+                        return at;
+                    }
+                }
+                return static_cast<std::size_t>(-1);
+            };
+            {
+                Widget::FormLayout layout("##physicsMatrix");
+                for (std::uint32_t row = 0; row < namedCount; ++row)
+                {
+                    const std::uint32_t first = named[row];
+                    Widget::IdScope rowScope(static_cast<int>(first));
+                    layout.Row([&] { Widget::Text(m_draft.physicsLayers[first].c_str()); }, [&] {
+                        // 삼각형이다: 행의 레이어와 그 뒤의 레이어들만 칸이 있고, 앞의 자리는 빈 칸으로 줄을 맞춘다.
+                        for (std::uint32_t column = 0; column < namedCount; ++column)
+                        {
+                            if (column > 0)
+                            {
+                                ImGui::SameLine();
+                            }
+                            if (column < row)
+                            {
+                                ImGui::Dummy(ImVec2(ImGui::GetFrameHeight(), ImGui::GetFrameHeight()));
+                                continue;
+                            }
+                            const std::uint32_t second = named[column];
+                            const std::size_t found = findPair(first, second);
+                            bool collide = found == static_cast<std::size_t>(-1);
+                            Widget::IdScope cellScope(static_cast<int>(second));
+                            if (Widget::Checkbox("##meet", collide))
+                            {
+                                if (collide)
+                                {
+                                    m_draft.physicsIgnoredLayerPairs.RemoveAt(found);
+                                }
+                                else
+                                {
+                                    ProjectLayerPair pair;
+                                    pair.first = static_cast<std::uint8_t>(first);
+                                    pair.second = static_cast<std::uint8_t>(second);
+                                    m_draft.physicsIgnoredLayerPairs.Add(pair);
+                                }
+                            }
+                            char pairName[160];
+                            std::snprintf(pairName, sizeof(pairName), "%s - %s", m_draft.physicsLayers[first].c_str(),
+                                m_draft.physicsLayers[second].c_str());
+                            Widget::HoveredTooltip(pairName);
+                        }
+                    });
+                }
+            }
+            Widget::TreePop();
+        }
     }
 
     void ProjectSettingsPanel::DrawInputSettings()
@@ -959,6 +1058,7 @@ namespace JBro
             AssetId{}, Widget::ListFlagsShowIndex);
         DrawGameLanguages();
         DrawInputSettings();
+        DrawPhysicsSettings();
 
         Widget::SectionHeader(
             Loc::TextOr(LocKeys::ProjectSettingsBuild, "Build")).SpacingBefore().Draw();

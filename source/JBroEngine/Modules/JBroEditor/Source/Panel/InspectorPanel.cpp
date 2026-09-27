@@ -1,4 +1,5 @@
 ﻿#include "InspectorPanel.h"
+#include <JBro/Framework2D/Component/Transform2D.h>
 #include "InspectorFieldExtras.h"
 
 #include <JBro/Editor/Widget/Basic.h>
@@ -30,6 +31,7 @@
 #include <JBro/Asset/AudioDecoder.h>
 #include <JBro/Audio/AudioSystem.h>
 #include <JBro/AudioTypes/AudioBusName.h>
+#include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
@@ -50,6 +52,12 @@
 
 namespace JBro
 {
+    namespace
+    {
+        const ComponentTypeId Transform2DTypeId = MakeStableTypeId(Component::Transform2D::StaticTypeName());
+        const NameId AnchorFieldName = MakeNameId("anchor");
+    }
+
     namespace
     {
         // 인스펙터의 미리보기가 차지하는 최대 변(픽셀)이다. 칸이 더 넓어도 이보다 크게
@@ -629,6 +637,80 @@ namespace JBro
             bus = chosen == 0 ? AudioBusName{} : AudioBusName::FromText(m_busNames[static_cast<std::size_t>(chosen)].c_str());
             CommitEdit(type, address, before, context);
         }
+    }
+
+    void InspectorPanel::DrawLayerMaskField(const TypeDescriptor& type, void* address, Context& context)
+    {
+        const ProjectFile& project = m_editor->GetProjectFile();
+        const char* names[32] = {};
+        for (std::size_t index = 0; index < project.physicsLayers.Size() && index < 32; ++index)
+        {
+            names[index] = project.physicsLayers[index].c_str();
+        }
+        String before;
+        const bool snapped = ToText(type, address, before);
+        std::uint32_t& mask = *static_cast<std::uint32_t*>(address);
+        if (Widget::LayerMaskField("##value", ArrayView<const char* const>(names, 32), mask) && snapped)
+        {
+            CommitEdit(type, address, before, context);
+        }
+    }
+
+    void InspectorPanel::DrawObjectField(const TypeDescriptor& type, void* address, Context& context)
+    {
+        GameObjectHandle& handle = *static_cast<GameObjectHandle*>(address);
+        m_objectNames.Clear();
+        m_objectIds.Clear();
+        m_objectNames.Add(String(Loc::TextOr(LocKeys::InspectorObjectNone, "None")));
+        m_objectIds.Add(InvalidInstanceId);
+        int current = handle.GetInstanceId() == InvalidInstanceId ? 0 : -1;
+        if (Canvas* canvas = m_editor->GetCanvas())
+        {
+            canvas->ForEachObject([&](GameObject& object) {
+                if (object.GetInstanceId() == handle.GetInstanceId())
+                {
+                    current = static_cast<int>(m_objectIds.Size());
+                }
+                const char* name = object.GetTag();
+                m_objectNames.Add(String(name != nullptr ? name : ""));
+                m_objectIds.Add(object.GetInstanceId());
+            });
+        }
+        m_objectNamePointers.Clear();
+        for (const String& name : m_objectNames)
+        {
+            m_objectNamePointers.Add(name.c_str());
+        }
+        String before;
+        const bool snapped = ToText(type, address, before);
+        int chosen = current;
+        std::uint64_t dropped = 0;
+        // 하이어라키의 끌기 페이로드는 에디터 오브젝트 번호다(주소를 담지 않는다).
+        const bool changed = Widget::ObjectField("##value",
+            ArrayView<const char* const>(m_objectNamePointers.Data(), m_objectNamePointers.Size()), chosen,
+            "JBRO_HIERARCHY_MOVE", dropped);
+        if (false == changed || false == snapped)
+        {
+            return;
+        }
+        if (dropped != 0)
+        {
+            GameObject* object = m_editor->GetObjectIds().Resolve(static_cast<EditorObjectId>(dropped));
+            if (object == nullptr)
+            {
+                return;
+            }
+            handle = object->GetScriptHandle();
+        }
+        else if (chosen >= 0 && static_cast<std::size_t>(chosen) < m_objectIds.Size())
+        {
+            handle = chosen == 0 ? GameObjectHandle{} : Internal::GameObjectHandleAccess::FromId(m_objectIds[static_cast<std::size_t>(chosen)]);
+        }
+        else
+        {
+            return;
+        }
+        CommitEdit(type, address, before, context);
     }
 
     void InspectorPanel::DrawAudioPreview(const AssetMetaFile& meta)
@@ -1447,6 +1529,15 @@ namespace JBro
                     && property.edit->displayName != nullptr
                 ? property.edit->displayName
                 : NameTable::Get().Resolve(property.name);
+            // **앵커는 화면 레이어의 것이다**(D-237). 월드 레이어의 `Transform2D` 에는 뜻이 없으니 줄을 두지 않는다.
+            if (context.element == nullptr && context.owner != nullptr && context.typeId == Transform2DTypeId && property.name == AnchorFieldName)
+            {
+                const Layer* layer = context.owner->GetLayer();
+                if (layer == nullptr || layer->GetSpace() != LayerSpace::Screen)
+                {
+                    continue;
+                }
+            }
 
             // 길에 한 칸 더 내려간다. 그려 놓고 되돌려야 형제 필드가 제 길을 갖는다.
             // 목록 원소 안이면 컴포넌트 길이 아니라 원소 안의 필드 길이다(D-89).
@@ -1680,6 +1771,18 @@ namespace JBro
         if (context.element == nullptr && SameName(type.typeName, "JBro.AudioBusName"))
         {
             DrawAudioBusField(type, address, context);
+            return;
+        }
+        // 물리 레이어는 프로젝트의 레이어 이름으로 고른다(D-233).
+        if (context.element == nullptr && SameName(type.typeName, "JBro.PhysicsLayerMask"))
+        {
+            DrawLayerMaskField(type, address, context);
+            return;
+        }
+        // 오브젝트 참조는 캔버스의 오브젝트 목록이다(D-233).
+        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.GameObjectHandle"))
+        {
+            DrawObjectField(type, address, context);
             return;
         }
         // **`AssetId` 는 드롭다운이다**(D-116). 원소 안의 아이디는 아직 글자 칸이다 - 목록 원소

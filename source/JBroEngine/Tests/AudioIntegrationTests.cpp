@@ -13,15 +13,19 @@
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Host/AssetLoad.h>
 #include <JBro/Host/IFramework.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Task/TaskManager.h>
 #include <JBro/Types/NameTable.h>
 
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <process.h>
+#include <string>
 #include <thread>
 #include <filesystem>
 #include <fstream>
@@ -265,7 +269,8 @@ namespace
 
         void Open()
         {
-            root = fs::temp_directory_path() / L"JBroAudioProbe·오디오";
+            // 프로세스 번호를 붙인다 - 다른 세션·워크트리의 시험이 같은 폴더를 지우지 않게.
+            root = fs::temp_directory_path() / (std::wstring(L"JBroAudioProbe·오디오-") + std::to_wstring(_getpid()));
             fs::remove_all(root);
             const Array<std::uint8_t> shortWav = MakeWav(Rate / 10);
             const Array<std::uint8_t> longWav = MakeWav(Rate);
@@ -435,6 +440,24 @@ namespace
         return decoder.Open(static_cast<IPlatform*>(user)->OpenFileStream(path), path);
     }
 
+    // 왼쪽 채널을 장치처럼 조금씩 당겨 모은다(`PacedWindowPeaks` 와 같은 속도).
+    Array<float> PacedSamples(AudioMixer& mixer, std::uint32_t frames)
+    {
+        Array<float> samples;
+        samples.Reserve(frames);
+        float buffer[480 * 2];
+        for (std::uint32_t done = 0; done < frames; done += 480)
+        {
+            mixer.Render(buffer, 480);
+            for (std::uint32_t frame = 0; frame < 480; ++frame)
+            {
+                samples.Add(buffer[frame * 2]);
+            }
+            std::this_thread::sleep_for(std::chrono::microseconds(1000));
+        }
+        return samples;
+    }
+
     // 소리를 장치처럼 조금씩 당기되 스트리머가 따라올 틈을 준다(실시간의 약 10 배). 창마다의 최대 크기를 모은다.
     Array<float> PacedWindowPeaks(AudioMixer& mixer, std::uint32_t windows, std::uint32_t windowFrames)
     {
@@ -516,6 +539,21 @@ namespace
         Check(quietest > 0.4f, "a looping disk stream plays across its end without a gap");
         Check(mixer.GetStats().streamUnderruns == 0 && mixer.GetStats().activeStreams == 1,
             "the streamer keeps ahead of the audio thread");
+        // 창의 봉우리는 10 ms 의 빈틈을 못 본다. 이음매를 지나는 1.2 초의 샘플에서 가장 긴 무음과 가장 큰 튐을 잰다
+        // (1 초에 440 주기라 파일은 끊김 없이 이어진다 - 0.5 사인의 샘플 사이 변화는 0.029 를 넘지 않는다).
+        const Array<float> seam = PacedSamples(mixer, Rate * 12 / 10);
+        std::uint32_t silentRun = 0;
+        std::uint32_t longestSilence = 0;
+        float largestJump = 0.0f;
+        for (std::size_t index = 1; index < seam.Size(); ++index)
+        {
+            silentRun = std::fabs(seam[index]) < 0.02f ? silentRun + 1 : 0;
+            longestSilence = silentRun > longestSilence ? silentRun : longestSilence;
+            largestJump = std::fmax(largestJump, std::fabs(seam[index] - seam[index - 1]));
+        }
+        std::cout << "  disk stream across its loop seam: longest near-silence " << longestSilence << " samples, largest step "
+                  << largestJump << '\n';
+        Check(longestSilence < 10 && largestJump < 0.08f, "a looping disk stream has no gap or click at its seam");
 
         // 위치 옮기기: 0.5 초로 옮기면 그 자리부터다.
         mixer.Seek(looping, 0.5);
@@ -525,6 +563,8 @@ namespace
         const double at = mixer.GetPlaybackSeconds(looping);
         std::cout << "  after seeking a disk stream to 0.5 s: " << at << " s\n";
         Check(at > 0.49 && at < 0.56, "seeking a disk stream moves its cursor");
+        // 옮긴 뒤의 끊김 수는 적기만 한다 - 스트리머가 따라오는 빠르기는 기계의 부하에 달려 있어 검사로 두면 흔들린다(D-240).
+        std::cout << "  underruns after the seek: " << mixer.GetStats().streamUnderruns << '\n';
 
         // 자리는 둘뿐이다: 둘째는 되고 셋째는 거절된다.
         play.loop = false;
@@ -538,12 +578,7 @@ namespace
 
         // 에셋 경로로도 된다: 오디오 시스템이 `File` 로 등록한다.
         mixer.StopAll();
-        const auto closed = std::chrono::steady_clock::now();
-        while (mixer.GetStats().activeStreams != 0 && std::chrono::steady_clock::now() - closed < std::chrono::seconds(2))
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        }
-        Check(mixer.GetStats().activeStreams == 0, "stopped streams are closed by the streamer");
+        Check(mixer.WaitForStreamsIdle() && mixer.GetStats().activeStreams == 0, "stopped streams are closed by the streamer");
         System::AudioSystem audio;
         Check(audio.Initialize(mixer, &fixture.assets), "the audio system initializes");
         audio.PlayOneShot(theme, AudioBusName{}, 1.0f, 1.0f);
@@ -634,6 +669,62 @@ namespace
         Check(SaveAssetMetaFile(fixture.platform, metaPath.c_str(), meta), "the meta saves");
     }
 
+    // 워커 로드(D-236)도 동기 로드와 같은 모양으로 클립을 푼다(D-231): 미리 푸는 소리는 믹서의 레이트와 모노로, 압축한 채 두는
+    // 소리는 채널 1 로 알린다. 믹서의 레이트는 메인 스레드가 작업을 만들 때 떠 간다 - 워커는 에셋 시스템을 보지 않는다.
+    void TestWorkerLoadShapesClipsLikeTheSyncLoad()
+    {
+        Fixture fixture;
+        fixture.Open();
+        const Array<std::uint8_t> leftOnlyShort = MakeWav(Rate / 10, 0.5f, 0.0f);
+        const Array<std::uint8_t> leftOnlyLong = MakeWav(Rate, 0.5f, 0.0f);
+        WriteBytes(fixture.root / "Sound" / "blip.wav", leftOnlyShort.Data(), leftOnlyShort.Size());
+        WriteBytes(fixture.root / "Sound" / "theme.wav", leftOnlyLong.Data(), leftOnlyLong.Size());
+        AudioImportOptions shortOptions;
+        shortOptions.mono = true;
+        EditAudioMeta(fixture, "blip.wav.jmeta", shortOptions);
+        AudioImportOptions longOptions;
+        longOptions.mode = AudioImportMode::Streaming;
+        longOptions.mono = true;
+        EditAudioMeta(fixture, "theme.wav.jmeta", longOptions);
+
+        AudioMixerDesc desc;
+        desc.sampleRate = 44100;
+        desc.maxVoices = 16;
+        AudioMixer mixer;
+        Check(mixer.Initialize(desc), "the mixer initializes");
+        System::AudioSystem audio;
+        Check(audio.Initialize(mixer, &fixture.assets), "the audio system initializes");
+
+        TaskManager tasks;
+        TaskManagerDesc taskDesc;
+        taskDesc.workerCount = 2;
+        Check(tasks.Initialize(taskDesc), "the task manager starts");
+        AssetLoadResult result;
+        const AssetId ids[] = { fixture.shortId, fixture.longId };
+        const TaskGroupId group = SubmitAssetLoad(tasks, fixture.assets,
+            ArrayView<const AssetId>(ids, 2), "editor.task.load_canvas", result);
+        Check(tasks.Wait(group) && result.finished && result.failed == 0 && result.held.Size() == 2,
+            "both clips load on workers");
+        const AudioData* decoded = fixture.assets.GetAudio(fixture.assets.Find(fixture.shortId));
+        Check(decoded != nullptr && decoded->sampleRate == 44100 && decoded->channels == 1,
+            "a worker decodes a decompressed clip at the mixer rate and in mono");
+        Check(decoded->frameCount >= 4408 && decoded->frameCount <= 4412, "and its length scales with the rate");
+        float peak = 0.0f;
+        for (std::size_t frame = 0; frame < decoded->pcm.Size(); ++frame)
+        {
+            peak = std::fmax(peak, std::fabs(decoded->pcm[frame]));
+        }
+        Check(peak > 0.23f && peak < 0.27f, "mono on a worker is the average of the channels too");
+        const AudioData* streamed = fixture.assets.GetAudio(fixture.assets.Find(fixture.longId));
+        Check(streamed != nullptr && streamed->channels == 1 && streamed->sampleRate == Rate,
+            "a streaming clip loaded on a worker reports one channel and keeps its file rate");
+        fixture.assets.ReleaseAll(result.held);
+        tasks.Shutdown();
+        audio.Shutdown();
+        mixer.Shutdown();
+        fixture.Close();
+    }
+
     // 임포트가 클립을 믹서에 맞춘다(D-231): 미리 푸는 소리는 믹서의 레이트로, 모노 옵션은 세 방식 모두 채널 평균으로.
     // 클립의 동시 수는 `.jmeta` 에서 믹서까지 간다.
     void TestImportShapesClipsForTheMixer()
@@ -701,6 +792,17 @@ namespace
         audio.Update();
         Check(mixer.GetStats().activeVoices == 2, "only two instances of the clip sound");
         mixer.StopAll();
+        // 쿨다운도 에셋에서 믹서까지 간다: 다시 불러 등록을 새로 하면 0.25 초 안의 둘째 재생은 버려진다.
+        shortOptions.cooldown = 0.25f;
+        EditAudioMeta(fixture, "blip.wav.jmeta", shortOptions);
+        Check(fixture.assets.ReloadInPlace(fixture.shortId), "the clip reloads with a cooldown");
+        const std::uint64_t throttledBefore = mixer.GetStats().voicesThrottled;
+        audio.PlayOneShot(blip, AudioBusName{}, 1.0f, 1.0f);
+        audio.PlayOneShot(blip, AudioBusName{}, 1.0f, 1.0f);
+        Check(mixer.GetStats().voicesThrottled == throttledBefore + 1, "the asset's cooldown reaches the mixer");
+        mixer.StopAll();
+        shortOptions.cooldown = 0.0f;
+        EditAudioMeta(fixture, "blip.wav.jmeta", shortOptions);
 
         // 압축한 채 두는 소리도 모노로 푼다 - 보이스의 디코더가 클립의 채널로 연다.
         const AssetHandle theme = fixture.assets.Load(fixture.longId);
@@ -747,6 +849,40 @@ namespace
             "a mono disk stream plays the channel average without a gap");
         streamMixer.Shutdown();
         fixture.Close();
+    }
+
+    // 게임 쪽 오디오의 반례들(D-240).
+    void TestSourceAuditRegressions()
+    {
+        Scene scene;
+        scene.Open();
+        Component::AudioSource* music = scene.AddSource("music", 0.0f, true);
+        music->bus = AudioBusName::FromText("Music");
+        scene.framework.BindCanvasAssets();
+        scene.Frame();
+        Check(music->state == Component::AudioSourceState::Playing, "the music source plays");
+
+        // 프로젝트 설정을 저장해 버스를 다시 세워도 소리는 제 버스에 남는다.
+        const AudioBusConfig buses[] = {{NameTable::Get().Intern("Music"), 0.5f}, {NameTable::Get().Intern("SFX"), 1.0f}};
+        scene.audio.ConfigureBuses({buses, 2});
+        scene.Frame();
+        RenderPeaks(scene.mixer, 4800);
+        Check(scene.audio.GetBusPeak(AudioBusName::FromText("Music")) > 0.05f,
+            "a playing source is routed to its rebuilt bus, not left on Master");
+
+        // 모르는 이름으로 버스를 조종하면 아무것도 하지 않는다 - Master 를 음소거하지 않는다.
+        scene.audio.SetBusMuted(AudioBusName::FromText("Nope"), true);
+        scene.audio.SetBusVolume(AudioBusName::FromText("Nope"), 0.0f);
+        Check(false == scene.mixer.IsBusMuted(AudioMasterBus) && scene.mixer.GetBusVolume(AudioMasterBus) == 1.0f,
+            "controlling an unknown bus does not touch Master");
+
+        // 멈춰 둔 보이스가 거둬지면 소스는 `Paused` 에 남지 않는다.
+        scene.audio.PauseSource(*music);
+        Check(music->state == Component::AudioSourceState::Paused, "the source pauses");
+        scene.mixer.StopAll();
+        scene.Frame();
+        Check(music->state == Component::AudioSourceState::Finished, "a paused source whose voice was collected is finished");
+        scene.Close();
     }
 
     void TestSourcesFollowTheirLifecycle()
@@ -1025,19 +1161,14 @@ namespace
 #if defined(_MSC_VER) && defined(_DEBUG)
         g_allocations = 0;
         const _CRT_ALLOC_HOOK previous = _CrtSetAllocHook(&CountAllocations);
-        const float forward[3] = {0.0f, 0.0f, -1.0f};
-        const float up[3] = {0.0f, 1.0f, 0.0f};
+        // 프레임워크 갱신 전체를 잰다 - 오디오 2D 시스템의 리스너·카메라 찾기와 위치 읽기가 그 안에 있다.
         for (int frame = 0; frame < 120; ++frame)
         {
-            const float listener[3] = {static_cast<float>(frame % 5), 0.0f, 0.0f};
-            scene.audio.SetListener(listener, forward, up, 5.0f, 1.0f / 60.0f);
-            scene.canvas->ForEach<Component::AudioSource>([&](Component::AudioSource& source)
+            scene.canvas->ForEach<Component::Transform2D>([&](Component::Transform2D& transform)
             {
-                const float at[3] = {static_cast<float>(frame % 7), 0.0f, 0.0f};
-                scene.audio.UpdateSource(source, true, at, 1.0f / 60.0f);
+                transform.position.x += (frame % 2) == 0 ? 0.5f : -0.5f;
             });
-            scene.audio.Update();
-            scene.mixer.Render(scene.scratch, 800);
+            scene.Frame();
         }
         _CrtSetAllocHook(previous);
         std::cout << "  CRT allocations during 120 audio frames with 8 sources: " << g_allocations << '\n';
@@ -1058,6 +1189,8 @@ int RunAudioIntegrationTests()
         TestTheDevicePullsTheMixerAndStopsWhenAsked();
         TestStreamingFromDisk();
         TestImportShapesClipsForTheMixer();
+        TestWorkerLoadShapesClipsLikeTheSyncLoad();
+        TestSourceAuditRegressions();
         TestSourcesFollowTheirLifecycle();
         TestBusesAndSpatialSources();
         TestTheScriptServiceReachesTheMixer();

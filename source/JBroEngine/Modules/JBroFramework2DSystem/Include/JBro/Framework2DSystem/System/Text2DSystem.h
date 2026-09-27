@@ -74,6 +74,8 @@ namespace JBro::System
             TextBlock            block;
             bool                 warnedMissingFont = false;
             std::uint64_t        lastSeenFrame = 0;
+            // 화면 레이어에 있다(D-237). 글자 픽셀이 곧 기준 픽셀이라 PPU 로 나누지 않는다.
+            bool                 screenSpace = false;
         };
 
         static TextBlockSettings SettingsOf(const Component::Text2D& text);

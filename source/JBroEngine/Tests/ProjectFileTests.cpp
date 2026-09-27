@@ -1,4 +1,5 @@
-﻿#include <JBro/Host/ProjectFile.h>
+﻿#include <JBro/Framework2DSystem/PhysicsThreads.h>
+#include <JBro/Host/ProjectFile.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <cstdlib>
@@ -884,12 +885,75 @@ namespace
                 && reread.fixedDeltaTime == 0.02f && reread.randomSeed == 1234u,
             "and they read back exactly");
     }
+
+    // **물리 레이어 이름과 충돌 표(D-233).** 이름은 자리가 비트 번호라 가운데 빈 칸이 `""` 로 남고 끝의 빈 칸은 적지 않는다.
+    // 쌍은 작은 번호가 앞으로 맞춰지고, 틀린 쌍은 거절된다. 둘 다 비면 키를 적지 않는다.
+    void TestThePhysicsLayerSettings()
+    {
+        const char* text =
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "PhysicsLayers:\n"
+            "  - Default\n"
+            "  - \"\"\n"
+            "  - Enemy\n"
+            "PhysicsIgnoredLayerPairs:\n"
+            "  - 2 0\n"
+            "SomeFutureKey: keep me\n";
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error), "the physics layer settings parse");
+        Check(project.physicsLayers.Size() == 3 && project.physicsLayers[0] == "Default" && project.physicsLayers[1].empty()
+                && project.physicsLayers[2] == "Enemy",
+            "layer names keep their slots, an unnamed one included");
+        Check(project.physicsIgnoredLayerPairs.Size() == 1 && project.physicsIgnoredLayerPairs[0].first == 0
+                && project.physicsIgnoredLayerPairs[0].second == 2,
+            "a pair is read with the smaller layer first");
+
+        project.physicsLayers.Add(JBro::String());
+        project.physicsLayers.Add(JBro::String());
+        project.physicsIgnoredLayerPairs.Add({ 1, 1 });
+        JBro::String written;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error), "the layers rewrite");
+        Check(written.find("PhysicsLayers:\n  - Default\n  - \"\"\n  - Enemy\nPhysicsIgnoredLayerPairs:") != JBro::String::npos,
+            "trailing unnamed layers are not written, the one between is");
+        Check(written.find("PhysicsIgnoredLayerPairs:\n  - 0 2\n  - 1 1\n") != JBro::String::npos, "the pairs are written as numbers");
+        Check(written.find("SomeFutureKey: keep me") != JBro::String::npos, "the key after them stays");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.physicsLayers.Size() == 3
+                && reread.physicsIgnoredLayerPairs.Size() == 2,
+            "and they read back");
+
+        std::uint32_t rows[32] = {};
+        JBro::ResolvePhysicsIgnoredLayers(reread, rows);
+        Check(rows[0] == (1u << 2) && rows[2] == 1u && rows[1] == (1u << 1) && rows[3] == 0u,
+            "the pairs become a symmetric table");
+
+        const char* bad = "EngineVersion: 1.0.0\nFramework: 2D\nPhysicsIgnoredLayerPairs:\n  - 0 32\n";
+        Check(false == JBro::ParseProjectFile(bad, std::strlen(bad), project, error), "a layer past 31 is refused");
+        const char* single = "EngineVersion: 1.0.0\nFramework: 2D\nPhysicsIgnoredLayerPairs:\n  - 4\n";
+        Check(false == JBro::ParseProjectFile(single, std::strlen(single), project, error), "and so is a lone number");
+
+        const char* bare = "EngineVersion: 1.0.0\nFramework: 2D\n";
+        JBro::ProjectFile none;
+        Check(JBro::ParseProjectFile(bare, std::strlen(bare), none, error), "the bare file parses");
+        none.physicsLayers.Add(JBro::String());
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error)
+                && written.find("Physics") == JBro::String::npos,
+            "a project with no named layer and no pair grows no physics keys");
+        none.physicsLayers.Add("Player");
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error)
+                && written.find("PhysicsLayers:\n  - \"\"\n  - Player\n") != JBro::String::npos
+                && written.find("PhysicsIgnoredLayerPairs") == JBro::String::npos,
+            "a named layer is appended with the empty slot before it");
+    }
 }
 
 int RunProjectFileTests()
 {
     TestTheTimeSettings();
     TestThePhysicsThreadsSetting();
+    TestThePhysicsLayerSettings();
     TestAnEmptyStringIsAValueNotABlock();
     TestReadsTheLegacyProjectShape();
     TestRefusesARealLegacyProjectFileIfPresent();
