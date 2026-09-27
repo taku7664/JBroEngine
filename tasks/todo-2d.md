@@ -112,6 +112,25 @@
    레코드는 빠지고 자료는 남음), 에디터(열린 채로 생긴 파일이 등록됨). 뮤테이션: 9/9 잡힘(백슬래시 유지, 이름 바꾸기의 옛 이름 버림, 멈춤 신호 없음 - 워커 합류가 영원히 기다려 테스트가 멈추는 것으로 잡힘, 첫 요청을 늦게 걺, 변경을 재로드 안 함, 생성을 다시 스캔 안 함, 삭제를 안 뺌, 감시를 안 켬, 에디터가 안 꺼냄).
 
 
+## 카메라
+
+- `[진행 예정]` **`Camera2D.projection = PixelPerfect` 이면 에디터가 첫 프레임에 꺼진다**(2026-09-27 실측, 사용자 보고 "픽셀 퍼펙트로 배치하니 팅긴다").
+  - 사슬: `RenderBridge2D.cpp` `BuildCamera` 가 `Orthographic` 이 아니면 거짓("PixelPerfect's reference resolution/scaling contract awaits user definition")
+    → `SubmitRenderWorld2D` 가 `Failed` → `EngineInstance::TickFrame` 이 `InvalidState` 로 거짓 → `Tick` 이 `ReleaseResources` → `EditorApplication::Tick` 거짓 →
+    `EditorHostMain` 루프가 끝난다. 게임 뷰는 편집 중에도 게임 카메라로 매 프레임 그리므로 **재생하지 않아도** 인스펙터에서 값을 바꾸는 순간 꺼진다.
+    사용자에게는 아무 말도 남지 않는다(콘솔의 `last frame: invalid state` 한 줄뿐). `physics-plan` 의 "확인 중 에디터가 한 번 꺼진 것" 도 이것이다.
+  - 실측: 카메라 하나만 있는 캔버스로 `JBroEditorHost --frames 120` 을 두 번 띄웠다. `Orthographic` 은 120 프레임·`ready`, `PixelPerfect` 는 **0 프레임·`invalid state`**.
+    두 파일의 차이는 `projection` 한 줄이다.
+  - `Orthographic` 카메라는 동작한다: `RendererContractTests` 가 카메라 위치·크기로 뷰-투영 값을 재고(`vp[0] = 0.05` 등), `D3D12SmokeTests` 가 실제 장치로 그린다.
+    `PixelPerfect` 는 추출(`Framework2DSystemTests` - 값이 렌더 월드로 옮겨지는지)만 재고 **그리기는 한 번도 재지 않았다** - 그래서 이 종료가 테스트에 걸리지 않았다.
+  - **D-58 의 전제가 틀렸다.** D-58 은 "세부 계약은 기존 엔진의 것을 읽고 따른다" 인데, 기존 엔진 `Camera2D` 에는 PixelPerfect 가 없다
+    (`ECameraProjectionMode2D { Orthographic, PerspectiveReady }`, `Engine/GameFramework/Component/Camera2D.h`). 기존 엔진의 `PixelsPerUnit`·기준 해상도는
+    스프라이트 크기와 화면 공간(UI) 투영에만 쓰였고(`Render2DPipeline.cpp` `ScreenSpaceReference`), 카메라를 픽셀 격자에 맞추는 코드는 없다.
+    따를 계약이 없으므로 새로 정해야 한다(사용자 결정).
+  - 정할 것: (1) 당장의 안전장치 - 모르는 투영은 에디터를 끄지 말고 `Orthographic` 으로 그리며 경고를 한 번 남길지, 아니면 PixelPerfect 를 구현할 때까지 목록에서 뺄지.
+    (2) PixelPerfect 계약 - 기준 해상도(`.jproject` `ResolutionWidth/Height`)와 PPU(`.jproject` `PixelsPerUnit`, 스프라이트마다 다를 수 있다)로 `orthographicSize` 를 정할지,
+    정수 배율과 남는 영역(레터박스·잘라내기), 카메라 위치를 화면 픽셀에 맞추는 스냅, 에디터 게임 뷰와 캔버스 뷰가 그것을 따를지.
+
 ## 스프라이트
 
 - `[완료]` **스프라이트 크기 정책** (D-117 로 결정, D-119 로 섰다 - 위 4 단계 순서의 3). 지금 `SpriteRenderer2D` 는 `size`(유닛)·`pivot` 을 저작 값으로 들고 텍스처 크기와
