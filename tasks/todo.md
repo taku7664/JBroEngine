@@ -1027,8 +1027,8 @@ EditorApplication::Tick
   그리고 이 실측은 **Visual Studio 기준**이다 — 자작 Code-OSS 포크에서는 MS C/C++ 확장이
   막혀 있고 오픈 대안은 PDB 지원이 약하다. 그쪽은 아직 열린 항목이다(§18.7).
 
-- **D-57. 수학 타입은 차원별 모듈에 둔다. Core 로 올리지 않는다.**
-  Closes: Open Decision 2. Narrows: D-38.
+- **D-57. 수학 타입은 차원별 모듈에 둔다. Core 로 올리지 않는다.** [뒤집힘: D-241]
+  Closes: Open Decision 2. Narrows: D-38. Obsoleted by: D-241 (2026-09-27).
   `Vec2`·`Rect`·`Matrix3x2` 는 `JBroFramework2D/Math2D.h`, `Vec3` 는 `JBroFramework3D/Math3D.h`,
   `Matrix4x4` 는 `JBroGraphics/Renderer.h` 에 두는 현재 배치를 유지한다.
   D-38 의 "차원 독립 공개 값 타입"은 `Color` 처럼 **차원 의미가 없는 것**에만 적용된다.
@@ -2937,6 +2937,34 @@ EditorApplication::Tick
   무관하게 같은 수열이다. 엔진 흐름은 잠그지 않고(메인 스레드 전용), 게임은 `MakeStream` 으로 제 흐름을 든다. 씨앗은 프로젝트 `RandomSeed`
   (0 이면 재생마다 새로 뽑아 로그에 남긴다).
   (5) 프로젝트 파일 최상위 `FixedDeltaTime`·`MaxFixedSteps`·`MaxDeltaTime`·`RandomSeed` 를 둔다. 에디터에 한 프레임 진행이 생긴다(기존 엔진에 없었다).
+- **D-241. 수학 값 타입을 전부 `JBroCore` 로 옮긴다. D-57 을 뒤집는다.**
+  (2026-09-27, 사용자 지시 "이게 뭐 전용타입이야? 그냥 코어로 옮겨". 범위와 스크립트 노출은 사용자가 골랐다:
+  "값 타입 + 순수 연산 함수", "그냥 보이게 둔다") Obsoletes: D-57. Updates: D-38(적용 범위가 넓어진다),
+  D-199·D-200(두 커널의 의존), ProjectRule §10.1·모듈 계층 표.
+  **옮긴 것**: `Vec2`·`Rect`·`Matrix3x2` 와 `MakeTransformMatrix2D`·`MultiplyMatrix3x2` 가
+  `JBroFramework2D/Math2D.h` → `JBro/Types/Math2D.h`, `Vec3`·`Quaternion` 과 연산 함수 열셋이
+  `JBroFramework3D/Math3D.h` → `JBro/Types/Math3D.h`, `Matrix4x4` 와 `MultiplyMatrix4x4` 가
+  `JBroGraphics/Renderer.h`·`Framework3DSystem/Math3DMatrix.h` → 새 `JBro/Types/Matrix4x4.h`.
+  리플렉션 설명서 둘은 `JBro/Reflection/Math2DReflection.h`·`Math3DReflection.h` 로 간다 -
+  값 타입과 갈라 두는 이유(매 프레임 경로가 리플렉션 기계를 물지 않게)는 옮기기 전과 같다.
+  **남긴 것**: 좌표계와 깊이 범위를 전제하는 함수(`MakeRotationMatrix`·`MakeTransformMatrix3D`·
+  `MakeViewMatrix`·`MakePerspectiveMatrix`·`MakeOrthographicMatrix`·`TransformPoint`)는
+  `Framework3DSystem/Math3DMatrix.h` 에 그대로 둔다. 그 규약은 시스템 단계의 계약이다.
+  `Types/Types.h` 프렐류드에는 넣지 않았다 - `Add`·`Scale`·`Multiply`·`Dot`·`Length`·`Normalize` 가
+  `JBro` 에 전역으로 퍼지면 이름 충돌이 이 변경과 먼 자리에서 터진다.
+  **근거**: D-57 이 든 "2D 프로젝트가 3D 수학을 링크하지 않는다" 는 성립하지 않았다 - 세 헤더는 전부
+  `struct` 와 `inline` 함수라 링크할 심볼이 없고, 실제 대가는 include 비용뿐이었다. 그 대신
+  2D·3D 를 모두 보는 코드가 양쪽 모듈을 끌어와야 했다.
+  **받아들인 대가**: Core 는 모든 스크립트의 include 경로에 있으므로 2D 스크립트에서도
+  `Vec3`·`Quaternion`·`Matrix4x4` 가 보인다. 수학 값 타입은 2D/3D 배타성의 대상이 아니라고 정했고,
+  배타성은 컴포넌트와 서비스 수준에서만 유지한다.
+  **덤으로 걷은 것**: `JBroPhysics2D` 가 `Vec2` 하나 때문에 받던 `JBroFramework2D` include 경로가
+  죽어 vcxproj 에서 뺐다. 물리 커널은 이제 문서가 말하던 대로 진짜 `JBroCore` 만 본다.
+  검증: 솔루션 전체 Debug 빌드 오류 0, `JBroTests` Debug 전부 통과(`Public header composition`·
+  `Script API prelude` 포함), 자체 포함 번역 단위 275 개 재생성. 음성 테스트: `JBroPhysics2D` 소스에
+  `JBro/Framework2D/Component/Transform2D.h` 를 넣으면 `C1083` 으로 죽는다.
+  이름의 일관성 없음(`Vec` 대 `Matrix`, `Vec4` 없음)은 사용자가 이번에 손대지 말라고 해 남겼다. [열림]
+
 - **D-240. 오디오 전체 점검: 다섯 갈래(믹서·이펙트·디코드와 스트리밍·게임 쪽 시스템·시험과 문서)를 반례로 훑어 찾은 결함을 고친다.**
   (2026-09-27, [audio-plan.md](./audio-plan.md) §3-13, 사용자 요청 "오디오 싹 훑으면서 검증해봐. devil로 반례도 찾아가면서") Updates: D-203·D-205·
   D-231·D-235. (D-238·D-239 는 브랜치 `text2d`·`pixelperfect` 가 먼저 잡아 건너뛴다.)

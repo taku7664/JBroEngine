@@ -22,8 +22,8 @@
 #include <JBro/InputTypes/InputBuffer.h>
 #include <JBro/InputTypes/InputHandler.h>
 #include <JBro/InputTypes/ServiceContext.h>
-#include <JBro/SaveTypes/ServiceContext.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
+#include <JBro/SaveTypes/ServiceContext.h>
 
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
@@ -33,9 +33,9 @@
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Layer2D.h>
-#include <JBro/Framework2D/Math2D.h>
 #include <JBro/Framework2D/Prefab/Prefab.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
 #include <JBro/Framework2D/ServiceContext.h>
+#include <JBro/Types/Math2D.h>
 
 using namespace JBro;

@@ -1,4 +1,4 @@
-# Framework3D · 백엔드 · 기즈모 계획
+﻿# Framework3D · 백엔드 · 기즈모 계획
 
 > 계약은 `docs/ProjectRule.md`, 결정은 `tasks/todo.md` Decisions 다. 이 문서는 그 둘을 향해 가는
 > 순서와 상태를 적는다. 상태는 항목마다 `[완료]` `[진행]` `[가정]` `[열림]` 으로 붙인다.
@@ -38,7 +38,7 @@
 
 - `Transform3D` 에 월드 캐시를 더한다: `worldPosition`(Vec3)·`worldRotation`(Quaternion)·`worldScale`(Vec3)·
   `worldValid`, 전부 `NoSerialize | ReadOnly | Category("World cache")`(2D 와 같은 모양).
-  `[가정]` 월드 캐시는 **분해된 값**이고 행렬이 아니다. `Matrix4x4` 는 `JBroGraphics` 소유라(§10.1) 컴포넌트
+  `[가정]` 월드 캐시는 **분해된 값**이고 행렬이 아니다. `Matrix4x4` 는 이제 `JBroCore` 소유지만(D-241) 컴포넌트
   라이브러리 `JBroFramework3D` 가 들 수 없고, 스크립트 프렐류드에 렌더러 타입이 새어 나가면 안 된다(§5).
   대가: 비균등 스케일 아래의 회전이 만드는 전단(shear)은 자식에게 전해지지 않는다 - Unity 와 같은 근사다.
   행렬은 `Framework3DSystem` 이 렌더 월드를 뜰 때 만든다.
@@ -50,7 +50,7 @@
 ### 2.2 수학
 
 `Math3D.h` 에 hot-path 용 inline 함수만 둔다: `Vec3` 덧셈·뺄셈·배·내적·외적·길이·정규화, `Quaternion` 곱·
-정규화·벡터 회전·축각·오일러(ZXY)·역. 행렬은 `Framework3DSystem` 안의 `Math3DMatrix.h`(Graphics 의 `Matrix4x4`
+정규화·벡터 회전·축각·오일러(ZXY)·역. 행렬을 만드는 함수는 `Framework3DSystem` 안의 `Math3DMatrix.h`(Core 의 `Matrix4x4`
 를 받아 TRS·원근·직교·뷰 역행렬을 만든다). 규약은 렌더러와 같다: 열 벡터, `values[row*4+col]`, 깊이 0..1,
 오른손 좌표, 카메라는 -Z 를 본다. `[가정]`
 

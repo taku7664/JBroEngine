@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <JBro/Framework3D/Math3D.h>
+#include <JBro/Types/Math3D.h>
 #include <JBro/Types/Color.h>
 
 namespace JBro::Service

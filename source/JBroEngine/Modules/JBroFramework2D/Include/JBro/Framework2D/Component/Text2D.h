@@ -1,9 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypesReflection.h>
-#include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/TextStore.h>
 #include <JBro/Types/TextOptions.h>

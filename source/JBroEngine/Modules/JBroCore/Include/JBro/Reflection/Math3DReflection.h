@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <JBro/Framework3D/Math3D.h>
 #include <JBro/Reflection/Field.h>
+#include <JBro/Types/Math3D.h>
 
 // 3D 수학 타입의 리플렉션 설명자다. `Math3D.h` 와 따로 두는 이유는 그 헤더가
 // 매 프레임 경로에 있기 때문이다 — 거기에 리플렉션 기계를 넣으면 벡터를 쓰는 모든

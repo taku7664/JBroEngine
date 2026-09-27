@@ -223,7 +223,7 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
                               TextStore(호스트 소유 UTF-8 저장소, TextId 발급)
 ```
 
-- 커널은 `JBroCore` 만 쓴다. `Vec2` 가 필요하면 물리 커널(D-199)처럼 `Math2D.h` 만 본다. 의존하지 않은 헤더를 include 하면 실패하는
+- 커널은 `JBroCore` 만 쓴다. `Vec2` 가 필요하면 `JBro/Types/Math2D.h` 를 본다(D-241). 의존하지 않은 헤더를 include 하면 실패하는
   음성 테스트로 지킨다. 3D 텍스트가 오면 같은 커널을 쓴다.
 - 커널의 식별자는 번호다(face 번호, 아틀라스 페이지 번호). `SafePtr` 는 커널에 들어가지 않는다.
 
@@ -311,7 +311,7 @@ Tier E  JBroFramework2DSystem Text2DSystem = 어댑터: 저장소 세대 비교 
      - `Clip` 은 내림까지 상자 아래로 넘는 줄을 통째로 버린다. 글리프를 반만 자르는 것은 아틀라스와 함께 2 단계다.
      **잰 것**: fontTools 로 서브셋을 따로 읽은 값(README 의 표)과 stb 가 읽은 값이 모두 같다 - hhea 1000·1160·-288·0, 전진 폭, 커닝 `AV`·`VA` -15,
      `To` -74(GPOS 부표 형식 2). 레이아웃을 em 1000 으로 돌려 픽셀이 곧 폰트 단위가 되게 하고 숫자를 그대로 대조했다.
-     음성 검사 다섯이 C1083 이다: `JBroText` 소스에서 `JBro/Runtime/Component.h`·`JBro/Framework2D/Math2D.h`·`JBro/Canvas/Canvas.h`·
+     음성 검사 다섯이 C1083 이다: `JBroText` 소스에서 `JBro/Runtime/Component.h`·`JBro/Framework2D/Component/Transform2D.h`·`JBro/Canvas/Canvas.h`·
      `JBro/Graphics/Renderer.h`, 테스트에서 `stb_truetype.h`. 대조로 `JBro/Text/TextLayout.h` 만 넣은 것은 컴파일된다.
      전체 솔루션(`Debug_Game2D`), 에디터 호스트(`Debug`), 테스트 전부가 통과한다.
      **뮤테이션 18/18 잡힘**(`tools/mutations-text1.txt`, 손으로 돌려 변이마다 어느 검사가 죽는지 확인): 커닝 안 줌, face 가 커닝을 못 읽음,

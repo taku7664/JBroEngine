@@ -1,9 +1,9 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
-#include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Reflection/ScalarCodec.h>
 #include <JBro/Reflection/TypeDescriptorOf.h>
 #include <JBro/Runtime/Component.h>
