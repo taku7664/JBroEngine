@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -25,12 +25,13 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!--
     2D 물리 커널이다(D-199). Tier E 이고 캔버스·컴포넌트를 모른다.
-    JBroCore 와, Vec2 때문에 JBroFramework2D 의 Math2D.h 만 본다. JBroRuntime 의 include 경로를 받지 않으므로
+    JBroCore 만 본다. Vec2 가 Core 로 옮겨가면서 Framework2D 의 include 경로는 필요 없어졌다.
+    JBroFramework2D 와 JBroRuntime 의 include 경로를 모두 받지 않으므로,
     컴포넌트 헤더(그것이 Runtime 을 include 한다)를 넣으면 컴파일이 실패한다.
   -->
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroCore\Include;$(JBroModulesDir)JBroFramework2D\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(JBroModulesDir)JBroPhysics2D\Include;$(JBroModulesDir)JBroCore\Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>

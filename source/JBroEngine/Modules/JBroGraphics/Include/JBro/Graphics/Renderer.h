@@ -3,21 +3,12 @@
 #include <JBro/AssetTypes/AssetTypes.h>
 #include <JBro/RHI/RHI.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/Matrix4x4.h>
 
 #include <cstddef>
 
 namespace JBro
 {
-    struct Matrix4x4
-    {
-        float values[16] = {
-            1.0f, 0.0f, 0.0f, 0.0f,
-            0.0f, 1.0f, 0.0f, 0.0f,
-            0.0f, 0.0f, 1.0f, 0.0f,
-            0.0f, 0.0f, 0.0f, 1.0f
-        };
-    };
-
     struct RendererConfig
     {
         GraphicsApi api = GraphicsApi::D3D12;

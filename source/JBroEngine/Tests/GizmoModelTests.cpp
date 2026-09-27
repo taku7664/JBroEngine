@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
+#include <JBro/Graphics/Renderer.h>
 
 #include <cmath>
 #include <iostream>

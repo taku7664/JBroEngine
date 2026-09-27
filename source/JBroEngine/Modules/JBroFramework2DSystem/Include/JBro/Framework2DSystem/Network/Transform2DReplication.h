@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include <JBro/Framework2D/Component/Transform2D.h>
-#include <JBro/Framework2D/Math2D.h>
 #include <JBro/NetworkSystem/CanvasPoolAdapter.h>
+#include <JBro/Types/Math2D.h>
 
 #include <type_traits>
 

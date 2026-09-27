@@ -206,7 +206,7 @@
 
   | 층 | 모듈 | 내용 |
   |---|---|---|
-  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222) |
+  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vec2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vec3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241) |
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
@@ -733,10 +733,18 @@
   정식 타입 이식은 소비자 마이그레이션, 임시 정의 제거, Core와 선택 Framework 공개 헤더의 결합
   컴파일까지 끝나야 완료다. 필드명과 기본값이 다른 임시 타입은 조용히 합치지 말고 각 소비자의
   의도를 확인해 명시적으로 보존한다.
-  **벡터·행렬은 이 규칙의 대상이 아니다.** (D-57) `Vec2`·`Rect`·`Matrix3x2` 는 `JBroFramework2D`,
-  `Vec3` 는 `JBroFramework3D`, `Matrix4x4` 는 `JBroGraphics` 가 소유한다. 차원이 곧 의미이므로
-  차원 독립 타입이 아니며, 2D 프로젝트가 3D 수학을 링크하지 않는다. 이 규칙이 말하는 것은
-  `Color` 처럼 차원 의미가 없는 값 타입이다.
+  **벡터·행렬도 이 규칙의 대상이다.** (MUST) (D-241 이 D-57 을 뒤집었다)
+  `Vec2`·`Rect`·`Matrix3x2`·`Vec3`·`Quaternion`·`Matrix4x4` 를 모두 `JBroCore` 가 소유한다.
+  값 타입은 `JBro/Types/Math2D.h`·`JBro/Types/Math3D.h`·`JBro/Types/Matrix4x4.h` 에 있고,
+  리플렉션 설명서는 `JBro/Reflection/Math2DReflection.h`·`JBro/Reflection/Math3DReflection.h` 에
+  따로 둔다 - 매 프레임 경로가 리플렉션 기계를 물고 가지 않게 하려는 것이며, 이것은 옮기기 전과 같다.
+  D-57 은 "2D 프로젝트가 3D 수학을 링크하지 않는다" 를 근거로 들었으나, 세 헤더는 모두 `struct` 와
+  `inline` 함수뿐이라 링크할 심볼 자체가 없었다. 실제 대가는 include 비용뿐이었고, 그 대신
+  2D 와 3D 를 모두 보는 코드(에디터·Graphics·물리 커널)가 양쪽 모듈을 함께 끌어와야 했다.
+  **좌표계와 깊이 범위를 전제하는 함수는 Core 로 옮기지 않는다.** 투영·뷰·회전 행렬을 만드는 것들은
+  `JBroFramework3DSystem/Math3DMatrix.h` 에 그대로 남는다. 그 규약은 시스템 단계의 계약이기 때문이다.
+  **결과로 2D 스크립트에서도 `Vec3`·`Quaternion`·`Matrix4x4` 가 보인다.** 수학 값 타입은
+  2D/3D 배타성의 대상이 아니며, 배타성은 컴포넌트와 서비스 수준에서만 유지한다.
 - 스크립트 레이어는 네임스페이스를 강제하지 않는다. 프렐류드 헤더(`ScriptAPI.h`)가
   `using namespace JBro;` 를 수행한다. (MUST)
   단 **1 뎁스 네임스페이스 사용을 적극 권장한다** — `Component::Transform2D` 처럼 쓰면

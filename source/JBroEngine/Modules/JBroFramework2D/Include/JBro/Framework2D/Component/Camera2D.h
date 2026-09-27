@@ -1,8 +1,8 @@
 ﻿#pragma once
 
-#include <JBro/Framework2D/Math2DReflection.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Reflection/EnumDescriptor.h>
+#include <JBro/Reflection/Math2DReflection.h>
 #include <JBro/Runtime/Component.h>
 
 namespace JBro::Component

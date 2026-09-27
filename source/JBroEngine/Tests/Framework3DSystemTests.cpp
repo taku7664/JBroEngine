@@ -3,7 +3,6 @@
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
-#include <JBro/Framework3D/Math3D.h>
 #include <JBro/Framework3DSystem/Framework3D.h>
 #include <JBro/Framework3DSystem/Math3DMatrix.h>
 #include <JBro/Framework3DSystem/Rendering/MeshLibrary.h>
@@ -11,7 +10,9 @@
 #include <JBro/Framework3DSystem/System/Camera3DSystem.h>
 #include <JBro/Framework3DSystem/System/MeshRender3DSystem.h>
 #include <JBro/Framework3DSystem/System/Transform3DSystem.h>
+#include <JBro/Graphics/Renderer.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Types/Math3D.h>
 
 #include <cmath>
 #include <iostream>

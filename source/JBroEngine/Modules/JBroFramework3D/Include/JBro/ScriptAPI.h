@@ -25,8 +25,8 @@
 #include <JBro/InputTypes/InputBuffer.h>
 #include <JBro/InputTypes/InputHandler.h>
 #include <JBro/InputTypes/ServiceContext.h>
-#include <JBro/SaveTypes/ServiceContext.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
+#include <JBro/SaveTypes/ServiceContext.h>
 
 #include <JBro/Framework3D/Component/AudioListener3D.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
@@ -34,7 +34,7 @@
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
-#include <JBro/Framework3D/Math3D.h>
 #include <JBro/Framework3D/ServiceContext.h>
+#include <JBro/Types/Math3D.h>
 
 using namespace JBro;

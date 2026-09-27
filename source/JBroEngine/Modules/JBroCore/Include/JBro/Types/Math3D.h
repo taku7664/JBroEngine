@@ -6,8 +6,9 @@
 // 이 헤더는 매 프레임 경로에 있어 리플렉션 기계를 물고 가면 안 된다(2D 의 `Math2D.h` 와 같다).
 //
 // 규약(framework3d-plan §2.2, `[가정]`): 오른손 좌표, 카메라는 -Z 를 본다, 사원수는 (x, y, z, w) 이고
-// w 가 실수부다. 행렬은 `JBroGraphics` 의 `Matrix4x4` 가 소유하므로 여기에는 없다 - 행렬을 만드는
-// 함수는 `JBroFramework3DSystem/Math3DMatrix.h` 에 있다.
+// w 가 실수부다. `Matrix4x4` 는 차원 무관한 배치 규약을 가지므로 같은 Core 의
+// `JBro/Types/Matrix4x4.h` 에 따로 있고, 좌표계를 전제해 그 행렬을 만드는 함수는
+// `JBroFramework3DSystem/Math3DMatrix.h` 에 있다.
 namespace JBro
 {
     struct Vec3

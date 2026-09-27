@@ -1,8 +1,8 @@
 ﻿#pragma once
 
-#include <JBro/Canvas/ScreenSpace.h>
-#include <JBro/Framework2D/Math2D.h>
 #include <JBro/Canvas/GameSystem.h>
+#include <JBro/Canvas/ScreenSpace.h>
+#include <JBro/Types/Math2D.h>
 
 namespace JBro::System
 {

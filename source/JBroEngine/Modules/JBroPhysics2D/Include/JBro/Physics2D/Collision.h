@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include <JBro/Framework2D/Math2D.h>
 #include <JBro/Physics2D/Geometry.h>
+#include <JBro/Types/Math2D.h>
 
 #include <cmath>
 #include <cstdint>

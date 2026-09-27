@@ -1,11 +1,11 @@
 ﻿#pragma once
 
-#include <JBro/Framework2D/Math2D.h>
 #include <JBro/Physics2D/BroadPhase.h>
 #include <JBro/Physics2D/Collision.h>
 #include <JBro/Physics2D/Geometry.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/ArrayView.h>
+#include <JBro/Types/Math2D.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/Table.h>
 
