@@ -326,6 +326,7 @@ namespace
             { { 0xA960, 0x1161 }, 2, { 21146, 21293 }, "an extended-A lead" },
             { { 0x1100, 0xD7B0 }, 2, { 20670, 21435 }, "an extended-B vowel" },
             { { 0x1100, 0x1161, 0xD7CB }, 3, { 20667, 21294, 21569 }, "an extended-B trail" },
+            { { 0x41, 0x119E }, 2, { 36, 3139 }, "a vowel without a lead before it is left alone" },
         };
         for (const Case& item : cases)
         {
@@ -367,6 +368,13 @@ namespace
         Check(false == vowelBox.empty && vowelBox.minX + 2048 >= 0 && vowelBox.maxX + 2048 <= 2048,
             "and the vowel's outline reaches back into the lead's cell");
         Check(Near(layout.GetLines()[0].width, 4096.0f), "two old syllables are two cells wide");
+        // 자간은 음절 사이에만 든다 - 뒤 자모는 첫 글리프에 붙은 것이라 자간을 받지 않는다.
+        LayoutOptions spaced = options;
+        spaced.letterSpacing = 100.0f;
+        Check(layout.Build(Utf8("ᄀᆞᆨᄀᆞᆨ"), faces, spaced) == LayoutError::None
+                && Near(layout.GetGlyphs()[1].x, layout.GetGlyphs()[0].x + 2048.0f) && Near(layout.GetGlyphs()[2].x, layout.GetGlyphs()[0].x + 2048.0f)
+                && Near(layout.GetGlyphs()[3].x, layout.GetGlyphs()[0].x + 2148.0f),
+            "letter spacing goes between syllables, not between the jamo of one");
         Check(glyphs[0].sourceOffset == 0 && glyphs[1].sourceOffset == 3 && glyphs[2].sourceOffset == 6 && glyphs[3].sourceOffset == 9,
             "each jamo keeps its source bytes");
 
