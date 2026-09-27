@@ -120,14 +120,16 @@
     `EditorHostMain` 루프가 끝난다. 게임 뷰는 편집 중에도 게임 카메라로 매 프레임 그리므로 **재생하지 않아도** 인스펙터에서 값을 바꾸는 순간 꺼진다.
     사용자에게는 아무 말도 남지 않는다(콘솔의 `last frame: invalid state` 한 줄뿐). `physics-plan` 의 "확인 중 에디터가 한 번 꺼진 것" 도 이것이다.
   - 실측: 카메라 하나만 있는 캔버스로 `JBroEditorHost --frames 120` 을 두 번 띄웠다. `Orthographic` 은 120 프레임·`ready`, `PixelPerfect` 는 **0 프레임·`invalid state`**.
-    두 파일의 차이는 `projection` 한 줄이다.
+    두 파일의 차이는 `projection` 한 줄이다. **투영만의 문제가 아니다**: 같은 방법으로 `orthographicSize: 0` 과 `nearPlane: 200`(`farPlane` 100 보다 큼)도
+    둘 다 0 프레임·`invalid state` 였다 - `BuildCamera` 가 거절하는 값이면 무엇이든 인스펙터에서 한 번 넣는 순간 에디터가 꺼진다.
   - `Orthographic` 카메라는 동작한다: `RendererContractTests` 가 카메라 위치·크기로 뷰-투영 값을 재고(`vp[0] = 0.05` 등), `D3D12SmokeTests` 가 실제 장치로 그린다.
     `PixelPerfect` 는 추출(`Framework2DSystemTests` - 값이 렌더 월드로 옮겨지는지)만 재고 **그리기는 한 번도 재지 않았다** - 그래서 이 종료가 테스트에 걸리지 않았다.
   - **D-58 의 전제가 틀렸다.** D-58 은 "세부 계약은 기존 엔진의 것을 읽고 따른다" 인데, 기존 엔진 `Camera2D` 에는 PixelPerfect 가 없다
     (`ECameraProjectionMode2D { Orthographic, PerspectiveReady }`, `Engine/GameFramework/Component/Camera2D.h`). 기존 엔진의 `PixelsPerUnit`·기준 해상도는
     스프라이트 크기와 화면 공간(UI) 투영에만 쓰였고(`Render2DPipeline.cpp` `ScreenSpaceReference`), 카메라를 픽셀 격자에 맞추는 코드는 없다.
     따를 계약이 없으므로 새로 정해야 한다(사용자 결정).
-  - 정할 것: (1) 당장의 안전장치 - 모르는 투영은 에디터를 끄지 말고 `Orthographic` 으로 그리며 경고를 한 번 남길지, 아니면 PixelPerfect 를 구현할 때까지 목록에서 뺄지.
+  - 정할 것: (1) 당장의 안전장치 - 카메라 값이 그릴 수 없는 것(구현 안 된 투영, 크기 0 이하, `nearPlane ≥ farPlane`)이면 에디터를 끄지 말고 그 카메라를 쓰지 못하는
+    것으로 칠지(월드를 그리지 않고 게임 뷰가 까닭을 보이며 경고를 한 번 남긴다), 그리고 인스펙터가 그런 값을 애초에 막을지.
     (2) PixelPerfect 계약 - 기준 해상도(`.jproject` `ResolutionWidth/Height`)와 PPU(`.jproject` `PixelsPerUnit`, 스프라이트마다 다를 수 있다)로 `orthographicSize` 를 정할지,
     정수 배율과 남는 영역(레터박스·잘라내기), 카메라 위치를 화면 픽셀에 맞추는 스냅, 에디터 게임 뷰와 캔버스 뷰가 그것을 따를지.
 
