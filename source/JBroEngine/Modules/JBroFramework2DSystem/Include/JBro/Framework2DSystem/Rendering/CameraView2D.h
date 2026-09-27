@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/ScreenSpace.h>
-#include <JBro/Framework2D/Math2D.h>
+#include <JBro/Types/Math2D.h>
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 
 namespace JBro

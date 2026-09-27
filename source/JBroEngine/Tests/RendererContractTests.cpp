@@ -1430,6 +1430,7 @@ namespace
         Check(renderer.Initialize(module, config), "pixel perfect renderer must initialize");
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         context.renderer = &renderer;
         Check(framework.Initialize(context), "framework must bind the renderer");
         JBro::ScreenSpaceFrame screen;
@@ -1454,7 +1455,7 @@ namespace
 
         const auto close = [](float a, float b) { return std::fabs(a - b) < 0.0001f; };
         const auto renderFrame = [&](const char* what) {
-            framework.Update(0.0f);
+            framework.Update();
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, what);
             Check(framework.Render() == JBro::RenderResult::Submitted, what);
             Check(renderer.EndFrame() == JBro::FrameStatus::Ready, what);
@@ -1526,6 +1527,7 @@ namespace
         Check(renderer.Initialize(module, config), "renderer must initialize");
         JBro::Framework2D framework;
         JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
         context.renderer = &renderer;
         Check(framework.Initialize(context), "framework must bind the renderer");
         auto* canvas = framework.GetCanvas();
@@ -1538,7 +1540,7 @@ namespace
         canvas->AttachComponent<JBro::Component::Transform2D>(thing);
         canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(thing);
 
-        framework.Update(0.0f);
+        framework.Update();
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
         Check(framework.Render() == JBro::RenderResult::NothingToSubmit,
             "a camera that cannot draw is no camera, not a failed frame");
@@ -1548,7 +1550,7 @@ namespace
         auto* spare = canvas->CreateObject("spare");
         canvas->AttachComponent<JBro::Component::Transform2D>(spare);
         canvas->AttachComponent<JBro::Component::Camera2D>(spare)->orthographicSize = 2.0f;
-        framework.Update(0.0f);
+        framework.Update();
         Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the next frame must begin");
         Check(framework.Render() == JBro::RenderResult::Submitted, "the next usable camera draws instead");
         Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "and the frame finishes");
