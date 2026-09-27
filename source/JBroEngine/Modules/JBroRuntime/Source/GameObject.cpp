@@ -159,12 +159,12 @@ namespace JBro
 
     std::uint32_t GameObject::GetFlags() const
     {
-        return m_flags;
+        return m_flags.Get();
     }
 
     void GameObject::SetFlags(std::uint32_t flags)
     {
-        m_flags = flags;
+        m_flags.Set(flags);
     }
 
     const Array<ComponentSlot>& GameObject::GetComponents() const

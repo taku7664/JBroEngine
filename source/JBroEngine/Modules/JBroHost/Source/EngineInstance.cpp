@@ -875,6 +875,16 @@ namespace JBro
                     : m_renderer ? m_renderer->GetSurfaceExtent() : Extent2D{};
                 screen.targetWidth = static_cast<float>(target.width);
                 screen.targetHeight = static_cast<float>(target.height);
+                // 가려지는 띠다(D-249). **게임이 창에 바로 그릴 때만 뜻이 있다** - 에디터의 게임 뷰는
+                // 텍스처라 화면 가장자리가 아니고, 기기를 돌리면 값이 바뀌므로 프레임마다 다시 받는다.
+                if (false == m_gameViewTarget.texture.IsValid())
+                {
+                    WindowState windowState;
+                    if (m_platform->GetWindowState(m_mainWindow, windowState))
+                    {
+                        screen.safeArea = windowState.safeArea;
+                    }
+                }
                 m_framework->SetScreenSpace(screen);
             }
             m_framework->Update();

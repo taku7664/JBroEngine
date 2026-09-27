@@ -2916,6 +2916,82 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-250. 벡터 타입의 이름은 `Vector2`·`Vector3`·`Vector4` 다. 줄이지 않는다.**
+  (2026-09-27, 사용자 지시 "Vec 대 Matrix도 이후에 고치자. 일관성 맞게 Vector2,3,4로 고치는걸로")
+  Updates: D-241, D-57. 2026-09-15 에 스크립트 쪽에서 이미 `Vec2` → `Vector2` 로 정해져 있었고
+  (jbroscript-syntax §7.1·§12 의 2 번), 여기서 **3·4 차원까지 같은 규칙으로 넓혀 확정한다.**
+  **왜**: `Vec` 은 줄이고 `Matrix` 는 안 줄여서 같은 헤더 안에서 규칙이 둘이었다. 줄이는 쪽으로
+  맞추면(`Mat3x2`) 이미 `Matrix3x2`·`Matrix4x4` 로 적힌 자리와 저장 파일의 타입 이름이 전부
+  바뀌므로, **안 줄이는 쪽으로 맞춘다.** 스크립트가 보는 이름도 `Vector2` 라 양쪽이 같아진다.
+  **바뀌는 것**: `Vec2`→`Vector2`, `Vec3`→`Vector3`, 그리고 **없던 `Vector4` 를 새로 만든다**
+  (지금은 색을 `Color`, 사원수를 `Quaternion` 이 따로 들고 있어 4 차원 벡터 자리가 비어 있다).
+  `Matrix3x2`·`Matrix4x4`·`Quaternion`·`Color`·`Size`·`Rect` 는 그대로다.
+  **함께 봐야 하는 것**: 리플렉션의 타입 이름 문자열(`"JBro.Vec2"` 류)이 저장 파일에 적히므로,
+  바꾸면 **이미 저장된 캔버스·프리팹 파일을 읽는 길이 필요하다** - 옛 이름을 받아 주는 별칭을
+  둘지, 파일을 한 번 옮길지 정해야 한다. 인스펙터가 위젯을 타입 이름으로 고르는 자리
+  (`InspectorPanel` 의 `"JBro.Color"` 비교)도 같이 고친다. D-57·D-241 의 본문도 `Vec2` 로 적혀 있다.
+  **작업은 아직 하지 않았다** - 사용자가 "이후에 고치자" 로 미뤘다. 이 항목은 이름만 확정한다. [열림]
+
+- **D-249. 기존 엔진에 있었는데 옮기지 않은 공용 값 타입을 Core 로 들인다.**
+  (2026-09-27, 사용자 지시 "기존 엔진이 구현했던 걸 놓쳤던 거나 획기적인 타입들 있으면 말해봐" 와
+  "다 필요해. 다 추가해") Updates: D-38, D-241, D-247. 기존 엔진 `Engine/Utillity` 를 훑어
+  신규 트리와 대조한 결과다.
+  **`Size`**(`Types/Size.h`): `SizeT<T>` 와 별칭 `Size`(실수)·`SizeU`(픽셀)·`SizeI`. 크기가 세 갈래로
+  흩어져 있었다 - `Vec2 size`(렌더 월드·디버그 드로·물리 질의), `std::uint32_t width/height`
+  (에셋·이미지 디코더·스프라이트 외곽선), `float width/height`(화면 좌표·기즈모 모델).
+  **RHI 의 `Extent2D` 가 이미 `SizeU` 와 같은 모양이었으나 렌더 계층에 있어서** 에셋과 에디터가
+  그것을 쓰지 못하고 낱개 멤버를 들고 다녔다. `Extent2D` 를 `SizeU` 의 별칭으로 만들어 합쳤다
+  (쓰는 자리 72 곳은 그대로 컴파일된다 - 멤버 이름이 `width`·`height` 로 같다).
+  **`BitFlag`**(`Types/BitFlag.h`): `HasAll`·`HasAny`·`HasNone` 을 이름으로 가른다. 생 정수로 쓰면
+  `(flags & X) == X` 와 `!= 0` 을 자리마다 손으로 골라야 하고, X 가 비트 둘 이상이면 뜻이 다르다.
+  **정수로 암시 변환하지 않는다** - 그러면 `flags & X` 가 되살아나 타입을 둔 뜻이 없어진다.
+  **`Rect` 의 연산**(`Types/Math2D.h`): 타입은 있었으나 `{min, max}` 뿐이라 34 곳이 판정을 각자
+  적고 있었다. `Width`·`Height`·`GetSize`·`Center`·`IsEmpty`·`Contains`·`Intersects` 와
+  `MakeRect`·`MakeRectFromCenter`·`MakeRectFromPoint`·`IntersectRect`·`UnionRect`·`OffsetRect`·
+  `ExpandRect` 를 더했다. **맞닿은 것은 겹친 것으로 센다** - 물리의 점 질의가 `Rect{ point, point }`
+  이기 때문이다. **모서리는 `fmin`/`fmax` 로 고른다**(삼항 비교가 아니다): 한 점이 NaN 이라고 상자
+  전체가 NaN 이 되면 그 물체가 모든 질의에 걸리거나 아무 질의에도 안 걸린다. 물리가 전부터 그렇게
+  쌓아 왔고, 그 동작을 그대로 옮겼다. `IntersectRect`·`UnionRect` 가 `constexpr` 이 아닌 까닭도 이것이다.
+  **`SafeAreaInsets`**(`Types/SafeArea.h`): 휴대 기기의 노치·홈 표시줄이 먹는 띠다. 신규 트리에도
+  계획(`ui-plan.md`)에도 없었다. `WindowState` 가 표면 픽셀로 들고, 호스트가 화면 기준
+  (`ScreenSpaceFrame`)으로 옮기며, `GetSafeScreenArea` 가 안쪽 사각형을 답한다.
+  **그리는 영역은 줄지 않는다** - 그림은 화면 끝까지 가는 것이 맞고, 줄어드는 것은 사람이 눌러야
+  하는 것이 놓이는 안쪽뿐이다. 데스크톱은 전부 0 이라 동작이 바뀌지 않는다.
+  **`RemoveStaleEntries`**(`Types/FrameLiveness.h`): `Text2DSystem` 과 `Text3DSystem` 이 같은 청소를
+  글자까지 똑같이 두 벌로 들고 있었다. 하나로 합쳤다. **도는 중에 지우지 않는다** - `Table` 은
+  지우면 자리를 다시 놓으므로 아직 보지 않은 항목을 건너뛴다.
+  **프렐류드**(`Types/Types.h`): D-241 로 수학 타입을 Core 로 올리고도 목록을 고치지 않아, 이 헤더
+  하나만 넣어서는 `Vec2` 도 `Degree` 도 쓸 수 없었다. 각·수학·크기·`Delegate`·`Uuid`·`NameTable` 을
+  더했다. `Simd128.h`(플랫폼 내장 함수)와 `TextOptions.h`(리플렉션 계층에 기댄다)는 뺐다.
+  **프로파일러의 호출 횟수를 평균한다**: 기존 엔진 `CFrameSectionProfiler` 가 남긴 교훈이다.
+  시간은 눌러 보여 주면서 횟수는 그때그때 값을 그대로 보여 주고 있었는데, 50Hz 고정 스텝을
+  200fps 로 돌리면 네 프레임 중 셋이 0 으로 찍혀 **그 시스템이 안 도는 것처럼 읽힌다.** 실수로 들고
+  평균해 `0.25` 처럼 보인다. (기존 엔진의 다른 교훈인 "프레임 안에서는 누적만 하고 끝에 한 번
+  접는다" 는 신규 `Profiler` 코어가 이미 그렇게 하고 있었다 - `Push`/`Pop` 이 같은 이름·같은 겹을
+  한 줄로 합쳐 `totalNanoseconds` 에 더한다.)
+  **적용**: 물리의 경계 상자 쌓기(`ComputePolygonBounds`)·여유 넓히기·스윕 겹침 판정이 새 연산을
+  쓴다. 브로드페이즈의 축별 비교는 **그대로 뒀다** - 쓸어 담기 알고리즘이 x 를 이미 걸렀으므로
+  온전한 겹침 판정으로 바꾸면 한 축을 두 번 본다.
+  검증: Debug·Release 솔루션 전체 빌드 오류 0·경고 0, `JBroTests` 양쪽 전부 통과.
+  새 시험 묶음 `CoreValueTypeTests.cpp` 12 개. 헤더 자립성 번역 단위 5 개가 새로 생겼다
+  (`Types_Angle`·`Types_BitFlag`·`Types_FrameLiveness`·`Types_SafeArea`·`Types_Size`) -
+  **`Angle.h` 는 D-247 에서 생성기를 돌리지 않아 여태 빠져 있었다.**
+  뮤테이션 4 개로 시험이 실제로 잡는지 쟀다(스크래치 `cl` 빌드, 초 단위): `HasAll` 을 `HasAny` 로,
+  `UnionRect` 를 삼항 비교로, 생존 판정을 뒤집기, `Contains` 를 열린 구간으로 - **넷 다 잡혔고
+  기준선은 통과했다.**
+  `GameObject::m_flags` 가 `BitFlag` 이 되었다. **공개 API 는 생 정수 그대로다** - 캔버스 파일에
+  숫자로 적히고 스크립트 경계를 건너므로, 바꾸면 저장 파일과 사용자 코드가 함께 바뀐다.
+  **들이지 않은 것**: 기존 엔진의 `Layout2D`(정규화 비율 + 픽셀 오프셋)는 **D-237 이 이미 같은 일을
+  한다** - `Transform2D::anchor`(0..1)가 정규화 채널이고 `position`(기준 픽셀)이 픽셀 채널이라
+  `anchor * 화면 + position` 이 `Normalized * 해상도 + Pixel` 과 같은 식이다. 들이면 같은 뜻의
+  길이 둘이 된다. D-57 논의에서 "Framework2D 에 남긴다" 고 제안만 되고 이식되지 않았던 것인데,
+  이식하지 않은 것이 결과적으로 맞았다. 이 항목은 여기서 닫는다.
+  남긴 것: 플래그 묶음마다 타입을 갈라 서로 섞는 것까지 막으려면 플래그 상수를 `enum class` 로
+  바꿔야 하는데, 지금 상수들은 직렬화와 스크립트 경계를 함께 건너므로 따로 잡는다. [열림]
+  **안전 영역을 어느 레이어가 따를지**는 정하지 않았다 - 배선만 해 두었고, 화면 레이어마다 켜고 끌지
+  아니면 늘 따를지는 방향을 바꾸는 판단이라 사용자 확인이 필요하다. [열림]
+  `Size` 를 컴포넌트 필드에 쓰려면 리플렉션 서술자가 있어야 한다. 아직 넣지 않았다. [열림]
+
 - **D-248. 담는 것과 내주는 것이 다른 필드는 `JBRO_FIELD_PRIVATE` 로 닫고 접근자로 연다.**
   (2026-09-27, 사용자 지시 "로테이션은 내부에서 쓰는용 따로, 외부용 따로 둬야지" 와 "그냥 깨고 public, private
   둘로 나눌 수 있나?". 래퍼 타입으로 `rotation = 90` 문법을 지키는 안도 보였으나 사용자가 "걍 지금대로 하자,
@@ -3083,7 +3159,8 @@ EditorApplication::Tick
   검증: 솔루션 전체 Debug 빌드 오류 0, `JBroTests` Debug 전부 통과(`Public header composition`·
   `Script API prelude` 포함), 자체 포함 번역 단위 275 개 재생성. 음성 테스트: `JBroPhysics2D` 소스에
   `JBro/Framework2D/Component/Transform2D.h` 를 넣으면 `C1083` 으로 죽는다.
-  이름의 일관성 없음(`Vec` 대 `Matrix`, `Vec4` 없음)은 사용자가 이번에 손대지 말라고 해 남겼다. [열림]
+  이름의 일관성 없음(`Vec` 대 `Matrix`, `Vec4` 없음)은 사용자가 이번에 손대지 말라고 해 남겼다.
+  **→ 이름은 D-250 에서 `Vector2`·`Vector3`·`Vector4` 로 정해졌다. 바꾸는 작업은 아직 남았다.**
 
 - **D-240. 오디오 전체 점검: 다섯 갈래(믹서·이펙트·디코드와 스트리밍·게임 쪽 시스템·시험과 문서)를 반례로 훑어 찾은 결함을 고친다.**
   (2026-09-27, [audio-plan.md](./audio-plan.md) §3-13, 사용자 요청 "오디오 싹 훑으면서 검증해봐. devil로 반례도 찾아가면서") Updates: D-203·D-205·

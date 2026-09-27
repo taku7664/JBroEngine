@@ -9,6 +9,7 @@
 #include <JBro/TextRendering/TextSystemBase.h>
 #include <JBro/Text/TextLayout.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/FrameLiveness.h>
 #include <JBro/Types/Table.h>
 
 #include <cstdint>

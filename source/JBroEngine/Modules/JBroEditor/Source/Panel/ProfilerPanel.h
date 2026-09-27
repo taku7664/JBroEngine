@@ -28,7 +28,10 @@ namespace JBro
         {
             const char* name = nullptr;
             std::uint32_t depth = 0;
-            std::uint32_t callCount = 0;
+            // **횟수도 눌러야 한다**(D-249). 고정 스텝은 프레임마다 도는 것이 아니라서
+            // 그때그때 값을 그대로 보이면 50Hz 를 200fps 로 돌릴 때 네 프레임 중 셋이 0 으로
+            // 찍히고, 읽는 사람은 그 시스템이 안 도는 줄로 안다. 그래서 실수로 들고 평균한다.
+            double callsPerFrame = 0.0;
             double milliseconds = 0.0;
         };
         Smoothed m_rows[Profiler::MaxSamples];

@@ -12,6 +12,7 @@
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/BitFlag.h>
 #include <JBro/Types/SafePtr.h>
 #include <JBro/Types/NameTable.h>
 
@@ -88,11 +89,11 @@ namespace JBro
         void          SetFlags(std::uint32_t flags);
         bool IsEditorHidden() const
         {
-            return (m_flags & ObjectFlagEditorHidden) != 0;
+            return m_flags.HasAll(ObjectFlagEditorHidden);
         }
         void SetEditorHidden(bool hidden)
         {
-            m_flags = hidden ? (m_flags | ObjectFlagEditorHidden) : (m_flags & ~ObjectFlagEditorHidden);
+            m_flags.SetTo(ObjectFlagEditorHidden, hidden);
         }
 
         // 컴포넌트 풀의 주소를 SafePtr 로만 기록한다. 조회는 캐시 친화적인 선형 순회다.
@@ -151,7 +152,9 @@ namespace JBro
         Array<ComponentSlot> m_components;
         SafePtr<Layer>                m_layer;
         std::uint32_t                 m_layerIndex = 0;
-        std::uint32_t                 m_flags = 0;
+        // **안에서만 `BitFlag` 다**(D-249). 내주는 것은 생 정수 그대로다 - 캔버스 파일에 숫자로
+        // 적히고 스크립트 경계를 건너므로, 바꾸면 저장 파일과 사용자 코드가 함께 바뀐다.
+        BitFlag                       m_flags;
         bool                          m_destroying = false;
         bool                          m_active = true;
         bool                          m_activeInHierarchy = true;

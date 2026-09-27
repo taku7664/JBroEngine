@@ -1068,8 +1068,7 @@ namespace JBro::Physics2D
                 {
                     const Vec2 a = TransformPoint(pose, shape.segments[child].p1);
                     const Vec2 b = TransformPoint(pose, shape.segments[child].p2);
-                    bounds.min = { std::fmin(a.x, b.x), std::fmin(a.y, b.y) };
-                    bounds.max = { std::fmax(a.x, b.x), std::fmax(a.y, b.y) };
+                    bounds = UnionRect(MakeRectFromPoint(a), b);
                 }
                 else
                 {
@@ -1077,8 +1076,7 @@ namespace JBro::Physics2D
                         ? ComputeCircleBounds(shape.circle, pose)
                         : ComputePolygonBounds(shape.pieces[child], pose);
                 }
-                bounds.min = { bounds.min.x - margin, bounds.min.y - margin };
-                bounds.max = { bounds.max.x + margin, bounds.max.y + margin };
+                bounds = ExpandRect(bounds, margin);
                 m_proxies.Add({ shapeIndex, child });
                 m_proxyBounds.Add(bounds);
             }
@@ -1664,7 +1662,7 @@ namespace JBro::Physics2D
                             piece = &target.pieces[c];
                         }
                         const Rect box = piece != nullptr ? ComputePolygonBounds(*piece, targetPose) : ComputeCircleBounds(target.circle, targetPose);
-                        if (box.max.x < swept.min.x || box.min.x > swept.max.x || box.max.y < swept.min.y || box.min.y > swept.max.y)
+                        if (false == box.Intersects(swept))
                         {
                             continue;
                         }

@@ -2,6 +2,7 @@
 
 #include <JBro/Core/Core.h>
 #include <JBro/Platform/Platform.h>
+#include <JBro/Types/Size.h>
 
 namespace JBro
 {
@@ -212,11 +213,10 @@ namespace JBro
         Back
     };
 
-    struct Extent2D
-    {
-        std::uint32_t width = 0;
-        std::uint32_t height = 0;
-    };
+    // 픽셀로 세는 크기다. Core 의 `SizeU` 와 같은 것이라 이름만 다르게 둔다(D-249) -
+    // 전에는 같은 모양을 RHI 가 따로 들고 있어서, 에셋과 에디터는 이것을 쓰지 못하고
+    // `width`·`height` 를 낱개로 들고 다녔다.
+    using Extent2D = SizeU;
 
     struct ClearColor
     {

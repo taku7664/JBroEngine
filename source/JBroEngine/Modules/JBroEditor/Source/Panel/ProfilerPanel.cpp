@@ -73,7 +73,10 @@ namespace JBro
             const bool same = row.name == sample->name && row.depth == sample->depth;
             row.name = sample->name;
             row.depth = sample->depth;
-            row.callCount = sample->callCount;
+            const double calls = static_cast<double>(sample->callCount);
+            row.callsPerFrame = same
+                ? row.callsPerFrame + (calls - row.callsPerFrame) * Smoothing
+                : calls;
             row.milliseconds = same
                 ? row.milliseconds + (now - row.milliseconds) * Smoothing
                 : now;
@@ -146,7 +149,8 @@ namespace JBro
             ImGui::TableSetColumnIndex(1);
             Widget::TextF("%.3f", row.milliseconds);
             ImGui::TableSetColumnIndex(2);
-            Widget::TextF("%u", row.callCount);
+            // 한 번도 안 거른 정수처럼 보이면 안 된다 - 0.25 는 네 프레임에 한 번 돈다는 뜻이다.
+            Widget::TextF("%.2f", row.callsPerFrame);
             ImGui::TableSetColumnIndex(3);
             const double share = m_frameMilliseconds > 0.0001
                 ? row.milliseconds / m_frameMilliseconds * 100.0

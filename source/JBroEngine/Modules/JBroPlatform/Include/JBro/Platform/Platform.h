@@ -3,6 +3,7 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Platform/Input.h>
 #include <JBro/Types/Array.h>
+#include <JBro/Types/SafeArea.h>
 #include <JBro/Types/String.h>
 
 #include <cstddef>
@@ -46,6 +47,10 @@ namespace JBro
         std::uint32_t width = 0;
         std::uint32_t height = 0;
         bool minimized = false;
+        // 가장자리에서 가려지는 띠다(표면 픽셀, D-249). 노치·홈 표시줄이 있는 기기만 채운다 -
+        // **데스크톱은 전부 0 이고, 0 이면 안쪽 영역이 창 전체와 같다.** 기기를 돌리면 값이
+        // 바뀌므로 플랫폼은 프레임마다 지금 값을 넣는다.
+        SafeAreaInsets safeArea;
     };
 
     // 파일 대화상자 하나. 글자는 전부 UTF-8 이고 널이면 비운 것으로 본다.

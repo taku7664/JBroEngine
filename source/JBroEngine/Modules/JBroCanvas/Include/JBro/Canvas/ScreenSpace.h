@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Types/SafeArea.h>
 
 #include <cstdint>
 
@@ -23,6 +24,10 @@ namespace JBro
         float areaY = 0.0f;
         float areaWidth = 0.0f;
         float areaHeight = 0.0f;
+        // 가장자리에서 가려지는 띠다(대상 픽셀, D-249). 노치·홈 표시줄이 먹는 자리이고 데스크톱은 0 이다.
+        // **그리는 영역은 이것에 줄어들지 않는다** - 그림은 화면 끝까지 가는 것이 맞다.
+        // 줄어드는 것은 `GetSafeScreenArea` 가 답하는 안쪽 영역뿐이고, 사람이 눌러야 하는 것이 그 안에 놓인다.
+        SafeAreaInsets safeArea;
     };
 
     // 대상 안의 사각형이다(대상 픽셀, 왼쪽 위 원점).
@@ -36,6 +41,11 @@ namespace JBro
 
     // 그려지는 사각형이다. `area*` 가 비었으면 대상 전체다. 대상이 0 이하·무한이면 거짓이고 결과를 건드리지 않는다.
     bool GetScreenArea(const ScreenSpaceFrame& frame, ScreenArea& area);
+
+    // **가려지지 않는 안쪽 사각형이다**(D-249). 그려지는 사각형에서 `safeArea` 만큼 줄인 것이고,
+    // 띠가 없으면 `GetScreenArea` 와 같다. 띠가 너무 두꺼워 남는 것이 없으면 폭이나 높이가 0 이 된다 -
+    // 음수로 뒤집지 않는다. 글자·버튼처럼 가려지면 안 되는 것을 놓을 때 이것을 쓴다.
+    bool GetSafeScreenArea(const ScreenSpaceFrame& frame, ScreenArea& area);
 
     // **기준 해상도를 정수 배율로 대상 가운데에 놓는 사각형이다**(D-239, `PixelPerfect` 카메라의 레터박스).
     // 배율은 `floor(min(대상 폭 / 기준 폭, 대상 높이 / 기준 높이))` 이고 사각형의 왼쪽 위는 정수 픽셀이다. 대상이 기준보다 작아 배율이

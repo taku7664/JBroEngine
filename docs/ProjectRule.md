@@ -210,7 +210,7 @@
 
   | 층 | 모듈 | 내용 |
   |---|---|---|
-  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vec2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vec3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247) |
+  | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vec2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vec3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247)·**크기**(`Types/Size.h` 의 `Size`·`SizeU`·`SizeI`, RHI 의 `Extent2D` 가 `SizeU` 다)·**비트 묶음**(`Types/BitFlag.h`)·**안전 영역**(`Types/SafeArea.h`)·**프레임 생존 표시**(`Types/FrameLiveness.h` 의 `RemoveStaleEntries`, 모두 D-249) |
   | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
@@ -798,6 +798,27 @@
   **닫았으면 짝이 되는 접근자를 반드시 함께 둔다.** 길을 내지 않으면 스크립트가 그 값을 영영
   못 만진다. 값이 곧 뜻인 보통 필드는 전처럼 `JBRO_FIELD` 로 열어 둔다 - 감출 것이 없는데
   닫으면 읽는 쪽만 번거로워진다.
+- **크기는 위치와 다른 타입으로 말한다.** (MUST) (D-249)
+  넓이와 높이는 `Size`(실수)·`SizeU`(픽셀 개수)·`SizeI`(부호 있는 픽셀)로 담는다. `Vec2` 하나로
+  위치도 크기도 담으면 둘을 뒤바꿔 넣어도 컴파일러가 잡아 주지 않는다 - 도와 라디안을 섞었던
+  것과 같은 자리다(D-247). RHI 의 `Extent2D` 는 `SizeU` 의 다른 이름이지 다른 타입이 아니다.
+  `width`·`height` 를 낱개의 멤버로 나란히 두지 않는다.
+- **사각형 판정은 `Rect` 의 것을 쓴다.** (MUST) (D-249)
+  담기는 `Contains`, 겹침은 `Intersects`, 모으기는 `UnionRect`·`IntersectRect`·`ExpandRect` 다.
+  **맞닿은 것은 겹친 것으로 센다** - 물리의 점 질의가 `Rect{ point, point }` 라, 안 겹친 것으로
+  세면 그 질의가 아무것도 못 맞힌다. 경계를 모을 때는 삼항 비교가 아니라 `fmin`/`fmax` 로
+  고른다. 한 점이 NaN 이라고 상자 전체를 NaN 으로 만들면 그 물체가 모든 질의에 걸리거나
+  아무 질의에도 안 걸린다.
+- **플래그는 `BitFlag` 로 묻는다.** (SHOULD) (D-249)
+  `HasAll` 과 `HasAny` 는 다른 질문이고, 생 정수로 쓰면 그 둘을 자리마다 손으로 골라야 해서
+  언젠가 틀린다. 정수로 암시 변환하지 않으므로 `flags & X` 가 되살아나지 않는다.
+- **프레임 캐시는 스탬프로 거둔다.** (MUST) (D-249)
+  `RemoveStaleEntries` 를 쓴다. "이번 프레임에 봤다" 를 따로 모으면 프레임마다 새로 잡는 자리가
+  생긴다(§7). **도는 중에 지우지 않는다** - `Table` 은 지우면 자리를 다시 놓으므로 아직 보지
+  않은 항목을 건너뛴다. 그래서 지울 열쇠를 먼저 모으고 그 뒤에 지운다.
+- **`Types/Types.h` 는 공용 값 타입의 목록이다.** (MUST) (D-249)
+  Core 에 값 타입을 더하면 이 프렐류드에도 더한다. 수학 타입을 Core 로 올리고도(D-241) 목록을
+  고치지 않아 한동안 이 헤더만 넣어서는 `Vec2` 도 `Degree` 도 쓸 수 없었다.
 - 스크립트 레이어는 네임스페이스를 강제하지 않는다. 프렐류드 헤더(`ScriptAPI.h`)가
   `using namespace JBro;` 를 수행한다. (MUST)
   단 **1 뎁스 네임스페이스 사용을 적극 권장한다** — `Component::Transform2D` 처럼 쓰면
@@ -834,6 +855,13 @@
   차원과 무관한 개념이면 공통 모듈에 두어야 반대 Framework 가 같은 것을 다시 만들지 않는다.
 - 차원별 의미와 저장 계약이 다른 타입은 스크립트 표면에서도 차원 마커를 유지한다. (MUST)
   예: 2D 스크립트는 `Component::Transform2D`를 쓴다.
+- **값 타입의 이름을 줄이지 않는다.** (MUST) (D-250)
+  벡터는 `Vector2`·`Vector3`·`Vector4` 다. `Vec2` 처럼 줄이지 않는다 - `Matrix3x2`·`Matrix4x4` 는
+  줄이지 않으면서 벡터만 줄이면 같은 헤더 안에서 규칙이 둘이 된다. 줄이는 쪽으로 맞추면
+  (`Mat3x2`) 이미 적힌 자리와 **저장 파일에 적히는 타입 이름이 전부 바뀌므로**, 안 줄이는 쪽으로
+  맞춘다. 스크립트가 보는 이름도 `Vector2` 라 엔진과 스크립트가 같은 말을 쓰게 된다.
+  **지금 코드는 아직 `Vec2`·`Vec3` 이고 `Vector4` 는 없다** - 바꾸는 작업이 남아 있다(D-250 `[열림]`).
+  새로 만드는 값 타입은 이 규칙을 지금부터 따른다.
 
 ### 10.3 System 과 Service
 

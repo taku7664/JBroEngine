@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Host/IFramework.h>
+#include <JBro/Types/Size.h>
 
 namespace JBro
 {
@@ -8,7 +9,6 @@ namespace JBro
     class Renderer;
     struct RenderCamera3D;
     struct CameraParams;
-    struct Extent2D;
     namespace System
     {
         class DebugDrawSystem;

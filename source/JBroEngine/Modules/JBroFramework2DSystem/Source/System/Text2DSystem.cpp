@@ -190,19 +190,9 @@ namespace JBro::System
 
     void Text2DSystem::DropUnseen()
     {
-        // 떼인 컴포넌트의 캐시다. 표를 도는 동안 지우지 않고 모아 둔 뒤 지운다(용량을 다시 쓴다).
-        m_scratchUnseen.Clear();
-        for (auto it = m_entries.begin(); it != m_entries.end(); ++it)
-        {
-            if (it->MappedValue.lastSeenFrame != m_frame)
-            {
-                m_scratchUnseen.Add(it->KeyValue);
-            }
-        }
-        for (const InstanceId id : m_scratchUnseen)
-        {
-            m_entries.Remove(id);
-        }
+        // 떼인 컴포넌트의 캐시다. 이번 프레임에 못 본 것만 지운다(D-249).
+        RemoveStaleEntries(m_entries, m_frame, m_scratchUnseen,
+            [](const Entry& entry) { return entry.lastSeenFrame; });
     }
 
     void Text2DSystem::OnUpdate(Canvas& canvas, float)

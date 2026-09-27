@@ -34,6 +34,29 @@ namespace JBro
         return true;
     }
 
+    bool GetSafeScreenArea(const ScreenSpaceFrame& frame, ScreenArea& area)
+    {
+        ScreenArea drawn;
+        if (false == GetScreenArea(frame, drawn))
+        {
+            return false;
+        }
+        if (false == frame.safeArea.IsAny())
+        {
+            area = drawn;
+            return true;
+        }
+        // 띠가 그려지는 영역보다 두꺼우면 남는 것이 없다. 음수 크기로 뒤집는 대신 0 으로 둔다 -
+        // 받는 쪽이 폭으로 나누는 자리가 있고, 뒤집힌 크기는 거기서 부호가 뒤바뀐 배치를 만든다.
+        const float width = drawn.width - frame.safeArea.left - frame.safeArea.right;
+        const float height = drawn.height - frame.safeArea.top - frame.safeArea.bottom;
+        area.x = drawn.x + frame.safeArea.left;
+        area.y = drawn.y + frame.safeArea.top;
+        area.width = width > 0.0f ? width : 0.0f;
+        area.height = height > 0.0f ? height : 0.0f;
+        return true;
+    }
+
     bool ComputePixelPerfectArea(const ScreenSpaceFrame& frame, ScreenArea& area, float& scale)
     {
         if (false == Usable(frame.referenceWidth) || false == Usable(frame.referenceHeight)

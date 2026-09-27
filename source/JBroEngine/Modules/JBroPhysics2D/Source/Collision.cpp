@@ -518,13 +518,10 @@ namespace JBro::Physics2D
         bounds.max = bounds.min;
         for (std::uint32_t i = 1; i < polygon.count; ++i)
         {
-            const Vec2 point = TransformPoint(pose, polygon.points[i]);
-            bounds.min = { std::fmin(bounds.min.x, point.x), std::fmin(bounds.min.y, point.y) };
-            bounds.max = { std::fmax(bounds.max.x, point.x), std::fmax(bounds.max.y, point.y) };
+            bounds = UnionRect(bounds, TransformPoint(pose, polygon.points[i]));
         }
-        bounds.min = { bounds.min.x - polygon.radius, bounds.min.y - polygon.radius };
-        bounds.max = { bounds.max.x + polygon.radius, bounds.max.y + polygon.radius };
-        return bounds;
+        // 둥근 도형의 두께만큼 네 방향으로 넓힌다.
+        return ExpandRect(bounds, polygon.radius);
     }
 
     bool RaycastPolygon(const ConvexPolygon& polygon, const Pose& pose,
