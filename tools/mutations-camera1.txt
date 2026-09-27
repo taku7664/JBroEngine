@@ -1,0 +1,35 @@
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	drawable:depth-range-ignored	            || camera.nearPlane >= camera.farPlane)	            || false)
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	drawable:any-size	            return Positive(camera.orthographicSize);	            return true;
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	drawable:any-ppu	            return Positive(camera.pixelsPerUnit);	            return true;
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	drawable:unknown-projection	        default:\n            return false;	        default:\n            return true;
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	area:any-projection	        if (camera == nullptr || camera->projection != Component::CameraProjection2D::PixelPerfect\n            || false == IsDrawableCamera2D(*camera))	        if (camera == nullptr\n            || false == IsDrawableCamera2D(*camera))
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	area:undrawable-letterboxed	        if (camera == nullptr || camera->projection != Component::CameraProjection2D::PixelPerfect\n            || false == IsDrawableCamera2D(*camera))	        if (camera == nullptr || camera->projection != Component::CameraProjection2D::PixelPerfect)
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	area:not-cleared	        frame.areaWidth = 0.0f;\n        frame.areaHeight = 0.0f;\n        if (camera == nullptr	        if (camera == nullptr
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	view:no-snap-x	            view.view.m31 = SnapToPixel(camera.view.m31, camera.pixelsPerUnit);	            (void)0;
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	view:no-snap-y	            view.view.m32 = SnapToPixel(camera.view.m32, camera.pixelsPerUnit);	            (void)0;
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	view:pixel-uses-size	            view.halfWidth = frame.referenceWidth * 0.5f / camera.pixelsPerUnit;	            view.halfWidth = camera.orthographicSize * area.width / area.height;
+Modules\JBroFramework2DSystem\Source\Rendering\CameraView2D.cpp	view:ortho-square	            view.halfWidth = camera.orthographicSize * area.width / area.height;	            view.halfWidth = camera.orthographicSize;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	screen:area-ignored	        if (Usable(frame.areaWidth) && Usable(frame.areaHeight) && std::isfinite(frame.areaX) && std::isfinite(frame.areaY))	        if (false)
+Modules\JBroCanvas\Source\ScreenSpace.cpp	pixel:fractional	        const float used = whole >= 1.0f ? whole : fit;	        const float used = fit;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	pixel:never-shrinks	        const float used = whole >= 1.0f ? whole : fit;	        const float used = whole >= 1.0f ? whole : 1.0f;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	pixel:no-clamp	        if (result.width > frame.targetWidth)\n        {\n            result.width = frame.targetWidth;\n        }	        (void)0;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	pixel:not-centred	        result.x = std::floor((frame.targetWidth - result.width) * 0.5f);	        result.x = 0.0f;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	pixel:half-pixel-corner	        result.x = std::floor((frame.targetWidth - result.width) * 0.5f);	        result.x = (frame.targetWidth - result.width) * 0.5f;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	pointer:no-offset	        x = (pixelX - area.x) / area.width * 2.0f - 1.0f;	        x = pixelX / area.width * 2.0f - 1.0f;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	pointer:back-no-offset	        pixelX = area.x + (x + 1.0f) * 0.5f * area.width;	        pixelX = (x + 1.0f) * 0.5f * area.width;
+Modules\JBroCanvas\Source\ScreenSpace.cpp	extent:target-aspect	        const float aspect = area.width / area.height;	        const float aspect = frame.targetWidth / frame.targetHeight;
+Modules\JBroFramework2DSystem\Source\System\Camera2DSystem.cpp	select:no-skip	            if (false == IsDrawableCamera2D(item))	            if (false)
+Modules\JBroFramework2DSystem\Source\System\Camera2DSystem.cpp	select:no-count	                    ++*unusable;	                    (void)unusable;
+Modules\JBroFramework2DSystem\Source\System\Camera2DSystem.cpp	select:count-not-stored	        m_renderWorld->SetUnusableCameraCount(unusable);	        (void)0;
+Modules\JBroFramework2DSystem\Source\System\Camera2DSystem.cpp	select:ppu-dropped	            item.pixelsPerUnit = camera.pixelsPerUnit;	            (void)0;
+Modules\JBroFramework2DSystem\Source\Rendering\RenderBridge2D.cpp	bridge:area-not-reapplied	        ApplyCameraArea(camera, frame);\n        bool worldSubmitted	        bool worldSubmitted
+Modules\JBroFramework2DSystem\Source\Rendering\RenderBridge2D.cpp	bridge:viewport-at-origin	            result.viewport.x = area.x;\n            result.viewport.y = area.y;\n            result.viewport.width = area.width;\n            result.viewport.height = area.height;\n            result.clearColor[0] = source	            result.viewport.width = area.width;\n            result.viewport.height = area.height;\n            result.clearColor[0] = source
+Modules\JBroFramework2DSystem\Source\Rendering\RenderBridge2D.cpp	bridge:unsnapped-view	            result.view = ToColumnMatrix(view.view);	            result.view = ToColumnMatrix(source.view);
+Modules\JBroFramework2DSystem\Source\Rendering\RenderBridge2D.cpp	bridge:screen-views-full-target	            result.viewport.x = area.x;\n            result.viewport.y = area.y;\n            result.viewport.width = area.width;\n            result.viewport.height = area.height;\n            // 월드 뷰가 없으면	            result.viewport.width = area.width;\n            result.viewport.height = area.height;\n            // 월드 뷰가 없으면
+Modules\JBroFramework2DSystem\Source\Framework2D.cpp	update:no-letterbox	            ApplyCameraArea(System::Camera2DSystem::SelectCamera(*m_canvas, camera) ? &camera : nullptr, frame);	            (void)camera;
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	pick:unsnapped	        if (false == Invert(view.view, cameraWorld))	        if (false == Invert(camera.view, cameraWorld))
+Modules\JBroFramework2DSystem\Source\System\Button2DSystem.cpp	unpick:unsnapped	        if (false == Apply(view.view, point.x, point.y, vx, vy))	        if (false == Apply(camera.view, point.x, point.y, vx, vy))
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:no-letterbox	        ApplyCameraArea(GetGameCamera2D(), frame);	        (void)0;
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:unusable-zero	        return world != nullptr ? world->GetUnusableCameraCount() : 0;	        return 0;
+Modules\JBroEditor\Source\EditorApplication.cpp	editor:no-camera	        return world != nullptr ? world->GetCamera() : nullptr;	        return nullptr;
+Modules\JBroEditor\Source\EditorApplication.cpp	layer:unsnapped-view	                    const Matrix3x2& view = cameraView.view;	                    const Matrix3x2& view = camera->view;
