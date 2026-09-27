@@ -17,7 +17,31 @@ namespace JBro
         float referenceHeight = 1080.0f;
         float targetWidth = 0.0f;
         float targetHeight = 0.0f;
+        // 게임이 실제로 그려지는 사각형이다(대상 픽셀, 왼쪽 위 원점, D-239). 폭이나 높이가 0 이면 대상 전체다.
+        // `PixelPerfect` 카메라의 레터박스가 이것을 줄인다 - 화면 레이어의 크기 재기와 포인터 역투영이 모두 이 사각형을 쓴다.
+        float areaX = 0.0f;
+        float areaY = 0.0f;
+        float areaWidth = 0.0f;
+        float areaHeight = 0.0f;
     };
+
+    // 대상 안의 사각형이다(대상 픽셀, 왼쪽 위 원점).
+    struct ScreenArea
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float width = 0.0f;
+        float height = 0.0f;
+    };
+
+    // 그려지는 사각형이다. `area*` 가 비었으면 대상 전체다. 대상이 0 이하·무한이면 거짓이고 결과를 건드리지 않는다.
+    bool GetScreenArea(const ScreenSpaceFrame& frame, ScreenArea& area);
+
+    // **기준 해상도를 정수 배율로 대상 가운데에 놓는 사각형이다**(D-239, `PixelPerfect` 카메라의 레터박스).
+    // 배율은 `floor(min(대상 폭 / 기준 폭, 대상 높이 / 기준 높이))` 이고 사각형의 왼쪽 위는 정수 픽셀이다. 대상이 기준보다 작아 배율이
+    // 1 보다 작으면 비정수 배율로 줄여 넣는다 - 픽셀은 맞지 않지만 보이기는 한다. `scale` 이 그 배율이다.
+    // 기준이나 대상이 0 이하·무한이면 거짓이고 결과를 건드리지 않는다.
+    bool ComputePixelPerfectArea(const ScreenSpaceFrame& frame, ScreenArea& area, float& scale);
 
     // 화면 레이어에서 보이는 반폭·반높이(기준 픽셀)다.
     struct ScreenExtent
@@ -26,7 +50,7 @@ namespace JBro
         float halfHeight = 0.0f;
     };
 
-    // 맞춤 방식대로 보이는 영역을 잰다. 기준이나 대상이 0 이하·무한이면 거짓이다.
+    // 맞춤 방식대로 보이는 영역을 잰다. "대상" 은 그려지는 사각형(`GetScreenArea`)이다. 기준이나 대상이 0 이하·무한이면 거짓이다.
     //
     //     FixedHeight    기준 높이를 늘 다 보인다. 폭은 대상의 가로세로비를 따른다
     //     FixedWidth     기준 폭을 늘 다 보인다

@@ -24,6 +24,7 @@ namespace JBro
     {
         m_camera = {};
         m_hasCamera = false;
+        m_unusableCameras = 0;
         m_sprites.Clear();
         m_order.Clear();
         m_droppedSpriteCount = 0;
@@ -49,6 +50,16 @@ namespace JBro
     {
         m_camera = camera;
         m_hasCamera = true;
+    }
+
+    void RenderWorld2D::SetUnusableCameraCount(std::uint32_t count)
+    {
+        m_unusableCameras = count;
+    }
+
+    std::uint32_t RenderWorld2D::GetUnusableCameraCount() const
+    {
+        return m_unusableCameras;
     }
 
     bool RenderWorld2D::SubmitSprite(const SpriteRenderItem& item)

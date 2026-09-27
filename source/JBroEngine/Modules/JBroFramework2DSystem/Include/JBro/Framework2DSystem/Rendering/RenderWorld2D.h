@@ -18,6 +18,7 @@ namespace JBro
         GameObject* owner            = nullptr;
         Matrix3x2   view;
         float       orthographicSize = 10.0f;
+        float       pixelsPerUnit = 100.0f;
         Component::CameraProjection2D projection = Component::CameraProjection2D::Orthographic;
         float       nearPlane = -100.0f;
         float       farPlane = 100.0f;
@@ -66,6 +67,9 @@ namespace JBro
         bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
+        // 켜져 있지만 값이 잘못되어 건너뛴 카메라 수다(D-239). 게임 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
+        void SetUnusableCameraCount(std::uint32_t count);
+        std::uint32_t GetUnusableCameraCount() const;
         // 화면 레이어의 기준이다(D-237). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.
         void SetScreenSpace(const ScreenSpaceFrame& frame);
         const ScreenSpaceFrame& GetScreenSpace() const;
@@ -90,6 +94,7 @@ namespace JBro
 
         RenderCamera2D          m_camera;
         bool                    m_hasCamera = false;
+        std::uint32_t           m_unusableCameras = 0;
         ScreenSpaceFrame        m_screen;
         std::size_t             m_screenSprites = 0;
         Array<SpriteRenderItem> m_sprites;

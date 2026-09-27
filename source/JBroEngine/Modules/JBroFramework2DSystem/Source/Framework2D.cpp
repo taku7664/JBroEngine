@@ -14,6 +14,8 @@
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
+#include <JBro/Framework2DSystem/System/Camera2DSystem.h>
+#include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/NetworkSystem/NetworkHost.h>
 #include <JBro/NetworkSystem/System/NetworkSystems.h>
 #include "Rendering/RenderBridge2D.h"
@@ -160,6 +162,10 @@ namespace JBro
                 frame.targetWidth = static_cast<float>(extent.width);
                 frame.targetHeight = static_cast<float>(extent.height);
             }
+            // `PixelPerfect` 카메라의 레터박스를 화면 기준에 건다(D-239) - 앵커·버튼이 그 사각형 안을 잰다. 카메라는 지난 프레임의
+            // 트랜스폼으로 고른다(이번 프레임의 트랜스폼은 아직 돌지 않았다). 그리기는 이번에 뽑힌 카메라로 같은 함수를 다시 부른다.
+            RenderCamera2D camera;
+            ApplyCameraArea(System::Camera2DSystem::SelectCamera(*m_canvas, camera) ? &camera : nullptr, frame);
             m_renderWorld.SetScreenSpace(frame);
             if (System::Transform2DSystem* transforms = m_canvas->GetSystems().FindSystem<System::Transform2DSystem>())
             {

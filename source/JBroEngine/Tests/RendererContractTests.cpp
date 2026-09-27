@@ -1,6 +1,7 @@
 ﻿#include <JBro/Graphics/Renderer.h>
 
 #include <JBro/Framework2DSystem/Framework2D.h>
+#include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Host/EngineInstance.h>
 #include <JBro/Audio/AudioMixer.h>
 #include <JBro/Audio/AudioSystem.h>
@@ -1413,6 +1414,131 @@ namespace
         engine.Shutdown();
     }
 
+    // **PixelPerfect 카메라는 기준 해상도를 정수 배율로 가운데에 그리고, 뷰를 원본 1 픽셀에 맞추며, 누르는 자리도 같다**(D-239).
+    // 320x180 기준을 1000x700 대상에 놓으면 3 배라 960x540 사각형이 (20, 80) 에 선다. 카메라 PPU 16 이면 반폭 10·반높이 5.625 유닛이다.
+    void TestAPixelPerfectCameraLetterboxesSnapsAndPicks()
+    {
+        FakeModule module;
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.surface = {99};
+        config.surfaceExtent = {1000, 700};
+        config.maxSpriteSubmissions = 8;
+        Check(renderer.Initialize(module, config), "pixel perfect renderer must initialize");
+        JBro::Framework2D framework;
+        JBro::FrameworkContext context;
+        context.renderer = &renderer;
+        Check(framework.Initialize(context), "framework must bind the renderer");
+        JBro::ScreenSpaceFrame screen;
+        screen.referenceWidth = 320.0f;
+        screen.referenceHeight = 180.0f;
+        screen.targetWidth = 1000.0f;
+        screen.targetHeight = 700.0f;
+        framework.SetScreenSpace(screen);
+
+        auto* canvas = framework.GetCanvas();
+        auto* eye = canvas->CreateObject("eye");
+        auto* eyePlace = canvas->AttachComponent<JBro::Component::Transform2D>(eye);
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        Check(eyePlace != nullptr && camera != nullptr, "the camera must attach");
+        eyePlace->position = {1.03f, 0.51f};
+        camera->primary = true;
+        camera->projection = JBro::Component::CameraProjection2D::PixelPerfect;
+        camera->pixelsPerUnit = 16.0f;
+        auto* thing = canvas->CreateObject("thing");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(thing) != nullptr
+                && canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(thing) != nullptr, "a sprite to draw");
+
+        const auto close = [](float a, float b) { return std::fabs(a - b) < 0.0001f; };
+        const auto renderFrame = [&](const char* what) {
+            framework.Update(0.0f);
+            Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, what);
+            Check(framework.Render() == JBro::RenderResult::Submitted, what);
+            Check(renderer.EndFrame() == JBro::FrameStatus::Ready, what);
+        };
+        // 첫 갱신은 카메라의 트랜스폼을 아직 몰라 화면 기준에 레터박스를 걸지 못한다. 그리기는 그때도 이번 카메라로 다시 건다.
+        renderFrame("the first pixel perfect frame must be drawn");
+        const auto& viewport = module.device.commands.viewport;
+        Check(close(viewport.x, 20.0f) && close(viewport.y, 80.0f) && close(viewport.width, 960.0f) && close(viewport.height, 540.0f),
+            "the view is the 3x reference rectangle in the middle, even on the first frame");
+        renderFrame("the second pixel perfect frame must be drawn");
+        const auto& vp = module.device.commands.viewProjection.values;
+        Check(close(vp[0], 0.1f) && close(vp[5], 1.0f / 5.625f),
+            "the view spans the reference in source pixels, not orthographicSize");
+        // 카메라 (1.03, 0.51) 은 원본 픽셀 격자의 (1.0, 0.5) 로 붙는다. 붙지 않으면 -0.103 이다.
+        Check(close(vp[3], -0.1f) && close(vp[7], -0.5f / 5.625f), "the camera moves in whole source pixels");
+        const JBro::ScreenSpaceFrame& drawn = framework.GetRenderWorld()->GetScreenSpace();
+        Check(close(drawn.areaX, 20.0f) && close(drawn.areaWidth, 960.0f),
+            "from the second frame the screen frame the anchors use carries the same rectangle");
+
+        // 누르는 자리: 사각형 가운데는 붙은 카메라 자리, 오른쪽 끝은 반폭만큼 오른쪽이다. 거꾸로도 같다.
+        auto* buttons = canvas->GetSystems().FindSystem<JBro::System::Button2DSystem>();
+        Check(buttons != nullptr, "the button system does the picking");
+        JBro::Vec2 point;
+        Check(buttons->ScreenToLayer({500.0f, 350.0f}, thing->GetScriptHandle(), point)
+                && close(point.x, 1.0f) && close(point.y, 0.5f),
+            "the middle of the rectangle is where the snapped camera looks");
+        Check(buttons->ScreenToLayer({980.0f, 350.0f}, thing->GetScriptHandle(), point) && close(point.x, 11.0f),
+            "the right edge of the rectangle is half the view to the right");
+        JBro::Vec2 pixel;
+        Check(buttons->LayerToScreen({11.0f, 0.5f}, thing->GetScriptHandle(), pixel)
+                && close(pixel.x, 980.0f) && close(pixel.y, 350.0f),
+            "and a world point goes back to the pixel it was drawn at");
+
+        // 직교로 돌리면 사각형이 풀리고 크기가 다시 orthographicSize 다.
+        camera->projection = JBro::Component::CameraProjection2D::Orthographic;
+        camera->orthographicSize = 5.0f;
+        renderFrame("the orthographic frame must be drawn");
+        Check(close(viewport.x, 0.0f) && close(viewport.width, 1000.0f) && close(viewport.height, 700.0f),
+            "an orthographic camera draws on the whole target");
+        Check(close(vp[5], 0.2f) && close(vp[0], 0.2f * 700.0f / 1000.0f) && close(vp[3], -1.03f * vp[0]),
+            "with its own size and no snapping");
+        framework.Shutdown();
+    }
+
+    // **그릴 수 없는 카메라는 건너뛰고 프레임을 실패시키지 않는다**(D-239). 그 전에는 크기 0 인 카메라 하나가
+    // `Failed` 를 내어 에디터가 첫 프레임에 꺼졌다.
+    void TestAnUndrawableCameraIsSkippedNotFatal()
+    {
+        FakeModule module;
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.surface = {99};
+        config.surfaceExtent = {200, 100};
+        config.maxSpriteSubmissions = 8;
+        Check(renderer.Initialize(module, config), "renderer must initialize");
+        JBro::Framework2D framework;
+        JBro::FrameworkContext context;
+        context.renderer = &renderer;
+        Check(framework.Initialize(context), "framework must bind the renderer");
+        auto* canvas = framework.GetCanvas();
+        auto* eye = canvas->CreateObject("eye");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
+        auto* broken = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
+        broken->primary = true;
+        broken->orthographicSize = 0.0f;
+        auto* thing = canvas->CreateObject("thing");
+        canvas->AttachComponent<JBro::Component::Transform2D>(thing);
+        canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(thing);
+
+        framework.Update(0.0f);
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
+        Check(framework.Render() == JBro::RenderResult::NothingToSubmit,
+            "a camera that cannot draw is no camera, not a failed frame");
+        renderer.AbortFrame();
+        Check(framework.GetRenderWorld()->GetUnusableCameraCount() == 1, "the skipped camera is counted");
+
+        auto* spare = canvas->CreateObject("spare");
+        canvas->AttachComponent<JBro::Component::Transform2D>(spare);
+        canvas->AttachComponent<JBro::Component::Camera2D>(spare)->orthographicSize = 2.0f;
+        framework.Update(0.0f);
+        Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the next frame must begin");
+        Check(framework.Render() == JBro::RenderResult::Submitted, "the next usable camera draws instead");
+        Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "and the frame finishes");
+        Check(std::fabs(module.device.commands.viewProjection.values[5] - 0.5f) < 0.0001f, "with its own size");
+        framework.Shutdown();
+    }
+
 }
 
 int RunRendererContractTests()
@@ -1420,6 +1546,8 @@ int RunRendererContractTests()
     TestHandlesRemainCompactValues();
     TestRendererCollectsBeforeRecording();
     TestFrameworkSubmitsTransformedBatches();
+    TestAPixelPerfectCameraLetterboxesSnapsAndPicks();
+    TestAnUndrawableCameraIsSkippedNotFatal();
     TestEngineHostLifecycle();
     TestEngineHostAudioDevices();
     TestTheHostHandsTheEditorItsFrame();

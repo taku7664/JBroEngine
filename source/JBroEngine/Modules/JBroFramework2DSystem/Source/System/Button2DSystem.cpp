@@ -6,6 +6,7 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/Scripting/ScriptSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 #include <JBro/InputTypes/InputView.h>
@@ -123,20 +124,19 @@ namespace JBro::System
         float nx = 0.0f;
         float ny = 0.0f;
         RenderCamera2D camera;
+        CameraView2D view;
         if (m_canvas == nullptr || false == ScreenPixelToNormalized(m_screen, pixelX, pixelY, nx, ny)
-            || false == Camera2DSystem::SelectCamera(*m_canvas, camera))
+            || false == Camera2DSystem::SelectCamera(*m_canvas, camera) || false == ComputeCameraView2D(camera, m_screen, view))
         {
             return false;
         }
-        // 뷰 좌표 = -1..1 x 카메라의 반폭·반높이(렌더러의 직교 투영과 같다). 월드 = 카메라 트랜스폼 x 뷰 좌표.
-        const float halfHeight = camera.orthographicSize;
-        const float halfWidth = halfHeight * m_screen.targetWidth / m_screen.targetHeight;
+        // 뷰 좌표 = -1..1 x 카메라의 반폭·반높이(그리기와 같은 `ComputeCameraView2D`, D-239). 월드 = 카메라 트랜스폼 x 뷰 좌표.
         Matrix3x2 cameraWorld;
-        if (false == Invert(camera.view, cameraWorld))
+        if (false == Invert(view.view, cameraWorld))
         {
             return false;
         }
-        return Apply(cameraWorld, nx * halfWidth, ny * halfHeight, point.x, point.y);
+        return Apply(cameraWorld, nx * view.halfWidth, ny * view.halfHeight, point.x, point.y);
     }
 
     bool Button2DSystem::LayerToPixel(const Layer& layer, Vec2 point, float& pixelX, float& pixelY) const
@@ -146,20 +146,19 @@ namespace JBro::System
             return LayerToScreenPixel(layer.GetScaleMode(), m_screen, point.x, point.y, pixelX, pixelY);
         }
         RenderCamera2D camera;
-        if (m_canvas == nullptr || false == Camera2DSystem::SelectCamera(*m_canvas, camera) || false == (m_screen.targetHeight > 0.0f)
-            || false == (camera.orthographicSize > 0.0f))
+        CameraView2D view;
+        if (m_canvas == nullptr || false == Camera2DSystem::SelectCamera(*m_canvas, camera)
+            || false == ComputeCameraView2D(camera, m_screen, view))
         {
             return false;
         }
         float vx = 0.0f;
         float vy = 0.0f;
-        if (false == Apply(camera.view, point.x, point.y, vx, vy))
+        if (false == Apply(view.view, point.x, point.y, vx, vy))
         {
             return false;
         }
-        const float halfHeight = camera.orthographicSize;
-        const float halfWidth = halfHeight * m_screen.targetWidth / m_screen.targetHeight;
-        return NormalizedToScreenPixel(m_screen, vx / halfWidth, vy / halfHeight, pixelX, pixelY);
+        return NormalizedToScreenPixel(m_screen, vx / view.halfWidth, vy / view.halfHeight, pixelX, pixelY);
     }
 
     bool Button2DSystem::ScreenToLayer(Vec2 pixel, GameObjectHandle object, Vec2& point) const

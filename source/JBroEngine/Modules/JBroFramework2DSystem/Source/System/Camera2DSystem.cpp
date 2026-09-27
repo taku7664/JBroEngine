@@ -1,6 +1,8 @@
 ﻿#include <JBro/Framework2DSystem/System/Camera2DSystem.h>
 
 #include <JBro/Canvas/Internal/CanvasAccess.h>
+#include <JBro/Core/Log.h>
+#include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 
@@ -55,13 +57,22 @@ namespace JBro::System
             return;
         }
         RenderCamera2D camera;
-        if (SelectCamera(canvas, camera))
+        std::uint32_t unusable = 0;
+        if (SelectCamera(canvas, camera, &unusable))
         {
             m_renderWorld->SetCamera(camera);
         }
+        m_renderWorld->SetUnusableCameraCount(unusable);
+        if (unusable > m_warnedUnusable)
+        {
+            Log::Write(LogLevel::Warning, "camera",
+                "%u Camera2D skipped - its values cannot be drawn (orthographicSize or pixelsPerUnit must be above 0, nearPlane below farPlane)",
+                unusable);
+        }
+        m_warnedUnusable = unusable;
     }
 
-    bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result)
+    bool Camera2DSystem::SelectCamera(Canvas& canvas, RenderCamera2D& result, std::uint32_t* unusable)
     {
         // **`primary` 가 먼저고, 하나도 없으면 첫 활성 카메라로 그린다**(D-187).
         //
@@ -91,10 +102,20 @@ namespace JBro::System
             }
             item.owner = owner;
             item.orthographicSize = camera.orthographicSize;
+            item.pixelsPerUnit = camera.pixelsPerUnit;
             item.projection = camera.projection;
             item.nearPlane = camera.nearPlane;
             item.farPlane = camera.farPlane;
             item.clearColor = camera.clearColor;
+            // 그릴 수 없는 값이면 고르지 않는다(D-239). 그 전에는 뽑힌 뒤 렌더 브리지가 거절해 프레임이 실패했고, 에디터가 꺼졌다.
+            if (false == IsDrawableCamera2D(item))
+            {
+                if (unusable != nullptr)
+                {
+                    ++*unusable;
+                }
+                return;
+            }
             if (camera.primary)
             {
                 result = item;

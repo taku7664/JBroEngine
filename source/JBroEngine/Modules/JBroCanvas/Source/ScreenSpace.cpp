@@ -13,14 +13,68 @@ namespace JBro
         }
     }
 
-    bool ComputeScreenExtent(ScreenScaleMode mode, const ScreenSpaceFrame& frame, ScreenExtent& extent)
+    bool GetScreenArea(const ScreenSpaceFrame& frame, ScreenArea& area)
+    {
+        if (false == Usable(frame.targetWidth) || false == Usable(frame.targetHeight))
+        {
+            return false;
+        }
+        if (Usable(frame.areaWidth) && Usable(frame.areaHeight) && std::isfinite(frame.areaX) && std::isfinite(frame.areaY))
+        {
+            area.x = frame.areaX;
+            area.y = frame.areaY;
+            area.width = frame.areaWidth;
+            area.height = frame.areaHeight;
+            return true;
+        }
+        area.x = 0.0f;
+        area.y = 0.0f;
+        area.width = frame.targetWidth;
+        area.height = frame.targetHeight;
+        return true;
+    }
+
+    bool ComputePixelPerfectArea(const ScreenSpaceFrame& frame, ScreenArea& area, float& scale)
     {
         if (false == Usable(frame.referenceWidth) || false == Usable(frame.referenceHeight)
             || false == Usable(frame.targetWidth) || false == Usable(frame.targetHeight))
         {
             return false;
         }
-        const float aspect = frame.targetWidth / frame.targetHeight;
+        const float fitX = frame.targetWidth / frame.referenceWidth;
+        const float fitY = frame.targetHeight / frame.referenceHeight;
+        const float fit = fitX < fitY ? fitX : fitY;
+        const float whole = std::floor(fit);
+        // 정수 배율이 1 이상이면 그것이다. 대상이 기준보다 작으면 들어가는 만큼 줄인다.
+        const float used = whole >= 1.0f ? whole : fit;
+        ScreenArea result;
+        result.width = frame.referenceWidth * used;
+        result.height = frame.referenceHeight * used;
+        // 곱셈의 반올림으로 대상을 한 올 넘지 않게 한다 - 뷰포트가 대상 밖으로 나가면 렌더러가 프레임을 거절한다.
+        if (result.width > frame.targetWidth)
+        {
+            result.width = frame.targetWidth;
+        }
+        if (result.height > frame.targetHeight)
+        {
+            result.height = frame.targetHeight;
+        }
+        result.x = std::floor((frame.targetWidth - result.width) * 0.5f);
+        result.y = std::floor((frame.targetHeight - result.height) * 0.5f);
+        area = result;
+        scale = used;
+        return true;
+    }
+
+    bool ComputeScreenExtent(ScreenScaleMode mode, const ScreenSpaceFrame& frame, ScreenExtent& extent)
+    {
+        ScreenArea area;
+        if (false == Usable(frame.referenceWidth) || false == Usable(frame.referenceHeight)
+            || false == GetScreenArea(frame, area))
+        {
+            return false;
+        }
+        const float aspect = area.width / area.height;
         ScreenExtent result;
         switch (mode)
         {
@@ -31,16 +85,16 @@ namespace JBro
         case ScreenScaleMode::Contain:
         {
             // 대상 1 픽셀에 기준 몇 픽셀이 드는가 - 기준 사각형이 다 들어가도록 두 축 가운데 작은 배율을 쓴다.
-            const float scaleX = frame.targetWidth / frame.referenceWidth;
-            const float scaleY = frame.targetHeight / frame.referenceHeight;
+            const float scaleX = area.width / frame.referenceWidth;
+            const float scaleY = area.height / frame.referenceHeight;
             const float scale = scaleX < scaleY ? scaleX : scaleY;
-            result.halfWidth = frame.targetWidth * 0.5f / scale;
-            result.halfHeight = frame.targetHeight * 0.5f / scale;
+            result.halfWidth = area.width * 0.5f / scale;
+            result.halfHeight = area.height * 0.5f / scale;
             break;
         }
         case ScreenScaleMode::ConstantPixel:
-            result.halfWidth = frame.targetWidth * 0.5f;
-            result.halfHeight = frame.targetHeight * 0.5f;
+            result.halfWidth = area.width * 0.5f;
+            result.halfHeight = area.height * 0.5f;
             break;
         case ScreenScaleMode::FixedHeight:
         default:
@@ -60,23 +114,26 @@ namespace JBro
 
     bool ScreenPixelToNormalized(const ScreenSpaceFrame& frame, float pixelX, float pixelY, float& x, float& y)
     {
-        if (false == Usable(frame.targetWidth) || false == Usable(frame.targetHeight))
+        ScreenArea area;
+        if (false == GetScreenArea(frame, area))
         {
             return false;
         }
-        x = pixelX / frame.targetWidth * 2.0f - 1.0f;
-        y = 1.0f - pixelY / frame.targetHeight * 2.0f;
+        // 그려지는 사각형 밖(레터박스 띠)은 -1..1 밖으로 나온다. 누를 것이 없으니 부르는 쪽이 거기서 걸러진다.
+        x = (pixelX - area.x) / area.width * 2.0f - 1.0f;
+        y = 1.0f - (pixelY - area.y) / area.height * 2.0f;
         return true;
     }
 
     bool NormalizedToScreenPixel(const ScreenSpaceFrame& frame, float x, float y, float& pixelX, float& pixelY)
     {
-        if (false == Usable(frame.targetWidth) || false == Usable(frame.targetHeight))
+        ScreenArea area;
+        if (false == GetScreenArea(frame, area))
         {
             return false;
         }
-        pixelX = (x + 1.0f) * 0.5f * frame.targetWidth;
-        pixelY = (1.0f - y) * 0.5f * frame.targetHeight;
+        pixelX = area.x + (x + 1.0f) * 0.5f * area.width;
+        pixelY = area.y + (1.0f - y) * 0.5f * area.height;
         return true;
     }
 

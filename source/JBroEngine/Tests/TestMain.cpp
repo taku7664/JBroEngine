@@ -36,6 +36,7 @@ int RunPlatformFileTests();
 int RunReflectedYamlTests();
 int RunCanvasFileTests();
 int RunRendererContractTests();
+int RunCameraView2DTests();
 int RunPlatformContractTests();
 int RunD3D12SmokeTests();
 int RunD3D11SmokeTests();
@@ -264,6 +265,10 @@ int main()
             return 1;
         }
         if (RunRendererContractTests() != 0)
+        {
+            return 1;
+        }
+        if (RunCameraView2DTests() != 0)
         {
             return 1;
         }

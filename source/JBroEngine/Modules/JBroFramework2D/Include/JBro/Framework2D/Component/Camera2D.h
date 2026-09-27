@@ -37,7 +37,11 @@ namespace JBro::Component
         JBRO_REFLECT_BODY(Camera2D)
 
         JBRO_FIELD(CameraProjection2D, projection) = CameraProjection2D::Orthographic;
+        // `Orthographic` 의 화면 세로 절반이 담는 월드 길이다. `PixelPerfect` 에서는 쓰지 않는다(D-239).
         JBRO_FIELD(float, orthographicSize) = 10.0f;
+        // `PixelPerfect` 에서 원본 몇 픽셀이 1 유닛인가(D-239). 보이는 범위는 프로젝트의 기준 해상도 / 이 값이다.
+        // 스프라이트 에셋의 기본 PPU(100)와 같게 시작한다 - 둘이 다르면 원본 1 픽셀이 화면 픽셀에 딱 맞지 않는다.
+        JBRO_FIELD(float, pixelsPerUnit) = 100.0f;
         JBRO_FIELD(float, nearPlane) = -100.0f;
         JBRO_FIELD(float, farPlane)  =  100.0f;
         JBRO_FIELD(Color, clearColor) { 0.08f, 0.09f, 0.11f, 1.0f };

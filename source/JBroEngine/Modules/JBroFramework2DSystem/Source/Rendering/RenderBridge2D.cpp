@@ -1,5 +1,6 @@
 ﻿#include "RenderBridge2D.h"
 
+#include <JBro/Framework2DSystem/Rendering/CameraView2D.h>
 #include <JBro/Framework2DSystem/Rendering/RenderWorld2D.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Runtime/GameObject.h>
@@ -20,24 +21,19 @@ namespace JBro::Internal
                 0.0f, 0.0f, 0.0f, 1.0f}};
         }
 
-        bool BuildCamera(const RenderCamera2D& source, Extent2D extent, CameraParams& result)
+        // `frame` 의 그려지는 사각형이 뷰포트다(D-239). 보이는 범위와 뷰는 `ComputeCameraView2D` 가 잰다 - 버튼의 역투영과 같은 함수다.
+        bool BuildCamera(const RenderCamera2D& source, const ScreenSpaceFrame& frame, CameraParams& result)
         {
-            if (extent.width == 0 || extent.height == 0
-                || false == std::isfinite(source.orthographicSize) || source.orthographicSize <= 0.0f
-                || false == std::isfinite(source.nearPlane) || false == std::isfinite(source.farPlane)
-                || source.nearPlane >= source.farPlane)
+            CameraView2D view;
+            ScreenArea area;
+            if (false == ComputeCameraView2D(source, frame, view) || false == GetScreenArea(frame, area))
             {
                 return false;
             }
-            // PixelPerfect's reference resolution/scaling contract awaits user definition.
-            if (source.projection != Component::CameraProjection2D::Orthographic)
-            {
-                return false;
-            }
-            const double halfHeight = source.orthographicSize;
-            const double halfWidth = halfHeight * extent.width / extent.height;
+            const double halfHeight = view.halfHeight;
+            const double halfWidth = view.halfWidth;
             const double depth = static_cast<double>(source.farPlane) - source.nearPlane;
-            result.view = ToColumnMatrix(source.view);
+            result.view = ToColumnMatrix(view.view);
             result.projection = {{static_cast<float>(1.0 / halfWidth), 0.0f, 0.0f, 0.0f,
                 0.0f, static_cast<float>(1.0 / halfHeight), 0.0f, 0.0f,
                 0.0f, 0.0f, static_cast<float>(1.0 / depth), static_cast<float>(-source.nearPlane / depth),
@@ -49,8 +45,10 @@ namespace JBro::Internal
                     return false;
                 }
             }
-            result.viewport.width = static_cast<float>(extent.width);
-            result.viewport.height = static_cast<float>(extent.height);
+            result.viewport.x = area.x;
+            result.viewport.y = area.y;
+            result.viewport.width = area.width;
+            result.viewport.height = area.height;
             result.clearColor[0] = source.clearColor.R;
             result.clearColor[1] = source.clearColor.G;
             result.clearColor[2] = source.clearColor.B;
@@ -172,8 +170,12 @@ namespace JBro::Internal
         editor.clearColor = Color{
             view.clearColor[0], view.clearColor[1], view.clearColor[2], view.clearColor[3]};
 
+        // 편집 카메라는 대상 전체에 그린다. 기준 해상도는 `Orthographic` 에 쓰이지 않는다.
+        ScreenSpaceFrame frame;
+        frame.targetWidth = static_cast<float>(view.extent.width);
+        frame.targetHeight = static_cast<float>(view.extent.height);
         CameraParams parameters;
-        if (false == BuildCamera(editor, view.extent, parameters))
+        if (false == BuildCamera(editor, frame, parameters))
         {
             return RenderResult::Failed;
         }
@@ -194,9 +196,11 @@ namespace JBro::Internal
     namespace
     {
         // 화면 레이어의 정사영이다(D-237). 가운데 원점, y 위, 기준 픽셀 - 앵커와 같은 `ComputeScreenExtent` 로 잰다.
-        bool BuildScreenCamera(const ScreenExtent& extent, Extent2D target, CameraParams& result)
+        // 뷰포트는 그려지는 사각형이다 - `PixelPerfect` 카메라의 레터박스 안에 화면 레이어도 그린다(D-239).
+        bool BuildScreenCamera(const ScreenExtent& extent, const ScreenArea& area, CameraParams& result)
         {
-            if (target.width == 0 || target.height == 0 || false == (extent.halfWidth > 0.0f) || false == (extent.halfHeight > 0.0f))
+            if (false == (area.width > 0.0f) || false == (area.height > 0.0f)
+                || false == (extent.halfWidth > 0.0f) || false == (extent.halfHeight > 0.0f))
             {
                 return false;
             }
@@ -205,8 +209,10 @@ namespace JBro::Internal
                 0.0f, 1.0f / extent.halfHeight, 0.0f, 0.0f,
                 0.0f, 0.0f, 0.5f, 0.5f,
                 0.0f, 0.0f, 0.0f, 1.0f}};
-            result.viewport.width = static_cast<float>(target.width);
-            result.viewport.height = static_cast<float>(target.height);
+            result.viewport.x = area.x;
+            result.viewport.y = area.y;
+            result.viewport.width = area.width;
+            result.viewport.height = area.height;
             // 월드 뷰가 없으면(카메라 없음) 이 뷰가 처음이라 대상을 지운다. 검정이다.
             result.clearColor[0] = 0.0f;
             result.clearColor[1] = 0.0f;
@@ -216,19 +222,17 @@ namespace JBro::Internal
         }
 
         // 그리는 순서의 화면 아이템을 맞춤 방식이 같은 것끼리 이어진 덩어리로 나눠 덩어리마다 뷰 하나에 그린다.
-        bool SubmitScreenViews(const RenderWorld2D& world, Renderer& renderer, bool& submitted)
+        bool SubmitScreenViews(const RenderWorld2D& world, Renderer& renderer, const ScreenSpaceFrame& frame, bool& submitted)
         {
             submitted = false;
             if (world.GetScreenSpriteCount() == 0)
             {
                 return true;
             }
-            ScreenSpaceFrame frame = world.GetScreenSpace();
-            const Extent2D target = renderer.GetFrameExtent();
-            if (false == (frame.targetWidth > 0.0f) || false == (frame.targetHeight > 0.0f))
+            ScreenArea area;
+            if (false == GetScreenArea(frame, area))
             {
-                frame.targetWidth = static_cast<float>(target.width);
-                frame.targetHeight = static_cast<float>(target.height);
+                return false;
             }
             std::size_t index = 0;
             const std::size_t count = world.GetSpriteCount();
@@ -247,7 +251,7 @@ namespace JBro::Internal
                 }
                 ScreenExtent extent;
                 CameraParams parameters;
-                if (false == ComputeScreenExtent(mode, frame, extent) || false == BuildScreenCamera(extent, target, parameters)
+                if (false == ComputeScreenExtent(mode, frame, extent) || false == BuildScreenCamera(extent, area, parameters)
                     || false == renderer.BeginView(parameters))
                 {
                     return false;
@@ -271,6 +275,13 @@ namespace JBro::Internal
     RenderResult SubmitRenderWorld2D(const RenderWorld2D& world, Renderer& renderer)
     {
         const RenderCamera2D* camera = world.GetCamera();
+        // **이번 프레임이 그려지는 크기로 사각형을 다시 잰다**(D-239). 뷰포트가 대상 밖으로 나가면 렌더러가 프레임을 거절하므로 대상은 렌더러의
+        // 것을 쓴다. 레터박스는 앵커를 잰 것과 같은 함수로 이번에 뽑힌 카메라에서 다시 건다 - 첫 프레임에는 앵커 쪽이 카메라를 아직 몰랐다.
+        ScreenSpaceFrame frame = world.GetScreenSpace();
+        const Extent2D target = renderer.GetFrameExtent();
+        frame.targetWidth = static_cast<float>(target.width);
+        frame.targetHeight = static_cast<float>(target.height);
+        ApplyCameraArea(camera, frame);
         bool worldSubmitted = false;
         // 카메라가 없는 것은 오류가 아니다. 월드를 그리지 않을 뿐이다 - 화면 레이어(메뉴만 있는 캔버스)는 아래에서 그린다.
         if (camera != nullptr)
@@ -279,7 +290,7 @@ namespace JBro::Internal
             // **창이 아니라 이번 프레임이 그려지는 크기다.** 에디터에서 게임은
             // 창과 다른 크기의 텍스처로 간다 - 창으로 잡으면 게임이 보는 화면이
             // 에디터 창 모양을 따라가고, 뷰포트가 타깃 밖으로 나간다.
-            if (false == BuildCamera(*camera, renderer.GetFrameExtent(), parameters)
+            if (false == BuildCamera(*camera, frame, parameters)
                 || false == renderer.BeginView(parameters))
             {
                 return RenderResult::Failed;
@@ -294,7 +305,7 @@ namespace JBro::Internal
         }
         // 화면 레이어는 월드 위에 그린다(D-237). 렌더러는 대상을 첫 뷰에서만 지운다.
         bool screenSubmitted = false;
-        if (false == SubmitScreenViews(world, renderer, screenSubmitted))
+        if (false == SubmitScreenViews(world, renderer, frame, screenSubmitted))
         {
             return RenderResult::Failed;
         }
