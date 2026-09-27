@@ -200,6 +200,15 @@
 
 ### 그 밖의 공용
 
+- `[진행 중]` **경계를 넘는 콜백을 `Delegate<Sig>` 로 옮긴다**(D-246). 타입과 시험은 섰다 - `Modules/JBroCore/Include/JBro/Types/Delegate.h`, `Tests/DelegateTests.cpp`(아홉 시험).
+  **기존 코드는 아직 두 칸 그대로다.** 새로 쓰는 자리부터 적용하고, 아래를 한 자리씩 옮긴다.
+  - `AudioMixerDesc::openStream`·`openStreamUser`(`JBroAudio/Include/JBro/Audio/AudioMixer.h`)
+  - `AudioMixer::SetBusProcessor` 의 `processor`·`processorUser` - **여기는 `AtomicDelegate` 가 먼저 필요하다.** 16 바이트 무잠금 교체가 보장되지 않아 지금의 스핀 차례(D-206)를 그대로 둬야 하고, 그 차례를 타입 한 자리로 모으는 일이 남았다
+  - `IPlatform::AudioRenderCallback`(`JBroPlatform/Include/JBro/Platform/Platform.h`)
+  - `Asset::AudioReleaseCallback`(`JBroAsset/Include/JBro/Asset/Asset.h`)
+  - `JAllocator::AllocateThunk`(`JBroCore/Include/JBro/Types/Allocator.h`) - 할당자는 경로가 가장 뜨거우니 마지막에 본다
+  - `[열림]` 멀티캐스트(여럿 걸기)는 필요해질 때 더한다. 지금 쓰는 자리가 모두 하나만 건다
+
 - ~~`[진행 예정]` **`TaskManager` - 엔진과 에디터가 함께 쓰는 Tier E 커널 모듈 `JBroTask`**(D-209, 2026-09-26 사용자 확인).~~
   → 완료 2026-09-26 · 9b333e6·9afb9b1 · `Modules/JBroTask`(`TaskManager.cpp`·`TaskGroup.cpp`·`Task.cpp`), `EngineInstance::TickFrame` 첫머리의 `Update`·
   `ReleaseResources` 의 `Shutdown`, 테스트 `Tests/TaskManagerTests.cpp`, 뮤테이션 `tools/mutations-task1.txt`(27/27). 정한 것과 실측은 D-212.
@@ -2907,6 +2916,15 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-246. 경계를 넘는 콜백은 함수 포인터와 사용자 자료를 묶은 `Delegate<Sig>` 한 값으로 적는다.** (2026-09-27, 사용자 문의: "게임엔진에서 사용할만한 특이한 유틸같은거 또 없을까" 에서 후보를 추려 첫째로 고른 것이다)
+  (1) 엔진은 경계를 넘는 콜백을 `void (*)(void* user, ...)` 와 그 짝인 `void* user` **두 칸**으로 적어 왔다(`AudioMixerDesc::openStream`·`openStreamUser`, `AudioBusProcessCallback`, `IPlatform::AudioRenderCallback`, `JAllocator::AllocateThunk`). 모양 자체는 옳다 - POD 라서 경계를 넘고 캡처를 소유하지 않아 프레임 경로에서 할당하지 않는다. **틀린 것은 둘이 별개의 변수라는 점이다** - 한쪽만 대입하거나 엉뚱한 `user` 를 건네는 실수를 컴파일러가 잡지 못하고 실행 중에야 드러난다.
+  (2) `JBroCore` 의 `JBro/Types/Delegate.h` 에 `Delegate<R(Args...)>` 를 두었다. 칸은 `function`(첫 인자가 `void*` 인 썽크)과 `user` 둘뿐이고, 거는 길은 셋이다 - 멤버 함수 `Bind<&Cls::Method>(instance)`, 자유 함수 `Bind<&Func>()`, 기존 짝을 그대로 받는 `FromThunk(thunk, user)`. 부르는 것은 `IsBound()` 로 본 뒤 `Invoke(...)` 다. **비었을 때 무엇을 돌려줄지 타입이 정하지 않는다** - 반환값이 있는 델리게이트에서 임의의 기본값을 만들지 않기 위해서다.
+  (3) 실측: `sizeof` 는 포인터 둘(16 바이트), `is_trivially_copyable` 과 `is_standard_layout` 이 참이다. `memcpy` 로 바이트 왕복한 뒤에도 같은 대상을 부른다(`DelegateTests.cpp` 의 아홉 시험, `/W4 /WX` 경고 없음). 기존 `int (*)(void*, int)` 짝과 **양방향으로** 오간다 - 그래서 경계를 한 번에 바꾸지 않고 한 자리씩 옮길 수 있다.
+  (3-1) **뮤테이션 아홉이 모두 잡혔다**(살아남음 0). 처음 여섯 가운데 셋은 단언이, 둘은 `/WX` 의 미사용 인자 경고가 잡았고, 하나(`Invoke` 가 엉뚱한 `user` 를 건넨다)는 **단언이 아니라 크래시로만** 죽었다. 컴파일러가 잡은 둘을 컴파일되는 판으로 고쳐 다시 넣자 **하나가 살아남았다** - 동등 비교에서 `function` 검사를 빼도 시험이 통과했다. 그래서 시험을 셋 보강했다:
+  (ㄱ) 부르기 **전에** `user` 칸을 직접 본다(부른 뒤에 보면 빈 `user` 로 멤버 함수를 불러 먼저 터지고 진단이 남지 않는다), (ㄴ) 같은 대상에 **다른 멤버 함수**를 건 둘이 서로 다름을 본다, (ㄷ) 넘어온 `user` 를 적어 두는 자유 함수 썽크로 `Invoke` 가 제 사용자 자료를 건네는지를 크래시 없이 본다. 이 시험은 멤버 바인딩 시험보다 **앞에** 둔다 - 뒤에 두면 앞에서 터져 도달하지 못한다.
+  (3-2) 얻은 것: **"잡혔다" 를 셀 때 무엇이 잡았는지를 본다.** 컴파일 오류나 크래시로 죽은 것은 시험이 잡은 것이 아니고, 그 자리를 고쳐 보면 시험의 구멍이 드러난다.
+  (4) **이 타입이 풀지 못하는 것.** 수명은 책임지지 않는다 - `user` 가 먼저 죽으면 매달린 포인터이고, 거는 쪽이 떼야 한다. 그리고 16 바이트 값은 x64 에서 무잠금 원자 교체가 보장되지 않아, 오디오 버스 처리기(D-206)처럼 다른 스레드가 읽는 중에 갈아 끼우는 자리는 지금의 "떼고 · `inProcessor` 가 내려가기를 기다리고 · 새로 거는" 차례가 여전히 필요하다. 그 차례를 `AtomicDelegate` 한 자리로 모으는 것은 남긴다.
+  (5) **기존 코드는 이번에 바꾸지 않았다.** 타입과 시험만 세우고, 새로 쓰는 자리부터 적용한다 - 오디오 쪽은 스레드 차례가 얽혀 있어 옮길 때 따로 검증해야 한다. 멀티캐스트(여럿 걸기)도 필요해질 때 더한다.
 - **D-245. 에디터 색은 뜻으로 쓰고, 밝기 계층을 지키며, 뷰포트 바탕은 전역 스타일 밖에 둔다.** (2026-09-27, 사용자 지시:
   "에디터 레이아웃이나 테마, 스타일 등을 관리할 거야" 에 이어 팔레트와 치수 표를 넘겨받았다. **D-73 을 대체한다** - 기존 엔진
   테마를 그대로 옮긴다는 조항과 "바꿀 이유를 적고 바꾼다" 는 단서를 함께 걷는다)
