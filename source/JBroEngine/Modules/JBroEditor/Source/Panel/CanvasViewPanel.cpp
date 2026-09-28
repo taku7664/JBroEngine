@@ -2035,9 +2035,32 @@ namespace JBro
         {
             m_editor->ClearSelection();
         }
+        // **걸린 오브젝트의 자손도 함께 고른다**(D-253, 기존 `CollectSubtree`). 부모만 고르면 인스펙터에서 자식의 값을 함께 고칠 수 없다.
+        // 들어가 있는 오브젝트 자신이 걸렸으면 그것 하나다 - 그 안의 조각을 고르려고 들어간 것이다. 옮기기·지우기·복사는
+        // 맨 위 선택만 다루므로(`GetTopLevelSelectedObjects`) 자식이 두 번 옮겨지지 않는다.
+        const GameObject* focus = GetFocus();
         for (std::size_t index = 0; index < hit.Size(); ++index)
         {
-            m_editor->AddToSelection(hit[index]);
+            if (hit[index] == focus)
+            {
+                m_editor->AddToSelection(hit[index]);
+            }
+            else
+            {
+                AddTreeToSelection(*hit[index]);
+            }
+        }
+    }
+
+    void CanvasViewPanel::AddTreeToSelection(GameObject& object)
+    {
+        m_editor->AddToSelection(&object);
+        for (const SafePtr<GameObject>& child : object.GetChildren())
+        {
+            if (GameObject* at = child.TryGet())
+            {
+                AddTreeToSelection(*at);
+            }
         }
     }
 

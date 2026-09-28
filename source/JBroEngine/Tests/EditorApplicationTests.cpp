@@ -6142,6 +6142,16 @@ namespace
         leftTransform->position = JBro::Vector2{-1.0f, 0.0f};
         rightTransform->position = JBro::Vector2{1.0f, 0.0f};
         farTransform->position = JBro::Vector2{0.0f, 4.0f};
+        // 왼쪽에는 자식과 손자가 있다. 둘 다 상자 밖(아래)에 있어도 부모가 걸리면 함께 골라진다(D-253, 기존 `CollectSubtree`).
+        JBro::GameObject* hand = canvas->CreateObject("Hand");
+        JBro::GameObject* finger = canvas->CreateObject("Finger");
+        auto* handTransform = canvas->AttachComponent<JBro::Component::Transform2D>(hand);
+        auto* fingerTransform = canvas->AttachComponent<JBro::Component::Transform2D>(finger);
+        Check(handTransform != nullptr && fingerTransform != nullptr, "the children need transforms");
+        hand->SetParent(left);
+        finger->SetParent(hand);
+        handTransform->position = JBro::Vector2{0.0f, -3.0f};
+        fingerTransform->position = JBro::Vector2{0.0f, -1.0f};
         for (int frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
@@ -6171,9 +6181,12 @@ namespace
         to.y = static_cast<int>(centerY + pixelsPerUnit * 0.4f);
         DragTo(editor, hwnd, from, to);
 
-        Check(editor.GetSelectionCount() == 2, "the box must pick the two it touched");
-        Check(editor.IsSelected(left) && editor.IsSelected(right), "those two");
+        Check(editor.IsSelected(left) && editor.IsSelected(right), "the box must pick the two it touched");
+        Check(editor.IsSelected(hand) && editor.IsSelected(finger), "and every child of what it touched, even outside the box");
+        Check(editor.GetSelectionCount() == 4, "the two, the child and the grandchild - nothing twice");
         Check(false == editor.IsSelected(far_), "and not the one outside it");
+        const JBro::Array<JBro::GameObject*> roots = editor.GetTopLevelSelectedObjects();
+        Check(roots.Size() == 2, "moving the selection still moves only the two parents");
 
         // **끌지 않고 누른 것은 상자가 아니다.** 빈 곳을 한 번 누르면 선택이 풀린다.
         // 빈 곳은 뷰 크기에서 고른다. 가운데에서 고정 150 px 위였는데, 창 바닥에 상태 표시줄이 서며(D-236) 뷰가 짧아지자
