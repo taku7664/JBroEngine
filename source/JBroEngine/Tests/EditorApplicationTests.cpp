@@ -7573,6 +7573,8 @@ namespace
 
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == body, "clicking the arm selects the body while not inside it");
+        // 누르기도 자손까지 고른다(D-254, 기존 `CollectSubtree`). 주된 선택은 누른 층의 오브젝트다.
+        Check(editor.IsSelected(arm) && editor.GetSelectionCount() == 2, "and the body's children come with it");
         waitOutDoubleClick();
         // **들어가면 카메라가 그리로 간다**(D-252). 누를 자리는 카메라가 다 온 뒤 다시 잰다.
         const auto spotAt = [&](float worldX, float worldY) {
@@ -7599,6 +7601,7 @@ namespace
         empty = spotAt(0.5f, -2.5f);
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == arm, "inside the body, clicking the arm selects the arm");
+        Check(editor.GetSelectionCount() == 1, "and only the arm - it has no children");
         // 고르기는 뗀 프레임의 뒤쪽에서 일어난다. 테두리가 새 선택을 두른 그림은 그다음 프레임이다.
         Check(editor.Tick(Frame), "the editor must draw the new selection");
         if (JBro::Renderer* renderer = editor.GetRenderer())
@@ -7611,7 +7614,9 @@ namespace
         ClickAt(editor, hwnd, empty);
         ClickAt(editor, hwnd, empty);
         Check(editor.GetSelectedObject() == body, "double-clicking empty space steps out, selecting what was left");
-        waitOutDoubleClick();
+        // 나오면 뿌리에서 보던 자리로 카메라가 돌아간다(D-254). 누를 자리를 다시 잰다.
+        onArm = spotAt(-2.0f, -2.0f);
+        onBody = spotAt(0.0f, 0.0f);
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == body, "and outside again, the arm picks the body");
         waitOutDoubleClick();
@@ -7808,21 +7813,48 @@ namespace
             "double-clicking the body you are inside frames it again");
         settle();
 
-        // 빈 곳을 두 번 누르면 나온다. 막이 걷히고 나온 몸을 비춘다.
+        // 몸 안에서 한 칸 당겨 둔다. 이 자리가 몸 안의 "마지막 카메라" 다(D-254).
+        const Spot zoomAt = spotAt(-0.5f, -0.5f);
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(zoomAt.x, zoomAt.y));
+        Check(editor.Tick(Frame), "the editor must tick with the pointer inside");
+        PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, static_cast<WORD>(WHEEL_DELTA)), MAKELPARAM(zoomAt.x, zoomAt.y));
+        settle();
+        float insideX = 0.0f;
+        float insideY = 0.0f;
+        float insideSize = 0.0f;
+        editor.GetCanvasViewCamera(insideX, insideY, insideSize);
+        Check(insideSize < 2.4f, "a wheel notch inside must zoom in");
+
+        // 빈 곳을 두 번 누르면 나온다. 막이 걷히고, 카메라는 **뿌리에서 마지막으로 보던 자리**로 돌아간다(D-254).
         const Spot empty = spotAt(-1.5f, 1.5f);
         ClickAt(editor, hwnd, empty);
         ClickAt(editor, hwnd, empty);
         Check(editor.GetSelectedObject() == body, "double-clicking empty space steps out and selects the body");
         editor.GetCanvasViewCamera(goalX, goalY, goalSize);
-        Check(std::fabs(goalX) < 0.01f && std::fabs(goalY) < 0.01f && std::fabs(goalSize - 2.5f) < 0.01f,
-            "stepping out frames the object you came out of");
+        Check(std::fabs(goalX) < 0.01f && std::fabs(goalY) < 0.01f && std::fabs(goalSize - 5.0f) < 0.01f,
+            "stepping out returns to where the root view was looking");
         settle();
         const Colors outside = readColors();
         Check(outside.neighbourRed > 200 && outside.neighbourGreen < 60, "stepping out lifts the veil");
 
-        // 뿌리에서 빈 곳을 두 번 누르면 나올 곳이 없다. 선택만 빈다.
-        ClickAt(editor, hwnd, empty);
-        ClickAt(editor, hwnd, empty);
+        // 다시 들어가면 몸에 새로 맞추지 않고 **몸 안에서 마지막으로 보던 자리**다.
+        const Spot backIn = spotAt(-0.5f, -0.5f);
+        ClickAt(editor, hwnd, backIn);
+        ClickAt(editor, hwnd, backIn);
+        editor.GetCanvasViewCamera(goalX, goalY, goalSize);
+        Check(std::fabs(goalX - insideX) < 0.001f && std::fabs(goalY - insideY) < 0.001f
+                && std::fabs(goalSize - insideSize) < 0.001f,
+            "stepping back in returns to where you last looked inside the body");
+        settle();
+
+        // 나왔다가 뿌리에서 빈 곳을 두 번 누르면 나올 곳이 없다. 선택만 빈다.
+        const Spot emptyInside = spotAt(-1.5f, 1.5f);
+        ClickAt(editor, hwnd, emptyInside);
+        ClickAt(editor, hwnd, emptyInside);
+        settle();
+        const Spot emptyRoot = spotAt(-1.5f, 1.5f);
+        ClickAt(editor, hwnd, emptyRoot);
+        ClickAt(editor, hwnd, emptyRoot);
         Check(editor.GetSelectedObject() == nullptr, "double-clicking empty space at the root clears the selection");
 
         editor.Shutdown();
@@ -10279,6 +10311,69 @@ namespace
         return false;
     }
 
+    // **계층 창에서 두 번 눌러도 캔버스 뷰가 그 안으로 들어간다**(D-254, 기존 `LayerTool` 의 `SetFocusContext`). 고르는 것은 그 줄 하나다.
+    // 어느 층에 들어가 있었든 곧장 그리로 가고, 캔버스 뷰에서처럼 카메라가 그리로 간다.
+    void TestDoubleClickingAHierarchyRowStepsTheCanvasViewInside()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 800;
+        config.windowHeight = 600;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; stepping inside from the hierarchy not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "HierarchyStepProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* body = canvas->CreateObject("Body");
+        JBro::GameObject* arm = canvas->CreateObject("Arm");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(body) != nullptr
+                && canvas->AttachComponent<JBro::Component::Transform2D>(arm) != nullptr,
+            "both need transforms");
+        arm->SetParent(body);
+        canvas->FindComponentRaw<JBro::Component::Transform2D>(body)->position = JBro::Vector2{3.0f, 1.0f};
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        Spot row;
+        Check(FindHierarchyRow(editor, hwnd, body, row), "the body must have a row");
+        ClickAt(editor, hwnd, row);
+        ClickAt(editor, hwnd, row);
+        Check(editor.GetCanvasViewFocus() == body, "double-clicking the row steps the canvas view inside the body");
+        Check(editor.GetSelectedObject() == body && editor.GetSelectionCount() == 1,
+            "and selects that one row, not its children");
+        float goalX = 0.0f;
+        float goalY = 0.0f;
+        float goalSize = 0.0f;
+        editor.GetCanvasViewCamera(goalX, goalY, goalSize);
+        Check(std::fabs(goalX - 3.0f) < 0.3f && std::fabs(goalY - 1.0f) < 0.3f,
+            "and the canvas view camera heads for the body");
+
+        // 한 번 누르기는 들어가지 않는다.
+        for (int frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must wait out the double-click time");
+        }
+        Spot armRow;
+        Check(FindHierarchyRow(editor, hwnd, arm, armRow), "the arm must have a row");
+        ClickAt(editor, hwnd, armRow);
+        Check(editor.GetSelectedObject() == arm && editor.GetCanvasViewFocus() == body,
+            "a single click on a row selects it without stepping anywhere");
+
+        editor.Shutdown();
+    }
+
     // 캔버스 뷰 창 안에서 빨간 스프라이트가 차지한 픽셀 수다. 백버퍼는 BGRA 다.
     std::size_t CountRedPixelsIn(JBro::Renderer& renderer, const char* windowName)
     {
@@ -12332,6 +12427,7 @@ int RunEditorApplicationTests()
     TestNewProjectCreatesAndOpensIt();
     TestTheCanvasViewPicksTheRootUntilYouStepInside();
     TestSteppingInsideFramesTheObjectAndVeilsTheRest();
+    TestDoubleClickingAHierarchyRowStepsTheCanvasViewInside();
     TestCreatedObjectsCarryTheFrameworkTransform();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();
