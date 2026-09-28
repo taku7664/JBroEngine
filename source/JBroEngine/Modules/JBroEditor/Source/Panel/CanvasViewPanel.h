@@ -193,10 +193,11 @@ namespace JBro
         bool PointerInView(const ViewRect& rect) const;
         // 한 층 나온다(D-254). 나온 오브젝트를 돌려준다. 뿌리면 아무것도 하지 않고 nullptr 이다.
         GameObject* StepOut();
-        // **층마다 마지막 카메라를 기억한다**(D-254). 들어가기 전에 지금 층의 카메라를 적고, 들어간 층에 적힌 것이 있으면 그리로 간다.
-        // 나올 때도 같다 - 뿌리로 나오면 뿌리에서 마지막으로 보던 자리, A 로 나오면 A 안에서 마지막으로 보던 자리다.
+        // **나올 때 돌아갈 자리를 한 번만 적는다**(D-255, D-254 를 고친다). 들어가기 직전에 지금 층의 카메라를 적고, 그 층으로 나올 때 그리로
+        // 돌아가며 버린다 - 뿌리로 나오면 들어가기 전의 뿌리 자리, A 로 나오면 A 안에서 더 들어가기 전의 자리다. 들어갈 때는 늘 오브젝트에 맞춘다.
         void RememberCamera();
-        bool RecallCamera(std::uint64_t context);
+        // 적힌 자리로 가고 지운다. 없거나 보기가 다르면 거짓이다(그래도 지운다).
+        bool TakeCamera(std::uint64_t context);
         // 누른 오브젝트를 고른다(D-254, 기존 `CollectSubtree`). 들어가 있는 오브젝트 자신이면 그것 하나, 아니면 자손까지다.
         void SelectPicked(GameObject& picked);
         void RemoveTreeFromSelection(GameObject& object);
@@ -294,7 +295,8 @@ namespace JBro
         bool m_rulerInPixels = false;
         // 들어가 있는 오브젝트의 번호다(D-157). 0 이면 뿌리다.
         std::uint64_t m_focus = 0;
-        // 층(들어간 오브젝트의 번호, 뿌리는 0)마다 마지막으로 보던 가려는 카메라다(D-254). 보기(월드/UI)가 다르면 단위가 달라 쓰지 않는다.
+        // 층(들어간 오브젝트의 번호, 뿌리는 0)마다 **돌아올 자리**다(D-255). 더 들어갈 때 적고 그리로 나올 때 쓰고 버린다.
+        // 보기(월드/UI)가 다르면 단위가 달라 쓰지 않는다.
         struct CameraMemo
         {
             float centerX = 0.0f;

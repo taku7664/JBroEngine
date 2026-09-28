@@ -1958,16 +1958,16 @@ namespace JBro
         const std::uint64_t id = m_editor->GetObjectIds().Track(&object);
         if (id == m_focus)
         {
-            // 이미 그 안이다. 기억한 자리가 아니라 오브젝트에 다시 맞춘다 - 제자리로 돌아오려는 손짓이다(기존 `OnDoubleClick`).
+            // 이미 그 안이다. 오브젝트에 다시 맞춘다 - 제자리로 돌아오려는 손짓이다(기존 `OnDoubleClick`).
             FocusCameraOn(object);
             return;
         }
+        // 나올 때 돌아올 자리를 적고 들어간다. 들어가서는 **늘 오브젝트에 맞춘다** - 안에서 보던 줌은 기억하지 않는다(D-255).
         RememberCamera();
         m_focus = id;
-        if (false == RecallCamera(id))
-        {
-            FocusCameraOn(object);
-        }
+        // 새로 선 층에 예전에 적힌 돌아올 자리가 있으면 버린다. 계층 창으로 건너뛰어 쓰이지 않은 채 남은 것이다.
+        m_cameraMemos.Remove(id);
+        FocusCameraOn(object);
     }
 
     GameObject* CanvasViewPanel::StepOut()
@@ -1977,11 +1977,11 @@ namespace JBro
         {
             return nullptr;
         }
-        RememberCamera();
         GameObject* parent = focus->GetParent();
         m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : 0;
-        // 나간 층에서 마지막으로 보던 자리로 돌아간다. 거기를 본 적이 없으면(계층 창에서 곧장 깊이 들어왔다) 나온 오브젝트를 비춘다.
-        if (false == RecallCamera(m_focus))
+        // 그 층에서 들어가기 직전에 보던 자리로 돌아간다. 적힌 것은 한 번 쓰고 버린다(D-255).
+        // 적힌 것이 없으면(계층 창에서 곧장 깊이 들어왔다) 나온 오브젝트를 비춘다.
+        if (false == TakeCamera(m_focus))
         {
             FocusCameraOn(*focus);
         }
@@ -2003,16 +2003,22 @@ namespace JBro
         m_cameraMemos.TryAdd(m_focus, memo);
     }
 
-    bool CanvasViewPanel::RecallCamera(std::uint64_t context)
+    bool CanvasViewPanel::TakeCamera(std::uint64_t context)
     {
-        const CameraMemo* memo = m_cameraMemos.Find(context);
-        if (memo == nullptr || memo->screenView != m_screenView || Is3D())
+        const CameraMemo* found = m_cameraMemos.Find(context);
+        if (found == nullptr)
         {
             return false;
         }
-        m_goalX = memo->centerX;
-        m_goalY = memo->centerY;
-        m_goalSize = memo->size;
+        const CameraMemo memo = *found;
+        m_cameraMemos.Remove(context);
+        if (memo.screenView != m_screenView || Is3D())
+        {
+            return false;
+        }
+        m_goalX = memo.centerX;
+        m_goalY = memo.centerY;
+        m_goalSize = memo.size;
         return true;
     }
 
