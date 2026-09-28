@@ -25,6 +25,7 @@ int RunProjectFileTests();
 int RunYamlTests();
 int RunDelegateTests();
 int RunInterpolationTests();
+int RunFixedStringTests();
 int RunUuidTests();
 int RunAssetRegistryTests();
 int RunAssetSystemTests();
@@ -130,6 +131,10 @@ int main()
             return 1;
         }
         if (RunInterpolationTests() != 0)
+        {
+            return 1;
+        }
+        if (RunFixedStringTests() != 0)
         {
             return 1;
         }

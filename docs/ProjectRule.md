@@ -923,6 +923,16 @@
 - `String`은 `std::string`의 래퍼로 확정한다. 다시 구현하지 않는다. (MUST) (D-51)
 - `String`은 POD Context·패킷·`Ref`·핸들·**컴포넌트 공개 필드**에 두지 않는다. (MUST)
   이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 원문은 에디터·직렬화 계층이 보관한다.
+- 그 자리에 글자를 두어야 하면 `JBro::Fixed::String<N>`(`JBro/Types/FixedString.h`)을 쓴다. (SHOULD) (D-257)
+  힙 문자열과 **이름이 같고 네임스페이스만 다른 별개의 타입**이다 - 저쪽은 힙에 담고 길이에 끝이 없으며 POD 가 아니고,
+  이쪽은 몸통 안에 담고 용량이 정해져 있으며 trivially copyable 이다. 정규화해서 부르면 섞이지 않고,
+  `using namespace` 로 둘을 함께 열 때만 모호해진다. **게임 스크립트 프렐류드는 `JBro` 만 열고 `JBro::Fixed` 를 열지 않는다. (MUST)**
+  `ScriptApiPreludeTests.cpp` 가 수식 없는 `String` 이 힙 판으로 풀리는지 단언하고,
+  `JBRO_TEST_FIXED_STRING_IN_PRELUDE` 를 켜면 실제로 컴파일이 실패한다.
+- 고정 버퍼에 글자를 담을 때 `char buf[N]` + `snprintf` 를 새로 쓰지 않는다. (SHOULD) (D-257)
+  잘림을 반환값으로 돌려주는 방식은 자리마다 확인을 요구해 결국 아무도 확인하지 않는다
+  (기존 54 곳 가운데 49 곳이 반환값을 버린다). `Fixed::String` 은 잘림을 칸에 적어 두므로 다 이어 붙인 뒤 `IsTruncated()` 를 한 번만 본다.
+  이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 원문은 에디터·직렬화 계층이 보관한다.
 - 스크립트 리플렉션 필드의 `Array`/`Table`/`String`은 호스트가 직접 재할당·해제하지 않고 DLL이 제공하는 연산을 통한다. (MUST) (D-51)
 
 - 지속적으로 저장할 데이터는 YAML 또는 바이너리 형식을 우선한다. (SHOULD)
