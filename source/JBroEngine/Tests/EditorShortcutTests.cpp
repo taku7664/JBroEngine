@@ -229,7 +229,7 @@ namespace
         Check(false == EditorShortcutManager::Parse("MouseRight", parsed), "nor the right one");
         Check(false == EditorShortcutManager::Parse("MouseMiddle", parsed), "nor the middle one");
         Check(false == EditorShortcutManager::Parse("GamepadStart", parsed), "nor a gamepad button");
-        // 엄지 버튼만은 단축키가 된다(D-257). 설정 파일에 적힌 글자에서 그대로 돌아와야 한다.
+        // 엄지 버튼만은 단축키가 된다(D-258). 설정 파일에 적힌 글자에서 그대로 돌아와야 한다.
         for (const EditorShortcutBinding& thumb : {Key(ImGuiKey_MouseX1), Key(ImGuiKey_MouseX2, true)})
         {
             const JBro::EditorShortcutText text = EditorShortcutManager::Describe(thumb);
@@ -463,7 +463,7 @@ namespace
         Check(stage.Press(shortcuts, Key(ImGuiKey_F5), false, true) == 1 && play == 1, "but not play");
     }
 
-    // **마우스 엄지 버튼도 단축키다**(D-257). 키매핑 칸이 잡고, 누르면 돈다. 칸을 누르는 왼쪽 버튼은 잡지 않는다 -
+    // **마우스 엄지 버튼도 단축키다**(D-258). 키매핑 칸이 잡고, 누르면 돈다. 칸을 누르는 왼쪽 버튼은 잡지 않는다 -
     // 잡으면 "키를 누르세요" 칸을 누른 그 손짓이 곧 새 조합이 된다.
     void TestAThumbButtonIsCapturedAndRunsAShortcut()
     {

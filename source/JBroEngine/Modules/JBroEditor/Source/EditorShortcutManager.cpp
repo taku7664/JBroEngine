@@ -29,7 +29,7 @@ namespace JBro
                 || (key >= ImGuiKey_ReservedForModCtrl && key <= ImGuiKey_ReservedForModSuper);
         }
 
-        // 단축키가 될 수 있는 키다. 키보드 키와 **마우스 엄지 버튼 둘**(`MouseX1`·`MouseX2`)이다(D-257).
+        // 단축키가 될 수 있는 키다. 키보드 키와 **마우스 엄지 버튼 둘**(`MouseX1`·`MouseX2`)이다(D-258).
         // 왼쪽·오른쪽·가운데 버튼은 고르기·메뉴·팬이 쓰고, 게임패드는 게임의 것이라 빠진다.
         // 잡기(`CaptureBinding`)와 읽기(`Parse`)가 이 한 판정을 쓴다 - 둘이 갈리면 잡은 키가 다음 실행에 사라진다.
         bool IsBindableKey(ImGuiKey key)

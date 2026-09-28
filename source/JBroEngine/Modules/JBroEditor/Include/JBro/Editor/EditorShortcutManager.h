@@ -16,7 +16,7 @@ namespace JBro
     class YamlWriter;
 
     // 키 하나와 그에 붙는 조합키다. `key` 가 `ImGuiKey_None` 이면 비어 있는 자리다.
-    // 키는 키보드 키이거나 마우스 엄지 버튼(`ImGuiKey_MouseX1`·`ImGuiKey_MouseX2`)이다(D-257). 다른 마우스 버튼과 게임패드는 받지 않는다.
+    // 키는 키보드 키이거나 마우스 엄지 버튼(`ImGuiKey_MouseX1`·`ImGuiKey_MouseX2`)이다(D-258). 다른 마우스 버튼과 게임패드는 받지 않는다.
     // 조합키는 **정확히** 견준다 - Ctrl+Shift+V 가 Ctrl+V 를 부르지 않는다(기존 엔진과 같다).
     struct EditorShortcutBinding
     {
