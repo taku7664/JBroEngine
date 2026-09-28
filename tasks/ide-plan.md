@@ -2,7 +2,8 @@
 
 > 2026-09-15 작성, 2026-09-16 갱신. **P0 스파이크를 닫았고 P1 문법 강조 확장이 섰다(옛 문법 기준).**
 > **2026-09-29 에 편집기 리포를 엔진 리포 `source/JBroScriptEditor` 로 합쳤다(D-261).** upstream 체크아웃과 `.toolchain` 은 엔진 리포 밖,
-> 환경 변수 `JBRO_EDITOR_WORK` 가 가리키는 폴더(이 기계에서는 옛 리포 자리 `F:\Project\JBroScriptEditor`)에 있다. 아래 본문의 "편집기 리포" 는 이제 그 폴더다.
+> 환경 변수 `JBRO_EDITOR_WORK` 가 가리키는 폴더(이 기계에서는 옛 리포 자리 `F:\Project\JBroScriptEditor`)에 있다. 옛 리포의 `.git` 과 추적 파일은 지웠고
+> 그 폴더에는 upstream 과 `.toolchain` 만 남았다. 아래 본문의 "편집기 리포" 는 이제 `source/JBroScriptEditor` 이고, 커밋 해시는 subtree 로 들어와 그대로다.
 > 옛 편집기 리포는 `F:\Project\JBroScriptEditor` 였다. **upstream 소스를 `upstream/` 에 받아 두었고 코어 패치 목록을 정했다(§5.2).**
 > **2026-09-17 에 그 upstream 을 스크립트로 빌드해 창을 띄웠고, 패치 0001~0003 을 적용했다(§5.2). 남은 패치는 0004 다.**
 > **진행 현황·남은 일·막힌 곳은 §8 에 있다.** §7 에 남은 세부 질문은 포크 빌드 전에 정한다.
@@ -69,7 +70,7 @@
 | Python | 3.14.6 | node-gyp 가 쓴다 |
 | Visual Studio | 2026 Community(18.9), MSVC 14.51 | node-gyp 12.3.0 은 인식한다. Spectre 완화 라이브러리는 스파이크 중에 추가했다. SDK 10.0.26100.0 은 헤더가 빠져 있다(§4.2) |
 | clang-cl | 시스템에 없다 | 스파이크는 LLVM 23.1.1 의 `clang-cl` 만 F: 에 풀어 썼다 |
-| C: 여유 공간 | **10.4 GB**, 2026-09-17 에는 **1.5 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다. 빌드는 C: 에 쓰지 않게 한다(§4.2) |
+| C: 여유 공간 | **10.4 GB**, 2026-09-17 에는 **1.5 GB**, 2026-09-29 에는 **3.9 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다. 빌드는 C: 에 쓰지 않게 한다(§4.2) |
 | F: 여유 공간 | 80.5 GB | 포크 리포와 npm·Electron·node-gyp 캐시를 F: 에 둔다(§2). node-gyp 캐시는 `LOCALAPPDATA` 를 통째로 옮겨서 함께 옮긴다(§4.2) |
 
 엔진 쪽 사실:
@@ -581,6 +582,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 | 단계 | 상태 | 크기 | 막힌 곳 |
 |---|---|---|---|
 | P0 스파이크 | **완료** | — | — |
+| 리포 합치기 | **완료**(2026-09-29, D-261). `source/JBroScriptEditor` 로 subtree, upstream 은 `JBRO_EDITOR_WORK`. 옛 리포 파일은 지웠다 | — | — |
 | P1 문법 강조 | **완료**(2026-09-17 새 문법으로 갱신) | — | — |
 | `jbroc` 렉서·파서 | **완료**(2026-09-17, jbroc-rules §11). 명령줄 `JBroc` 도 섰다(2026-09-18, D-105) - 출력이 `$msCompile` 매처에 걸리는 것을 테스트한다 | — | — |
 | `jbroc` 타입체커·이미터 | 시작 전 | **큼** | §8.3 의 결정 1·2·3 |

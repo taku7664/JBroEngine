@@ -5,8 +5,8 @@ rem
 rem Why each line is here is in tasks/ide-plan.md section 4.2.
 rem
 rem  - JBRO_EDITOR_WORK: the folder that holds upstream\ and .toolchain\. It lives outside the engine
-rem    repo: the checkout and its caches take several GB, and the engine repo sits under a user folder
-rem    whose name is not ASCII, which node-gyp and long upstream paths do not survive.
+rem    repo: the checkout and its caches take about 9 GB, more than the drive of the engine repo has free.
+rem    There is no fallback next to this script, so that a missing variable cannot fill that drive.
 rem  - vcvars64 with SDK 10.0.22621.0: node-gyp picks the newest registered Windows SDK, and on this
 rem    machine 10.0.26100.0 is installed without its headers (specstrings_strict.h is missing).
 rem    node-gyp honours the SDK of an existing developer environment.
