@@ -70,7 +70,7 @@
 | Python | 3.14.6 | node-gyp 가 쓴다 |
 | Visual Studio | 2026 Community(18.9), MSVC 14.51 | node-gyp 12.3.0 은 인식한다. Spectre 완화 라이브러리는 스파이크 중에 추가했다. SDK 10.0.26100.0 은 헤더가 빠져 있다(§4.2) |
 | clang-cl | 시스템에 없다 | 스파이크는 LLVM 23.1.1 의 `clang-cl` 만 F: 에 풀어 썼다 |
-| C: 여유 공간 | **10.4 GB**, 2026-09-17 에는 **1.5 GB**, 2026-09-29 에는 **3.9 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다. 빌드는 C: 에 쓰지 않게 한다(§4.2) |
+| C: 여유 공간 | **10.4 GB**, 2026-09-17 에는 **1.5 GB** | Code-OSS 소스·`node_modules`·빌드 산출물을 담기에 부족하다. 빌드는 C: 에 쓰지 않게 한다(§4.2) |
 | F: 여유 공간 | 80.5 GB | 포크 리포와 npm·Electron·node-gyp 캐시를 F: 에 둔다(§2). node-gyp 캐시는 `LOCALAPPDATA` 를 통째로 옮겨서 함께 옮긴다(§4.2) |
 
 엔진 쪽 사실:

@@ -37,7 +37,7 @@ npm test
 패치 목록과 각 우회의 이유는 `tasks/ide-plan.md` §4.2 와 §5.2 에 있다.
 
 **upstream 체크아웃과 도구는 엔진 리포 밖에 둔다.** 둘을 담는 폴더를 환경 변수 `JBRO_EDITOR_WORK` 로 준다
-(이 기계에서는 `F:\Project\JBroScriptEditor`). 체크아웃과 캐시가 9 GB 쯤인데 엔진 리포가 있는 C: 는 여유가 그보다 적다.
+(이 기계에서는 `F:\Project\JBroScriptEditor`). 빌드는 C: 에 쓰지 않는다(`tasks/ide-plan.md` §4.2).
 변수가 없으면 스크립트는 멈춘다 - 스크립트 옆으로 되돌아가면 C: 에 조용히 수 GB 를 쓰기 때문이다.
 
 | 경로 | 내용 |
