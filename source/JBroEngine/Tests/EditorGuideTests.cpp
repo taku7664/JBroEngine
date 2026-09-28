@@ -552,9 +552,12 @@ namespace
 
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
         Check(editor.GetGuide().IsRunning(), "and run");
-        Tick(editor, 2);
-        // 오브젝트를 이미 골라 두었으니 첫 단계는 곧 지나간다.
-        Check(editor.GetGuide().GetStepIndex() == 1, "with an object picked the first step passes at once");
+        Tick(editor, 10);
+        // 오브젝트를 이미 골라 두었다. 조건은 "들어설 때와 달라졌는가" 라 저절로 지나가지 않고, 다음으로 넘긴다.
+        Check(editor.GetGuide().GetStepIndex() == 0, "an object picked before the guide does not skip the first step unseen");
+        Check(editor.GetGuide().ShowsNext(), "the first step offers Next for one already picked");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(editor.GetGuide().GetStepIndex() == 1, "Next goes on to the field");
         Tick(editor, 3);
         Check(0 == inspector->StateStorage.GetInt(header, 1), "the header is not flung open before the hole reaches it");
         Check(inspectorPanel->IsOpen(), "the closed inspector the path starts from was opened");
@@ -718,6 +721,7 @@ namespace
         Check(object != nullptr, "the object must be made");
         Tick(editor, 3);
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
         Check(WaitUntilSettled(editor, 2), "the walk must reach the field");
         Check(editor.GetGuide().GetStepIndex() == 1, "on the second step");
         // 가리키던 오브젝트를 지운다. 필드도 컴포넌트 추가 칸도 더는 그려지지 않는다.
@@ -730,7 +734,7 @@ namespace
             "a guide that ran out of targets is not announced as finished");
     }
 
-    bool NeverDone(JBro::EditorApplication&)
+    bool NeverDone(JBro::EditorApplication&, const JBro::GuideStepMemo&)
     {
         return false;
     }
@@ -758,7 +762,7 @@ namespace
             JBro::GuideStep second;
             second.path.Push(JBro::GuideFocusTargets::Panel("Inspector"));
             second.end = JBro::GuideStepEnd::Condition;
-            second.condition = JBro::Delegate<bool(JBro::EditorApplication&)>::Bind<&NeverDone>();
+            second.condition = JBro::Delegate<bool(JBro::EditorApplication&, const JBro::GuideStepMemo&)>::Bind<&NeverDone>();
             second.canGoBack = false;
             guide.steps.Add(std::move(second));
         }
@@ -813,7 +817,7 @@ namespace
             JBro::GuideStep step;
             step.path.Push(JBro::GuideFocusTargets::Panel(index == 0 ? "Hierarchy" : "Inspector"));
             step.end = JBro::GuideStepEnd::Condition;
-            step.condition = JBro::Delegate<bool(JBro::EditorApplication&)>::Bind<&NeverDone>();
+            step.condition = JBro::Delegate<bool(JBro::EditorApplication&, const JBro::GuideStepMemo&)>::Bind<&NeverDone>();
             step.canGoNext = true;
             guide.steps.Add(std::move(step));
         }
@@ -845,7 +849,8 @@ namespace
         Tick(editor, 3);
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
         Tick(editor, 2);
-        Check(editor.GetGuide().GetStepIndex() == 1, "with an object picked the first step passes at once");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(editor.GetGuide().GetStepIndex() == 1, "Next passes the first step for an object already picked");
         Check(editor.GetGuide().CanGoBackNow(), "the second step can go back");
 
         Check(WaitUntilSettled(editor, 2), "the hole must reach the field first");
@@ -861,6 +866,71 @@ namespace
         editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
         Check(editor.GetGuide().GetStepIndex() == 1 && false == editor.GetGuide().IsRevisiting(), "Next goes forward again");
         Check(object->GetComponents().Size() == 1, "going back and forth edits nothing");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+    }
+
+    // 조건은 들어설 때와 비교한다. 이미 맞아 있던 상태로는 넘어가지 않는다.
+    void TestConditionsAskWhatChangedSinceTheStepBegan()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideMemoProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; step memos not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* first = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(first != nullptr && editor.GetSelectedObject() == first, "the first object must be made and picked");
+        // 컴포넌트를 하나 더 붙여 둔다 - "둘 이상" 으로 물으면 마지막 단계가 아무것도 안 해도 끝난다.
+        JBro::EditorActions::AddComponentList list;
+        JBro::EditorActions::BuildAddComponentList(*first, list);
+        std::size_t pick = list.typeNames.Size();
+        std::size_t second = list.typeNames.Size();
+        for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+        {
+            if (list.addable[index])
+            {
+                if (pick == list.typeNames.Size())
+                {
+                    pick = index;
+                }
+                else if (second == list.typeNames.Size())
+                {
+                    second = index;
+                }
+            }
+        }
+        Check(second < list.typeNames.Size(), "two components must be addable");
+        Check(JBro::EditorActions::AddComponent(editor, *first, list.typeNames[pick]), "the extra component must attach");
+        Check(first->GetComponents().Size() == 2, "the object holds two components before the guide");
+        Tick(editor, 3);
+
+        Check(editor.StartGuide("guide.add_component"), "the guide must start");
+        Tick(editor, 10);
+        Check(editor.GetGuide().GetStepIndex() == 0, "an object already picked does not pass the selection step");
+        editor.ClearSelection();
+        Tick(editor, 2);
+        Check(editor.GetGuide().GetStepIndex() == 0, "picking nothing is not picking an object");
+        // 새 오브젝트를 추가하면 그것이 선택된다 - 선택이 바뀌었으니 넘어간다.
+        JBro::GameObject* added = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(added != nullptr && editor.GetSelectedObject() == added, "the added object is picked");
+        Tick(editor, 2);
+        Check(editor.GetGuide().GetStepIndex() == 1, "a newly picked object passes the selection step");
+        // 새 오브젝트(컴포넌트 하나)를 고른 채 마지막 단계로 간다.
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(editor.GetGuide().GetStepIndex() == 2, "on the add component step");
+        Tick(editor, 10);
+        Check(false == editor.GetGuide().IsConfirming(), "nothing was added yet");
+        // 컴포넌트가 이미 둘인 첫 오브젝트로 옮겨 고른다. 붙인 것이 아니다.
+        editor.SetSelectedObject(first);
+        Tick(editor, 3);
+        Check(false == editor.GetGuide().IsConfirming(),
+            "picking another object that already holds more components does not count as adding one");
+        editor.SetSelectedObject(added);
+        Tick(editor, 2);
+        Check(JBro::EditorActions::AddComponent(editor, *added, list.typeNames[second]), "the next component must attach");
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsConfirming(), "adding one more is what the step waits for");
         editor.GetGuide().Stop(editor.GetGuideFocus());
     }
 
@@ -949,6 +1019,7 @@ int RunEditorGuideTests()
     TestEachStepChoosesItsButtons();
     TestAStepTheUserOptsIntoCanBeNextedPastItsCondition();
     TestAStepReturnedToWaitsForNext();
+    TestConditionsAskWhatChangedSinceTheStepBegan();
     TestAModalLiftsTheVeilUntilItCloses();
     std::cout << "Editor guide tests passed.\n";
     return 0;

@@ -402,7 +402,7 @@ Entries:
   guide.finished: Guide finished
   guide.add_component_title: Adding a Component
   guide.add_component_select_title: Pick an Object
-  guide.add_component_select_body: Pick an object in the Layers window. If there is none, right-click an empty spot to add one.
+  guide.add_component_select_body: Pick an object in the Layers window. If you already picked one, press Next. If there is none, right-click an empty spot and add one - it is picked for you.
   guide.add_component_field_title: Change a Value
   guide.add_component_field_body: Drag or type in this field to change the value. Press Next when you are done.
   guide.add_component_add_title: Add a Component
