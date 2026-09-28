@@ -2916,6 +2916,23 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-255. 창을 여는 스레드의 COM 은 플랫폼 초기화가 STA 로 먼저 켠다. 파일 대화상자는 MTA 스레드에서 열지 않는다.** (2026-09-29, 사용자 지적:
+  "프로젝트 열기 하니까 대화상자도 안열리고 팅긴다." Updates: D-93.)
+  **원인.** 엔진은 메인 스레드에서 오디오 장치를 연다(`EngineInstance` → `CreateAudioOutput` → `ma_device_init`). miniaudio 는 장치를 여는
+  스레드의 COM 을 `COINIT_MULTITHREADED` 로 켠다(`MA_COINIT_VALUE` 기본값). 그 뒤로 메인 스레드는 STA 가 될 수 없고, `ShowFileDialog` 의
+  `CoInitializeEx(STA)` 는 `RPC_E_CHANGED_MODE` 를 받았다. 코드는 그 값을 "쓸 수 있음" 으로 받아 MTA 에서 `IFileDialog::Show` 를 불렀고,
+  그 호출이 대화상자 창(`#32770`)을 띄우지 못한 채 멈췄다 - 에디터 창이 응답하지 않게 되어 사용자에게는 튕긴 것으로 보였다.
+  오디오가 들어온 날(2026-09-25, D-197) 부터의 결함이다. 기존 주석("COM 은 부르는 자리에서 켜고 끈다, 게임은 COM 을 들지 않는다")의 근거는
+  오디오가 메인 스레드에서 COM 을 켜면서 이미 깨져 있었다. 대화상자 시험은 모두 `fileDialog` 훅을 써서 진짜 대화상자를 부르지 않아 잡지 못했다.
+  **실측.** 실제 `JBroEditorHost.exe` 를 PostMessage 로 몰아 "프로젝트 열기" 를 누르면 main 의 실행 파일과 고치기 전의 브랜치 모두 창이 응답을 멈추고
+  (`SendMessageTimeout` 실패) 대화상자 창이 생기지 않았다. 스크래치 실험(`ma_device_init` 뒤 `CoInitializeEx(STA)`)이 `RPC_E_CHANGED_MODE` 를 돌려주는 것도 보았다.
+  메인 스레드를 먼저 STA 로 켜 두자 대화상자가 뜨고, 닫은 뒤 에디터가 응답했으며, 오디오 출력도 그대로 열렸다(miniaudio 는 `RPC_E_CHANGED_MODE` 를 받아들이고
+  자기가 켠 것만 끈다).
+  1. `WindowsPlatform::Initialize` 가 `CoInitializeEx(STA)` 를 부르고, 켰을 때만 `Shutdown` 이 끈다. 이미 MTA 인 스레드면 경고를 남긴다.
+  2. `ShowFileDialog` 의 `ComScope::Usable` 은 `SUCCEEDED` 만 받는다. MTA 스레드에서는 대화상자를 열지 않고 오류 로그를 남긴다.
+  시험: `TestThePlatformThreadStaysSingleThreadedForDialogs` - 제 스레드에서 플랫폼을 켜면 STA 이고, 뒤의 MTA 요청(miniaudio 가 하는 것)이
+  `RPC_E_CHANGED_MODE` 로 물러나며, 끄면 COM 이 꺼지는지. MTA 스레드에서 대화상자를 부르면 3 초 안에 거절하는지. 스피커는 열지 않는다.
+  뮤테이션 셋(초기화의 STA 빼기·대화상자가 MTA 받기·끌 때 COM 남기기)이 모두 제 검사의 메시지로 죽었다.
 - **D-254. 에디터의 끌어 놓기는 공용 층 `Widget/DragDrop.h` 를 거치고, 받는 자리는 외곽선을 긋지 않는다.** (2026-09-28, 사용자 지시:
   "드래그 드롭 인터페이스 만들어줘. 그리고 드래그드롭 외곽선 안나오게 해줘." Updates: D-152·D-154.)
   그전에는 공통 인터페이스가 없었다. 계층·에셋 브라우저·목록·에셋 칸·오브젝트 칸이 저마다 `ImGui::BeginDragDropSource`·`AcceptDragDropPayload` 를
