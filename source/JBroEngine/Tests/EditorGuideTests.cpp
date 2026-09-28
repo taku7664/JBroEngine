@@ -435,8 +435,9 @@ namespace
         y = static_cast<int>((hole.min.y + hole.max.y) * 0.5f);
     }
 
-    // 말풍선의 맨 아래 줄에서 오른쪽 끝부터 훑어 처음 걸리는 단추(다음)를 누른다.
-    bool ClickBalloonRightmostButton(JBro::EditorApplication& editor, HWND hwnd)
+    // 말풍선의 맨 아래 줄을 오른쪽 끝부터 훑어, 누를 수 있는 단추 가운데 오른쪽에서 `skip` 개를 지난 것을 누른다
+    // (0 이면 맨 오른쪽 - 다음이 있으면 다음이다). 회색 단추는 세지 않는다.
+    bool ClickBalloonButtonFromRight(JBro::EditorApplication& editor, HWND hwnd, int skip)
     {
         const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
         if (balloon == nullptr || false == balloon->WasActive)
@@ -444,11 +445,20 @@ namespace
             return false;
         }
         const float y = balloon->Pos.y + balloon->Size.y - 12.0f - ImGui::GetFrameHeight() * 0.5f;
+        ImGuiID last = 0;
+        int seen = -1;
         for (float x = balloon->Pos.x + balloon->Size.x - 16.0f; x > balloon->Pos.x; x -= 3.0f)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
             Tick(editor, 1);
-            if (ImGui::GetCurrentContext()->HoveredId != 0)
+            const ImGuiContext& context = *ImGui::GetCurrentContext();
+            if (context.HoveredId == 0 || context.HoveredIdIsDisabled || context.HoveredId == last)
+            {
+                continue;
+            }
+            last = context.HoveredId;
+            ++seen;
+            if (seen == skip)
             {
                 PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
                 Tick(editor, 1);
@@ -458,6 +468,11 @@ namespace
             }
         }
         return false;
+    }
+
+    bool ClickBalloonRightmostButton(JBro::EditorApplication& editor, HWND hwnd)
+    {
+        return ClickBalloonButtonFromRight(editor, hwnd, 0);
     }
 
     // 인스펙터의 슬롯 0 컴포넌트 머리가 접혀 있는지(ImGui 가 창의 상태 저장소에 적은 값).
@@ -652,6 +667,140 @@ namespace
             "a guide that ran out of targets is not announced as finished");
     }
 
+    bool NeverDone(JBro::EditorApplication&)
+    {
+        return false;
+    }
+
+    // 단추는 단계가 정한다. 둔 단추만 듣고, 막은 단추의 손짓은 무시한다. Esc 는 막을 수 없다.
+    void TestEachStepChoosesItsButtons()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideButtonsProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; guide buttons not verified" << std::endl;
+            return;
+        }
+        JBro::Guide guide;
+        guide.id = "test.buttons";
+        {
+            JBro::GuideStep first;
+            first.path.Push(JBro::GuideFocusTargets::Panel("Hierarchy"));
+            first.end = JBro::GuideStepEnd::NextButton;
+            first.canSkip = false;
+            guide.steps.Add(std::move(first));
+        }
+        {
+            JBro::GuideStep second;
+            second.path.Push(JBro::GuideFocusTargets::Panel("Inspector"));
+            second.end = JBro::GuideStepEnd::Condition;
+            second.condition = JBro::Delegate<bool(JBro::EditorApplication&)>::Bind<&NeverDone>();
+            second.canGoBack = false;
+            guide.steps.Add(std::move(second));
+        }
+        JBro::EditorGuide& run = editor.GetGuide();
+        JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(run.Start(guide, editor, focus), "the guide must start");
+        Tick(editor, 2);
+        Check(false == run.ShowsSkip(), "a step that forbids skipping shows no Skip");
+        Check(run.ShowsBack() && false == run.CanGoBackNow(), "Back is shown on the first step but cannot be pressed");
+        Check(run.ShowsNext(), "a step that ends with Next always shows Next, even without asking for it");
+        run.Update(editor, focus, JBro::GuideFocusAction::Skip);
+        Check(run.IsRunning(), "a Skip the step does not show is ignored");
+        run.Update(editor, focus, JBro::GuideFocusAction::Back);
+        Check(run.GetStepIndex() == 0, "Back on the first step goes nowhere");
+
+        run.Update(editor, focus, JBro::GuideFocusAction::Next);
+        Check(run.GetStepIndex() == 1, "Next goes on");
+        Check(false == run.ShowsNext(), "a step that waits for its condition shows no Next unless it asks for one");
+        Check(false == run.ShowsBack(), "a step that forbids going back shows no Back");
+        Check(run.ShowsSkip(), "and Skip is there by default");
+        run.Update(editor, focus, JBro::GuideFocusAction::Next);
+        run.Update(editor, focus, JBro::GuideFocusAction::Back);
+        Tick(editor, 3);
+        Check(run.GetStepIndex() == 1, "neither a hidden Next nor a hidden Back moves the step");
+
+        run.Update(editor, focus, JBro::GuideFocusAction::Skip);
+        Check(false == run.IsRunning(), "Skip on the second step ends the guide");
+
+        // 건너뛰기를 막은 첫 단계에서도 Esc 는 빠져나간다.
+        Check(run.Start(guide, editor, focus), "the guide must start again");
+        Check(false == run.ShowsSkip(), "on the step that forbids skipping");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, 0);
+        Tick(editor, 1);
+        PostMessageW(hwnd, WM_KEYUP, VK_ESCAPE, static_cast<LPARAM>(0xC0000001u));
+        Tick(editor, 1);
+        Check(false == run.IsRunning() && false == focus.IsActive(), "Esc still leaves - there is always one way out");
+    }
+
+    void TestAStepTheUserOptsIntoCanBeNextedPastItsCondition()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideManualNextProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; manual Next not verified" << std::endl;
+            return;
+        }
+        JBro::Guide guide;
+        guide.id = "test.manual_next";
+        for (int index = 0; index < 2; ++index)
+        {
+            JBro::GuideStep step;
+            step.path.Push(JBro::GuideFocusTargets::Panel(index == 0 ? "Hierarchy" : "Inspector"));
+            step.end = JBro::GuideStepEnd::Condition;
+            step.condition = JBro::Delegate<bool(JBro::EditorApplication&)>::Bind<&NeverDone>();
+            step.canGoNext = true;
+            guide.steps.Add(std::move(step));
+        }
+        JBro::EditorGuide& run = editor.GetGuide();
+        JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(run.Start(guide, editor, focus), "the guide must start");
+        Check(run.ShowsNext(), "a condition step that opts into Next shows it");
+        Tick(editor, 5);
+        Check(run.GetStepIndex() == 0, "its condition never holds, so it waits");
+        run.Update(editor, focus, JBro::GuideFocusAction::Next);
+        Check(run.GetStepIndex() == 1, "and Next takes the user past it");
+        run.Update(editor, focus, JBro::GuideFocusAction::Back);
+        Check(run.GetStepIndex() == 0 && run.IsRevisiting(), "Back returns to it");
+        run.Stop(focus);
+    }
+
+    // 이전으로 돌아온 단계는 조건이 이미 맞아도 저절로 넘어가지 않는다.
+    void TestAStepReturnedToWaitsForNext()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideBackProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; going back not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made and picked");
+        Tick(editor, 3);
+        Check(editor.StartGuide("guide.add_component"), "the guide must start");
+        Tick(editor, 2);
+        Check(editor.GetGuide().GetStepIndex() == 1, "with an object picked the first step passes at once");
+        Check(editor.GetGuide().CanGoBackNow(), "the second step can go back");
+
+        Check(WaitUntilSettled(editor, 2), "the hole must reach the field first");
+        // 말풍선의 단추는 건너뛰기 · 이전 · 다음이다. 오른쪽에서 두 번째가 이전이다.
+        Check(ClickBalloonButtonFromRight(editor, hwnd, 1), "the balloon's Back button must be found and pressed");
+        Check(editor.GetGuide().GetStepIndex() == 0 && editor.GetGuide().IsRevisiting(), "Back returns to the first step");
+        Tick(editor, 30);
+        Check(editor.GetGuide().GetStepIndex() == 0,
+            "the step returned to stays although its condition holds - bouncing forward would make Back look broken");
+        Check(editor.GetGuide().ShowsNext(), "and offers Next instead");
+        Check(WaitUntilSettled(editor, 0), "the hole goes back to the layers window");
+
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(editor.GetGuide().GetStepIndex() == 1 && false == editor.GetGuide().IsRevisiting(), "Next goes forward again");
+        Check(object->GetComponents().Size() == 1, "going back and forth edits nothing");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+    }
+
     struct Answer
     {
         bool close = false;
@@ -733,6 +882,9 @@ int RunEditorGuideTests()
     TestTheBuildGuideWaitsForTheUserToOpenTheMenu();
     TestAPathToAChildObjectWalksTheHierarchy();
     TestABrokenStepIsSkipped();
+    TestEachStepChoosesItsButtons();
+    TestAStepTheUserOptsIntoCanBeNextedPastItsCondition();
+    TestAStepReturnedToWaitsForNext();
     TestAModalLiftsTheVeilUntilItCloses();
     std::cout << "Editor guide tests passed.\n";
     return 0;

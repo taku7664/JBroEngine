@@ -154,6 +154,7 @@ namespace JBro
     {
         m_guide = &guide;
         m_finished = false;
+        m_revisiting = false;
         if (false == EnterStep(0, editor, focus))
         {
             m_guide = nullptr;
@@ -170,30 +171,63 @@ namespace JBro
         focus.End();
     }
 
+    bool EditorGuide::TryEnter(std::uint32_t index, EditorApplication& editor, EditorGuideFocus& focus)
+    {
+        const GuideStep& step = m_guide->steps[index];
+        GuideFocusPath path = step.path;
+        if (step.buildPath.IsBound())
+        {
+            path = {};
+            if (false == step.buildPath.Invoke(editor, path))
+            {
+                Log::Write(LogLevel::Warning, "editor", "guide %s: step %u has nothing to point at; skipped",
+                    m_guide->id, index + 1);
+                return false;
+            }
+        }
+        if (false == focus.Begin(path))
+        {
+            return false;
+        }
+        focus.SetKeyboardAllowed(step.keyboard);
+        m_step = index;
+        return true;
+    }
+
     bool EditorGuide::EnterStep(std::uint32_t from, EditorApplication& editor, EditorGuideFocus& focus)
     {
         for (std::uint32_t index = from; index < m_guide->steps.Size(); ++index)
         {
-            const GuideStep& step = m_guide->steps[index];
-            GuideFocusPath path = step.path;
-            if (step.buildPath.IsBound())
+            if (TryEnter(index, editor, focus))
             {
-                path = {};
-                if (false == step.buildPath.Invoke(editor, path))
-                {
-                    Log::Write(LogLevel::Warning, "editor", "guide %s: step %u has nothing to point at; skipped",
-                        m_guide->id, index + 1);
-                    continue;
-                }
-            }
-            if (focus.Begin(path))
-            {
-                focus.SetKeyboardAllowed(step.keyboard);
-                m_step = index;
+                m_revisiting = false;
                 return true;
             }
         }
         return false;
+    }
+
+    bool EditorGuide::ShowsSkip() const noexcept
+    {
+        const GuideStep* step = GetStep();
+        return step != nullptr && step->canSkip;
+    }
+
+    bool EditorGuide::ShowsBack() const noexcept
+    {
+        const GuideStep* step = GetStep();
+        return step != nullptr && step->canGoBack;
+    }
+
+    bool EditorGuide::CanGoBackNow() const noexcept
+    {
+        return ShowsBack() && m_step > 0;
+    }
+
+    bool EditorGuide::ShowsNext() const noexcept
+    {
+        const GuideStep* step = GetStep();
+        return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting);
     }
 
     void EditorGuide::Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action)
@@ -209,24 +243,42 @@ namespace JBro
             m_step = 0;
             return;
         }
-        if (action == GuideFocusAction::Skip)
+        // **단추는 둔 것만 듣는다.** 말풍선에 없는 단추의 손짓이 오면(부르는 쪽이 잘못 넘겼다) 무시한다.
+        if (action == GuideFocusAction::Skip && ShowsSkip())
         {
             Stop(focus);
             return;
         }
-        const GuideStep& step = m_guide->steps[m_step];
-        bool done = false;
-        switch (step.end)
+        if (action == GuideFocusAction::Back && CanGoBackNow())
         {
-        case GuideStepEnd::NextButton:
-            done = action == GuideFocusAction::Next;
-            break;
-        case GuideStepEnd::TargetActivated:
-            done = focus.ConsumeActivated();
-            break;
-        case GuideStepEnd::Condition:
-            done = step.condition.IsBound() && step.condition.Invoke(editor);
-            break;
+            // 가리킬 것이 있는 가장 가까운 앞 단계로 간다. 하나도 없으면 제자리다.
+            for (std::uint32_t index = m_step; index > 0; --index)
+            {
+                if (TryEnter(index - 1, editor, focus))
+                {
+                    m_revisiting = true;
+                    return;
+                }
+            }
+            return;
+        }
+        const GuideStep& step = m_guide->steps[m_step];
+        const bool nextPressed = action == GuideFocusAction::Next && ShowsNext();
+        bool done = nextPressed;
+        // 돌아온 단계는 다음을 기다린다. 조건이 이미 맞아 저절로 넘어가면 이전을 눌러도 제자리로 튕겨 온다.
+        if (false == m_revisiting)
+        {
+            switch (step.end)
+            {
+            case GuideStepEnd::NextButton:
+                break;
+            case GuideStepEnd::TargetActivated:
+                done = done || focus.ConsumeActivated();
+                break;
+            case GuideStepEnd::Condition:
+                done = done || (step.condition.IsBound() && step.condition.Invoke(editor));
+                break;
+            }
         }
         const bool broken = focus.IsBroken();
         if (broken)

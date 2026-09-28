@@ -1248,6 +1248,8 @@
   패널이 제 막이나 강조 테두리를 따로 그리지 않는다.
   **새 위젯 래퍼는 표식을 받는다** - 누르거나 여는 래퍼는 `Widget::Internal::TakeNextItemTarget` 으로 꺼내고, 여는 것이면
   `OpenIfGuided`, 그린 뒤 `ReportLastItem` 을 부른다. 표식 이름은 `GuideFocusTargets` 한 곳에 둔다.
+  **가이드 말풍선의 건너뛰기·이전·다음은 가이드를 쓰는 사람이 단계마다 고른다**(`GuideStep::canSkip`·`canGoBack`·`canGoNext`). 다음 단추로
+  끝나는 단계에는 다음이 늘 있고, Esc 는 막을 수 없다 - 사용자가 빠져나갈 길은 하나 남아야 한다.
 - **`Execute` 가 성공해야 스택에 쌓인다.** (MUST) (D-71)
   실패한 편집이 남으면 다음 Ctrl+Z 가 일어나지도 않은 일을 되돌린다.
 - **드래그 하나가 되돌리기 하나다.** (MUST) (D-71)

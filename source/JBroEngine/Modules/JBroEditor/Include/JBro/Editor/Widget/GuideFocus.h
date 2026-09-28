@@ -42,9 +42,14 @@ namespace JBro::Widget
         const char* body = nullptr;
         // "2 / 3" 같은 걸음 표시. 비우면 적지 않는다.
         const char* progress = nullptr;
-        // 다음 단추의 글자. 비우면 단추를 두지 않는다(대상을 누르거나 조건이 맞아야 넘어가는 단계).
-        const char* nextLabel = nullptr;
+        // 단추의 글자다. 비운 단추는 두지 않는다 - 어느 단추를 둘지는 가이드를 쓴 사람이 단계마다 정한다(`GuideStep`).
+        // 차례는 건너뛰기 · 이전 · 다음이다.
         const char* skipLabel = nullptr;
+        const char* backLabel = nullptr;
+        const char* nextLabel = nullptr;
+        // 이전 단추를 두었지만 지금은 못 누를 때(첫 단계) 회색으로 두고 까닭을 띄운다(§11.1).
+        bool backEnabled = true;
+        const char* backDisabledReason = nullptr;
     };
 
     // **막과 구멍과 말풍선을 그린다.** 모든 창을 그린 뒤, 알림보다도 뒤에 부른다.

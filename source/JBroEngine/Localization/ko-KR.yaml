@@ -395,6 +395,8 @@ Entries:
   guide.next: 다음
   guide.done: 완료
   guide.skip: 건너뛰기
+  guide.back: 이전
+  guide.back_first_step: 첫 단계입니다
   guide.progress: "%u / %u"
   guide.finished: 가이드를 마쳤습니다
   guide.add_component_title: 컴포넌트 추가하기

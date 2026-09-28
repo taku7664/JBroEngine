@@ -3579,8 +3579,18 @@ namespace JBro
             balloon.progress = progress;
             balloon.title = Loc::TextOr(step->titleKey, step->titleFallback);
             balloon.body = Loc::TextOr(step->bodyKey, step->bodyFallback);
-            balloon.skipLabel = Loc::TextOr(LocKeys::GuideSkip, "Skip");
-            if (step->end == GuideStepEnd::NextButton)
+            // 어느 단추를 둘지는 단계가 정한다(`GuideStep::canSkip` 등).
+            if (m_guide.ShowsSkip())
+            {
+                balloon.skipLabel = Loc::TextOr(LocKeys::GuideSkip, "Skip");
+            }
+            if (m_guide.ShowsBack())
+            {
+                balloon.backLabel = Loc::TextOr(LocKeys::GuideBack, "Back");
+                balloon.backEnabled = m_guide.CanGoBackNow();
+                balloon.backDisabledReason = Loc::TextOr(LocKeys::GuideBackFirstStep, "this is the first step");
+            }
+            if (m_guide.ShowsNext())
             {
                 balloon.nextLabel = m_guide.GetStepIndex() + 1 == total
                     ? Loc::TextOr(LocKeys::GuideDone, "Done")

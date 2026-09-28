@@ -395,6 +395,8 @@ Entries:
   guide.next: Next
   guide.done: Done
   guide.skip: Skip
+  guide.back: Back
+  guide.back_first_step: This is the first step
   guide.progress: "%u / %u"
   guide.finished: Guide finished
   guide.add_component_title: Adding a Component

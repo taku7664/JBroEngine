@@ -350,16 +350,33 @@ namespace JBro::Widget
                     WrappedText(balloon.body);
                 }
                 ImGui::Spacing();
-                if (balloon.skipLabel != nullptr && Button(balloon.skipLabel))
-                {
-                    action = GuideFocusAction::Skip;
-                }
-                if (balloon.nextLabel != nullptr)
-                {
-                    if (balloon.skipLabel != nullptr)
+                bool first = true;
+                const auto nextInRow = [&first]() {
+                    if (false == first)
                     {
                         ImGui::SameLine();
                     }
+                    first = false;
+                };
+                if (balloon.skipLabel != nullptr)
+                {
+                    nextInRow();
+                    if (Button(balloon.skipLabel))
+                    {
+                        action = GuideFocusAction::Skip;
+                    }
+                }
+                if (balloon.backLabel != nullptr)
+                {
+                    nextInRow();
+                    if (ActionButton(balloon.backLabel, Severity::Info, balloon.backEnabled, balloon.backDisabledReason))
+                    {
+                        action = GuideFocusAction::Back;
+                    }
+                }
+                if (balloon.nextLabel != nullptr)
+                {
+                    nextInRow();
                     if (ActionButton(balloon.nextLabel, Severity::Success))
                     {
                         action = GuideFocusAction::Next;

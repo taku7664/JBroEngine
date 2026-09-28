@@ -40,6 +40,19 @@ namespace JBro
         Delegate<bool(EditorApplication&)> condition;
         // 글자를 치는 단계인가(값을 입력한다, 목록을 검색한다).
         bool keyboard = false;
+
+        // ── 말풍선의 단추 ─────────────────────────────────────
+        //
+        // **어느 단추를 둘지는 가이드를 쓴 사람이 단계마다 정한다.** 사용자가 반드시 해 봐야 하는 단계는 건너뛰기를 막고,
+        // 되돌아가면 앞뒤가 맞지 않는 단계는 이전을 막는다.
+        //
+        // 건너뛰기는 가이드를 통째로 끝낸다. **막아도 Esc 는 된다** - 사용자가 빠져나갈 길은 하나 남아 있어야 한다.
+        bool canSkip = true;
+        // 이전은 앞 단계로 돌아간다(가리킬 것이 없는 단계는 건너 더 앞으로 간다). 편집은 되돌리지 않는다 - 그것은 Ctrl+Z 다.
+        bool canGoBack = true;
+        // 다음을 둔다. `end` 가 `NextButton` 이면 켜지 않아도 늘 있다 - 없으면 그 단계를 나갈 길이 없다.
+        // 조건·대상 누름으로 넘어가는 단계에서 켜면 사람이 그것을 하지 않고도 넘어갈 수 있다.
+        bool canGoNext = false;
     };
 
     struct Guide
@@ -71,16 +84,30 @@ namespace JBro
         // 마지막 단계를 마쳐 끝났는가. 읽으면 지운다 - 에디터가 "마쳤습니다" 알림을 한 번 띄운다.
         bool ConsumeFinished() noexcept;
 
+        // 지금 단계의 말풍선에 둘 단추다.
+        bool ShowsSkip() const noexcept;
+        bool ShowsBack() const noexcept;
+        // 이전을 두었고 돌아갈 단계가 있다(첫 단계가 아니다).
+        bool CanGoBackNow() const noexcept;
+        // 다음을 둔다. 단계가 켰거나, 다음 단추로 끝나는 단계거나, **이전으로 돌아온 단계**다 - 돌아온 단계는 조건이 이미 맞아도
+        // 저절로 넘어가지 않고(넘어가면 이전이 고장 난 것처럼 보인다) 다음을 기다린다.
+        bool ShowsNext() const noexcept;
+        // 이전으로 들어온 단계인가.
+        bool IsRevisiting() const noexcept { return m_revisiting; }
+
         // 한 프레임을 나아간다. 가이드 포커스가 꺼졌으면(Esc) 멈춘다. 경로가 끊긴 단계는 로그를 남기고 건너뛴다.
         void Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action);
 
     private:
         // `from` 부터 가리킬 것이 있는 첫 단계로 들어간다. 없으면 끝난 것이다.
         bool EnterStep(std::uint32_t from, EditorApplication& editor, EditorGuideFocus& focus);
+        // 단계 하나에 들어간다. 가리킬 것이 없으면 거짓이고 아무것도 바꾸지 않는다.
+        bool TryEnter(std::uint32_t index, EditorApplication& editor, EditorGuideFocus& focus);
 
         const Guide* m_guide = nullptr;
         std::uint32_t m_step = 0;
         bool m_finished = false;
+        bool m_revisiting = false;
     };
 
     // 에디터에 들어 있는 가이드다.

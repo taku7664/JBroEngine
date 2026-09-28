@@ -82,6 +82,7 @@ namespace JBro
     {
         None,
         Next,
+        Back,
         Skip
     };
 
