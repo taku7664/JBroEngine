@@ -447,7 +447,7 @@ namespace JBro
         {
             return false;
         }
-        // **창을 여는 스레드는 COM 을 STA 로 먼저 켠다**(D-255). miniaudio 는 장치를 여는 스레드의 COM 을 MTA 로 켜는데,
+        // **창을 여는 스레드는 COM 을 STA 로 먼저 켠다**(D-256). miniaudio 는 장치를 여는 스레드의 COM 을 MTA 로 켜는데,
         // 엔진은 메인 스레드에서 오디오를 연다. 그 뒤로 이 스레드는 STA 가 될 수 없고, 파일 대화상자(`IFileDialog::Show`)는
         // MTA 에서 창도 띄우지 못한 채 멈춘다 - "프로젝트 열기" 를 누르면 에디터가 응답을 멈췄다. 여기서 먼저 STA 로 켜면
         // miniaudio 의 MTA 요청이 `RPC_E_CHANGED_MODE` 로 물러나고, 오디오는 그대로 열린다(miniaudio 는 그 결과를 받아들인다).
@@ -832,7 +832,7 @@ namespace JBro
             return written > 0;
         }
 
-        // 기존 엔진 `ShowFileDialogEx` 를 옮겼다. 메인 스레드는 `Initialize` 가 이미 STA 로 켰고(D-255), 여기서 한 번 더 켜고
+        // 기존 엔진 `ShowFileDialogEx` 를 옮겼다. 메인 스레드는 `Initialize` 가 이미 STA 로 켰고(D-256), 여기서 한 번 더 켜고
         // 끄는 것은 참조 수만 오간다 - 다른 스레드에서 불렸을 때도 그 스레드를 STA 로 켜기 위해 남긴다.
         struct ComScope
         {
@@ -847,7 +847,7 @@ namespace JBro
                 }
             }
 
-            // **MTA 스레드는 쓰지 않는다**(D-255). 전에는 `RPC_E_CHANGED_MODE` 도 받아 MTA 에서 대화상자를 열었고, 그 호출이
+            // **MTA 스레드는 쓰지 않는다**(D-256). 전에는 `RPC_E_CHANGED_MODE` 도 받아 MTA 에서 대화상자를 열었고, 그 호출이
             // 창도 띄우지 못한 채 멈췄다. 멈춘 에디터보다 열리지 않는 대화상자와 로그 한 줄이 낫다.
             bool Usable() const
             {

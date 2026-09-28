@@ -31,7 +31,7 @@ namespace JBro::Widget
         ListFlagsShowIndex = 1u << 2,
     };
 
-    // 목록 행을 끄는 꾸러미다(`DragKind::ListReorder`). **어느 목록의 행인지를 함께 싣는다**(D-254) -
+    // 목록 행을 끄는 꾸러미다(`DragKind::ListReorder`). **어느 목록의 행인지를 함께 싣는다**(D-255) -
     // 꾸러미 이름은 전역이라, 번호만 실으면 인스펙터에 나란히 있는 다른 목록(구조체 원소 안의 목록까지)의 사이 칸이
     // 그 번호를 제 원소 번호로 읽어 엉뚱한 원소를 옮긴다.
     struct ListReorderPayload

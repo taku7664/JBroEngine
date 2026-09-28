@@ -7891,7 +7891,7 @@ namespace
             "ImGui::BeginPopupModal(", "ImGui::OpenPopup(", "ImGui::EndPopup(",
             "ImGui::InvisibleButton(", "ImGui::Image(", "ImGui::CollapsingHeader(",
             "ImGui::TreeNodeEx(", "ImGui::TreeNode(", "ImGui::TreePop(", "ImGui::InputText(",
-            // 끌어 놓기도 공용 층(`Widget/DragDrop.h`)을 거친다(D-254). 직접 부르면 꾸러미 이름을 또 적고 외곽선이 돌아온다.
+            // 끌어 놓기도 공용 층(`Widget/DragDrop.h`)을 거친다(D-255). 직접 부르면 꾸러미 이름을 또 적고 외곽선이 돌아온다.
             "ImGui::BeginDragDropSource(", "ImGui::SetDragDropPayload(", "ImGui::EndDragDropSource(",
             "ImGui::BeginDragDropTarget(", "ImGui::AcceptDragDropPayload(", "ImGui::EndDragDropTarget(",
             "ImGui::GetDragDropPayload("};

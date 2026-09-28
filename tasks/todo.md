@@ -2916,8 +2916,9 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
-- **D-255. 창을 여는 스레드의 COM 은 플랫폼 초기화가 STA 로 먼저 켠다. 파일 대화상자는 MTA 스레드에서 열지 않는다.** (2026-09-29, 사용자 지적:
+- **D-256. 창을 여는 스레드의 COM 은 플랫폼 초기화가 STA 로 먼저 켠다. 파일 대화상자는 MTA 스레드에서 열지 않는다.** (2026-09-29, 사용자 지적:
   "프로젝트 열기 하니까 대화상자도 안열리고 팅긴다." Updates: D-93.)
+  번호: 커밋 `c531e7ac` 은 D-255 로 적었다. main 에 합치기 직전 다른 세션의 D-254 가 먼저 들어와 D-256 으로 옮겼다.
   **원인.** 엔진은 메인 스레드에서 오디오 장치를 연다(`EngineInstance` → `CreateAudioOutput` → `ma_device_init`). miniaudio 는 장치를 여는
   스레드의 COM 을 `COINIT_MULTITHREADED` 로 켠다(`MA_COINIT_VALUE` 기본값). 그 뒤로 메인 스레드는 STA 가 될 수 없고, `ShowFileDialog` 의
   `CoInitializeEx(STA)` 는 `RPC_E_CHANGED_MODE` 를 받았다. 코드는 그 값을 "쓸 수 있음" 으로 받아 MTA 에서 `IFileDialog::Show` 를 불렀고,
@@ -2933,8 +2934,9 @@ EditorApplication::Tick
   시험: `TestThePlatformThreadStaysSingleThreadedForDialogs` - 제 스레드에서 플랫폼을 켜면 STA 이고, 뒤의 MTA 요청(miniaudio 가 하는 것)이
   `RPC_E_CHANGED_MODE` 로 물러나며, 끄면 COM 이 꺼지는지. MTA 스레드에서 대화상자를 부르면 3 초 안에 거절하는지. 스피커는 열지 않는다.
   뮤테이션 셋(초기화의 STA 빼기·대화상자가 MTA 받기·끌 때 COM 남기기)이 모두 제 검사의 메시지로 죽었다.
-- **D-254. 에디터의 끌어 놓기는 공용 층 `Widget/DragDrop.h` 를 거치고, 받는 자리는 외곽선을 긋지 않는다.** (2026-09-28, 사용자 지시:
+- **D-255. 에디터의 끌어 놓기는 공용 층 `Widget/DragDrop.h` 를 거치고, 받는 자리는 외곽선을 긋지 않는다.** (2026-09-28, 사용자 지시:
   "드래그 드롭 인터페이스 만들어줘. 그리고 드래그드롭 외곽선 안나오게 해줘." Updates: D-152·D-154.)
+  번호: 커밋 `d9280e95` 은 D-254 로 적었다. main 에 합치기 직전 다른 세션의 D-254(캔버스 뷰의 누르기·들어가기)가 먼저 들어와 D-255 로 옮겼다.
   그전에는 공통 인터페이스가 없었다. 계층·에셋 브라우저·목록·에셋 칸·오브젝트 칸이 저마다 `ImGui::BeginDragDropSource`·`AcceptDragDropPayload` 를
   직접 불렀고, 꾸러미 이름 문자열을 파일마다 적었다 - 인스펙터가 계층의 `"JBRO_HIERARCHY_MOVE"` 를 한 번 더 적어 두어 한쪽 이름이 바뀌면 드롭이
   조용히 끊기는 모양이었다. 기존 엔진 `EditorDragDrop` 은 이름을 한 헤더에 모았지만 받는 쪽은 여전히 ImGui 를 직접 불렀고, 꾸러미에 날 포인터

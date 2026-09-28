@@ -929,7 +929,7 @@ namespace
         return false;
     }
 
-    // **받는 자리는 외곽선 없이 칠해지고, 제 종류만 받는다**(D-254).
+    // **받는 자리는 외곽선 없이 칠해지고, 제 종류만 받는다**(D-255).
     //
     // ImGui 의 기본 표시는 받는 자리에 테두리를 두른다. 공용 층은 받는 쪽(`AcceptDrop`)과 끄는 쪽(`BeginDragSource`)
     // 양쪽에서 그것을 끈다 - 끄는 쪽에서 끄는 것은 공용 층을 거치지 않은 받는 자리까지 막기 위해서다. 그래서 받는 자리를
@@ -1071,7 +1071,7 @@ namespace
         Check(false == JBro::Widget::IsDraggingAnything(), "the drag is over after the drop");
     }
 
-    // **목록의 행은 제 목록 안에서만 옮겨진다**(D-254). 꾸러미 이름은 전역이라 번호만 실었을 때는 옆 목록의 사이 칸이
+    // **목록의 행은 제 목록 안에서만 옮겨진다**(D-255). 꾸러미 이름은 전역이라 번호만 실었을 때는 옆 목록의 사이 칸이
     // 그 번호를 제 원소 번호로 받아 엉뚱한 원소를 옮겼다. 인스펙터에는 목록이 나란히, 구조체 원소 안에 겹쳐 선다.
     void TestAListRowDroppedOnAnotherListMovesNothing()
     {

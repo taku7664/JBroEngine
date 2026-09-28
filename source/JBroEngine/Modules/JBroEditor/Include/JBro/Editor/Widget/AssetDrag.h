@@ -16,7 +16,7 @@ namespace JBro::Widget
     //
     // 아이디가 **둘**인 것은 이미지 때문이다. 그림 파일은 Texture 와 Sprite 두 레코드로 서고
     // 목록의 한 줄은 Texture 를 가리키는데, 스프라이트 칸이 받아야 하는 것은 Sprite 쪽이다 -
-    // 짝을 함께 실어 두면 칸이 자기 목록에 있는 쪽을 고른다. 꾸러미 종류는 `DragKind::Asset` 이다(D-254).
+    // 짝을 함께 실어 두면 칸이 자기 목록에 있는 쪽을 고른다. 꾸러미 종류는 `DragKind::Asset` 이다(D-255).
 
     struct AssetDragHeader
     {

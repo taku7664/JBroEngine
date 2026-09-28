@@ -33,7 +33,7 @@ namespace JBro
 {
     namespace
     {
-        // 오브젝트 줄은 `DragKind::HierarchyObject`, 레이어 줄은 `DragKind::HierarchyLayer` 로 끈다(D-254).
+        // 오브젝트 줄은 `DragKind::HierarchyObject`, 레이어 줄은 `DragKind::HierarchyLayer` 로 끈다(D-255).
         // 둘이 섞이면 레이어 위에 오브젝트를 놓은 것이 레이어 순서 바꾸기가 된다.
         // 행에서 "앞에" / "뒤에" 로 치는 위아래 띠의 몫이다. 기존 엔진과 같은 값이다 -
         // 가운데 절반은 "자식으로" 가 된다.
@@ -243,7 +243,7 @@ namespace JBro
             Widget::HitArea("##RootDrop", size);
             if (Widget::BeginDropTarget())
             {
-                // 빈자리는 칸이 알아서 옅게 칠한다. 테두리는 긋지 않는다(D-254).
+                // 빈자리는 칸이 알아서 옅게 칠한다. 테두리는 긋지 않는다(D-255).
                 EditorObjectId id = InvalidEditorObjectId;
                 if (Widget::AcceptDropValue(Widget::DragKind::HierarchyObject, id))
                 {
@@ -598,7 +598,7 @@ namespace JBro
 
         // **무엇이 될지 먼저 보인다.** 선은 형제로 끼우는 자리, 칠한 줄은 자식으로
         // 들어가는 자리다 - 떨어뜨린 뒤에야 알게 되면 되돌리기로 확인하게 된다.
-        // 테두리는 긋지 않는다(D-254). 빽빽한 줄에서 테두리는 위아래 줄에 겹쳐 끼울 선과 헷갈린다.
+        // 테두리는 긋지 않는다(D-255). 빽빽한 줄에서 테두리는 위아래 줄에 겹쳐 끼울 선과 헷갈린다.
         const Widget::DropPayload payload =
             Widget::AcceptDrop(Widget::DragKind::HierarchyObject, Widget::DropFeedback::None);
         if (payload && where == DropWhere::Into)

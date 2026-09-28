@@ -86,7 +86,7 @@ namespace
     // The main thread's COM mode is fixed by whoever initializes it first. miniaudio opens the audio device
     // on the calling thread with COINIT_MULTITHREADED, and the engine opens audio on the main thread - so
     // unless the platform claims STA first, that thread becomes MTA and IFileDialog::Show then hung without
-    // ever showing a window (the editor stopped responding on "Open Project", D-255).
+    // ever showing a window (the editor stopped responding on "Open Project", D-256).
     //
     // Each check runs on its own thread so the test runner's own COM state cannot decide the result; a failed
     // check is carried back through the future so it reports its message instead of ending the process.
