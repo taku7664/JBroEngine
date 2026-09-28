@@ -283,21 +283,28 @@ namespace JBro
                         ReleaseCapture();
                     }
                 }
+                // **엄지 버튼은 처리했다고 TRUE 로 답한다.** `DefWindowProcW` 로 넘기면 Windows 가 그것을
+                // `WM_APPCOMMAND`(브라우저 뒤로·앞으로)로 바꿔 부모와 셸 훅에 올려 보낸다 - 게임이 받은 누름이
+                // 창 밖에서 한 번 더 일한다.
+                if (message == WM_XBUTTONDOWN || message == WM_XBUTTONDBLCLK || message == WM_XBUTTONUP)
+                {
+                    return TRUE;
+                }
                 break;
             }
 
             case WM_CAPTURECHANGED:
             {
                 // 붙잡음을 남에게 빼앗겼다(Alt+Tab, 다른 창의 대화상자). 그 뒤의 뗌은 오지 않으므로
-                // **눌린 버튼을 모두 뗀 것으로 알린다** - 알리지 않으면 끌기가 남는다.
+                // **눌린 버튼을 모두 뗀 것으로 알린다** - 알리지 않으면 끌기가 남는다. 엄지 버튼도 뗀다.
                 if (reinterpret_cast<HWND>(lParam) != window && platform->HeldMouseButtons() > 0)
                 {
                     platform->HeldMouseButtons() = 0;
-                    for (const MouseButton button : {MouseButton::Left, MouseButton::Right, MouseButton::Middle})
+                    for (std::uint8_t index = 0; index < static_cast<std::uint8_t>(MouseButton::Count); ++index)
                     {
                         InputEvent released;
                         released.kind = InputEventKind::MouseButtonUp;
-                        released.button = button;
+                        released.button = static_cast<MouseButton>(index);
                         platform->RecordInputEvent(released);
                     }
                 }
