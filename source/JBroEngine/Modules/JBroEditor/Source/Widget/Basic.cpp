@@ -3,6 +3,7 @@
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 
 // 메뉴 줄의 사각형은 공개 헤더에 없다.
 #include <imgui_internal.h>
@@ -55,7 +56,10 @@ namespace JBro::Widget
 
     bool Button(const char* label)
     {
-        return ImGui::Button(label);
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        const bool pressed = ImGui::Button(label);
+        Internal::ReportLastItem(target, false, pressed);
+        return pressed;
     }
 
     bool SelectableRow(const char* label, bool selected)
@@ -102,7 +106,9 @@ namespace JBro::Widget
     bool MenuItem(const char* label, const char* shortcut, bool enabled,
         const char* disabledReason)
     {
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
         const bool chosen = ImGui::MenuItem(label, shortcut, false, enabled);
+        Internal::ReportLastItem(target, false, chosen);
         DisabledReason(false == enabled, disabledReason);
         return chosen;
     }
@@ -146,7 +152,12 @@ namespace JBro::Widget
 
     bool BeginMenu(const char* label, bool enabled)
     {
-        return ImGui::BeginMenu(label, enabled);
+        // 메뉴는 사용자가 연다(ImGui 에 메뉴를 코드로 여는 길이 없다). 열렸는지만 알린다 - 열린 뒤에도
+        // ImGui 가 마지막 항목을 메뉴 머리로 되돌려 두므로 그 사각형이 머리의 것이다.
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        const bool open = ImGui::BeginMenu(label, enabled);
+        Internal::ReportLastItem(target, open, false);
+        return open;
     }
 
     void EndMenu()
@@ -202,7 +213,11 @@ namespace JBro::Widget
 
     bool FoldNode(const char* label, ImGuiTreeNodeFlags flags)
     {
-        return ImGui::TreeNodeEx(label, flags);
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        Internal::OpenIfGuided(target);
+        const bool open = ImGui::TreeNodeEx(label, flags);
+        Internal::ReportLastItem(target, open, ImGui::IsItemClicked());
+        return open;
     }
 
     void TreePop()
@@ -219,8 +234,12 @@ namespace JBro::Widget
         scope.PushColor(ImGuiCol_Header, EditorTheme::Raised);
         scope.PushColor(ImGuiCol_HeaderHovered, EditorTheme::Hover);
         scope.PushColor(ImGuiCol_HeaderActive, EditorTheme::Pressed);
-        return ImGui::CollapsingHeader(title,
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        Internal::OpenIfGuided(target);
+        const bool open = ImGui::CollapsingHeader(title,
             defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
+        Internal::ReportLastItem(target, open, ImGui::IsItemClicked());
+        return open;
     }
 
     void Image(TextureHandle texture, const ImVec2& size, const ImVec2& uvMin, const ImVec2& uvMax)
@@ -258,7 +277,12 @@ namespace JBro::Widget
 
     bool BeginTab(const char* label, bool* open, bool select)
     {
-        return ImGui::BeginTabItem(label, open, select ? ImGuiTabItemFlags_SetSelected : 0);
+        // 탭은 "연다" 가 곧 앞으로 꺼내는 것이다.
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        const bool guided = target.IsValid() && GetGuideFocus() != nullptr && GetGuideFocus()->ShouldOpen(target);
+        const bool front = ImGui::BeginTabItem(label, open, (select || guided) ? ImGuiTabItemFlags_SetSelected : 0);
+        Internal::ReportLastItem(target, front, ImGui::IsItemClicked());
+        return front;
     }
 
     void EndTab()

@@ -6,6 +6,7 @@
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/EditorGuide.h>
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/EditorSpriteContours.h>
@@ -395,6 +396,9 @@ namespace JBro
         // Esc 를 누르면 꺼진다. 프로젝트를 닫으면 꺼진다 - 경로가 이 프로젝트의 오브젝트를 가리킨다.
         EditorGuideFocus& GetGuideFocus();
         const EditorGuideFocus& GetGuideFocus() const;
+        // 가이드다(D-251). 도움말 메뉴가 내장 가이드를 이 이름으로 켠다(`EditorGuides`). 캔버스가 없거나 모르는 이름이면 거짓이다.
+        bool StartGuide(const char* id);
+        EditorGuide& GetGuide();
         // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
         // 다음 틱이 끝날 때 환경설정 파일에 적힌다.
         EditorShortcutManager& GetShortcuts();
@@ -640,6 +644,8 @@ namespace JBro
         // 메뉴이고, 지금 연 캔버스에 대한 것은 메인 도크의 메뉴다.
         void DrawRootMenuBar();
         void DrawMainMenuBar();
+        // 가이드 포커스의 막과 말풍선을 그리고 한 걸음 나아간다(D-251). 알림 뒤, 프레임 끝에 부른다.
+        void DrawGuideFocus(float deltaTime);
         // 창 전체를 덮는 도크 뿌리. 메인 도크 하나만 여기에 붙는다.
         void DrawRootDock(const Extent2D& display);
         // 패널 하나를 여닫는 메뉴 항목이다. 설정·디버그 메뉴가 같은 모양으로 쓴다.
@@ -706,6 +712,7 @@ namespace JBro
         PopupHandle m_nextPopupHandle = 1;
         EditorNotifications m_notifications;
         EditorGuideFocus m_guideFocus;
+        EditorGuide m_guide;
         // 가이드 포커스가 거른 이번 프레임의 입력이다. 프레임마다 비우고 다시 채운다 - 용량은 남아 다시 잡지 않는다.
         Array<InputEvent> m_filteredInput;
         // 브라우저가 찾아가야 할 에셋. 비어 있으면 기다리는 것이 없다(D-193).

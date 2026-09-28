@@ -412,9 +412,19 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
         Check(calls == 1, "with the veil down the probe shortcut runs, or the check below proves nothing");
 
+        // 대상은 인스펙터 창 전체다. 에디터가 그 창을 그리며 자리를 알리고, 다음 프레임부터 그 안만 누를 수 있다.
         JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
-        Check(focus.Begin(OneStepPath()), "the guide focus must start");
-        Check(focus.AddAllowedRect({ { 300.0f, 200.0f }, { 340.0f, 240.0f } }), "a hole must be set");
+        JBro::GuideFocusPath path;
+        Check(path.Push(JBro::GuideFocusTargets::Panel("Inspector")), "the path must take the inspector");
+        Check(focus.Begin(path), "the guide focus must start");
+        Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
+        const ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const int insideX = static_cast<int>(inspector->Pos.x + inspector->Size.x * 0.5f);
+        const int insideY = static_cast<int>(inspector->Pos.y + inspector->Size.y * 0.5f);
+        Check(focus.IsAllowed({ static_cast<float>(insideX), static_cast<float>(insideY) }),
+            "the inspector the editor drew is the allowed area");
+        Check(false == focus.IsAllowed({ 40.0f, 40.0f }), "and the top left of the editor is not");
 
         // 밖을 누르면 ImGui 는 누름도 마우스도 보지 못한다.
         PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(40, 40));
@@ -426,12 +436,13 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick");
 
         // 안을 누르면 들어간다.
-        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(320, 220));
-        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(320, 220));
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(insideX, insideY));
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(insideX, insideY));
         Check(editor.Tick(Frame), "the editor must tick");
         Check(ImGui::GetIO().MouseDown[0], "a press inside the hole reaches ImGui");
-        Check(ImGui::GetIO().MousePos.x == 320.0f && ImGui::GetIO().MousePos.y == 220.0f, "at the real position");
-        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(320, 220));
+        Check(ImGui::GetIO().MousePos.x == static_cast<float>(insideX) && ImGui::GetIO().MousePos.y == static_cast<float>(insideY),
+            "at the real position");
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(insideX, insideY));
         Check(editor.Tick(Frame), "the editor must tick");
         Check(false == ImGui::GetIO().MouseDown[0], "and its release too");
 

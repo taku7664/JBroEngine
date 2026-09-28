@@ -46,6 +46,7 @@ namespace JBro::Widget
             ImGui::TableNextRow();
 
             ImGui::TableSetColumnIndex(0);
+            m_rowMin = ImGui::GetCursorScreenPos();
             // 라벨 글자를 위젯 프레임의 가운데에 맞춘다. 없으면 한 줄 안에서
             // 라벨만 위로 붙어 눈에 거슬린다.
             ImGui::AlignTextToFramePadding();
@@ -58,7 +59,13 @@ namespace JBro::Widget
             }
             ImGui::SetNextItemWidth(-FLT_MIN);
             field();
+            m_rowMax = ImGui::GetItemRectMax();
         }
+
+        // 마지막으로 그린 `Row` 의 자리다(라벨 칸의 왼쪽 위부터 값 위젯의 오른쪽 아래까지). 가이드 포커스가
+        // 필드 한 줄을 가리킬 때 쓴다(D-251). 표를 열지 못해 그리지 않았으면 지난 줄의 것이 남는다.
+        ImVec2 GetLastRowMin() const { return m_rowMin; }
+        ImVec2 GetLastRowMax() const { return m_rowMax; }
 
         // 칸을 나누지 않는 줄이다. **첫 칸 안에 그린다** - 트리 마디처럼 스스로 줄 전체에
         // 걸치는 항목(`SpanAllColumns`)만 줄 전체를 쓴다. 넓은 것을 넣으면 첫 칸 폭에 갇힌다.
@@ -107,6 +114,8 @@ namespace JBro::Widget
         ImVec2 m_padding;
         float m_labelWidth = 0.0f;
         float m_width = 0.0f;
+        ImVec2 m_rowMin;
+        ImVec2 m_rowMax;
         StyleScope m_style;
     };
 }

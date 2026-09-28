@@ -19,6 +19,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/FormLayout.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Widget/List.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Scalar.h>
@@ -249,6 +250,7 @@ namespace JBro
 
             // 이름이 아니라 슬롯으로 구분한다. 같은 타입을 두 개 붙일 수 있다.
             ImGui::PushID(static_cast<int>(index));
+            Widget::SetNextItemTarget(GuideFocusTargets::InspectorComponent(slot.typeId));
             const bool opened = Widget::CollapsingSection(
                 typeName != nullptr
                     ? typeName
@@ -464,6 +466,7 @@ namespace JBro
         EditorActions::AddComponentList list;
         EditorActions::BuildAddComponentList(object, list);
         int chosen = -1;
+        Widget::SetNextItemTarget(GuideFocusTargets::InspectorAddComponent());
         const bool picked = Widget::FilterCombo("##AddComponent",
             ArrayView<const char* const>(list.names.Data(), list.names.Size()), chosen)
             .EmptyText(Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component"))
@@ -1664,6 +1667,10 @@ namespace JBro
                     // 속살만 고칠 수 있게 된다.
                     Widget::DisableScope locked(false == editable);
                     layout.FullRow([&]() {
+                        if (false == inElement && context.path.depth == 1 && context.component != nullptr)
+                        {
+                            Widget::SetNextItemTarget(GuideFocusTargets::InspectorField(context.typeId, property.name));
+                        }
                         opened = Widget::FoldNode(label != nullptr ? label : "?",
                             ImGuiTreeNodeFlags_DefaultOpen
                                 | ImGuiTreeNodeFlags_SpanAllColumns);
@@ -1692,6 +1699,12 @@ namespace JBro
                     DrawValue(label != nullptr ? label : "?", *property.type, address,
                         property.edit, context);
                 });
+            // 컴포넌트의 맨 위 필드 줄은 가이드 포커스가 가리킬 수 있다(D-251). 한 줄 전체가 대상이다.
+            if (false == inElement && context.path.depth == 1 && context.component != nullptr)
+            {
+                Widget::ReportGuideTarget(GuideFocusTargets::InspectorField(context.typeId, property.name),
+                    layout.GetLastRowMin(), layout.GetLastRowMax(), false, ImGui::IsItemDeactivatedAfterEdit());
+            }
 
             // **이 필드에 붙는 줄이 있으면 바로 밑에 그린다**(D-165). 무엇을 붙일지는 인스펙터가 모른다 - 표가 안다.
             if (false == inElement && context.path.depth == 1 && context.asset == nullptr

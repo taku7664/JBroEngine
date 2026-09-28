@@ -455,4 +455,23 @@ namespace JBro::LocKeys
     inline constexpr const char* NotifyCanvasAssetsFailedMessage = "notify.canvas_assets_failed_message";
     inline constexpr const char* StatusBarShowTasks = "status_bar.show_tasks";
     inline constexpr const char* StatusBarOpenLog = "status_bar.open_log";
+
+    // ── 가이드(D-251) ────────────────────────────────────────────────────
+    inline constexpr const char* MenuHelp = "menu.help";
+    inline constexpr const char* MenuHelpGuides = "menu.help_guides";
+    inline constexpr const char* GuideNext = "guide.next";
+    inline constexpr const char* GuideDone = "guide.done";
+    inline constexpr const char* GuideSkip = "guide.skip";
+    inline constexpr const char* GuideProgress = "guide.progress";
+    inline constexpr const char* GuideFinished = "guide.finished";
+    inline constexpr const char* GuideAddComponentTitle = "guide.add_component_title";
+    inline constexpr const char* GuideAddComponentSelectTitle = "guide.add_component_select_title";
+    inline constexpr const char* GuideAddComponentSelectBody = "guide.add_component_select_body";
+    inline constexpr const char* GuideAddComponentFieldTitle = "guide.add_component_field_title";
+    inline constexpr const char* GuideAddComponentFieldBody = "guide.add_component_field_body";
+    inline constexpr const char* GuideAddComponentAddTitle = "guide.add_component_add_title";
+    inline constexpr const char* GuideAddComponentAddBody = "guide.add_component_add_body";
+    inline constexpr const char* GuideBuildGameTitle = "guide.build_game_title";
+    inline constexpr const char* GuideBuildGameStepTitle = "guide.build_game_step_title";
+    inline constexpr const char* GuideBuildGameStepBody = "guide.build_game_step_body";
 }

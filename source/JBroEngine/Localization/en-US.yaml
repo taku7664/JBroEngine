@@ -390,3 +390,20 @@ Entries:
   editor_settings.shadows: "In this panel this shortcut runs instead of: %s"
   editor_settings.shadowed: "A focused panel runs its own shortcut instead: %s"
   editor_settings.no_match: No shortcuts match
+  menu.help: Help
+  menu.help_guides: Guides
+  guide.next: Next
+  guide.done: Done
+  guide.skip: Skip
+  guide.progress: "%u / %u"
+  guide.finished: Guide finished
+  guide.add_component_title: Adding a Component
+  guide.add_component_select_title: Pick an Object
+  guide.add_component_select_body: Pick an object in the Layers window. If there is none, right-click an empty spot to add one.
+  guide.add_component_field_title: Change a Value
+  guide.add_component_field_body: Drag or type in this field to change the value. Press Next when you are done.
+  guide.add_component_add_title: Add a Component
+  guide.add_component_add_body: Open this list and pick a component to attach.
+  guide.build_game_title: Building the Game
+  guide.build_game_step_title: Build Game
+  guide.build_game_step_body: Open the File menu and choose Build Game to pack the project into a game you can run.

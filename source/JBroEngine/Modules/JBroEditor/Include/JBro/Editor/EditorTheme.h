@@ -74,6 +74,11 @@ namespace JBro
         // 아니라 뷰포트를 그리는 자리에서만 쓴다.
         constexpr ImVec4 ViewportBackground(0.055f, 0.067f, 0.082f, 1.0f); // #0E1115
 
+        // 가이드 포커스(D-251)의 막과 구멍 테두리다. 막은 가장 깊은 면의 색을 반쯤 덮어 뒤가 비치게 두고,
+        // 테두리는 **"여기를 누른다" 이므로 상호작용 색**이다(D-245).
+        constexpr ImVec4 GuideVeil(0.067f, 0.082f, 0.102f, 0.72f);    // #11151A, 72%
+        constexpr ImVec4 GuideRing = Accent;
+
         // 색만. ImGui 컨텍스트가 있어야 한다.
         void ApplyColors();
         // 모서리 반지름, 탭, 트리선, 도킹 분리선 같은 치수.

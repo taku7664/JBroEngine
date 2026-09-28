@@ -1241,11 +1241,13 @@
 - **하던 일을 멈출 필요가 없는 알림은 우측 하단 알림으로 간다.** (MUST) (D-219)
   `EditorApplication::GetNotifications().Notify(...)` 를 부른다. 패널·도구·외부 에디터가 제 알림 상자나 토스트를 따로 그리지 않는다 -
   모양과 시간과 닫는 법이 도구마다 달라진다. 사용자가 답해야 하는 것만 모달이다. 반복되는 알림은 같은 `id` 로 하나로 합친다.
-- **위젯 하나로 사람을 데려가는 일은 가이드 포커스(`EditorGuideFocus`)를 거친다.** (MUST) (D-251, 1 단계가 섰다)
+- **위젯 하나로 사람을 데려가는 일은 가이드 포커스(`EditorGuideFocus`)를 거친다.** (MUST) (D-251)
   대상은 ImGui ID 가 아니라 표식(`GuideFocusTarget`, `Widget::SetNextItemTarget`)으로 가리킨다 - 메뉴 ID 는 번역된 글자이고 계층의
   줄 ID 는 주소다. 경로는 부모부터 적고 한 칸씩 열며, 메뉴·콤보는 사용자가 연다. 입력은 ImGui 에 넣기 전에 허용 영역으로 거르고,
   넘긴 누름의 뗌은 늘 넘긴다. 켜진 동안 에디터 단축키는 돌지 않는다(`SetSuspended` 는 설정 창의 것이라 쓰지 않는다).
   패널이 제 막이나 강조 테두리를 따로 그리지 않는다.
+  **새 위젯 래퍼는 표식을 받는다** - 누르거나 여는 래퍼는 `Widget::Internal::TakeNextItemTarget` 으로 꺼내고, 여는 것이면
+  `OpenIfGuided`, 그린 뒤 `ReportLastItem` 을 부른다. 표식 이름은 `GuideFocusTargets` 한 곳에 둔다.
 - **`Execute` 가 성공해야 스택에 쌓인다.** (MUST) (D-71)
   실패한 편집이 남으면 다음 Ctrl+Z 가 일어나지도 않은 일을 되돌린다.
 - **드래그 하나가 되돌리기 하나다.** (MUST) (D-71)

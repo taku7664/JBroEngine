@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/Widget/FilterCombo.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -139,6 +140,7 @@ namespace JBro::Widget
 
     bool FilterCombo::Draw() const
     {
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
         const int itemCount = static_cast<int>(m_items.Size());
         // 갈래는 항목과 길이가 맞을 때만 쓴다. 어긋난 배열을 읽으면 그 자리에서 죽는다.
         const bool hasGroups = m_groups.Size() == m_items.Size() && m_items.Size() > 0;
@@ -205,6 +207,11 @@ namespace JBro::Widget
         ImGui::SetNextWindowSizeConstraints(
             ImVec2(popupWidth, 0.0f), ImVec2(FLT_MAX, popupMaxHeight));
 
+        // **트리거는 열기 전에 알린다.** 열린 뒤에는 지금 창이 팝업이라 트리거의 자리를 잴 수 없다. 콤보는 잎사귀라
+        // 열림은 뜻이 없고, 열린 목록은 가이드 포커스가 "이 경로에서 열린 팝업" 으로 따로 연다.
+        const ImVec2 frameMin = ImGui::GetCursorScreenPos();
+        ReportGuideTarget(target, frameMin,
+            ImVec2(frameMin.x + ImGui::CalcItemWidth(), frameMin.y + ImGui::GetFrameHeight()), false, false);
         if (false == ImGui::BeginCombo(id, preview))
         {
             return false;

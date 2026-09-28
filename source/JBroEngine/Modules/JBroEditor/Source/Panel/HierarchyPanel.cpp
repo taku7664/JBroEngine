@@ -18,6 +18,7 @@
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Widget/Tree.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -314,6 +315,7 @@ namespace JBro
             | ImGuiTreeNodeFlags_SpanAvailWidth
             | ImGuiTreeNodeFlags_DefaultOpen;
         Widget::TreeDrawContext row;
+        Widget::SetNextItemTarget(GuideFocusTargets::HierarchyLayer(layerId));
         const bool opened = Widget::TreeBegin("##layer", flags, &row);
         Widget::TreeEnd();
 
@@ -826,6 +828,11 @@ namespace JBro
         // 트리 위젯이 줄 자리를 돌려준다. 이름은 우리가 그 자리에 그린다 -
         // 나중에 눈 표시나 배지를 같은 줄에 얹을 자리가 이것이다.
         Widget::TreeDrawContext row;
+        // 가이드 포커스가 켜져 있을 때만 번호를 묻는다(D-251). 번호표는 선형 탐색이라 줄마다 묻기에는 무겁다.
+        if (const EditorGuideFocus* focus = Widget::GetGuideFocus(); focus != nullptr && focus->IsActive())
+        {
+            Widget::SetNextItemTarget(GuideFocusTargets::HierarchyObject(m_editor->GetObjectIds().Track(&object)));
+        }
         const bool opened = Widget::TreeBegin("##node", flags, &row);
         Widget::TreeEnd();
         if (m_reveal.TryGet() == &object)

@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/Widget/Tree.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Widget/Button.h>
 
@@ -65,7 +66,11 @@ namespace JBro::Widget
             return false;
         }
         const ImGuiID id = window->GetID(label);
-        return TreeRender(id, flags, label, nullptr, nullptr, true, 0.0f);
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        Internal::OpenIfGuided(target);
+        const bool isOpen = TreeRender(id, flags, label, nullptr, nullptr, true, 0.0f);
+        Internal::ReportLastItem(target, isOpen, ImGui::IsItemClicked());
+        return isOpen;
     }
 
     bool TreeBegin(
@@ -88,7 +93,11 @@ namespace JBro::Widget
         const char* idLabel = idText != nullptr ? idText : "";
         const ImGuiID id = window->GetID(idLabel);
         TreeDrawContext context;
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        Internal::OpenIfGuided(target);
         const bool isOpen = TreeRender(id, flags, idLabel, nullptr, &context, false, minContentHeight);
+        // 잎사귀는 열 것이 없다. 열린 것으로 알리면 안쪽 칸을 기다리지 않고 지나간다 - 잎사귀가 경로의 끝이다.
+        Internal::ReportLastItem(target, isOpen, ImGui::IsItemClicked());
 
         g_cursorRestoreStack.push_back(TreeCursorRestore{window->DC.CursorPos});
 

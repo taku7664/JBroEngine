@@ -38,6 +38,7 @@
 #include <JBro/Asset/AssetMetaFile.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Widget/Notification.h>
 #include <JBro/Editor/Widget/Scalar.h>
 #include <JBro/Editor/Widget/TaskProgress.h>
@@ -3358,6 +3359,7 @@ namespace JBro
         // **프로젝트에 대한 것이 여기 있다**(D-134). 기존 엔진의 도크 뿌리와 같은 자리다.
         // 메뉴는 보이는 이름으로 Id 를 받는다. 언어를 바꾸면 Id 가 달라지지만
         // 메뉴는 창과 달리 도킹 자리 같은 것을 남기지 않으므로 잃는 것이 없다.
+        Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.file"));
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuFile, "File")))
         {
             // 기존과 같은 차례다: 새 프로젝트 · 구분선 · 열기 · 저장.
@@ -3394,6 +3396,7 @@ namespace JBro
                     RequestSaveProject();
                 }
                 // **게임 빌드**(D-232). 저장된 프로젝트로 빌드한다 - 같은 까닭으로 파일이 있어야 하고 돌고 있지 않아야 한다.
+                Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.build_game"));
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuBuildGame, "Build Game"), nullptr, false == (noFile || playing), why))
                 {
                     GameBuildReport report;
@@ -3535,7 +3538,66 @@ namespace JBro
             }
             Widget::EndMenu();
         }
+
+        // **도움말**(D-251). 가이드와 단축키 안내가 여기 있다 - 처음 온 사람이 무엇을 할 수 있는지 찾는 자리다.
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuHelp, "Help")))
+        {
+            if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuHelpGuides, "Guides")))
+            {
+                const bool hasCanvas = GetCanvas() != nullptr;
+                for (std::uint32_t index = 0; index < EditorGuides::GetBuiltinCount(); ++index)
+                {
+                    const Guide& guide = EditorGuides::GetBuiltin(index);
+                    if (Widget::MenuItem(Loc::TextOr(guide.titleKey, guide.titleFallback), nullptr, hasCanvas,
+                            Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))
+                    {
+                        StartGuide(guide.id);
+                    }
+                }
+                Widget::EndMenu();
+            }
+            DrawPanelMenuItem("Shortcuts", Loc::TextOr(LocKeys::PanelShortcuts, "Shortcuts"));
+            Widget::EndMenu();
+        }
         Widget::EndMenuBar();
+    }
+
+    void EditorApplication::DrawGuideFocus(float deltaTime)
+    {
+        // 모달이 떠 있으면 막을 걷는다(D-251 (7)). 이 프레임에 그린 팝업을 본다.
+        m_guideFocus.SetPaused(ImGui::GetTopMostPopupModal() != nullptr);
+
+        Widget::GuideFocusBalloon balloon;
+        char progress[32] = {};
+        const GuideStep* step = m_guide.GetStep();
+        if (step != nullptr)
+        {
+            const Guide& guide = *m_guide.GetGuide();
+            const std::uint32_t total = static_cast<std::uint32_t>(guide.steps.Size());
+            std::snprintf(progress, sizeof(progress), Loc::TextOr(LocKeys::GuideProgress, "%u / %u"),
+                m_guide.GetStepIndex() + 1, total);
+            balloon.progress = progress;
+            balloon.title = Loc::TextOr(step->titleKey, step->titleFallback);
+            balloon.body = Loc::TextOr(step->bodyKey, step->bodyFallback);
+            balloon.skipLabel = Loc::TextOr(LocKeys::GuideSkip, "Skip");
+            if (step->end == GuideStepEnd::NextButton)
+            {
+                balloon.nextLabel = m_guide.GetStepIndex() + 1 == total
+                    ? Loc::TextOr(LocKeys::GuideDone, "Done")
+                    : Loc::TextOr(LocKeys::GuideNext, "Next");
+            }
+        }
+        const GuideFocusAction action = Widget::GuideFocus(m_guideFocus, balloon);
+        m_guideFocus.Update(deltaTime);
+        m_guide.Update(*this, m_guideFocus, action);
+        if (m_guide.ConsumeFinished())
+        {
+            NotificationDesc done;
+            done.level = NotificationLevel::Success;
+            done.title = Loc::TextOr(LocKeys::GuideFinished, "Guide finished");
+            done.id = "guide.finished";
+            m_notifications.Notify(std::move(done));
+        }
     }
 
     void EditorApplication::DrawPanelMenuItem(const char* panelTitle, const char* label)
@@ -3806,6 +3868,18 @@ namespace JBro
             panel->OnUpdate(deltaTime);
             // 그리지 않으면 포커스도 없다. 열린 창은 아래에서 다시 적는다.
             panel->SetFocused(false);
+            // **가이드 포커스가 가리키는 패널은 연다**(D-251). 닫혀 있으면 그 안의 대상이 그려지지 않는다. 가려진 탭은
+            // 머묾이 끝난 뒤 앞으로 꺼낸다 - 매 프레임 꺼내면 그 안에서 연 콤보가 포커스를 잃고 닫힌다.
+            const GuideFocusTarget panelTarget = GuideFocusTargets::Panel(panel->GetTitle());
+            if (m_guideFocus.IsActive())
+            {
+                const std::uint32_t at = m_guideFocus.GetPath().Find(panelTarget);
+                const bool onPath = at < m_guideFocus.GetPath().count && at <= m_guideFocus.GetLevel();
+                if ((onPath && false == panel->IsOpen()) || m_guideFocus.IsOpenRequested(panelTarget))
+                {
+                    panel->RequestFocus();
+                }
+            }
             if (false == panel->IsOpen())
             {
                 continue;
@@ -3823,7 +3897,14 @@ namespace JBro
             {
                 ImGui::SetNextWindowFocus();
             }
-            if (ImGui::Begin(label.c_str(), closable, flags))
+            const bool shown = ImGui::Begin(label.c_str(), closable, flags);
+            // 창 전체가 대상일 수 있다(레이어 창에서 오브젝트를 고르는 단계). 가려진 탭이면 열리지 않은 것으로 알린다.
+            {
+                const ImVec2 position = ImGui::GetWindowPos();
+                const ImVec2 size = ImGui::GetWindowSize();
+                Widget::ReportGuideTarget(panelTarget, position, ImVec2(position.x + size.x, position.y + size.y), shown, false);
+            }
+            if (shown)
             {
                 panel->SetFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
                 if (panel->HasMenuBar() && Widget::BeginMenuBar())
@@ -3865,7 +3946,8 @@ namespace JBro
         const JArrayView<InputEvent> input{ m_filteredInput.Data(), static_cast<std::uint32_t>(m_filteredInput.Size()) };
         if (m_guideFocus.ConsumeSkipRequest())
         {
-            m_guideFocus.End();
+            // 가이드도 함께 멈춘다. 가이드 없이 켠 가이드 포커스면 그것만 꺼진다.
+            m_guide.Stop(m_guideFocus);
         }
         const bool pushed = m_ui.PushInput(input);
         // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
@@ -3902,6 +3984,9 @@ namespace JBro
         {
             return false;
         }
+        // 위젯이 경로의 대상을 그릴 때 알릴 곳이다(D-251). 지난 프레임의 보고는 비운다.
+        Widget::SetGuideFocus(&m_guideFocus);
+        m_guideFocus.BeginFrame();
 
         // **단축키는 한 표에서 온다**(D-132). 누르는 자리와 메뉴에 보이는 글자와
         // 할 수 있는지 재는 자리가 갈리지 않게, 셋 다 `EditorShortcuts` 가 안다.
@@ -3946,6 +4031,9 @@ namespace JBro
         {
             m_notifications.Activate(clicked, *this);
         }
+
+        // **가이드 포커스는 알림보다도 위에 선다**(D-251). 막을 그리고, 보고를 보고 한 걸음 나아가고, 가이드를 넘긴다.
+        DrawGuideFocus(uiDeltaTime);
 
         // **텍스처와 버퍼는 여기서 올라간다. RHI 프레임 밖이어야 한다** -
         // 아래 엔진 Tick 이 프레임을 열고 나면 만들 수도 쓸 수도 없다.
@@ -4105,6 +4193,21 @@ namespace JBro
     EditorGuideFocus& EditorApplication::GetGuideFocus()
     {
         return m_guideFocus;
+    }
+
+    bool EditorApplication::StartGuide(const char* id)
+    {
+        const Guide* guide = EditorGuides::FindBuiltin(id);
+        if (guide == nullptr || GetCanvas() == nullptr)
+        {
+            return false;
+        }
+        return m_guide.Start(*guide, *this, m_guideFocus);
+    }
+
+    EditorGuide& EditorApplication::GetGuide()
+    {
+        return m_guide;
     }
 
     const EditorGuideFocus& EditorApplication::GetGuideFocus() const
@@ -4303,7 +4406,7 @@ namespace JBro
         // **닫기 전에 적는다.** 닫고 나면 무엇을 보고 있었는지 아는 것이 아무도 없다.
         SaveEditorSession();
         // 가이드 포커스의 경로는 이 캔버스의 오브젝트 번호를 가리킬 수 있다.
-        m_guideFocus.End();
+        m_guide.Stop(m_guideFocus);
         // **이 프로젝트를 가리키는 것은 여기서 다 비운다**(D-165). 고른 것·오브젝트 번호·되돌리기 더미는 이 캔버스의
         // 오브젝트를 가리킨다. 예전에는 프로젝트를 바꾸는 쪽(`SwitchToProject`)만 비워, `CloseProject` 를 바로 부른 뒤
         // 다시 열면 옛 번호가 죽은 오브젝트를 가리켰다(테스트가 거기서 죽었다).
