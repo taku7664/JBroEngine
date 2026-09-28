@@ -25,6 +25,14 @@ namespace JBro
         Condition
     };
 
+    // 단계에 들어설 때 적어 두는 값이다. 조건은 **지금 상태가 아니라 들어설 때와 달라졌는가**를 묻는다 - "선택한 오브젝트가 있다"
+    // 로 물으면 이미 골라 둔 사람에게는 그 단계가 보이지도 않고 지나가고, "컴포넌트가 둘 이상" 으로 물으면 이미 둘인 오브젝트에서
+    // 아무것도 하지 않아도 끝난다. 값의 뜻은 그 단계의 `onEnter` 와 `condition` 이 함께 정한다.
+    struct GuideStepMemo
+    {
+        std::uint64_t values[4] = {};
+    };
+
     struct GuideStep
     {
         GuideFocusPath path;
@@ -37,7 +45,9 @@ namespace JBro
         const char* bodyKey = nullptr;
         const char* bodyFallback = nullptr;
         GuideStepEnd end = GuideStepEnd::NextButton;
-        Delegate<bool(EditorApplication&)> condition;
+        // 단계에 들어설 때 한 번 부른다(이전으로 돌아와 다시 들어설 때도). 비었으면 적어 둔 값은 전부 0 이다.
+        Delegate<void(EditorApplication&, GuideStepMemo&)> onEnter;
+        Delegate<bool(EditorApplication&, const GuideStepMemo&)> condition;
         // 글자를 치는 단계인가(값을 입력한다, 목록을 검색한다).
         bool keyboard = false;
 
@@ -94,6 +104,9 @@ namespace JBro
         bool ShowsNext() const noexcept;
         // 이전으로 들어온 단계인가.
         bool IsRevisiting() const noexcept { return m_revisiting; }
+        // **마지막 단계를 해냈고 확인을 기다린다.** 조건이나 대상 누름으로 끝나는 마지막 단계는 해내자마자 닫지 않는다 -
+        // 사람이 결과를 보고 확인을 눌러야 끝난다. 이때 건너뛰기는 없고(건너뛸 것이 없다) 이전은 단계가 정한 대로다.
+        bool IsConfirming() const noexcept { return m_confirming; }
 
         // 한 프레임을 나아간다. 가이드 포커스가 꺼졌으면(Esc) 멈춘다. 경로가 끊긴 단계는 로그를 남기고 건너뛴다.
         void Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action);
@@ -108,6 +121,8 @@ namespace JBro
         std::uint32_t m_step = 0;
         bool m_finished = false;
         bool m_revisiting = false;
+        bool m_confirming = false;
+        GuideStepMemo m_memo;
     };
 
     // 에디터에 들어 있는 가이드다.

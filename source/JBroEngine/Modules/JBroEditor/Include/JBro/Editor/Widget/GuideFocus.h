@@ -42,6 +42,8 @@ namespace JBro::Widget
         const char* body = nullptr;
         // "2 / 3" 같은 걸음 표시. 비우면 적지 않는다.
         const char* progress = nullptr;
+        // 본문 아래의 한 줄(마지막 단계를 해냈을 때의 "확인을 누르면 마칩니다"). 비우면 적지 않는다.
+        const char* note = nullptr;
         // 단추의 글자다. 비운 단추는 두지 않는다 - 어느 단추를 둘지는 가이드를 쓴 사람이 단계마다 정한다(`GuideStep`).
         // 차례는 건너뛰기 · 이전 · 다음이다.
         const char* skipLabel = nullptr;

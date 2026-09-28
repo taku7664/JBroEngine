@@ -15,15 +15,40 @@ namespace JBro
     {
         // ── 조건과 경로 ───────────────────────────────────────────
 
-        bool HasSelectedObject(EditorApplication& editor)
+        // 선택한 오브젝트의 에디터 번호다. 없으면 0 이다.
+        std::uint64_t SelectedObjectId(EditorApplication& editor)
         {
-            return editor.GetSelectedObject() != nullptr;
+            GameObject* object = editor.GetSelectedObject();
+            return object != nullptr ? editor.GetObjectIds().Track(object) : 0;
         }
 
-        bool SelectedHasSecondComponent(EditorApplication& editor)
+        // [0] 들어설 때 선택되어 있던 오브젝트.
+        void RememberSelection(EditorApplication& editor, GuideStepMemo& memo)
+        {
+            memo.values[0] = SelectedObjectId(editor);
+        }
+
+        // 들어설 때와 다른 오브젝트가 선택됐다. 추가한 오브젝트는 곧 선택되므로 추가해도 넘어간다.
+        bool SelectionChanged(EditorApplication& editor, const GuideStepMemo& memo)
+        {
+            const std::uint64_t now = SelectedObjectId(editor);
+            return now != 0 && now != memo.values[0];
+        }
+
+        // [0] 들어설 때 선택되어 있던 오브젝트, [1] 그 오브젝트의 컴포넌트 수.
+        void RememberComponentCount(EditorApplication& editor, GuideStepMemo& memo)
         {
             const GameObject* object = editor.GetSelectedObject();
-            return object != nullptr && object->GetComponents().Size() >= 2;
+            memo.values[0] = SelectedObjectId(editor);
+            memo.values[1] = object != nullptr ? object->GetComponents().Size() : 0;
+        }
+
+        // 같은 오브젝트의 컴포넌트가 들어설 때보다 늘었다.
+        bool ComponentAdded(EditorApplication& editor, const GuideStepMemo& memo)
+        {
+            const GameObject* object = editor.GetSelectedObject();
+            return object != nullptr && memo.values[0] != 0 && SelectedObjectId(editor) == memo.values[0]
+                && object->GetComponents().Size() > memo.values[1];
         }
 
         // 선택한 오브젝트의 첫 컴포넌트와 그 맨 위 필드다. 2D 면 `Transform2D.position`, 3D 면 `Transform3D` 의 것이다 -
@@ -79,10 +104,13 @@ namespace JBro
 
                 GuideStep select = MakeStep(LocKeys::GuideAddComponentSelectTitle, "Pick an Object",
                     LocKeys::GuideAddComponentSelectBody,
-                    "Pick an object in the Layers window. If there is none, right-click an empty spot to add one.");
+                    "Pick an object in the Layers window. If you already picked one, press Next. If there is none, right-click an empty spot and add one - it is picked for you.");
                 select.path.Push(GuideFocusTargets::Panel("Hierarchy"));
                 select.end = GuideStepEnd::Condition;
-                select.condition = Delegate<bool(EditorApplication&)>::Bind<&HasSelectedObject>();
+                select.onEnter = Delegate<void(EditorApplication&, GuideStepMemo&)>::Bind<&RememberSelection>();
+                select.condition = Delegate<bool(EditorApplication&, const GuideStepMemo&)>::Bind<&SelectionChanged>();
+                // 이미 골라 둔 사람은 다시 고를 필요 없이 다음을 누른다.
+                select.canGoNext = true;
                 guide.steps.Add(std::move(select));
 
                 GuideStep field = MakeStep(LocKeys::GuideAddComponentFieldTitle, "Change a Value",
@@ -98,7 +126,8 @@ namespace JBro
                 add.path.Push(GuideFocusTargets::Panel("Inspector"));
                 add.path.Push(GuideFocusTargets::InspectorAddComponent(), GuideFocusOpen::User);
                 add.end = GuideStepEnd::Condition;
-                add.condition = Delegate<bool(EditorApplication&)>::Bind<&SelectedHasSecondComponent>();
+                add.onEnter = Delegate<void(EditorApplication&, GuideStepMemo&)>::Bind<&RememberComponentCount>();
+                add.condition = Delegate<bool(EditorApplication&, const GuideStepMemo&)>::Bind<&ComponentAdded>();
                 // 목록 위의 검색 칸에 칠 수 있어야 한다.
                 add.keyboard = true;
                 guide.steps.Add(std::move(add));
@@ -155,6 +184,7 @@ namespace JBro
         m_guide = &guide;
         m_finished = false;
         m_revisiting = false;
+        m_confirming = false;
         if (false == EnterStep(0, editor, focus))
         {
             m_guide = nullptr;
@@ -191,6 +221,11 @@ namespace JBro
         }
         focus.SetKeyboardAllowed(step.keyboard);
         m_step = index;
+        m_memo = {};
+        if (step.onEnter.IsBound())
+        {
+            step.onEnter.Invoke(editor, m_memo);
+        }
         return true;
     }
 
@@ -201,6 +236,7 @@ namespace JBro
             if (TryEnter(index, editor, focus))
             {
                 m_revisiting = false;
+                m_confirming = false;
                 return true;
             }
         }
@@ -210,7 +246,7 @@ namespace JBro
     bool EditorGuide::ShowsSkip() const noexcept
     {
         const GuideStep* step = GetStep();
-        return step != nullptr && step->canSkip;
+        return step != nullptr && step->canSkip && false == m_confirming;
     }
 
     bool EditorGuide::ShowsBack() const noexcept
@@ -227,7 +263,7 @@ namespace JBro
     bool EditorGuide::ShowsNext() const noexcept
     {
         const GuideStep* step = GetStep();
-        return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting);
+        return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting || m_confirming);
     }
 
     void EditorGuide::Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action)
@@ -257,6 +293,7 @@ namespace JBro
                 if (TryEnter(index - 1, editor, focus))
                 {
                     m_revisiting = true;
+                    m_confirming = false;
                     return;
                 }
             }
@@ -264,6 +301,16 @@ namespace JBro
         }
         const GuideStep& step = m_guide->steps[m_step];
         const bool nextPressed = action == GuideFocusAction::Next && ShowsNext();
+        if (m_confirming)
+        {
+            // 해낸 뒤다. 확인만 기다린다 - 끊김도 조건도 더 보지 않는다(결과를 보고 있는 사람의 화면이 넘어가면 안 된다).
+            if (nextPressed)
+            {
+                m_finished = true;
+                Stop(focus);
+            }
+            return;
+        }
         bool done = nextPressed;
         // 돌아온 단계는 다음을 기다린다. 조건이 이미 맞아 저절로 넘어가면 이전을 눌러도 제자리로 튕겨 온다.
         if (false == m_revisiting)
@@ -276,7 +323,7 @@ namespace JBro
                 done = done || focus.ConsumeActivated();
                 break;
             case GuideStepEnd::Condition:
-                done = done || (step.condition.IsBound() && step.condition.Invoke(editor));
+                done = done || (step.condition.IsBound() && step.condition.Invoke(editor, m_memo));
                 break;
             }
         }
@@ -288,6 +335,13 @@ namespace JBro
         }
         if (false == done)
         {
+            return;
+        }
+        const bool last = m_step + 1 >= m_guide->steps.Size();
+        if (last && false == nextPressed && false == broken)
+        {
+            // 마지막 일을 해냈다. 곧바로 닫지 않고 확인을 기다린다.
+            m_confirming = true;
             return;
         }
         if (false == EnterStep(m_step + 1, editor, focus))

@@ -159,8 +159,18 @@ namespace JBro
         // `opened` 는 그 칸이 열려 있어 안쪽이 그려지는가다(잎사귀는 뜻이 없다). `visible` 은 스크롤로
         // 잘리지 않았는가, `activated` 는 이번 프레임에 눌렸거나 편집을 마쳤는가다.
         void Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated);
-        // 이 경로가 켜진 뒤에 열린 팝업(메뉴·콤보·우클릭 메뉴)이다. 그 안도 누를 수 있어야 경로를 따라간다.
+        // 이 경로가 켜진 뒤에 열린 팝업(메뉴·콤보·우클릭 메뉴)이다. 열린 차례대로 알린다.
+        //
+        // **누가 열었는지로 가른다.** 경로의 중간 칸(메뉴 머리)이 연 팝업은 그 안의 다음 칸만 누를 수 있고 나머지는 막이 덮는다 -
+        // 통째로 열면 `파일` 메뉴의 다른 항목이 눌린다. 경로 끝의 대상이 연 팝업(콤보의 목록·우클릭 메뉴)은 통째로 열린다 -
+        // 그 안에서 고르는 것이 그 단계의 일이고, 목록의 항목에는 표식이 없다.
         void ReportPopup(const Rect& rect);
+        std::uint32_t GetPopupCount() const noexcept { return m_popupCount; }
+        const Rect& GetPopup(std::uint32_t index) const;
+        // 이 팝업을 누를 수 있고 막을 뚫는가. 경로 끝에 닿았고, **그 팝업이 대상을 품지 않을 때**다 - 대상을 품은 팝업은 경로의
+        // 메뉴이고(대상이 그 안의 항목이다), 품지 않은 팝업은 대상이 연 것이다(콤보의 목록은 트리거 밖에 뜬다).
+        // 열린 차례로 가르지 않는다: ImGui 는 팝업 창을 연 다음 프레임에야 그리므로 차례가 한 프레임 어긋난다.
+        bool IsPopupOpen(std::uint32_t index) const noexcept;
         // 말풍선의 자리다. 그 단추(다음·건너뛰기)는 늘 누를 수 있다.
         void ReportBalloon(const Rect& rect);
         // 이 대상을 이번 프레임에 열어야 하는가. 지나온 칸은 열린 채로 두고, 머묾이 끝난 지금 칸을 연다.
