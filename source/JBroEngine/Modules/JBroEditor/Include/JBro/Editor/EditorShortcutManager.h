@@ -16,6 +16,7 @@ namespace JBro
     class YamlWriter;
 
     // 키 하나와 그에 붙는 조합키다. `key` 가 `ImGuiKey_None` 이면 비어 있는 자리다.
+    // 키는 키보드 키이거나 마우스 엄지 버튼(`ImGuiKey_MouseX1`·`ImGuiKey_MouseX2`)이다(D-257). 다른 마우스 버튼과 게임패드는 받지 않는다.
     // 조합키는 **정확히** 견준다 - Ctrl+Shift+V 가 Ctrl+V 를 부르지 않는다(기존 엔진과 같다).
     struct EditorShortcutBinding
     {
@@ -186,7 +187,7 @@ namespace JBro
 
         // ── 키 ────────────────────────────────────────────────────
         //
-        // `Ctrl+Shift+Z` 같은 글자. 키 이름은 ImGui 가 준다(Space 를 누르면 `Space`). 비어 있으면 빈 글자다.
+        // `Ctrl+Shift+Z` 같은 글자. 키 이름은 ImGui 가 준다(Space 를 누르면 `Space`, 엄지 버튼은 `MouseX1`). 비어 있으면 빈 글자다.
         static EditorShortcutText Describe(const EditorShortcutBinding& binding);
         // `Describe` 의 거꾸로. 빈 글자는 빈 조합이고 참이다. 모르는 키 이름이면 거짓이다.
         static bool Parse(const char* text, EditorShortcutBinding& out);
@@ -194,6 +195,7 @@ namespace JBro
         // 가리지 않는다. 빈 검색어는 모두 맞는다. 설정 화면이 줄마다 부른다.
         static bool MatchesSearch(const char* query, const char* label, const char* category, const EditorShortcutView& view);
         // **이번 프레임에 눌린 키를 조합으로 잡는다** - 키매핑 설정에서 "키를 누르세요" 칸이 쓴다. 조합키만 눌렸으면 거짓이다.
+        // 엄지 버튼도 잡는다. 칸을 누른 왼쪽 버튼은 잡지 않는다.
         static bool CaptureBinding(EditorShortcutBinding& out);
 
     private:
