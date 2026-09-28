@@ -3597,12 +3597,19 @@ namespace JBro
                     ? Loc::TextOr(LocKeys::GuideDone, "OK")
                     : Loc::TextOr(LocKeys::GuideNext, "Next");
             }
+            if (balloon.nextLabel != nullptr)
+            {
+                balloon.nextDisabledReason = m_guide.WhyNextBlocked(*this);
+                balloon.nextEnabled = balloon.nextDisabledReason == nullptr;
+            }
             if (m_guide.IsConfirming())
             {
                 balloon.note = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
             }
         }
         const GuideFocusAction action = Widget::GuideFocus(m_guideFocus, balloon);
+        // 다음 프레임의 Esc 를 가를 것이다 - 글자를 치는 중이면 Esc 는 칸의 것이다.
+        m_guideFocus.SetTextInputActive(ImGui::GetIO().WantTextInput);
         m_guideFocus.Update(deltaTime);
         m_guide.Update(*this, m_guideFocus, action);
         if (m_guide.ConsumeFinished())

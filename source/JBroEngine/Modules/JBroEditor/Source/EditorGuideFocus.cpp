@@ -194,8 +194,11 @@ namespace JBro
     {
         for (std::uint32_t index = 0; index < m_allowedCount; ++index)
         {
-            // 뒤집힌 사각형은 `Contains` 가 아무것도 담지 않는다 - 그리지 않은 위젯의 빈 사각형이 한 점을 열어 두지 않는다.
-            if (m_allowed[index].Contains(point))
+            // **오른쪽과 아래 끝은 담지 않는다**(픽셀처럼 반열린 칸). `Rect::Contains` 는 끝을 담는데, 그러면 허용한 창의 바로
+            // 아래 한 줄이 이웃한 창의 것인데도 열린다 - 말풍선 밑 한 줄에서 캔버스 뷰가 올림 색을 띠었다.
+            // 뒤집힌 사각형과 넓이 0 인 사각형은 아무것도 담지 않는다.
+            const Rect& rect = m_allowed[index];
+            if (point.x >= rect.min.x && point.x < rect.max.x && point.y >= rect.min.y && point.y < rect.max.y)
             {
                 return true;
             }
@@ -326,6 +329,11 @@ namespace JBro
             case InputEventKind::KeyDown:
                 if (event.key == Key::Escape)
                 {
+                    if (m_keyboardAllowed && m_textInputActive)
+                    {
+                        out.Add(event);
+                        break;
+                    }
                     if (false == event.repeat)
                     {
                         m_skipRequested = true;

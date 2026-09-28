@@ -474,19 +474,44 @@ namespace
         y = static_cast<int>((hole.min.y + hole.max.y) * 0.5f);
     }
 
-    // 말풍선의 맨 아래 줄을 오른쪽 끝부터 훑어, 누를 수 있는 단추 가운데 오른쪽에서 `skip` 개를 지난 것을 누른다
-    // (0 이면 맨 오른쪽 - 다음이 있으면 다음이다). 회색 단추는 세지 않는다.
-    bool ClickBalloonButtonFromRight(JBro::EditorApplication& editor, HWND hwnd, int skip)
+    // 말풍선의 단추 줄의 높이를 찾는다. 줄의 맨 왼쪽에는 늘 단추가 있다 - 그 자리를 아래에서 위로 훑어 처음 걸리는 높이다.
+    // 창의 크기에서 셈하지 않는다: 자동 크기는 한 프레임 늦어 내용이 바뀐 프레임에는 단추가 창 크기 밖에 있다.
+    bool FindBalloonButtonRow(JBro::EditorApplication& editor, HWND hwnd, const ImGuiWindow*& balloon, float& y)
     {
-        const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
+        // 말풍선은 구멍이 자리 잡은 뒤 옆에서 미끄러져 들어온다(0.22 초). 멈춘 뒤에 잰다.
+        Tick(editor, 20);
+        balloon = ImGui::FindWindowByName("##guide_focus_balloon");
         if (balloon == nullptr || false == balloon->WasActive)
         {
             return false;
         }
-        const float y = balloon->Pos.y + balloon->Size.y - 12.0f - ImGui::GetFrameHeight() * 0.5f;
+        const float x = balloon->Pos.x + 24.0f;
+        for (float probe = balloon->Pos.y + balloon->Size.y + 40.0f; probe > balloon->Pos.y; probe -= 4.0f)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(probe)));
+            Tick(editor, 1);
+            if (ImGui::GetCurrentContext()->HoveredId != 0)
+            {
+                y = probe - 6.0f;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // 단추 줄을 오른쪽 끝부터 훑어, 누를 수 있는 단추 가운데 오른쪽에서 `skip` 개를 지난 것을 누른다
+    // (0 이면 맨 오른쪽 - 다음이 있으면 다음이다). 회색 단추는 세지 않는다.
+    bool ClickBalloonButtonFromRight(JBro::EditorApplication& editor, HWND hwnd, int skip)
+    {
+        const ImGuiWindow* balloon = nullptr;
+        float y = 0.0f;
+        if (false == FindBalloonButtonRow(editor, hwnd, balloon, y))
+        {
+            return false;
+        }
         ImGuiID last = 0;
         int seen = -1;
-        for (float x = balloon->Pos.x + balloon->Size.x - 16.0f; x > balloon->Pos.x; x -= 3.0f)
+        for (float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
         {
             PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
             Tick(editor, 1);
@@ -504,6 +529,28 @@ namespace
                 PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
                 Tick(editor, 1);
                 return true;
+            }
+        }
+        return false;
+    }
+
+    // 단추 줄을 오른쪽 끝부터 훑어 처음 걸리는 단추가 회색인지 본다(다음이 막혔는가).
+    bool RightmostBalloonButtonIsDisabled(JBro::EditorApplication& editor, HWND hwnd)
+    {
+        const ImGuiWindow* balloon = nullptr;
+        float y = 0.0f;
+        if (false == FindBalloonButtonRow(editor, hwnd, balloon, y))
+        {
+            return false;
+        }
+        for (float x = balloon->Pos.x + balloon->Size.x - 8.0f; x > balloon->Pos.x; x -= 3.0f)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(static_cast<int>(x), static_cast<int>(y)));
+            Tick(editor, 1);
+            const ImGuiContext& context = *ImGui::GetCurrentContext();
+            if (context.HoveredId != 0)
+            {
+                return context.HoveredIdIsDisabled;
             }
         }
         return false;
@@ -572,6 +619,30 @@ namespace
         Check(editor.GetCommands().GetUndoCount() == undo, "nor edit anything");
         Check(editor.GetGuide().GetStepIndex() == 1, "and the step waits for Next");
 
+        // 값 칸을 두 번 눌러 글자 입력으로 바꾸고 Esc 를 누른다. 편집 취소이지 가이드 끝내기가 아니다.
+        {
+            const Rect& field = editor.GetGuideFocus().GetHoleRect();
+            const int fx = static_cast<int>(field.max.x - 40.0f);
+            const int fy = static_cast<int>((field.min.y + field.max.y) * 0.5f);
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(fx, fy));
+            Tick(editor, 1);
+            for (int press = 0; press < 2; ++press)
+            {
+                PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(fx, fy));
+                Tick(editor, 1);
+                PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(fx, fy));
+                Tick(editor, 1);
+            }
+            Tick(editor, 1);
+            Check(ImGui::GetIO().WantTextInput, "a double click turns the value into a text field");
+            PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, 0);
+            Tick(editor, 1);
+            PostMessageW(hwnd, WM_KEYUP, VK_ESCAPE, static_cast<LPARAM>(0xC0000001u));
+            Tick(editor, 2);
+            Check(editor.GetGuide().IsRunning() && editor.GetGuide().GetStepIndex() == 1,
+                "Esc while typing cancels the edit and leaves the guide running");
+            Check(false == ImGui::GetIO().WantTextInput, "and it did reach the field");
+        }
         Check(ClickBalloonRightmostButton(editor, hwnd), "the balloon's Next button must be found and pressed");
         Check(editor.GetGuide().GetStepIndex() == 2, "Next goes on to adding a component");
         Check(WaitUntilSettled(editor, 1), "the hole must reach the add component box");
@@ -717,16 +788,18 @@ namespace
             std::cout << "  [skip] no D3D12 device; broken guide steps not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
-        Check(object != nullptr, "the object must be made");
-        Tick(editor, 3);
-        Check(editor.StartGuide("guide.add_component"), "the guide must start");
-        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
-        Check(WaitUntilSettled(editor, 2), "the walk must reach the field");
-        Check(editor.GetGuide().GetStepIndex() == 1, "on the second step");
-        // 가리키던 오브젝트를 지운다. 필드도 컴포넌트 추가 칸도 더는 그려지지 않는다.
-        Check(JBro::EditorActions::DeleteObject(editor, *object), "the object must be deleted");
-        Tick(editor, 150);
+        // 되돌아갈 단계를 두지 않은 가이드다. 두 단계 모두 없는 것을 가리킨다.
+        JBro::Guide guide;
+        guide.id = "test.broken";
+        for (int index = 0; index < 2; ++index)
+        {
+            JBro::GuideStep step;
+            step.path.Push(JBro::GuideFocusTargets::Panel("Inspector"));
+            step.path.Push(JBro::GuideFocusTargets::Menu("test.nowhere"));
+            guide.steps.Add(std::move(step));
+        }
+        Check(editor.GetGuide().Start(guide, editor, editor.GetGuideFocus()), "the guide must start");
+        Tick(editor, 90);
         Check(false == editor.GetGuide().IsRunning(), "steps whose target is gone are skipped to the end, not waited on forever");
         Check(false == editor.GetGuideFocus().IsActive(), "and the veil goes with them");
         const char* last = editor.GetNotifications().GetLastTitle();
@@ -734,7 +807,59 @@ namespace
             "a guide that ran out of targets is not announced as finished");
     }
 
-    bool NeverDone(JBro::EditorApplication&, const JBro::GuideStepMemo&)
+    // 값 바꾸기 도중에 오브젝트를 잃으면 고르는 단계로 돌아간다. 말없이 끝나지 않는다.
+    void TestLosingTheObjectGoesBackToPicking()
+    {
+        QuietLog quiet;
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideRetreatProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; retreating steps not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        Tick(editor, 3);
+        Check(editor.StartGuide("guide.add_component"), "the guide must start");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(WaitUntilSettled(editor, 2), "the walk must reach the field");
+
+        // 선택을 비웠다. 다음은 막히고, 필드가 사라져 끊기면 고르는 단계로 돌아간다.
+        editor.ClearSelection();
+        Tick(editor, 1);
+        Check(editor.GetGuide().WhyNextBlocked(editor) != nullptr, "with nothing picked Next is blocked on the value step");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(editor.GetGuide().GetStepIndex() == 1, "and a blocked Next does not move");
+        Tick(editor, 60);
+        Check(editor.GetGuide().IsRunning() && editor.GetGuide().GetStepIndex() == 0,
+            "losing the object sends the guide back to picking one, not quietly to its end");
+        Check(false == editor.GetGuide().IsRevisiting(), "as a fresh step that a pick passes");
+
+        // 다시 고르면 넘어간다. 이번에는 오브젝트를 지운다.
+        editor.SetSelectedObject(object);
+        Tick(editor, 2);
+        Check(editor.GetGuide().GetStepIndex() == 1, "picking again passes the step");
+        Check(WaitUntilSettled(editor, 2), "the walk must reach the field again");
+        Check(JBro::EditorActions::DeleteObject(editor, *object), "the object must be deleted");
+        Tick(editor, 60);
+        Check(editor.GetGuide().IsRunning() && editor.GetGuide().GetStepIndex() == 0, "deleting it goes back to picking too");
+
+        // 마지막 단계(컴포넌트 추가)에서 선택을 비워도 돌아간다.
+        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(other != nullptr, "another object must be made and picked");
+        Tick(editor, 2);
+        Check(editor.GetGuide().GetStepIndex() == 1, "the new pick passes the first step");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(WaitUntilSettled(editor, 1), "the walk must reach the add component box");
+        editor.ClearSelection();
+        Tick(editor, 60);
+        Check(editor.GetGuide().IsRunning() && editor.GetGuide().GetStepIndex() == 0,
+            "losing the pick on the last step goes back to picking as well");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+    }
+
+    bool NeverDone(JBro::EditorApplication&, JBro::GuideStepMemo&)
     {
         return false;
     }
@@ -762,7 +887,7 @@ namespace
             JBro::GuideStep second;
             second.path.Push(JBro::GuideFocusTargets::Panel("Inspector"));
             second.end = JBro::GuideStepEnd::Condition;
-            second.condition = JBro::Delegate<bool(JBro::EditorApplication&, const JBro::GuideStepMemo&)>::Bind<&NeverDone>();
+            second.condition = JBro::Delegate<bool(JBro::EditorApplication&, JBro::GuideStepMemo&)>::Bind<&NeverDone>();
             second.canGoBack = false;
             guide.steps.Add(std::move(second));
         }
@@ -817,7 +942,7 @@ namespace
             JBro::GuideStep step;
             step.path.Push(JBro::GuideFocusTargets::Panel(index == 0 ? "Hierarchy" : "Inspector"));
             step.end = JBro::GuideStepEnd::Condition;
-            step.condition = JBro::Delegate<bool(JBro::EditorApplication&, const JBro::GuideStepMemo&)>::Bind<&NeverDone>();
+            step.condition = JBro::Delegate<bool(JBro::EditorApplication&, JBro::GuideStepMemo&)>::Bind<&NeverDone>();
             step.canGoNext = true;
             guide.steps.Add(std::move(step));
         }
@@ -908,9 +1033,14 @@ namespace
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
         Tick(editor, 10);
         Check(editor.GetGuide().GetStepIndex() == 0, "an object already picked does not pass the selection step");
+        Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "with one picked Next can be pressed");
         editor.ClearSelection();
         Tick(editor, 2);
         Check(editor.GetGuide().GetStepIndex() == 0, "picking nothing is not picking an object");
+        Check(editor.GetGuide().WhyNextBlocked(editor) != nullptr, "and with nothing picked Next is blocked");
+        Check(RightmostBalloonButtonIsDisabled(editor, hwnd), "and the balloon shows it grey");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(editor.GetGuide().GetStepIndex() == 0, "so pressing it does not skip picking");
         // 새 오브젝트를 추가하면 그것이 선택된다 - 선택이 바뀌었으니 넘어간다.
         JBro::GameObject* added = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(added != nullptr && editor.GetSelectedObject() == added, "the added object is picked");
@@ -926,12 +1056,63 @@ namespace
         Tick(editor, 3);
         Check(false == editor.GetGuide().IsConfirming(),
             "picking another object that already holds more components does not count as adding one");
+        // 옮겨 고른 오브젝트에 붙인 것은 붙인 것이다.
+        std::size_t third = list.typeNames.Size();
+        {
+            JBro::EditorActions::AddComponentList now;
+            JBro::EditorActions::BuildAddComponentList(*first, now);
+            for (std::size_t index = 0; index < now.typeNames.Size(); ++index)
+            {
+                if (now.addable[index])
+                {
+                    third = index;
+                    break;
+                }
+            }
+            Check(third < now.typeNames.Size(), "a third component must be addable to the first object");
+            Check(JBro::EditorActions::AddComponent(editor, *first, now.typeNames[third]), "the component must attach");
+        }
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsConfirming(), "adding to the object the user switched to counts");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+        Check(editor.StartGuide("guide.add_component"), "the guide must start again");
         editor.SetSelectedObject(added);
         Tick(editor, 2);
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(editor.GetGuide().GetStepIndex() == 2, "on the add component step again");
+        Tick(editor, 3);
         Check(JBro::EditorActions::AddComponent(editor, *added, list.typeNames[second]), "the next component must attach");
         Tick(editor, 2);
         Check(editor.GetGuide().IsConfirming(), "adding one more is what the step waits for");
         editor.GetGuide().Stop(editor.GetGuideFocus());
+    }
+
+    // 키보드를 허용한 단계에서 글자를 치는 중이면 Esc 는 칸의 것이다(편집 취소). 치지 않을 때만 건너뛰기다.
+    void TestEscapeWhileTypingBelongsToTheField()
+    {
+        EditorGuideFocus focus;
+        GuideFocusPath path;
+        Check(path.Push(A), "the path must take a target");
+        Check(focus.Begin(path), "the focus must start");
+        JBro::InputEvent escape;
+        escape.kind = JBro::InputEventKind::KeyDown;
+        escape.key = JBro::Key::Escape;
+        JBro::Array<JBro::InputEvent> out;
+
+        focus.SetKeyboardAllowed(true);
+        focus.SetTextInputActive(true);
+        focus.FilterInput({ &escape, 1 }, out);
+        Check(out.Size() == 1 && false == focus.ConsumeSkipRequest(), "Esc while typing goes to the field and does not end the guide");
+
+        focus.SetTextInputActive(false);
+        focus.FilterInput({ &escape, 1 }, out);
+        Check(out.Size() == 0 && focus.ConsumeSkipRequest(), "Esc outside a field still ends it");
+
+        focus.SetKeyboardAllowed(false);
+        focus.SetTextInputActive(true);
+        focus.FilterInput({ &escape, 1 }, out);
+        Check(out.Size() == 0 && focus.ConsumeSkipRequest(), "a step that holds the keyboard back keeps Esc for the guide");
     }
 
     struct Answer
@@ -1016,6 +1197,8 @@ int RunEditorGuideTests()
     TestTheBuildGuideWaitsForTheUserToOpenTheMenu();
     TestAPathToAChildObjectWalksTheHierarchy();
     TestABrokenStepIsSkipped();
+    TestLosingTheObjectGoesBackToPicking();
+    TestEscapeWhileTypingBelongsToTheField();
     TestEachStepChoosesItsButtons();
     TestAStepTheUserOptsIntoCanBeNextedPastItsCondition();
     TestAStepReturnedToWaitsForNext();

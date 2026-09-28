@@ -47,7 +47,15 @@ namespace JBro
         GuideStepEnd end = GuideStepEnd::NextButton;
         // 단계에 들어설 때 한 번 부른다(이전으로 돌아와 다시 들어설 때도). 비었으면 적어 둔 값은 전부 0 이다.
         Delegate<void(EditorApplication&, GuideStepMemo&)> onEnter;
-        Delegate<bool(EditorApplication&, const GuideStepMemo&)> condition;
+        // 적어 둔 값을 고칠 수 있다 - 단계 안에서 기준이 바뀌면(다른 오브젝트를 골랐다) 그 자리에서 다시 잡는다.
+        Delegate<bool(EditorApplication&, GuideStepMemo&)> condition;
+        // **다음을 지금 누를 수 없는 까닭**이다(이미 번역된 글자). 비었거나 nullptr 을 돌려주면 누를 수 있다. 까닭이 있으면
+        // 다음은 회색이고 그 까닭을 띄운다(§11.1) - 오브젝트를 고르지 않았는데 값 바꾸기로 넘어가면 가리킬 것이 없다.
+        // 해낸 뒤의 확인에는 걸지 않는다.
+        Delegate<const char*(EditorApplication&)> nextBlockedReason;
+        // **이 단계가 끊기면 돌아갈 단계**다. 음수면 앞으로 건너뛴다. 값 바꾸기 도중에 선택을 비우거나 오브젝트를 지우면 뒤의
+        // 단계도 모두 가리킬 것이 없다 - 건너뛰면 가이드가 말없이 끝나므로, 그것을 다시 마련하는 단계로 돌아간다.
+        std::int32_t retreatOnBreak = -1;
         // 글자를 치는 단계인가(값을 입력한다, 목록을 검색한다).
         bool keyboard = false;
 
@@ -104,6 +112,8 @@ namespace JBro
         bool ShowsNext() const noexcept;
         // 이전으로 들어온 단계인가.
         bool IsRevisiting() const noexcept { return m_revisiting; }
+        // 다음을 지금 누를 수 없는 까닭이다. 누를 수 있으면 nullptr.
+        const char* WhyNextBlocked(EditorApplication& editor) const;
         // **마지막 단계를 해냈고 확인을 기다린다.** 조건이나 대상 누름으로 끝나는 마지막 단계는 해내자마자 닫지 않는다 -
         // 사람이 결과를 보고 확인을 눌러야 끝난다. 이때 건너뛰기는 없고(건너뛸 것이 없다) 이전은 단계가 정한 대로다.
         bool IsConfirming() const noexcept { return m_confirming; }

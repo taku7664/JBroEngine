@@ -379,13 +379,16 @@ namespace JBro::Widget
                 if (balloon.nextLabel != nullptr)
                 {
                     nextInRow();
-                    if (ActionButton(balloon.nextLabel, Severity::Success))
+                    if (ActionButton(balloon.nextLabel, Severity::Success, balloon.nextEnabled, balloon.nextDisabledReason))
                     {
                         action = GuideFocusAction::Next;
                     }
                 }
+                // 자동 크기는 한 프레임 늦다. 이번 프레임에 그린 끝까지 넣어야 늘어난 줄의 단추가 허용 영역 밖에 걸리지 않는다.
                 const ImGuiWindow* window = ImGui::GetCurrentWindow();
-                focus.ReportBalloon(ToRect(window->Pos, ImVec2(window->Pos.x + window->Size.x, window->Pos.y + window->Size.y)));
+                const ImVec2 drawnMax(window->DC.CursorMaxPos.x + window->WindowPadding.x, window->DC.CursorMaxPos.y + window->WindowPadding.y);
+                focus.ReportBalloon(ToRect(window->Pos,
+                    ImVec2(std::fmax(window->Pos.x + window->Size.x, drawnMax.x), std::fmax(window->Pos.y + window->Size.y, drawnMax.y))));
             }
             ImGui::End();
         }
