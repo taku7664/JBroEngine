@@ -7837,20 +7837,35 @@ namespace
         const Colors outside = readColors();
         Check(outside.neighbourRed > 200 && outside.neighbourGreen < 60, "stepping out lifts the veil");
 
-        // 다시 들어가면 몸에 새로 맞추지 않고 **몸 안에서 마지막으로 보던 자리**다.
+        // 다시 들어가면 **몸 안에서 보던 줌은 기억하지 않는다**(D-257). 늘 들어가던 대로 몸에 맞춘다 - 돌아올 자리는 한 번 쓰고 버린다.
+        (void)insideX;
+        (void)insideY;
+        // 그 전에 뿌리에서 한 칸 물러 둔다. 나올 때 돌아갈 곳은 처음의 (0, 0, 5) 가 아니라 **이번에 들어가기 직전**의 자리다.
+        const Spot rootZoom = spotAt(-0.5f, -0.5f);
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(rootZoom.x, rootZoom.y));
+        Check(editor.Tick(Frame), "the editor must tick with the pointer at the root");
+        PostMessageW(hwnd, WM_MOUSEWHEEL, MAKEWPARAM(0, static_cast<WORD>(-WHEEL_DELTA)), MAKELPARAM(rootZoom.x, rootZoom.y));
+        settle();
+        float rootX = 0.0f;
+        float rootY = 0.0f;
+        float rootSize = 0.0f;
+        editor.GetCanvasViewCamera(rootX, rootY, rootSize);
+        Check(rootSize > 5.2f, "a wheel notch at the root must zoom out");
         const Spot backIn = spotAt(-0.5f, -0.5f);
         ClickAt(editor, hwnd, backIn);
         ClickAt(editor, hwnd, backIn);
         editor.GetCanvasViewCamera(goalX, goalY, goalSize);
-        Check(std::fabs(goalX - insideX) < 0.001f && std::fabs(goalY - insideY) < 0.001f
-                && std::fabs(goalSize - insideSize) < 0.001f,
-            "stepping back in returns to where you last looked inside the body");
+        Check(std::fabs(goalX) < 0.01f && std::fabs(goalY) < 0.01f && std::fabs(goalSize - 2.5f) < 0.01f,
+            "stepping back in frames the body afresh instead of remembering the zoom inside");
         settle();
 
-        // 나왔다가 뿌리에서 빈 곳을 두 번 누르면 나올 곳이 없다. 선택만 빈다.
+        // 나오면 이번에 들어가기 직전의 뿌리 자리다. 그 뒤 뿌리에서 빈 곳을 두 번 누르면 나올 곳이 없다. 선택만 빈다.
         const Spot emptyInside = spotAt(-1.5f, 1.5f);
         ClickAt(editor, hwnd, emptyInside);
         ClickAt(editor, hwnd, emptyInside);
+        editor.GetCanvasViewCamera(goalX, goalY, goalSize);
+        Check(std::fabs(goalX - rootX) < 0.001f && std::fabs(goalY - rootY) < 0.001f && std::fabs(goalSize - rootSize) < 0.001f,
+            "stepping out again returns to the root view as it was just before stepping in");
         settle();
         const Spot emptyRoot = spotAt(-1.5f, 1.5f);
         ClickAt(editor, hwnd, emptyRoot);
