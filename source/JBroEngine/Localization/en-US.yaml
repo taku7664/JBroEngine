@@ -395,6 +395,7 @@ Entries:
   guide.next: Next
   guide.done: OK
   guide.confirm_note: Done. Press OK to finish the guide.
+  guide.need_selected_object: Pick an object first
   guide.skip: Skip
   guide.back: Back
   guide.back_first_step: This is the first step

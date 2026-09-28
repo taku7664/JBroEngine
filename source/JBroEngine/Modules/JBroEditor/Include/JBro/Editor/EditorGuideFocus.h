@@ -143,6 +143,9 @@ namespace JBro
         void FilterInput(JArrayView<InputEvent> events, Array<InputEvent>& out);
         // Esc 가 눌렸는지 돌려주고 지운다.
         bool ConsumeSkipRequest() noexcept;
+        // 지난 프레임에 글자 칸이 입력을 받고 있었는가(ImGui 의 `WantTextInput`). **키보드를 허용한 단계에서 글자를 치는 중이면
+        // Esc 는 그 칸의 것이다** - 편집을 취소하려고 누른 Esc 가 가이드를 통째로 끝내면 안 된다. 칸을 떠난 뒤의 Esc 는 다시 건너뛰기다.
+        void SetTextInputActive(bool active) noexcept { m_textInputActive = active; }
 
         // **모달이 떠 있는 동안 막을 걷는다**(D-251 (7)). 경로는 그대로 두고, 입력은 막지 않고, 막은 사라진다.
         // 모달은 사용자가 답해야 하는 것이라 막으면 에디터가 멈춘 것처럼 보인다. 풀리면 그 자리에서 잇는다.
@@ -233,6 +236,7 @@ namespace JBro
         bool m_paused = false;
         bool m_keyboardAllowed = false;
         bool m_skipRequested = false;
+        bool m_textInputActive = false;
 
         // 이번 프레임의 보고.
         Seen m_seen[GuideFocusPath::Capacity] = {};

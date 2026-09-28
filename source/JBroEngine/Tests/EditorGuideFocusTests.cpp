@@ -149,9 +149,10 @@ namespace
         Check(false == focus.IsAllowed({ 150.0f, 150.0f }), "but allows nothing");
         focus.ClearAllowedRects();
         Check(focus.AddAllowedRect(Hole), "the hole must be added");
-        Check(focus.IsAllowed({ 100.0f, 100.0f }) && focus.IsAllowed({ 200.0f, 150.0f }),
-            "the edges of the hole belong to it");
-        Check(false == focus.IsAllowed({ 200.5f, 150.0f }), "and just outside does not");
+        Check(focus.IsAllowed({ 100.0f, 100.0f }) && focus.IsAllowed({ 199.5f, 149.5f }),
+            "the top left edge and the last pixel inside belong to the hole");
+        Check(false == focus.IsAllowed({ 200.0f, 120.0f }) && false == focus.IsAllowed({ 150.0f, 150.0f }),
+            "but the right and bottom edges are the next pixel over - a neighbour window lives there");
 
         // 다시 시작하면 지난 단계의 구멍을 들고 가지 않는다.
         Check(focus.Begin(OneStepPath()), "the focus must restart");

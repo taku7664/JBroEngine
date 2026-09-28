@@ -245,6 +245,58 @@ namespace
         probe.Close();
     }
 
+    const JBro::InputEvent* FindButton(
+        JBro::JArrayView<JBro::InputEvent> events, JBro::InputEventKind kind, JBro::MouseButton button)
+    {
+        for (std::uint32_t index = 0; index < events.size; ++index)
+        {
+            if (events.data[index].kind == kind && events.data[index].button == button)
+            {
+                return &events.data[index];
+            }
+        }
+        return nullptr;
+    }
+
+    // 엄지 버튼(XBUTTON1 은 뒤로, XBUTTON2 는 앞으로)은 `Extra1`·`Extra2` 다.
+    void TestTheThumbButtonsComeOut()
+    {
+        Probe probe;
+        probe.Open("JBro input thumb probe");
+
+        probe.PostAndPump(WM_XBUTTONDOWN, MAKEWPARAM(0, XBUTTON1), MAKELPARAM(7, 8));
+        const JBro::InputEvent* press =
+            FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::MouseButtonDown);
+        Check(press != nullptr && press->button == JBro::MouseButton::Extra1,
+            "the back thumb button must arrive as Extra1");
+        Check(press->x == 7.0f && press->y == 8.0f, "with the position it happened at");
+
+        probe.PostAndPump(WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON2), 0);
+        const JBro::InputEvent* release =
+            FindFirst(probe.platform.GetInputEvents(), JBro::InputEventKind::MouseButtonUp);
+        Check(release != nullptr && release->button == JBro::MouseButton::Extra2,
+            "and the forward one as Extra2");
+
+        // **처리한 엄지 버튼은 TRUE 를 돌려준다.** `DefWindowProcW` 로 넘기면 Windows 가 `WM_APPCOMMAND`
+        // (브라우저 뒤로·앞으로)를 따로 만들어 부모와 셸 훅으로 올려 보낸다 - 게임이 받은 누름이 창 밖에서 한 번 더 일한다.
+        // 반환값을 보려면 WndProc 을 직접 불러야 한다.
+        probe.platform.ClearInputEvents();
+        Check(SendMessageW(probe.native, WM_XBUTTONDOWN, MAKEWPARAM(0, XBUTTON1), 0) == TRUE,
+            "a handled thumb press must answer TRUE");
+        Check(SendMessageW(probe.native, WM_XBUTTONUP, MAKEWPARAM(0, XBUTTON1), 0) == TRUE,
+            "and so must its release, or Windows makes an app command of it");
+
+        // **붙잡음을 빼앗기면 엄지 버튼도 뗀다**(D-158). 빼놓으면 엄지 버튼을 누른 채 Alt+Tab 한 뒤에 눌린 채로 남는다.
+        probe.PostAndPump(WM_XBUTTONDOWN, MAKEWPARAM(0, XBUTTON2), 0);
+        probe.PostAndPump(WM_CAPTURECHANGED, 0, 0);
+        Check(FindButton(probe.platform.GetInputEvents(), JBro::InputEventKind::MouseButtonUp,
+                  JBro::MouseButton::Extra2) != nullptr,
+            "losing the capture must release a held thumb button");
+        ReleaseCapture();
+
+        probe.Close();
+    }
+
     void TestThePumpOwnsTheList()
     {
         Probe probe;
@@ -279,6 +331,7 @@ int RunInputTests()
     TestKeysComeOutAsKeys();
     TestTextComesOutSeparately();
     TestTheMouseComesOut();
+    TestTheThumbButtonsComeOut();
     TestThePumpOwnsTheList();
     std::cout << "Input tests passed.\n";
     return 0;

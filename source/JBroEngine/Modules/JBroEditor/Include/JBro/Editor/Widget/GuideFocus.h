@@ -52,6 +52,9 @@ namespace JBro::Widget
         // 이전 단추를 두었지만 지금은 못 누를 때(첫 단계) 회색으로 두고 까닭을 띄운다(§11.1).
         bool backEnabled = true;
         const char* backDisabledReason = nullptr;
+        // 다음도 같다(오브젝트를 고르지 않았다).
+        bool nextEnabled = true;
+        const char* nextDisabledReason = nullptr;
     };
 
     // **막과 구멍과 말풍선을 그린다.** 모든 창을 그린 뒤, 알림보다도 뒤에 부른다.
