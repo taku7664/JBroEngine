@@ -120,6 +120,9 @@
 - [tasks/ui-plan.md](./tasks/ui-plan.md) — 화면 공간 UI(D-237). UI 트리 대신 캔버스 레이어의 `Space = Screen`·맞춤 방식과 `Transform2D.anchor`, 좌표는 기준 해상도의 픽셀.
   세 단계(그리기·에디터의 월드/UI 보기·입력의 `Button2D` 와 `Screen2DService`)가 섰다.
   기존 엔진 UI 의 구조와 아팠던 것 U1~U4(첫 프레임 앵커 0·분할 화면 어긋남·버튼의 직접 폴링)가 §1, 설계가 §2, 단계(그리기·에디터·입력)가 §3, 실측이 §5 에 있다
+- [tasks/guide-focus-plan.md](./tasks/guide-focus-plan.md) — 에디터 가이드 포커스(D-251). 반투명 막에 대상 위젯만 뚫고 그 위젯만 입력을 받게 하며,
+  닫힌 패널·트리를 부모부터 한 칸씩 연다. 기구 `EditorGuideFocus`·`Widget::GuideFocus` 와 내용 `Guide`·`GuideStep`·`EditorGuide` 로 나눈다.
+  **설계만 섰고 코드는 없다.** 기존 엔진에 없던 기능이라는 확인과 지금 에디터의 입력·위젯 경로가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4 에 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).
