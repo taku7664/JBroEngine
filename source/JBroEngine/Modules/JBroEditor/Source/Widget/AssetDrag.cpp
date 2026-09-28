@@ -2,8 +2,6 @@
 
 #include <JBro/Types/Array.h>
 
-#include <imgui.h>
-
 #include <cstring>
 
 namespace JBro::Widget
@@ -19,27 +17,25 @@ namespace JBro::Widget
         buffer.Resize(sizeof(AssetDragHeader) + header.pathBytes);
         std::memcpy(buffer.Data(), &header, sizeof(header));
         std::memcpy(buffer.Data() + sizeof(header), paths.c_str(), header.pathBytes);
-        ImGui::SetDragDropPayload(AssetDragPayloadType, buffer.Data(), buffer.Size());
+        SetDragPayload(DragKind::Asset, buffer.Data(), buffer.Size());
     }
 
     bool AcceptAssetDrop(AssetDragHeader& header, String* paths)
     {
-        const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(AssetDragPayloadType);
-        if (payload == nullptr || payload->Data == nullptr
-            || payload->DataSize < static_cast<int>(sizeof(AssetDragHeader)))
+        const DropPayload payload = AcceptDrop(DragKind::Asset);
+        if (false == payload.delivered || payload.size < sizeof(AssetDragHeader))
         {
             return false;
         }
-        std::memcpy(&header, payload->Data, sizeof(header));
+        std::memcpy(&header, payload.data, sizeof(header));
         // 길이가 맞지 않는 꾸러미는 받지 않는다. 믿고 읽으면 남의 기억을 경로로 읽는다.
-        if (static_cast<std::size_t>(payload->DataSize) != sizeof(header) + header.pathBytes
-            || header.pathBytes == 0)
+        if (payload.size != sizeof(header) + header.pathBytes || header.pathBytes == 0)
         {
             return false;
         }
         if (paths != nullptr)
         {
-            const char* text = static_cast<const char*>(payload->Data) + sizeof(header);
+            const char* text = static_cast<const char*>(payload.data) + sizeof(header);
             *paths = String(text, header.pathBytes - 1);
         }
         return true;

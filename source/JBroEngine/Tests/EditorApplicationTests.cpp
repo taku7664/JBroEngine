@@ -7890,7 +7890,11 @@ namespace
             "ImGui::BeginCombo(", "ImGui::BeginPopupContextItem(", "ImGui::BeginPopupContextWindow(",
             "ImGui::BeginPopupModal(", "ImGui::OpenPopup(", "ImGui::EndPopup(",
             "ImGui::InvisibleButton(", "ImGui::Image(", "ImGui::CollapsingHeader(",
-            "ImGui::TreeNodeEx(", "ImGui::TreeNode(", "ImGui::TreePop(", "ImGui::InputText("};
+            "ImGui::TreeNodeEx(", "ImGui::TreeNode(", "ImGui::TreePop(", "ImGui::InputText(",
+            // 끌어 놓기도 공용 층(`Widget/DragDrop.h`)을 거친다(D-254). 직접 부르면 꾸러미 이름을 또 적고 외곽선이 돌아온다.
+            "ImGui::BeginDragDropSource(", "ImGui::SetDragDropPayload(", "ImGui::EndDragDropSource(",
+            "ImGui::BeginDragDropTarget(", "ImGui::AcceptDragDropPayload(", "ImGui::EndDragDropTarget(",
+            "ImGui::GetDragDropPayload("};
         // **패널만 보던 것을 그리는 것 전부로 넓힌다**(D-190). 메뉴 막대와 팝업과 공용
         // 메뉴(`EditorActions`)는 패널 폴더 밖이라 규칙이 조용히 지켜지지 않았다 - 그래서
         // 메뉴 항목이 D-181 의 "왜 잠겼는지" 툴팁을 잃은 채였고, 지우기 단추가 그만두기와

@@ -2916,6 +2916,34 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-254. 에디터의 끌어 놓기는 공용 층 `Widget/DragDrop.h` 를 거치고, 받는 자리는 외곽선을 긋지 않는다.** (2026-09-28, 사용자 지시:
+  "드래그 드롭 인터페이스 만들어줘. 그리고 드래그드롭 외곽선 안나오게 해줘." Updates: D-152·D-154.)
+  그전에는 공통 인터페이스가 없었다. 계층·에셋 브라우저·목록·에셋 칸·오브젝트 칸이 저마다 `ImGui::BeginDragDropSource`·`AcceptDragDropPayload` 를
+  직접 불렀고, 꾸러미 이름 문자열을 파일마다 적었다 - 인스펙터가 계층의 `"JBRO_HIERARCHY_MOVE"` 를 한 번 더 적어 두어 한쪽 이름이 바뀌면 드롭이
+  조용히 끊기는 모양이었다. 기존 엔진 `EditorDragDrop` 은 이름을 한 헤더에 모았지만 받는 쪽은 여전히 ImGui 를 직접 불렀고, 꾸러미에 날 포인터
+  (`CGameObject*`·`CGameLayer*`)를 실었으며, 받기 함수가 안에서 `BeginDragDropTarget` 을 열어 부르는 쪽이 또 감싸면 안 되는 함정이 있었다.
+  1. **꾸러미 종류는 `DragKind` 표 하나다**(`Asset`·`HierarchyObject`·`HierarchyLayer`·`ListReorder`). 이름 문자열은 `DragDrop.cpp` 한 곳에만 있다.
+     끌기는 `BeginDragSource`/`SetDragValue`/`EndDragSource`, 받기는 `BeginDropTarget`/`AcceptDrop`/`EndDropTarget` 이고 여는 것과 받는 것은 나눠 둔다
+     (기존의 감싸기 함정을 만들지 않는다). 값은 복사 가능한 것만 싣는다(`static_assert`), 읽을 때는 크기가 정확히 맞아야 읽는다(`ReadDropValue`).
+     `AcceptDrop` 은 놓기 전에도 꾸러미를 돌려주고(`delivered` 가 거짓) 놓는 프레임에만 `delivered` 가 참이다 - 끼울 선은 위에 있을 때, 옮기기는 놓였을 때다.
+     `PeekDrag` 는 받는 자리 밖에서 지금 끄는 꾸러미를 본다. `AssetDrag.h` 는 그 위의 에셋 전용 머리·경로 묶음으로 남는다.
+  2. **외곽선을 긋지 않는다.** ImGui 기본 표시(`RenderDragDropTargetRectEx`)는 받는 자리를 `DragDropTargetPadding` 만큼 넓혀 테두리를 둘렀고,
+     계층은 자식으로 넣는 줄과 레이어 줄·빈자리에 따로 `AddRect` 를 그었다. 빽빽한 줄에서 테두리는 위아래 줄에 겹쳐 끼울 선과 헷갈렸다.
+     이제 기본은 받는 자리를 넓히지 않고 `DragDropTargetBg` 로 옅게 칠하는 것(`DropFeedback::Fill`)이고, 끼울 선을 그리는 자리는 `None` 을 주고
+     `DrawDropLine`·`DrawDropFill` 을 부른다. 기본 표시는 **받는 쪽과 끄는 쪽 양쪽에서** 끈다(`ImGuiDragDropFlags_AcceptNoDrawDefaultRect`) -
+     ImGui 는 끄는 쪽의 깃발을 모든 받는 자리에 걸므로, 공용 층을 거치지 않은 받는 자리가 새로 생겨도 테두리가 돌아오지 않는다.
+  3. **목록 행은 제 목록 안에서만 옮겨진다**(옮기다 찾은 결함). 목록 위젯은 행 번호만 실었고 꾸러미 이름은 전역이라, 인스펙터에 나란히 있는
+     다른 목록(구조체 원소 안의 목록까지)의 사이 칸이 그 번호를 제 원소 번호로 받아 엉뚱한 원소를 옮겼다. 이제 `ListReorderPayload` 가 목록 몸통 창의
+     Id 를 함께 싣고, 제 목록의 행을 끌 때만 사이 칸이 받는 자리가 된다 - 에셋 같은 다른 종류를 끌고 지나갈 때 사이 칸마다 선이 그어지던 것도 없어졌다.
+  4. **`TestPanelsGoThroughTheWidgetLayer` 가 끌어 놓기 원시 호출 일곱 개를 막는다**(D-152 의 목록에 더함). `ObjectField` 는 꾸러미 이름 대신 `DragKind` 를 받는다.
+  시험: `TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind`(공용 받는 자리·ImGui 를 직접 부른 받는 자리·다른 종류의 받는 자리 셋 위에서 그리기 목록의
+  정점 색으로 외곽선이 없고 칠하기만 있는지, 놓기 전에는 받지 않고 놓으면 한 번 받는지. 끄는 쪽도 공용 층의 것과 ImGui 를 직접 부른 것 둘이다 -
+  끄는 쪽의 깃발이 받는 쪽의 것을 가리므로), `TestAListRowDroppedOnAnotherListMovesNothing`.
+  뮤테이션 다섯이 모두 제 검사에서 죽었다: 끄는 쪽 깃발 빼기("a target that calls ImGui directly must not draw an outline"), 받는 쪽 깃발 빼기
+  ("... even for a source that did not turn it off"), 칠하기 빼기("it is filled instead"), 놓기 전에 받기("a row dropped inside its own list still moves"),
+  목록 주인 비교 빼기("a row from list A dropped on list B must not move anything in B"). 크기 검사(`ReadDropValue`)를 빼는 변이는 재지 않았다 -
+  크기가 틀린 꾸러미를 실을 공용 층의 길이 없어서다.
+  에디터 렌더(숨긴 창의 백 버퍼)를 끄는 도중에 찍어 보았다: 오브젝트 줄 사이에는 파란 끼울 선만, 레이어 줄 위에서는 줄이 옅게 칠해질 뿐 테두리가 없다.
 - **D-253. 캔버스 뷰의 상자 선택은 걸린 오브젝트의 자손도 함께 고른다.** (2026-09-28, 사용자 지적: "드래그 다중선택 자식이 선택안됨." Updates: D-136·D-157.)
   기존 `CCanvasViewTool` 은 상자에 걸린 오브젝트마다 `CollectSubtree` 로 **그 오브젝트와 자손 전체**를 골랐고, 들어가 있는 오브젝트 자신이
   걸렸으면 그것 하나만 골랐다. 우리는 D-157 에서 지금 층의 오브젝트(부모)로 올리기만 하고 자손을 빠뜨려, 부모만 골라졌다.

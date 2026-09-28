@@ -82,7 +82,7 @@ namespace JBro::Widget
         // **끌어다 놓아도 고른다**(D-154, 기존 `ImAssetField::AllowDrop`). 받는 것은 **이 칸의
         // 목록에 있는 것**뿐이다 - 목록이 곧 이 칸이 받을 수 있는 타입이라, 다른 타입을 놓으면
         // 조용히 무시된다. 그림 파일은 Texture 와 짝 Sprite 둘을 싣고 오므로 목록에 있는 쪽을 쓴다.
-        if (ImGui::BeginDragDropTarget())
+        if (BeginDropTarget())
         {
             AssetDragHeader header;
             if (AcceptAssetDrop(header))
@@ -95,14 +95,14 @@ namespace JBro::Widget
                         if (false == (m_ids[index] == m_value))
                         {
                             m_value = m_ids[index];
-                            ImGui::EndDragDropTarget();
+                            EndDropTarget();
                             return true;
                         }
                         break;
                     }
                 }
             }
-            ImGui::EndDragDropTarget();
+            EndDropTarget();
         }
         if (false == changed || current == before || current < 0
             || static_cast<std::size_t>(current) >= items.Size())

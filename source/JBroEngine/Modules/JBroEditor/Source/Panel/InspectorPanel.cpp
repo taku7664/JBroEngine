@@ -691,7 +691,7 @@ namespace JBro
         // 하이어라키의 끌기 페이로드는 에디터 오브젝트 번호다(주소를 담지 않는다).
         const bool changed = Widget::ObjectField("##value",
             ArrayView<const char* const>(m_objectNamePointers.Data(), m_objectNamePointers.Size()), chosen,
-            "JBRO_HIERARCHY_MOVE", dropped);
+            Widget::DragKind::HierarchyObject, dropped);
         if (false == changed || false == snapped)
         {
             return;

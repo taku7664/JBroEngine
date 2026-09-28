@@ -4,6 +4,7 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Editor/Widget/EnumCombo.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
@@ -907,6 +908,251 @@ namespace
         Check(mask == 0u && changedFrames == 2, "and Nothing turns every bit off");
     }
 
+    // 그리기 목록 전부에서 이 색의 정점이 있는가. 외곽선은 `DragDropTarget`, 칠하기는 `DragDropTargetBg` 로 그려진다.
+    bool AnyVertexHasColour(ImU32 colour)
+    {
+        const ImDrawData* data = ImGui::GetDrawData();
+        if (data == nullptr)
+        {
+            return false;
+        }
+        for (const ImDrawList* list : data->CmdLists)
+        {
+            for (const ImDrawVert& vertex : list->VtxBuffer)
+            {
+                if (vertex.col == colour)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // **받는 자리는 외곽선 없이 칠해지고, 제 종류만 받는다**(D-254).
+    //
+    // ImGui 의 기본 표시는 받는 자리에 테두리를 두른다. 공용 층은 받는 쪽(`AcceptDrop`)과 끄는 쪽(`BeginDragSource`)
+    // 양쪽에서 그것을 끈다 - 끄는 쪽에서 끄는 것은 공용 층을 거치지 않은 받는 자리까지 막기 위해서다. 그래서 받는 자리를
+    // 셋 둔다: 공용 층의 것, ImGui 를 직접 부른 것, 다른 종류만 받는 것. 끄는 쪽도 둘이다: 공용 층의 것과 ImGui 를 직접 부른 것 -
+    // 끄는 쪽의 깃발이 받는 쪽의 것을 가리므로, 직접 부른 끄는 쪽이 있어야 받는 쪽의 깃발을 따로 잰다.
+    void TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind()
+    {
+        Stage stage;
+        ImGuiStyle& style = ImGui::GetStyle();
+        // 기본 칠하기 색은 투명이라 그려지지 않는다. 둘 다 다른 것과 겹치지 않는 불투명한 색을 준다.
+        style.Colors[ImGuiCol_DragDropTarget] = ImVec4(1.0f, 0.0f, 1.0f, 1.0f);
+        style.Colors[ImGuiCol_DragDropTargetBg] = ImVec4(0.0f, 1.0f, 1.0f, 1.0f);
+        const ImU32 outline = ImGui::GetColorU32(ImGuiCol_DragDropTarget);
+        const ImU32 fill = ImGui::GetColorU32(ImGuiCol_DragDropTargetBg);
+
+        ImRect source;
+        ImRect rawSource;
+        ImRect shared;
+        ImRect raw;
+        ImRect other;
+        std::uint64_t received = 0;
+        int deliveries = 0;
+        bool otherReceived = false;
+        const auto frame = [&]() {
+            stage.Begin();
+            ImGui::Button("source", ImVec2(120.0f, 24.0f));
+            source = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            if (JBro::Widget::BeginDragSource())
+            {
+                JBro::Widget::SetDragValue(JBro::Widget::DragKind::HierarchyObject, std::uint64_t(42));
+                ImGui::TextUnformatted("dragging");
+                JBro::Widget::EndDragSource();
+            }
+            ImGui::Button("raw source", ImVec2(120.0f, 24.0f));
+            rawSource = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            if (ImGui::BeginDragDropSource())
+            {
+                const std::uint64_t value = 7;
+                ImGui::SetDragDropPayload("JBRO_HIERARCHY_MOVE", &value, sizeof(value));
+                ImGui::TextUnformatted("dragging");
+                ImGui::EndDragDropSource();
+            }
+            ImGui::Button("shared", ImVec2(120.0f, 24.0f));
+            shared = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            if (JBro::Widget::BeginDropTarget())
+            {
+                std::uint64_t value = 0;
+                if (JBro::Widget::AcceptDropValue(JBro::Widget::DragKind::HierarchyObject, value))
+                {
+                    received = value;
+                    ++deliveries;
+                }
+                JBro::Widget::EndDropTarget();
+            }
+            ImGui::Button("raw", ImVec2(120.0f, 24.0f));
+            raw = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            if (ImGui::BeginDragDropTarget())
+            {
+                ImGui::AcceptDragDropPayload("JBRO_HIERARCHY_MOVE");
+                ImGui::EndDragDropTarget();
+            }
+            ImGui::Button("other", ImVec2(120.0f, 24.0f));
+            other = ImRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax());
+            if (JBro::Widget::BeginDropTarget())
+            {
+                std::uint32_t layer = 0;
+                otherReceived = JBro::Widget::AcceptDropValue(JBro::Widget::DragKind::HierarchyLayer, layer)
+                    || otherReceived;
+                JBro::Widget::EndDropTarget();
+            }
+            stage.End();
+        };
+        ImGuiIO& io = ImGui::GetIO();
+        const auto moveTo = [&](const ImRect& rect) {
+            const ImVec2 at = rect.GetCenter();
+            io.AddMousePosEvent(at.x, at.y);
+            frame();
+        };
+        stage.Settle();
+        frame();
+
+        // 끌기로 치려면 문턱만큼 움직여야 한다. 한 번에 넘기지 않고 몇 번에 나눠 간다.
+        const auto startDrag = [&](const ImRect& from) {
+            moveTo(from);
+            io.AddMouseButtonEvent(0, true);
+            frame();
+            const ImVec2 start = from.GetCenter();
+            for (int step = 1; step <= 5; ++step)
+            {
+                io.AddMousePosEvent(start.x + step * 4.0f, start.y);
+                frame();
+            }
+        };
+
+        // 먼저 ImGui 를 직접 부른 끄는 쪽이다. 이 꾸러미에는 외곽선을 끄는 깃발이 없다.
+        startDrag(rawSource);
+        Check(JBro::Widget::IsDragging(JBro::Widget::DragKind::HierarchyObject), "the raw source must have started a drag");
+        moveTo(shared);
+        moveTo(shared);
+        Check(false == AnyVertexHasColour(outline),
+            "a shared drop target must not draw an outline even for a source that did not turn it off");
+        Check(AnyVertexHasColour(fill), "it is filled instead");
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        Check(deliveries == 1 && received == 7, "the raw source's value is delivered like any other");
+        deliveries = 0;
+        received = 0;
+
+        startDrag(source);
+        Check(JBro::Widget::IsDragging(JBro::Widget::DragKind::HierarchyObject), "the source must have started a drag");
+        Check(false == JBro::Widget::IsDragging(JBro::Widget::DragKind::HierarchyLayer),
+            "and the drag is of its own kind only");
+
+        // 받는 자리마다 두 프레임을 머문다. 칠하기는 지난 프레임에도 받은 자리에만 된다.
+        moveTo(shared);
+        moveTo(shared);
+        Check(false == AnyVertexHasColour(outline), "a shared drop target must not draw an outline");
+        Check(AnyVertexHasColour(fill), "it is filled instead, so it still shows where the drop goes");
+
+        moveTo(raw);
+        moveTo(raw);
+        Check(false == AnyVertexHasColour(outline),
+            "a target that calls ImGui directly must not draw an outline either - the source turns it off");
+
+        moveTo(other);
+        moveTo(other);
+        Check(false == AnyVertexHasColour(fill), "a target of another kind must not light up");
+        Check(false == AnyVertexHasColour(outline), "nor draw an outline");
+
+        moveTo(shared);
+        moveTo(shared);
+        Check(deliveries == 0, "nothing is received before the button is released");
+        io.AddMouseButtonEvent(0, false);
+        frame();
+        frame();
+        Check(deliveries == 1 && received == 42, "releasing over the target delivers the value once");
+        Check(false == otherReceived, "and the target of another kind never received it");
+        Check(false == JBro::Widget::IsDraggingAnything(), "the drag is over after the drop");
+    }
+
+    // **목록의 행은 제 목록 안에서만 옮겨진다**(D-254). 꾸러미 이름은 전역이라 번호만 실었을 때는 옆 목록의 사이 칸이
+    // 그 번호를 제 원소 번호로 받아 엉뚱한 원소를 옮겼다. 인스펙터에는 목록이 나란히, 구조체 원소 안에 겹쳐 선다.
+    void TestAListRowDroppedOnAnotherListMovesNothing()
+    {
+        Stage stage;
+        int movesA = 0;
+        int movesB = 0;
+        const auto frame = [&]() {
+            stage.Begin();
+            JBro::Widget::ListVirtual("##a", 3,
+                [&](int) -> bool { ImGui::TextUnformatted("row"); return false; },
+                [&]() {}, [&](int) {}, [&](int, int) { ++movesA; });
+            JBro::Widget::ListVirtual("##b", 3,
+                [&](int) -> bool { ImGui::TextUnformatted("row"); return false; },
+                [&]() {}, [&](int) {}, [&](int, int) { ++movesB; });
+            stage.End();
+        };
+        frame();
+        frame();
+        ImGuiWindow* bodies[2] = {};
+        int found = 0;
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (std::strstr(window->Name, "##list_body") != nullptr && found < 2)
+            {
+                bodies[found++] = window;
+            }
+        }
+        Check(found == 2 && bodies[0]->Pos.y < bodies[1]->Pos.y, "both lists must open their bodies, one above the other");
+        ImGuiIO& io = ImGui::GetIO();
+        const auto moveMouse = [&](float x, float y) {
+            io.AddMousePosEvent(x, y);
+            frame();
+        };
+        const auto findY = [&](ImGuiWindow* body, ImGuiID target, float x, float& y) {
+            for (float at = body->Pos.y; at < body->Pos.y + body->Size.y; at += 1.0f)
+            {
+                moveMouse(x, at);
+                if (ImGui::GetHoveredID() == target)
+                {
+                    y = at;
+                    return true;
+                }
+            }
+            return false;
+        };
+        const auto rowId = [](ImGuiWindow* body, int index, const char* label) {
+            return ImHashStr(label, 0, ImHashData(&index, sizeof(index), body->ID));
+        };
+        const auto dragTo = [&](float fromX, float fromY, float toX, float toY) {
+            moveMouse(fromX, fromY);
+            io.AddMouseButtonEvent(0, true);
+            frame();
+            constexpr int Steps = 10;
+            for (int step = 1; step <= Steps; ++step)
+            {
+                moveMouse(fromX + (toX - fromX) * step / Steps, fromY + (toY - fromY) * step / Steps);
+            }
+            frame();
+            io.AddMouseButtonEvent(0, false);
+            frame();
+            frame();
+        };
+        const float handleX = bodies[0]->Pos.x + 5.0f;
+        const float middleX = bodies[0]->Pos.x + bodies[0]->Size.x * 0.5f;
+        float rowY = 0.0f;
+        float slotY = 0.0f;
+        Check(findY(bodies[0], rowId(bodies[0], 1, "##row_body"), handleX, rowY), "list A's second row must have a handle");
+        // 끌지 않는 동안 B 의 사이 칸은 받는 자리가 아니라 그냥 빈 단추다. 자리는 그대로 찾을 수 있다.
+        Check(findY(bodies[1], rowId(bodies[1], 0, "##slot"), middleX, slotY), "list B must have a slot above its first row");
+
+        dragTo(handleX, rowY, middleX, slotY);
+        Check(movesB == 0, "a row from list A dropped on list B must not move anything in B");
+        Check(movesA == 0, "nor in A");
+
+        // 같은 목록 안에서는 여전히 옮겨진다 - 막은 것이 옮기기 전부가 아니다.
+        Check(findY(bodies[0], rowId(bodies[0], 1, "##row_body"), handleX, rowY), "list A's second row is still there");
+        Check(findY(bodies[0], rowId(bodies[0], 0, "##slot"), middleX, slotY), "and so is its first slot");
+        dragTo(handleX, rowY, middleX, slotY);
+        Check(movesA == 1 && movesB == 0, "a row dropped inside its own list still moves");
+    }
+
     // **오브젝트 칸은 이름으로 고른다(D-233).** 검색해 Enter 로 고르면 그 번호가 되고, 끌어 놓은 것이 없으면 dropped 는 0 이다.
     void TestTheObjectFieldPicksByName()
     {
@@ -920,7 +1166,7 @@ namespace
         bool triggerKnown = false;
         const auto frame = [&]() {
             stage.Begin();
-            if (JBro::Widget::ObjectField("##object", names, chosen, "JBRO_TEST_PAYLOAD", dropped))
+            if (JBro::Widget::ObjectField("##object", names, chosen, JBro::Widget::DragKind::HierarchyObject, dropped))
             {
                 ++changedFrames;
             }
@@ -1209,6 +1455,8 @@ int RunEditorWidgetTests()
     TestTheArrayWrapperMovesElementsCorrectly();
     TestARowsBackgroundCoversEverythingItDraws();
     TestDroppingARowMovesItOnceAndDroppingBelowItselfChangesNothing();
+    TestAListRowDroppedOnAnotherListMovesNothing();
+    TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind();
     TestTheTreeHandsBackItsRowAndContent();
     TestTheTextFieldLeavesUntouchedValuesAlone();
     TestTheFilterComboPicksByTypingAndEnter();

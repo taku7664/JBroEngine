@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Types/String.h>
 
 #include <cstdint>
@@ -15,8 +16,7 @@ namespace JBro::Widget
     //
     // 아이디가 **둘**인 것은 이미지 때문이다. 그림 파일은 Texture 와 Sprite 두 레코드로 서고
     // 목록의 한 줄은 Texture 를 가리키는데, 스프라이트 칸이 받아야 하는 것은 Sprite 쪽이다 -
-    // 짝을 함께 실어 두면 칸이 자기 목록에 있는 쪽을 고른다.
-    inline constexpr const char* AssetDragPayloadType = "JBRO_ASSET";
+    // 짝을 함께 실어 두면 칸이 자기 목록에 있는 쪽을 고른다. 꾸러미 종류는 `DragKind::Asset` 이다(D-254).
 
     struct AssetDragHeader
     {
@@ -27,9 +27,9 @@ namespace JBro::Widget
         std::uint32_t pathBytes = 0;
     };
 
-    // 끌기 시작에서 부른다. `paths` 는 줄바꿈으로 갈린 상대경로 묶음이다.
+    // 끌기 시작(`BeginDragSource` 가 참일 때)에서 부른다. `paths` 는 줄바꿈으로 갈린 상대경로 묶음이다.
     void SetAssetDragPayload(AssetId primary, AssetId paired, const String& paths);
-    // 드롭 대상 안(`BeginDragDropTarget` 이 참일 때)에서 부른다. 놓였으면 참이다.
-    // `paths` 를 주면 상대경로 묶음도 준다.
+    // 받는 자리 안(`BeginDropTarget` 이 참일 때)에서 부른다. 놓였으면 참이다.
+    // `paths` 를 주면 상대경로 묶음도 준다. 위에 있는 동안은 받는 자리를 옅게 칠한다.
     bool AcceptAssetDrop(AssetDragHeader& header, String* paths = nullptr);
 }

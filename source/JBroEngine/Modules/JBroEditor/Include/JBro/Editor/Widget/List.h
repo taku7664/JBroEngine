@@ -5,6 +5,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/DragDrop.h>
 
 #include <JBro/Types/Array.h>
 
@@ -28,6 +29,16 @@ namespace JBro::Widget
         // 기본으로 켜지 않는 이유: 순서 없는 목록에서는 번호가 거짓이 되고,
         // 가로가 빠듯한 목록에서는 내용 폭만 깎는다.
         ListFlagsShowIndex = 1u << 2,
+    };
+
+    // 목록 행을 끄는 꾸러미다(`DragKind::ListReorder`). **어느 목록의 행인지를 함께 싣는다**(D-254) -
+    // 꾸러미 이름은 전역이라, 번호만 실으면 인스펙터에 나란히 있는 다른 목록(구조체 원소 안의 목록까지)의 사이 칸이
+    // 그 번호를 제 원소 번호로 읽어 엉뚱한 원소를 옮긴다.
+    struct ListReorderPayload
+    {
+        // 목록 몸통 창의 Id 다.
+        std::uint32_t owner = 0;
+        int index = -1;
     };
 
     // 맨 아래 "추가" 자리를 부르는 쪽이 그리지 않을 때 쓰는 빈 표시다.
@@ -180,9 +191,11 @@ namespace JBro::Widget
         constexpr float RowHandleWidth = 14.0f;
         constexpr float RowRemoveWidth = 22.0f;
         constexpr float SlotHeight = 3.0f;
-        // 끌어 놓기 꾸러미 이름. 한 목록 안에서만 받아야 하므로 부르는 쪽의
-        // id 아래(`PushID`)에서만 유효하다.
-        constexpr const char* DragPayload = "JBRO_LIST_REORDER";
+        // 이 목록의 몸통이다. 꾸러미가 이 목록의 행에서 왔는지를 이것으로 가린다.
+        const std::uint32_t owner = ImGui::GetCurrentWindow()->ID;
+        ListReorderPayload dragging;
+        const bool draggingOwnRow =
+            ReadDropValue(PeekDrag(DragKind::ListReorder), dragging) && dragging.owner == owner;
 
         int removeIndex = -1;
         int moveFrom = -1;
@@ -196,19 +209,22 @@ namespace JBro::Widget
             const float width = ImGui::GetContentRegionAvail().x;
             ImGui::PushID(slotIndex);
             ImGui::InvisibleButton("##slot", ImVec2(width, SlotHeight));
-            if (ImGui::BeginDragDropTarget())
+            // **남의 목록 행이나 다른 종류(에셋 등)를 끌고 지나갈 때는 받지도 긋지도 않는다.**
+            if (draggingOwnRow && BeginDropTarget())
             {
-                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(DragPayload))
+                const DropPayload payload = AcceptDrop(DragKind::ListReorder, DropFeedback::None);
+                ListReorderPayload row;
+                if (ReadDropValue(payload, row))
                 {
-                    moveFrom = *static_cast<const int*>(payload->Data);
-                    moveTo = slotIndex;
+                    // 떨어뜨릴 자리를 선으로 보여 준다. 없으면 어디로 가는지 모른다.
+                    DrawDropLine(cursor.x, cursor.x + width, cursor.y + SlotHeight * 0.5f);
+                    if (payload.delivered)
+                    {
+                        moveFrom = row.index;
+                        moveTo = slotIndex;
+                    }
                 }
-                // 떨어뜨릴 자리를 선으로 보여 준다. 없으면 어디로 가는지 모른다.
-                ImGui::GetWindowDrawList()->AddLine(
-                    ImVec2(cursor.x, cursor.y + SlotHeight * 0.5f),
-                    ImVec2(cursor.x + width, cursor.y + SlotHeight * 0.5f),
-                    ImGui::GetColorU32(ImGuiCol_DragDropTarget), 2.0f);
-                ImGui::EndDragDropTarget();
+                EndDropTarget();
             }
             ImGui::PopID();
         };
@@ -248,20 +264,19 @@ namespace JBro::Widget
                 dragStyle.PushVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
                 dragStyle.PushVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
                 dragStyle.PushVar(ImGuiStyleVar_WindowRounding, 0.0f);
-                const ImGuiDragDropFlags dragFlags =
-                    ImGuiDragDropFlags_AcceptNoDrawDefaultRect
-                    | ImGuiDragDropFlags_SourceNoHoldToOpenOthers;
-                if (ImGui::BeginDragDropSource(dragFlags))
+                if (BeginDragSource())
                 {
                     dragStyle.Pop();
-                    int source = index;
-                    ImGui::SetDragDropPayload(DragPayload, &source, sizeof(int));
+                    ListReorderPayload source;
+                    source.owner = owner;
+                    source.index = index;
+                    SetDragValue(DragKind::ListReorder, source);
                     {
                         // 끌고 다니는 그림은 만질 수 없어야 한다.
                         DisableScope disable;
                         drawRow(index);
                     }
-                    ImGui::EndDragDropSource();
+                    EndDragSource();
                 }
             }
             ImGui::SetCursorPos(bodyStart);
