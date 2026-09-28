@@ -475,8 +475,9 @@ namespace JBro
         const System::DebugDrawSystem* GetDebugDraw() const;
         std::uint64_t GetRandomSeed() const;
 
-        bool RequestCanvasView(
-            const Extent2D& extent, float centerX, float centerY, float orthographicSize, bool screenSpace = false);
+        // `focusObject` 는 캔버스 뷰가 들어가 있는 오브젝트다(D-252). 있으면 나머지가 흰 막에 가려진다.
+        bool RequestCanvasView(const Extent2D& extent, float centerX, float centerY, float orthographicSize,
+            bool screenSpace = false, InstanceId focusObject = InvalidInstanceId);
         // 게임이 쓰는 화면 기준이다(D-237): 프로젝트의 기준 해상도와 게임 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
         // 게임 카메라가 `PixelPerfect` 면 그 레터박스 사각형도 걸려 있다(D-239) - 게임이 쓰는 것과 같은 함수로 건다.
         ScreenSpaceFrame GetGameScreenSpace() const;

@@ -113,7 +113,21 @@ namespace JBro::Internal
             bool screenSpace = false;
             ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
             bool anyScaleMode = true;
+            // 있으면 이 오브젝트와 그 자손의 아이템만 넣는다(D-252). 캔버스 뷰가 흰 막 위에 들어간 오브젝트를 다시 그릴 때다.
+            InstanceId focus = InvalidInstanceId;
         };
+
+        bool IsInFocus(const GameObject* owner, InstanceId focus)
+        {
+            for (const GameObject* at = owner; at != nullptr; at = at->GetParent())
+            {
+                if (at->GetInstanceId() == focus)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         bool PushSprites(const RenderWorld2D& world, Renderer& renderer, bool editorView, const SpriteFilterRule& rule,
             std::size_t first = 0, std::size_t last = static_cast<std::size_t>(-1))
@@ -135,6 +149,10 @@ namespace JBro::Internal
                         continue;
                     }
                     if (item.screenSpace != rule.screenSpace || (false == rule.anyScaleMode && item.scaleMode != rule.scaleMode))
+                    {
+                        continue;
+                    }
+                    if (rule.focus != InvalidInstanceId && false == IsInFocus(item.owner, rule.focus))
                     {
                         continue;
                     }
@@ -238,7 +256,26 @@ namespace JBro::Internal
         // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 안 된다.
         SpriteFilterRule rule;
         rule.screenSpace = view.screenSpace;
-        const bool accepted = PushSprites(world, renderer, true, rule);
+        bool accepted = PushSprites(world, renderer, true, rule);
+        // **들어가 있으면 나머지를 흰 막으로 가린다**(D-252, 기존 캔버스 뷰의 포커스 오버레이). 장면을 다 그리고, 화면을 덮는
+        // 반투명 흰 사각형을 얹고, 들어간 오브젝트와 그 자손만 그 위에 한 번 더 그린다 - 렌더러는 낸 순서대로 그린다.
+        // 막은 텍스처 없는 스프라이트라 흰색이고 틴트의 알파가 짙기다. 뒤의 오브젝트에 가린 조각도 막 위로 올라와 다 보인다.
+        if (view.focusObject != InvalidInstanceId)
+        {
+            constexpr float VeilOpacity = 0.7f;
+            const float halfHeight = view.orthographicSize;
+            const float halfWidth = halfHeight * static_cast<float>(view.extent.width) / static_cast<float>(view.extent.height);
+            SpriteSubmit veil;
+            veil.world.linear[0] = halfWidth * 2.0f;
+            veil.world.linear[3] = halfHeight * 2.0f;
+            veil.world.translation[0] = view.centerX;
+            veil.world.translation[1] = view.centerY;
+            veil.tint[3] = VeilOpacity;
+            accepted = renderer.SubmitSprite(veil) && accepted;
+            SpriteFilterRule focused = rule;
+            focused.focus = view.focusObject;
+            accepted = PushSprites(world, renderer, true, focused) && accepted;
+        }
         // 디버그 선은 월드 좌표라 월드 보기에만 그린다(D-243).
         if (debugDraw != nullptr && view.debugDraw && false == view.screenSpace)
         {

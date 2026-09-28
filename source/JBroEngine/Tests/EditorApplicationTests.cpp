@@ -7561,12 +7561,29 @@ namespace
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == body, "clicking the arm selects the body while not inside it");
         waitOutDoubleClick();
+        // **들어가면 카메라가 그리로 간다**(D-252). 누를 자리는 카메라가 다 온 뒤 다시 잰다.
+        const auto spotAt = [&](float worldX, float worldY) {
+            for (int frame = 0; frame < 90; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must let the camera arrive");
+            }
+            float x = 0.0f;
+            float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must map world to screen");
+            Spot spot;
+            spot.x = static_cast<int>(x);
+            spot.y = static_cast<int>(y);
+            return spot;
+        };
 
         // 두 번 눌러 몸 안으로 들어간다. 그 뒤 팔을 한 번 누르면 팔이 골라진다.
         ClickAt(editor, hwnd, onArm);
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == body, "a double-click steps inside the body and keeps it selected");
-        waitOutDoubleClick();
+        onArm = spotAt(-2.0f, -2.0f);
+        onBody = spotAt(0.0f, 0.0f);
+        // 빈 곳은 몸과 팔 사이의 아래다. 몸과 팔의 기즈모 손잡이는 오른쪽·위로 선다.
+        empty = spotAt(0.5f, -2.5f);
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == arm, "inside the body, clicking the arm selects the arm");
         // 고르기는 뗀 프레임의 뒤쪽에서 일어난다. 테두리가 새 선택을 두른 그림은 그다음 프레임이다.
@@ -7619,10 +7636,181 @@ namespace
         waitOutDoubleClick();
         ClickAt(editor, hwnd, onBody);
         ClickAt(editor, hwnd, onBody);
-        waitOutDoubleClick();
+        onArm = spotAt(-2.0f, -2.0f);
         ClickAt(editor, hwnd, onArm);
         Check(editor.GetSelectedObject() == arm,
             "double-clicking the middle of the body steps inside it, gizmo or no gizmo");
+
+        editor.Shutdown();
+    }
+
+    // **두 번 눌러 들어가면 카메라가 그리로 줌해 가고, 나머지는 흰 막에 가린다**(D-252, 기존 `FocusOnEntity` 와 포커스 오버레이).
+    // 편집 카메라는 **부드럽게 따라간다** - 손짓이 바꾸는 것은 가려는 카메라이고, 그리는 카메라는 몇 프레임에 걸쳐 온다.
+    // 셋 다 화면에서 잰다: 한 유닛이 몇 픽셀인가(배율)와, 들어가지 않은 오브젝트의 픽셀이 옅어졌는가(막).
+    void TestSteppingInsideFramesTheObjectAndVeilsTheRest()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 800;
+        config.windowHeight = 600;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the stepping-inside veil not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "FocusVeilProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        // 파란 몸(2 x 2, 원점)으로 들어가고, 빨간 이웃(2 x 2, 오른쪽)은 밖에 남는다.
+        JBro::Canvas* canvas = editor.GetCanvas();
+        const auto makeSquare = [&](const char* tag, JBro::Vector2 position, JBro::Color tint) {
+            JBro::GameObject* object = canvas->CreateObject(tag);
+            auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
+            auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
+            Check(transform != nullptr && sprite != nullptr, "the square needs a transform and a sprite");
+            transform->position = position;
+            sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+            sprite->size = JBro::Vector2{2.0f, 2.0f};
+            sprite->tint = tint;
+            return object;
+        };
+        JBro::GameObject* body = makeSquare("Body", JBro::Vector2{0.0f, 0.0f}, JBro::Color{0.0f, 0.0f, 1.0f, 1.0f});
+        makeSquare("Neighbour", JBro::Vector2{1.8f, 0.0f}, JBro::Color{1.0f, 0.0f, 0.0f, 1.0f});
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        const auto settle = [&]() {
+            // 따라가는 카메라가 다 오고, 두 번 누르기의 시간도 지나간다.
+            for (int frame = 0; frame < 90; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle");
+            }
+        };
+        settle();
+
+        const auto spotAt = [&](float worldX, float worldY) {
+            float x = 0.0f;
+            float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must map world to screen");
+            ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+            Check(view != nullptr && view->ContentRegionRect.Contains(ImVec2(x, y)),
+                "the spot the test reads must lie inside the canvas view");
+            Spot spot;
+            spot.x = static_cast<int>(x);
+            spot.y = static_cast<int>(y);
+            return spot;
+        };
+        const auto unitPixels = [&]() {
+            float x0 = 0.0f;
+            float y0 = 0.0f;
+            float x1 = 0.0f;
+            float y1 = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, x0, y0)
+                    && editor.CanvasViewWorldToScreen(1.0f, 0.0f, x1, y1),
+                "the canvas view must map world to screen");
+            return x1 - x0;
+        };
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must have a renderer");
+        // 두 칸의 색을 읽는다. 몸은 가운데의 기즈모를 피해 왼쪽 아래를, 이웃은 몸과 겹치지 않는 오른쪽을 본다. 둘 다 격자의 축 선(y = 0)을 비킨다.
+        struct Colors
+        {
+            int bodyRed = 0;
+            int bodyBlue = 0;
+            int neighbourRed = 0;
+            int neighbourGreen = 0;
+        };
+        const auto readColors = [&]() {
+            const Spot onBody = spotAt(-0.5f, -0.5f);
+            const Spot onNeighbour = spotAt(1.5f, -0.4f);
+            JBro::Array<std::byte> image;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*renderer, 800, 600, image, readback);
+            const auto at = [&](const Spot& spot) {
+                const std::size_t offset = static_cast<std::size_t>(spot.y) * readback.rowPitch
+                    + static_cast<std::size_t>(spot.x) * 4;
+                return reinterpret_cast<const unsigned char*>(image.Data() + offset);
+            };
+            Colors colors;
+            // 읽은 바이트는 파랑·초록·빨강 순서다.
+            colors.bodyRed = at(onBody)[2];
+            colors.bodyBlue = at(onBody)[0];
+            colors.neighbourRed = at(onNeighbour)[2];
+            colors.neighbourGreen = at(onNeighbour)[1];
+            return colors;
+        };
+
+        const Colors before = readColors();
+        Check(before.bodyBlue > 200 && before.bodyRed < 60, "the body starts out blue");
+        Check(before.neighbourRed > 200 && before.neighbourGreen < 60, "the neighbour starts out red");
+        const float unitBefore = unitPixels();
+
+        // 두 번 눌러 몸 안으로 들어간다.
+        const Spot onBody = spotAt(-0.5f, -0.5f);
+        ClickAt(editor, hwnd, onBody);
+        ClickAt(editor, hwnd, onBody);
+        float goalX = 0.0f;
+        float goalY = 0.0f;
+        float goalSize = 0.0f;
+        editor.GetCanvasViewCamera(goalX, goalY, goalSize);
+        // 몸은 반지름이 1 이라 세로 절반은 그 2.5 배다(기존 `FOCUS_PADDING`). 가려는 카메라는 누른 그 프레임에 거기다.
+        Check(std::fabs(goalX) < 0.01f && std::fabs(goalY) < 0.01f && std::fabs(goalSize - 2.5f) < 0.01f,
+            "stepping inside aims the camera at the body, framing it at 2.5 times its radius");
+        // **그리는 카메라는 아직 가는 중이다.** 곧바로 가 있으면 스무딩이 없는 것이다. 목표는 뗀 프레임의 뒤쪽에서 바뀌므로
+        // 한 프레임을 더 그린 뒤에 잰다.
+        Check(editor.Tick(Frame), "the editor must draw a frame toward the goal");
+        const float unitMoving = unitPixels();
+        settle();
+        const float unitAfter = unitPixels();
+        Check(unitMoving > unitBefore + 1.0f && unitMoving < unitAfter - 1.0f,
+            "the drawn camera glides toward the goal instead of jumping there");
+        Check(std::fabs(unitAfter - unitBefore * 5.0f / 2.5f) < 1.0f, "and it arrives at the framed size");
+
+        // 들어가 있으면 이웃은 흰 막에 가려 옅어지고, 몸은 막 위에 그대로 그려진다.
+        const Colors inside = readColors();
+        Check(inside.neighbourGreen > 120 && inside.neighbourRed > 200,
+            "the neighbour outside the body is veiled in white");
+        Check(inside.bodyBlue > 200 && inside.bodyRed < 60, "the body stepped into is drawn above the veil");
+        if (JBro::Renderer* shot = editor.GetRenderer())
+        {
+            SaveScreenshot(*shot, 800, 600, "focus_veil");
+        }
+
+        // 휠로 벗어났다가 들어가 있는 몸을 다시 두 번 누르면 제자리로 돌아온다(기존 `OnDoubleClick`).
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(onBody.x, onBody.y));
+        Check(editor.Tick(Frame), "the editor must tick with the pointer on the body");
+        PostMessageW(hwnd, WM_MOUSEWHEEL,
+            MAKEWPARAM(0, static_cast<WORD>(-WHEEL_DELTA * 3)), MAKELPARAM(onBody.x, onBody.y));
+        settle();
+        editor.GetCanvasViewCamera(goalX, goalY, goalSize);
+        Check(goalSize > 3.0f, "three wheel notches must zoom the view out");
+        const Spot bodyAgain = spotAt(-0.5f, -0.5f);
+        ClickAt(editor, hwnd, bodyAgain);
+        ClickAt(editor, hwnd, bodyAgain);
+        editor.GetCanvasViewCamera(goalX, goalY, goalSize);
+        Check(std::fabs(goalSize - 2.5f) < 0.01f && editor.GetSelectedObject() == body,
+            "double-clicking the body you are inside frames it again");
+        settle();
+
+        // 빈 곳을 두 번 누르면 나온다. 막이 걷히고 나온 몸을 비춘다.
+        const Spot empty = spotAt(-1.5f, 1.5f);
+        ClickAt(editor, hwnd, empty);
+        ClickAt(editor, hwnd, empty);
+        Check(editor.GetSelectedObject() == body, "double-clicking empty space steps out and selects the body");
+        editor.GetCanvasViewCamera(goalX, goalY, goalSize);
+        Check(std::fabs(goalX) < 0.01f && std::fabs(goalY) < 0.01f && std::fabs(goalSize - 2.5f) < 0.01f,
+            "stepping out frames the object you came out of");
+        settle();
+        const Colors outside = readColors();
+        Check(outside.neighbourRed > 200 && outside.neighbourGreen < 60, "stepping out lifts the veil");
+
+        // 뿌리에서 빈 곳을 두 번 누르면 나올 곳이 없다. 선택만 빈다.
+        ClickAt(editor, hwnd, empty);
+        ClickAt(editor, hwnd, empty);
+        Check(editor.GetSelectedObject() == nullptr, "double-clicking empty space at the root clears the selection");
 
         editor.Shutdown();
     }
@@ -12130,6 +12318,7 @@ int RunEditorApplicationTests()
     TestImportingAPictureCopiesAndRegistersIt();
     TestNewProjectCreatesAndOpensIt();
     TestTheCanvasViewPicksTheRootUntilYouStepInside();
+    TestSteppingInsideFramesTheObjectAndVeilsTheRest();
     TestCreatedObjectsCarryTheFrameworkTransform();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();

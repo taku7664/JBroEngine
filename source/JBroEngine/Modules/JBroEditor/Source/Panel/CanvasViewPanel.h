@@ -48,10 +48,12 @@ namespace JBro
         bool Is3D() const;
 
         // 화면 한가운데가 보는 월드 좌표와 배율이다. 세션에 저장할 값이라 밖에서도 읽고 쓴다.
+        // **카메라가 가려는 자리다**(D-252). 그리는 카메라는 여기로 부드럽게 따라가고, 이 셋은 손짓한 그 순간의 값이다.
+        // 넣으면 따라가지 않고 곧바로 그 자리다 - 세션을 되살릴 때 날아가는 화면을 보일 까닭이 없다.
         void SetCamera(float centerX, float centerY, float orthographicSize);
-        float GetCameraX() const { return m_centerX; }
-        float GetCameraY() const { return m_centerY; }
-        float GetCameraSize() const { return m_orthographicSize; }
+        float GetCameraX() const { return m_goalX; }
+        float GetCameraY() const { return m_goalY; }
+        float GetCameraSize() const { return m_goalSize; }
 
         // **UI 보기**(D-237). 참이면 화면 레이어만 기준 픽셀 좌표로 보이고 고르며 기준 사각형 안내선을 그린다. 편집 카메라는 보기마다 따로다.
         // 고른 오브젝트의 레이어가 다른 공간이면 보기가 따라 바뀐다.
@@ -157,6 +159,17 @@ namespace JBro
             float& screenX, float& screenY) const;
         void ScreenToWorld(const ViewRect& rect, float screenX, float screenY,
             float& worldX, float& worldY) const;
+        // 위의 것을 주어진 카메라로 잰다. 휠 줌은 그리는 카메라가 아니라 **가려는 카메라**에서 마우스 아래 점을 붙잡는다(D-252) -
+        // 따라가는 도중에 휠을 거듭 돌리면, 그리는 카메라로 잰 점은 칸마다 다른 곳이다.
+        static void ScreenToWorldWith(const ViewRect& rect, float centerX, float centerY, float orthographicSize,
+            float screenX, float screenY, float& worldX, float& worldY);
+        // 그리는 카메라가 가려는 카메라를 따라간다(D-252, 기존 `CAMERA_SMOOTH_SPEED`). 3D 는 곧바로 맞춘다.
+        void FollowCameraGoal(float deltaSeconds);
+        // 이 오브젝트와 그 자손이 차지하는 사각형을 늘려 담는다. 트랜스폼이 하나도 없으면 `any` 가 그대로다.
+        void IncludeTreeBounds(const GameObject& object,
+            float& minX, float& minY, float& maxX, float& maxY, bool& any) const;
+        // 두 번 눌러 들어가거나 나온 오브젝트로 카메라가 줌해 간다(D-252, 기존 `FocusOnEntity`).
+        void FocusCameraOn(const GameObject& object);
         // 이 화면 점에 걸리는 오브젝트. 없으면 nullptr 이다. 앞에 그려지는 것이 먼저 잡힌다.
         GameObject* PickAt(const ViewRect& rect, float screenX, float screenY) const;
 
@@ -209,10 +222,15 @@ namespace JBro
         Array<Vector2> m_outlineScratch;
         Table<InstanceId, PieceCache> m_pieceCache;
 
+        // **그리는 카메라다.** 그림·격자·고르기·기즈모가 모두 이것으로 센다.
         float m_centerX = 0.0f;
         float m_centerY = 0.0f;
         // 화면 세로 절반이 담는 월드 길이다. 게임 카메라의 `orthographicSize` 와 같은 뜻이다.
         float m_orthographicSize = 5.0f;
+        // **가려는 카메라다**(D-252). 팬·줌·맞추기·들어가기는 이것만 바꾸고, 그리는 카메라가 매 프레임 따라온다.
+        float m_goalX = 0.0f;
+        float m_goalY = 0.0f;
+        float m_goalSize = 5.0f;
         // UI 보기(D-237)와, 쉬고 있는 쪽 보기의 편집 카메라다. 보기를 바꾸면 지금 카메라와 맞바꾼다.
         bool m_screenView = false;
         bool m_otherCameraSet = false;

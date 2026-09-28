@@ -3176,8 +3176,8 @@ namespace JBro
         m_canvasViewRequested = false;
     }
 
-    bool EditorApplication::RequestCanvasView(
-        const Extent2D& extent, float centerX, float centerY, float orthographicSize, bool screenSpace)
+    bool EditorApplication::RequestCanvasView(const Extent2D& extent, float centerX, float centerY, float orthographicSize,
+        bool screenSpace, InstanceId focusObject)
     {
         if (false == m_uiEnabled || extent.width == 0 || extent.height == 0
             || false == std::isfinite(centerX) || false == std::isfinite(centerY)
@@ -3203,6 +3203,7 @@ namespace JBro
         m_canvasViewRequest.orthographicSize = orthographicSize;
         m_canvasViewRequest.debugDraw = m_canvasViewDebugDraw;
         m_canvasViewRequest.screenSpace = screenSpace;
+        m_canvasViewRequest.focusObject = focusObject;
         // **캔버스가 지우는 색을 쓴다**(D-186). 편집하는 배경이 게임에서 보일 배경과
         // 달라 보이면, 색을 고르는 일 자체를 화면에서 판단할 수 없다.
         if (const Canvas* canvas = GetCanvas())
