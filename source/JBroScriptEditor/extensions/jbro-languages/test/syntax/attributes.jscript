@@ -1,0 +1,31 @@
+// SYNTAX TEST "source.jscript" "an attribute opens a declaration line"
+script Probe
+{
+    [range(4, 40), category("Field")]
+//  ^ punctuation.definition.attribute.begin.jscript
+//   ^^^^^ entity.other.attribute-name.jscript
+//         ^ constant.numeric.jscript
+//                 ^^^^^^^^ entity.other.attribute-name.jscript
+//                           ^^^^^ string.quoted.double.jscript
+//                                  ^ punctuation.definition.attribute.end.jscript
+    Int FieldRows = 20
+//  ^^^ support.type.primitive.jscript - meta.attribute.jscript
+//      ^^^^^^^^^ variable.other.definition.jscript
+    [name("낙하 간격")]
+//   ^^^^ entity.other.attribute-name.jscript
+//         ^^^^^ string.quoted.double.jscript
+    Float DropInterval = 0.5
+//  ^^^^^ support.type.primitive.jscript
+    [prop] Bool ShowDebug = false
+//  ^^^^^^ meta.attribute.jscript
+//         ^^^^ support.type.primitive.jscript - meta.attribute.jscript
+//              ^^^^^^^^^ variable.other.definition.jscript
+//                          ^^^^^ constant.language.boolean.jscript
+    [autochecknullable(false)]
+//   ^^^^^^^^^^^^^^^^^ entity.other.attribute-name.jscript
+//                     ^^^^^ constant.language.boolean.jscript
+    ref Transform2D home
+//  ^^^ storage.modifier.ref.jscript - meta.attribute.jscript
+//      ^^^^^^^^^^^ entity.name.type.jscript
+//                  ^^^^ variable.other.definition.jscript
+}

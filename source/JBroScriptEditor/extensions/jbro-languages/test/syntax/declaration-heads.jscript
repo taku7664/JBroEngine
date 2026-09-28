@@ -1,0 +1,22 @@
+// SYNTAX TEST "source.jscript" "the head of each declaration kind"
+script Knight : ICombatant, IHealable
+// <------ storage.type.script.jscript
+//     ^^^^^^ entity.name.type.class.jscript
+//            ^ punctuation.separator.inheritance.jscript
+//              ^^^^^^^^^^ entity.other.inherited-class.jscript
+//                        ^ punctuation.separator.comma.jscript
+//                          ^^^^^^^^^ entity.other.inherited-class.jscript
+class Inventory
+// <----- storage.type.class.jscript
+//    ^^^^^^^^^ entity.name.type.class.jscript
+struct DropEntry
+// <------ storage.type.struct.jscript
+//     ^^^^^^^^^ entity.name.type.class.jscript
+interface IDamageable
+// <--------- storage.type.interface.jscript
+//        ^^^^^^^^^^^ entity.name.type.class.jscript
+enum EnemyState
+// <---- storage.type.enum.jscript
+//   ^^^^^^^^^^ entity.name.type.enum.jscript
+{
+}

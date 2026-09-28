@@ -1,0 +1,14 @@
+diff --git a/src/main.ts b/src/main.ts
+index 085290ba..c6a096d4 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -431,6 +431,9 @@ function createDefaultArgvConfigSync(argvConfigPath: string): void {
+ 			'	// Use software rendering instead of hardware accelerated rendering.',
+ 			'	// This can help in cases where you see rendering issues in VS Code.',
+ 			'	// "disable-hardware-acceleration": true',
++			'',
++			'	// Display language of the user interface. Change it and restart to switch.',
++			'	"locale": "ko"',
+ 			'}'
+ 		];
+ 
