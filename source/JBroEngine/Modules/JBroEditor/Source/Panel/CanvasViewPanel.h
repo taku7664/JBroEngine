@@ -150,6 +150,8 @@ namespace JBro
         // 빈 곳에서 끌면 상자가 따라오고, 놓으면 그 안에 **닿은** 것을 모두 고른다
         // (기존 엔진 `CCanvasViewTool` 의 드래그 박스 선택). 상자를 그리는 것도 여기다.
         void HandleBoxSelect(const ViewRect& rect, bool hovered);
+        // 이 오브젝트와 그 자손을 모두 선택에 더한다(D-253).
+        void AddTreeToSelection(GameObject& object);
         void DrawContextMenu(const ViewRect& rect);
         // 고른 것들이 다 보이도록 카메라를 맞춘다. 고른 것이 없으면 캔버스 전체다.
         void FrameSelection();
