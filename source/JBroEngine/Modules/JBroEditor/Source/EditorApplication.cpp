@@ -3859,14 +3859,22 @@ namespace JBro
         // 예전에는 펌프가 먼저 비워서, 엔진 펌프가 집어 간 입력을 UI 가 보지 못한 채
         // 사라졌다. 빠르게 친 글자가 하나씩 빠졌다(`Beta` 가 `Bea` 로 들어갔다).
         m_platform->PumpEvents();
-        const bool pushed = m_ui.PushInput(m_platform->GetInputEvents());
+        // **가이드 포커스가 먼저 거른다**(D-251). ImGui 에 넣은 뒤에는 막을 수 없다 - 에디터 단축키와 캔버스 뷰는 ImGui 의 hover 를
+        // 거치지 않고 키와 버튼을 읽는다. 꺼져 있어도 거친다: 그대로 넘기면서 눌린 버튼을 세야 켠 뒤에도 그 뗌을 넘긴다.
+        m_guideFocus.FilterInput(m_platform->GetInputEvents(), m_filteredInput);
+        const JArrayView<InputEvent> input{ m_filteredInput.Data(), static_cast<std::uint32_t>(m_filteredInput.Size()) };
+        if (m_guideFocus.ConsumeSkipRequest())
+        {
+            m_guideFocus.End();
+        }
+        const bool pushed = m_ui.PushInput(input);
         // **게임도 같은 이벤트를 받는다**(D-214) - 재생 중이고 멈추지 않았으며 지난 프레임에 게임 뷰가 포커스를 가졌으면.
         // 기존 엔진의 `SetViewportActive` 게이트와 같다. 게임 뷰를 떠나는 프레임에는 `FocusLost` 하나를 건네 눌린 키를 뗀다 -
         // 그러지 않으면 W 를 누른 채 인스펙터를 누르면 게임 속 캐릭터가 계속 걷는다.
         const bool gameInput = m_simulationPlaying && false == m_simulationPaused && m_gameViewReported && m_gameViewFocused;
         if (gameInput)
         {
-            m_engine->SubmitHostInput(m_platform->GetInputEvents(), m_gameViewMapping);
+            m_engine->SubmitHostInput(input, m_gameViewMapping);
         }
         else if (m_gameReceivingInput)
         {
@@ -3910,7 +3918,12 @@ namespace JBro
             }
         }
         m_shortcuts->SetFocusedScope(focusedScope);
-        m_shortcuts->ProcessInput(*this, ImGui::GetIO().WantTextInput, IsGameReceivingInput());
+        // 가이드 포커스가 켜진 동안은 돌지 않는다. `SetSuspended` 는 쓰지 않는다 - 키를 새로 잡는 설정 창이 그것을 켜고 끄므로,
+        // 둘이 함께 쓰면 한쪽이 끈 것을 다른 쪽이 풀어 버린다.
+        if (false == m_guideFocus.IsActive())
+        {
+            m_shortcuts->ProcessInput(*this, ImGui::GetIO().WantTextInput, IsGameReceivingInput());
+        }
 
         DrawRootDock(display);
         DrawMainDock(deltaTime);
@@ -4087,6 +4100,16 @@ namespace JBro
     EditorNotifications& EditorApplication::GetNotifications()
     {
         return m_notifications;
+    }
+
+    EditorGuideFocus& EditorApplication::GetGuideFocus()
+    {
+        return m_guideFocus;
+    }
+
+    const EditorGuideFocus& EditorApplication::GetGuideFocus() const
+    {
+        return m_guideFocus;
     }
 
     const EditorNotifications& EditorApplication::GetNotifications() const
@@ -4279,6 +4302,8 @@ namespace JBro
         CancelCanvasLoad();
         // **닫기 전에 적는다.** 닫고 나면 무엇을 보고 있었는지 아는 것이 아무도 없다.
         SaveEditorSession();
+        // 가이드 포커스의 경로는 이 캔버스의 오브젝트 번호를 가리킬 수 있다.
+        m_guideFocus.End();
         // **이 프로젝트를 가리키는 것은 여기서 다 비운다**(D-165). 고른 것·오브젝트 번호·되돌리기 더미는 이 캔버스의
         // 오브젝트를 가리킨다. 예전에는 프로젝트를 바꾸는 쪽(`SwitchToProject`)만 비워, `CloseProject` 를 바로 부른 뒤
         // 다시 열면 옛 번호가 죽은 오브젝트를 가리켰다(테스트가 거기서 죽었다).

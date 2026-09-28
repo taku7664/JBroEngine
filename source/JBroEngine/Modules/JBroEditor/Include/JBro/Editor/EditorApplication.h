@@ -6,6 +6,7 @@
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/EditorSpriteContours.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
@@ -390,6 +391,10 @@ namespace JBro
         // 막는 팝업과 달리 하던 일을 멈추지 않는다. UI 가 꺼져 있어도 쌓이고, 켜지면 뜬다.
         EditorNotifications& GetNotifications();
         const EditorNotifications& GetNotifications() const;
+        // 가이드 포커스다(D-251). 켜져 있는 동안 허용 영역 밖의 입력은 ImGui 에도 게임에도 가지 않고, 에디터 단축키는 돌지 않는다.
+        // Esc 를 누르면 꺼진다. 프로젝트를 닫으면 꺼진다 - 경로가 이 프로젝트의 오브젝트를 가리킨다.
+        EditorGuideFocus& GetGuideFocus();
+        const EditorGuideFocus& GetGuideFocus() const;
         // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
         // 다음 틱이 끝날 때 환경설정 파일에 적힌다.
         EditorShortcutManager& GetShortcuts();
@@ -700,6 +705,9 @@ namespace JBro
         Array<OwnerPtr<EditorPopup>> m_popups;
         PopupHandle m_nextPopupHandle = 1;
         EditorNotifications m_notifications;
+        EditorGuideFocus m_guideFocus;
+        // 가이드 포커스가 거른 이번 프레임의 입력이다. 프레임마다 비우고 다시 채운다 - 용량은 남아 다시 잡지 않는다.
+        Array<InputEvent> m_filteredInput;
         // 브라우저가 찾아가야 할 에셋. 비어 있으면 기다리는 것이 없다(D-193).
         AssetId m_revealInBrowser;
         // 지운 것을 담는 칸의 번호. 같은 이름을 두 번 지워도 서로 덮지 않게 한다(D-191).
