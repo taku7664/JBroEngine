@@ -1559,6 +1559,7 @@ EditorApplication::Tick
 - **D-87. 스크립트 편집기는 Code-OSS 포크 "JBro Script Editor" 이고 `.jscript` 만 다룬다.**
   계획·근거·단계는 [tasks/ide-plan.md](./ide-plan.md) 에 있다. **2026-09-15 에 P0 스파이크를 닫았고 P1(문법 강조
   확장)이 편집기 리포 `F:\Project\JBroScriptEditor` 에 섰다.** 포크 빌드는 아직 없다.
+  **2026-09-29 에 그 리포를 엔진 리포 `source/JBroScriptEditor` 로 합쳤다(D-261).**
   D-60 의 "코드 에디터는 Code-OSS" 를 구체화한다. C++(빌트인 컴포넌트와 C++ 스크립트 경로)은
   Visual Studio 에서 편집하므로 C++ 언어 서비스는 넣지 않는다. C++ 스크립트 경로는 D-56 대로 남는다.
   **JBro 기능은 전부 내장 확장으로 만든다.** 코어 패치는 하되 제품 모양(기본 UI·배치·메뉴)에만
@@ -1572,7 +1573,7 @@ EditorApplication::Tick
   **화면 언어 설정은 씬 에디터와 공유한다.** 둘 다 읽는 파일로 하며(D-60), 그 파일은 씬 에디터에
   사용자 설정 파일이 생길 때 정한다.
   **포크 빌드는 배포할 것이 생길 때 한다.** 그 전에는 확장을 일반 VS Code 에서 개발한다.
-  편집기 리포는 엔진과 분리하고(`JBroScriptEditor`, CLI `jbro-script-editor`), 언어 지식은
+  ~~편집기 리포는 엔진과 분리하고~~(**D-261 이 대체: 엔진 리포 `source/JBroScriptEditor`**)(`JBroScriptEditor`, CLI `jbro-script-editor`), 언어 지식은
   엔진 리포의 `jbroc --lsp` 에 둔다. 그래서 문법 강조 외의 모든 기능이 `jbroc` 을 기다린다.
   기각: 전체 브랜치 포크(매달 병합 충돌), 포크 없이 VSCodium + 확장팩(제품 정체가 없다),
   clangd 로 C++ 편집 지원(범위 밖).
@@ -2922,6 +2923,12 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-261. 스크립트 편집기 리포를 엔진 리포의 `source/JBroScriptEditor` 로 합친다. upstream 체크아웃과 도구는 엔진 리포 밖에 둔다.** (2026-09-29, 사용자 지시: "같은 리포선상에 두는건 별로?", 이어서 "ide브랜치 퍼블릭으로 만들어서 합쳐줘") **D-87 의 "편집기 리포는 엔진과 분리한다" 를 대체한다.**
+  (1) **왜 합치나.** 분리의 이유는 D-87 에도 ide-plan 에도 적혀 있지 않았다. 편집기 리포가 실제로 추적하는 것은 파일 29 개(패치 셋·빌드 스크립트·문법 확장)뿐이고, 무거운 upstream 과 `node_modules` 는 처음부터 ignore 였다. 반면 떨어져 있어서 생기는 비용은 있었다 - `jbroc` 문법이 바뀌면 다른 리포의 TextMate 문법을 따로 맞춰야 했고, 두 리포의 짝을 기록하는 장치가 없었으며, 편집기 리포는 원격이 없어 F: 에만 있었다. 런처가 같은 까닭("엔진 에디터와 항상 같이 배포한다")으로 이미 같은 리포에 있다(D-100, launcher-plan §0).
+  (2) **히스토리는 `git subtree add` 로 가져왔다.** 편집기 리포의 커밋 8 개가 부모로 남는다(`607dc3c` 까지). 옛 리포 `F:\Project\JBroScriptEditor` 는 지우지 않았다 - 그 안의 upstream 체크아웃과 `.toolchain` 을 계속 쓴다.
+  (3) **upstream 과 `.toolchain` 은 환경 변수 `JBRO_EDITOR_WORK` 가 가리키는 엔진 리포 밖 폴더에 둔다.** 체크아웃과 캐시가 수 GB 이고, 엔진 리포는 이름이 ASCII 가 아닌 사용자 폴더 아래의 가득 찬 C: 에 있어 node-gyp 와 upstream 의 긴 경로가 버티지 못한다. 변수가 없으면 스크립트가 멈춘다 - 스크립트 옆으로 되돌아가면 조용히 C: 에 수 GB 를 쓰기 때문이다. 이 기계에서는 옛 리포 자리(`F:\Project\JBroScriptEditor`)를 준다.
+  (4) **실측(2026-09-29)**: 옮긴 자리에서 `npm test`(번역 키·문법 단언 157 개·스냅숏)가 통과한다. `upstream-env.cmd` 는 변수가 없을 때와 체크아웃이 없는 폴더를 줄 때 1 로 끝나고, F: 를 주면 `.toolchain` 의 Node 를 PATH 앞에 둔다. `apply-patches.mjs --check` 는 변수가 없으면 멈추고, F: 를 주면 그쪽 upstream 을 찾는다(이미 패치가 걸려 있어 "local changes" 로 멈춘다 - 걸려 있는 수정은 세 패치 모두 `git apply --reverse --check` 를 통과했다). 포크 빌드와 창 띄우기는 이번에 다시 돌리지 않았다.
 
 - **D-260. 고정 버퍼 문자열은 `JBro::Fixed::String<N>` 이다 - 힙 문자열과 이름은 같고 자리가 다르다.** (2026-09-29, 사용자 지시: "고정 버퍼 문자열도 따로 타입 만들지 말고 String<N> 만들어서", 이어서 "String이랑 String<N>은 이름만 같이 완전 다른 애야. 아예 다른 곳에 있다고") **번호를 D-257 에서 D-260 으로 옮겼다** - 합칠 때마다 main 이 먼저 D-257·D-259 를 썼다(두 번)(커밋 메시지에는 옛 번호가 남아 있다).
   (1) **왜 필요한가.** `char buf[N]` 과 `snprintf` 로 같은 일을 하는 자리가 54 곳이고(`EditorApplication.cpp` 11, `ProjectFile.cpp` 9, `ProjectSettingsPanel.cpp` 8, `CanvasViewPanel.cpp` 8 …), 그 가운데 **49 곳이 반환값을 버린다.** 잘림을 판정하는 곳은 저장소에 하나도 없다 - `Log.cpp` 만 반환값을 보는데 그것도 음수(인코딩 오류)만 본다. 버퍼가 작으면 글자가 조용히 잘리고 아무도 모른다.

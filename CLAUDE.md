@@ -124,7 +124,7 @@
   닫힌 패널·트리를 부모부터 한 칸씩 연다. 기구 `EditorGuideFocus`·`Widget::GuideFocus` 와 내용 `Guide`·`GuideStep`·`EditorGuide` 로 나눈다.
   **다섯 단계가 섰다** - 입력 문·표식·막과 애니메이션·부모부터 열기·가이드 둘(`도움말` → `가이드`). 기존 엔진에 없던 기능이라는 확인과 지금 에디터의 입력·위젯 경로가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4 에 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
-  편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
+  편집기는 `source/JBroScriptEditor` 에 있고(D-261), upstream 체크아웃은 리포 밖 `JBRO_EDITOR_WORK`(이 기계는 `F:\Project\JBroScriptEditor`)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).
   `.jscript` 전용이고 기능은 내장 확장으로, 언어 지식은 `jbroc --lsp` 에 둔다
 

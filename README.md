@@ -35,6 +35,7 @@ source/JBroEngine/
   Localization/      에디터 문구(ko-KR, en-US). jbroc/ 아래는 컴파일러 진단 메시지
 source/JBroLauncher/       런처(C# / WinUI 3). 프로젝트 목록을 관리하고 에디터를 띄운다
 source/JBroLauncher.Tests/ 런처의 순수 로직을 재는 실행 파일
+source/JBroScriptEditor/   스크립트 편집기(Code-OSS 포크)의 코어 패치·빌드 스크립트·문법 확장. upstream 은 리포 밖이다(자기 README)
 docs/
   ProjectRule.md     지켜야 하는 규칙. 코드와 문서가 다르면 이쪽이 맞다
   JBroEngine.drawio.xml  구조 다이어그램 6장. draw.io 에서 연다
