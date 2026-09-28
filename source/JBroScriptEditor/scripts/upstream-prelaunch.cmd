@@ -6,6 +6,6 @@ setlocal
 call "%~dp0upstream-env.cmd"
 if errorlevel 1 exit /b 1
 
-cd /d "%JBRO_EDITOR_ROOT%\upstream"
+cd /d "%JBRO_UPSTREAM%"
 node build/lib/preLaunch.ts
 exit /b %errorlevel%

@@ -9,6 +9,6 @@ echo SDK %WindowsSDKVersion%
 echo VS  %vs2022_install%
 echo LOCALAPPDATA %LOCALAPPDATA%
 
-cd /d "%JBRO_EDITOR_ROOT%\upstream"
+cd /d "%JBRO_UPSTREAM%"
 call npm ci
 exit /b %errorlevel%

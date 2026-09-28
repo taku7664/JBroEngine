@@ -7,5 +7,5 @@ call "%~dp0upstream-env.cmd"
 if errorlevel 1 exit /b 1
 
 set VSCODE_SKIP_PRELAUNCH=1
-call "%JBRO_EDITOR_ROOT%\upstream\scripts\code.bat" --user-data-dir "%JBRO_TOOLCHAIN%\user-data" --extensions-dir "%JBRO_TOOLCHAIN%\extensions" %*
+call "%JBRO_UPSTREAM%\scripts\code.bat" --user-data-dir "%JBRO_TOOLCHAIN%\user-data" --extensions-dir "%JBRO_TOOLCHAIN%\extensions" %*
 exit /b %errorlevel%

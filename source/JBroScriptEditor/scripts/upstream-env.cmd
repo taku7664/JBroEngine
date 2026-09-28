@@ -1,9 +1,12 @@
 @echo off
-rem Sets up the environment for building the upstream Code-OSS checkout in upstream\.
+rem Sets up the environment for building the upstream Code-OSS checkout in %JBRO_EDITOR_WORK%\upstream.
 rem Call it from another script with `call`, then run npm there. It changes the caller's environment.
 rem
-rem Why each line is here is in the engine repo, tasks/ide-plan.md section 4.2.
+rem Why each line is here is in tasks/ide-plan.md section 4.2.
 rem
+rem  - JBRO_EDITOR_WORK: the folder that holds upstream\ and .toolchain\. It lives outside the engine
+rem    repo: the checkout and its caches take several GB, and the engine repo sits under a user folder
+rem    whose name is not ASCII, which node-gyp and long upstream paths do not survive.
 rem  - vcvars64 with SDK 10.0.22621.0: node-gyp picks the newest registered Windows SDK, and on this
 rem    machine 10.0.26100.0 is installed without its headers (specstrings_strict.h is missing).
 rem    node-gyp honours the SDK of an existing developer environment.
@@ -15,9 +18,18 @@ rem    its cache through env-paths, which reads the same variable. Moving only o
 rem    overlay skip silently.
 rem  - The Spectre-mitigated libraries (MSB8040) are a Visual Studio component and cannot be set here.
 
-set "JBRO_EDITOR_ROOT=%~dp0.."
-for %%I in ("%JBRO_EDITOR_ROOT%") do set "JBRO_EDITOR_ROOT=%%~fI"
-set "JBRO_TOOLCHAIN=%JBRO_EDITOR_ROOT%\.toolchain"
+if not defined JBRO_EDITOR_WORK (
+	echo upstream-env: set JBRO_EDITOR_WORK to the folder that holds upstream\ and .toolchain\
+	exit /b 1
+)
+for %%I in ("%JBRO_EDITOR_WORK%") do set "JBRO_EDITOR_WORK=%%~fI"
+set "JBRO_UPSTREAM=%JBRO_EDITOR_WORK%\upstream"
+set "JBRO_TOOLCHAIN=%JBRO_EDITOR_WORK%\.toolchain"
+
+if not exist "%JBRO_UPSTREAM%\package.json" (
+	echo upstream-env: no upstream Code-OSS checkout at %JBRO_UPSTREAM%
+	exit /b 1
+)
 
 if not exist "%JBRO_TOOLCHAIN%\node\node.exe" (
 	echo upstream-env: portable Node is missing at %JBRO_TOOLCHAIN%\node

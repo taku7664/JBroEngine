@@ -1,15 +1,16 @@
-// Applies the core patches in patches/ to the upstream Code-OSS checkout in upstream/, in file-name order.
+// Applies the core patches in patches/ to the upstream Code-OSS checkout in %JBRO_EDITOR_WORK%/upstream,
+// in file-name order. The checkout lives outside the engine repo (see scripts/upstream-env.cmd).
 //
 //   node scripts/apply-patches.mjs           apply every patch
 //   node scripts/apply-patches.mjs --check   only report whether every patch would apply
 //
-// The checkout has to be clean first, so that what ends up in upstream/ is exactly upstream plus the
-// patches. To go back to a clean checkout: git -C upstream checkout -- .
+// The checkout has to be clean first, so that what ends up in it is exactly upstream plus the
+// patches. To go back to a clean checkout: git -C %JBRO_EDITOR_WORK%/upstream checkout -- .
 //
 // All patches go to one `git apply` call. It applies them in the order given and applies nothing
 // when any of them fails, so a half-patched tree is never left behind.
 //
-// Why each patch exists is in the engine repo, tasks/ide-plan.md section 5.2.
+// Why each patch exists is in tasks/ide-plan.md section 5.2.
 
 import { execFileSync } from 'node:child_process';
 import { readdirSync } from 'node:fs';
@@ -17,7 +18,12 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const upstream = join(root, 'upstream');
+const work = process.env.JBRO_EDITOR_WORK;
+if (!work) {
+	console.error('set JBRO_EDITOR_WORK to the folder that holds upstream/ and .toolchain/');
+	process.exit(1);
+}
+const upstream = join(resolve(work), 'upstream');
 const patchDir = join(root, 'patches');
 const checkOnly = process.argv.includes('--check');
 
@@ -37,7 +43,7 @@ if (patches.length === 0) {
 
 const dirty = git(['status', '--porcelain', '--untracked-files=no']).trim();
 if (dirty) {
-	console.error('upstream/ has local changes; run `git -C upstream checkout -- .` first:');
+	console.error(`${upstream} has local changes; run \`git -C "${upstream}" checkout -- .\` first:`);
 	console.error(dirty);
 	process.exit(1);
 }

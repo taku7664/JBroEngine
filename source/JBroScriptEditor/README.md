@@ -1,7 +1,8 @@
 # JBro Script Editor
 
 JBroEngine 의 스크립트 편집기다. Code-OSS 를 얇게 포크하고, JBro 기능은 전부 내장 확장으로 만든다.
-계획과 결정은 엔진 리포의 `tasks/ide-plan.md` 와 `tasks/todo.md` D-87 에 있다.
+엔진 리포의 `source/JBroScriptEditor` 에 있다. 계획과 결정은 `tasks/ide-plan.md` 와 `tasks/todo.md` D-87·D-261 에 있다.
+원래는 따로 있던 로컬 리포 `F:\Project\JBroScriptEditor` 였고, 그 커밋은 `git subtree` 로 히스토리째 들어왔다.
 
 **아직 포크는 없다.** 확장을 먼저 만들고 일반 VS Code 에서 개발·테스트한다.
 upstream Code-OSS 는 패치 없이 빌드해서 띄울 수 있게 해 두었다(아래 "upstream Code-OSS 빌드").
@@ -32,27 +33,32 @@ npm test
 ## upstream Code-OSS 빌드
 
 포크 빌드를 준비하는 단계다. 코어 패치는 아직 적용하지 않고 upstream 을 그대로 빌드해서 띄운다.
-패치 목록과 각 우회의 이유는 엔진 리포 `tasks/ide-plan.md` §4.2 와 §5.2 에 있다.
+패치 목록과 각 우회의 이유는 `tasks/ide-plan.md` §4.2 와 §5.2 에 있다.
+
+**upstream 체크아웃과 도구는 엔진 리포 밖에 둔다.** 둘을 담는 폴더를 환경 변수 `JBRO_EDITOR_WORK` 로 준다
+(이 기계에서는 `F:\Project\JBroScriptEditor`). 체크아웃과 캐시가 수 GB 이고, 엔진 리포는 이름이 ASCII 가 아닌
+사용자 폴더 아래에 있어 node-gyp 와 upstream 의 긴 경로가 버티지 못한다. 변수가 없으면 스크립트는 멈춘다.
 
 | 경로 | 내용 |
 |---|---|
-| `upstream/` | Code-OSS 릴리스 태그의 얕은 클론. 커밋하지 않는다 |
-| `.toolchain/` | 휴대용 Node, node-gyp·Electron·npm 캐시, 임시 폴더, 개발 실행의 사용자 데이터. 커밋하지 않는다 |
-| `scripts/upstream-env.cmd` | 빌드 환경. 아래 스크립트가 `call` 로 부른다 |
+| `%JBRO_EDITOR_WORK%\upstream` | Code-OSS 릴리스 태그의 얕은 클론. 엔진 리포 밖이다 |
+| `%JBRO_EDITOR_WORK%\.toolchain` | 휴대용 Node, node-gyp·Electron·npm 캐시, 임시 폴더, 개발 실행의 사용자 데이터. 엔진 리포 밖이다 |
+| `scripts/upstream-env.cmd` | 빌드 환경. 아래 스크립트가 `call` 로 부르고, `JBRO_UPSTREAM`·`JBRO_TOOLCHAIN` 을 정한다 |
 | `scripts/upstream-npm-ci.cmd` | 의존성 설치 |
 | `scripts/upstream-prelaunch.cmd` | Electron 받기, 컴파일, 내장 확장 받기 |
-| `scripts/upstream-compile.cmd` | 패치로 소스를 바꾼 뒤 다시 컴파일한다. `preLaunch` 는 `upstream\out` 이 있으면 컴파일하지 않는다 |
+| `scripts/upstream-compile.cmd` | 패치로 소스를 바꾼 뒤 다시 컴파일한다. `preLaunch` 는 `%JBRO_UPSTREAM%\out` 이 있으면 컴파일하지 않는다 |
 | `scripts/upstream-launch.cmd` | 다시 빌드하지 않고 띄운다 |
 | `patches/NNNN-이름.patch` | 코어 패치. 파일 하나에 바꾸는 것 하나 |
-| `scripts/apply-patches.mjs` | 깨끗한 `upstream/` 에 패치를 이름 순서대로 적용한다. `--check` 는 적용되는지만 본다 |
+| `scripts/apply-patches.mjs` | 깨끗한 upstream 체크아웃에 패치를 이름 순서대로 적용한다. `--check` 는 적용되는지만 본다 |
 
 처음 한 번:
 
 ```bat
-git clone --depth 1 --branch 1.137.0 https://github.com/microsoft/vscode.git upstream
+set JBRO_EDITOR_WORK=F:\Project\JBroScriptEditor
+git clone --depth 1 --branch 1.137.0 https://github.com/microsoft/vscode.git %JBRO_EDITOR_WORK%\upstream
 ```
 
-`upstream\.nvmrc` 와 같은 판의 Node 를 `.toolchain\node` 에 푼다(nodejs.org 의 `win-x64` zip, `SHASUMS256.txt` 로 해시를 대조한다).
+`%JBRO_EDITOR_WORK%\upstream\.nvmrc` 와 같은 판의 Node 를 `%JBRO_EDITOR_WORK%\.toolchain\node` 에 푼다(nodejs.org 의 `win-x64` zip, `SHASUMS256.txt` 로 해시를 대조한다).
 Visual Studio 에는 C++ 작업과 **"x64/x86용 C++ Spectre 완화 라이브러리(최신 MSVC)"** 개별 구성 요소가 있어야 한다.
 
 ```bat
@@ -64,14 +70,14 @@ scripts\upstream-launch.cmd
 ### 코어 패치
 
 ```bat
-git -C upstream checkout -- .
+git -C %JBRO_EDITOR_WORK%\upstream checkout -- .
 node scripts\apply-patches.mjs
 scripts\upstream-compile.cmd
 ```
 
-패치 하나를 고칠 때는 `upstream/` 에서 직접 고친 뒤 그 패치가 건드리는 파일만 골라 다시 뽑는다
-(`git -C upstream diff -- <파일들> > patches\NNNN-이름.patch`). 패치끼리 같은 파일을 건드리지 않게 둔다.
-뽑은 뒤에는 되돌리고 `apply-patches.mjs` 로 다시 적용해서, 손으로 고친 결과와 같은지 `git -C upstream diff` 로 비교한다.
+패치 하나를 고칠 때는 upstream 체크아웃에서 직접 고친 뒤 그 패치가 건드리는 파일만 골라 다시 뽑는다
+(`git -C %JBRO_EDITOR_WORK%\upstream diff -- <파일들> > patches\NNNN-이름.patch`). 패치끼리 같은 파일을 건드리지 않게 둔다.
+뽑은 뒤에는 되돌리고 `apply-patches.mjs` 로 다시 적용해서, 손으로 고친 결과와 같은지 `git -C %JBRO_EDITOR_WORK%\upstream diff` 로 비교한다.
 
 | 패치 | 상태 |
 |---|---|
@@ -89,7 +95,7 @@ scripts\upstream-compile.cmd
 
 ## 문법이 덮는 범위
 
-엔진 리포 `tasks/jbroscript-syntax.md` 를 따른다(2026-09-17 기준). 그 문서의 [제안] 항목(예약어 목록, `is not null`,
+`tasks/jbroscript-syntax.md` 를 따른다(2026-09-17 기준). 그 문서의 [제안] 항목(예약어 목록, `is not null`,
 `switch`/`case`, 생성자 모양)도 칠한다. 바뀌면 문법 파일을 고치면 된다.
 
 - **예약어**는 문서 §2.1 목록이다. 타입이나 이름 자리에 오지 못하므로 `return total`·`is not null` 이 선언으로 칠해지지 않는다.
