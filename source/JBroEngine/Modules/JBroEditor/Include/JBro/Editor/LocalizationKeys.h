@@ -170,6 +170,7 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorNoComponentTypes = "inspector.no_component_types";
     inline constexpr const char* InspectorUnregisteredType = "inspector.unregistered_type";
     inline constexpr const char* InspectorUnknownComponent = "inspector.unknown_component";
+    inline constexpr const char* InspectorUnresolvedComponent = "inspector.unresolved_component";
     inline constexpr const char* InspectorUndrawableType = "inspector.undrawable_type";
     inline constexpr const char* InspectorTooDeep = "inspector.too_deep";
     inline constexpr const char* InspectorTooLong = "inspector.too_long";

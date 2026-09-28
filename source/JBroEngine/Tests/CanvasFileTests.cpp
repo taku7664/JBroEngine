@@ -990,7 +990,7 @@ namespace
                 "what it did not say must keep the value the code gives it");
         }
 
-        // 이 엔진에 없는 컴포넌트.
+        // 이 엔진에 없는 컴포넌트는 멈추지 않고 들고 있는다(D-264). 되쓰는 것은 TestAnUnknownComponentIsKeptAsWritten 이 본다.
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
             JBro::String text(
@@ -1007,9 +1007,10 @@ namespace
                 "    Components:\n"
                 "      - Type: Component::Light2D\n"
                 "        IsEnabled: true\n");
-            Check(false == Load(canvas, text, error),
-                "a component this engine does not have must stop the read");
-            Check(error.typeName == "Component::Light2D", "and name that type");
+            Check(Load(canvas, text, error),
+                "a component this engine does not have must not stop the read");
+            Check(canvas.GetObjectCount() == 1 && canvas.GetUnresolvedComponentCount() == 1,
+                "the object opens and the unknown component is kept beside it");
         }
 
         // 나열의 개수가 맞지 않는 경우. 순서가 전부이므로 어느 자리가 어느 축인지 알 수 없다.
@@ -1079,6 +1080,68 @@ namespace
     }
 
     // **폴리곤 콜라이더의 꼭짓점과 표면·거르기 값이 저장했다 열어도 그대로다**(D-199). 내장 컴포넌트의 첫 배열 필드다.
+    // **모르는 컴포넌트는 읽은 그대로, 같은 자리에 되쓴다**(D-264). 스크립트 DLL 을 아직 빌드하지 않은 프로젝트가 캔버스를 열고
+    // 저장해도 스크립트 값이 남아야 한다. 버리면 다음 저장이 그 값을 지우고, 멈추면 캔버스를 열 길이 없다.
+    void TestAnUnknownComponentIsKeptAsWritten()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* object = canvas.CreateObject("Scripted");
+            canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            canvas.AttachComponent<JBro::Component::Camera2D>(object);
+            text = Save(canvas);
+        }
+        // 두 빌트인 사이와 맨 앞에 끼운다. 맵·나열·빈 글자까지 담아 모양이 그대로 오는지 본다.
+        const char* const first = "      - Type: Component::Transform2D\n";
+        const char* const second = "      - Type: Component::Camera2D\n";
+        const std::size_t firstAt = text.find(first);
+        Check(firstAt != JBro::String::npos && text.find(second) != JBro::String::npos, "the fixture saved both built-ins");
+        text.insert(text.find(second),
+            "      - Type: Game::Missing\n"
+            "        IsEnabled: false\n"
+            "        Speed: 2.5\n"
+            "        Label: \"\"\n"
+            "        Path:\n"
+            "          - 1\n"
+            "          - 2\n"
+            "        Inner:\n"
+            "          Name: x\n"
+            "          Empty:\n"
+            "            []\n");
+        text.insert(firstAt,
+            "      - Type: Game::Leading\n"
+            "        IsEnabled: true\n");
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        LoadOrFail(canvas, text);
+        Check(canvas.GetUnresolvedComponentCount() == 2, "both unknown components are kept");
+        JBro::GameObject* object = nullptr;
+        canvas.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        Check(object != nullptr && object->GetComponents().Size() == 2, "the known components still attach");
+
+        const JBro::String again = Save(canvas);
+        if (again != text)
+        {
+            std::cout << "read:" << std::endl << text.c_str() << "written back:" << std::endl << again.c_str();
+            Check(false, "an unknown component must be written back as it was read, in the same place");
+        }
+
+        // 게임에는 그 컴포넌트가 없다. 조용히 묶으면 게임에서 스크립트 하나가 사라진다.
+        JBro::String packed("not touched");
+        JBro::CanvasFileError error;
+        Check(false == JBro::WriteCanvasText(canvas, packed, error, JBro::CanvasWriteMode::Package),
+            "a game must not be packed with a component this engine does not know");
+        Check(error.typeName == "Game::Leading" && error.objectName == "Scripted", "and the refusal names it");
+
+        Check(canvas.DestroyObject(object), "the object goes");
+        canvas.FlushPendingDestroy();
+        Check(canvas.GetUnresolvedComponentCount() == 0, "and takes what was kept for it along");
+    }
+
     void TestAPolygonColliderMakesTheRoundTrip()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
@@ -1203,6 +1266,7 @@ int RunCanvasFileTests()
     TestScreenLayersComeBack();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
+    TestAnUnknownComponentIsKeptAsWritten();
     TestAPolygonColliderMakesTheRoundTrip();
     TestA3DSceneMakesTheRoundTripToo();
     TestEditorHiddenIsSavedButNotPacked();

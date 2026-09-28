@@ -7,6 +7,7 @@
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
+#include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Framework2D/BuiltinComponentProperties2D.h>
@@ -18,6 +19,8 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/Component.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/GameScriptBase.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/ComponentSnapshot.h>
@@ -219,9 +222,8 @@ namespace
         }
     }
 
-    // 프로퍼티를 등록하지 않은 컴포넌트다. **스크립트가 실제로 이렇다** -
-    // `Canvas::AttachScript` 가 붙인 것도 `GetComponents()` 에 들어오는데,
-    // 리플렉션 표는 없다.
+    // 프로퍼티를 등록하지 않은 컴포넌트다. 처음에는 **스크립트가 실제로 이랬다** - `Canvas::AttachScript` 가 붙인 것도
+    // `GetComponents()` 에 들어오는데 리플렉션 표는 없었다. 지금은 `RegisterScriptType` 이 표도 등록한다(cpp-script-plan §3.1).
     class UnreflectedProbe final : public JBro::ComponentBase
     {
     public:
@@ -234,6 +236,24 @@ namespace
         {
             return JBro::MakeStableTypeId(StaticTypeName());
         }
+    };
+
+    // 호스트 안에서 등록한 스크립트다. 스크립트 DLL 이 로드 때 하는 등록(`RegisterScriptType`)과 같은 길을 탄다.
+    class EditorScriptProbe final : public JBro::GameScriptBase
+    {
+        JBRO_REFLECT_BODY(EditorScriptProbe)
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::EditorScriptProbe";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_FIELD(float, Speed) = 1.0f;
     };
 
     void RegisterOnce()
@@ -957,7 +977,7 @@ namespace
         const JBro::EditorObjectId sourceId = ids.Track(parent);
 
         JBro::ObjectTreeSnapshot tree;
-        Check(tree.Capture(ids, *parent), "the tree must be captured");
+        Check(tree.Capture(canvas, ids, *parent), "the tree must be captured");
         Check(tree.objects.Size() == 2 && tree.objects[1].parentIndex == 0,
             "flattened with the child pointing at its parent");
         JBro::Array<JBro::ObjectTreeSnapshot> clipboard;
@@ -2274,7 +2294,7 @@ namespace
             "the anchor comes back under its old object number and the reference finds it again");
 
         JBro::ObjectTreeSnapshot tree;
-        Check(tree.Capture(ids, *rig), "the rig is captured");
+        Check(tree.Capture(canvas, ids, *rig), "the rig is captured");
         JBro::Array<JBro::ObjectTreeSnapshot> clipboard;
         clipboard.Add(tree);
         auto paste = JBro::MakeOwnerPtr<JBro::PasteObjectsCommand>(canvas, ids, clipboard, JBro::InvalidEditorObjectId);
@@ -2293,6 +2313,90 @@ namespace
         Check(toInside->connectedObject.GetInstanceId() == inside->GetInstanceId(), "and the source keeps its own");
         Check(commands.Undo() && commands.Redo(), "undo and redo the paste");
         check("after redo the reference still points at the pasted copy");
+    }
+}
+
+namespace
+{
+    // **스크립트도 빌트인과 같은 커맨드로 붙이고 떼고 되돌린다**(cpp-script-plan §3.1). 처음에는 에디터가 빌트인 표만 보아서
+    // 추가 목록에 스크립트가 없었고, 스크립트가 붙은 오브젝트는 값을 뜨지 못해 지우기와 떼기가 막혔다.
+    void TestAScriptIsAddedRemovedAndRestoredLikeAnyComponent()
+    {
+        RegisterOnce();
+        Check(JBro::RegisterScriptType<EditorScriptProbe>(), "the script probe registers");
+        Check(JBro::PropertyRegistry::Lookup(EditorScriptProbe::StaticTypeName()) != nullptr,
+            "registering a script type registers its property table too");
+        Check(false == JBro::RegisterScriptType<EditorScriptProbe>(), "a second registration of the same name is refused");
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::EditorObjectRegistry ids;
+            JBro::EditorCommandManager commands;
+            JBro::GameObject* object = canvas.CreateObject("Scripted");
+            const JBro::EditorObjectId id = ids.Track(object);
+            const JBro::NameId scriptName = JBro::NameTable::Get().Intern(EditorScriptProbe::StaticTypeName());
+
+            JBro::EditorActions::AddComponentList list;
+            JBro::EditorActions::BuildAddComponentList(*object, list);
+            std::size_t listed = list.typeNames.Size();
+            for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+            {
+                if (list.typeNames[index] == scriptName)
+                {
+                    listed = index;
+                }
+            }
+            Check(listed < list.typeNames.Size() && list.addable[listed]
+                    && std::strcmp(list.names[listed], "EditorScriptProbe") == 0,
+                "the add list offers the script under its type name");
+            bool builtinAfter = false;
+            for (std::size_t index = listed + 1; index < list.typeNames.Size(); ++index)
+            {
+                builtinAfter = builtinAfter || JBro::ComponentRegistry::Get().Find(list.typeNames[index]) != nullptr;
+            }
+            Check(false == builtinAfter, "scripts come after the built-ins");
+
+            const auto onlyScript = [&canvas]() -> EditorScriptProbe* {
+                JBro::Array<JBro::GameScriptBase*> scripts;
+                canvas.CollectScripts(scripts);
+                return scripts.Size() == 1 ? static_cast<EditorScriptProbe*>(scripts[0]) : nullptr;
+            };
+            Check(commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(canvas, ids, id, scriptName)),
+                "adding a script goes through the same command");
+            Check(onlyScript() != nullptr, "and attaches it");
+            onlyScript()->Speed = 4.5f;
+
+            Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(canvas, ids, id, onlyScript())),
+                "removing a script goes through");
+            canvas.FlushPendingDestroy();
+            Check(onlyScript() == nullptr, "and takes it off");
+            Check(commands.Undo() && onlyScript() != nullptr && onlyScript()->Speed == 4.5f,
+                "undoing the removal brings the script back with its value");
+
+            Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(canvas, ids, ids.Resolve(id))),
+                "an object holding a script can be deleted");
+            canvas.FlushPendingDestroy();
+            Check(onlyScript() == nullptr, "and its script goes with it");
+            Check(commands.Undo() && onlyScript() != nullptr && onlyScript()->Speed == 4.5f,
+                "undoing the delete brings the script back with its value");
+
+            // 모르는 컴포넌트(D-264)도 지웠다 되돌리면 읽은 그대로 돌아온다.
+            JBro::UnresolvedComponent kept;
+            kept.typeName = "Game::Missing";
+            kept.text = "Type: Game::Missing\nIsEnabled: true\n";
+            kept.position = 1;
+            Check(canvas.AddUnresolvedComponent(ids.Resolve(id), kept), "an unknown component can be kept on the object");
+            Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(canvas, ids, ids.Resolve(id))),
+                "the object is deleted again");
+            canvas.FlushPendingDestroy();
+            Check(canvas.GetUnresolvedComponentCount() == 0, "taking the kept component along");
+            Check(commands.Undo(), "undo runs");
+            const JBro::Array<JBro::UnresolvedComponent>* back = canvas.FindUnresolvedComponents(ids.Resolve(id));
+            Check(back != nullptr && back->Size() == 1 && (*back)[0].text == kept.text && (*back)[0].position == 1,
+                "and bringing it back as it was read");
+        }
+        // 이 시험이 등록한 것을 거둔다. 스크립트 DLL 이 내려갈 때와 같다.
+        JBro::ScriptRegistry::Local().Clear();
+        JBro::PropertyRegistry::ScriptLocal().Clear();
     }
 }
 
@@ -2335,6 +2439,7 @@ int RunEditorObjectCommandTests()
     TestRootsKeepAnOrderOfTheirOwn();
     TestMovingAmongRootsAndOutOfAParentCanBeUndone();
     TestLayersCanBeEditedAndUndone();
+    TestAScriptIsAddedRemovedAndRestoredLikeAnyComponent();
     std::cout << "Editor object command tests passed.\n";
     return 0;
 }

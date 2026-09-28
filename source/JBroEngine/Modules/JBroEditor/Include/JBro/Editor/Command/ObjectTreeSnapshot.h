@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/Command/ComponentSnapshot.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
@@ -40,6 +41,9 @@ namespace JBro
         // 열쇠다. 지우기 되돌리기에서는 instanceId 와 같다.
         InstanceId sourceInstanceId = InvalidInstanceId;
         Array<ComponentSnapshot> components;
+        // 이 엔진이 모르는 컴포넌트다(D-264). 값을 볼 수 없으므로 캔버스 파일이 읽은 원문을 그대로 뜬다 -
+        // 빼면 지웠다 되돌린 오브젝트에서 스크립트 값이 사라지고, 다음 저장이 그것을 파일에서도 지운다.
+        Array<UnresolvedComponent> unresolved;
     };
 
     struct ObjectTreeSnapshot
@@ -48,7 +52,8 @@ namespace JBro
 
         // `root` 와 그 아래 전부를 뜬다. 컴포넌트 하나라도 뜨지 못하면 거짓이고, 그때의
         // 내용은 믿지 않는다 - 반쪽 스냅샷으로 지우거나 붙이면 조용히 잃는다.
-        bool Capture(EditorObjectRegistry& registry, GameObject& root);
+        // `canvas` 는 `root` 가 사는 캔버스다. 모르는 컴포넌트(D-264)를 캔버스가 들고 있어 그것까지 뜬다.
+        bool Capture(const Canvas& canvas, EditorObjectRegistry& registry, GameObject& root);
 
         // 나무를 다시 만든다. `outerParent` 아래에 뿌리를 두고(널이면 캔버스 뿌리),
         // `rebind` 가 참이면 옛 번호에 다시 걸고(지우기 되돌리기), 거짓이면 새 번호를 받아
@@ -71,6 +76,6 @@ namespace JBro
         }
 
     private:
-        bool CaptureInto(EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex);
+        bool CaptureInto(const Canvas& canvas, EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex);
     };
 }

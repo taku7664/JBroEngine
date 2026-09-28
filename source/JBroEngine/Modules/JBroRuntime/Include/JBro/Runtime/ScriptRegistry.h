@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Types/NameTable.h>
 #include <JBro/Types/Table.h>
@@ -90,6 +91,16 @@ namespace JBro
         const ScriptTypeInfo* Find(const char* name) const;
         std::size_t GetCount() const;
 
+        // 등록된 타입을 하나씩 준다. 차례는 정해져 있지 않다. 에디터의 컴포넌트 추가 목록이 쓴다.
+        template<typename Fn>
+        void ForEach(Fn&& function) const
+        {
+            for (const auto& entry : m_types)
+            {
+                function(entry.MappedValue);
+            }
+        }
+
     private:
         Table<NameId, ScriptTypeInfo> m_types;
     };
@@ -131,10 +142,22 @@ namespace JBro
 
     // 이름을 표에 넣어 둔다. 호스트가 그 이름으로 스크립트를 붙일 수 있으려면
     // 원문도 필요하다.
+    //
+    // **프로퍼티 표도 함께 넣는다**(cpp-script-plan §3.1). 둘을 따로 부르게 하면 하나를 빠뜨린 스크립트가 붙기는 하는데
+    // 저장·인스펙터·되돌리기가 모두 막힌다. 필드가 없는 타입도 빈 표로 넣는다 - "필드가 없다" 와 "등록하지 않았다" 는 다른 답이다.
+    //
+    // 두 표가 받아 줄지 먼저 본다. 한쪽만 들어간 채로 실패하면 표에서 하나만 빼는 길이 없다(둘 다 `Clear` 로만 비운다).
     template<typename T>
     bool RegisterScriptType()
     {
-        NameTable::Get().Intern(T::StaticTypeName());
-        return ScriptRegistry::Get().Register(MakeScriptTypeInfo<T>());
+        const NameId name = NameTable::Get().Intern(T::StaticTypeName());
+        if (ScriptRegistry::Get().Find(name) != nullptr
+            || PropertyRegistry::Builtin().Find(name) != nullptr
+            || PropertyRegistry::Script().Find(name) != nullptr)
+        {
+            return false;
+        }
+        return ScriptRegistry::Get().Register(MakeScriptTypeInfo<T>())
+            && PropertyRegistry::RegisterScript(name, GetPropertyTable<T>());
     }
 }

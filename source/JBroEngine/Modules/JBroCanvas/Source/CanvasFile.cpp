@@ -82,6 +82,31 @@ namespace JBro
             return true;
         }
 
+        // 모르는 컴포넌트를 읽은 그대로 되쓴다(D-264).
+        bool WriteUnresolvedComponent(
+            YamlWriter& writer,
+            const UnresolvedComponent& kept,
+            CanvasWriteMode mode,
+            CanvasFileError& error)
+        {
+            error.typeName = kept.typeName;
+            if (mode == CanvasWriteMode::Package)
+            {
+                // 게임은 이 컴포넌트 없이 돈다. 조용히 묶으면 빌드는 되고 게임에서 스크립트 하나가 사라진다.
+                return Fail(error, "a component this engine does not know cannot go into a game");
+            }
+            YamlDocument document;
+            YamlError parseError;
+            if (false == document.Parse(kept.text.c_str(), kept.text.size(), parseError)
+                || document.GetKind(document.GetRoot()) != YamlKind::Map)
+            {
+                return Fail(error, "a component this engine does not know could not be written back");
+            }
+            WriteYamlNode(writer, document, document.GetRoot(), nullptr);
+            error.typeName.clear();
+            return true;
+        }
+
         // 부모가 자식보다 먼저 오게 늘어놓는다. 그래야 ParentIndex 가 언제나 자기 앞을
         // 가리키고, 읽는 쪽이 한 번만 훑어도 계층을 세울 수 있다.
         void CollectInOrder(GameObject* object, Array<GameObject*>& ordered)
@@ -215,9 +240,21 @@ namespace JBro
 
             writer.BeginSequence("Components");
             const Array<ComponentSlot>& components = object->GetComponents();
-            for (std::size_t c = 0; c < components.Size(); ++c)
+            // 모르는 컴포넌트는 읽을 때 앞에 있던 컴포넌트 개수 자리에 끼운다. 그 뒤로 컴포넌트를 떼면 자리가 앞당겨진다.
+            const Array<UnresolvedComponent>* kept = canvas.FindUnresolvedComponents(object);
+            const std::size_t keptCount = kept != nullptr ? kept->Size() : 0;
+            std::size_t nextKept = 0;
+            for (std::size_t c = 0; c <= components.Size(); ++c)
             {
-                if (false == WriteComponent(writer, components[c], error))
+                while (nextKept < keptCount && ((*kept)[nextKept].position <= c || c == components.Size()))
+                {
+                    if (false == WriteUnresolvedComponent(writer, (*kept)[nextKept], mode, error))
+                    {
+                        return false;
+                    }
+                    ++nextKept;
+                }
+                if (c < components.Size() && false == WriteComponent(writer, components[c], error))
                 {
                     return false;
                 }
@@ -395,6 +432,7 @@ namespace JBro
             error.objectName = object->GetTag();
 
             const std::uint32_t components = document.Find(entry, "Components");
+            std::uint32_t resolvedCount = 0;
             for (std::size_t c = 0; c < document.GetCount(components); ++c)
             {
                 const std::uint32_t saved = document.GetElement(components, c);
@@ -405,18 +443,35 @@ namespace JBro
                 }
                 error.typeName = typeName;
 
-                const ComponentTypeInfo* info = ComponentRegistry::Get().Find(typeName.c_str());
-                if (info == nullptr)
+                // 빌트인 먼저, 그다음 스크립트다. 프로퍼티 표의 찾는 순서와 같다.
+                ComponentTypeInfo info;
+                if (false == ComponentRegistry::Get().FindAttachable(MakeNameId(typeName.c_str()), info))
                 {
-                    return Fail(error, "this engine has no component by that name");
+                    // **모르는 이름은 멈추지도 버리지도 않는다**(D-264). DLL 을 아직 빌드하지 않은 프로젝트도 캔버스를 연다.
+                    YamlWriter fragment;
+                    for (std::size_t key = 0; key < document.GetCount(saved); ++key)
+                    {
+                        WriteYamlNode(fragment, document, document.GetValue(saved, key), document.GetKey(saved, key));
+                    }
+                    UnresolvedComponent kept;
+                    kept.typeName = typeName;
+                    kept.text = fragment.GetText();
+                    kept.position = resolvedCount;
+                    if (false == canvas.AddUnresolvedComponent(object, std::move(kept)))
+                    {
+                        return Fail(error, "a component this engine does not know could not be kept");
+                    }
+                    error.typeName.clear();
+                    continue;
                 }
-                ComponentBase* component = info->Attach(canvas, object);
+                ComponentBase* component = info.Attach(canvas, object, info.name);
                 if (component == nullptr)
                 {
                     return Fail(error, "a component in this file could not be attached");
                 }
+                ++resolvedCount;
 
-                const PropertyTable* table = PropertyRegistry::Lookup(info->typeId);
+                const PropertyTable* table = PropertyRegistry::Lookup(info.typeId);
                 if (table == nullptr)
                 {
                     return Fail(error, "this component type never registered its properties");

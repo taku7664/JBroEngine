@@ -1519,6 +1519,13 @@ namespace JBro
         {
             return false;
         }
+        // 모르는 컴포넌트는 들고만 있고 돌지 않는다(D-264). 스크립트 DLL 을 빌드하지 않았거나 타입을 지운 것이다.
+        if (const std::size_t unresolved = canvas->GetUnresolvedComponentCount(); unresolved != 0)
+        {
+            Log::Write(LogLevel::Warning, "canvas",
+                "%zu components in this canvas are not known to this engine or the script module; they are kept as saved and do not run",
+                unresolved);
+        }
         m_canvasPath = path;
         return true;
     }
@@ -1572,7 +1579,8 @@ namespace JBro
     bool EditorApplication::CopySelection()
     {
         const Array<GameObject*> roots = GetTopLevelSelectedObjects();
-        if (roots.IsEmpty())
+        const Canvas* canvas = GetCanvas();
+        if (roots.IsEmpty() || canvas == nullptr)
         {
             return false;
         }
@@ -1580,7 +1588,7 @@ namespace JBro
         for (std::size_t index = 0; index < roots.Size(); ++index)
         {
             ObjectTreeSnapshot tree;
-            if (roots[index] == nullptr || false == tree.Capture(m_objectIds, *roots[index]))
+            if (roots[index] == nullptr || false == tree.Capture(*canvas, m_objectIds, *roots[index]))
             {
                 // 하나라도 뜨지 못하면 클립보드를 건드리지 않는다. 반쪽을 붙이게 두지 않는다.
                 return false;

@@ -11,14 +11,14 @@
 
 namespace JBro
 {
-    bool ObjectTreeSnapshot::Capture(EditorObjectRegistry& registry, GameObject& root)
+    bool ObjectTreeSnapshot::Capture(const Canvas& canvas, EditorObjectRegistry& registry, GameObject& root)
     {
         objects.Clear();
-        return CaptureInto(registry, root, -1);
+        return CaptureInto(canvas, registry, root, -1);
     }
 
     bool ObjectTreeSnapshot::CaptureInto(
-        EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex)
+        const Canvas& canvas, EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex)
     {
         ObjectSnapshotEntry entry;
         entry.id = registry.Track(&object);
@@ -48,6 +48,10 @@ namespace JBro
             }
             entry.components.Add(std::move(captured));
         }
+        if (const Array<UnresolvedComponent>* kept = canvas.FindUnresolvedComponents(&object))
+        {
+            entry.unresolved = *kept;
+        }
 
         const std::int64_t self = static_cast<std::int64_t>(objects.Size());
         objects.Add(std::move(entry));
@@ -57,7 +61,7 @@ namespace JBro
         {
             if (GameObject* child = children[index].TryGet())
             {
-                if (false == CaptureInto(registry, *child, self))
+                if (false == CaptureInto(canvas, registry, *child, self))
                 {
                     return false;
                 }
@@ -114,15 +118,23 @@ namespace JBro
             {
                 const ComponentSnapshot& captured = entry.components[c];
                 const char* typeName = NameTable::Get().Resolve(captured.typeId);
-                const ComponentTypeInfo* info = typeName != nullptr
-                    ? ComponentRegistry::Get().Find(typeName)
-                    : nullptr;
-                if (info == nullptr || info->Attach == nullptr)
+                // 스크립트도 찾는다(cpp-script-plan §3.1). 빌트인만 보면 스크립트가 붙은 오브젝트는 지웠다 되돌리지 못한다.
+                ComponentTypeInfo info;
+                if (typeName == nullptr
+                    || false == ComponentRegistry::Get().FindAttachable(MakeNameId(typeName), info)
+                    || info.Attach == nullptr)
                 {
                     return false;
                 }
-                ComponentBase* component = info->Attach(canvas, object);
+                ComponentBase* component = info.Attach(canvas, object, info.name);
                 if (component == nullptr || false == ApplyComponent(*component, captured))
+                {
+                    return false;
+                }
+            }
+            for (std::size_t u = 0; u < entry.unresolved.Size(); ++u)
+            {
+                if (false == canvas.AddUnresolvedComponent(object, entry.unresolved[u]))
                 {
                     return false;
                 }

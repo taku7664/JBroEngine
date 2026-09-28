@@ -5,6 +5,8 @@
 #include <JBro/SaveTypes/Internal/ScriptModuleContext.h>
 #include <JBro/LocalizationTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Reflection/Field.h>
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/TextStore.h>
@@ -22,6 +24,7 @@ namespace
 // 호스트는 그 정의를 보지 못한다 — 그게 이 경로의 요점이다(H5).
     class ProbeRegisteredScript final : public JBro::GameScript2D
 {
+    JBRO_REFLECT_BODY(ProbeRegisteredScript)
 public:
     static constexpr const char* StaticTypeName()
     {
@@ -38,6 +41,10 @@ public:
         m_started = true;
     }
 
+    // 호스트가 이 필드를 표로 읽고 써야 한다 - 캔버스 파일·인스펙터·되돌리기가 모두 이 길이다(cpp-script-plan §3.1).
+    JBRO_FIELD(float, Speed) = 2.5f;
+
+public:
     bool m_started = false;
     // 호스트 쪽 슬롯 크기가 DLL 쪽 sizeof 와 맞는지 보려고 일부러 채운다.
     double m_padding[4] = {1.0, 2.0, 3.0, 4.0};
@@ -46,6 +53,11 @@ public:
 extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetScriptRegistry() noexcept
 {
     return reinterpret_cast<std::uintptr_t>(&JBro::ScriptRegistry::Get());
+}
+
+extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetScriptProperties() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&JBro::PropertyRegistry::Script());
 }
 
 extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScriptSize() noexcept
@@ -128,6 +140,7 @@ extern "C" __declspec(dllexport) std::uint32_t JBroScriptProbe_GetRegisteredScri
         JBro::ScriptRegistry::Bind(nullptr);
         JBro::NameTable::Bind(nullptr);
         JBro::TextStore::Bind(nullptr);
+        JBro::PropertyRegistry::BindScript(nullptr);
         JBro::BindSystemContext({});
         JBro::BindServiceContext({});
         g_loaded = false;

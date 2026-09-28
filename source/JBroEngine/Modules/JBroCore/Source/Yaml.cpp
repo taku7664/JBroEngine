@@ -756,4 +756,37 @@ namespace JBro
         return m_text;
     }
 
+    void WriteYamlNode(YamlWriter& writer, const YamlDocument& document, std::uint32_t node, const char* key)
+    {
+        switch (document.GetKind(node))
+        {
+        case YamlKind::Scalar:
+            if (key != nullptr)
+            {
+                writer.WriteString(key, document.GetText(node));
+            }
+            else
+            {
+                writer.WriteStringItem(document.GetText(node));
+            }
+            return;
+        case YamlKind::Map:
+            writer.BeginMap(key);
+            for (std::size_t index = 0; index < document.GetCount(node); ++index)
+            {
+                WriteYamlNode(writer, document, document.GetValue(node, index), document.GetKey(node, index));
+            }
+            writer.EndMap();
+            return;
+        case YamlKind::Sequence:
+            writer.BeginSequence(key);
+            for (std::size_t index = 0; index < document.GetCount(node); ++index)
+            {
+                WriteYamlNode(writer, document, document.GetElement(node, index), nullptr);
+            }
+            writer.EndSequence();
+            return;
+        }
+    }
+
 }

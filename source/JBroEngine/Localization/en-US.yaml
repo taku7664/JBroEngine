@@ -107,6 +107,7 @@ Entries:
   inspector.no_component_types: no component type has registered itself
   inspector.unregistered_type: this type never registered its properties
   inspector.unknown_component: (unknown component)
+  inspector.unresolved_component: This component could not be found. Its saved values are kept.
   inspector.undrawable_type: (no way to show this type)
   inspector.too_deep: (too deeply nested to edit)
   inspector.too_long: (too long to show)
@@ -152,6 +153,7 @@ Entries:
   component_category.Physics: Physics
   component_category.Audio: Audio
   component_category.UI: UI
+  component_category.Script: Script
   component_category.Components: Components
   asset.none: (None)
   asset.missing: (Missing asset)

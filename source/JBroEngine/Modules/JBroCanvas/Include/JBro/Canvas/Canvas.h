@@ -14,6 +14,7 @@
 #include <JBro/Canvas/SystemScheduler.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Color.h>
+#include <JBro/Types/String.h>
 #include <JBro/Types/Table.h>
 
 #include <cstddef>
@@ -22,6 +23,20 @@
 
 namespace JBro
 {
+    // 캔버스 파일에 있는데 이 엔진이 이름을 모르는 컴포넌트다(cpp-script-plan §3.1, D-264).
+    //
+    // 스크립트 DLL 을 아직 빌드하지 않았거나 그 타입을 지운 프로젝트가 캔버스를 연다. 읽기를 멈추면 그 캔버스를
+    // 열 길이 없고, 버리면 다음 저장이 그 값을 지운다. 그래서 **읽은 그대로 들고 있다가 저장할 때 되쓴다.**
+    // 실행되지 않고 인스펙터에 값이 나오지 않는다 - 그 타입을 아는 코드가 없기 때문이다.
+    struct UnresolvedComponent
+    {
+        String typeName;
+        // 파일의 그 컴포넌트를 맵 하나로 다시 적은 YAML 이다. `Type` 과 `IsEnabled` 도 들어 있다.
+        String text;
+        // 파일에서 이것보다 앞에 있던, 알아본 컴포넌트의 개수다. 저장할 때 같은 자리에 끼운다.
+        std::uint32_t position = 0;
+    };
+
     // 최상위 실행 단위. 오브젝트 풀, 타입별 컴포넌트 풀, 레이어를 직접 소유한다.
     class Canvas final
     {
@@ -134,6 +149,16 @@ namespace JBro
         // 등록되지 않은 이름이면 nullptr 이다.
         GameScriptBase* AttachScript(GameObject* owner, NameId scriptName);
         GameScriptBase* AttachScript(GameObject* owner, const char* scriptName);
+        // 이름으로 붙인 스크립트를 뗀다. 풀 자리까지 돌려준다 - `GameObject::DetachComponent` 만 부르면 슬롯만 빠진다.
+        bool DetachScript(GameObject* owner, GameScriptBase* script);
+
+        // 이 엔진이 모르는 컴포넌트를 오브젝트에 달아 둔다(D-264). 파일 순서대로 더한다 - `position` 이 줄지 않아야 한다.
+        // 오브젝트가 사라지면 함께 사라진다.
+        bool AddUnresolvedComponent(GameObject* owner, UnresolvedComponent component);
+        // 없으면 nullptr 이다.
+        const Array<UnresolvedComponent>* FindUnresolvedComponents(const GameObject* owner) const;
+        // 캔버스 전체에서 몇 개인가. 에디터가 "이 캔버스에 실행되지 않는 컴포넌트가 있다" 고 알리는 데 쓴다.
+        std::size_t GetUnresolvedComponentCount() const;
 
         // 타입을 가리지 않고 살아 있는 스크립트를 전부 모은다(D-45).
         // 어느 풀이 스크립트인지는 AttachComponent<T> 시점에 컴파일 타임으로 정해지므로
@@ -298,6 +323,8 @@ namespace JBro
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
         // 이름으로 붙인 스크립트의 저장소다. 타입마다 하나씩 늦게 만든다.
         Table<NameId, OwnerPtr<ScriptPool>>             m_scriptPools;
+        // 모르는 컴포넌트(D-264). 오브젝트 번호로 찾는다 - 풀 주소는 파괴 뒤 다른 오브젝트가 쓴다.
+        Table<InstanceId, Array<UnresolvedComponent>>   m_unresolvedComponents;
         // 뿌리의 보이는 순서(D-128). `GetRootObjects` 만 이것을 맞추고 읽는다.
         Array<SafePtr<GameObject>>                      m_rootOrder;
         // 맞출 때 "이미 목록에 있는가" 를 재는 자리다. 매번 만들지 않으려고 멤버로 둔다.

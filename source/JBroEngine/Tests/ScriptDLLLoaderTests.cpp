@@ -11,6 +11,8 @@
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/NameTable.h>
@@ -82,6 +84,21 @@ namespace
     JBro::ScriptContextRequirement g_requirements[1]{};
     JBro::ScriptModuleApi g_api{};
 
+    // 등록을 조금 한 뒤 실패하는 모듈이 남기는 타입이다. 호스트가 이것까지 거둬야 한다.
+    class HalfLoadedScript final : public JBro::GameScriptBase
+    {
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Probe::HalfLoaded";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+    };
+
     bool LoadProbeModule(const JBro::ScriptModuleLoadContext* context) noexcept
     {
         if (g_moduleProbe == nullptr || context == nullptr)
@@ -99,6 +116,12 @@ namespace
             g_moduleProbe->receivedExtension =
                 *static_cast<const ProbeExtension*>(extension->Data);
             g_moduleProbe->receivedExtensionBlock = true;
+        }
+        if (false == g_moduleProbe->loadResult)
+        {
+            // 실패하기 전에 호스트 표에 하나씩 넣는다. 실제 모듈도 타입 몇 개를 등록한 뒤 다음 등록에서 실패할 수 있다.
+            context->Scripts->Register(JBro::MakeScriptTypeInfo<HalfLoadedScript>());
+            context->Properties->Register(JBro::MakeNameId(HalfLoadedScript::StaticTypeName()), JBro::PropertyTable{});
         }
         return g_moduleProbe->loadResult;
     }
@@ -267,12 +290,16 @@ namespace
             context.Names = &JBro::NameTable::Local();
             context.Scripts = &JBro::ScriptRegistry::Local();
             context.Texts = &JBro::TextStore::Local();
+            context.Properties = &JBro::PropertyRegistry::ScriptLocal();
             return context;
         };
         Check(JBro::ValidateScriptModuleLoadContext(valid()), "a context with every host table is valid");
         JBro::ScriptModuleLoadContext missing = valid();
         missing.Texts = nullptr;
         Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the text store is refused");
+        missing = valid();
+        missing.Properties = nullptr;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the script property table is refused");
         missing = valid();
         missing.Names = nullptr;
         Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the name table is refused");
@@ -283,8 +310,8 @@ namespace
         missing.Registry = nullptr;
         Check(false == JBro::ValidateScriptModuleLoadContext(missing), "a context without the instance registry is refused");
         missing = valid();
-        missing.StructSize = 64;
-        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "the ABI 4 size is refused");
+        missing.StructSize = 72;
+        Check(false == JBro::ValidateScriptModuleLoadContext(missing), "the ABI 5 size is refused");
     }
 
     void TestRejectsInvalidModuleAbiBeforeCallingModule()
@@ -383,6 +410,10 @@ namespace
             "failed activation must run the module rollback hook exactly once");
         Check(platform.unloadCalls == 1 && false == loader.IsLoaded(),
             "failed activation must release its candidate DLL");
+        // 남기면 사라진 DLL 의 생성 함수와 필드 접근자를 호스트가 들고 있다(cpp-script-plan §3.1).
+        Check(JBro::ScriptRegistry::Local().Find(HalfLoadedScript::StaticTypeName()) == nullptr
+                && JBro::PropertyRegistry::ScriptLocal().Find(HalfLoadedScript::StaticTypeName()) == nullptr,
+            "failed activation must take off what the module registered before it failed");
         Check(events.count == 4
             && events.values[0] == Event::PlatformLoad
             && events.values[1] == Event::ModuleLoad
@@ -676,11 +707,44 @@ namespace
         Check(registered->Construct != nullptr && registered->Destruct != nullptr,
             "a registered type must carry both halves of its lifetime");
 
+        // 필드 표도 호스트 쪽에 선다(cpp-script-plan §3.1). 이것이 없으면 스크립트가 붙은 캔버스를 저장하지 못하고
+        // 인스펙터에 필드가 나오지 않는다.
+        const auto getScriptProperties = reinterpret_cast<ReadAddress>(
+            loader.GetSymbol("JBroScriptProbe_GetScriptProperties"));
+        Check(getScriptProperties != nullptr
+                && getScriptProperties() == reinterpret_cast<std::uintptr_t>(&JBro::PropertyRegistry::ScriptLocal()),
+            "a loaded script DLL must register its property tables into the host table");
+        const JBro::PropertyTable* scriptTable = JBro::PropertyRegistry::Lookup("Probe::RegisteredScript");
+        Check(scriptTable != nullptr && scriptTable->count == 1
+                && std::strcmp(JBro::NameTable::Local().Resolve(scriptTable->properties[0].name), "Speed") == 0,
+            "the host must find the script's field by the name the DLL declared");
+
+        JBro::String savedWithScript;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
             JBro::GameObject* object = canvas.CreateObject("scripted by name");
             JBro::GameScriptBase* script = canvas.AttachScript(object, "Probe::RegisteredScript");
             Check(script != nullptr, "the canvas must attach a script it only knows by name");
+
+            // 스크립트가 붙은 캔버스를 저장하고 다시 연다(cpp-script-plan §3.1). 값은 DLL 이 등록한 접근자로 오간다.
+            const auto speedOf = [scriptTable](JBro::GameScriptBase* owner) {
+                return static_cast<float*>(scriptTable->properties[0].Address(owner));
+            };
+            Check(*speedOf(script) == 2.5f, "the host reads the default the DLL gave the field");
+            *speedOf(script) = 7.25f;
+            JBro::CanvasFileError fileError;
+            Check(JBro::WriteCanvasText(canvas, savedWithScript, fileError),
+                "a canvas holding a script from the DLL must save");
+            {
+                JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+                Check(JBro::ReadCanvasText(reopened, savedWithScript.c_str(), savedWithScript.size(), fileError),
+                    "and open again");
+                JBro::Array<JBro::GameScriptBase*> reopenedScripts;
+                reopened.CollectScripts(reopenedScripts);
+                Check(reopenedScripts.Size() == 1 && *speedOf(reopenedScripts[0]) == 7.25f
+                        && reopened.GetUnresolvedComponentCount() == 0,
+                    "the script comes back as a script, with the value it was saved with");
+            }
             Check(script->GetTypeId() == registered->typeId,
                 "the attached instance must be the type that was registered");
             Check(script->GetInstanceId() != JBro::InvalidInstanceId,
@@ -731,9 +795,26 @@ namespace
             loader.GetSymbol("JBroScriptProbe_GetRevision"));
         Check(getReloadedRevision != nullptr && getReloadedRevision() == 2,
             "reload must execute code from the replacement script DLL");
+        Check(JBro::PropertyRegistry::ScriptLocal().GetCount() == 1
+                && JBro::PropertyRegistry::Lookup("Probe::RegisteredScript") != nullptr,
+            "reload must clear the old property tables and take the replacement's");
         Check(CountShadowLibraries(files) == 1,
             "reload must delete the old shadow DLL before retaining its replacement");
         loader.Unload(platform);
+        // 남기면 표가 사라진 DLL 의 접근자를 가리킨다. 다음 저장이 그것을 부른다.
+        Check(JBro::PropertyRegistry::ScriptLocal().GetCount() == 0 && JBro::ScriptRegistry::Local().GetCount() == 0,
+            "unload must take the DLL's script types and property tables off the host tables");
+        // DLL 이 없는 채로 같은 캔버스를 연다(D-264). 스크립트는 실행되지 않지만 값이 남아 다시 저장해도 그대로다.
+        {
+            JBro::Canvas withoutModule(JBro::CreateDefaultAllocator());
+            JBro::CanvasFileError fileError;
+            JBro::String written;
+            Check(JBro::ReadCanvasText(withoutModule, savedWithScript.c_str(), savedWithScript.size(), fileError)
+                    && withoutModule.GetUnresolvedComponentCount() == 1,
+                "a canvas whose script module is not loaded must still open, keeping the script");
+            Check(JBro::WriteCanvasText(withoutModule, written, fileError) && written == savedWithScript,
+                "and saving it again must keep the script's values");
+        }
         Check(CountShadowLibraries(files) == 0,
             "unload must delete the final shadow DLL");
         Check(GetModuleHandleW(files.dllPath) == nullptr,

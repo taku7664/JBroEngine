@@ -315,17 +315,18 @@ namespace JBro::EditorActions
         // 표는 이름 순으로 나온다. 갈래로 다시 묶되 갈래 안의 이름 순은 그대로 남기려고,
         // 갈래를 처음 만난 차례대로 훑으면서 그 갈래의 것만 골라 담는다. 타입은 몇십 개라
         // 이 자리에 정렬을 들여올 이유가 없다.
-        const Array<const ComponentTypeInfo*> types = registry.CollectTypes();
+        // 스크립트도 담는다(cpp-script-plan §3.1). 스크립트는 빌트인 뒤에 따로 묶인다.
+        const Array<ComponentTypeInfo> types = registry.CollectAttachableTypes();
         for (std::size_t lead = 0; lead < types.Size(); ++lead)
         {
-            const char* category = types[lead]->category != nullptr
-                ? types[lead]->category
+            const char* category = types[lead].category != nullptr
+                ? types[lead].category
                 : ComponentCategory::Default;
             bool seen = false;
             for (std::size_t before = 0; before < lead && false == seen; ++before)
             {
-                const char* other = types[before]->category != nullptr
-                    ? types[before]->category
+                const char* other = types[before].category != nullptr
+                    ? types[before].category
                     : ComponentCategory::Default;
                 seen = std::strcmp(other, category) == 0;
             }
@@ -336,22 +337,22 @@ namespace JBro::EditorActions
             const char* groupLabel = EditorNames::ComponentCategoryLabel(category);
             for (std::size_t index = lead; index < types.Size(); ++index)
             {
-                const char* other = types[index]->category != nullptr
-                    ? types[index]->category
+                const char* other = types[index].category != nullptr
+                    ? types[index].category
                     : ComponentCategory::Default;
                 if (std::strcmp(other, category) != 0)
                 {
                     continue;
                 }
-                const char* name = NameTable::Get().Resolve(types[index]->name);
+                const char* name = NameTable::Get().Resolve(types[index].name);
                 if (name == nullptr)
                 {
                     continue;
                 }
-                out.typeNames.Add(types[index]->name);
+                out.typeNames.Add(types[index].name);
                 out.names.Add(EditorNames::DisplayTypeName(name));
                 out.groups.Add(groupLabel);
-                out.addable.Add(registry.CanAttach(object, types[index]->name));
+                out.addable.Add(registry.CanAttach(object, types[index].name));
             }
         }
     }

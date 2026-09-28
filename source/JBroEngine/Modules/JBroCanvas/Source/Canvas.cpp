@@ -170,6 +170,7 @@ namespace JBro
         }
 
         object->SetParent(nullptr);
+        m_unresolvedComponents.Remove(object->GetInstanceId());
         const InstanceHandle handle = object->m_handle;
         if (false == registry.Unregister(handle))
         {
@@ -734,6 +735,61 @@ namespace JBro
         // 소유 오브젝트와 식별자가 모두 확정된 뒤에 부른다(D-48).
         script->OnAttached();
         return script;
+    }
+
+    bool Canvas::DetachScript(GameObject* owner, GameScriptBase* script)
+    {
+        if (owner == nullptr
+            || script == nullptr
+            || owner->GetCanvas() != this
+            || script->GetOwnerObject() != owner)
+        {
+            return false;
+        }
+        return DestroyComponent(script);
+    }
+
+    bool Canvas::AddUnresolvedComponent(GameObject* owner, UnresolvedComponent component)
+    {
+        if (owner == nullptr || owner->GetCanvas() != this)
+        {
+            return false;
+        }
+        Array<UnresolvedComponent>* kept = m_unresolvedComponents.Find(owner->GetInstanceId());
+        if (kept == nullptr)
+        {
+            if (false == m_unresolvedComponents.TryAdd(owner->GetInstanceId(), Array<UnresolvedComponent>{}))
+            {
+                return false;
+            }
+            kept = m_unresolvedComponents.Find(owner->GetInstanceId());
+        }
+        // 자리가 뒤로 가면 저장이 순서를 뒤섞는다. 되쓰는 쪽은 앞에서부터 한 번만 훑는다.
+        if (kept == nullptr || (false == kept->IsEmpty() && kept->Last().position > component.position))
+        {
+            return false;
+        }
+        kept->Add(std::move(component));
+        return true;
+    }
+
+    const Array<UnresolvedComponent>* Canvas::FindUnresolvedComponents(const GameObject* owner) const
+    {
+        if (owner == nullptr || owner->GetCanvas() != this)
+        {
+            return nullptr;
+        }
+        return m_unresolvedComponents.Find(owner->GetInstanceId());
+    }
+
+    std::size_t Canvas::GetUnresolvedComponentCount() const
+    {
+        std::size_t count = 0;
+        for (const auto& entry : m_unresolvedComponents)
+        {
+            count += entry.MappedValue.Size();
+        }
+        return count;
     }
 
     void Canvas::CollectScripts(Array<GameScriptBase*>& results)

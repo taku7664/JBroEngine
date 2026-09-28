@@ -48,6 +48,14 @@ namespace JBro
             }
             return true;
         }
+
+        // DLL 이 등록한 것을 거둔다. 둘 다 그 DLL 안의 함수 포인터를 든다 - 코드가 사라지기 전에 부른다.
+        // **로드가 실패한 길에서도 부른다.** `Load` 가 타입 몇 개를 등록한 뒤 실패하면 그 항목이 사라진 코드를 가리킨 채 남는다.
+        void ClearModuleTables() noexcept
+        {
+            ScriptRegistry::Local().Clear();
+            PropertyRegistry::ScriptLocal().Clear();
+        }
     }
 
     ScriptDLLLoader::~ScriptDLLLoader()
@@ -150,6 +158,7 @@ namespace JBro
         context.Names = &NameTable::Local();
         context.Scripts = &ScriptRegistry::Local();
         context.Texts = &TextStore::Local();
+        context.Properties = &PropertyRegistry::ScriptLocal();
         context.Extensions = extensions;
         context.ExtensionCount = extensionCount;
         if (false == ValidateScriptModuleLoadContext(context))
@@ -177,6 +186,7 @@ namespace JBro
         }
         if (false == api->Load(&context))
         {
+            ClearModuleTables();
             api->Unload();
             platform.UnloadDynamicLibrary(library);
             return false;
@@ -188,6 +198,7 @@ namespace JBro
         }
         catch (...)
         {
+            ClearModuleTables();
             api->Unload();
             platform.UnloadDynamicLibrary(library);
             return false;
@@ -208,7 +219,8 @@ namespace JBro
         const ScriptModuleApi* api = m_api;
         const DynamicLibrary library = m_library;
         // DLL 이 등록한 타입은 그 DLL 안의 함수 포인터다. 코드가 사라지기 전에 지운다.
-        ScriptRegistry::Local().Clear();
+        // 프로퍼티 표도 같다 - 접근자와 설명서가 모두 DLL 안에 있다(cpp-script-plan §3.1).
+        ClearModuleTables();
         m_api = nullptr;
         m_library = {};
         m_platform = nullptr;

@@ -421,6 +421,28 @@ namespace JBro
             ImGui::PopID();
         }
 
+        // **이 엔진이 모르는 컴포넌트도 보인다**(D-264). 캔버스 파일이 읽은 그대로 들고 있는 것이라 값은 보이지 않는다 -
+        // 아무것도 안 보이면 스크립트가 사라진 줄 알고, 저장하면 사라지는 줄 안다.
+        Canvas* canvas = m_editor->GetCanvas();
+        if (const Array<UnresolvedComponent>* kept = canvas != nullptr ? canvas->FindUnresolvedComponents(object) : nullptr)
+        {
+            for (std::size_t index = 0; index < kept->Size(); ++index)
+            {
+                ImGui::PushID(static_cast<int>(components.Size() + index));
+                const char* typeName = DisplayTypeName((*kept)[index].typeName.c_str());
+                if (Widget::CollapsingSection(typeName != nullptr ? typeName : (*kept)[index].typeName.c_str()))
+                {
+                    Widget::FormLayout layout("##Unresolved");
+                    layout.FullRow([&]() {
+                        Widget::HintTextF("%s",
+                            Loc::TextOr(LocKeys::InspectorUnresolvedComponent,
+                                "This component could not be found. Its saved values are kept."));
+                    });
+                }
+                ImGui::PopID();
+            }
+        }
+
         ImGui::Spacing();
         DrawAddComponent(*object);
     }

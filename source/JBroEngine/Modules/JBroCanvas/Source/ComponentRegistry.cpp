@@ -1,5 +1,7 @@
 ﻿#include <JBro/Canvas/ComponentRegistry.h>
 
+#include <JBro/Runtime/ScriptRegistry.h>
+
 #include <cstring>
 
 namespace JBro
@@ -38,6 +40,97 @@ namespace JBro
         return Find(MakeNameId(name));
     }
 
+    namespace
+    {
+        void FillScriptEntry(const ScriptTypeInfo& script, ComponentTypeInfo& out)
+        {
+            out = ComponentTypeInfo{};
+            out.name = script.name;
+            out.typeId = script.typeId;
+            out.category = ComponentCategory::Script;
+            out.multiplicity = ComponentMultiplicity::Multiple;
+            out.Attach = [](Canvas& canvas, GameObject* owner, NameId name) -> ComponentBase*
+            {
+                return canvas.AttachScript(owner, name);
+            };
+            out.Detach = [](Canvas& canvas, GameObject* owner, ComponentBase* component) -> bool
+            {
+                // 스크립트 풀에서 온 것만 뗀다. 내림 변환은 그 타입이 스크립트 표에 있을 때만 옳다.
+                if (component == nullptr || ScriptRegistry::Get().Find(component->GetTypeId()) == nullptr)
+                {
+                    return false;
+                }
+                return canvas.DetachScript(owner, static_cast<GameScriptBase*>(component));
+            };
+        }
+
+        const char* NameOf(const ComponentTypeInfo& info)
+        {
+            return NameTable::Get().Resolve(info.name);
+        }
+
+        // 이름 자리에 끼워 넣는다. 타입은 수십 개라 이 자리에 정렬을 들여올 이유가 없다.
+        void InsertByName(Array<ComponentTypeInfo>& types, std::size_t from, const ComponentTypeInfo& info)
+        {
+            const char* name = NameOf(info);
+            std::size_t at = types.Size();
+            while (at > from)
+            {
+                const char* previous = NameOf(types[at - 1]);
+                if (previous == nullptr || std::strcmp(previous, name) <= 0)
+                {
+                    break;
+                }
+                --at;
+            }
+            types.Add(info);
+            for (std::size_t index = types.Size() - 1; index > at; --index)
+            {
+                const ComponentTypeInfo moved = types[index - 1];
+                types[index - 1] = types[index];
+                types[index] = moved;
+            }
+        }
+    }
+
+    bool ComponentRegistry::FindAttachable(NameId name, ComponentTypeInfo& out) const
+    {
+        if (const ComponentTypeInfo* builtin = Find(name))
+        {
+            out = *builtin;
+            return true;
+        }
+        if (const ScriptTypeInfo* script = ScriptRegistry::Get().Find(name))
+        {
+            FillScriptEntry(*script, out);
+            return true;
+        }
+        return false;
+    }
+
+    Array<ComponentTypeInfo> ComponentRegistry::CollectAttachableTypes() const
+    {
+        Array<ComponentTypeInfo> types;
+        const Array<const ComponentTypeInfo*> builtins = CollectTypes();
+        for (const ComponentTypeInfo* builtin : builtins)
+        {
+            types.Add(*builtin);
+        }
+        const std::size_t scriptsFrom = types.Size();
+        ScriptRegistry::Get().ForEach([&types, scriptsFrom, this](const ScriptTypeInfo& script)
+        {
+            // 빌트인과 같은 이름이면 빌트인이 이긴다(`FindAttachable` 과 같은 순서). 두 번 보이지 않게 뺀다.
+            if (Find(script.name) != nullptr || NameTable::Get().Resolve(script.name) == nullptr)
+            {
+                return;
+            }
+            ComponentTypeInfo entry;
+            FillScriptEntry(script, entry);
+            InsertByName(types, scriptsFrom, entry);
+        });
+        return types;
+    }
+
     Array<const ComponentTypeInfo*> ComponentRegistry::CollectTypes() const
     {
         Array<const ComponentTypeInfo*> types;
@@ -74,11 +167,12 @@ namespace JBro
 
     bool ComponentRegistry::CanAttach(const GameObject& object, NameId name) const
     {
-        const ComponentTypeInfo* info = Find(name);
-        if (info == nullptr)
+        ComponentTypeInfo found;
+        if (false == FindAttachable(name, found))
         {
             return false;
         }
+        const ComponentTypeInfo* info = &found;
         if (info->multiplicity == ComponentMultiplicity::Multiple)
         {
             return true;

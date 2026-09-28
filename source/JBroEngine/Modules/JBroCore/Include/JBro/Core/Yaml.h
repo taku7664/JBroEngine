@@ -161,4 +161,9 @@ namespace JBro
     // 부동소수를 파일에 적을 모양으로 바꾼다. 기존 엔진처럼 `1` 은 `1` 로, 나머지는
     // 되읽어서 같은 값이 나오는 가장 짧은 표기로 적는다. 로캘을 타지 않는다.
     String FormatFloat(float value);
+
+    // 읽은 문서의 노드 하나를 그 모양 그대로 다시 적는다. `key` 가 nullptr 이면 시퀀스 항목 자리다.
+    // 캔버스 파일이 이 엔진이 모르는 컴포넌트를 읽은 그대로 들고 있다가 되쓰는 데 쓴다(cpp-script-plan §3.1).
+    // 스칼라는 따옴표를 벗긴 원문을 그대로 적는다 - 이 쓰개가 적은 파일은 같은 글자로 돌아온다.
+    void WriteYamlNode(YamlWriter& writer, const YamlDocument& document, std::uint32_t node, const char* key);
 }
