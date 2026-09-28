@@ -94,6 +94,9 @@ namespace JBro
         bool ShowsNext() const noexcept;
         // 이전으로 들어온 단계인가.
         bool IsRevisiting() const noexcept { return m_revisiting; }
+        // **마지막 단계를 해냈고 확인을 기다린다.** 조건이나 대상 누름으로 끝나는 마지막 단계는 해내자마자 닫지 않는다 -
+        // 사람이 결과를 보고 확인을 눌러야 끝난다. 이때 건너뛰기는 없고(건너뛸 것이 없다) 이전은 단계가 정한 대로다.
+        bool IsConfirming() const noexcept { return m_confirming; }
 
         // 한 프레임을 나아간다. 가이드 포커스가 꺼졌으면(Esc) 멈춘다. 경로가 끊긴 단계는 로그를 남기고 건너뛴다.
         void Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action);
@@ -108,6 +111,7 @@ namespace JBro
         std::uint32_t m_step = 0;
         bool m_finished = false;
         bool m_revisiting = false;
+        bool m_confirming = false;
     };
 
     // 에디터에 들어 있는 가이드다.

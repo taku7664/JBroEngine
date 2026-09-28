@@ -427,6 +427,28 @@ namespace JBro
         ++m_popupCount;
     }
 
+    const Rect& EditorGuideFocus::GetPopup(std::uint32_t index) const
+    {
+        assert(index < m_popupCount);
+        return m_popups[index];
+    }
+
+    bool EditorGuideFocus::IsPopupOpen(std::uint32_t index) const noexcept
+    {
+        const bool atTarget = m_path.count > 0 && m_level + 1 == m_path.count;
+        if (false == m_active || false == atTarget || index >= m_popupCount)
+        {
+            return false;
+        }
+        const Seen& target = m_seen[m_level];
+        if (false == target.seen)
+        {
+            // 대상을 아직 못 봤다. 품었는지 알 수 없으니 열지 않는다.
+            return false;
+        }
+        return false == m_popups[index].Contains(target.rect.Center());
+    }
+
     void EditorGuideFocus::ReportBalloon(const Rect& rect)
     {
         m_balloon = rect;
@@ -583,7 +605,10 @@ namespace JBro
         }
         for (std::uint32_t index = 0; index < m_popupCount; ++index)
         {
-            AddAllowedRect(m_popups[index]);
+            if (IsPopupOpen(index))
+            {
+                AddAllowedRect(m_popups[index]);
+            }
         }
         if (m_balloonSeen)
         {

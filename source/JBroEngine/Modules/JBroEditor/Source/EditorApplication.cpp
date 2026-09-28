@@ -3593,8 +3593,12 @@ namespace JBro
             if (m_guide.ShowsNext())
             {
                 balloon.nextLabel = m_guide.GetStepIndex() + 1 == total
-                    ? Loc::TextOr(LocKeys::GuideDone, "Done")
+                    ? Loc::TextOr(LocKeys::GuideDone, "OK")
                     : Loc::TextOr(LocKeys::GuideNext, "Next");
+            }
+            if (m_guide.IsConfirming())
+            {
+                balloon.note = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
             }
         }
         const GuideFocusAction action = Widget::GuideFocus(m_guideFocus, balloon);

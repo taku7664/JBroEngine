@@ -461,6 +461,7 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuHelpGuides = "menu.help_guides";
     inline constexpr const char* GuideNext = "guide.next";
     inline constexpr const char* GuideDone = "guide.done";
+    inline constexpr const char* GuideConfirmNote = "guide.confirm_note";
     inline constexpr const char* GuideSkip = "guide.skip";
     inline constexpr const char* GuideBack = "guide.back";
     inline constexpr const char* GuideBackFirstStep = "guide.back_first_step";

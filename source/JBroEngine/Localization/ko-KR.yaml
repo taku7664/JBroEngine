@@ -393,7 +393,8 @@ Entries:
   menu.help: 도움말
   menu.help_guides: 가이드
   guide.next: 다음
-  guide.done: 완료
+  guide.done: 확인
+  guide.confirm_note: 다 했습니다. 확인을 누르면 가이드를 마칩니다.
   guide.skip: 건너뛰기
   guide.back: 이전
   guide.back_first_step: 첫 단계입니다

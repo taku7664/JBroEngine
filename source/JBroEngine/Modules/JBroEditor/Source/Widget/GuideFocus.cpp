@@ -263,16 +263,13 @@ namespace JBro::Widget
         ImRect holes[MaxHoles];
         std::uint32_t holeCount = 0;
         holes[holeCount++] = hole;
-        if (focus.IsActive())
+        // 경로의 중간 칸이 연 메뉴는 뚫지 않는다 - 그 안의 다음 칸만 구멍이고 나머지 항목은 막이 덮는다.
+        for (std::uint32_t index = 0; index < focus.GetPopupCount() && holeCount < MaxHoles; ++index)
         {
-            const std::uint32_t open = static_cast<std::uint32_t>(context.OpenPopupStack.Size);
-            for (std::uint32_t index = focus.GetPopupBaseline(); index < open && holeCount < MaxHoles; ++index)
+            if (focus.IsPopupOpen(index))
             {
-                const ImGuiWindow* window = context.OpenPopupStack[static_cast<int>(index)].Window;
-                if (window != nullptr && window->WasActive && 0 == (window->Flags & ImGuiWindowFlags_Modal))
-                {
-                    holes[holeCount++] = window->Rect();
-                }
+                const Rect& popup = focus.GetPopup(index);
+                holes[holeCount++] = ImRect(ImVec2(popup.min.x, popup.min.y), ImVec2(popup.max.x, popup.max.y));
             }
         }
 
@@ -348,6 +345,11 @@ namespace JBro::Widget
                 {
                     ImGui::Spacing();
                     WrappedText(balloon.body);
+                }
+                if (balloon.note != nullptr)
+                {
+                    ImGui::Spacing();
+                    HintText(balloon.note);
                 }
                 ImGui::Spacing();
                 bool first = true;

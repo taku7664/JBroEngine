@@ -393,7 +393,8 @@ Entries:
   menu.help: Help
   menu.help_guides: Guides
   guide.next: Next
-  guide.done: Done
+  guide.done: OK
+  guide.confirm_note: Done. Press OK to finish the guide.
   guide.skip: Skip
   guide.back: Back
   guide.back_first_step: This is the first step

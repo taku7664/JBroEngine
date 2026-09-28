@@ -155,6 +155,7 @@ namespace JBro
         m_guide = &guide;
         m_finished = false;
         m_revisiting = false;
+        m_confirming = false;
         if (false == EnterStep(0, editor, focus))
         {
             m_guide = nullptr;
@@ -201,6 +202,7 @@ namespace JBro
             if (TryEnter(index, editor, focus))
             {
                 m_revisiting = false;
+                m_confirming = false;
                 return true;
             }
         }
@@ -210,7 +212,7 @@ namespace JBro
     bool EditorGuide::ShowsSkip() const noexcept
     {
         const GuideStep* step = GetStep();
-        return step != nullptr && step->canSkip;
+        return step != nullptr && step->canSkip && false == m_confirming;
     }
 
     bool EditorGuide::ShowsBack() const noexcept
@@ -227,7 +229,7 @@ namespace JBro
     bool EditorGuide::ShowsNext() const noexcept
     {
         const GuideStep* step = GetStep();
-        return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting);
+        return step != nullptr && (step->canGoNext || step->end == GuideStepEnd::NextButton || m_revisiting || m_confirming);
     }
 
     void EditorGuide::Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action)
@@ -257,6 +259,7 @@ namespace JBro
                 if (TryEnter(index - 1, editor, focus))
                 {
                     m_revisiting = true;
+                    m_confirming = false;
                     return;
                 }
             }
@@ -264,6 +267,16 @@ namespace JBro
         }
         const GuideStep& step = m_guide->steps[m_step];
         const bool nextPressed = action == GuideFocusAction::Next && ShowsNext();
+        if (m_confirming)
+        {
+            // 해낸 뒤다. 확인만 기다린다 - 끊김도 조건도 더 보지 않는다(결과를 보고 있는 사람의 화면이 넘어가면 안 된다).
+            if (nextPressed)
+            {
+                m_finished = true;
+                Stop(focus);
+            }
+            return;
+        }
         bool done = nextPressed;
         // 돌아온 단계는 다음을 기다린다. 조건이 이미 맞아 저절로 넘어가면 이전을 눌러도 제자리로 튕겨 온다.
         if (false == m_revisiting)
@@ -288,6 +301,13 @@ namespace JBro
         }
         if (false == done)
         {
+            return;
+        }
+        const bool last = m_step + 1 >= m_guide->steps.Size();
+        if (last && false == nextPressed && false == broken)
+        {
+            // 마지막 일을 해냈다. 곧바로 닫지 않고 확인을 기다린다.
+            m_confirming = true;
             return;
         }
         if (false == EnterStep(m_step + 1, editor, focus))

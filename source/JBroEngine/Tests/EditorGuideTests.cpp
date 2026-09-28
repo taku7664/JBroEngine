@@ -252,18 +252,57 @@ namespace
         focus.ReportBalloon(balloon);
         focus.Update(Frame);
         Check(false == focus.IsHoleSettled(), "the hole has only begun to move");
-        Check(focus.GetAllowedRectCount() == 3, "the target, the popup the path opened and the balloon are allowed");
+        Check(focus.GetAllowedRectCount() == 2, "the target and the balloon are allowed");
         Check(SameRect(focus.GetAllowedRect(0), Padded(RectA)), "the target is allowed where it is, with its padding");
         const Rect& hole = focus.GetHoleRect();
         Check(hole.min.x < RectA.min.x - 50.0f, "the moving hole is still far wider than the target");
         Check(false == focus.IsAllowed({ hole.min.x + 5.0f, hole.min.y + 5.0f }),
             "and what the moving hole passes over is not pressable");
-        Check(focus.IsAllowed({ 350.0f, 350.0f }) && focus.IsAllowed({ 600.0f, 50.0f }), "inside the popup and the balloon is");
+        Check(focus.IsAllowed({ 600.0f, 50.0f }), "inside the balloon is");
+        Check(false == focus.IsAllowed({ 350.0f, 350.0f }) && false == focus.IsPopupOpen(0),
+            "a popup open while the walk is still on a level along the path is not - only the next level inside it will be");
 
         // 다음 프레임에 보고가 없으면 대상도 없다. 팝업과 말풍선도 이번 프레임 것만 산다.
         focus.BeginFrame();
         focus.Update(Frame);
         Check(focus.GetAllowedRectCount() == 0, "what was not reported this frame is not allowed next frame");
+    }
+
+    // 경로 끝에 닿은 뒤에 열린 팝업(콤보의 목록)만 통째로 열린다. 앞 칸이 연 메뉴는 닫힌 채로 덮인다.
+    void TestOnlyPopupsTheTargetOpensAreOpenToTheUser()
+    {
+        EditorGuideFocus focus;
+        GuideFocusPath path;
+        Check(path.Push(A, GuideFocusOpen::User) && path.Push(B), "the path must take a menu and its item");
+        Check(focus.Begin(path), "the focus must start");
+        const Rect menu{ { 10.0f, 30.0f }, { 150.0f, 200.0f } };
+        const Rect list{ { 300.0f, 300.0f }, { 400.0f, 400.0f } };
+
+        // 사용자가 메뉴를 열었다. 메뉴의 팝업이 떴고 그 안에 B 가 있다.
+        focus.BeginFrame();
+        focus.Report(A, RectA, true, true, false);
+        focus.ReportPopup(menu);
+        focus.Update(Frame);
+        Check(focus.GetLevel() == 1, "opening the menu walks on to its item");
+        focus.BeginFrame();
+        focus.Report(A, RectA, true, true, false);
+        focus.Report(B, RectB, false, true, false);
+        focus.ReportPopup(menu);
+        focus.Update(Frame);
+        Check(false == focus.IsPopupOpen(0), "the menu the path opened is not opened whole");
+        Check(focus.IsAllowed({ 70.0f, 50.0f }), "its next level, the item, is pressable");
+        Check(false == focus.IsAllowed({ 60.0f, 150.0f }), "but not the other items of the menu");
+
+        // 대상 B 가 목록을 열었다(콤보). 그 목록은 통째로 열린다.
+        focus.BeginFrame();
+        focus.Report(A, RectA, true, true, false);
+        focus.Report(B, RectB, false, true, false);
+        focus.ReportPopup(menu);
+        focus.ReportPopup(list);
+        focus.Update(Frame);
+        Check(focus.IsPopupOpen(1), "a popup the target opened is open to the user");
+        Check(focus.IsAllowed({ 350.0f, 350.0f }), "picking inside it is the step's work");
+        Check(false == focus.IsPopupOpen(0), "while the menu under it stays covered");
     }
 
     void TestReportsOutsideThePathOrTwiceAreIgnored()
@@ -566,7 +605,21 @@ namespace
         Check(pick < list.typeNames.Size(), "some component must be addable");
         Check(JBro::EditorActions::AddComponent(editor, *object, list.typeNames[pick]), "the component must attach");
         Tick(editor, 3);
-        Check(false == editor.GetGuide().IsRunning(), "the guide ends when its last step's condition holds");
+        Check(editor.GetGuide().IsRunning() && editor.GetGuide().IsConfirming(),
+            "the last step, once done, waits for OK instead of closing under the user's eyes");
+        Check(false == editor.GetGuide().ShowsSkip() && editor.GetGuide().ShowsNext() && editor.GetGuide().ShowsBack(),
+            "with Back and OK and no Skip");
+        Tick(editor, 30);
+        Check(editor.GetGuide().IsConfirming(), "and keeps waiting");
+        // 목록 밖(말풍선의 빈 곳)을 눌러 목록을 닫고, 확인을 누른다.
+        {
+            const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
+            Check(balloon != nullptr, "the balloon must be up");
+            ClickAt(editor, hwnd, static_cast<int>(balloon->Pos.x + 20.0f), static_cast<int>(balloon->Pos.y + 14.0f));
+            Tick(editor, 2);
+        }
+        Check(ClickBalloonRightmostButton(editor, hwnd), "the balloon's OK button must be found and pressed");
+        Check(false == editor.GetGuide().IsRunning(), "OK ends the guide");
         const char* last = editor.GetNotifications().GetLastTitle();
         Check(last != nullptr && std::strcmp(last, JBro::Loc::TextOr(JBro::LocKeys::GuideFinished, "Guide finished")) == 0,
             "and says so in a notification");
@@ -604,6 +657,16 @@ namespace
         Check(hole.min.y >= menu->Pos.y - EditorGuideFocus::HolePadding - 1.0f
                 && hole.max.y <= menu->Pos.y + menu->Size.y + EditorGuideFocus::HolePadding + 1.0f,
             "the hole sits inside the open menu");
+        // 메뉴의 첫 항목(새 프로젝트)은 구멍 밖이다. 눌리지 않아야 한다.
+        const float firstItemY = menu->Pos.y + ImGui::GetStyle().WindowPadding.y + ImGui::GetFrameHeight() * 0.5f;
+        const float menuX = menu->Pos.x + menu->Size.x * 0.5f;
+        Check(firstItemY < hole.min.y, "the first item of the menu is above the hole, or the next check proves nothing");
+        Check(false == editor.GetGuideFocus().IsAllowed({ menuX, firstItemY }),
+            "the other items of the menu the user opened are not pressable");
+        ClickAt(editor, hwnd, static_cast<int>(menuX), static_cast<int>(firstItemY));
+        Tick(editor, 2);
+        Check(ImGui::GetCurrentContext()->OpenPopupStack.Size == 1, "pressing another item does nothing - the menu is still open");
+        Check(editor.GetGuide().IsRunning() && editor.GetGuideFocus().GetLevel() == 1, "and the guide is where it was");
 
         PostMessageW(hwnd, WM_KEYDOWN, VK_ESCAPE, 0);
         Tick(editor, 1);
@@ -875,6 +938,7 @@ int RunEditorGuideTests()
     TestClosingAWalkedLevelGoesBackToIt();
     TestALevelThatIsNeverDrawnBreaksThePath();
     TestTheAllowedAreaIsWhereTheHoleIsGoingNotWhereItIs();
+    TestOnlyPopupsTheTargetOpensAreOpenToTheUser();
     TestReportsOutsideThePathOrTwiceAreIgnored();
     TestTheVeilFadesInAndOut();
     TestPausingLiftsTheVeilAndOpensTheGate();
