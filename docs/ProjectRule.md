@@ -1489,7 +1489,9 @@
 - [tasks/ide-plan.md](../tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   계획일 뿐 확정 계약이 아니다. 문법 강조 확장과 코어 패치가 `source/JBroScriptEditor` 에 섰고(D-261) 포크 설치본은 아직 없다.
 - [tasks/jbroscript-syntax.md](../tasks/jbroscript-syntax.md) · [tasks/jbroc-rules.md](../tasks/jbroc-rules.md) — JBroScript 문법과
-  컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. `jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.
+  컴파일러 규칙 정리본. 계획이며 확정 계약이 아니다. ~~`jbroc-rules.md` §4 의 멤버 `ref` 변환은 이 문서 §6 과 부딪히는 열린 항목이다.~~
+  D-262 로 멤버에는 핸들만 두게 되어 부딪힘이 사라졌다. `jbroc` 은 렉서·파서에서 멈췄다(D-263).
+- [tasks/cpp-script-plan.md](../tasks/cpp-script-plan.md) — C++ 게임 스크립트 지원 계획(D-263). 계획일 뿐 확정 계약이 아니다.
 - [Jbro Engine Architecture Draft](./Jbro_Engine_Architecture_Draft_v2.md)
 - [Jbro C++ Script Object Safety Draft](./Jbro_CPP_Script_Object_Safety.md)
 

@@ -71,9 +71,14 @@
 - [tasks/jbroscript-plan.md](./tasks/jbroscript-plan.md) — JBroScript(`.jscript`) 언어와 리플렉션 계획(D-56).
   언어는 **미구현**이고 리플렉션(`PropertyInfo`·`JBRO_FIELD`·컨테이너 조작)은 섰다.
   기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
-- [tasks/jbroscript-syntax.md](./tasks/jbroscript-syntax.md) — JBroScript 사용자 문법 정리본. 확정·제안·열림을 항목마다 표시했다
+- [tasks/jbroscript-syntax.md](./tasks/jbroscript-syntax.md) — JBroScript 사용자 문법 정리본. 확정·제안·열림을 항목마다 표시했다.
+  참조와 null 은 D-262 가 다시 정했다(`ref` 는 빌림, null 은 `?` 타입, 자동 null 검사 없음). §13 은 파서가 읽는 옛 예시, §14 가 새 문법이다
 - [tasks/jbroc-rules.md](./tasks/jbroc-rules.md) — 컴파일러 `jbroc` 규칙 정리본(타입체커·이미터·`ref` 변환·빌드·테스트).
-  `Modules/JBroScriptCompiler` 에 렉서와 파서가, `Modules/JBroc` 에 명령줄 실행 파일이 섰다(§11, D-104·D-105)
+  `Modules/JBroScriptCompiler` 에 렉서와 파서가, `Modules/JBroc` 에 명령줄 실행 파일이 섰다(§11, D-104·D-105).
+  **여기서 멈췄다(D-263)** - 새 문법을 읽게 하는 일은 §11.4 에 있다
+- [tasks/cpp-script-plan.md](./tasks/cpp-script-plan.md) — C++ 게임 스크립트 지원 계획(D-263). `jbroc` 보다 먼저 한다.
+  소스 자리는 기존 엔진과 같다(`Contents/`, `Contents/Scripts/`). 기존 엔진 라이브 컴파일은 참고만 하고 모방하지 않는다 - 그 구조와 아팠던 것 C1~C3 이 §1, 지금 엔진에 있는 것과 없는 것(진입점 보일러플레이트·프로젝트 만들기·에디터 빌드·
+  핫 리로드를 거는 곳·오브젝트 만들기)이 §2, 단계(진입점 한 줄·프로젝트·빌드·핫 리로드·API 구멍·3D)가 §3, `[열림]` 이 §4 에 있다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.

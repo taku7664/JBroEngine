@@ -585,7 +585,7 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 | 리포 합치기 | **완료**(2026-09-29, D-261). `source/JBroScriptEditor` 로 subtree, upstream 은 `JBRO_EDITOR_WORK`. 옛 리포 파일은 지웠다 | — | — |
 | P1 문법 강조 | **완료**(2026-09-17 새 문법으로 갱신) | — | — |
 | `jbroc` 렉서·파서 | **완료**(2026-09-17, jbroc-rules §11). 명령줄 `JBroc` 도 섰다(2026-09-18, D-105) - 출력이 `$msCompile` 매처에 걸리는 것을 테스트한다 | — | — |
-| `jbroc` 타입체커·이미터 | 시작 전 | **큼** | §8.3 의 결정 1·2·3 |
+| `jbroc` 타입체커·이미터 | 시작 전. **2026-09-29 에 멈췄다(D-263)** - C++ 스크립트 지원(cpp-script-plan)을 먼저 한다 | **큼** | ~~§8.3 의 결정 1·2~~ D-262 가 없앴다. 남은 것은 §8.3 의 3 과 D-262 의 열린 것(syntax §12 의 6~9번) |
 | P2 에러 표시 | 시작 전 | 작음 | `jbroc` 타입체커 |
 | P3 씬 에디터 연결 | 시작 전 | 작음 | 엔진에 스크립트 DLL 파일 감시가 없다 |
 | P4 자동완성·정의로 이동 | 시작 전 | 중간 | `jbroc` AST, 엔진 함수 선언 표 |
@@ -606,8 +606,8 @@ jbroscript-plan §18.7 을 따른다. 그때까지는 Visual Studio 로 한다.
 
 `jbroc` 의 타입체커와 이미터를 끝까지 만들려면 아래가 정해져야 한다. 셋 다 빡대리가 정한다.
 
-1. 스스로 null 이 될 수 없는 대상을 멤버 `ref` 로 들고 있는 경우(jbroscript-syntax §12 의 1번, jbroc-rules §10 의 1번)
-2. 자동 null 검사로 걸러진 뒤의 동작 — `return`, `if`/`else`, `while`(jbroscript-syntax §12 의 4번)
+1. ~~스스로 null 이 될 수 없는 대상을 멤버 `ref` 로 들고 있는 경우(jbroscript-syntax §12 의 1번, jbroc-rules §10 의 1번)~~ D-262 로 사라졌다
+2. ~~자동 null 검사로 걸러진 뒤의 동작 — `return`, `if`/`else`, `while`(jbroscript-syntax §12 의 4번)~~ D-262 가 자동 검사를 없앴다
 3. 엔진 함수 선언 표(jbroc-rules §7). 대기 중이며, 타입을 컴파일러가 뽑는 방식은 2026-09-15 에 프로브로 확인했다
 
 ### 8.4 권하는 순서
