@@ -884,6 +884,14 @@ namespace JBro
                 m_selectionAnchor = object.SafeFromThis();
             }
         }
+        // **두 번 누르면 캔버스 뷰가 그 안으로 들어간다**(D-254, 기존 `LayerTool` 의 `SetFocusContext`). 어느 층에 들어가 있었든 곧장
+        // 그리로 간다. 고르는 것은 그 줄 하나다 - 계층 창에서는 줄이 곧 오브젝트다.
+        if (rowHovered && false == rowToggled && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+            m_editor->SetSelectedObject(&object);
+            m_selectionAnchor = object.SafeFromThis();
+            m_editor->StepCanvasViewInto(object);
+        }
 
         DrawRowDropTarget(object, parent, indexInParent, row.RowRect);
 

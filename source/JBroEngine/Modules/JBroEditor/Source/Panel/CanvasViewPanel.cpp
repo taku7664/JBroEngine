@@ -1877,26 +1877,18 @@ namespace JBro
         if (m_doubleClick)
         {
             m_doubleClick = false;
-            GameObject* focus = GetFocus();
             if (picked != nullptr)
             {
                 // **두 번 누르면 그 안으로 들어간다.** 그 뒤로는 이것의 직계 자식이 고르는 단위다.
                 // 이미 들어가 있는 오브젝트의 몸을 두 번 눌러도 그것을 고르고 카메라를 다시 맞춘다(기존 `OnDoubleClick`) -
-                // 팬·줌으로 벗어난 뒤 제자리로 돌아오는 손짓이다.
-                if (picked != focus)
-                {
-                    m_focus = m_editor->GetObjectIds().Track(picked);
-                }
-                m_editor->SetSelectedObject(picked);
-                FocusCameraOn(*picked);
+                // 팬·줌으로 벗어난 뒤 제자리로 돌아오는 손짓이다. 새로 들어가면 자손까지 고른다(기존과 같다).
+                StepInto(*picked);
+                SelectPicked(*picked);
             }
-            else if (picked == nullptr && focus != nullptr)
+            else if (GameObject* exited = StepOut())
             {
                 // 빈 곳을 두 번 누르면 **한 층 나온다.** 나온 오브젝트를 골라 두어 어디서 나왔는지 보인다.
-                GameObject* parent = focus->GetParent();
-                m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : 0;
-                m_editor->SetSelectedObject(focus);
-                FocusCameraOn(*focus);
+                SelectPicked(*exited);
             }
             // 뿌리에서 빈 곳을 두 번 누르면 나올 곳이 없다. 선택은 첫 누름이 빈 곳 누르기로 이미 비웠다(기존 `ClearSelection` 과 같은 끝).
             return;
@@ -1910,21 +1902,119 @@ namespace JBro
             return;
         }
         // 계층과 같은 손놀림이다: Ctrl·Shift 는 하나씩 붙였다 뗐다, 맨 클릭은 통째로.
+        // **붙이고 떼는 단위도 자손까지다**(D-254, 기존 `CollectSubtree`). 들어가 있는 오브젝트 자신은 그것 하나다.
         if (io.KeyCtrl || io.KeyShift)
         {
+            const bool alone = picked == GetFocus();
             if (m_editor->IsSelected(picked))
             {
-                m_editor->RemoveFromSelection(picked);
+                if (alone)
+                {
+                    m_editor->RemoveFromSelection(picked);
+                }
+                else
+                {
+                    RemoveTreeFromSelection(*picked);
+                }
+            }
+            else if (alone)
+            {
+                m_editor->AddToSelection(picked);
             }
             else
             {
-                m_editor->AddToSelection(picked);
+                AddTreeToSelection(*picked);
             }
         }
         else
         {
-            m_editor->SetSelectedObject(picked);
+            SelectPicked(*picked);
         }
+    }
+
+    void CanvasViewPanel::SelectPicked(GameObject& picked)
+    {
+        // 누른 것이 주된 선택이다 - 인스펙터가 그것을 먼저 보인다. 자손은 그 뒤에 붙는다.
+        m_editor->SetSelectedObject(&picked);
+        if (&picked != GetFocus())
+        {
+            AddTreeToSelection(picked);
+        }
+    }
+
+    void CanvasViewPanel::RemoveTreeFromSelection(GameObject& object)
+    {
+        m_editor->RemoveFromSelection(&object);
+        for (const SafePtr<GameObject>& child : object.GetChildren())
+        {
+            if (GameObject* at = child.TryGet())
+            {
+                RemoveTreeFromSelection(*at);
+            }
+        }
+    }
+
+    void CanvasViewPanel::StepInto(GameObject& object)
+    {
+        const std::uint64_t id = m_editor->GetObjectIds().Track(&object);
+        if (id == m_focus)
+        {
+            // 이미 그 안이다. 기억한 자리가 아니라 오브젝트에 다시 맞춘다 - 제자리로 돌아오려는 손짓이다(기존 `OnDoubleClick`).
+            FocusCameraOn(object);
+            return;
+        }
+        RememberCamera();
+        m_focus = id;
+        if (false == RecallCamera(id))
+        {
+            FocusCameraOn(object);
+        }
+    }
+
+    GameObject* CanvasViewPanel::StepOut()
+    {
+        GameObject* focus = GetFocus();
+        if (focus == nullptr)
+        {
+            return nullptr;
+        }
+        RememberCamera();
+        GameObject* parent = focus->GetParent();
+        m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : 0;
+        // 나간 층에서 마지막으로 보던 자리로 돌아간다. 거기를 본 적이 없으면(계층 창에서 곧장 깊이 들어왔다) 나온 오브젝트를 비춘다.
+        if (false == RecallCamera(m_focus))
+        {
+            FocusCameraOn(*focus);
+        }
+        return focus;
+    }
+
+    void CanvasViewPanel::RememberCamera()
+    {
+        CameraMemo memo;
+        memo.centerX = m_goalX;
+        memo.centerY = m_goalY;
+        memo.size = m_goalSize;
+        memo.screenView = m_screenView;
+        if (CameraMemo* existing = m_cameraMemos.Find(m_focus))
+        {
+            *existing = memo;
+            return;
+        }
+        m_cameraMemos.TryAdd(m_focus, memo);
+    }
+
+    bool CanvasViewPanel::RecallCamera(std::uint64_t context)
+    {
+        const CameraMemo* memo = m_cameraMemos.Find(context);
+        if (memo == nullptr || memo->screenView != m_screenView || Is3D())
+        {
+            return false;
+        }
+        m_goalX = memo->centerX;
+        m_goalY = memo->centerY;
+        m_goalSize = memo->size;
+        return true;
     }
 
     void CanvasViewPanel::HandleBoxSelect(const ViewRect& rect, bool hovered)

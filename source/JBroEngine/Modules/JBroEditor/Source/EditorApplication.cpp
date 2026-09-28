@@ -474,6 +474,20 @@ namespace JBro
         return view != nullptr && view->ProjectWorldToScreen(worldX, worldY, screenX, screenY);
     }
 
+    void EditorApplication::StepCanvasViewInto(GameObject& object)
+    {
+        if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
+        {
+            view->StepInto(object);
+        }
+    }
+
+    GameObject* EditorApplication::GetCanvasViewFocus()
+    {
+        CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView"));
+        return view != nullptr ? view->GetFocus() : nullptr;
+    }
+
     void EditorApplication::GetCanvasViewCamera(float& centerX, float& centerY, float& size)
     {
         centerX = 0.0f;
