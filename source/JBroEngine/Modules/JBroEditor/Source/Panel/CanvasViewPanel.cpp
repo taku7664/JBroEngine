@@ -16,6 +16,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -1745,7 +1746,7 @@ namespace JBro
         // 뷰 안이면 그것으로 충분하다.
         // **무언가를 끌고 지나가는 중이면 아니다.** 에셋을 끌어 인스펙터로 가져가다 이 화면을
         // 지나면, 그것이 사각 선택의 시작이 되어 꾸러미를 집어삼킨다(테스트가 그것을 잡았다).
-        if (ImGui::GetDragDropPayload() != nullptr)
+        if (Widget::IsDraggingAnything())
         {
             return false;
         }

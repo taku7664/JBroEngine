@@ -2925,6 +2925,53 @@ EditorApplication::Tick
   - `StepOut` 은 안에서 보던 자리를 적지 않는다. 돌아갈 층에 적힌 자리로 가고 **그것을 지운다**(`TakeCamera`). 적힌 것이 없으면 나온 오브젝트를 비춘다.
   - 그래서 뿌리 → A → B 로 들어갔다 나오면 B 에서 A 로는 A 안에서 B 에 들어가기 직전의 자리, A 에서 뿌리로는 A 에 들어가기 직전의 뿌리 자리다.
   시험: 포커스 시험이 몸 안에서 당겨 두고 나왔다가 뿌리에서 한 칸 물린 뒤 다시 들어가면 몸에 새로 맞추고(2.5), 다시 나오면 **물린 그 뿌리 자리**인지 본다.
+- **D-256. 창을 여는 스레드의 COM 은 플랫폼 초기화가 STA 로 먼저 켠다. 파일 대화상자는 MTA 스레드에서 열지 않는다.** (2026-09-29, 사용자 지적:
+  "프로젝트 열기 하니까 대화상자도 안열리고 팅긴다." Updates: D-93.)
+  번호: 커밋 `c531e7ac` 은 D-255 로 적었다. main 에 합치기 직전 다른 세션의 D-254 가 먼저 들어와 D-256 으로 옮겼다.
+  **원인.** 엔진은 메인 스레드에서 오디오 장치를 연다(`EngineInstance` → `CreateAudioOutput` → `ma_device_init`). miniaudio 는 장치를 여는
+  스레드의 COM 을 `COINIT_MULTITHREADED` 로 켠다(`MA_COINIT_VALUE` 기본값). 그 뒤로 메인 스레드는 STA 가 될 수 없고, `ShowFileDialog` 의
+  `CoInitializeEx(STA)` 는 `RPC_E_CHANGED_MODE` 를 받았다. 코드는 그 값을 "쓸 수 있음" 으로 받아 MTA 에서 `IFileDialog::Show` 를 불렀고,
+  그 호출이 대화상자 창(`#32770`)을 띄우지 못한 채 멈췄다 - 에디터 창이 응답하지 않게 되어 사용자에게는 튕긴 것으로 보였다.
+  오디오가 들어온 날(2026-09-25, D-197) 부터의 결함이다. 기존 주석("COM 은 부르는 자리에서 켜고 끈다, 게임은 COM 을 들지 않는다")의 근거는
+  오디오가 메인 스레드에서 COM 을 켜면서 이미 깨져 있었다. 대화상자 시험은 모두 `fileDialog` 훅을 써서 진짜 대화상자를 부르지 않아 잡지 못했다.
+  **실측.** 실제 `JBroEditorHost.exe` 를 PostMessage 로 몰아 "프로젝트 열기" 를 누르면 main 의 실행 파일과 고치기 전의 브랜치 모두 창이 응답을 멈추고
+  (`SendMessageTimeout` 실패) 대화상자 창이 생기지 않았다. 스크래치 실험(`ma_device_init` 뒤 `CoInitializeEx(STA)`)이 `RPC_E_CHANGED_MODE` 를 돌려주는 것도 보았다.
+  메인 스레드를 먼저 STA 로 켜 두자 대화상자가 뜨고, 닫은 뒤 에디터가 응답했으며, 오디오 출력도 그대로 열렸다(miniaudio 는 `RPC_E_CHANGED_MODE` 를 받아들이고
+  자기가 켠 것만 끈다).
+  1. `WindowsPlatform::Initialize` 가 `CoInitializeEx(STA)` 를 부르고, 켰을 때만 `Shutdown` 이 끈다. 이미 MTA 인 스레드면 경고를 남긴다.
+  2. `ShowFileDialog` 의 `ComScope::Usable` 은 `SUCCEEDED` 만 받는다. MTA 스레드에서는 대화상자를 열지 않고 오류 로그를 남긴다.
+  시험: `TestThePlatformThreadStaysSingleThreadedForDialogs` - 제 스레드에서 플랫폼을 켜면 STA 이고, 뒤의 MTA 요청(miniaudio 가 하는 것)이
+  `RPC_E_CHANGED_MODE` 로 물러나며, 끄면 COM 이 꺼지는지. MTA 스레드에서 대화상자를 부르면 3 초 안에 거절하는지. 스피커는 열지 않는다.
+  뮤테이션 셋(초기화의 STA 빼기·대화상자가 MTA 받기·끌 때 COM 남기기)이 모두 제 검사의 메시지로 죽었다.
+- **D-255. 에디터의 끌어 놓기는 공용 층 `Widget/DragDrop.h` 를 거치고, 받는 자리는 외곽선을 긋지 않는다.** (2026-09-28, 사용자 지시:
+  "드래그 드롭 인터페이스 만들어줘. 그리고 드래그드롭 외곽선 안나오게 해줘." Updates: D-152·D-154.)
+  번호: 커밋 `d9280e95` 은 D-254 로 적었다. main 에 합치기 직전 다른 세션의 D-254(캔버스 뷰의 누르기·들어가기)가 먼저 들어와 D-255 로 옮겼다.
+  그전에는 공통 인터페이스가 없었다. 계층·에셋 브라우저·목록·에셋 칸·오브젝트 칸이 저마다 `ImGui::BeginDragDropSource`·`AcceptDragDropPayload` 를
+  직접 불렀고, 꾸러미 이름 문자열을 파일마다 적었다 - 인스펙터가 계층의 `"JBRO_HIERARCHY_MOVE"` 를 한 번 더 적어 두어 한쪽 이름이 바뀌면 드롭이
+  조용히 끊기는 모양이었다. 기존 엔진 `EditorDragDrop` 은 이름을 한 헤더에 모았지만 받는 쪽은 여전히 ImGui 를 직접 불렀고, 꾸러미에 날 포인터
+  (`CGameObject*`·`CGameLayer*`)를 실었으며, 받기 함수가 안에서 `BeginDragDropTarget` 을 열어 부르는 쪽이 또 감싸면 안 되는 함정이 있었다.
+  1. **꾸러미 종류는 `DragKind` 표 하나다**(`Asset`·`HierarchyObject`·`HierarchyLayer`·`ListReorder`). 이름 문자열은 `DragDrop.cpp` 한 곳에만 있다.
+     끌기는 `BeginDragSource`/`SetDragValue`/`EndDragSource`, 받기는 `BeginDropTarget`/`AcceptDrop`/`EndDropTarget` 이고 여는 것과 받는 것은 나눠 둔다
+     (기존의 감싸기 함정을 만들지 않는다). 값은 복사 가능한 것만 싣는다(`static_assert`), 읽을 때는 크기가 정확히 맞아야 읽는다(`ReadDropValue`).
+     `AcceptDrop` 은 놓기 전에도 꾸러미를 돌려주고(`delivered` 가 거짓) 놓는 프레임에만 `delivered` 가 참이다 - 끼울 선은 위에 있을 때, 옮기기는 놓였을 때다.
+     `PeekDrag` 는 받는 자리 밖에서 지금 끄는 꾸러미를 본다. `AssetDrag.h` 는 그 위의 에셋 전용 머리·경로 묶음으로 남는다.
+  2. **외곽선을 긋지 않는다.** ImGui 기본 표시(`RenderDragDropTargetRectEx`)는 받는 자리를 `DragDropTargetPadding` 만큼 넓혀 테두리를 둘렀고,
+     계층은 자식으로 넣는 줄과 레이어 줄·빈자리에 따로 `AddRect` 를 그었다. 빽빽한 줄에서 테두리는 위아래 줄에 겹쳐 끼울 선과 헷갈렸다.
+     이제 기본은 받는 자리를 넓히지 않고 `DragDropTargetBg` 로 옅게 칠하는 것(`DropFeedback::Fill`)이고, 끼울 선을 그리는 자리는 `None` 을 주고
+     `DrawDropLine`·`DrawDropFill` 을 부른다. 기본 표시는 **받는 쪽과 끄는 쪽 양쪽에서** 끈다(`ImGuiDragDropFlags_AcceptNoDrawDefaultRect`) -
+     ImGui 는 끄는 쪽의 깃발을 모든 받는 자리에 걸므로, 공용 층을 거치지 않은 받는 자리가 새로 생겨도 테두리가 돌아오지 않는다.
+  3. **목록 행은 제 목록 안에서만 옮겨진다**(옮기다 찾은 결함). 목록 위젯은 행 번호만 실었고 꾸러미 이름은 전역이라, 인스펙터에 나란히 있는
+     다른 목록(구조체 원소 안의 목록까지)의 사이 칸이 그 번호를 제 원소 번호로 받아 엉뚱한 원소를 옮겼다. 이제 `ListReorderPayload` 가 목록 몸통 창의
+     Id 를 함께 싣고, 제 목록의 행을 끌 때만 사이 칸이 받는 자리가 된다 - 에셋 같은 다른 종류를 끌고 지나갈 때 사이 칸마다 선이 그어지던 것도 없어졌다.
+  4. **`TestPanelsGoThroughTheWidgetLayer` 가 끌어 놓기 원시 호출 일곱 개를 막는다**(D-152 의 목록에 더함). `ObjectField` 는 꾸러미 이름 대신 `DragKind` 를 받는다.
+  시험: `TestADropTargetIsFilledNotOutlinedAndTakesOnlyItsKind`(공용 받는 자리·ImGui 를 직접 부른 받는 자리·다른 종류의 받는 자리 셋 위에서 그리기 목록의
+  정점 색으로 외곽선이 없고 칠하기만 있는지, 놓기 전에는 받지 않고 놓으면 한 번 받는지. 끄는 쪽도 공용 층의 것과 ImGui 를 직접 부른 것 둘이다 -
+  끄는 쪽의 깃발이 받는 쪽의 것을 가리므로), `TestAListRowDroppedOnAnotherListMovesNothing`.
+  뮤테이션 다섯이 모두 제 검사에서 죽었다: 끄는 쪽 깃발 빼기("a target that calls ImGui directly must not draw an outline"), 받는 쪽 깃발 빼기
+  ("... even for a source that did not turn it off"), 칠하기 빼기("it is filled instead"), 놓기 전에 받기("a row dropped inside its own list still moves"),
+  목록 주인 비교 빼기("a row from list A dropped on list B must not move anything in B"). 크기 검사(`ReadDropValue`)를 빼는 변이는 재지 않았다 -
+  크기가 틀린 꾸러미를 실을 공용 층의 길이 없어서다.
+  에디터 렌더(숨긴 창의 백 버퍼)를 끄는 도중에 찍어 보았다: 오브젝트 줄 사이에는 파란 끼울 선만, 레이어 줄 위에서는 줄이 옅게 칠해질 뿐 테두리가 없다.
 - **D-254. 캔버스 뷰의 누르기도 자손까지 고르고, 계층 창에서 두 번 눌러도 들어가며, 들어가고 나올 때 층마다 마지막 카메라로 돌아간다.**
   (2026-09-29, 사용자 지시: "누르기도 맞춰야해. 그리고 하이어라키에서도 더블 클릭하면 되야하는데 안되네? 그리고 오브젝트 포커스 모드에 진입하면
   지금은 그냥 마냥 줌하는데, 각 옵젝별로 줌 콘텍스트를 보관했다가 해당 오브젝트로 나오면 그 오브젝트 줌으로 되돌아가기. 루트면 루트 마지막 줌 상태,

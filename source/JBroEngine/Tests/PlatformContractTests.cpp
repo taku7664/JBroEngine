@@ -1,10 +1,13 @@
 #include <JBro/Platform/WindowsPlatform.h>
 
 #include <Windows.h>
+#include <objbase.h>
 
 #include <chrono>
+#include <future>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 
 namespace
 {
@@ -79,11 +82,67 @@ namespace
         platform.ClosePlatformWindow(window);
         platform.Shutdown();
     }
+
+    // The main thread's COM mode is fixed by whoever initializes it first. miniaudio opens the audio device
+    // on the calling thread with COINIT_MULTITHREADED, and the engine opens audio on the main thread - so
+    // unless the platform claims STA first, that thread becomes MTA and IFileDialog::Show then hung without
+    // ever showing a window (the editor stopped responding on "Open Project", D-256).
+    //
+    // Each check runs on its own thread so the test runner's own COM state cannot decide the result; a failed
+    // check is carried back through the future so it reports its message instead of ending the process.
+    // The speakers are not opened: a second CoInitializeEx(MULTITHREADED) is exactly what miniaudio does.
+    void TestThePlatformThreadStaysSingleThreadedForDialogs()
+    {
+        std::packaged_task<void()> claim([] {
+            JBro::WindowsPlatform platform;
+            JBro::JMemoryContext memory;
+            Check(platform.Initialize(memory), "Windows platform must initialize");
+            APTTYPE type = APTTYPE_CURRENT;
+            APTTYPEQUALIFIER qualifier = APTTYPEQUALIFIER_NONE;
+            Check(SUCCEEDED(CoGetApartmentType(&type, &qualifier)), "the platform must have turned COM on for its thread");
+            Check(type == APTTYPE_STA || type == APTTYPE_MAINSTA, "and turned it on single-threaded");
+            const HRESULT audio = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+            Check(audio == RPC_E_CHANGED_MODE, "a later multithreaded request (miniaudio opening a device) must not change it");
+            platform.Shutdown();
+            Check(CoGetApartmentType(&type, &qualifier) == CO_E_NOTINITIALIZED,
+                "shutdown must turn off exactly the COM the platform turned on");
+        });
+        std::future<void> claimed = claim.get_future();
+        std::thread(std::move(claim)).join();
+        claimed.get();
+
+        // On a thread that is already multithreaded the dialog must refuse at once rather than hang.
+        std::packaged_task<bool()> refuse([] {
+            CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+            JBro::WindowsPlatform platform;
+            JBro::JMemoryContext memory;
+            const bool initialized = platform.Initialize(memory);
+            JBro::FileDialogDesc desc;
+            desc.title = "JBro test dialog";
+            desc.filterName = "JBro project file";
+            desc.filterPattern = "*.jproject";
+            JBro::String path;
+            const bool chosen = platform.ShowFileDialog({}, desc, path);
+            platform.Shutdown();
+            CoUninitialize();
+            return initialized && false == chosen && path.empty();
+        });
+        std::future<bool> refused = refuse.get_future();
+        std::thread worker(std::move(refuse));
+        if (refused.wait_for(std::chrono::seconds(3)) != std::future_status::ready)
+        {
+            worker.detach();
+            Check(false, "a file dialog asked for on a multithreaded COM thread must not block");
+        }
+        worker.join();
+        Check(refused.get(), "it must refuse and choose nothing");
+    }
 }
 
 int RunPlatformContractTests()
 {
     TestHiddenWindowLifecycle();
+    TestThePlatformThreadStaysSingleThreadedForDialogs();
     std::cout << "Platform contract tests passed.\n";
     return 0;
 }

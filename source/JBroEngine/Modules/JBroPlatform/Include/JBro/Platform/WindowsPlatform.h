@@ -76,6 +76,8 @@ namespace JBro
         void* m_instance = nullptr;
         std::uint16_t m_windowClassAtom = 0;
         bool m_ownsWindowClass = false;
+        // `Initialize` 가 이 스레드의 COM 을 STA 로 켰으면 참이다. 그때만 `Shutdown` 이 끈다(D-256).
+        bool m_comInitialized = false;
         bool m_quitRequested = false;
         std::uint32_t m_heldButtons = 0;
     };
