@@ -225,7 +225,17 @@ namespace
         Check(false == EditorShortcutManager::Parse("Hyper+A", parsed), "an unknown modifier is refused");
         Check(false == EditorShortcutManager::Parse("Ctrl+Nope", parsed), "an unknown key is refused");
         Check(false == EditorShortcutManager::Parse("Ctrl+LeftShift", parsed), "a modifier key alone is not a shortcut key");
-        Check(false == EditorShortcutManager::Parse("MouseLeft", parsed), "nor is a mouse button");
+        Check(false == EditorShortcutManager::Parse("MouseLeft", parsed), "nor is the left mouse button");
+        Check(false == EditorShortcutManager::Parse("MouseRight", parsed), "nor the right one");
+        Check(false == EditorShortcutManager::Parse("MouseMiddle", parsed), "nor the middle one");
+        Check(false == EditorShortcutManager::Parse("GamepadStart", parsed), "nor a gamepad button");
+        // 엄지 버튼만은 단축키가 된다(D-258). 설정 파일에 적힌 글자에서 그대로 돌아와야 한다.
+        for (const EditorShortcutBinding& thumb : {Key(ImGuiKey_MouseX1), Key(ImGuiKey_MouseX2, true)})
+        {
+            const JBro::EditorShortcutText text = EditorShortcutManager::Describe(thumb);
+            Check(EditorShortcutManager::Parse(text.value, parsed) && parsed == thumb,
+                "a thumb button, with or without modifiers, reads back as itself");
+        }
     }
 
     void TestConflictsAreFoundAndKindsDiffer()
@@ -453,6 +463,53 @@ namespace
         Check(stage.Press(shortcuts, Key(ImGuiKey_F5), false, true) == 1 && play == 1, "but not play");
     }
 
+    // **마우스 엄지 버튼도 단축키다**(D-258). 키매핑 칸이 잡고, 누르면 돈다. 칸을 누르는 왼쪽 버튼은 잡지 않는다 -
+    // 잡으면 "키를 누르세요" 칸을 누른 그 손짓이 곧 새 조합이 된다.
+    void TestAThumbButtonIsCapturedAndRunsAShortcut()
+    {
+        Stage stage;
+        ImGuiIO& io = ImGui::GetIO();
+        const auto press = [&](int button) {
+            io.AddMouseButtonEvent(button, true);
+            ImGui::NewFrame();
+        };
+        const auto release = [&](int button) {
+            ImGui::Render();
+            io.AddMouseButtonEvent(button, false);
+            stage.Frame();
+        };
+        EditorShortcutBinding captured;
+        press(0);
+        Check(false == EditorShortcutManager::CaptureBinding(captured), "the left button is not captured");
+        release(0);
+        press(2);
+        Check(false == EditorShortcutManager::CaptureBinding(captured), "nor the middle one");
+        release(2);
+        press(3);
+        Check(EditorShortcutManager::CaptureBinding(captured) && captured == Key(ImGuiKey_MouseX1),
+            "the back thumb button is captured as MouseX1");
+        release(3);
+        io.AddKeyEvent(ImGuiMod_Shift, true);
+        press(4);
+        Check(EditorShortcutManager::CaptureBinding(captured) && captured == Key(ImGuiKey_MouseX2, false, true),
+            "the forward thumb button with Shift held is Shift+MouseX2");
+        release(4);
+        io.AddKeyEvent(ImGuiMod_Shift, false);
+        stage.Frame();
+
+        EditorShortcutManager shortcuts;
+        int back = 0;
+        Add(shortcuts, "view.back", Key(ImGuiKey_MouseX1), back);
+        press(3);
+        const std::uint32_t executed = shortcuts.ProcessInput(stage.Editor(), false, false);
+        release(3);
+        Check(executed == 1 && back == 1, "pressing the thumb button runs the shortcut bound to it");
+        press(4);
+        const std::uint32_t other = shortcuts.ProcessInput(stage.Editor(), false, false);
+        release(4);
+        Check(other == 0 && back == 1, "the other thumb button does not");
+    }
+
     // 키매핑 칸이 누른 키를 조합으로 잡는다. 조합키만 누른 것은 잡지 않는다.
     void TestCapturingAKeyReadsTheCombination()
     {
@@ -524,6 +581,7 @@ int RunEditorShortcutTests()
     TestPreferencesRoundTrip();
     TestAnUnreadableLineIsDropped();
     TestDescribeAndParseAgree();
+    TestAThumbButtonIsCapturedAndRunsAShortcut();
     TestConflictsAreFoundAndKindsDiffer();
     TestGlobalShortcutsFireAndModifiersAreExact();
     TestTheFocusedPanelGoesFirstAndBlocksTheGlobalOne();

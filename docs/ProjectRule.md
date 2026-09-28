@@ -722,7 +722,7 @@
 - `GameHost`는 렌더링을 생략한 프레임(`Skipped`) 뒤에 플랫폼 이벤트를 기다리되,
   OS 메시지가 들어오면 즉시 깨고 메시지가 없으면 최대 약 16ms 뒤에 다음 Tick을 수행한다. (MUST)
   고정 `Sleep`은 창 이벤트 응답을 늦추므로 사용하지 않는다.
-- **시간에 따라 값을 옮기는 자리는 프레임 시간에 매이지 않아야 한다. (MUST)** (D-258)
+- **시간에 따라 값을 옮기는 자리는 프레임 시간에 매이지 않아야 한다. (MUST)** (D-259)
   `값 += (목표 - 값) * 상수` 처럼 델타 없이 쓴 식은 프레임률이 높은 기계에서 더 빨리 수렴해, 같은 화면이 기계마다 다르게 보인다.
   길이가 정해진 전환(패널이 미끄러져 들어오는 것)은 `EaseKind`·`Ease`(`JBro/Types/Easing.h`)를,
   목표가 도중에 바뀌는 추적(카메라가 인물을 쫓는 것)은 `SpringDamper`(`JBro/Types/SpringDamper.h`)를 쓴다. (SHOULD)
@@ -923,13 +923,13 @@
 - `String`은 `std::string`의 래퍼로 확정한다. 다시 구현하지 않는다. (MUST) (D-51)
 - `String`은 POD Context·패킷·`Ref`·핸들·**컴포넌트 공개 필드**에 두지 않는다. (MUST)
   이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 원문은 에디터·직렬화 계층이 보관한다.
-- 그 자리에 글자를 두어야 하면 `JBro::Fixed::String<N>`(`JBro/Types/FixedString.h`)을 쓴다. (SHOULD) (D-259)
+- 그 자리에 글자를 두어야 하면 `JBro::Fixed::String<N>`(`JBro/Types/FixedString.h`)을 쓴다. (SHOULD) (D-260)
   힙 문자열과 **이름이 같고 네임스페이스만 다른 별개의 타입**이다 - 저쪽은 힙에 담고 길이에 끝이 없으며 POD 가 아니고,
   이쪽은 몸통 안에 담고 용량이 정해져 있으며 trivially copyable 이다. 정규화해서 부르면 섞이지 않고,
   `using namespace` 로 둘을 함께 열 때만 모호해진다. **게임 스크립트 프렐류드는 `JBro` 만 열고 `JBro::Fixed` 를 열지 않는다. (MUST)**
   `ScriptApiPreludeTests.cpp` 가 수식 없는 `String` 이 힙 판으로 풀리는지 단언하고,
   `JBRO_TEST_FIXED_STRING_IN_PRELUDE` 를 켜면 실제로 컴파일이 실패한다.
-- 고정 버퍼에 글자를 담을 때 `char buf[N]` + `snprintf` 를 새로 쓰지 않는다. (SHOULD) (D-259)
+- 고정 버퍼에 글자를 담을 때 `char buf[N]` + `snprintf` 를 새로 쓰지 않는다. (SHOULD) (D-260)
   잘림을 반환값으로 돌려주는 방식은 자리마다 확인을 요구해 결국 아무도 확인하지 않는다
   (기존 54 곳 가운데 49 곳이 반환값을 버린다). `Fixed::String` 은 잘림을 칸에 적어 두므로 다 이어 붙인 뒤 `IsTruncated()` 를 한 번만 본다.
   이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 원문은 에디터·직렬화 계층이 보관한다.
@@ -1266,6 +1266,8 @@
   없다(칸 안의 편집 키 - 콤보의 Enter 같은 것 - 는 단축키가 아니다). 패널에서만 도는 것은 `scope` 에 패널의 `GetTitle()` 을 주고, 등록은 `OnDestroy` 에서
   푼다. 이름(`editor.save_canvas`)은 사용자 설정의 키라 바꾸지 않는다. 사용자가 바꾼 조합은 에디터 호스트만 사용자별 파일에 쓰고, 읽지 못한 파일은 덮어쓰지 않는다.
   사용자가 조합을 바꾸는 곳은 `설정` → `에디터 설정` 한 곳이고, 새 키를 잡는 동안에는 관리자를 멈춘다(`SetSuspended`). (D-230)
+  **단축키가 되는 것은 키보드 키와 마우스 엄지 버튼 둘(`MouseX1`·`MouseX2`)이다.** 다른 마우스 버튼과 게임패드는 받지 않는다 -
+  왼쪽·오른쪽·가운데 버튼은 고르기·메뉴·팬이 쓰고, 게임패드는 게임의 것이다. 잡기와 읽기는 한 판정(`IsBindableKey`)을 쓴다. (D-258)
 - **하던 일을 멈출 필요가 없는 알림은 우측 하단 알림으로 간다.** (MUST) (D-219)
   `EditorApplication::GetNotifications().Notify(...)` 를 부른다. 패널·도구·외부 에디터가 제 알림 상자나 토스트를 따로 그리지 않는다 -
   모양과 시간과 닫는 법이 도구마다 달라진다. 사용자가 답해야 하는 것만 모달이다. 반복되는 알림은 같은 `id` 로 하나로 합친다.

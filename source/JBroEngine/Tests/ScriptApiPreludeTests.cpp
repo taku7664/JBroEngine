@@ -50,7 +50,7 @@ namespace
         // 드러나도록 2D 전용 타입을 직접 짚는다. 실제 배타성은 스크립트 프로브가 증명한다.
         static_assert(std::is_base_of_v<ComponentBase, Component::Transform2D>);
 
-        // **프렐류드는 `JBro` 만 연다**(D-259). `JBro::Fixed::String<N>` 은 `JBro::String` 과 이름이 같고
+        // **프렐류드는 `JBro` 만 연다**(D-260). `JBro::Fixed::String<N>` 은 `JBro::String` 과 이름이 같고
         // 자리만 다르므로, 프렐류드가 `JBro::Fixed` 까지 열면 스크립트 작성자의 `String` 이 모호해진다.
         // 수식 없는 `String` 이 힙 쪽으로 풀리는지를 여기서 못박는다 - 둘 다 열리면 이 줄이 먼저 깨진다.
         static_assert(std::is_same_v<String, JBro::String>,

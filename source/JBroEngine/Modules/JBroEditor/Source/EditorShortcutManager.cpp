@@ -29,9 +29,15 @@ namespace JBro
                 || (key >= ImGuiKey_ReservedForModCtrl && key <= ImGuiKey_ReservedForModSuper);
         }
 
-        // 키보드 키만 단축키가 된다. 마우스 단추와 게임패드는 이 범위 밖이다.
-        bool IsKeyboardKey(ImGuiKey key)
+        // 단축키가 될 수 있는 키다. 키보드 키와 **마우스 엄지 버튼 둘**(`MouseX1`·`MouseX2`)이다(D-258).
+        // 왼쪽·오른쪽·가운데 버튼은 고르기·메뉴·팬이 쓰고, 게임패드는 게임의 것이라 빠진다.
+        // 잡기(`CaptureBinding`)와 읽기(`Parse`)가 이 한 판정을 쓴다 - 둘이 갈리면 잡은 키가 다음 실행에 사라진다.
+        bool IsBindableKey(ImGuiKey key)
         {
+            if (key == ImGuiKey_MouseX1 || key == ImGuiKey_MouseX2)
+            {
+                return true;
+            }
             return key >= ImGuiKey_NamedKey_BEGIN && key < ImGuiKey_GamepadStart && false == IsModifierKey(key);
         }
 
@@ -499,7 +505,7 @@ namespace JBro
         for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key)
         {
             const ImGuiKey candidate = static_cast<ImGuiKey>(key);
-            if (IsKeyboardKey(candidate) && std::strcmp(ImGui::GetKeyName(candidate), cursor) == 0)
+            if (IsBindableKey(candidate) && std::strcmp(ImGui::GetKeyName(candidate), cursor) == 0)
             {
                 parsed.key = candidate;
                 out = parsed;
@@ -512,10 +518,10 @@ namespace JBro
     bool EditorShortcutManager::CaptureBinding(EditorShortcutBinding& out)
     {
         const ImGuiIO& io = ImGui::GetIO();
-        for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_GamepadStart; ++key)
+        for (int key = ImGuiKey_NamedKey_BEGIN; key < ImGuiKey_NamedKey_END; ++key)
         {
             const ImGuiKey candidate = static_cast<ImGuiKey>(key);
-            if (false == IsKeyboardKey(candidate) || false == ImGui::IsKeyPressed(candidate, false))
+            if (false == IsBindableKey(candidate) || false == ImGui::IsKeyPressed(candidate, false))
             {
                 continue;
             }
