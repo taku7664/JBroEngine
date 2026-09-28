@@ -215,7 +215,7 @@ namespace JBro
 
     void AssetBrowserPanel::DrawFolderDropTarget(const String& folder)
     {
-        if (false == ImGui::BeginDragDropTarget())
+        if (false == Widget::BeginDropTarget())
         {
             return;
         }
@@ -253,7 +253,7 @@ namespace JBro
             m_selection.Clear();
             m_anchor.clear();
         }
-        ImGui::EndDragDropTarget();
+        Widget::EndDropTarget();
     }
 
     bool AssetBrowserPanel::IsSelected(const String& path) const
@@ -447,7 +447,7 @@ namespace JBro
         // 파일을 끌어 폴더에 놓을 수 있다. 꾸러미에는 상대경로를 담는다 -
         // 레코드 포인터는 다시 스캔하면 다른 것을 가리킨다.
         if (entry.record->relativePath.size() < MaxDragPath
-            && ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoHoldToOpenOthers))
+            && Widget::BeginDragSource())
         {
             // 끄는 것이 고른 것 안에 있으면 **고른 것이 다 간다**. 밖에 있으면 그것 하나다 -
             // 고르지 않은 줄을 끌었는데 엉뚱한 파일이 따라가면 안 된다.
@@ -499,7 +499,7 @@ namespace JBro
             {
                 Widget::Text(entry.name);
             }
-            ImGui::EndDragDropSource();
+            Widget::EndDragSource();
         }
         DrawEntryMenu(entry.record->relativePath, false);
         // 그림을 두 번 누르면 스프라이트 뷰어에서 연다(D-155). 기존 브라우저도 그랬다.

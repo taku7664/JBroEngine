@@ -63,6 +63,12 @@ namespace JBro
         // 월드 한 점이 마지막으로 그린 화면(2D)의 어디에 놓였는가. 그린 적이 없거나 3D 면 거짓이다.
         bool ProjectWorldToScreen(float worldX, float worldY, float& screenX, float& screenY) const;
 
+        // **이 오브젝트 안으로 들어간다**(D-254, 기존 `SetFocusContext`). 캔버스 뷰와 계층 창의 두 번 누르기가 같은 길이다.
+        // 고르기는 부르는 쪽이 한다 - 캔버스 뷰는 자손까지, 계층 창은 그 줄 하나를 고른다.
+        void StepInto(GameObject& object);
+        // 지금 들어가 있는 오브젝트다. 뿌리면 nullptr 이다.
+        GameObject* GetFocus() const;
+
     private:
         // 그림이 붙은 화면 사각형과 그때의 카메라다. 겹쳐 그리는 것들이 전부 이것을 쓴다.
         struct ViewRect
@@ -185,7 +191,16 @@ namespace JBro
         // 지금 들어가 있는 오브젝트다. 없으면(뿌리) nullptr 이다. 번호로 들고 있어 지워져도 안전하다.
         // 마우스가 이 뷰의 그림 위에 있는가(D-179). 기즈모 손잡이에 가려도 참이다.
         bool PointerInView(const ViewRect& rect) const;
-        GameObject* GetFocus() const;
+        // 한 층 나온다(D-254). 나온 오브젝트를 돌려준다. 뿌리면 아무것도 하지 않고 nullptr 이다.
+        GameObject* StepOut();
+        // **나올 때 돌아갈 자리를 한 번만 적는다**(D-257, D-254 를 고친다). 들어가기 직전에 지금 층의 카메라를 적고, 그 층으로 나올 때 그리로
+        // 돌아가며 버린다 - 뿌리로 나오면 들어가기 전의 뿌리 자리, A 로 나오면 A 안에서 더 들어가기 전의 자리다. 들어갈 때는 늘 오브젝트에 맞춘다.
+        void RememberCamera();
+        // 적힌 자리로 가고 지운다. 없거나 보기가 다르면 거짓이다(그래도 지운다).
+        bool TakeCamera(std::uint64_t context);
+        // 누른 오브젝트를 고른다(D-254, 기존 `CollectSubtree`). 들어가 있는 오브젝트 자신이면 그것 하나, 아니면 자손까지다.
+        void SelectPicked(GameObject& picked);
+        void RemoveTreeFromSelection(GameObject& object);
         // 걸린 오브젝트를 **지금 층의 오브젝트**로 올린다. 뿌리에서는 맨 위 조상, 들어가 있으면
         // 그 오브젝트의 직계 자식(또는 그 오브젝트 자신). 들어간 오브젝트 밖이면 nullptr 이다.
         GameObject* MapToLevel(GameObject* hit) const;
@@ -280,6 +295,16 @@ namespace JBro
         bool m_rulerInPixels = false;
         // 들어가 있는 오브젝트의 번호다(D-157). 0 이면 뿌리다.
         std::uint64_t m_focus = 0;
+        // 층(들어간 오브젝트의 번호, 뿌리는 0)마다 **돌아올 자리**다(D-257). 더 들어갈 때 적고 그리로 나올 때 쓰고 버린다.
+        // 보기(월드/UI)가 다르면 단위가 달라 쓰지 않는다.
+        struct CameraMemo
+        {
+            float centerX = 0.0f;
+            float centerY = 0.0f;
+            float size = 5.0f;
+            bool screenView = false;
+        };
+        Table<std::uint64_t, CameraMemo> m_cameraMemos;
         // 이번 누름이 두 번째 누름인가. 누를 때 알고 뗄 때 쓴다 - 고르기는 뗄 때 한다.
         bool m_doubleClick = false;
         // 오른쪽 단추로 끌고 있는 중인가. 끌었으면 놓을 때 맥락 메뉴를 열지 않는다 -

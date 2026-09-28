@@ -176,6 +176,10 @@ namespace JBro
         // 월드 한 점이 **마지막으로 그린** 캔버스 뷰(2D)의 어느 화면 점에 놓였는가. 그린 적이 없으면 거짓이다.
         // 그림 위에 겹쳐 그리는 도구와 그것을 마우스로 몰아 보는 테스트가 같은 변환을 쓰게 한다.
         bool CanvasViewWorldToScreen(float worldX, float worldY, float& screenX, float& screenY);
+        // 캔버스 뷰가 이 오브젝트 안으로 들어간다(D-254). 계층 창의 두 번 누르기가 부른다. 캔버스 뷰가 없으면 아무것도 하지 않는다.
+        void StepCanvasViewInto(GameObject& object);
+        // 캔버스 뷰가 들어가 있는 오브젝트다. 뿌리거나 캔버스 뷰가 없으면 nullptr 이다.
+        GameObject* GetCanvasViewFocus();
         // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지
         // 않았으면 빈 글자다. ImGui 의 형식을 그대로 쓰므로 우리가 파싱할 일은 없다.
         String GetLayoutFilePath() const;

@@ -1,5 +1,7 @@
 ﻿#include <JBro/Platform/WindowsPlatform.h>
 
+#include <JBro/Core/Log.h>
+
 #include <Windows.h>
 #include <windowsx.h>
 #include <objbase.h>
@@ -283,21 +285,28 @@ namespace JBro
                         ReleaseCapture();
                     }
                 }
+                // **엄지 버튼은 처리했다고 TRUE 로 답한다.** `DefWindowProcW` 로 넘기면 Windows 가 그것을
+                // `WM_APPCOMMAND`(브라우저 뒤로·앞으로)로 바꿔 부모와 셸 훅에 올려 보낸다 - 게임이 받은 누름이
+                // 창 밖에서 한 번 더 일한다.
+                if (message == WM_XBUTTONDOWN || message == WM_XBUTTONDBLCLK || message == WM_XBUTTONUP)
+                {
+                    return TRUE;
+                }
                 break;
             }
 
             case WM_CAPTURECHANGED:
             {
                 // 붙잡음을 남에게 빼앗겼다(Alt+Tab, 다른 창의 대화상자). 그 뒤의 뗌은 오지 않으므로
-                // **눌린 버튼을 모두 뗀 것으로 알린다** - 알리지 않으면 끌기가 남는다.
+                // **눌린 버튼을 모두 뗀 것으로 알린다** - 알리지 않으면 끌기가 남는다. 엄지 버튼도 뗀다.
                 if (reinterpret_cast<HWND>(lParam) != window && platform->HeldMouseButtons() > 0)
                 {
                     platform->HeldMouseButtons() = 0;
-                    for (const MouseButton button : {MouseButton::Left, MouseButton::Right, MouseButton::Middle})
+                    for (std::uint8_t index = 0; index < static_cast<std::uint8_t>(MouseButton::Count); ++index)
                     {
                         InputEvent released;
                         released.kind = InputEventKind::MouseButtonUp;
-                        released.button = button;
+                        released.button = static_cast<MouseButton>(index);
                         platform->RecordInputEvent(released);
                     }
                 }
@@ -438,6 +447,17 @@ namespace JBro
         {
             return false;
         }
+        // **창을 여는 스레드는 COM 을 STA 로 먼저 켠다**(D-256). miniaudio 는 장치를 여는 스레드의 COM 을 MTA 로 켜는데,
+        // 엔진은 메인 스레드에서 오디오를 연다. 그 뒤로 이 스레드는 STA 가 될 수 없고, 파일 대화상자(`IFileDialog::Show`)는
+        // MTA 에서 창도 띄우지 못한 채 멈춘다 - "프로젝트 열기" 를 누르면 에디터가 응답을 멈췄다. 여기서 먼저 STA 로 켜면
+        // miniaudio 의 MTA 요청이 `RPC_E_CHANGED_MODE` 로 물러나고, 오디오는 그대로 열린다(miniaudio 는 그 결과를 받아들인다).
+        const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+        m_comInitialized = SUCCEEDED(com);
+        if (com == RPC_E_CHANGED_MODE)
+        {
+            Log::Write(LogLevel::Warning, "platform",
+                "this thread already runs COM multithreaded - file dialogs will not open from it");
+        }
 
         WNDCLASSEXW windowClass = {};
         windowClass.cbSize = sizeof(windowClass);
@@ -473,6 +493,11 @@ namespace JBro
         m_ownsWindowClass = false;
         m_windowClassAtom = 0;
         m_instance = nullptr;
+        if (m_comInitialized)
+        {
+            CoUninitialize();
+            m_comInitialized = false;
+        }
     }
 
     WindowHandle WindowsPlatform::OpenPlatformWindow(const WindowDesc& desc)
@@ -807,8 +832,8 @@ namespace JBro
             return written > 0;
         }
 
-        // 기존 엔진 `ShowFileDialogEx` 를 옮겼다. COM 은 부르는 자리에서 켜고 끈다 -
-        // 플랫폼 초기화에 묶어 두면 대화상자를 한 번도 안 여는 게임 실행까지 COM 을 든다.
+        // 기존 엔진 `ShowFileDialogEx` 를 옮겼다. 메인 스레드는 `Initialize` 가 이미 STA 로 켰고(D-256), 여기서 한 번 더 켜고
+        // 끄는 것은 참조 수만 오간다 - 다른 스레드에서 불렸을 때도 그 스레드를 STA 로 켜기 위해 남긴다.
         struct ComScope
         {
             HRESULT result = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -822,9 +847,11 @@ namespace JBro
                 }
             }
 
+            // **MTA 스레드는 쓰지 않는다**(D-256). 전에는 `RPC_E_CHANGED_MODE` 도 받아 MTA 에서 대화상자를 열었고, 그 호출이
+            // 창도 띄우지 못한 채 멈췄다. 멈춘 에디터보다 열리지 않는 대화상자와 로그 한 줄이 낫다.
             bool Usable() const
             {
-                return SUCCEEDED(result) || result == RPC_E_CHANGED_MODE;
+                return SUCCEEDED(result);
             }
         };
     }
@@ -836,6 +863,9 @@ namespace JBro
         ComScope com;
         if (false == com.Usable())
         {
+            Log::Write(LogLevel::Error, "platform",
+                "the file dialog needs a single-threaded COM thread (CoInitializeEx returned 0x%08lX)",
+                static_cast<unsigned long>(com.result));
             return false;
         }
         IFileDialog* dialog = nullptr;

@@ -16,6 +16,7 @@
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
@@ -32,11 +33,8 @@ namespace JBro
 {
     namespace
     {
-        // 끌고 다니는 꾸러미의 이름이다. 계층 안에서만 받는다.
-        constexpr const char* DragPayload = "JBRO_HIERARCHY_MOVE";
-        // 레이어를 끌 때의 꾸러미. 오브젝트의 것과 섞이면 레이어 위에 오브젝트를
-        // 놓은 것이 레이어 순서 바꾸기가 된다.
-        constexpr const char* LayerDragPayload = "JBRO_HIERARCHY_LAYER";
+        // 오브젝트 줄은 `DragKind::HierarchyObject`, 레이어 줄은 `DragKind::HierarchyLayer` 로 끈다(D-255).
+        // 둘이 섞이면 레이어 위에 오브젝트를 놓은 것이 레이어 순서 바꾸기가 된다.
         // 행에서 "앞에" / "뒤에" 로 치는 위아래 띠의 몫이다. 기존 엔진과 같은 값이다 -
         // 가운데 절반은 "자식으로" 가 된다.
         constexpr float DropEdgeRatio = 0.25f;
@@ -154,9 +152,8 @@ namespace JBro
 
         // 이번 프레임에 무엇을 끌고 있는가. 다른 위젯의 끌기(목록 재정렬 등)도
         // 꾸러미를 내므로 **타입까지 봐야** 한다.
-        const ImGuiPayload* active = ImGui::GetDragDropPayload();
-        m_dragActive = active != nullptr && active->IsDataType(DragPayload);
-        m_layerDragActive = active != nullptr && active->IsDataType(LayerDragPayload);
+        m_dragActive = Widget::IsDragging(Widget::DragKind::HierarchyObject);
+        m_layerDragActive = Widget::IsDragging(Widget::DragKind::HierarchyLayer);
 
         Widget::SearchBox("##filter", m_filter)
             .Hint(Loc::TextOr(LocKeys::HierarchySearch, "Search"))
@@ -243,24 +240,19 @@ namespace JBro
             const ImVec2 size(
                 (std::max)(available.x, 1.0f),
                 (std::max)(available.y, ImGui::GetTextLineHeightWithSpacing()));
-            const ImVec2 start = ImGui::GetCursorScreenPos();
             Widget::HitArea("##RootDrop", size);
-            if (ImGui::BeginDragDropTarget())
+            if (Widget::BeginDropTarget())
             {
-                ImGui::GetWindowDrawList()->AddRect(
-                    start,
-                    ImVec2(start.x + size.x, start.y + size.y),
-                    ImGui::GetColorU32(ImGuiCol_DragDropTarget));
-                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(DragPayload))
+                // 빈자리는 칸이 알아서 옅게 칠한다. 테두리는 긋지 않는다(D-255).
+                EditorObjectId id = InvalidEditorObjectId;
+                if (Widget::AcceptDropValue(Widget::DragKind::HierarchyObject, id))
                 {
-                    EditorObjectId id = InvalidEditorObjectId;
-                    std::memcpy(&id, payload->Data, sizeof(id));
                     if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
                     {
                         RecordDrop(*dragged, nullptr, m_roots.Size());
                     }
                 }
-                ImGui::EndDragDropTarget();
+                Widget::EndDropTarget();
             }
         }
 
@@ -320,11 +312,11 @@ namespace JBro
         Widget::TreeEnd();
 
         // 레이어 줄을 끌면 합성 차례가 바뀐다.
-        if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_SourceNoHoldToOpenOthers))
+        if (Widget::BeginDragSource())
         {
-            ImGui::SetDragDropPayload(LayerDragPayload, &layerId, sizeof(layerId));
+            Widget::SetDragValue(Widget::DragKind::HierarchyLayer, layerId);
             Widget::Text(layer.GetName());
-            ImGui::EndDragDropSource();
+            Widget::EndDragSource();
         }
         const bool alive = DrawLayerContextMenu(layer);
         DrawLayerDropTarget(layer, index, row.RowRect);
@@ -403,12 +395,10 @@ namespace JBro
         Widget::HitArea("##LayerDrop", rowRect.GetSize());
         ImGui::SetCursorScreenPos(cursor);
 
-        if (false == ImGui::BeginDragDropTarget())
+        if (false == Widget::BeginDropTarget())
         {
             return;
         }
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        const ImU32 color = ImGui::GetColorU32(ImGuiCol_DragDropTarget);
 
         if (m_layerDragActive)
         {
@@ -418,12 +408,15 @@ namespace JBro
             const float local = std::clamp(
                 (ImGui::GetIO().MousePos.y - rowRect.Min.y) / height, 0.0f, 1.0f);
             const bool above = local < 0.5f;
-            const float y = above ? rowRect.Min.y : rowRect.Max.y;
-            draw->AddLine(ImVec2(rowRect.Min.x, y), ImVec2(rowRect.Max.x, y), color, 2.0f);
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(LayerDragPayload))
+            const Widget::DropPayload payload =
+                Widget::AcceptDrop(Widget::DragKind::HierarchyLayer, Widget::DropFeedback::None);
+            if (payload)
             {
-                LayerId moved = InvalidLayerId;
-                std::memcpy(&moved, payload->Data, sizeof(moved));
+                Widget::DrawDropLine(rowRect.Min.x, rowRect.Max.x, above ? rowRect.Min.y : rowRect.Max.y);
+            }
+            LayerId moved = InvalidLayerId;
+            if (payload.delivered && Widget::ReadDropValue(payload, moved))
+            {
                 if (moved != layer.GetId())
                 {
                     m_layerMoveId = moved;
@@ -434,11 +427,10 @@ namespace JBro
         }
         else
         {
-            draw->AddRect(rowRect.Min, rowRect.Max, color);
-            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(DragPayload))
+            // 레이어 줄에 놓는 것은 "그 레이어로" 하나뿐이라 줄 전체를 칸이 알아서 칠한다.
+            EditorObjectId id = InvalidEditorObjectId;
+            if (Widget::AcceptDropValue(Widget::DragKind::HierarchyObject, id))
             {
-                EditorObjectId id = InvalidEditorObjectId;
-                std::memcpy(&id, payload->Data, sizeof(id));
                 if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
                 {
                     // 레이어에 놓는 것은 **뿌리로 올리고 그 레이어로 보내는** 것이다.
@@ -449,7 +441,7 @@ namespace JBro
                 }
             }
         }
-        ImGui::EndDragDropTarget();
+        Widget::EndDropTarget();
     }
 
     bool HierarchyPanel::DrawLayerContextMenu(Layer& layer)
@@ -553,20 +545,19 @@ namespace JBro
 
     void HierarchyPanel::DrawDragSource(GameObject& object)
     {
-        if (false == ImGui::BeginDragDropSource(
-            ImGuiDragDropFlags_SourceNoHoldToOpenOthers))
+        if (false == Widget::BeginDragSource())
         {
             return;
         }
         // 꾸러미에는 **주소가 아니라 에디터 번호**를 담는다. 번호는 지웠다
         // 되살려도 같은 것을 가리킨다(D-72).
         const EditorObjectId id = m_editor->GetObjectIds().Track(&object);
-        ImGui::SetDragDropPayload(DragPayload, &id, sizeof(id));
+        Widget::SetDragValue(Widget::DragKind::HierarchyObject, id);
         const char* name = object.GetTag();
         Widget::Text(name != nullptr && *name != '\0'
             ? name
             : Loc::TextOr(LocKeys::HierarchyUnnamed, "(unnamed)"));
-        ImGui::EndDragDropSource();
+        Widget::EndDragSource();
     }
 
     void HierarchyPanel::DrawRowDropTarget(
@@ -587,7 +578,7 @@ namespace JBro
         Widget::HitArea("##RowDrop", rowRect.GetSize());
         ImGui::SetCursorScreenPos(cursor);
 
-        if (false == ImGui::BeginDragDropTarget())
+        if (false == Widget::BeginDropTarget())
         {
             return;
         }
@@ -605,24 +596,24 @@ namespace JBro
             where = DropWhere::After;
         }
 
-        // **무엇이 될지 먼저 보인다.** 선은 형제로 끼우는 자리, 테두리는 자식으로
+        // **무엇이 될지 먼저 보인다.** 선은 형제로 끼우는 자리, 칠한 줄은 자식으로
         // 들어가는 자리다 - 떨어뜨린 뒤에야 알게 되면 되돌리기로 확인하게 된다.
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        const ImU32 color = ImGui::GetColorU32(ImGuiCol_DragDropTarget);
-        if (where == DropWhere::Into)
+        // 테두리는 긋지 않는다(D-255). 빽빽한 줄에서 테두리는 위아래 줄에 겹쳐 끼울 선과 헷갈린다.
+        const Widget::DropPayload payload =
+            Widget::AcceptDrop(Widget::DragKind::HierarchyObject, Widget::DropFeedback::None);
+        if (payload && where == DropWhere::Into)
         {
-            draw->AddRect(rowRect.Min, rowRect.Max, color);
+            Widget::DrawDropFill(rowRect.Min.x, rowRect.Min.y, rowRect.Max.x, rowRect.Max.y);
         }
-        else
+        else if (payload)
         {
-            const float y = where == DropWhere::Before ? rowRect.Min.y : rowRect.Max.y;
-            draw->AddLine(ImVec2(rowRect.Min.x, y), ImVec2(rowRect.Max.x, y), color, 2.0f);
+            Widget::DrawDropLine(rowRect.Min.x, rowRect.Max.x,
+                where == DropWhere::Before ? rowRect.Min.y : rowRect.Max.y);
         }
 
-        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(DragPayload))
+        EditorObjectId id = InvalidEditorObjectId;
+        if (payload.delivered && Widget::ReadDropValue(payload, id))
         {
-            EditorObjectId id = InvalidEditorObjectId;
-            std::memcpy(&id, payload->Data, sizeof(id));
             if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
             {
                 if (where == DropWhere::Into)
@@ -637,7 +628,7 @@ namespace JBro
                 }
             }
         }
-        ImGui::EndDragDropTarget();
+        Widget::EndDropTarget();
     }
 
     void HierarchyPanel::RecordDrop(
@@ -892,6 +883,14 @@ namespace JBro
                 m_editor->SetSelectedObject(&object);
                 m_selectionAnchor = object.SafeFromThis();
             }
+        }
+        // **두 번 누르면 캔버스 뷰가 그 안으로 들어간다**(D-254, 기존 `LayerTool` 의 `SetFocusContext`). 어느 층에 들어가 있었든 곧장
+        // 그리로 간다. 고르는 것은 그 줄 하나다 - 계층 창에서는 줄이 곧 오브젝트다.
+        if (rowHovered && false == rowToggled && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+        {
+            m_editor->SetSelectedObject(&object);
+            m_selectionAnchor = object.SafeFromThis();
+            m_editor->StepCanvasViewInto(object);
         }
 
         DrawRowDropTarget(object, parent, indexInParent, row.RowRect);

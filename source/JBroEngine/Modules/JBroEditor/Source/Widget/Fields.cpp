@@ -307,7 +307,7 @@ namespace JBro::Widget
         return changed;
     }
 
-    bool ObjectField(const char* id, ArrayView<const char* const> names, int& chosen, const char* dropType,
+    bool ObjectField(const char* id, ArrayView<const char* const> names, int& chosen, DragKind dropKind,
         std::uint64_t& dropped)
     {
         dropped = 0;
@@ -315,15 +315,13 @@ namespace JBro::Widget
             .EmptyText(Loc::TextOr(LocKeys::InspectorObjectMissing, "Missing object"))
             .ShowFilter(true)
             .Draw();
-        if (dropType != nullptr && ImGui::BeginDragDropTarget())
+        if (BeginDropTarget())
         {
-            const ImGuiPayload* payload = ImGui::AcceptDragDropPayload(dropType);
-            if (payload != nullptr && payload->DataSize == static_cast<int>(sizeof(std::uint64_t)))
+            if (AcceptDropValue(dropKind, dropped))
             {
-                std::memcpy(&dropped, payload->Data, sizeof(std::uint64_t));
                 changed = true;
             }
-            ImGui::EndDragDropTarget();
+            EndDropTarget();
         }
         return changed;
     }
