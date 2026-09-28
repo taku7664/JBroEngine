@@ -1962,7 +1962,7 @@ namespace JBro
             FocusCameraOn(object);
             return;
         }
-        // 나올 때 돌아올 자리를 적고 들어간다. 들어가서는 **늘 오브젝트에 맞춘다** - 안에서 보던 줌은 기억하지 않는다(D-255).
+        // 나올 때 돌아올 자리를 적고 들어간다. 들어가서는 **늘 오브젝트에 맞춘다** - 안에서 보던 줌은 기억하지 않는다(D-257).
         RememberCamera();
         m_focus = id;
         // 새로 선 층에 예전에 적힌 돌아올 자리가 있으면 버린다. 계층 창으로 건너뛰어 쓰이지 않은 채 남은 것이다.
@@ -1979,7 +1979,7 @@ namespace JBro
         }
         GameObject* parent = focus->GetParent();
         m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : 0;
-        // 그 층에서 들어가기 직전에 보던 자리로 돌아간다. 적힌 것은 한 번 쓰고 버린다(D-255).
+        // 그 층에서 들어가기 직전에 보던 자리로 돌아간다. 적힌 것은 한 번 쓰고 버린다(D-257).
         // 적힌 것이 없으면(계층 창에서 곧장 깊이 들어왔다) 나온 오브젝트를 비춘다.
         if (false == TakeCamera(m_focus))
         {

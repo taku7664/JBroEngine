@@ -7837,7 +7837,7 @@ namespace
         const Colors outside = readColors();
         Check(outside.neighbourRed > 200 && outside.neighbourGreen < 60, "stepping out lifts the veil");
 
-        // 다시 들어가면 **몸 안에서 보던 줌은 기억하지 않는다**(D-255). 늘 들어가던 대로 몸에 맞춘다 - 돌아올 자리는 한 번 쓰고 버린다.
+        // 다시 들어가면 **몸 안에서 보던 줌은 기억하지 않는다**(D-257). 늘 들어가던 대로 몸에 맞춘다 - 돌아올 자리는 한 번 쓰고 버린다.
         (void)insideX;
         (void)insideY;
         // 그 전에 뿌리에서 한 칸 물러 둔다. 나올 때 돌아갈 곳은 처음의 (0, 0, 5) 가 아니라 **이번에 들어가기 직전**의 자리다.
