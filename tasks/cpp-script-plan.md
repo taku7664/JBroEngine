@@ -243,7 +243,13 @@ JBRO_SCRIPT_MODULE_2D()
 
 ### 3.6 스크립트 API 의 구멍
 
-- 오브젝트 만들기·찾기: `PrefabSpawner` 를 구현하고 스크립트가 얻는 자리를 정한다. **새 서비스라 확인 뒤에 한다.**
+- 오브젝트 만들기·찾기: **모양이 섰다(D-270), 구현 전이다.**
+  - 이름과 태그를 나눈다. 지금 태그 칸이 이름이 되고 태그는 새 칸이다. `[]`·`Find` 는 이름만, 태그는 `FindWithTag`·`CompareTag` 같은 함수로만 찾는다.
+  - `LayerHandle { LayerId }`(4B) 를 새로 두고, `LayerHandle[name]` 은 그 레이어의 뿌리를, `GameObjectHandle[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이는 `FindInChildren`.
+  - `GetServiceContext().Objects`: `Create(name, parent, layer)`·`Find`·`FindAll`·`FindWithTag`·`FindAllWithTag`·`GetLayer`. 핸들에 `AddComponent<T>`·`GetName`·`GetLayer`·`GetParent`·`SetParent`·`GetChildCount`·`GetChild`.
+  - 기본 트랜스폼은 프레임워크 구현이 붙인다. 삭제는 `handle.Destroy()` 하나이고, 요청한 순간부터 모든 사본이 무효이며 찾기에서 빠진다.
+  - 프리팹(`PrefabSpawner`)은 뒤로 미룬다.
+  - 구현하며 잴 것: 순회 중에 만든 오브젝트의 스크립트 훅이 언제부터 도는가.
 - `ReadOnly` 필드: 월드 캐시를 스크립트가 쓰지 못하게 한다(getter 뒤로 옮기거나 쓰기를 컴파일 에러로 만든다).
 
 ### 3.7 3D
@@ -263,4 +269,5 @@ JBRO_SCRIPT_MODULE_2D()
 - ~~`[열림]` 3.5 의 재생 중 리로드 정책~~ 멈출 때까지 미룬다(D-268).
 - `[열림]` 캔버스 파일 읽기의 "코드에 없는 필드는 실패" 를 스크립트에도 그대로 둘 것인가. 핫 리로드는 경고하고 잇지만 파일 읽기는 멈춘다(D-268 (2)).
 - `[열림]` 모르는 컴포넌트의 오브젝트 참조를 저장·재생 스냅숏을 넘어 바르게 들고 가는 방법(D-264·D-268).
-- `[열림]` 3.6 의 오브젝트 만들기·찾기 서비스의 모양.
+- ~~`[열림]` 3.6 의 오브젝트 만들기·찾기 서비스의 모양~~ `Objects` 서비스와 `LayerHandle`, `[]` 는 이름으로 한 단계(D-270).
+- `[열림]` 프리팹 에셋과 `PrefabSpawner`(D-270 (8) 에서 뒤로 미뤘다).

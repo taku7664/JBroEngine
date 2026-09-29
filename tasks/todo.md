@@ -2924,6 +2924,31 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-270. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **구현 전이다 - 계약만 섰다.**
+  Updates: D-45, D-51, cpp-script-plan §3.6·§4, ProjectRule §6.1.
+  (1) **이름과 태그를 나눈다.** 지금은 오브젝트에 이름 칸이 없고 `CreateObject(name)` 이 이름을 태그 자리(`NameId`)에 넣으며 캔버스 파일은 그 값을 `Name` 으로 쓴다.
+  그 칸을 **이름**으로 삼고(`GetName`·`SetName`, 파일의 `Name` 은 그대로), 태그는 따로 `NameId` 칸을 둔다(파일에 `Tag`, 비어 있으면 적지 않는다). 둘 다 인턴된 정수다(D-51).
+  **`[]` 와 `Find` 는 이름만 본다. 태그는 함수로만 찾는다**(`Objects.FindWithTag`·`FindAllWithTag`, 핸들의 `GetTag`·`SetTag`·`CompareTag`). 찾기 API 가 이름을 기준으로 굳기 전에 나눈다.
+  (2) **핸들은 둘이다.** 오브젝트는 기존 16B `GameObjectHandle`, 레이어는 새 값 타입 `LayerHandle { LayerId }`(4B, standard-layout·trivially-copyable)다.
+  `LayerId` 는 재사용하지 않는 영속 번호라(D-46) 번호 하나로 충분하다. 둘 다 무효인 채로 멤버를 부르면 로그를 남기고 빈 값을 돌려준다(§6.1 안전 멤버).
+  `Layer` 는 `JBroCanvas` 에 있어 프렐류드에 넣지 않는다 - `LayerHandle` 은 `JBroRuntime` 에 두고 서비스를 거쳐 캔버스에 닿는다.
+  (3) **`[]` 는 한 단계만 찾는다.** `LayerHandle::operator[](name)` 은 그 레이어의 뿌리 오브젝트(부모 없음)를, `GameObjectHandle::operator[](name)` 은 직계 자식을 본다 -
+  `ui["HUD"]["HpBar"]` 가 계층의 경로처럼 읽힌다. 깊이를 가리지 않는 찾기는 `FindInChildren(name)`(깊이 우선) 이 한다.
+  같은 이름이 여럿이면 계층 패널에 보이는 순서의 첫 번째다(뿌리는 `GetRootObjects`, 자식은 `m_children` 의 차례). 못 찾으면 로그 없이 빈 핸들이고,
+  빈 핸들에서 `[]` 를 또 부르면 그때 무효 접근 로그가 남는다. 문자열을 한 번 해시하고 정수로 비교한다. `NameId` 를 받는 겹침도 둔다.
+  **찾기는 매 프레임 부르지 않는다** - `OnStart` 에서 찾아 핸들을 필드에 든다(매 프레임 경로에 문자열 처리를 두지 않는다).
+  (4) **전체 찾기와 레이어 찾기는 서비스다.** `GetServiceContext().Objects` 의 `Find(name)`·`FindAll(name, out)`·`FindWithTag`·`FindAllWithTag`·`GetLayer(name)`.
+  핸들에는 `GetName`·`GetLayer`·`GetParent`·`SetParent`·`GetChildCount`·`GetChild(i)` 를 더한다. 크기는 16B 그대로다.
+  (5) **만들기.** `Objects.Create(name, parent = {}, layer = {})` 가 핸들을 돌려주고, `handle.AddComponent<T>()` 가 `Ref<T>` 를 돌려준다(빌트인과 스크립트가 같은 모양).
+  인터페이스는 차원과 무관하게 `JBroRuntime` 에 두고, **차원의 기본 트랜스폼은 프레임워크 구현이 붙인다**(2D 는 `Transform2D`, 3D 는 `Transform3D`) - 에디터의 빈 오브젝트와 같은 결과다.
+  만든 오브젝트는 곧바로 있다(찾을 수 있고 붙일 수 있다). 새 스크립트의 훅이 언제부터 도는지는 순회 중 생성을 캔버스가 어떻게 받는지 구현하며 재고 적는다(아직 재지 않았다).
+  (6) **삭제는 `handle.Destroy()` 하나다.** `Objects.Destroy` 를 따로 두지 않는다 - 같은 일의 길이 둘이 된다. 순회 중이면 안전 지점에서 자식과 함께 지운다(D-45, 그대로).
+  **바꾸는 것: 삭제를 요청한 순간부터 모든 사본의 `IsValid()` 가 거짓이고 찾기에서도 빠진다.** 지금은 `Destroy` 를 부른 사본만 캐시를 비워, 다른 사본은 실제로 지워질 때까지 참이다 -
+  같은 프레임에 죽기로 한 적을 다시 찾아 때린다.
+  (7) **자리.** 서비스는 `ServiceContext` 의 `Service::ObjectService Objects`(판번호 2 → 3), 호스트 쪽은 Internal 인터페이스 `IObjectSystem` 하나다(`Screen2DService` → `IScreen2DSystem` 과 같은 모양).
+  `GameObject[]` 는 서비스를 거치지 않고 Runtime 에서 자식을 직접 본다.
+  (8) **프리팹은 나중이다.** 프리팹 에셋이 없고 `PrefabSpawner` 는 선언뿐이다. 3.6 은 `Create`·`AddComponent` 까지 한다.
+
 - **D-268. 스크립트 DLL 을 다시 실을 때 캔버스의 스크립트를 글자로 떠서 모르는 컴포넌트로 옮겨 두고, 새 DLL 이 아는 것을 같은 자리·같은 컴포넌트 번호로 되살린다.** (2026-09-29, 사용자 지시: "3.5 진행해", 고른 것: 시점은 "에디터 빌드 + DLL 변경 감지", 재생 중은 "멈출 때까지 미룬다", 필드가 바뀌면 "맞는 것만 잇고 나머지는 경고")
   Updates: D-39, D-264, D-267, cpp-script-plan §3.1·§3.5·§4, ProjectRule §6.2·§8.
   (1) **두 걸음이고 그 사이 값은 캔버스의 모르는 컴포넌트(D-264)로 산다.** `KeepScriptsAsText` 가 이름으로 붙인 스크립트를 모두 글자로 떠서
