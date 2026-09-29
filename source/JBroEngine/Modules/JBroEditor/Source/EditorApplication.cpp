@@ -3411,7 +3411,7 @@ namespace JBro
                     RequestSaveProject();
                 }
                 // **게임 빌드**(D-232). 저장된 프로젝트로 빌드한다 - 같은 까닭으로 파일이 있어야 하고 돌고 있지 않아야 한다.
-                Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.build_game"));
+                Widget::SetNextItemTarget(GuideFocusTargets::Action("game.build"));
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuBuildGame, "Build Game"), nullptr, false == (noFile || playing), why))
                 {
                     GameBuildReport report;
@@ -3478,11 +3478,17 @@ namespace JBro
         {
             // **할 수 없는 것은 회색으로 보인다.** 눌리는데 아무 일도 안 하면
             // 고장인지 할 게 없는 건지 알 수 없다. 그 판단은 단축키 표가 한다.
+            // 항목마다 가이드의 행동 이름을 단다(D-268). 오브젝트 메뉴의 같은 항목과 이름이 같다.
+            Widget::SetNextItemTarget(GuideFocusTargets::Action("edit.undo"));
             DrawShortcutItem(EditorShortcut::Undo, Loc::TextOr(LocKeys::MenuUndo, "Undo"));
+            Widget::SetNextItemTarget(GuideFocusTargets::Action("edit.redo"));
             DrawShortcutItem(EditorShortcut::Redo, Loc::TextOr(LocKeys::MenuRedo, "Redo"));
             ImGui::Separator();
+            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.copy"));
             DrawShortcutItem(EditorShortcut::Copy, Loc::TextOr(LocKeys::HierarchyCopy, "Copy"));
+            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
             DrawShortcutItem(EditorShortcut::Paste, Loc::TextOr(LocKeys::HierarchyPaste, "Paste"));
+            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste_as_child"));
             DrawShortcutItem(EditorShortcut::PasteAsChild,
                 Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"));
             // 가이드의 `object.delete` 가 편집 메뉴로 올 때 가리키는 항목이다(D-267).

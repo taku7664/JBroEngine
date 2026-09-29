@@ -319,6 +319,8 @@ namespace JBro
         // 지금 떠 있는 우클릭 메뉴가 어느 오브젝트의 것인가. 빈 곳의 메뉴거나 메뉴가 없으면 빈다 - 가이드가 "이 오브젝트를
         // 우클릭했다" 를 이것으로 안다(D-267).
         SafePtr<GameObject> m_contextObject;
+        // 지금 떠 있는 우클릭 메뉴가 빈 곳의 것인가(D-268).
+        bool m_contextBackground = false;
         // 상자 선택 중인가와 그 시작 자리(화면 좌표). 끌기가 임계값을 넘어야 시작한다 -
         // 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가 되어 선택이 풀린다.
         bool m_boxSelecting = false;

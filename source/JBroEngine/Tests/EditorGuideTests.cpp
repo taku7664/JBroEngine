@@ -1,7 +1,9 @@
-﻿#include <JBro/Core/Log.h>
+﻿#include <JBro/Canvas/Canvas.h>
+#include <JBro/Core/Log.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorGuide.h>
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorPopup.h>
@@ -1249,6 +1251,8 @@ namespace
             { "  - Do: game.build\n    Colour: red\n", "unknown key 'Colour'" },
             { "  - Do: game.build\n    RetreatTo: later\n", "names no earlier step" },
             { "  - Do: game.build\n    Keyboard: maybe\n", "true or false" },
+            { "  - Do: object.delete\n    Parent: 1\n", "takes no Parent" },
+            { "  - Do: object.create\n    Object: 1\n", "takes no Object" },
         };
         for (const Bad& entry : bad)
         {
@@ -1279,6 +1283,9 @@ namespace
         Check(Contains(catalog, "Do: object.select") && Contains(catalog, "Do: component.add") && Contains(catalog, "Do: game.build")
                 && Contains(catalog, "Do: field.edit"),
             "and every other action");
+        Check(Contains(catalog, "Do: object.create") && Contains(catalog, "Parent: optional") && Contains(catalog, "Do: edit.undo")
+                && Contains(catalog, "Do: object.unparent") && Contains(catalog, "Do: object.paste_as_child"),
+            "the one-line menu actions are listed with their parameter names");
         // 목록은 다시 읽힌다 - 에이전트에게 넘길 때 같은 형식이다.
         JBro::YamlDocument document;
         JBro::YamlError yamlError;
@@ -1597,6 +1604,305 @@ namespace
     }
 }
 
+namespace
+{
+    // ── 한 줄짜리 행동과 커맨드 실행 기록(D-268) ──────────────────────
+
+    class ProbeCommand final : public JBro::EditorCommand
+    {
+    public:
+        ProbeCommand(const char* name, JBro::EditorObjectId subject, bool succeeds)
+            : m_name(name)
+            , m_subject(subject)
+            , m_succeeds(succeeds)
+        {
+        }
+        const char* GetName() const override { return m_name; }
+        JBro::EditorObjectId GetSubject() const override { return m_subject; }
+        bool Execute() override { return m_succeeds; }
+        void Undo() override {}
+        void Redo() override {}
+
+    private:
+        const char* m_name = nullptr;
+        JBro::EditorObjectId m_subject = JBro::InvalidEditorObjectId;
+        bool m_succeeds = true;
+    };
+
+    // 실행 기록은 실행한 것만 적고(실패·되돌리기·다시하기는 아니다), 오래된 것은 밀려나며, 밀려난 것을 묻으면 거짓이다.
+    void TestTheCommandManagerRemembersWhatRan()
+    {
+        JBro::EditorCommandManager commands;
+        using Executed = JBro::EditorCommandManager::ExecutedCommand;
+        Check(commands.GetExecuteCount() == 0, "nothing has run yet");
+        Executed ran;
+        Check(false == commands.GetExecuted(1, ran), "and there is no first record");
+
+        Check(commands.Execute(JBro::MakeOwnerPtr<ProbeCommand>("A", 11, true)), "A runs");
+        Check(false == commands.Execute(JBro::MakeOwnerPtr<ProbeCommand>("Fail", 99, false)), "a failing command does not run");
+        Check(commands.Execute(JBro::MakeOwnerPtr<ProbeCommand>("B", 22, true)), "B runs");
+        Check(commands.GetExecuteCount() == 2, "a failed command is not counted");
+        Check(commands.GetExecuted(1, ran) && std::strcmp(ran.name, "A") == 0 && ran.subject == 11, "the first record is A and its subject");
+        Check(commands.GetExecuted(2, ran) && std::strcmp(ran.name, "B") == 0 && ran.subject == 22, "the second is B");
+        Check(commands.Undo() && commands.Redo(), "undo and redo work");
+        Check(commands.GetExecuteCount() == 2, "undo and redo are not executions - a guide must not count a redo as the user doing it again");
+
+        const std::uint64_t history = JBro::EditorCommandManager::ExecutedHistory;
+        for (std::uint64_t index = 0; index < history; ++index)
+        {
+            commands.Execute(JBro::MakeOwnerPtr<ProbeCommand>("C", 33, true));
+        }
+        Check(commands.GetExecuteCount() == history + 2, "every execution counts");
+        Check(false == commands.GetExecuted(1, ran) && false == commands.GetExecuted(2, ran), "the oldest fell out of the history");
+        Check(commands.GetExecuted(3, ran) && std::strcmp(ran.name, "C") == 0, "the oldest kept one is still there");
+        Check(false == commands.GetExecuted(history + 3, ran), "and a serial not yet run is not there");
+    }
+
+    // 메뉴에서 연 항목을 누르는 데까지 몬다. 구멍이 `menuLevel` 칸(사용자가 우클릭할 자리)에 서면 `x`,`y` 를 우클릭하고,
+    // 메뉴가 열려 구멍이 항목으로 옮겨 가면 누른다. 자리를 주지 않으면 구멍 가운데를 우클릭한다.
+    void RightClickMenuAndPress(JBro::EditorApplication& editor, HWND hwnd, std::uint32_t menuLevel, int x = -1, int y = -1)
+    {
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(WaitUntilSettled(editor, menuLevel), "the hole must reach the place to right-click");
+        if (x < 0)
+        {
+            HoleCenter(focus, x, y);
+        }
+        RightClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        Check(ImGui::GetCurrentContext()->OpenPopupStack.Size == 1, "right-clicking there opens the menu");
+        Check(WaitUntilSettled(editor, menuLevel + 1), "and the hole moves onto the item");
+        Check(HoleInsideWindow(focus, ImGui::GetCurrentContext()->OpenPopupStack[0].Window), "the item is in the open menu");
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 3);
+    }
+
+    JBro::String ActionGuide(const char* action, const char* extra)
+    {
+        char step[256] = {};
+        std::snprintf(step, sizeof(step), "  - Do: %s\n%s", action, extra);
+        return OneStepGuide(step);
+    }
+
+    // 빈자리 메뉴로 오브젝트를 만든다. 길은 메뉴 표가 지었고, 끝은 `Create Object` 커맨드가 알렸다.
+    void TestACreateGuideGoesByTheEmptySpot()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideCreateProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the create guide not verified" << std::endl;
+            return;
+        }
+        const JBro::String text = ActionGuide("object.create", "    Via: hierarchy\n");
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        Check(path.count == 3 && path.targets[1] == JBro::GuideFocusTargets::HierarchyBackground() && path.open[1] == GuideFocusOpen::User
+                && path.targets[2] == JBro::GuideFocusTargets::Action("object.create"),
+            "the layers window, its empty spot the user right-clicks, and Create Object");
+        std::size_t before = 0;
+        editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++before; });
+        // 창의 아래쪽 빈 곳을 우클릭한다.
+        const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(hierarchy != nullptr, "the layers window must be there");
+        RightClickMenuAndPress(editor, hwnd, 1, static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
+            static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
+        std::size_t after = 0;
+        editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++after; });
+        Check(after == before + 1, "pressing Create Object in the hole makes one object");
+        Check(editor.GetGuide().IsConfirming(), "and the step knows - the Create Object command ran");
+    }
+
+    // `Parent` 를 적으면 같은 행동이 부모의 우클릭 메뉴로 간다. 다른 곳에 만든 것으로는 끝나지 않는다.
+    void TestACreateChildGuideGoesByTheParentsMenu()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideCreateChildProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the create child guide not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(parent != nullptr, "a parent must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+        char extra[96] = {};
+        std::snprintf(extra, sizeof(extra), "    Parent: %llu\n    Via: hierarchy\n",
+            static_cast<unsigned long long>(parent->GetInstanceId()));
+        const JBro::String text = ActionGuide("object.create", extra);
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        Check(path.targets[path.count - 2] == JBro::GuideFocusTargets::HierarchyObjectMenu(editor.GetObjectIds().Track(parent)),
+            "with a Parent the path goes through the parent's row menu");
+        Tick(editor, 2);
+        // 뿌리에 만든 것은 그 부모의 자식이 아니다.
+        Check(JBro::EditorActions::CreateObject(editor, nullptr) != nullptr, "an object made elsewhere");
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsRunning() && false == editor.GetGuide().IsConfirming(), "making an object elsewhere does not finish it");
+        editor.SetSelectedObject(nullptr);
+        RightClickMenuAndPress(editor, hwnd, path.count - 2);
+        Check(parent->GetChildren().Size() == 1, "pressing Create Child Object makes a child under the parent");
+        Check(editor.GetGuide().IsConfirming(), "and that finishes the step");
+    }
+
+    // 부모 해제. 다른 오브젝트를 떼어서는 끝나지 않는다 - 커맨드의 대상이 이 단계의 오브젝트여야 한다.
+    void TestAnUnparentGuideWaitsForItsOwnObject()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideUnparentProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the unparent guide not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::GameObject* wanted = JBro::EditorActions::CreateObject(editor, parent);
+        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, parent);
+        Check(wanted != nullptr && other != nullptr && parent->GetChildren().Size() == 2, "a parent with two children");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+        char extra[96] = {};
+        std::snprintf(extra, sizeof(extra), "    Object: %llu\n    Via: hierarchy\n",
+            static_cast<unsigned long long>(wanted->GetInstanceId()));
+        const JBro::String text = ActionGuide("object.unparent", extra);
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Tick(editor, 2);
+        Check(JBro::EditorActions::Unparent(editor, *other), "the other child is taken out");
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsRunning() && false == editor.GetGuide().IsConfirming(),
+            "unparenting another object does not finish the step");
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        RightClickMenuAndPress(editor, hwnd, path.count - 2);
+        Check(wanted->GetParent() == nullptr, "pressing Unparent in the hole takes the wanted child out");
+        Check(editor.GetGuide().IsConfirming(), "and that finishes the step");
+    }
+}
+
+namespace
+{
+    // 판정은 커맨드의 이름과 대상과 타입을 모두 본다(D-268). 같은 오브젝트에 다른 커맨드가 돌거나, 다른 타입을 붙이거나,
+    // 다른 부모에 붙여 넣은 것으로는 끝나지 않는다. 손짓은 커맨드를 직접 부른다 - 판정만 재는 시험이다.
+    void TestCommandEndsMatchNameSubjectAndType()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideCommandMatchProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; command matching not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::GameObject* wanted = JBro::EditorActions::CreateObject(editor, parent);
+        Check(wanted != nullptr, "a parent and a child must be made");
+        JBro::EditorActions::AddComponentList list;
+        JBro::EditorActions::BuildAddComponentList(*wanted, list);
+        JBro::NameId first = JBro::InvalidNameId;
+        JBro::NameId second = JBro::InvalidNameId;
+        const char* firstName = nullptr;
+        for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+        {
+            if (false == list.addable[index])
+            {
+                continue;
+            }
+            if (first == JBro::InvalidNameId)
+            {
+                first = list.typeNames[index];
+                firstName = list.names[index];
+            }
+            else if (second == JBro::InvalidNameId)
+            {
+                second = list.typeNames[index];
+            }
+        }
+        Check(first != JBro::InvalidNameId && second != JBro::InvalidNameId, "two addable component types must exist");
+        Tick(editor, 2);
+
+        // 부모 해제 단계: 같은 오브젝트에 컴포넌트를 붙이는 것(다른 커맨드)은 끝이 아니다.
+        char extra[160] = {};
+        std::snprintf(extra, sizeof(extra), "    Object: %llu\n    Via: hierarchy\n",
+            static_cast<unsigned long long>(wanted->GetInstanceId()));
+        JBro::String text = ActionGuide("object.unparent", extra);
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Tick(editor, 2);
+        Check(JBro::EditorActions::AddComponent(editor, *wanted, second), "a component is added to the same object");
+        Tick(editor, 2);
+        Check(false == editor.GetGuide().IsConfirming(), "another command on the same object does not finish an unparent step");
+        Check(JBro::EditorActions::Unparent(editor, *wanted), "the object is taken out");
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsConfirming(), "the unparent command on it does");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+
+        // 컴포넌트 추가 단계: 정해 둔 타입이 아닌 것을 붙여서는 끝나지 않는다.
+        JBro::GameObject* target = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(target != nullptr, "a fresh object for the component step");
+        Tick(editor, 2);
+        std::snprintf(extra, sizeof(extra), "    Object: %llu\n    Component: %s\n",
+            static_cast<unsigned long long>(target->GetInstanceId()), firstName);
+        text = ActionGuide("component.add", extra);
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Tick(editor, 2);
+        Check(JBro::EditorActions::AddComponent(editor, *target, second), "another type is attached");
+        Tick(editor, 2);
+        Check(false == editor.GetGuide().IsConfirming(), "attaching another type does not finish a step that names its type");
+        Check(JBro::EditorActions::AddComponent(editor, *target, first), "the named type is attached");
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsConfirming(), "attaching the named type does");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+
+        // 자식으로 붙여넣기 단계: 다른 부모에 붙인 것은 끝이 아니다.
+        JBro::GameObject* home = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::GameObject* elsewhere = JBro::EditorActions::CreateObject(editor, nullptr);
+        editor.SetSelectedObject(target);
+        Check(editor.CopySelection(), "an object is copied");
+        Tick(editor, 2);
+        std::snprintf(extra, sizeof(extra), "    Object: %llu\n", static_cast<unsigned long long>(home->GetInstanceId()));
+        text = ActionGuide("object.paste_as_child", extra);
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Tick(editor, 2);
+        editor.SetSelectedObject(elsewhere);
+        Check(editor.PasteClipboard(true), "pasted under another object");
+        Tick(editor, 2);
+        Check(false == editor.GetGuide().IsConfirming(), "pasting under another parent does not finish it");
+        editor.SetSelectedObject(home);
+        Check(editor.PasteClipboard(true), "pasted under the named object");
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsConfirming(), "pasting under it does");
+    }
+
+    // 캔버스 뷰의 빈 곳으로도 만든다. 오브젝트 위를 누르면 그 오브젝트의 메뉴라 빈자리 메뉴가 아니다.
+    void TestACreateGuideGoesByTheCanvasViewEmptySpot()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideCreateCanvasProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the create guide by the canvas view not verified" << std::endl;
+            return;
+        }
+        const JBro::String text = ActionGuide("object.create", "    Via: canvas_view\n");
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Check(editor.GetGuideFocus().GetPath().targets[1] == JBro::GuideFocusTargets::CanvasViewBackground(),
+            "the canvas view and its empty spot");
+        const ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must be there");
+        // 뷰의 오른쪽 아래 빈 곳이다(원점의 오브젝트는 없다).
+        RightClickMenuAndPress(editor, hwnd, 1, static_cast<int>(view->Pos.x + view->Size.x - 60.0f),
+            static_cast<int>(view->Pos.y + view->Size.y - 60.0f));
+        std::size_t count = 0;
+        editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++count; });
+        Check(count == 1, "pressing Create Object in the canvas view makes one object");
+        Check(editor.GetGuide().IsConfirming(), "and finishes the step");
+    }
+}
+
 int RunEditorGuideTests()
 {
     TestAClosedLevelOpensOnlyAfterTheHoleSettlesAndDwells();
@@ -1627,6 +1933,12 @@ int RunEditorGuideTests()
     TestAHiddenRouteGivesWayToTheNext();
     TestADeleteGuideGoesByTheEditMenu();
     TestSelectingAGivenObjectWaitsForThatObject();
+    TestTheCommandManagerRemembersWhatRan();
+    TestACreateGuideGoesByTheEmptySpot();
+    TestACreateChildGuideGoesByTheParentsMenu();
+    TestAnUnparentGuideWaitsForItsOwnObject();
+    TestCommandEndsMatchNameSubjectAndType();
+    TestACreateGuideGoesByTheCanvasViewEmptySpot();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }

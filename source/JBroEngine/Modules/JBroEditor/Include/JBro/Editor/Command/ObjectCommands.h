@@ -23,6 +23,7 @@ namespace JBro
     class CreateObjectCommand final : public EditorCommand
     {
     public:
+        EditorObjectId GetSubject() const override { return m_objectId; }
         // `defaultComponent` 는 만들자마자 붙일 컴포넌트의 등록 이름이다(D-158). 에디터는 프레임워크의
         // 트랜스폼(`Component::Transform2D`·`Transform3D`)을 준다 - 트랜스폼이 없는 오브젝트는 캔버스 뷰에
         // 보이지도 않고 옮길 수도 없다. 기존 엔진은 트랜스폼이 오브젝트의 멤버라 늘 있었다.
@@ -170,6 +171,7 @@ namespace JBro
     class DeleteObjectCommand final : public EditorCommand
     {
     public:
+        EditorObjectId GetSubject() const override { return m_objectId; }
         DeleteObjectCommand(
             Canvas& canvas,
             EditorObjectRegistry& registry,
@@ -184,6 +186,8 @@ namespace JBro
         Canvas* m_canvas = nullptr;
         EditorObjectRegistry* m_registry = nullptr;
         EditorObjectId m_parentId = InvalidEditorObjectId;
+        // 지운 나무의 뿌리다. 되살리면 같은 번호에 다시 걸린다.
+        EditorObjectId m_objectId = InvalidEditorObjectId;
         // **나무 전체를 떴는가.** 스냅샷이 비었는지만 보아서는 모자란다 - 뿌리는
         // 떴는데 자식 하나에서 막히면 배열은 비어 있지 않고, 그대로 지우면 그
         // 자식이 돌아올 곳이 없다. 성공했다고 말하면서 잃는 것이 가장 나쁘다.
@@ -203,6 +207,8 @@ namespace JBro
     class PasteObjectsCommand final : public EditorCommand
     {
     public:
+        // 붙여 넣은 첫 뿌리다. 여럿을 붙였으면 나머지는 `GetPastedRootIds` 에 있다.
+        EditorObjectId GetSubject() const override;
         PasteObjectsCommand(
             Canvas& canvas,
             EditorObjectRegistry& registry,

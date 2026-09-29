@@ -172,6 +172,7 @@ namespace JBro
         m_parentId = object->GetParent() != nullptr
             ? m_registry->Track(object->GetParent())
             : InvalidEditorObjectId;
+        m_objectId = m_registry->Track(object);
         m_captured = m_tree.Capture(registry, *object);
     }
 
@@ -208,6 +209,12 @@ namespace JBro
     }
 
     // ── PasteObjectsCommand ──────────────────────────────────────────────────
+
+    EditorObjectId PasteObjectsCommand::GetSubject() const
+    {
+        const Array<EditorObjectId> roots = GetPastedRootIds();
+        return roots.IsEmpty() ? InvalidEditorObjectId : roots[0];
+    }
 
     PasteObjectsCommand::PasteObjectsCommand(
         Canvas& canvas,

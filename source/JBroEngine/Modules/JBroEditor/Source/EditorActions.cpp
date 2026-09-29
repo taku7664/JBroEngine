@@ -226,6 +226,7 @@ namespace JBro::EditorActions
     bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent,
         const ObjectPlacement& placement)
     {
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.create"));
         if (false == Widget::MenuItem(
                 Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object"), nullptr,
                 editor.GetCanvas() != nullptr, NoProjectReason()))
@@ -238,6 +239,8 @@ namespace JBro::EditorActions
     bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent,
         const ObjectPlacement& placement)
     {
+        // 빈자리의 `오브젝트 추가` 와 같은 행동이다(D-268). `Parent` 를 적으면 이 항목으로 온다.
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.create"));
         if (false == Widget::MenuItem(
                 Loc::TextOr(LocKeys::HierarchyCreateChild, "Create Child"), nullptr,
                 editor.GetCanvas() != nullptr, NoProjectReason()))
@@ -255,6 +258,7 @@ namespace JBro::EditorActions
         {
             return false;
         }
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.unparent"));
         if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyUnparent, "Unparent")))
         {
             return false;
@@ -264,6 +268,7 @@ namespace JBro::EditorActions
 
     bool DrawCopyItem(EditorApplication& editor)
     {
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.copy"));
         if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"), "Ctrl+C",
                 editor.GetSelectionCount() != 0, NothingSelectedReason()))
         {
@@ -274,6 +279,7 @@ namespace JBro::EditorActions
 
     bool DrawPasteItem(EditorApplication& editor)
     {
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
         if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V",
                 editor.HasClipboard(), ClipboardEmptyReason()))
         {
@@ -284,6 +290,7 @@ namespace JBro::EditorActions
 
     bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object)
     {
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste_as_child"));
         // **고른 것 안으로 붙인다**(D-166, 기존 `PasteObjectsAsChild`). 줄에서 연 메뉴이므로 그 줄이 곧 부모다.
         if (false == Widget::MenuItem(
                 Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"), "Ctrl+Shift+V",
@@ -298,6 +305,7 @@ namespace JBro::EditorActions
     bool DrawDeleteItem(EditorApplication& editor, GameObject& object)
     {
         // 계층 줄과 캔버스 뷰가 함께 쓰는 한 벌이라 표식도 한 번이다(D-267). 가이드의 `object.delete` 가 가리킨다.
+        // 이 파일의 다른 항목도 같다 - 항목 하나에 표식 하나, 행동 표(`EditorGuideActions.cpp`)에 줄 하나다(D-268).
         Widget::SetNextItemTarget(GuideFocusTargets::Action("object.delete"));
         if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"), "Del",
                 editor.GetCanvas() != nullptr, NoProjectReason()))

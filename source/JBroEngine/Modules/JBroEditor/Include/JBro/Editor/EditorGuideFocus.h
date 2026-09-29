@@ -58,6 +58,10 @@ namespace JBro
         GuideFocusTarget HierarchyObjectMenu(std::uint64_t editorObjectId);
         // 캔버스 뷰에 그려진 오브젝트다. 자리는 화면에 비친 오브젝트의 사각형이고, 열림은 그 오브젝트의 우클릭 메뉴가 떠 있는가다.
         GuideFocusTarget CanvasViewObject(std::uint64_t editorObjectId);
+        // 계층 창과 캔버스 뷰의 **빈자리 우클릭 메뉴**다(D-268). 자리는 그 창(캔버스 뷰는 그림)이고, 열림은 빈자리 메뉴가
+        // 떠 있는가다 - 오브젝트 줄이나 오브젝트를 우클릭해 연 메뉴는 이것이 아니다.
+        GuideFocusTarget HierarchyBackground();
+        GuideFocusTarget CanvasViewBackground();
     }
 
     // 경로의 한 칸을 누가 여는가.

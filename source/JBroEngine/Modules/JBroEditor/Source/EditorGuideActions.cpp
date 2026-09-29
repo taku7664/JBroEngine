@@ -16,17 +16,20 @@
 
 namespace JBro
 {
-    // 글자로 적힌 가이드(D-267, `tasks/guide-focus-plan.md` §2.8)다.
+    // 글자로 적힌 가이드(D-267, `tasks/guide-focus-plan.md` §2.8)와 그 행동 표(D-268, §2.9)다.
     //
-    // 가이드에 적힌 것은 **무엇을 하게 할지**다(`Do: object.delete`). 그 일이 어느 패널의 어느 줄을 거쳐 가는지는 여기 있는
-    // 행동 표가 안다 - 오브젝트 삭제는 계층 줄의 우클릭 메뉴로도, 캔버스 뷰의 우클릭 메뉴로도, 편집 메뉴로도 간다.
-    // 적는 쪽(에디터 안의 에이전트)은 화면의 모양을 몰라도 되고, 패널이 바뀌면 이 표만 고친다.
+    // 가이드에 적힌 것은 **무엇을 하게 할지**다(`Do: object.delete`). 그 일이 어느 패널의 어느 줄을 거쳐 가는지는 이 파일이 안다.
+    //
+    // **행동은 한 줄이다**(D-268). 거의 모든 편집은 메뉴 항목 하나이고, 메뉴는 몇 개뿐이다 - 오브젝트 우클릭 메뉴 하나에 일곱
+    // 항목이 같은 길(계층 줄 우클릭 · 캔버스 뷰 우클릭)로 들어간다. 그래서 길은 **메뉴가** 한 번 짓고, 행동은 "어느 메뉴들에
+    // 있는가" 와 "어느 커맨드가 실행되면 끝인가" 만 적는다. 끝나는 판정은 커맨드 관리자의 실행 기록을 한 곳에서 읽는다.
+    // 메뉴 항목이 아닌 일(선택 · 인스펙터의 필드)만 전용 함수를 둔다.
 
     namespace
     {
-        // ── 길 ────────────────────────────────────────────────────────
+        // ── 길과 메뉴 ─────────────────────────────────────────────
 
-        // 행동에 들어가는 길이다. 적힌 이름은 `RouteName` 에 있다.
+        // 화면에서 들어가는 길이다. 적힌 이름은 `RouteName` 에 있다.
         enum class GuideRoute : std::uint8_t
         {
             Hierarchy,
@@ -54,27 +57,67 @@ namespace JBro
             return "";
         }
 
-        // 행동이 받는 인자다.
-        enum class GuideParam : std::uint8_t
+        // 행동이 들어 있는 메뉴(그릇)다. 행동 표에 비트로 적는다.
+        enum GuideMenu : std::uint8_t
         {
-            None = 0,
-            // 오브젝트 하나. `InstanceId` 이거나 `Selection`(단계에 들어설 때 선택한 것)이다.
-            Object = 1 << 0,
-            // 컴포넌트 타입 이름(`Transform2D`).
-            Component = 1 << 1,
-            // 필드 이름(`position`).
-            Field = 1 << 2
+            // 오브젝트 하나를 두고 여는 메뉴(`EditorActions::DrawObjectMenu`) - 계층 줄 · 캔버스 뷰의 오브젝트를 우클릭한다.
+            ObjectMenu = 1 << 0,
+            // 빈자리 메뉴(`DrawBackgroundMenu`) - 계층의 빈 곳 · 캔버스 뷰의 빈 곳을 우클릭한다.
+            BackgroundMenu = 1 << 1,
+            // 메뉴 막대의 `편집`. 선택한 것에 하므로 오브젝트가 있으면 그것 하나만 고른다.
+            EditMenu = 1 << 2,
+            // 메뉴 막대의 `파일`.
+            FileMenu = 1 << 3,
+            // 인스펙터의 컴포넌트 추가 칸. 목록의 항목에는 표식이 없어 칸이 끝이다.
+            InspectorAdd = 1 << 4
         };
 
-        constexpr bool HasParam(std::uint8_t params, GuideParam param)
+        // 메뉴가 오브젝트를 받는가. 받는 메뉴는 오브젝트가 적혔을 때만, 받지 않는 메뉴는 적히지 않았을 때만 길이 된다 -
+        // "오브젝트 추가" 는 `Parent` 가 있으면 부모의 우클릭 메뉴로, 없으면 빈자리 메뉴로 간다.
+        enum class MenuObject : std::uint8_t
         {
-            return (params & static_cast<std::uint8_t>(param)) != 0;
-        }
+            Required,
+            Forbidden,
+            Optional
+        };
 
-        constexpr std::uint8_t Params(GuideParam a, GuideParam b = GuideParam::None)
+        struct MenuRoute
         {
-            return static_cast<std::uint8_t>(static_cast<std::uint8_t>(a) | static_cast<std::uint8_t>(b));
-        }
+            GuideMenu menu;
+            GuideRoute route;
+            MenuObject object;
+        };
+
+        // **메뉴마다 들어가는 길이다. 이 표가 한 번 짓는다.** 차례가 `Via: auto` 의 차례다.
+        constexpr MenuRoute MenuRoutes[] = {
+            { ObjectMenu, GuideRoute::Hierarchy, MenuObject::Required },
+            { ObjectMenu, GuideRoute::CanvasView, MenuObject::Required },
+            { BackgroundMenu, GuideRoute::Hierarchy, MenuObject::Forbidden },
+            { BackgroundMenu, GuideRoute::CanvasView, MenuObject::Forbidden },
+            { EditMenu, GuideRoute::EditMenu, MenuObject::Optional },
+            { FileMenu, GuideRoute::MainMenu, MenuObject::Forbidden },
+            { InspectorAdd, GuideRoute::Inspector, MenuObject::Optional },
+        };
+        constexpr std::uint32_t MenuRouteCount = sizeof(MenuRoutes) / sizeof(MenuRoutes[0]);
+
+        // 커맨드가 다룬 오브젝트가 단계의 오브젝트와 어떤 사이여야 끝인가.
+        enum class Subject : std::uint8_t
+        {
+            // 상관없다(붙여넣기).
+            Any,
+            // 그 오브젝트다(지우기 · 부모 해제 · 컴포넌트 추가). 오브젝트가 적히지 않았으면 지금 선택한 것이다.
+            Same,
+            // 그 오브젝트의 자식이다(자식 오브젝트 추가 · 자식으로 붙여넣기). 적히지 않았으면 상관없다.
+            ChildOf
+        };
+
+        // 행동이 받는 오브젝트 인자다.
+        enum class ObjectParam : std::uint8_t
+        {
+            None,
+            Optional,
+            Required
+        };
 
         struct GuideActionInfo;
     }
@@ -101,9 +144,9 @@ namespace JBro
         bool routeFixed = false;
         GuideRoute fixedRoute = GuideRoute::Hierarchy;
 
-        // 단계에 들어설 때 찾은 오브젝트다. 지워지면 비는 것으로 "지웠다" 를 안다.
+        // 단계에 들어설 때 찾은 오브젝트와 그 에디터 번호다. 번호를 따로 든다 - 지우는 일을 판정할 때 오브젝트는 이미 없다.
         SafePtr<GameObject> object;
-        bool resolved = false;
+        std::uint64_t objectEditorId = 0;
         std::uint32_t routeIndex = 0;
 
         // 글자의 원본이다. `GuideText` 가 가리킨다.
@@ -118,24 +161,35 @@ namespace JBro
     private:
         bool ResolveObject(EditorApplication& editor);
         bool TryRoute(EditorApplication& editor, std::uint32_t index, GuideFocusPath& path);
+        bool CommandRan(EditorApplication& editor, GuideStepMemo& memo);
     };
 
     namespace
     {
         // 행동 하나다. 이름은 **저장되는 이름**이다 - 에이전트가 적고, 바꾸면 이미 적힌 가이드가 깨진다.
+        //
+        // 메뉴 항목인 행동은 `menus` 와 `command` 두 칸이 전부다. 그 항목에 `GuideFocusTargets::Action(name)` 표식을 단다.
+        // 메뉴 항목이 아닌 행동만 `routes`·`build`·`enter`·`done` 을 쓴다.
         struct GuideActionInfo
         {
             const char* name = nullptr;
             // 목록(`WriteCatalog`)에 적는 한 줄 설명이다. 에이전트가 읽는 것이라 화면 글자가 아니다(§11.2 밖).
             const char* summary = nullptr;
-            std::uint8_t params = 0;
-            // 오브젝트 인자가 없어도 되는가(`object.select` 는 "아무거나 골라라" 가 된다).
-            bool objectOptional = false;
-            GuideRoute routes[3] = {};
-            std::uint32_t routeCount = 0;
-            GuideStepEnd end = GuideStepEnd::NextButton;
+            std::uint8_t menus = 0;
+            // 이 커맨드가 실행되면 끝이다(`EditorCommand::GetName`). 없으면 항목을 누르면 끝이다(복사 · 실행 취소 · 게임 빌드).
+            const char* command = nullptr;
+            Subject subject = Subject::Any;
+            ObjectParam object = ObjectParam::None;
+            // 오브젝트 인자의 이름이다. 자식을 만드는 일은 `Parent` 로 적는 것이 읽기 쉽다.
+            const char* objectKey = "Object";
+            bool takesComponent = false;
+            bool takesField = false;
             bool keyboard = false;
             bool canGoNext = false;
+            // ── 메뉴 항목이 아닌 행동 ──
+            GuideRoute routes[2] = {};
+            std::uint32_t routeCount = 0;
+            GuideStepEnd end = GuideStepEnd::NextButton;
             bool (*build)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&) = nullptr;
             void (*enter)(GuideStepBinding&, EditorApplication&, GuideStepMemo&) = nullptr;
             bool (*done)(GuideStepBinding&, EditorApplication&, GuideStepMemo&) = nullptr;
@@ -176,6 +230,59 @@ namespace JBro
             return Loc::TextOr(LocKeys::GuideNeedSelectedObject, "pick an object first");
         }
 
+        // ── 메뉴의 길 ─────────────────────────────────────────────
+
+        // 메뉴를 여는 데까지의 경로다. 끝의 항목은 부르는 쪽이 붙인다.
+        bool BuildMenuEntry(const MenuRoute& entry, EditorApplication& editor, GameObject* target, GuideFocusPath& path)
+        {
+            switch (entry.menu)
+            {
+            case ObjectMenu:
+            {
+                const std::uint64_t id = TrackedId(editor, target);
+                if (entry.route == GuideRoute::Hierarchy)
+                {
+                    // 조상 줄은 기구가 펴고, 그 줄에서는 사용자가 우클릭해 메뉴를 연다.
+                    if (false == EditorGuides::AppendObjectPath(editor, *target, path))
+                    {
+                        return false;
+                    }
+                    path.targets[path.count - 1] = GuideFocusTargets::HierarchyObjectMenu(id);
+                    path.open[path.count - 1] = GuideFocusOpen::User;
+                    return true;
+                }
+                // 3D 의 캔버스 뷰는 오브젝트를 누른 자리로 고르지 않는다(D-136) - 우클릭할 사각형이 없다.
+                return Is2D(editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
+                    && path.Push(GuideFocusTargets::CanvasViewObject(id), GuideFocusOpen::User);
+            }
+            case BackgroundMenu:
+                if (entry.route == GuideRoute::Hierarchy)
+                {
+                    return path.Push(GuideFocusTargets::Panel("Hierarchy"))
+                        && path.Push(GuideFocusTargets::HierarchyBackground(), GuideFocusOpen::User);
+                }
+                return Is2D(editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
+                    && path.Push(GuideFocusTargets::CanvasViewBackground(), GuideFocusOpen::User);
+            case EditMenu:
+                // 편집 메뉴는 **선택한 것**에 한다. 그것 하나만 고른다 - 선택은 편집이 아니므로 커맨드 없이 한다(§2.3).
+                if (target != nullptr)
+                {
+                    editor.SetSelectedObject(target);
+                }
+                return path.Push(GuideFocusTargets::Menu("menu.edit"), GuideFocusOpen::User);
+            case FileMenu:
+                return path.Push(GuideFocusTargets::Menu("menu.file"), GuideFocusOpen::User);
+            case InspectorAdd:
+                if (target != nullptr)
+                {
+                    editor.SetSelectedObject(target);
+                }
+                return editor.GetSelectedObject() != nullptr && path.Push(GuideFocusTargets::Panel("Inspector"))
+                    && path.Push(GuideFocusTargets::InspectorAddComponent(), GuideFocusOpen::User);
+            }
+            return false;
+        }
+
         // ── object.select ────────────────────────────────────────────
 
         bool BuildSelect(GuideStepBinding& binding, EditorApplication& editor, GuideRoute route, GuideFocusPath& path)
@@ -189,12 +296,7 @@ namespace JBro
                 }
                 return path.Push(GuideFocusTargets::Panel("Hierarchy"));
             }
-            if (false == Is2D(editor))
-            {
-                // 3D 의 캔버스 뷰는 오브젝트를 누른 자리로 고르지 않는다(D-136) - 가리킬 사각형이 없다.
-                return false;
-            }
-            if (false == path.Push(GuideFocusTargets::Panel("CanvasView")))
+            if (false == Is2D(editor) || false == path.Push(GuideFocusTargets::Panel("CanvasView")))
             {
                 return false;
             }
@@ -208,6 +310,7 @@ namespace JBro
         }
 
         // 들어설 때와 다른 오브젝트가 선택됐다(정해 둔 오브젝트가 있으면 그것이). 추가한 오브젝트는 곧 선택되므로 추가해도 넘어간다.
+        // 선택은 커맨드가 아니라 실행 기록에 남지 않는다 - 그래서 이 행동은 판정을 따로 둔다.
         bool DoneSelect(GuideStepBinding& binding, EditorApplication& editor, GuideStepMemo& memo)
         {
             const std::uint64_t now = SelectedObjectId(editor);
@@ -234,61 +337,16 @@ namespace JBro
             return nullptr;
         }
 
-        // ── object.delete ────────────────────────────────────────────
-
-        bool BuildDelete(GuideStepBinding& binding, EditorApplication& editor, GuideRoute route, GuideFocusPath& path)
-        {
-            GameObject* target = binding.object.TryGet();
-            if (target == nullptr)
-            {
-                return false;
-            }
-            const std::uint64_t id = TrackedId(editor, target);
-            switch (route)
-            {
-            case GuideRoute::Hierarchy:
-                // 조상 줄은 기구가 펼치고, 그 줄에서는 사용자가 우클릭해 메뉴를 연다.
-                if (false == EditorGuides::AppendObjectPath(editor, *target, path))
-                {
-                    return false;
-                }
-                path.targets[path.count - 1] = GuideFocusTargets::HierarchyObjectMenu(id);
-                path.open[path.count - 1] = GuideFocusOpen::User;
-                break;
-            case GuideRoute::CanvasView:
-                if (false == Is2D(editor)
-                    || false == path.Push(GuideFocusTargets::Panel("CanvasView"))
-                    || false == path.Push(GuideFocusTargets::CanvasViewObject(id), GuideFocusOpen::User))
-                {
-                    return false;
-                }
-                break;
-            case GuideRoute::EditMenu:
-                // 편집 메뉴의 삭제는 **선택한 것**을 지운다. 그것 하나만 고른다 - 선택은 편집이 아니므로 커맨드 없이 한다(§2.3).
-                editor.SetSelectedObject(target);
-                if (false == path.Push(GuideFocusTargets::Menu("menu.edit"), GuideFocusOpen::User))
-                {
-                    return false;
-                }
-                break;
-            default:
-                return false;
-            }
-            return path.Push(GuideFocusTargets::Action("object.delete"));
-        }
-
-        // 가리킨 오브젝트가 사라졌다. 어느 길로 지웠는지는 묻지 않는다.
-        bool DoneDelete(GuideStepBinding& binding, EditorApplication&, GuideStepMemo&)
-        {
-            return binding.resolved && binding.object.TryGet() == nullptr;
-        }
-
         // ── field.edit ───────────────────────────────────────────────
 
         // 선택한 오브젝트의 컴포넌트와 필드다. 정해 두지 않았으면 첫 컴포넌트의 맨 위 필드다 - 2D 면 `Transform2D.position`,
         // 3D 면 `Transform3D` 의 것이라 두 프레임워크에서 같은 가이드가 돈다.
         bool BuildField(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
         {
+            if (GameObject* target = binding.object.TryGet())
+            {
+                editor.SetSelectedObject(target);
+            }
             const GameObject* object = editor.GetSelectedObject();
             if (object == nullptr || object->GetComponents().Size() == 0)
             {
@@ -332,103 +390,86 @@ namespace JBro
             return editor.GetSelectedObject() != nullptr ? nullptr : NeedSelectedObject();
         }
 
-        // ── component.add ────────────────────────────────────────────
-
-        bool BuildAddComponent(GuideStepBinding&, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
-        {
-            if (editor.GetSelectedObject() == nullptr)
-            {
-                return false;
-            }
-            return path.Push(GuideFocusTargets::Panel("Inspector"))
-                && path.Push(GuideFocusTargets::InspectorAddComponent(), GuideFocusOpen::User);
-        }
-
-        // [0] 들어설 때 선택되어 있던 오브젝트, [1] 그 오브젝트의 컴포넌트 수, [2] 정해 둔 타입이 이미 붙어 있었는가.
-        void EnterAddComponent(GuideStepBinding& binding, EditorApplication& editor, GuideStepMemo& memo)
-        {
-            const GameObject* object = editor.GetSelectedObject();
-            memo.values[0] = SelectedObjectId(editor);
-            memo.values[1] = object != nullptr ? object->GetComponents().Size() : 0;
-            memo.values[2] = object != nullptr && binding.hasComponent && HasComponent(*object, binding.componentType) ? 1 : 0;
-        }
-
-        // 고른 오브젝트의 컴포넌트가 늘었다(정해 둔 타입이 있으면 그것이 새로 붙었다). **다른 오브젝트로 옮겨 고르면 그 오브젝트로
-        // 기준을 다시 잡는다** - 옮긴 것만으로는 붙인 것이 아니지만, 옮긴 뒤에 그 오브젝트에 붙인 것은 붙인 것이다.
-        bool DoneAddComponent(GuideStepBinding& binding, EditorApplication& editor, GuideStepMemo& memo)
-        {
-            const GameObject* object = editor.GetSelectedObject();
-            if (object == nullptr)
-            {
-                return false;
-            }
-            const std::uint64_t now = SelectedObjectId(editor);
-            if (now != memo.values[0])
-            {
-                EnterAddComponent(binding, editor, memo);
-                return false;
-            }
-            if (binding.hasComponent)
-            {
-                return memo.values[2] == 0 && HasComponent(*object, binding.componentType);
-            }
-            return object->GetComponents().Size() > memo.values[1];
-        }
-
-        // ── game.build ───────────────────────────────────────────────
-
-        bool BuildGameBuild(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath& path)
-        {
-            // 메뉴는 사용자가 연다. 열리면 구멍이 그 안의 항목으로 옮겨 간다.
-            return path.Push(GuideFocusTargets::Menu("menu.file"), GuideFocusOpen::User)
-                && path.Push(GuideFocusTargets::Menu("menu.build_game"));
-        }
-
         // ── 표 ───────────────────────────────────────────────────────
+
+        GuideActionInfo MenuAction(const char* name, const char* summary, std::uint8_t menus, const char* command,
+            Subject subject, ObjectParam object, const char* objectKey = "Object")
+        {
+            GuideActionInfo info;
+            info.name = name;
+            info.summary = summary;
+            info.menus = menus;
+            info.command = command;
+            info.subject = subject;
+            info.object = object;
+            info.objectKey = objectKey;
+            info.end = command != nullptr ? GuideStepEnd::Condition : GuideStepEnd::TargetActivated;
+            return info;
+        }
 
         const GuideActionInfo* Actions(std::uint32_t& count)
         {
             static const GuideActionInfo actions[] = {
-                {
-                    "object.select",
-                    "Select an object. Without Object, any object will do; with Object, that one. Ends when the selection changes to it.",
-                    Params(GuideParam::Object), true,
-                    { GuideRoute::Hierarchy, GuideRoute::CanvasView }, 2,
-                    GuideStepEnd::Condition, false, true,
-                    &BuildSelect, &EnterSelect, &DoneSelect, &BlockedSelect,
-                },
-                {
-                    "object.delete",
-                    "Delete an object by right-clicking it (layers window or canvas view) or through the Edit menu. Ends when the object is gone.",
-                    Params(GuideParam::Object), false,
-                    { GuideRoute::Hierarchy, GuideRoute::CanvasView, GuideRoute::EditMenu }, 3,
-                    GuideStepEnd::Condition, false, false,
-                    &BuildDelete, nullptr, &DoneDelete, nullptr,
-                },
-                {
-                    "field.edit",
-                    "Change a field of the selected object in the inspector. Without Component/Field, the first field of the first component. Ends with Next.",
-                    Params(GuideParam::Component, GuideParam::Field), false,
-                    { GuideRoute::Inspector }, 1,
-                    GuideStepEnd::NextButton, true, false,
-                    &BuildField, nullptr, nullptr, &BlockedNeedSelection,
-                },
-                {
-                    "component.add",
-                    "Add a component to the selected object from the inspector list. With Component, ends when that type is attached; otherwise when any is.",
-                    Params(GuideParam::Component), false,
-                    { GuideRoute::Inspector }, 1,
-                    GuideStepEnd::Condition, true, false,
-                    &BuildAddComponent, &EnterAddComponent, &DoneAddComponent, nullptr,
-                },
-                {
-                    "game.build",
-                    "Open the File menu and choose Build Game. Ends when Build Game is pressed.",
-                    0, false,
-                    { GuideRoute::MainMenu }, 1,
-                    GuideStepEnd::TargetActivated, false, false,
-                    &BuildGameBuild, nullptr, nullptr, nullptr,
-                },
+                // ── 메뉴 항목: 한 줄씩 ──
+                MenuAction("object.create", "Create an object. With Parent, as its child (from the parent's right-click menu); without, at the root (right-click an empty spot).",
+                    ObjectMenu | BackgroundMenu, "Create Object", Subject::ChildOf, ObjectParam::Optional, "Parent"),
+                MenuAction("object.delete", "Delete an object.",
+                    ObjectMenu | EditMenu, "Delete Object", Subject::Same, ObjectParam::Required),
+                MenuAction("object.unparent", "Move an object out of its parent to the root.",
+                    ObjectMenu, "Move In Hierarchy", Subject::Same, ObjectParam::Required),
+                MenuAction("object.copy", "Copy an object. Ends when Copy is pressed.",
+                    ObjectMenu | EditMenu, nullptr, Subject::Any, ObjectParam::Required),
+                MenuAction("object.paste", "Paste the copied objects at the root.",
+                    BackgroundMenu | EditMenu, "Paste Objects", Subject::Any, ObjectParam::None),
+                MenuAction("object.paste_as_child", "Paste the copied objects as children of an object.",
+                    ObjectMenu | EditMenu, "Paste Objects", Subject::ChildOf, ObjectParam::Required),
+                MenuAction("edit.undo", "Undo the last edit. Ends when Undo is pressed.",
+                    EditMenu, nullptr, Subject::Any, ObjectParam::None),
+                MenuAction("edit.redo", "Redo the last undone edit. Ends when Redo is pressed.",
+                    EditMenu, nullptr, Subject::Any, ObjectParam::None),
+                MenuAction("game.build", "Open the File menu and choose Build Game. Ends when Build Game is pressed.",
+                    FileMenu, nullptr, Subject::Any, ObjectParam::None),
+                [] {
+                    // 컴포넌트 추가 칸은 목록의 항목에 표식이 없어 칸을 여는 것까지 가리킨다. 목록 검색에 글자를 친다.
+                    GuideActionInfo info = MenuAction("component.add",
+                        "Add a component from the inspector list. With Component, ends when that type is attached; otherwise when any is.",
+                        InspectorAdd, "Add Component", Subject::Same, ObjectParam::Optional);
+                    info.takesComponent = true;
+                    info.keyboard = true;
+                    return info;
+                }(),
+                // ── 메뉴 항목이 아닌 것 ──
+                [] {
+                    GuideActionInfo info;
+                    info.name = "object.select";
+                    info.summary = "Select an object. Without Object, any object will do; with Object, that one. Ends when the selection changes to it.";
+                    info.object = ObjectParam::Optional;
+                    info.routes[0] = GuideRoute::Hierarchy;
+                    info.routes[1] = GuideRoute::CanvasView;
+                    info.routeCount = 2;
+                    info.end = GuideStepEnd::Condition;
+                    info.canGoNext = true;
+                    info.build = &BuildSelect;
+                    info.enter = &EnterSelect;
+                    info.done = &DoneSelect;
+                    info.blocked = &BlockedSelect;
+                    return info;
+                }(),
+                [] {
+                    GuideActionInfo info;
+                    info.name = "field.edit";
+                    info.summary = "Change a field in the inspector. Without Component/Field, the first field of the first component. Ends with Next.";
+                    info.object = ObjectParam::Optional;
+                    info.takesComponent = true;
+                    info.takesField = true;
+                    info.routes[0] = GuideRoute::Inspector;
+                    info.routeCount = 1;
+                    info.end = GuideStepEnd::NextButton;
+                    info.keyboard = true;
+                    info.build = &BuildField;
+                    info.blocked = &BlockedNeedSelection;
+                    return info;
+                }(),
             };
             count = static_cast<std::uint32_t>(sizeof(actions) / sizeof(actions[0]));
             return actions;
@@ -446,6 +487,59 @@ namespace JBro
                 }
             }
             return nullptr;
+        }
+
+        // 행동이 갈 수 있는 길의 수와 그 이름이다. 메뉴 항목이면 메뉴 표에서, 아니면 행동이 적은 것에서 온다.
+        std::uint32_t RouteCount(const GuideActionInfo& action)
+        {
+            if (action.build != nullptr)
+            {
+                return action.routeCount;
+            }
+            std::uint32_t count = 0;
+            for (const MenuRoute& entry : MenuRoutes)
+            {
+                count += (action.menus & entry.menu) != 0 ? 1 : 0;
+            }
+            return count;
+        }
+
+        // `index` 번째 길이다. 메뉴 항목이면 메뉴 표의 칸을 `entry` 에 준다.
+        GuideRoute RouteAt(const GuideActionInfo& action, std::uint32_t index, const MenuRoute** entry)
+        {
+            if (action.build != nullptr)
+            {
+                *entry = nullptr;
+                return action.routes[index];
+            }
+            for (const MenuRoute& candidate : MenuRoutes)
+            {
+                if ((action.menus & candidate.menu) == 0)
+                {
+                    continue;
+                }
+                if (index == 0)
+                {
+                    *entry = &candidate;
+                    return candidate.route;
+                }
+                --index;
+            }
+            *entry = nullptr;
+            return GuideRoute::Hierarchy;
+        }
+
+        bool CanGoBy(const GuideActionInfo& action, GuideRoute route)
+        {
+            for (std::uint32_t index = 0; index < RouteCount(action); ++index)
+            {
+                const MenuRoute* entry = nullptr;
+                if (RouteAt(action, index, &entry) == route)
+                {
+                    return true;
+                }
+            }
+            return false;
         }
 
         const char* EndName(GuideStepEnd end)
@@ -468,7 +562,7 @@ namespace JBro
     bool GuideStepBinding::ResolveObject(EditorApplication& editor)
     {
         object = {};
-        resolved = false;
+        objectEditorId = 0;
         GameObject* found = nullptr;
         if (objectRef == ObjectRef::Selection)
         {
@@ -489,25 +583,47 @@ namespace JBro
         if (found != nullptr)
         {
             object = found->SafeFromThis();
-            resolved = true;
+            objectEditorId = TrackedId(editor, found);
             return true;
         }
-        // 오브젝트를 받지 않는 행동(선택한 것에 하는 일, 메뉴)이거나 없어도 되는 행동이면 찾을 것이 없는 것이 맞다.
-        return objectRef == ObjectRef::None
-            && (false == HasParam(action->params, GuideParam::Object) || action->objectOptional);
+        // 오브젝트를 적지 않은 단계는 찾을 것이 없는 것이 맞다. 적었는데 없으면 가리킬 것이 없다.
+        return objectRef == ObjectRef::None;
     }
 
     bool GuideStepBinding::TryRoute(EditorApplication& editor, std::uint32_t index, GuideFocusPath& path)
     {
         path = {};
-        const GuideRoute route = action->routes[index];
+        const MenuRoute* entry = nullptr;
+        const GuideRoute route = RouteAt(*action, index, &entry);
         if (routeFixed && route != fixedRoute)
         {
             return false;
         }
-        if (false == action->build(*this, editor, route, path) || path.IsEmpty())
+        GameObject* target = object.TryGet();
+        if (entry == nullptr)
         {
-            return false;
+            if (false == action->build(*this, editor, route, path) || path.IsEmpty())
+            {
+                return false;
+            }
+        }
+        else
+        {
+            const bool given = target != nullptr;
+            if ((entry->object == MenuObject::Required && false == given)
+                || (entry->object == MenuObject::Forbidden && given))
+            {
+                return false;
+            }
+            if (false == BuildMenuEntry(*entry, editor, target, path))
+            {
+                return false;
+            }
+            // 컴포넌트 추가 칸은 칸 자체가 끝이다. 나머지는 연 메뉴의 그 항목이 끝이다.
+            if (entry->menu != InspectorAdd && false == path.Push(GuideFocusTargets::Action(action->name)))
+            {
+                return false;
+            }
         }
         routeIndex = index;
         return true;
@@ -521,7 +637,7 @@ namespace JBro
                 action->name, static_cast<unsigned long long>(objectId));
             return false;
         }
-        for (std::uint32_t index = 0; index < action->routeCount; ++index)
+        for (std::uint32_t index = 0; index < RouteCount(*action); ++index)
         {
             if (TryRoute(editor, index, path))
             {
@@ -533,11 +649,13 @@ namespace JBro
 
     bool GuideStepBinding::NextRoute(EditorApplication& editor, GuideFocusPath& path)
     {
-        for (std::uint32_t index = routeIndex + 1; index < action->routeCount; ++index)
+        for (std::uint32_t index = routeIndex + 1; index < RouteCount(*action); ++index)
         {
             if (TryRoute(editor, index, path))
             {
-                Log::Write(LogLevel::Info, "editor", "guide: %s goes by %s instead", action->name, RouteName(action->routes[index]));
+                const MenuRoute* entry = nullptr;
+                Log::Write(LogLevel::Info, "editor", "guide: %s goes by %s instead", action->name,
+                    RouteName(RouteAt(*action, index, &entry)));
                 return true;
             }
         }
@@ -549,12 +667,68 @@ namespace JBro
         if (action->enter != nullptr)
         {
             action->enter(*this, editor, memo);
+            return;
         }
+        // [0] 들어설 때까지 실행된 커맨드 수, [1] 거기까지 훑었다.
+        memo.values[0] = editor.GetCommands().GetExecuteCount();
+        memo.values[1] = memo.values[0];
+    }
+
+    // 들어선 뒤 실행된 커맨드 가운데 이 행동의 커맨드가 이 단계의 오브젝트에 일어났는가. 새로 실행된 것만 훑는다 - 커맨드가
+    // 실행된 프레임에만 글자를 견주고, 매 프레임에는 수 하나를 견준다.
+    bool GuideStepBinding::CommandRan(EditorApplication& editor, GuideStepMemo& memo)
+    {
+        EditorCommandManager& commands = editor.GetCommands();
+        const std::uint64_t count = commands.GetExecuteCount();
+        const std::uint64_t targetId = objectEditorId;
+        for (std::uint64_t serial = memo.values[1] + 1; serial <= count; ++serial)
+        {
+            EditorCommandManager::ExecutedCommand ran;
+            if (false == commands.GetExecuted(serial, ran) || ran.name == nullptr
+                || std::strcmp(ran.name, action->command) != 0)
+            {
+                continue;
+            }
+            bool matches = true;
+            switch (action->subject)
+            {
+            case Subject::Any:
+                break;
+            case Subject::Same:
+                // 적힌 오브젝트가 없으면 지금 선택한 것이다(컴포넌트 추가는 인스펙터에 보이는 것에 붙인다).
+                matches = ran.subject == (targetId != 0 ? targetId : SelectedObjectId(editor));
+                break;
+            case Subject::ChildOf:
+                if (targetId != 0)
+                {
+                    GameObject* made = editor.GetObjectIds().Resolve(ran.subject);
+                    GameObject* parent = made != nullptr ? made->GetParent() : nullptr;
+                    matches = parent != nullptr && TrackedId(editor, parent) == targetId;
+                }
+                break;
+            }
+            if (matches && action->takesComponent && hasComponent)
+            {
+                GameObject* subject = editor.GetObjectIds().Resolve(ran.subject);
+                matches = subject != nullptr && HasComponent(*subject, componentType);
+            }
+            if (matches)
+            {
+                memo.values[1] = count;
+                return true;
+            }
+        }
+        memo.values[1] = count;
+        return false;
     }
 
     bool GuideStepBinding::Condition(EditorApplication& editor, GuideStepMemo& memo)
     {
-        return action->done != nullptr && action->done(*this, editor, memo);
+        if (action->done != nullptr)
+        {
+            return action->done(*this, editor, memo);
+        }
+        return action->command != nullptr && CommandRan(editor, memo);
     }
 
     const char* GuideStepBinding::NextBlocked(EditorApplication& editor)
@@ -638,13 +812,56 @@ namespace JBro
             return true;
         }
 
+        bool ReadObject(std::uint32_t node, const GuideActionInfo& action, GuideStepBinding& binding)
+        {
+            // 오브젝트 인자는 행동이 정한 이름 하나로만 받는다. 다른 이름으로 적으면 모르는 키다.
+            const char* otherKey = std::strcmp(action.objectKey, "Object") == 0 ? "Parent" : "Object";
+            if (document.Find(node, otherKey) != YamlDocument::InvalidNode)
+            {
+                char reason[96] = {};
+                std::snprintf(reason, sizeof(reason), "'%s' takes no %s", action.name, otherKey);
+                return Fail(node, "%s", reason);
+            }
+            String value;
+            if (false == document.FindScalar(node, action.objectKey, value))
+            {
+                if (action.object == ObjectParam::Required)
+                {
+                    char reason[96] = {};
+                    std::snprintf(reason, sizeof(reason), "'%s' needs %s", action.name, action.objectKey);
+                    return Fail(node, "%s", reason);
+                }
+                return true;
+            }
+            if (action.object == ObjectParam::None)
+            {
+                char reason[96] = {};
+                std::snprintf(reason, sizeof(reason), "'%s' takes no %s", action.name, action.objectKey);
+                return Fail(node, "%s", reason);
+            }
+            if (value == "Selection")
+            {
+                binding.objectRef = GuideStepBinding::ObjectRef::Selection;
+                return true;
+            }
+            char* end = nullptr;
+            const unsigned long long id = std::strtoull(value.c_str(), &end, 10);
+            if (end == value.c_str() || *end != '\0' || id == 0)
+            {
+                return Fail(node, "Object must be an instance id or Selection, not '%s'", value.c_str());
+            }
+            binding.objectRef = GuideStepBinding::ObjectRef::Id;
+            binding.objectId = static_cast<InstanceId>(id);
+            return true;
+        }
+
         bool ReadStep(std::uint32_t node, LoadedGuide& loaded, Array<String>& stepIds)
         {
             if (document.GetKind(node) != YamlKind::Map)
             {
                 return Fail(node, "a step must be a map");
             }
-            static const char* const keys[] = { "Id", "Do", "Object", "Component", "Field", "Via", "Title", "Body",
+            static const char* const keys[] = { "Id", "Do", "Object", "Parent", "Component", "Field", "Via", "Title", "Body",
                 "End", "Keyboard", "Skip", "Back", "Next", "RetreatTo" };
             if (false == CheckKeys(node, keys, sizeof(keys) / sizeof(keys[0])))
             {
@@ -663,37 +880,15 @@ namespace JBro
 
             OwnerPtr<GuideStepBinding> binding = MakeOwnerPtr<GuideStepBinding>();
             binding->action = action;
+            if (false == ReadObject(node, *action, *binding))
+            {
+                return false;
+            }
 
             String value;
-            if (document.FindScalar(node, "Object", value))
-            {
-                if (false == HasParam(action->params, GuideParam::Object))
-                {
-                    return Fail(node, "'%s' takes no Object", action->name);
-                }
-                if (value == "Selection")
-                {
-                    binding->objectRef = GuideStepBinding::ObjectRef::Selection;
-                }
-                else
-                {
-                    char* end = nullptr;
-                    const unsigned long long id = std::strtoull(value.c_str(), &end, 10);
-                    if (end == value.c_str() || *end != '\0' || id == 0)
-                    {
-                        return Fail(node, "Object must be an instance id or Selection, not '%s'", value.c_str());
-                    }
-                    binding->objectRef = GuideStepBinding::ObjectRef::Id;
-                    binding->objectId = static_cast<InstanceId>(id);
-                }
-            }
-            else if (HasParam(action->params, GuideParam::Object) && false == action->objectOptional)
-            {
-                return Fail(node, "'%s' needs Object", action->name);
-            }
             if (document.FindScalar(node, "Component", value))
             {
-                if (false == HasParam(action->params, GuideParam::Component))
+                if (false == action->takesComponent)
                 {
                     return Fail(node, "'%s' takes no Component", action->name);
                 }
@@ -704,7 +899,7 @@ namespace JBro
             }
             if (document.FindScalar(node, "Field", value))
             {
-                if (false == HasParam(action->params, GuideParam::Field))
+                if (false == action->takesField)
                 {
                     return Fail(node, "'%s' takes no Field", action->name);
                 }
@@ -714,12 +909,13 @@ namespace JBro
             if (document.FindScalar(node, "Via", value) && value != "auto")
             {
                 bool found = false;
-                for (std::uint32_t index = 0; index < action->routeCount; ++index)
+                for (GuideRoute route : { GuideRoute::Hierarchy, GuideRoute::CanvasView, GuideRoute::EditMenu,
+                         GuideRoute::Inspector, GuideRoute::MainMenu })
                 {
-                    if (value == RouteName(action->routes[index]))
+                    if (value == RouteName(route) && CanGoBy(*action, route))
                     {
                         binding->routeFixed = true;
-                        binding->fixedRoute = action->routes[index];
+                        binding->fixedRoute = route;
                         found = true;
                     }
                 }
@@ -733,6 +929,7 @@ namespace JBro
             step.end = action->end;
             if (document.FindScalar(node, "End", value))
             {
+                const bool hasDone = action->done != nullptr || action->command != nullptr;
                 if (value == "next")
                 {
                     step.end = GuideStepEnd::NextButton;
@@ -741,7 +938,7 @@ namespace JBro
                 {
                     step.end = GuideStepEnd::TargetActivated;
                 }
-                else if (value == "done" && action->done != nullptr)
+                else if (value == "done" && hasDone)
                 {
                     step.end = GuideStepEnd::Condition;
                 }
@@ -790,7 +987,7 @@ namespace JBro
             step.buildPath = Delegate<bool(EditorApplication&, GuideFocusPath&)>::Bind<&GuideStepBinding::BuildPath>(raw);
             step.nextRoute = Delegate<bool(EditorApplication&, GuideFocusPath&)>::Bind<&GuideStepBinding::NextRoute>(raw);
             step.onEnter = Delegate<void(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::OnEnter>(raw);
-            if (action->done != nullptr)
+            if (action->done != nullptr || action->command != nullptr)
             {
                 step.condition = Delegate<bool(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::Condition>(raw);
             }
@@ -875,7 +1072,7 @@ namespace JBro
             writer.WriteString("Format", "an instance id, or Selection for the object selected when the step begins");
             writer.EndMap();
             writer.BeginMap("Step");
-            writer.WriteString("Keys", "Id Do Object Component Field Via Title Body End Keyboard Skip Back Next RetreatTo");
+            writer.WriteString("Keys", "Id Do Object Parent Component Field Via Title Body End Keyboard Skip Back Next RetreatTo");
             writer.WriteString("End", "next (the Next button), target (pressing the last widget), done (the action's own check)");
             writer.WriteString("Via", "auto (default: the first route that can be drawn, others if it breaks) or one route name");
             writer.EndMap();
@@ -888,22 +1085,35 @@ namespace JBro
                 writer.BeginMap(nullptr);
                 writer.WriteString("Do", action.name);
                 writer.WriteString("Summary", action.summary);
-                if (HasParam(action.params, GuideParam::Object))
+                if (action.object != ObjectParam::None)
                 {
-                    writer.WriteString("Object", action.objectOptional ? "optional" : "required");
+                    writer.WriteString(action.objectKey, action.object == ObjectParam::Required ? "required" : "optional");
                 }
-                if (HasParam(action.params, GuideParam::Component))
+                if (action.takesComponent)
                 {
                     writer.WriteString("Component", "optional");
                 }
-                if (HasParam(action.params, GuideParam::Field))
+                if (action.takesField)
                 {
                     writer.WriteString("Field", "optional");
                 }
                 writer.BeginSequence("Via");
-                for (std::uint32_t route = 0; route < action.routeCount; ++route)
+                GuideRoute written[MenuRouteCount] = {};
+                std::uint32_t writtenCount = 0;
+                for (std::uint32_t route = 0; route < RouteCount(action); ++route)
                 {
-                    writer.WriteStringItem(RouteName(action.routes[route]));
+                    const MenuRoute* entry = nullptr;
+                    const GuideRoute name = RouteAt(action, route, &entry);
+                    bool seen = false;
+                    for (std::uint32_t check = 0; check < writtenCount; ++check)
+                    {
+                        seen = seen || written[check] == name;
+                    }
+                    if (false == seen)
+                    {
+                        written[writtenCount++] = name;
+                        writer.WriteStringItem(RouteName(name));
+                    }
                 }
                 writer.EndSequence();
                 writer.WriteString("End", EndName(action.end));

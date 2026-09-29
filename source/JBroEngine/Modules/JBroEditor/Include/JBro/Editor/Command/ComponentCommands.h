@@ -19,6 +19,7 @@ namespace JBro
     class AddComponentCommand final : public EditorCommand
     {
     public:
+        EditorObjectId GetSubject() const override { return m_address.objectId; }
         AddComponentCommand(
             Canvas& canvas,
             EditorObjectRegistry& registry,

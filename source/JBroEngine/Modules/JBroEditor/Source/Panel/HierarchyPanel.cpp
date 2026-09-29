@@ -160,6 +160,15 @@ namespace JBro
             .Draw();
         ImGui::Spacing();
 
+        // 빈자리 메뉴의 자리로 이 창을 알린다(D-268). 열림은 빈자리 메뉴가 떠 있는가다 - 줄을 우클릭한 메뉴는 따로 있다.
+        if (const EditorGuideFocus* focus = Widget::GetGuideFocus(); focus != nullptr && focus->IsActive())
+        {
+            const ImVec2 windowMin = ImGui::GetWindowPos();
+            const ImVec2 windowSize = ImGui::GetWindowSize();
+            Widget::ReportGuideTarget(GuideFocusTargets::HierarchyBackground(), windowMin,
+                ImVec2(windowMin.x + windowSize.x, windowMin.y + windowSize.y), ImGui::IsPopupOpen("##HierarchyMenu"), false);
+        }
+
         // 빈 자리에 우클릭하면 뿌리에 만든다. 기존 엔진도 하이어라키의 맥락
         // 메뉴가 이 자리다.
         if (Widget::BeginContextMenu("##HierarchyMenu", true))

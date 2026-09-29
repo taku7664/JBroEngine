@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/SafePtr.h>
 
@@ -22,6 +23,14 @@ namespace JBro
         virtual bool Execute() = 0;
         virtual void Undo() = 0;
         virtual void Redo() = 0;
+
+        // **이 커맨드가 다룬 오브젝트**다(D-268). 만든 것·지운 것·옮긴 것·컴포넌트를 붙인 것이다. 없으면 무효 번호다.
+        // 가이드가 "그 오브젝트에 그 일이 일어났다" 를 행동마다 따로 묻지 않고 여기서 읽는다. 번호는 되돌리기에도
+        // 살아남는다(`EditorObjectRegistry::Rebind`).
+        virtual EditorObjectId GetSubject() const
+        {
+            return InvalidEditorObjectId;
+        }
 
         // **드래그 하나가 되돌리기 하나여야 한다.** 슬라이더를 끄는 동안 프레임마다
         // 커맨드가 생기는데, 그것을 다 쌓으면 되돌리기를 백 번 눌러야 원래대로 온다.
@@ -92,7 +101,26 @@ namespace JBro
         // 올라간다 - 에셋 참조를 다시 잇는 자리(`BindCanvasAssets`)가 이것을 본다.
         std::uint64_t GetRevision() const;
 
+        // ── 실행 기록(D-268) ─────────────────────────────────
+        //
+        // 최근에 **실행한**(되돌리기·다시하기가 아닌) 커맨드의 이름과 다룬 오브젝트다. 가이드가 단계에 들어선 뒤
+        // 무엇이 실행됐는지를 여기서 읽는다 - 편집 메뉴의 삭제처럼 한 손짓이 커맨드를 여럿 실행하면 마지막 하나만
+        // 봐서는 앞의 것을 놓친다. 합쳐진 실행(드래그)도 한 번으로 센다.
+        struct ExecutedCommand
+        {
+            // 커맨드의 `GetName()` 이다. 이름은 리터럴이라 커맨드가 버려진 뒤에도 가리킬 수 있다.
+            const char* name = nullptr;
+            EditorObjectId subject = InvalidEditorObjectId;
+        };
+        static constexpr std::uint64_t ExecutedHistory = 32;
+        // 지금까지 실행한 수다. 늘기만 한다.
+        std::uint64_t GetExecuteCount() const noexcept { return m_executeCount; }
+        // `serial` 번째(1 부터) 실행이다. 오래되어 기록에서 밀려났거나 아직 없으면 거짓이다.
+        bool GetExecuted(std::uint64_t serial, ExecutedCommand& out) const noexcept;
+
     private:
+        void RecordExecuted(const EditorCommand& command) noexcept;
+
         // **기존 엔진에는 상한이 없다.** 오래 켜 둔 편집기가 되돌리기 스택만으로
         // 계속 자란다. 넘치면 가장 오래된 것부터 버린다 - 한 시간 전으로 돌아가는
         // 일은 없고, 그 대가로 메모리가 끝없이 늘지 않는다.
@@ -120,5 +148,7 @@ namespace JBro
         // 캔버스를 고친 마지막 판번호와, 그중 저장된 것.
         std::uint64_t m_canvasRevision = 0;
         std::uint64_t m_savedCanvasRevision = 0;
+        ExecutedCommand m_executed[ExecutedHistory] = {};
+        std::uint64_t m_executeCount = 0;
     };
 }

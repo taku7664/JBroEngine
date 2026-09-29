@@ -2166,6 +2166,7 @@ namespace JBro
     void CanvasViewPanel::DrawContextMenu(const ViewRect& rect)
     {
         m_contextObject = {};
+        m_contextBackground = false;
         // 화면을 옮기려고 오른쪽 단추를 끌었으면 메뉴를 열지 않는다.
         if (m_panMoved)
         {
@@ -2221,6 +2222,7 @@ namespace JBro
         }
         else
         {
+            m_contextBackground = true;
             EditorActions::DrawBackgroundMenu(*m_editor, placement);
         }
         Widget::EndContextMenu();
@@ -2308,6 +2310,10 @@ namespace JBro
         {
             return;
         }
+        // 빈 곳의 우클릭 메뉴 자리는 그림 전체다(D-268).
+        Widget::ReportGuideTarget(GuideFocusTargets::CanvasViewBackground(), ImVec2(rect.left, rect.top),
+            ImVec2(rect.left + rect.width, rect.top + rect.height), m_contextBackground, false);
+
         // 경로의 칸은 여덟을 넘지 않는다. 캔버스 뷰의 오브젝트인 칸만 본다.
         const GuideFocusPath& path = focus->GetPath();
         const NameId kind = GuideFocusTargets::CanvasViewObject(0).name;

@@ -13,6 +13,7 @@ namespace JBro
         {
             return false;
         }
+        RecordExecuted(*command);
 
         // 다른 문서끼리 합쳐질 걱정은 하지 않는다. 합치기는 커맨드가 스스로 받아들여야
         // 일어나고(`TryMerge` 의 기본은 거짓이다), 받아들이는 것은 같은 대상을 끄는
@@ -161,5 +162,23 @@ namespace JBro
     std::uint64_t EditorCommandManager::GetRevision() const
     {
         return m_revision;
+    }
+
+    void EditorCommandManager::RecordExecuted(const EditorCommand& command) noexcept
+    {
+        ExecutedCommand& slot = m_executed[m_executeCount % ExecutedHistory];
+        slot.name = command.GetName();
+        slot.subject = command.GetSubject();
+        ++m_executeCount;
+    }
+
+    bool EditorCommandManager::GetExecuted(std::uint64_t serial, ExecutedCommand& out) const noexcept
+    {
+        if (serial == 0 || serial > m_executeCount || m_executeCount - serial >= ExecutedHistory)
+        {
+            return false;
+        }
+        out = m_executed[(serial - 1) % ExecutedHistory];
+        return true;
     }
 }

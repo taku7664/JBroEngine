@@ -24,6 +24,11 @@ namespace JBro
         // `Execute` 전에만 넣는다. 실행한 뒤에 늘리면 되돌리기가 무엇을
         // 되돌리는지가 갈린다.
         bool Add(OwnerPtr<EditorCommand> command);
+        // 묶은 것 가운데 첫 커맨드가 다룬 오브젝트다.
+        EditorObjectId GetSubject() const override
+        {
+            return m_commands.IsEmpty() ? InvalidEditorObjectId : m_commands[0]->GetSubject();
+        }
         std::size_t GetCount() const;
 
         const char* GetName() const override;

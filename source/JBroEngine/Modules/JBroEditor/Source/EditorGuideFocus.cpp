@@ -105,6 +105,16 @@ namespace JBro
         {
             return { MakeNameId("canvas_view.object"), editorObjectId };
         }
+
+        GuideFocusTarget HierarchyBackground()
+        {
+            return { MakeNameId("hierarchy.background"), 0 };
+        }
+
+        GuideFocusTarget CanvasViewBackground()
+        {
+            return { MakeNameId("canvas_view.background"), 0 };
+        }
     }
 
     bool GuideFocusPath::Push(const GuideFocusTarget& target, GuideFocusOpen opener)

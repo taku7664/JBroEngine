@@ -24,6 +24,7 @@ namespace JBro
     class MoveInHierarchyCommand final : public EditorCommand
     {
     public:
+        EditorObjectId GetSubject() const override { return m_objectId; }
         // `newParentId` 가 `InvalidEditorObjectId` 면 뿌리로 올린다.
         // `siblingIndex` 는 새 부모의 자식들 사이에서의 자리이고, 뿌리로 올릴 때는
         // 캔버스가 든 뿌리 순서에서의 자리다(D-128). 끝을 넘으면 맨 뒤.
