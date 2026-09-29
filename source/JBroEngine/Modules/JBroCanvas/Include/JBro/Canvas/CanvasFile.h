@@ -1,8 +1,10 @@
 ﻿#pragma once
 
+#include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
 
 #include <cstddef>
+#include <cstdint>
 
 namespace JBro
 {
@@ -57,4 +59,38 @@ namespace JBro
     // 기본값으로 두고 넘어간다 — 필드를 더한 것은 예전 씬을 못 읽을 이유가 아니지만,
     // 필드를 지운 것은 그 씬이 들고 있던 값을 버린다는 뜻이라 사람이 알아야 한다.
     bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error);
+
+    // ── 스크립트 핫 리로드의 두 걸음(cpp-script-plan §3.5, D-268) ────────────────────────────
+    //
+    // DLL 을 내리기 전에 `KeepScriptsAsText` 로 이름으로 붙인 스크립트를 모두 글자로 떠서 모르는 컴포넌트(D-264)로 옮기고,
+    // 새 DLL 을 실은 뒤 `ResolveKeptComponents` 로 이름을 아는 것을 되살린다. 그 사이 스크립트의 값은 캔버스의 모르는 컴포넌트로 산다 -
+    // 새 DLL 이 그 타입을 모르거나 싣기가 실패해도 값은 남고, 저장하면 그대로 적힌다.
+
+    // 이름으로 붙인 스크립트를 모두 떠서 모르는 컴포넌트로 옮기고 뗀다. 자리(오브젝트 안의 차례)와 컴포넌트 번호가 따라간다.
+    // 오브젝트 참조는 이번 실행의 번호(`@123`)로 뜬다. **하나라도 뜨지 못하면 아무것도 바꾸지 않고 거짓이다** - 되살릴 값이 없는 채로 떼지 않는다.
+    // 참이면 스크립트 풀까지 비어 있다(`Canvas::ReleaseModuleScripts`) - 그 뒤에 DLL 을 내려도 된다. 뜬 개수를 `kept` 에 둔다.
+    bool KeepScriptsAsText(Canvas& canvas, std::size_t& kept, CanvasFileError& error);
+
+    // 되살리면서 값을 잇지 못한 것이다. 되살리기는 멈추지 않는다 - 스크립트는 붙고 그 필드만 기본값이다.
+    struct ComponentResolveNote
+    {
+        enum class Kind : std::uint8_t
+        {
+            // 새 코드에 그 이름의 필드가 없다. 값은 버렸다.
+            FieldDropped,
+            // 필드는 있는데 값을 읽지 못했다(타입이 바뀌었다). 기본값으로 두었다.
+            FieldUnreadable,
+            // 타입은 아는데 붙이지 못했다(하나만 붙는 타입이 이미 있다 따위). 모르는 컴포넌트로 남겼다.
+            NotAttached,
+        };
+        Kind kind = Kind::FieldDropped;
+        String objectName;
+        String typeName;
+        String fieldName;
+    };
+
+    // 모르는 컴포넌트 가운데 이제 이름을 아는 것을 되살린다. 같은 자리에, 들고 있던 컴포넌트 번호로 붙인다.
+    // 필드는 이름이 맞고 읽히는 것만 잇는다(사용자 결정 2026-09-29: "맞는 것만 잇고 나머지는 경고"). 파일을 읽는 `ReadCanvasText` 와 달리
+    // 코드에 없는 필드로 멈추지 않는다. 되살린 개수다. 모르는 채인 것은 그대로 남는다.
+    std::size_t ResolveKeptComponents(Canvas& canvas, Array<ComponentResolveNote>& notes);
 }

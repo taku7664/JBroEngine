@@ -1,8 +1,14 @@
-﻿#include <JBro/Editor/EditorApplication.h>
+﻿#include <JBro/Canvas/Canvas.h>
+#include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorCommand.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/ScriptBuild.h>
 #include <JBro/Editor/ScriptProject.h>
+#include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/Platform/WindowsPlatform.h>
+#include <JBro/Reflection/PropertyRegistry.h>
+#include <JBro/Runtime/GameScriptBase.h>
+#include <JBro/Types/NameTable.h>
 
 #include <Windows.h>
 
@@ -334,6 +340,26 @@ namespace
         }
     }
 
+    // 되돌리기 기록에 한 칸을 남기는 것뿐인 커맨드다.
+    class NoteCommand final : public EditorCommand
+    {
+    public:
+        const char* GetName() const override
+        {
+            return "Note";
+        }
+        bool Execute() override
+        {
+            return true;
+        }
+        void Undo() override
+        {
+        }
+        void Redo() override
+        {
+        }
+    };
+
     bool BuildAndWait(EditorApplication& editor)
     {
         using State = EditorApplication::ScriptBuildState;
@@ -368,7 +394,7 @@ namespace
             "ResolutionHeight: 480\n"
             "AssetDirectory: Contents/Assets\n"
             "ScriptSourceDirectory: Contents\n"
-            "ScriptOutputLibraryPath: \"\"\n"
+            "ScriptOutputLibraryPath: x64/Debug/GameScript.dll\n"
             "Build:\n"
             "  ProductName: Built\n";
 
@@ -449,6 +475,47 @@ namespace
         // `JBro.GameScript.props` 가 산출물을 `Contents` 옆의 `x64` 에 둔다 - 로그를 두는 자리와 같다.
         Check(fs::exists(root / "x64" / "Debug" / "GameScript.dll"), "the DLL is written next to the project");
         Check(editor.GetNotifications().GetLastLevel() == NotificationLevel::Success, "the success is announced");
+        // 빌드가 성공하면 곧바로 싣는다(D-268). 프로젝트를 열 때는 DLL 이 없었다.
+        Check(editor.IsScriptModuleLoaded(), "the new library is loaded without reopening the project");
+
+        // **필드를 더해 다시 빌드해도 붙은 스크립트와 그 값이 이어진다**(cpp-script-plan §3.5 의 완료 조건).
+        Canvas* canvas = editor.GetCanvas();
+        GameObject* object = canvas->CreateObject("Player");
+        GameScriptBase* player = canvas->AttachScript(object, "Player");
+        Check(player != nullptr, "the built script attaches");
+        const auto field = [](const char* name) -> const PropertyInfo* {
+            const PropertyTable* table = PropertyRegistry::Lookup("Player");
+            for (std::uint32_t index = 0; table != nullptr && index < table->count; ++index)
+            {
+                if (std::strcmp(NameTable::Get().Resolve(table->properties[index].name), name) == 0)
+                {
+                    return &table->properties[index];
+                }
+            }
+            return nullptr;
+        };
+        Check(field("Speed") != nullptr && field("Jump") == nullptr, "the first build has only its speed");
+        *static_cast<float*>(field("Speed")->Address(player)) = 7.0f;
+        const InstanceId playerId = player->GetInstanceId();
+        const fs::path header = root / "Contents" / "Scripts" / "Player.h";
+        std::string declaration = ReadAll(header);
+        const std::size_t speedLine = declaration.find("    JBRO_FIELD(float, Speed) = 0.0f;\r\n");
+        Check(speedLine != std::string::npos, "the header declares the speed field");
+        declaration.insert(speedLine, "    JBRO_FIELD(float, Jump) = 9.0f;\r\n");
+        std::ofstream(header, std::ios::binary) << declaration;
+        const std::uint64_t generation = editor.GetScriptModule()->GetGeneration();
+        Check(editor.GetCommands().Execute(MakeOwnerPtr<NoteCommand>()), "an edit goes into the history");
+        Check(BuildAndWait(editor), "the build with a new field starts");
+        Check(editor.GetScriptBuildState() == State::Succeeded, "and succeeds");
+        Check(editor.GetScriptModule()->GetGeneration() != generation, "the library is swapped");
+        Array<GameScriptBase*> scripts;
+        canvas->CollectScripts(scripts);
+        Check(scripts.Size() == 1 && scripts[0]->GetInstanceId() == playerId, "the script is still on its object");
+        Check(field("Jump") != nullptr && *static_cast<const float*>(field("Jump")->ConstAddress(scripts[0])) == 9.0f,
+            "the new field is there with its default");
+        Check(*static_cast<const float*>(field("Speed")->ConstAddress(scripts[0])) == 7.0f, "and the old one kept its value");
+        // 필드가 늘었다. 순번으로 필드를 가리키는 편집이 엉뚱한 필드를 되돌리지 않게 기록을 비운다.
+        Check(editor.GetCommands().GetUndoCount() == 0, "a change in the fields clears the undo history");
 
         editor.ClearScriptDiagnostics();
         Check(editor.GetScriptDiagnostics().IsEmpty() && editor.GetScriptBuildState() == State::Idle, "clearing empties the results");

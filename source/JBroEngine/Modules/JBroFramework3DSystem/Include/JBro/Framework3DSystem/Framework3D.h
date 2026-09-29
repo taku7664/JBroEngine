@@ -33,6 +33,7 @@ namespace JBro
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
         void Shutdown() override;
         void BindCanvasAssets() override;
+        std::size_t ReleaseModuleScripts() override;
         void CollectCanvasAssetIds(Array<AssetId>& ids) override;
 
         Canvas* GetCanvas();

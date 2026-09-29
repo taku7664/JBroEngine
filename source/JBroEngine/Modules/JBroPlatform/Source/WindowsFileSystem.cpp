@@ -369,6 +369,23 @@ namespace JBro
         return fs::is_regular_file(ToPath(utf8Path), errorCode);
     }
 
+    bool WindowsPlatform::ReadFileWriteTime(const char* utf8Path, std::uint64_t& time) const
+    {
+        std::error_code errorCode;
+        const fs::path path = ToPath(utf8Path);
+        if (false == fs::is_regular_file(path, errorCode))
+        {
+            return false;
+        }
+        const fs::file_time_type written = fs::last_write_time(path, errorCode);
+        if (errorCode)
+        {
+            return false;
+        }
+        time = static_cast<std::uint64_t>(written.time_since_epoch().count());
+        return true;
+    }
+
     bool WindowsPlatform::DirectoryExists(const char* utf8Path) const
     {
         std::error_code errorCode;

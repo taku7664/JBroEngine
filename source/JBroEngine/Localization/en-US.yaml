@@ -325,7 +325,7 @@ Entries:
   build_results.errors: "%d errors"
   build_results.warnings: "%d warnings"
   build_results.empty: No build yet
-  build_results.succeeded: Built. The new code loads when the project is reopened
+  build_results.succeeded: Built with no errors or warnings
   build_results.open_hint: Click to open this line in the editor
   notify.scripts_built: The scripts were built
   notify.scripts_build_failed: The scripts could not be built
@@ -410,6 +410,11 @@ Entries:
   editor_settings.shortcuts: Shortcuts
   editor_settings.scripts: Scripts
   build_results.no_diagnostic: The build failed without an error line. Open the log to see why
+  notify.scripts_reloaded: The scripts were reloaded
+  notify.scripts_reload_notes: Some field values could not be carried over. See the log
+  notify.scripts_reload_failed: The scripts could not be reloaded
+  notify.scripts_reload_kept: The scripts keep their values in the canvas. Fix the build and try again
+  notify.scripts_reload_pending: The new scripts load when play stops
   editor_settings.search_hint: Search by name or key
   editor_settings.press_key: Press a key
   editor_settings.capture_hint: Press Esc to cancel

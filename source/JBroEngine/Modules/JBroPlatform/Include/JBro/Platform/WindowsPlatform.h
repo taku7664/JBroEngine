@@ -46,6 +46,7 @@ namespace JBro
         bool LaunchProcess(const char* utf8CommandLine, const char* utf8WorkingFolder) override;
         String ReadEnvironmentVariable(const char* name) const override;
         bool FileExists(const char* utf8Path) const override;
+        bool ReadFileWriteTime(const char* utf8Path, std::uint64_t& time) const override;
         bool DirectoryExists(const char* utf8Path) const override;
         bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;
         bool WatchDirectory(const char* utf8Root) override;

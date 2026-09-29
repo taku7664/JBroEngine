@@ -325,7 +325,7 @@ Entries:
   build_results.errors: 오류 %d개
   build_results.warnings: 경고 %d개
   build_results.empty: 아직 빌드하지 않았습니다
-  build_results.succeeded: 빌드했습니다. 새 코드는 프로젝트를 다시 열면 실립니다
+  build_results.succeeded: 오류와 경고 없이 빌드했습니다
   build_results.open_hint: 누르면 편집기에서 이 줄을 엽니다
   notify.scripts_built: 스크립트를 빌드했습니다
   notify.scripts_build_failed: 스크립트를 빌드하지 못했습니다
@@ -410,6 +410,11 @@ Entries:
   editor_settings.shortcuts: 단축키
   editor_settings.scripts: 스크립트
   build_results.no_diagnostic: 오류 줄 없이 빌드가 실패했습니다. 로그를 열어 까닭을 확인하세요
+  notify.scripts_reloaded: 스크립트를 다시 불러왔습니다
+  notify.scripts_reload_notes: 값을 옮기지 못한 필드가 있습니다. 로그를 확인하세요
+  notify.scripts_reload_failed: 스크립트를 다시 불러오지 못했습니다
+  notify.scripts_reload_kept: 스크립트의 값은 캔버스에 그대로 있습니다. 빌드를 고친 뒤 다시 시도하세요
+  notify.scripts_reload_pending: 재생을 멈추면 새 스크립트를 불러옵니다
   editor_settings.search_hint: 이름이나 키로 검색
   editor_settings.press_key: 키를 누르세요
   editor_settings.capture_hint: Esc 를 누르면 취소합니다

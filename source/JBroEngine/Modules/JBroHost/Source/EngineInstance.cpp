@@ -659,39 +659,9 @@ namespace JBro
                     // 컨텍스트가 붙은 뒤에 싣는다. 로더가 그 컨텍스트를 읽어 DLL 에 넘긴다.
                     if (initialized && scriptModulePath != nullptr && scriptModulePath[0] != 0)
                     {
-                        const JArrayView<ScriptContextBlock> frameworkBlocks =
-                            framework.GetScriptContextBlocks();
-                        // 프레임워크의 블록 뒤에 호스트의 네트워크 블록을 잇는다(D-122). 네트워크는 호스트 것이고
-                        // 두 차원이 같은 것을 쓰므로 프레임워크가 아니라 여기서 낸다.
+                        m_scriptModulePath = scriptModulePath;
                         Array<ScriptContextBlock> blocks;
-                        blocks.Reserve(frameworkBlocks.size + 8);
-                        blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
-                        if (m_input)
-                        {
-                            blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));
-                            blocks.Add(MakeInputServiceContextBlock(m_input->GetServiceContext()));
-                        }
-                        if (m_save)
-                        {
-                            blocks.Add(MakeSaveSystemContextBlock(m_saveSystemContext));
-                            blocks.Add(MakeSaveServiceContextBlock(m_saveServiceContext));
-                        }
-                        if (m_localization)
-                        {
-                            blocks.Add(MakeLocalizationSystemContextBlock(m_localization->GetSystemContext()));
-                            blocks.Add(MakeLocalizationServiceContextBlock(m_localization->GetServiceContext()));
-                        }
-                        if (m_network)
-                        {
-                            blocks.Add(MakeNetworkSystemContextBlock(m_network->GetSystemContext()));
-                            blocks.Add(MakeNetworkServiceContextBlock(m_network->GetServiceContext()));
-                        }
-                        // 오디오도 호스트 것이다(D-197). 두 차원이 같은 것을 쓴다.
-                        if (m_audio)
-                        {
-                            blocks.Add(MakeAudioSystemContextBlock(m_audio->GetSystemContext()));
-                            blocks.Add(MakeAudioServiceContextBlock(m_audio->GetServiceContext()));
-                        }
+                        CollectScriptContextBlocks(framework, blocks);
                         // **못 실어도 프로젝트는 연다**(D-98). 여기서 막으면 아직 한 번도
                         // 빌드하지 않은 프로젝트를 열 길이 없어진다 - 스크립트를 쓰려면
                         // 에디터에서 빌드해야 하는데 그 에디터가 열리지 않는다.
@@ -1479,11 +1449,15 @@ namespace JBro
         }
         if (auto* framework = std::exchange(m_framework, nullptr))
         {
+            // **캔버스의 DLL 스크립트를 먼저 뗀다**(D-268). 캔버스는 아래 `Shutdown` 에서 사라지는데, 그때 스크립트 풀이 DLL 안의
+            // 파괴 함수를 부른다 - DLL 이 이미 내려갔으면 사라진 코드다.
+            framework->ReleaseModuleScripts();
             // DLL 이 먼저 내려간다. 그 뒤에야 DLL 이 붙잡고 있던 컨텍스트를 풀 수 있다.
             if (m_platform != nullptr)
             {
                 m_scripts.Unload(*m_platform);
             }
+            m_scriptModulePath.clear();
             if (std::exchange(m_scriptContextsBound, false))
             {
                 framework->UnbindScriptContexts();
@@ -1643,6 +1617,76 @@ namespace JBro
     const String& EngineInstance::GetScriptModuleError() const
     {
         return m_scriptModuleError;
+    }
+
+    const String& EngineInstance::GetScriptModulePath() const
+    {
+        return m_scriptModulePath;
+    }
+
+    void EngineInstance::CollectScriptContextBlocks(IFramework& framework, Array<ScriptContextBlock>& blocks) const
+    {
+        const JArrayView<ScriptContextBlock> frameworkBlocks = framework.GetScriptContextBlocks();
+        // 프레임워크의 블록 뒤에 호스트의 네트워크 블록을 잇는다(D-122). 네트워크는 호스트 것이고
+        // 두 차원이 같은 것을 쓰므로 프레임워크가 아니라 여기서 낸다.
+        blocks.Clear();
+        blocks.Reserve(frameworkBlocks.size + 10);
+        blocks.Append(frameworkBlocks.data, frameworkBlocks.size);
+        if (m_input)
+        {
+            blocks.Add(MakeInputSystemContextBlock(m_input->GetSystemContext()));
+            blocks.Add(MakeInputServiceContextBlock(m_input->GetServiceContext()));
+        }
+        if (m_save)
+        {
+            blocks.Add(MakeSaveSystemContextBlock(m_saveSystemContext));
+            blocks.Add(MakeSaveServiceContextBlock(m_saveServiceContext));
+        }
+        if (m_localization)
+        {
+            blocks.Add(MakeLocalizationSystemContextBlock(m_localization->GetSystemContext()));
+            blocks.Add(MakeLocalizationServiceContextBlock(m_localization->GetServiceContext()));
+        }
+        if (m_network)
+        {
+            blocks.Add(MakeNetworkSystemContextBlock(m_network->GetSystemContext()));
+            blocks.Add(MakeNetworkServiceContextBlock(m_network->GetServiceContext()));
+        }
+        // 오디오도 호스트 것이다(D-197). 두 차원이 같은 것을 쓴다.
+        if (m_audio)
+        {
+            blocks.Add(MakeAudioSystemContextBlock(m_audio->GetSystemContext()));
+            blocks.Add(MakeAudioServiceContextBlock(m_audio->GetServiceContext()));
+        }
+    }
+
+    bool EngineInstance::ReloadScriptModule()
+    {
+        if (m_state != State::Running || m_framework == nullptr || m_platform == nullptr
+            || false == m_scriptContextsBound || m_scriptModulePath.empty())
+        {
+            return false;
+        }
+        m_framework->ReleaseModuleScripts();
+        Array<ScriptContextBlock> blocks;
+        CollectScriptContextBlocks(*m_framework, blocks);
+        const std::uint32_t count = static_cast<std::uint32_t>(blocks.Size());
+        m_scriptModuleLoaded = m_scripts.IsLoaded()
+            ? m_scripts.Reload(*m_platform, blocks.Data(), count)
+            : m_scripts.Load(m_scriptModulePath.c_str(), *m_platform, blocks.Data(), count);
+        m_scriptModuleError.clear();
+        if (false == m_scriptModuleLoaded)
+        {
+            // 갈아 끼우다 실패하면 로더는 이전 DLL 도 내린 채다. 다음 번은 `Load` 로 다시 산다.
+            if (m_scripts.IsLoaded())
+            {
+                m_scripts.Unload(*m_platform);
+            }
+            m_scriptModuleError = "the script module could not be loaded: ";
+            m_scriptModuleError.append(m_scriptModulePath);
+            Log::Write(LogLevel::Warning, "script", "%s", m_scriptModuleError.c_str());
+        }
+        return m_scriptModuleLoaded;
     }
 
     Renderer* EngineInstance::GetRenderer()

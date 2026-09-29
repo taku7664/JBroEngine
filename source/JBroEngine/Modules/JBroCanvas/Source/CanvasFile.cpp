@@ -10,6 +10,7 @@
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Reflection/ReflectedYaml.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Table.h>
 
@@ -36,6 +37,47 @@ namespace JBro
             return false;
         }
 
+        // 컴포넌트 하나의 키들을 지금 자리에 적는다. 파일은 나열의 항목 안에, 핫 리로드는 맨 위에 적는다(D-268).
+        bool WriteComponentFields(
+            YamlWriter& writer,
+            const ComponentBase& component,
+            ComponentTypeId typeId,
+            CanvasFileError& error)
+        {
+            const char* typeName = NameTable::Get().Resolve(typeId);
+            error.typeName = typeName;
+
+            const PropertyTable* table = PropertyRegistry::Lookup(typeId);
+            if (table == nullptr)
+            {
+                // 등록되지 않은 타입이다. 조용히 빠뜨리면 씬이 한 컴포넌트를 잃은 채로
+                // 저장되고 아무도 모른다.
+                return Fail(error, "this component type never registered its properties");
+            }
+
+            // 타입을 먼저 적는다. 읽는 쪽이 무엇을 읽는지 알고 시작한다.
+            writer.WriteString("Type", typeName);
+            // IsActiveComponent 는 오브젝트 활성까지 합친 값이다. 그것을 적으면
+            // 꺼진 오브젝트를 저장했다 열 때 컴포넌트가 **영구히** 꺼진다.
+            writer.WriteBool("IsEnabled", component.IsEnabled());
+            for (std::uint32_t i = 0; i < table->count; ++i)
+            {
+                const PropertyInfo& property = table->properties[i];
+                if (false == property.serialize || property.type == nullptr)
+                {
+                    continue;
+                }
+                ReflectedYamlError reflected;
+                if (false == WriteReflectedValue(writer, NameTable::Get().Resolve(property.name),
+                    *property.type, property.ConstAddress(&component), reflected))
+                {
+                    return FailFrom(error, reflected);
+                }
+            }
+            error.typeName.clear();
+            return true;
+        }
+
         bool WriteComponent(
             YamlWriter& writer,
             const ComponentSlot& slot,
@@ -46,39 +88,12 @@ namespace JBro
             {
                 return Fail(error, "an object holds a component that is already gone");
             }
-            const char* typeName = NameTable::Get().Resolve(slot.typeId);
-            error.typeName = typeName;
-
-            const PropertyTable* table = PropertyRegistry::Lookup(slot.typeId);
-            if (table == nullptr)
-            {
-                // 등록되지 않은 타입이다. 조용히 빠뜨리면 씬이 한 컴포넌트를 잃은 채로
-                // 저장되고 아무도 모른다.
-                return Fail(error, "this component type never registered its properties");
-            }
-
             writer.BeginMap(nullptr);
-            // 타입을 먼저 적는다. 읽는 쪽이 무엇을 읽는지 알고 시작한다.
-            writer.WriteString("Type", typeName);
-            // IsActiveComponent 는 오브젝트 활성까지 합친 값이다. 그것을 적으면
-            // 꺼진 오브젝트를 저장했다 열 때 컴포넌트가 **영구히** 꺼진다.
-            writer.WriteBool("IsEnabled", component->IsEnabled());
-            for (std::uint32_t i = 0; i < table->count; ++i)
+            if (false == WriteComponentFields(writer, *component, slot.typeId, error))
             {
-                const PropertyInfo& property = table->properties[i];
-                if (false == property.serialize || property.type == nullptr)
-                {
-                    continue;
-                }
-                ReflectedYamlError reflected;
-                if (false == WriteReflectedValue(writer, NameTable::Get().Resolve(property.name),
-                    *property.type, property.ConstAddress(component), reflected))
-                {
-                    return FailFrom(error, reflected);
-                }
+                return false;
             }
             writer.EndMap();
-            error.typeName.clear();
             return true;
         }
 
@@ -416,6 +431,17 @@ namespace JBro
             }
         }
 
+        // 모르는 컴포넌트가 들고 있는 파일 안 번호를 뒤에 풀 수 있게 이 파일의 차례를 캔버스에 둔다(D-268).
+        {
+            Array<InstanceId> order;
+            order.Reserve(created.Size());
+            for (GameObject* object : created)
+            {
+                order.Add(object->GetInstanceId());
+            }
+            canvas.SetFileObjectOrder(std::move(order));
+        }
+
         Internal::ObjectRefRemap remap;
         remap.user = &created;
         remap.toObjectId = [](void* user, std::int64_t index) -> InstanceId {
@@ -503,4 +529,259 @@ namespace JBro
         return true;
     }
 
+
+    namespace
+    {
+        void CollectAllObjects(Canvas& canvas, Array<GameObject*>& ordered)
+        {
+            Array<GameObject*> roots;
+            canvas.GetRootObjects(roots);
+            for (GameObject* root : roots)
+            {
+                CollectInOrder(root, ordered);
+            }
+        }
+
+        // 한 오브젝트의 컴포넌트를 파일에 적는 차례로 늘어놓은 한 칸이다. 붙은 것이거나(`component`) 모르는 것(`kept`)이다.
+        struct ComponentEntry
+        {
+            ComponentBase* component = nullptr;
+            ComponentTypeId typeId = InvalidComponentTypeId;
+            const UnresolvedComponent* kept = nullptr;
+        };
+
+        // `WriteCanvasText` 가 쓰는 것과 같은 차례다: 모르는 것은 그 앞에 있던 붙은 것의 개수 자리에 끼운다.
+        void OrderEntries(const GameObject& object, const Array<UnresolvedComponent>* kept, Array<ComponentEntry>& entries)
+        {
+            entries.Clear();
+            const Array<ComponentSlot>& components = object.GetComponents();
+            const std::size_t keptCount = kept != nullptr ? kept->Size() : 0;
+            std::size_t nextKept = 0;
+            for (std::size_t c = 0; c <= components.Size(); ++c)
+            {
+                while (nextKept < keptCount && ((*kept)[nextKept].position <= c || c == components.Size()))
+                {
+                    ComponentEntry entry;
+                    entry.kept = &(*kept)[nextKept];
+                    entries.Add(entry);
+                    ++nextKept;
+                }
+                if (c < components.Size())
+                {
+                    ComponentEntry entry;
+                    entry.component = components[c].reference.TryGet();
+                    entry.typeId = components[c].typeId;
+                    entries.Add(entry);
+                }
+            }
+        }
+
+        const PropertyInfo* FindSerializedProperty(const PropertyTable& table, const char* key)
+        {
+            const NameId name = MakeNameId(key);
+            for (std::uint32_t index = 0; index < table.count; ++index)
+            {
+                const PropertyInfo& property = table.properties[index];
+                if (property.name == name && property.serialize && property.type != nullptr)
+                {
+                    return &property;
+                }
+            }
+            return nullptr;
+        }
+    }
+
+    bool KeepScriptsAsText(Canvas& canvas, std::size_t& kept, CanvasFileError& error)
+    {
+        error = CanvasFileError{};
+        kept = 0;
+        Array<GameObject*> ordered;
+        CollectAllObjects(canvas, ordered);
+
+        // 오브젝트 참조를 이번 실행의 번호로 뜬다. 파일 안 번호는 이 글자가 파일이 아니라서 뜻이 없다.
+        const Internal::ObjectRefRemap runtimeIds;
+        ObjectRefRemapScope remapScope(runtimeIds);
+
+        // **먼저 모두 뜬다.** 하나라도 실패하면 아무것도 떼지 않는다.
+        struct Replacement
+        {
+            GameObject* object = nullptr;
+            Array<UnresolvedComponent> components;
+        };
+        Array<Replacement> replacements;
+        Array<ComponentEntry> entries;
+        for (GameObject* object : ordered)
+        {
+            error.objectName = object->GetTag();
+            const Array<UnresolvedComponent>* existing = canvas.FindUnresolvedComponents(object);
+            OrderEntries(*object, existing, entries);
+            bool changes = false;
+            for (const ComponentEntry& entry : entries)
+            {
+                changes = changes || (entry.component != nullptr && canvas.IsModuleScript(entry.component));
+            }
+            if (false == changes)
+            {
+                continue;
+            }
+            Replacement replacement;
+            replacement.object = object;
+            std::uint32_t resolvedBefore = 0;
+            for (const ComponentEntry& entry : entries)
+            {
+                if (entry.kept != nullptr)
+                {
+                    UnresolvedComponent copy = *entry.kept;
+                    copy.position = resolvedBefore;
+                    replacement.components.Add(std::move(copy));
+                    continue;
+                }
+                if (entry.component == nullptr || false == canvas.IsModuleScript(entry.component))
+                {
+                    ++resolvedBefore;
+                    continue;
+                }
+                YamlWriter writer;
+                if (false == WriteComponentFields(writer, *entry.component, entry.typeId, error))
+                {
+                    return false;
+                }
+                UnresolvedComponent script;
+                script.typeName = NameTable::Get().Resolve(entry.typeId);
+                script.text = writer.GetText();
+                script.position = resolvedBefore;
+                script.componentId = entry.component->GetInstanceId();
+                replacement.components.Add(std::move(script));
+                ++kept;
+            }
+            replacements.Add(std::move(replacement));
+        }
+        error.objectName.clear();
+
+        for (Replacement& replacement : replacements)
+        {
+            canvas.ReplaceUnresolvedComponents(replacement.object, std::move(replacement.components));
+        }
+        canvas.ReleaseModuleScripts();
+        return true;
+    }
+
+    std::size_t ResolveKeptComponents(Canvas& canvas, Array<ComponentResolveNote>& notes)
+    {
+        notes.Clear();
+        Array<GameObject*> ordered;
+        CollectAllObjects(canvas, ordered);
+
+        // 파일에서 온 것은 파일 안 번호를 들고 있다. 그 파일을 읽을 때의 차례로 푼다. 핫 리로드가 뜬 것은 `@번호` 라 이것을 보지 않는다.
+        Internal::ObjectRefRemap remap;
+        remap.user = const_cast<Array<InstanceId>*>(&canvas.GetFileObjectOrder());
+        remap.toObjectId = [](void* user, std::int64_t index) -> InstanceId {
+            const Array<InstanceId>& order = *static_cast<const Array<InstanceId>*>(user);
+            return index >= 0 && static_cast<std::size_t>(index) < order.Size()
+                ? order[static_cast<std::size_t>(index)]
+                : InvalidInstanceId;
+        };
+        ObjectRefRemapScope remapScope(remap);
+
+        std::size_t resolved = 0;
+        Array<ComponentEntry> entries;
+        for (GameObject* object : ordered)
+        {
+            const Array<UnresolvedComponent>* existing = canvas.FindUnresolvedComponents(object);
+            if (existing == nullptr || existing->IsEmpty())
+            {
+                continue;
+            }
+            // 붙이는 동안 원래 목록이 바뀌므로 사본으로 걷는다.
+            const Array<UnresolvedComponent> keptCopy = *existing;
+            OrderEntries(*object, &keptCopy, entries);
+
+            Array<UnresolvedComponent> remaining;
+            std::size_t resolvedBefore = 0;
+            bool changed = false;
+            for (const ComponentEntry& entry : entries)
+            {
+                if (entry.kept == nullptr)
+                {
+                    ++resolvedBefore;
+                    continue;
+                }
+                const UnresolvedComponent& kept = *entry.kept;
+                const NameId name = MakeNameId(kept.typeName.c_str());
+                ComponentTypeInfo info;
+                YamlDocument document;
+                YamlError parseError;
+                const bool known = ComponentRegistry::Get().FindAttachable(name, info)
+                    && document.Parse(kept.text.c_str(), kept.text.size(), parseError)
+                    && document.GetKind(document.GetRoot()) == YamlKind::Map;
+                ComponentBase* component = nullptr;
+                if (known)
+                {
+                    component = ScriptRegistry::Get().Find(name) != nullptr
+                        ? canvas.AttachScript(object, name, kept.componentId)
+                        : info.Attach(canvas, object, name);
+                    if (component == nullptr)
+                    {
+                        ComponentResolveNote note;
+                        note.kind = ComponentResolveNote::Kind::NotAttached;
+                        note.objectName = object->GetTag();
+                        note.typeName = kept.typeName;
+                        notes.Add(std::move(note));
+                    }
+                }
+                const PropertyTable* table = component != nullptr ? PropertyRegistry::Lookup(info.typeId) : nullptr;
+                if (component == nullptr || table == nullptr)
+                {
+                    if (component != nullptr && info.Detach != nullptr)
+                    {
+                        info.Detach(canvas, object, component);
+                    }
+                    UnresolvedComponent copy = kept;
+                    copy.position = static_cast<std::uint32_t>(resolvedBefore);
+                    remaining.Add(std::move(copy));
+                    continue;
+                }
+
+                const std::uint32_t root = document.GetRoot();
+                for (std::size_t key = 0; key < document.GetCount(root); ++key)
+                {
+                    const char* fieldName = document.GetKey(root, key);
+                    if (std::strcmp(fieldName, "Type") == 0 || std::strcmp(fieldName, "IsEnabled") == 0)
+                    {
+                        continue;
+                    }
+                    const PropertyInfo* property = FindSerializedProperty(*table, fieldName);
+                    ReflectedYamlError reflected;
+                    if (property != nullptr
+                        && ReadReflectedValue(document, document.GetValue(root, key), *property->type,
+                            property->Address(component), reflected))
+                    {
+                        continue;
+                    }
+                    ComponentResolveNote note;
+                    note.kind = property == nullptr ? ComponentResolveNote::Kind::FieldDropped
+                                                    : ComponentResolveNote::Kind::FieldUnreadable;
+                    note.objectName = object->GetTag();
+                    note.typeName = kept.typeName;
+                    note.fieldName = fieldName;
+                    notes.Add(std::move(note));
+                }
+                bool enabled = true;
+                if (document.FindBool(root, "IsEnabled", enabled))
+                {
+                    component->SetEnabled(enabled);
+                }
+                // 붙이면 맨 뒤다. 들고 있던 자리로 옮긴다.
+                object->SetComponentIndex(component, resolvedBefore);
+                ++resolvedBefore;
+                ++resolved;
+                changed = true;
+            }
+            if (changed)
+            {
+                canvas.ReplaceUnresolvedComponents(object, std::move(remaining));
+            }
+        }
+        return resolved;
+    }
 }

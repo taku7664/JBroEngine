@@ -450,6 +450,9 @@ namespace JBro
             }
         }
 
+        // 지금 실린(또는 아직 없는) DLL 의 시각을 적어 둔다. 여기서부터 바뀌면 다시 싣는다(D-268).
+        RememberScriptModuleTime();
+
         // ── 세션을 되살린다(D-146) ──────────────────────────────────────────
         const ProjectFile& file = GetProjectFile();
         if (false == file.editorLocale.empty() && file.editorLocale != m_locale)
@@ -1317,6 +1320,11 @@ namespace JBro
     bool EditorApplication::IsScriptModuleLoaded() const
     {
         return m_engine->IsScriptModuleLoaded();
+    }
+
+    const ScriptDLLLoader* EditorApplication::GetScriptModule() const
+    {
+        return m_engine.Get() != nullptr ? &m_engine->GetScriptModule() : nullptr;
     }
 
     const String& EditorApplication::GetScriptModuleError() const
@@ -2425,9 +2433,15 @@ namespace JBro
         m_scriptBuildState = succeeded ? ScriptBuildState::Succeeded : ScriptBuildState::Failed;
         if (succeeded)
         {
-            // 새 DLL 은 프로젝트를 다시 열 때 실린다. 핫 리로드는 다음 단계다(cpp-script-plan §3.5).
-            m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsBuilt, "The scripts were built"),
-                Loc::TextOr(LocKeys::BuildResultsSucceeded, "Built. The new code loads when the project is reopened"));
+            m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsBuilt, "The scripts were built"));
+            // 새 DLL 을 곧바로 싣는다(D-268). 재생 중이면 멈출 때까지 미룬다.
+            if (m_engine->GetScriptModulePath().empty())
+            {
+                Log::Write(LogLevel::Warning, "script",
+                    "the project names no script library (ScriptOutputLibraryPath), so the new build is not loaded");
+                return;
+            }
+            ReloadScripts();
             return;
         }
         NotificationDesc desc;
@@ -2485,6 +2499,161 @@ namespace JBro
         m_scriptEditor = kind;
         m_scriptEditorPath.clear();
         SavePreferences();
+    }
+
+    namespace
+    {
+        // 스크립트 타입마다 저장되는 필드의 이름과 타입을 적은 글자다(D-268). 다시 싣기 전과 뒤를 견준다 - 필드 편집 커맨드는
+        // 필드를 **표의 순번**으로 가리켜, 필드가 늘거나 줄거나 순서가 바뀌면 되돌리기가 다른 필드에 값을 쓴다.
+        String DescribeScriptFieldLayout()
+        {
+            Array<String> types;
+            ScriptRegistry::Get().ForEach([&types](const ScriptTypeInfo& info)
+            {
+                String line = NameTable::Get().Resolve(info.name);
+                if (const PropertyTable* table = PropertyRegistry::Lookup(info.name))
+                {
+                    for (std::uint32_t index = 0; index < table->count; ++index)
+                    {
+                        const PropertyInfo& property = table->properties[index];
+                        char entry[64] = {};
+                        std::snprintf(entry, sizeof(entry), " %08x:%08x", static_cast<unsigned>(property.name),
+                            property.type != nullptr ? static_cast<unsigned>(property.type->typeName) : 0u);
+                        line += entry;
+                    }
+                }
+                types.Add(std::move(line));
+            });
+            std::sort(types.begin(), types.end());
+            String layout;
+            for (const String& type : types)
+            {
+                layout += type;
+                layout += "\n";
+            }
+            return layout;
+        }
+    }
+
+    void EditorApplication::RememberScriptModuleTime()
+    {
+        std::uint64_t time = 0;
+        const String& path = m_engine.Get() != nullptr ? m_engine->GetScriptModulePath() : String();
+        m_scriptModuleTime = false == path.empty() && m_platform->ReadFileWriteTime(path.c_str(), time) ? time : 0;
+        m_scriptModuleSeenTime = 0;
+    }
+
+    void EditorApplication::PollScriptModuleFile(float deltaTime)
+    {
+        if (m_framework.Get() == nullptr || m_engine.Get() == nullptr || m_engine->GetScriptModulePath().empty())
+        {
+            return;
+        }
+        if (m_scriptReloadPending && false == m_simulationPlaying && false == IsCanvasLoading())
+        {
+            ReloadScripts();
+            return;
+        }
+        m_scriptModulePollTimer += deltaTime;
+        if (m_scriptModulePollTimer < 0.5f)
+        {
+            return;
+        }
+        m_scriptModulePollTimer = 0.0f;
+        if (m_scriptBuildState == ScriptBuildState::Running)
+        {
+            return;
+        }
+        std::uint64_t time = 0;
+        if (false == m_platform->ReadFileWriteTime(m_engine->GetScriptModulePath().c_str(), time) || time == m_scriptModuleTime)
+        {
+            m_scriptModuleSeenTime = 0;
+            return;
+        }
+        // 링커가 아직 쓰고 있을 수 있다. 다음 확인에도 같은 시각이면 다 쓴 것으로 본다.
+        if (time != m_scriptModuleSeenTime)
+        {
+            m_scriptModuleSeenTime = time;
+            return;
+        }
+        Log::Write(LogLevel::Info, "script", "the script library changed on disk; loading it again");
+        ReloadScripts();
+    }
+
+    bool EditorApplication::ReloadScripts()
+    {
+        if (m_engine.Get() == nullptr || m_framework.Get() == nullptr || m_engine->GetScriptModulePath().empty())
+        {
+            return false;
+        }
+        // **재생 중에는 갈아 끼우지 않는다**(사용자 결정 2026-09-29). 도는 게임의 스크립트를 떼면 그 상태가 사라진다.
+        if (m_simulationPlaying || IsCanvasLoading())
+        {
+            if (false == m_scriptReloadPending)
+            {
+                m_notifications.Notify(NotificationLevel::Info,
+                    Loc::TextOr(LocKeys::NotifyScriptsReloadPending, "The new scripts load when play stops"));
+            }
+            m_scriptReloadPending = true;
+            return false;
+        }
+        m_scriptReloadPending = false;
+        RememberScriptModuleTime();
+
+        // **되살릴 값을 먼저 뜬다.** 뜨지 못하면 DLL 을 내리지 않는다 - 내리면 스크립트와 그 값이 함께 사라진다.
+        Canvas* canvas = GetCanvas();
+        std::size_t kept = 0;
+        if (canvas != nullptr)
+        {
+            CanvasFileError error;
+            if (false == KeepScriptsAsText(*canvas, kept, error))
+            {
+                Log::Write(LogLevel::Error, "script", "the scripts could not be set aside, so the library was not reloaded: %s (%s %s)",
+                    error.message.c_str(), error.objectName.c_str(), error.typeName.c_str());
+                m_notifications.Notify(NotificationLevel::Error,
+                    Loc::TextOr(LocKeys::NotifyScriptsReloadFailed, "The scripts could not be reloaded"), error.message.c_str());
+                return false;
+            }
+        }
+        const String layoutBefore = DescribeScriptFieldLayout();
+        const bool loaded = m_engine->ReloadScriptModule();
+        // 필드 모양이 바뀌었으면 되돌리기 기록을 비운다. 순번으로 필드를 가리키는 편집이 엉뚱한 필드를 되돌린다.
+        // 코드만 고친 흔한 경우(필드가 그대로)에는 기록이 남는다.
+        if (DescribeScriptFieldLayout() != layoutBefore && m_commands.GetUndoCount() + m_commands.GetRedoCount() != 0)
+        {
+            m_commands.Clear();
+            Log::Write(LogLevel::Info, "script", "the undo history was cleared because script fields changed");
+        }
+        Array<ComponentResolveNote> notes;
+        const std::size_t resolved = canvas != nullptr ? ResolveKeptComponents(*canvas, notes) : 0;
+        for (const ComponentResolveNote& note : notes)
+        {
+            const char* what = note.kind == ComponentResolveNote::Kind::FieldDropped
+                ? "the field is gone from the code, so its value was dropped"
+                : (note.kind == ComponentResolveNote::Kind::FieldUnreadable
+                    ? "the value no longer reads as the field's type, so it went back to the default"
+                    : "the script could not be attached again, so it stays set aside with its values");
+            Log::Write(LogLevel::Warning, "script", "%s on '%s'%s%s: %s", note.typeName.c_str(), note.objectName.c_str(),
+                note.fieldName.empty() ? "" : ", field ", note.fieldName.c_str(), what);
+        }
+        if (m_framework.Get() != nullptr)
+        {
+            m_framework->BindCanvasAssets();
+        }
+        if (false == loaded)
+        {
+            m_notifications.Notify(NotificationLevel::Error,
+                Loc::TextOr(LocKeys::NotifyScriptsReloadFailed, "The scripts could not be reloaded"),
+                Loc::TextOr(LocKeys::NotifyScriptsReloadKept, "The scripts keep their values in the canvas. Fix the build and try again"));
+            return false;
+        }
+        Log::Write(LogLevel::Info, "script",
+            "reloaded the script library: set %zu scripts aside, attached %zu again, %zu components still wait for their type",
+            kept, resolved, canvas != nullptr ? canvas->GetUnresolvedComponentCount() : 0);
+        m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsReloaded, "The scripts were reloaded"),
+            notes.IsEmpty() ? nullptr
+                            : Loc::TextOr(LocKeys::NotifyScriptsReloadNotes, "Some field values could not be carried over. See the log"));
+        return true;
     }
 
     void EditorApplication::OpenNewScriptPopup(const char* folder)
@@ -3388,6 +3557,11 @@ namespace JBro
         if (m_framework.Get() != nullptr)
         {
             m_framework->BindCanvasAssets();
+        }
+        // 재생 중에 준비된 DLL 을 이제 싣는다(D-268). 되살린 편집 캔버스 위에서 한다.
+        if (m_scriptReloadPending)
+        {
+            ReloadScripts();
         }
     }
 
@@ -4695,6 +4869,8 @@ namespace JBro
         PollCanvasLoad();
         // 스크립트 빌드가 끝났으면 진단을 모은다(D-267). 기다리지 않는다 - 끝났는지만 본다.
         PollScriptBuild();
+        // DLL 이 바뀌었거나 미룬 리로드가 있으면 다시 싣는다(D-268).
+        PollScriptModuleFile(deltaTime);
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
         if (m_thumbnails.Get() != nullptr)
         {
@@ -4791,6 +4967,10 @@ namespace JBro
             m_scriptBuildState = ScriptBuildState::Idle;
             Log::Write(LogLevel::Info, "script", "the script build was stopped because the project closed");
         }
+        // 미룬 리로드는 버린다. 아래의 재생 멈춤이 그것을 풀면 닫는 프로젝트의 DLL 을 다시 싣는다.
+        m_scriptReloadPending = false;
+        m_scriptModuleTime = 0;
+        m_scriptModuleSeenTime = 0;
         // 재생 중이면 재생 전 캔버스로 되돌린 뒤 닫는다 - 되살린 캔버스가 이 프로젝트의 마지막 모습이다.
         StopSimulation();
         // **도는 캔버스 로드를 먼저 거둔다**(D-212 의 닫기 규칙). 워커가 이 프로젝트의 에셋 시스템과 파일을 읽고 있다.

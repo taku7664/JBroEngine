@@ -83,6 +83,7 @@
   스크립트는 `JBRO_SCRIPT_BODY`·`JBRO_FIELD` 로 적고, `.cpp` 마다 `JBRO_REGISTER_SCRIPT_2D` 한 줄, 프로젝트에 `JBRO_SCRIPT_MODULE_2D()` 하나다.
   3.3 도 섰다(D-266) - 에셋 브라우저의 `스크립트` 뿌리에서 우클릭 `새 스크립트`, 프로젝트 파일은 한 번만 쓰고 엔진 위치는 `JBroEngine.props` 를 열 때마다 맞춘다.
   3.4 도 섰다(D-267) - 파일 메뉴 `스크립트 빌드` 가 MSBuild 를 자식 프로세스로 띄우고, 오류는 `빌드 결과` 패널에서 눌러 에디터 설정에서 고른 편집기로 그 줄을 연다.
+  3.5 도 섰다(D-268) - 빌드가 성공하거나 DLL 파일이 바뀌면 캔버스의 스크립트를 글자로 떠 두고 DLL 을 갈아 끼운 뒤 같은 자리·같은 번호로 되살린다(재생 중이면 멈춘 뒤).
   담당자에게 넘길 남은 일이 §3.3 끝에 있다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.

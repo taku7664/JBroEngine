@@ -80,6 +80,7 @@ int RunScriptDLLLoaderTests();
 int RunScriptModuleEntryTests();
 int RunScriptProjectTests();
 int RunScriptBuildTests();
+int RunScriptHotReloadTests();
 int RunScriptCompilerLexerTests();
 int RunScriptCompilerParserTests();
 int RunScriptCompilerCommandLineTests();
@@ -437,6 +438,10 @@ int main()
             return 1;
         }
         if (RunScriptBuildTests() != 0)
+        {
+            return 1;
+        }
+        if (RunScriptHotReloadTests() != 0)
         {
             return 1;
         }

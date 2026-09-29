@@ -61,7 +61,7 @@ namespace JBro
 
         if (state == State::Succeeded && diagnostics.IsEmpty())
         {
-            Widget::HintText(Loc::TextOr(LocKeys::BuildResultsSucceeded, "Built. The new code loads when the project is reopened"));
+            Widget::HintText(Loc::TextOr(LocKeys::BuildResultsSucceeded, "Built with no errors or warnings"));
             return;
         }
         if (diagnostics.IsEmpty() && state != State::Running)

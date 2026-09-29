@@ -243,6 +243,14 @@ namespace JBro
             outUnixSeconds = 0;
             return false;
         }
+        // 파일을 마지막으로 쓴 시각이다(D-268). 값은 같은 파일끼리 견줄 때만 뜻이 있다 - 에디터가 스크립트 DLL 이 바뀐 것을 이것으로 안다.
+        // 파일이 없거나 읽지 못하면 거짓이다.
+        virtual bool ReadFileWriteTime(const char* utf8Path, std::uint64_t& time) const
+        {
+            (void)utf8Path;
+            (void)time;
+            return false;
+        }
         virtual bool FileExists(const char* utf8Path) const
         {
             (void)utf8Path;

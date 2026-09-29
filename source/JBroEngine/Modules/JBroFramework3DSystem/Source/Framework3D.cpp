@@ -196,6 +196,11 @@ namespace JBro
         m_initialized = false;
     }
 
+    std::size_t Framework3D::ReleaseModuleScripts()
+    {
+        return m_canvas.Get() != nullptr ? m_canvas->ReleaseModuleScripts() : 0;
+    }
+
     Canvas* Framework3D::GetCanvas()
     {
         return m_canvas.Get();

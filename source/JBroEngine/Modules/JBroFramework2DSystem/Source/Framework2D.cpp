@@ -379,6 +379,11 @@ namespace JBro
         m_initialized = false;
     }
 
+    std::size_t Framework2D::ReleaseModuleScripts()
+    {
+        return m_canvas.Get() != nullptr ? m_canvas->ReleaseModuleScripts() : 0;
+    }
+
     Canvas* Framework2D::GetCanvas()
     {
         return m_canvas.Get();

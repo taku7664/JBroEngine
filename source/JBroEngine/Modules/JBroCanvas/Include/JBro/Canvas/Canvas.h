@@ -35,6 +35,9 @@ namespace JBro
         String text;
         // 파일에서 이것보다 앞에 있던, 알아본 컴포넌트의 개수다. 저장할 때 같은 자리에 끼운다.
         std::uint32_t position = 0;
+        // 핫 리로드가 뜬 스크립트면 그 컴포넌트의 번호다(D-268). 되살릴 때 같은 번호로 붙여 `Ref<T>` 가 새 인스턴스를 찾는다.
+        // 파일에서 읽은 것은 비어 있다. 파일에 적지 않는다.
+        InstanceId componentId = InvalidInstanceId;
     };
 
     // 최상위 실행 단위. 오브젝트 풀, 타입별 컴포넌트 풀, 레이어를 직접 소유한다.
@@ -149,6 +152,14 @@ namespace JBro
         // 등록되지 않은 이름이면 nullptr 이다.
         GameScriptBase* AttachScript(GameObject* owner, NameId scriptName);
         GameScriptBase* AttachScript(GameObject* owner, const char* scriptName);
+        // 번호를 정해 붙인다(D-268). 그 번호를 누가 쓰고 있으면 새 번호다. 핫 리로드가 뜬 스크립트를 같은 번호로 되살린다.
+        GameScriptBase* AttachScript(GameObject* owner, NameId scriptName, InstanceId preferredId);
+        // 이름으로 붙인 스크립트(스크립트 풀의 것)인가. 정적으로 붙인 스크립트(`AttachComponent<T>`)는 아니다.
+        bool IsModuleScript(const ComponentBase* component) const;
+        // **이름으로 붙인 스크립트를 모두 떼고 스크립트 풀까지 지운다**(D-268). 스크립트 DLL 을 내리기 **전에** 부른다 -
+        // 풀은 DLL 안의 생성·파괴 함수를 들고 있어, 남겨 두면 뒤의 파괴(캔버스 해체 포함)가 사라진 코드를 부른다.
+        // 값을 남기려면 먼저 `KeepScriptsAsText`(`CanvasFile.h`)로 뜬다. 뗀 개수다.
+        std::size_t ReleaseModuleScripts();
         // 이름으로 붙인 스크립트를 뗀다. 풀 자리까지 돌려준다 - `GameObject::DetachComponent` 만 부르면 슬롯만 빠진다.
         bool DetachScript(GameObject* owner, GameScriptBase* script);
 
@@ -159,6 +170,12 @@ namespace JBro
         const Array<UnresolvedComponent>* FindUnresolvedComponents(const GameObject* owner) const;
         // 캔버스 전체에서 몇 개인가. 에디터가 "이 캔버스에 실행되지 않는 컴포넌트가 있다" 고 알리는 데 쓴다.
         std::size_t GetUnresolvedComponentCount() const;
+        // 한 오브젝트의 모르는 컴포넌트를 통째로 바꾼다(D-268). 비어 있으면 지운다. `position` 이 줄면 아무것도 바꾸지 않고 거짓이다.
+        bool ReplaceUnresolvedComponents(GameObject* owner, Array<UnresolvedComponent> components);
+        // 마지막으로 읽은 캔버스 파일의 오브젝트 차례다(파일 안 번호 → 오브젝트 번호). 파일에서 온 모르는 컴포넌트는 오브젝트 참조를
+        // 파일 안 번호로 들고 있어, 뒤에 그 타입을 알게 되어 되살릴 때 이것으로 푼다(D-268).
+        void SetFileObjectOrder(Array<InstanceId> order);
+        const Array<InstanceId>& GetFileObjectOrder() const;
 
         // 타입을 가리지 않고 살아 있는 스크립트를 전부 모은다(D-45).
         // 어느 풀이 스크립트인지는 AttachComponent<T> 시점에 컴파일 타임으로 정해지므로
@@ -295,7 +312,8 @@ namespace JBro
         bool RegisterComponentInstance(
             GameObject* owner,
             ComponentBase* component,
-            RefCategory category);
+            RefCategory category,
+            InstanceId preferredId = InvalidInstanceId);
         bool UnregisterComponentInstance(ComponentBase* component);
         SafePtr<Layer> FindLayerReference(LayerId layer);
         // m_layers 의 순서가 바뀌는 모든 지점에서 부른다. 레이어의 순서 캐시를 갱신하는
@@ -325,6 +343,7 @@ namespace JBro
         Table<NameId, OwnerPtr<ScriptPool>>             m_scriptPools;
         // 모르는 컴포넌트(D-264). 오브젝트 번호로 찾는다 - 풀 주소는 파괴 뒤 다른 오브젝트가 쓴다.
         Table<InstanceId, Array<UnresolvedComponent>>   m_unresolvedComponents;
+        Array<InstanceId>                               m_fileObjectOrder;
         // 뿌리의 보이는 순서(D-128). `GetRootObjects` 만 이것을 맞추고 읽는다.
         Array<SafePtr<GameObject>>                      m_rootOrder;
         // 맞출 때 "이미 목록에 있는가" 를 재는 자리다. 매번 만들지 않으려고 멤버로 둔다.

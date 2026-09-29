@@ -50,6 +50,7 @@ namespace JBro
     class GameObject;
     class Renderer;
     class EngineInstance;
+    class ScriptDLLLoader;
     namespace System
     {
         class DebugDrawSystem;
@@ -322,6 +323,8 @@ namespace JBro
         // 스크립트 DLL 을 싣지 못한 사유다. 실었거나 프로젝트가 스크립트를 가리키지
         // 않으면 비어 있다.
         const String& GetScriptModuleError() const;
+        // 실린 스크립트 DLL 이다. 세대(`GetGeneration`)가 다시 실을 때마다 바뀐다(D-268). 엔진이 없으면 널이다.
+        const ScriptDLLLoader* GetScriptModule() const;
         // 프로젝트 파일이 있는 폴더를 기준으로 상대경로를 푼다.
         // `.jproject` 의 `LastOpenedCanvasPath` 처럼 그 파일 안의 경로가 전부 상대다.
         String ResolveProjectPath(const char* relativePath) const;
@@ -609,6 +612,12 @@ namespace JBro
         // 오류 줄을 여는 편집기다(D-267). 에디터 설정에 저장된다.
         ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
         void SetScriptEditor(ScriptBuild::EditorKind kind);
+        // **스크립트 DLL 을 다시 싣는다**(cpp-script-plan §3.5, D-268). 캔버스의 스크립트를 글자로 떠 두고, DLL 을 갈아 끼운 뒤 같은 자리·같은
+        // 컴포넌트 번호로 되살린다. 필드는 이름이 맞고 읽히는 것만 잇고 나머지는 로그로 알린다. 새 DLL 이 모르는 스크립트는 값을 든 채 남는다.
+        // 에디터 빌드가 성공했을 때와 DLL 파일이 바뀌었을 때(Visual Studio 빌드) 저절로 부른다(사용자 결정 2026-09-29).
+        // **재생 중이면 멈출 때까지 미루고** 거짓이다. 갈아 끼웠으면 참이다.
+        bool ReloadScripts();
+        bool IsScriptReloadPending() const { return m_scriptReloadPending; }
         void MarkScriptFilesChanged() { ++m_scriptFilesRevision; }
         // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
         // 재생 전의 언어로 되돌린다(게임이 바꾼 로케일이 편집 화면에 남지 않게).
@@ -852,6 +861,15 @@ namespace JBro
         void PollScriptBuild();
         // 에디터 설정에서 고른 편집기로 그 파일의 그 줄을 연다. 편집기를 못 찾았거나 기본 앱이면 셸로 파일만 연다.
         bool OpenInScriptEditor(const String& file, std::uint32_t line);
+        // 스크립트 DLL 파일이 바뀌었는지 0.5 초마다 본다(D-268). 바뀐 시각이 다음 확인에도 그대로면(다 썼으면) 다시 싣는다.
+        // 에디터 빌드가 도는 동안은 보지 않는다 - 빌드가 끝나면 그쪽이 싣는다. 미룬 리로드도 여기서 푼다.
+        void PollScriptModuleFile(float deltaTime);
+        void RememberScriptModuleTime();
+        bool m_scriptReloadPending = false;
+        // 마지막으로 실은 DLL 의 수정 시각과, 바뀐 것을 처음 본 시각이다.
+        std::uint64_t m_scriptModuleTime = 0;
+        std::uint64_t m_scriptModuleSeenTime = 0;
+        float m_scriptModulePollTimer = 0.0f;
         String GetToolScratchFolder() const;
         ChildProcess m_scriptBuild;
         ScriptBuildState m_scriptBuildState = ScriptBuildState::Idle;

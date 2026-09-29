@@ -465,6 +465,11 @@ namespace JBro::LocKeys
     inline constexpr const char* EditorSettingsShortcuts = "editor_settings.shortcuts";
     inline constexpr const char* EditorSettingsScripts = "editor_settings.scripts";
     inline constexpr const char* BuildResultsNoDiagnostic = "build_results.no_diagnostic";
+    inline constexpr const char* NotifyScriptsReloaded = "notify.scripts_reloaded";
+    inline constexpr const char* NotifyScriptsReloadNotes = "notify.scripts_reload_notes";
+    inline constexpr const char* NotifyScriptsReloadFailed = "notify.scripts_reload_failed";
+    inline constexpr const char* NotifyScriptsReloadKept = "notify.scripts_reload_kept";
+    inline constexpr const char* NotifyScriptsReloadPending = "notify.scripts_reload_pending";
     inline constexpr const char* EditorSettingsSearchHint = "editor_settings.search_hint";
     inline constexpr const char* EditorSettingsPressKey = "editor_settings.press_key";
     inline constexpr const char* EditorSettingsCaptureHint = "editor_settings.capture_hint";

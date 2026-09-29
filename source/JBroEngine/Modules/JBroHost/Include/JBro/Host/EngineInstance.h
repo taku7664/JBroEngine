@@ -256,6 +256,12 @@ namespace JBro
         bool IsScriptModuleLoaded() const;
         // 스크립트 DLL 을 싣지 못한 사유다. 실었거나 애초에 가리키지 않았으면 비어 있다.
         const String& GetScriptModuleError() const;
+        // 프로젝트가 가리키는 스크립트 DLL 경로다. 가리키지 않았으면 비어 있다.
+        const String& GetScriptModulePath() const;
+        // **스크립트 DLL 을 다시 싣는다**(cpp-script-plan §3.5, D-268). 실려 있으면 갈아 끼우고, 프로젝트를 열 때 못 실었으면(아직 빌드 전) 싣는다.
+        // 캔버스의 DLL 스크립트는 먼저 뗀다(`IFramework::ReleaseModuleScripts`) - 값을 남기려면 부르는 쪽이 그 전에 뜬다(`KeepScriptsAsText`).
+        // 컨텍스트 블록은 열 때와 같은 것을 다시 모아 넘긴다. 실렸으면 참이다. 실패하면 이전 DLL 도 내려가 있다.
+        bool ReloadScriptModule();
         bool IsRunning() const;
         // Preserved after teardown; Ready/Skipped are non-fatal, other values indicate failure.
         FrameStatus GetLastFrameStatus() const;
@@ -363,6 +369,9 @@ namespace JBro
         bool m_scriptContextsBound = false;
         bool m_scriptModuleLoaded = false;
         String m_scriptModuleError;
+        String m_scriptModulePath;
+        // 열 때와 다시 실을 때 DLL 에 넘기는 블록이다: 프레임워크의 것 뒤에 호스트의 입력·세이브·로컬라이징·네트워크·오디오를 잇는다.
+        void CollectScriptContextBlocks(IFramework& framework, Array<ScriptContextBlock>& blocks) const;
         FrameStatus m_lastFrameStatus = FrameStatus::Ready;
 
         // 처음 열 때는 비운 채로 시작하고(`initial`), 다시 스캔할 때는 읽지 못하면 전 것을 둔다.
