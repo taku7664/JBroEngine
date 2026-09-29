@@ -129,6 +129,8 @@ namespace JBro::Network::Testing
 
         bool Connect(const char* host, std::uint16_t port) override;
         bool Listen(std::uint16_t port) override;
+        // 메모리 소켓은 처음부터 한 프로세스 안이다 - `Listen` 과 같다.
+        bool ListenLoopback(std::uint16_t port) override;
         OwnerPtr<IStreamSocket> Accept() override;
         ConnectionState GetState() const override;
         SocketIo Send(const void* data, std::size_t size, std::size_t& outSent) override;

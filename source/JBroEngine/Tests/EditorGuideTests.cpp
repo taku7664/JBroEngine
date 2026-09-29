@@ -4,22 +4,27 @@
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/EditorControlPort.h>
 #include <JBro/Editor/EditorGuide.h>
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Network/Native/WinsockSocketProvider.h>
+#include <JBro/Network/Testing/MemorySocketProvider.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
 #include <imgui_internal.h>
 
+#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <cwchar>
 #include <initializer_list>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -2074,6 +2079,238 @@ namespace
     }
 }
 
+namespace
+{
+    // ── 제어 포트(D-270) ─────────────────────────────────────────────
+
+    // 다 보낼 때까지 `pump` 로 포트를 돌린다. 접속이 받아지기 전에는 보낼 수 없다(`WouldBlock`).
+    template <typename Pump>
+    void SendAll(JBro::Network::IStreamSocket& socket, const JBro::String& text, Pump&& pump)
+    {
+        std::size_t offset = 0;
+        for (int round = 0; round < 2000 && offset < text.size(); ++round)
+        {
+            std::size_t sent = 0;
+            const JBro::Network::SocketIo io = socket.Send(text.data() + offset, text.size() - offset, sent);
+            Check(io == JBro::Network::SocketIo::Ok || io == JBro::Network::SocketIo::WouldBlock, "sending to the control port");
+            offset += sent;
+            if (offset < text.size())
+            {
+                pump();
+            }
+        }
+        Check(offset == text.size(), "the control port must take the whole message");
+    }
+
+    // 받은 것을 `buffer` 에 모은다. 상대가 닫았으면 참이다.
+    bool Drain(JBro::Network::IStreamSocket& socket, JBro::String& buffer)
+    {
+        char chunk[4096];
+        while (true)
+        {
+            std::size_t received = 0;
+            const JBro::Network::SocketIo io = socket.Receive(chunk, sizeof(chunk), received);
+            if (io == JBro::Network::SocketIo::Ok && received > 0)
+            {
+                buffer.append(chunk, received);
+                continue;
+            }
+            return io == JBro::Network::SocketIo::Closed;
+        }
+    }
+
+    // 답 하나(끝 표시 `...` 까지)를 떼어 돌려준다. `pump` 로 포트를 돌린다.
+    template <typename Pump>
+    JBro::String ReadReply(JBro::Network::IStreamSocket& socket, JBro::String& buffer, Pump&& pump)
+    {
+        for (int round = 0; round < 2000; ++round)
+        {
+            Drain(socket, buffer);
+            const std::size_t end = buffer.find("\n...\n");
+            if (end != JBro::String::npos)
+            {
+                JBro::String reply = buffer.substr(0, end + 5);
+                buffer.erase(0, end + 5);
+                return reply;
+            }
+            pump();
+        }
+        Check(false, "the control port must answer");
+        return JBro::String();
+    }
+
+    bool StartsWith(const JBro::String& text, const char* head)
+    {
+        return text.rfind(head, 0) == 0;
+    }
+
+    // **밖의 프로세스가 포트로 가이드를 켜고, 묻고, 멈춘다.** 글은 `...` 한 줄로 끝나고 답도 그렇다.
+    // 한 번에 둘이 오거나 나눠 와도 글 단위로 처리하고, 못 읽는 글은 까닭을 한 줄로 답하며 돌던 가이드를 건드리지 않는다.
+    void TestTheControlPortStartsAGuideFromAnotherProcess()
+    {
+        QuietLog quiet;
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "ControlPortProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the control port not verified" << std::endl;
+            return;
+        }
+        Check(false == editor.IsControlPortOpen(), "the editor opens no port unless asked");
+        JBro::Network::Testing::MemorySocketProvider provider;
+        JBro::EditorControlPort port;
+        Check(port.Open(provider, JBro::EditorControlPort::DefaultPort) && port.GetPort() == 3663, "the port opens on 3663");
+        JBro::EditorControlPort other;
+        Check(false == other.Open(provider, JBro::EditorControlPort::DefaultPort), "a second editor does not get the same port");
+        auto pump = [&]() { port.Poll(editor); };
+
+        JBro::OwnerPtr<JBro::Network::IStreamSocket> client = provider.CreateStreamSocket();
+        Check(client->Connect("memory", JBro::EditorControlPort::DefaultPort), "a tool connects");
+        JBro::String buffer;
+
+        SendAll(*client, "guide.catalog\n...\n", pump);
+        JBro::String reply = ReadReply(*client, buffer, pump);
+        Check(StartsWith(reply, "ok\n") && Contains(reply, "object.delete") && Contains(reply, "$stepId"), "the catalog comes back");
+
+        // 가이드와 물음을 한 번에 보낸다. 줄 끝이 `\r\n` 이어도 된다.
+        JBro::String both = "guide.start\r\n";
+        both += Guide({ Step("pick", "object.select", "") });
+        both += "...\r\nguide.status\n...\n";
+        SendAll(*client, both, pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(reply == "ok\n...\n", "the guide starts");
+        Check(editor.GetGuide().IsRunning(), "and runs in the editor");
+        reply = ReadReply(*client, buffer, pump);
+        Check(Contains(reply, "Running: true") && Contains(reply, "Guide: test.refs") && Contains(reply, "Step: 1")
+            && Contains(reply, "Steps: 1") && Contains(reply, "Confirming: false"), "the status names the guide and its step");
+
+        // 나눠 온 글은 끝 표시가 올 때까지 기다린다.
+        SendAll(*client, "guide.sta", pump);
+        pump();
+        SendAll(*client, "tus\n...", pump);
+        pump();
+        pump();
+        Drain(*client, buffer);
+        Check(buffer.empty(), "no answer before the end line");
+        SendAll(*client, "\n", pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(Contains(reply, "Running: true"), "then one answer");
+
+        struct Bad
+        {
+            const char* text;
+            const char* reply;
+        };
+        const Bad bad[] = {
+            { "guide.start\nId: broken\n...\n", "error: " },
+            { "guide.fly\n...\n", "error: unknown command 'guide.fly'\n...\n" },
+            { "...\n", "error: the message has no command\n...\n" },
+        };
+        for (const Bad& entry : bad)
+        {
+            SendAll(*client, entry.text, pump);
+            reply = ReadReply(*client, buffer, pump);
+            Check(StartsWith(reply, entry.reply), entry.text);
+            Check(reply.find('\n') + 5 == reply.size(), "a refusal is one line and the end line");
+        }
+        Check(editor.GetGuide().IsRunning() && std::strcmp(editor.GetGuide().GetGuide()->id, "test.refs") == 0,
+            "a guide that does not parse leaves the running one alone");
+
+        SendAll(*client, "guide.stop\n...\n", pump);
+        Check(ReadReply(*client, buffer, pump) == "ok\n...\n" && false == editor.GetGuide().IsRunning(), "stop stops it");
+        SendAll(*client, "guide.status\n...\n", pump);
+        reply = ReadReply(*client, buffer, pump);
+        Check(Contains(reply, "Running: false") && false == Contains(reply, "Step:"), "and the status says so");
+
+        // 끝 표시 없이 너무 길면 까닭을 듣고 끊긴다.
+        JBro::OwnerPtr<JBro::Network::IStreamSocket> flood = provider.CreateStreamSocket();
+        Check(flood->Connect("memory", JBro::EditorControlPort::DefaultPort), "a second tool connects");
+        JBro::String floodText(JBro::EditorControlPort::MaxMessageBytes + 1024, 'a');
+        JBro::String floodBuffer;
+        SendAll(*flood, floodText, pump);
+        reply = ReadReply(*flood, floodBuffer, pump);
+        Check(StartsWith(reply, "error: the message is too long"), "a message without an end is refused");
+        bool closed = false;
+        for (int round = 0; round < 10 && false == closed; ++round)
+        {
+            pump();
+            closed = Drain(*flood, floodBuffer);
+        }
+        Check(closed, "and the connection is closed");
+
+        // 접속은 넷까지다. 다섯째는 까닭을 듣고 끊긴다.
+        JBro::OwnerPtr<JBro::Network::IStreamSocket> more[4];
+        for (JBro::OwnerPtr<JBro::Network::IStreamSocket>& socket : more)
+        {
+            socket = provider.CreateStreamSocket();
+            Check(socket->Connect("memory", JBro::EditorControlPort::DefaultPort), "another tool connects");
+        }
+        pump();
+        JBro::String fifth;
+        reply = ReadReply(*more[3], fifth, pump);
+        Check(reply == "error: too many connections\n...\n", "the fifth connection hears why it is turned away");
+        JBro::String quiet3;
+        Drain(*more[2], quiet3);
+        Check(quiet3.empty(), "the fourth hears nothing");
+        SendAll(*more[2], "guide.status\n...\n", pump);
+        Check(Contains(ReadReply(*more[2], quiet3, pump), "Running: false"), "and is served");
+    }
+
+    // **실제 에디터는 `controlPort` 로 루프백에 열고 프레임마다 답한다.** 같은 번호는 두 번 열리지 않는다.
+    void TestTheEditorOpensItsControlPortOnLoopback()
+    {
+        QuietLog quiet;
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        // 사람의 에디터가 3663 을 쓰고 있을 수 있다. 시험은 빈 번호를 찾아 쓴다.
+        JBro::Network::Native::WinsockSocketProvider provider;
+        for (std::uint16_t candidate = 36631; candidate < 36651 && config.controlPort == 0; ++candidate)
+        {
+            JBro::EditorControlPort probe;
+            if (probe.Open(provider, candidate))
+            {
+                config.controlPort = candidate;
+            }
+        }
+        Check(config.controlPort != 0, "a free loopback port must be found");
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] the editor did not initialize; the control port not verified" << std::endl;
+            return;
+        }
+        Check(editor.IsControlPortOpen(), "the editor opens its control port");
+        JBro::ProjectDescriptor project;
+        project.name = { "ControlPortEditor", 17 };
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({ 64, 48 }), "the editor UI must turn on");
+
+        JBro::OwnerPtr<JBro::Network::IStreamSocket> client = provider.CreateStreamSocket();
+        Check(client->Connect("127.0.0.1", config.controlPort), "a tool connects over loopback");
+        JBro::String buffer;
+        auto pump = [&]() {
+            Check(editor.Tick(Frame), "the editor must tick");
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        };
+        for (int round = 0; round < 200 && client->GetState() == JBro::Network::ConnectionState::Connecting; ++round)
+        {
+            pump();
+        }
+        SendAll(*client, "guide.start\n", pump);
+        SendAll(*client, Guide({ Step("pick", "object.select", "") }), pump);
+        SendAll(*client, "...\n", pump);
+        Check(ReadReply(*client, buffer, pump) == "ok\n...\n" && editor.GetGuide().IsRunning(), "the running editor starts the guide it was sent");
+
+        JBro::EditorControlPort second;
+        Check(false == second.Open(provider, config.controlPort), "the port is the editor's until it closes");
+        editor.Shutdown();
+        Check(false == editor.IsControlPortOpen(), "shutting down closes it");
+        Check(second.Open(provider, config.controlPort), "and frees the number");
+    }
+}
+
 int RunEditorGuideTests()
 {
     TestAClosedLevelOpensOnlyAfterTheHoleSettlesAndDwells();
@@ -2113,6 +2350,8 @@ int RunEditorGuideTests()
     TestAStepReferenceNamesAnEarlierStepThatLeavesAnObject();
     TestALaterStepGetsTheObjectAnEarlierStepMade();
     TestLosingAReferencedObjectGoesBackToTheStepThatLeftIt();
+    TestTheControlPortStartsAGuideFromAnotherProcess();
+    TestTheEditorOpensItsControlPortOnLoopback();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }

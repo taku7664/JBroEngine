@@ -350,6 +350,11 @@ namespace JBro::Network::Testing
         return true;
     }
 
+    bool MemoryStreamSocket::ListenLoopback(std::uint16_t port)
+    {
+        return Listen(port);
+    }
+
     OwnerPtr<IStreamSocket> MemoryStreamSocket::Accept()
     {
         if (false == m_listening || m_closed)

@@ -224,6 +224,11 @@ namespace JBro::Network::Web
                 return false;
             }
 
+            bool ListenLoopback(std::uint16_t) override
+            {
+                return false;
+            }
+
             OwnerPtr<IStreamSocket> Accept() override
             {
                 return nullptr;

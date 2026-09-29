@@ -45,6 +45,8 @@ namespace JBro
     // 그쪽 빌드가 `imgui.h` 를 찾지 못해 깨진다(실제로 깨져 있었다).
     enum class EditorShortcut : std::uint8_t;
     class SpriteViewerWindow;
+    // 제어 포트는 소켓 헤더를 끌어온다. 이 헤더를 보는 쪽이 네트워크 헤더를 보지 않게 이름만 안다(D-270).
+    class EditorControlPort;
     class GameObject;
     class Renderer;
     class EngineInstance;
@@ -126,6 +128,9 @@ namespace JBro
         // 시험이 로드가 끝나는 틱을 정확히 알려고 끈다.
         std::uint32_t taskWorkerCount = 0;
         bool taskWorkers = true;
+        // **제어 포트**(D-270, `EditorControlPort`). 0 이 아니면 이 번호로 루프백에 열어 밖의 프로세스가 가이드를 켜게 한다.
+        // 실제 에디터가 `EditorControlPort::DefaultPort` 를 준다. 테스트는 열지 않는 것이 기본이다 - 에디터 여럿이 한 포트를 다툰다.
+        std::uint16_t controlPort = 0;
         JMemoryContext memory;
     };
 
@@ -402,11 +407,13 @@ namespace JBro
         const EditorGuideFocus& GetGuideFocus() const;
         // 가이드다(D-251). 도움말 메뉴가 내장 가이드를 이 이름으로 켠다(`EditorGuides`). 캔버스가 없거나 모르는 이름이면 거짓이다.
         bool StartGuide(const char* id);
-        // **글자로 적힌 가이드를 켠다**(D-267). 에디터 안의 에이전트가 사용자의 물음에 맞춰 지은 가이드를 이것으로 넘긴다 -
-        // 같은 프로세스이므로 파일이나 파이프를 거치지 않는다. 형식은 `EditorGuides::Parse` 다. 읽지 못하면 까닭을 `error` 에
+        // **글자로 적힌 가이드를 켠다**(D-267). 에이전트가 사용자의 물음에 맞춰 지은 가이드를 이것으로 넘긴다 - 에디터 안에서는
+        // 곧장 부르고, 밖의 프로세스는 제어 포트(D-270)의 `guide.start` 로 부른다. 형식은 `EditorGuides::Parse` 다. 읽지 못하면 까닭을 `error` 에
         // 적고 거짓이며, 이미 돌던 가이드는 그대로 둔다. 읽었으면 돌던 가이드를 멈추고 이것을 켠다.
         bool StartGuideFromText(const char* text, std::size_t length, String& error);
         EditorGuide& GetGuide();
+        // 제어 포트가 열렸는가(D-270). `controlPort` 를 주었어도 다른 에디터가 그 번호를 쓰고 있으면 열리지 않는다.
+        bool IsControlPortOpen() const;
         // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
         // 다음 틱이 끝날 때 환경설정 파일에 적힌다.
         EditorShortcutManager& GetShortcuts();
@@ -724,6 +731,9 @@ namespace JBro
         EditorGuide m_guide;
         // 글자로 받은 가이드다. `m_guide` 가 가리키므로 다음 가이드를 받을 때까지 들고 있는다.
         OwnerPtr<LoadedGuide> m_textGuide;
+        // 제어 포트와 그 소켓을 내준 provider 다(D-270). 포트가 먼저 사라져야 하므로 provider 를 앞에 둔다.
+        OwnerPtr<Network::ISocketProvider> m_socketProvider;
+        OwnerPtr<EditorControlPort> m_controlPort;
         // 가이드 포커스가 거른 이번 프레임의 입력이다. 프레임마다 비우고 다시 채운다 - 용량은 남아 다시 잡지 않는다.
         Array<InputEvent> m_filteredInput;
         // 브라우저가 찾아가야 할 에셋. 비어 있으면 기다리는 것이 없다(D-193).

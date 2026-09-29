@@ -62,6 +62,7 @@ int RunEditorWidgetTests();
 int RunEditorNotificationTests();
 int RunEditorGuideFocusTests();
 int RunEditorGuideTests();
+int RunEditorControlPortTests();
 int RunEditorShortcutTests();
 int RunComponentMenuTableTests();
 int RunGizmoModelTests();
@@ -390,6 +391,10 @@ int main()
             return 1;
         }
         if (RunEditorGuideTests() != 0)
+        {
+            return 1;
+        }
+        if (RunEditorControlPortTests() != 0)
         {
             return 1;
         }

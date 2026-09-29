@@ -2,6 +2,8 @@
 #include <JBro/Core/Version.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorControlPort.h>
+#include <JBro/Network/Socket.h>
 #include <JBro/Editor/Command/AssetFileCommands.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
@@ -259,6 +261,22 @@ namespace JBro
         m_graphicsApi = config.graphicsApi;
         m_lastFrameStatus = FrameStatus::Ready;
         m_initialized = true;
+
+        // 제어 포트(D-270). 못 열어도 에디터는 돈다 - 에디터를 둘 띄우면 뒤의 것은 포트 없이 뜬다.
+        if (config.controlPort != 0)
+        {
+            m_socketProvider = m_platform->CreateSocketProvider();
+            m_controlPort = MakeOwnerPtr<EditorControlPort>();
+            if (m_socketProvider.Get() == nullptr || false == m_controlPort->Open(*m_socketProvider, config.controlPort))
+            {
+                Log::Write(LogLevel::Warning, "editor", "the control port %u could not be opened; another editor may be using it",
+                    static_cast<unsigned>(config.controlPort));
+            }
+            else
+            {
+                Log::Write(LogLevel::Info, "editor", "the control port listens on 127.0.0.1:%u", static_cast<unsigned>(config.controlPort));
+            }
+        }
 
         // 단축키: 전역 아홉을 올리고 사용자가 바꿔 둔 것을 덮는다(D-228). 패널의 것은 패널이 만들어질 때 올라온다.
         EditorShortcuts::RegisterBuiltins(*m_shortcuts);
@@ -4279,6 +4297,11 @@ namespace JBro
         return m_guide;
     }
 
+    bool EditorApplication::IsControlPortOpen() const
+    {
+        return m_controlPort.Get() != nullptr && m_controlPort->IsOpen();
+    }
+
     const EditorGuideFocus& EditorApplication::GetGuideFocus() const
     {
         return m_guideFocus;
@@ -4358,6 +4381,11 @@ namespace JBro
         if (false == m_initialized || m_engine.Get() == nullptr)
         {
             return false;
+        }
+        // 제어 포트로 온 글은 프레임 밖, UI 보다 먼저 처리한다(D-270). 켠 가이드는 이 프레임의 UI 부터 보인다.
+        if (m_controlPort.Get() != nullptr)
+        {
+            m_controlPort->Poll(*this);
         }
         // 에셋 폴더의 변경은 프레임 밖, UI 보다 먼저 적용한다(D-121). 재로드는 핸들을 지키므로 화면은 다음 그림부터
         // 새 자료를 보고, 다시 스캔했으면 못 풀렸던 아이디가 풀릴 수 있어 해석을 다시 돌린다.
@@ -4587,6 +4615,9 @@ namespace JBro
 
     void EditorApplication::ReleaseProcessResources()
     {
+        // 제어 포트를 먼저 닫는다 - 소켓은 provider 가, provider 는 플랫폼의 Winsock 이 살아 있어야 닫힌다.
+        m_controlPort.Reset();
+        m_socketProvider.Reset();
         // UI 가 잡은 GPU 리소스를 먼저 놓는다. 엔진이 디바이스를 지우고 나면
         // 그것들을 놓아 줄 길이 없다.
         ReleaseEditorUi();

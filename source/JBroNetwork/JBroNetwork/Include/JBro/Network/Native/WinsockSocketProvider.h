@@ -36,6 +36,7 @@ namespace JBro::Network::Native
 
         bool Connect(const char* host, std::uint16_t port) override;
         bool Listen(std::uint16_t port) override;
+        bool ListenLoopback(std::uint16_t port) override;
         OwnerPtr<IStreamSocket> Accept() override;
         ConnectionState GetState() const override;
         SocketIo Send(const void* data, std::size_t size, std::size_t& outSent) override;
@@ -44,6 +45,7 @@ namespace JBro::Network::Native
 
     private:
         bool EnsureSocket();
+        bool ListenOn(std::uint32_t hostAddress, std::uint16_t port);
         void SetNonBlocking();
 
         static constexpr std::uintptr_t InvalidHandle = ~static_cast<std::uintptr_t>(0);

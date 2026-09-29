@@ -117,7 +117,7 @@ namespace JBro::Network
 
     enum class SocketIo : std::uint8_t { Ok, WouldBlock, Closed, Error };
 
-    class IStreamSocket { /* Connect · Listen · Accept · Send · Recv · Close - 논블로킹 */ };
+    class IStreamSocket { /* Connect · Listen · ListenLoopback(D-270) · Accept · Send · Recv · Close - 논블로킹 */ };
     class IDatagramSocket { /* Open · Bind · Resolve · SendTo · RecvFrom · Close */ };
     class ISignalChannel { /* WebRTC 시그널 메시지 송수신. §2.7 */ };
 

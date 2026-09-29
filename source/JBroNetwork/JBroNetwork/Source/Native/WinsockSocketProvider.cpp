@@ -164,6 +164,16 @@ namespace JBro::Network::Native
 
     bool WinsockStreamSocket::Listen(std::uint16_t port)
     {
+        return ListenOn(INADDR_ANY, port);
+    }
+
+    bool WinsockStreamSocket::ListenLoopback(std::uint16_t port)
+    {
+        return ListenOn(INADDR_LOOPBACK, port);
+    }
+
+    bool WinsockStreamSocket::ListenOn(std::uint32_t hostAddress, std::uint16_t port)
+    {
         if (false == EnsureSocket())
         {
             return false;
@@ -171,7 +181,7 @@ namespace JBro::Network::Native
         // SO_REUSEADDR 는 두지 않는다 - 같은 포트에 서버 둘이 붙는 것을 테스트가 알아채야 한다.
         sockaddr_in address = {};
         address.sin_family = AF_INET;
-        address.sin_addr.s_addr = INADDR_ANY;
+        address.sin_addr.s_addr = htonl(hostAddress);
         address.sin_port = htons(port);
         if (0 != bind(ToSocket(m_socket), reinterpret_cast<sockaddr*>(&address), sizeof(address)))
         {

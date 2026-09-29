@@ -55,6 +55,8 @@ namespace JBro::Network
         // 접속을 시작한다. 결과는 `GetState` 가 `Connecting` 에서 `Connected` 나 `Disconnected` 로 바뀌는 것으로 안다.
         virtual bool Connect(const char* host, std::uint16_t port) = 0;
         virtual bool Listen(std::uint16_t port) = 0;
+        // 같은 기계에서 오는 접속만 받는다(127.0.0.1). 에디터 제어 포트처럼 밖에 열면 안 되는 서버가 쓴다(D-270).
+        virtual bool ListenLoopback(std::uint16_t port) = 0;
         // 기다리는 접속이 있으면 그 소켓을, 없으면 null 을 돌려준다. Listen 한 소켓에서만 뜻이 있다.
         virtual OwnerPtr<IStreamSocket> Accept() = 0;
         virtual ConnectionState GetState() const = 0;

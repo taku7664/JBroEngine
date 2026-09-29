@@ -1,6 +1,7 @@
 ﻿#include <JBro/Core/Log.h>
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorControlPort.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
@@ -37,6 +38,8 @@ namespace
         const char* contentRoot = nullptr;
         // 0 이면 창을 닫을 때까지 돈다. 양수면 그만큼만 돌고 끝난다 - 사람 없이 돌리는 확인용이다.
         long long frameLimit = 0;
+        // 제어 포트다(D-270). 0 이면 열지 않는다 - 에디터를 둘 띄워 시험할 때 뒤의 것이 포트를 다투지 않게 한다.
+        long long controlPort = JBro::EditorControlPort::DefaultPort;
         bool showHelp = false;
     };
 
@@ -50,6 +53,8 @@ namespace
             "(default: the working directory)\n"
             "  --frames <count>      run this many frames and exit "
             "(default: until the window closes)\n"
+            "  --control-port <port> listen for tools on 127.0.0.1:<port>, 0 to turn it off "
+            "(default: 3663)\n"
             "  -h, --help            print this text\n"
             "\n"
             "exit codes: 0 ok, 1 initialize failed, 2 project failed, 3 editor UI failed, "
@@ -127,6 +132,21 @@ namespace
                 if (false == ParseFrameLimit(value, options.frameLimit))
                 {
                     error = "the frame count must be zero or more, not: ";
+                    error.append(value);
+                    return false;
+                }
+                continue;
+            }
+            if (std::strcmp(argument, "--control-port") == 0)
+            {
+                const char* value = nullptr;
+                if (false == TakeValue(argumentCount, arguments, index, argument, value, error))
+                {
+                    return false;
+                }
+                if (false == ParseFrameLimit(value, options.controlPort) || options.controlPort > 65535)
+                {
+                    error = "the control port must be 0 to 65535, not: ";
                     error.append(value);
                     return false;
                 }
@@ -258,6 +278,8 @@ int main(int argumentCount, char** arguments)
     config.iconFontPath = iconFontPath.c_str();
     // 사람의 에디터 환경설정(바꾼 단축키 등)을 읽고 쓴다(D-228). 테스트는 이것을 켜지 않는다.
     config.userPreferences = true;
+    // 밖의 도구(에이전트)가 가이드를 켜는 자리다(D-270). 루프백에만 열린다.
+    config.controlPort = static_cast<std::uint16_t>(options.controlPort);
     if (false == editor.Initialize(config))
     {
         std::printf("the editor could not initialize\n");
