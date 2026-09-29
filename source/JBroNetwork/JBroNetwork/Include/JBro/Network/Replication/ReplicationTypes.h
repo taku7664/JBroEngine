@@ -8,7 +8,7 @@
 #include <type_traits>
 
 // 복제의 공개 값 타입이다(network-plan §2.6). 컴포넌트 풀을 타입 단위로 등록하고, 서버가 고정 스텝마다 스냅숏을 찍어
-// 클라이언트가 마지막으로 ACK 한 기준과의 차이만 보낸다. 오브젝트는 컴포넌트가 아니라 표로 잇는다 - `GameObjectHandle` 은
+// 클라이언트가 마지막으로 ACK 한 기준과의 차이만 보낸다. 오브젝트는 컴포넌트가 아니라 표로 잇는다 - `Handle::GameObject` 는
 // 프로세스 지역 값이라 와이어에 못 쓴다.
 namespace JBro::Network
 {

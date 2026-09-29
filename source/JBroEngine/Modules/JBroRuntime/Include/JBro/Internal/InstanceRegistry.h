@@ -29,7 +29,7 @@ namespace JBro::Internal
         static InstanceRegistry& Local();
         // 실제로 쓰는 레지스트리. 바인딩된 것이 있으면 그것, 없으면 Local() 이다.
         // 호스트와 게임 DLL 은 Runtime 을 각각 정적 링크하므로, 바인딩이 없으면 레지스트리가
-        // 두 개가 되어 DLL 안의 Ref<T>·GameObjectHandle 이 아무것도 해석하지 못한다(D-44).
+        // 두 개가 되어 DLL 안의 Ref<T>·Handle::GameObject 가 아무것도 해석하지 못한다(D-44).
         static InstanceRegistry& Get();
         // Main-thread only. 로드 시 1회만 부른다. nullptr 이면 Local() 로 되돌린다.
         static void Bind(InstanceRegistry* registry);

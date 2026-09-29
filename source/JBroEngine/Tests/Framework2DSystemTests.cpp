@@ -36,8 +36,8 @@ namespace
     void TestTransformHierarchyPropagation()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* parent = canvas.CreateObject("parent");
-        JBro::GameObject* child = canvas.CreateObject("child");
+        JBro::Object::GameObject* parent = canvas.CreateObject("parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("child");
         Check(parent != nullptr && child != nullptr, "transform objects must be created");
 
         JBro::Component::Transform2D* parentLocal =
@@ -84,9 +84,9 @@ namespace
     void TestDisablingAParentTransformSkipsTheSubtreeInsteadOfMovingIt()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* parent = canvas.CreateObject("parent");
-        JBro::GameObject* child = canvas.CreateObject("child");
-        JBro::GameObject* grandChild = canvas.CreateObject("grandchild");
+        JBro::Object::GameObject* parent = canvas.CreateObject("parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("child");
+        JBro::Object::GameObject* grandChild = canvas.CreateObject("grandchild");
         child->SetParent(parent);
         grandChild->SetParent(child);
 
@@ -132,8 +132,8 @@ namespace
     void TestAParentWithNoTransformLeavesTheChildAtItsOwnLocal()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* parent = canvas.CreateObject("no transform");
-        JBro::GameObject* child = canvas.CreateObject("child");
+        JBro::Object::GameObject* parent = canvas.CreateObject("no transform");
+        JBro::Object::GameObject* child = canvas.CreateObject("child");
         child->SetParent(parent);
 
         auto* childLocal = canvas.AttachComponent<JBro::Component::Transform2D>(child);
@@ -159,13 +159,13 @@ namespace
         JBro::Layer& background = *canvas.GetLayerAt(0);
         JBro::Layer& foreground = canvas.CreateLayer("foreground");
 
-        JBro::GameObject* front = canvas.CreateObject("front");
-        JBro::GameObject* back = canvas.CreateObject("back");
+        JBro::Object::GameObject* front = canvas.CreateObject("front");
+        JBro::Object::GameObject* back = canvas.CreateObject("back");
         Check(canvas.SetObjectLayer(front, foreground.GetId())
             && canvas.SetObjectLayer(back, background.GetId()),
             "objects must take their layer");
 
-        for (JBro::GameObject* object : {front, back})
+        for (JBro::Object::GameObject* object : {front, back})
         {
             auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
             auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
@@ -203,7 +203,7 @@ namespace
     void TestPhysicsGravityIntegration()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("falling body");
+        JBro::Object::GameObject* object = canvas.CreateObject("falling body");
         Check(object != nullptr, "physics object must be created");
 
         JBro::Component::Transform2D* transform =
@@ -238,13 +238,13 @@ namespace
     {
         static_assert(std::is_same_v<
             decltype(JBro::Collision2D::other),
-            JBro::GameObjectHandle>);
+            JBro::Handle::GameObject>);
         static_assert(std::is_standard_layout_v<JBro::Collision2D>);
         static_assert(std::is_trivially_copyable_v<JBro::Collision2D>);
 
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* boxObject = canvas.CreateObject("box");
-        JBro::GameObject* circleObject = canvas.CreateObject("circle");
+        JBro::Object::GameObject* boxObject = canvas.CreateObject("box");
+        JBro::Object::GameObject* circleObject = canvas.CreateObject("circle");
         Check(boxObject != nullptr && circleObject != nullptr, "query objects must be created");
 
         JBro::Component::Transform2D* boxTransform =
@@ -292,7 +292,7 @@ namespace
         Check(NearlyEqual(hit.point.x, 1.0f), "box hit point must be on its near face");
         Check(NearlyEqual(hit.normal.x, -1.0f), "box hit normal must face the ray");
 
-        JBro::Array<JBro::GameObjectHandle> overlaps;
+        JBro::Array<JBro::Handle::GameObject> overlaps;
         queries.OverlapBox({{1.5f, -0.5f}, {5.5f, 0.5f}}, overlaps, JBro::AllPhysicsLayers);
         Check(overlaps.Size() == 2, "overlap box must include box and circle");
 
@@ -337,8 +337,8 @@ namespace
     void TestRenderExtraction()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* cameraObject = canvas.CreateObject("camera");
-        JBro::GameObject* spriteObject = canvas.CreateObject("sprite");
+        JBro::Object::GameObject* cameraObject = canvas.CreateObject("camera");
+        JBro::Object::GameObject* spriteObject = canvas.CreateObject("sprite");
         auto* cameraLocal = canvas.AttachComponent<JBro::Component::Transform2D>(cameraObject);        auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(cameraObject);
         auto* spriteLocal = canvas.AttachComponent<JBro::Component::Transform2D>(spriteObject);        auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
         auto* secondSprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(spriteObject);
@@ -519,10 +519,10 @@ namespace
 
         for (int chain = 0; chain < Chains; ++chain)
         {
-            JBro::GameObject* parent = nullptr;
+            JBro::Object::GameObject* parent = nullptr;
             for (int level = 0; level < Depth; ++level)
             {
-                JBro::GameObject* object = canvas.CreateObject("node");
+                JBro::Object::GameObject* object = canvas.CreateObject("node");
                 // Transform 을 마지막에 붙여 스캔이 가장 멀리 가게 만든다.
                 canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
                 canvas.AttachComponent<JBro::Component::Collider2D>(object);
@@ -559,8 +559,8 @@ namespace
     void TestRenderWorldCollection()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* first = canvas.CreateObject("first sprite");
-        JBro::GameObject* second = canvas.CreateObject("second sprite");
+        JBro::Object::GameObject* first = canvas.CreateObject("first sprite");
+        JBro::Object::GameObject* second = canvas.CreateObject("second sprite");
         Check(first != nullptr && second != nullptr, "render objects must be created");
 
         JBro::RenderWorld2D renderWorld;

@@ -200,8 +200,8 @@ namespace
     void TestUndrawableCamerasAreSkippedWhenChoosing()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* broken = canvas.CreateObject("broken");
-        JBro::GameObject* spare = canvas.CreateObject("spare");
+        JBro::Object::GameObject* broken = canvas.CreateObject("broken");
+        JBro::Object::GameObject* spare = canvas.CreateObject("spare");
         Check(canvas.AttachComponent<JBro::Component::Transform2D>(broken) != nullptr
                 && canvas.AttachComponent<JBro::Component::Transform2D>(spare) != nullptr, "the cameras need transforms");
         auto* brokenCamera = canvas.AttachComponent<JBro::Component::Camera2D>(broken);

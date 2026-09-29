@@ -119,7 +119,7 @@ namespace JBro::System
 
     void Text2DSystem::Submit(Canvas& canvas, const Component::Text2D& text, const Entry& entry)
     {
-        GameObject* owner = Internal::CanvasAccess::GetOwner(text);
+        Object::GameObject* owner = Internal::CanvasAccess::GetOwner(text);
         const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
         if (layer != nullptr && false == layer->IsVisible())
         {
@@ -220,7 +220,7 @@ namespace JBro::System
             Entry& entry = m_entries.FindOrAdd(text.GetInstanceId());
             entry.lastSeenFrame = m_frame;
             {
-                const GameObject* owner = Internal::CanvasAccess::GetOwner(text);
+                const Object::GameObject* owner = Internal::CanvasAccess::GetOwner(text);
                 const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
                 entry.screenSpace = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
             }

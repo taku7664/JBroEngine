@@ -535,7 +535,7 @@ namespace
         context.debugDraw = &store;
         Check(framework.Initialize(context), "the 2D framework must initialize with the renderer");
         JBro::Canvas& canvas = *framework.GetCanvas();
-        JBro::GameObject* eye = canvas.CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
         camera->primary = true;
@@ -610,12 +610,12 @@ namespace
         context.debugDraw = &store;
         Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
         JBro::Canvas& canvas = *framework.GetCanvas();
-        JBro::GameObject* eye = canvas.CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 5.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
         camera->primary = true;
         camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-        JBro::GameObject* box = canvas.CreateObject("box");
+        JBro::Object::GameObject* box = canvas.CreateObject("box");
         auto* boxTransform = canvas.AttachComponent<JBro::Component::Transform3D>(box);
         boxTransform->position = {0.0f, 0.0f, 2.0f};
         boxTransform->scale = {0.6f, 0.6f, 0.6f};

@@ -47,7 +47,10 @@ namespace JBro
     // 그쪽 빌드가 `imgui.h` 를 찾지 못해 깨진다(실제로 깨져 있었다).
     enum class EditorShortcut : std::uint8_t;
     class SpriteViewerWindow;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
     class Renderer;
     class EngineInstance;
     class ScriptDLLLoader;
@@ -180,9 +183,9 @@ namespace JBro
         // 그림 위에 겹쳐 그리는 도구와 그것을 마우스로 몰아 보는 테스트가 같은 변환을 쓰게 한다.
         bool CanvasViewWorldToScreen(float worldX, float worldY, float& screenX, float& screenY);
         // 캔버스 뷰가 이 오브젝트 안으로 들어간다(D-254). 계층 창의 두 번 누르기가 부른다. 캔버스 뷰가 없으면 아무것도 하지 않는다.
-        void StepCanvasViewInto(GameObject& object);
+        void StepCanvasViewInto(Object::GameObject& object);
         // 캔버스 뷰가 들어가 있는 오브젝트다. 뿌리거나 캔버스 뷰가 없으면 nullptr 이다.
-        GameObject* GetCanvasViewFocus();
+        Object::GameObject* GetCanvasViewFocus();
         // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지
         // 않았으면 빈 글자다. ImGui 의 형식을 그대로 쓰므로 우리가 파싱할 일은 없다.
         String GetLayoutFilePath() const;
@@ -352,8 +355,8 @@ namespace JBro
         // **`SafePtr` 인 이유는 오브젝트가 밑에서 사라질 수 있기 때문이다** -
         // 스크립트가 선택된 오브젝트를 지워도 인스펙터가 죽은 주소를 읽지
         // 않는다. 고른 것이 사라지면 선택은 저절로 비워진다.
-        void SetSelectedObject(GameObject* object);
-        GameObject* GetSelectedObject() const;
+        void SetSelectedObject(Object::GameObject* object);
+        Object::GameObject* GetSelectedObject() const;
 
         // ── 여럿 고르기 ──────────────────────────────────────────────────
         //
@@ -361,11 +364,11 @@ namespace JBro
         // 인스펙터는 주된 것을 보여 주고, 편집은 목록 전체에 미친다.
         //
         // `SetSelectedObject` 는 목록을 그것 하나로 바꾼다 - 맨 클릭이다.
-        void SelectObjects(JArrayView<GameObject*> objects);
+        void SelectObjects(JArrayView<Object::GameObject*> objects);
         // Ctrl·Shift 클릭이다. 이미 있으면 아무 일도 하지 않는다.
-        void AddToSelection(GameObject* object);
-        void RemoveFromSelection(const GameObject* object);
-        bool IsSelected(const GameObject* object) const;
+        void AddToSelection(Object::GameObject* object);
+        void RemoveFromSelection(const Object::GameObject* object);
+        bool IsSelected(const Object::GameObject* object) const;
         void ClearSelection();
         // 살아 있는 것만 센다. 죽은 것은 목록에 남아 있어도 없는 것이다.
         std::size_t GetSelectionCount() const;
@@ -373,11 +376,11 @@ namespace JBro
         // 주된 것과 나머지 수를, 이름이 없으면 `(이름 없음)` 을, 아무것도 없으면 그렇다고 적는다.
         // 로컬라이징 키를 거치므로 언어를 바꾸면 이 글도 바뀐다.
         void DescribeSelection(char* out, std::size_t size) const;
-        Array<GameObject*> GetSelectedObjects() const;
+        Array<Object::GameObject*> GetSelectedObjects() const;
         // **조상이 함께 골라졌으면 뺀다.** 부모를 옮기면 자식은 따라 움직이므로,
         // 둘 다 대상으로 삼으면 자식에게 두 번 적용된다. 트랜스폼 편집과 삭제가
         // 이 목록을 쓴다(기존 엔진 `GetSelectedTopLevel` 과 같은 이유다).
-        Array<GameObject*> GetTopLevelSelectedObjects() const;
+        Array<Object::GameObject*> GetTopLevelSelectedObjects() const;
 
         // 이번 프레임의 입력을 UI 가 가져갔는가. **게임에 입력을 넘길지
         // 판단하는 자리다** - 에디터의 필드에 타자를 치는 중에 게임
@@ -543,11 +546,11 @@ namespace JBro
         // 붙여넣기만 다중성 판정을 지나치지 않아 Transform 이 둘씩 붙었고, 그렇게 되면
         // 조회가 먼저 붙은 쪽만 돌려주어 나중 것은 보이지도 지워지지도 않는다.
         bool CopyComponent(ComponentBase& component);
-        bool PasteComponent(GameObject& object);
+        bool PasteComponent(Object::GameObject& object);
         // 그 오브젝트에 떠 둔 컴포넌트를 붙일 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
-        bool CanPasteComponent(const GameObject& object) const;
+        bool CanPasteComponent(const Object::GameObject& object) const;
         // 이미 붙어 있는 컴포넌트에 값만 덮는다. 떠 둔 것이 그 타입이 아니면 거짓이다.
-        bool PasteComponentValues(GameObject& object, ComponentBase& component);
+        bool PasteComponentValues(Object::GameObject& object, ComponentBase& component);
         // 그 컴포넌트에 값을 덮을 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
         bool CanPasteComponentValues(const ComponentBase& component) const;
         bool HasComponentClipboard() const
@@ -803,8 +806,8 @@ namespace JBro
         // 고른 것들. 0번이 주된 것은 아니다 - 주된 것은 따로 든다(기존 엔진과
         // 같다). Ctrl 로 빼다 보면 목록의 머리가 바뀌는데, 그때마다 인스펙터가
         // 다른 것을 보여 주면 손이 미끄러진 것처럼 보인다.
-        Array<SafePtr<GameObject>> m_selection;
-        SafePtr<GameObject> m_selected;
+        Array<SafePtr<Object::GameObject>> m_selection;
+        SafePtr<Object::GameObject> m_selected;
         EditorCommandManager m_commands;
         // 마지막으로 에셋 해석을 돌린 커맨드 판번호다. 판이 바뀌면(실행·되돌리기·다시 실행)
         // 프레임워크의 `BindCanvasAssets` 를 다시 부른다(D-115) - `xxxId` 를 바꾼 커맨드만

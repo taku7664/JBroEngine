@@ -15,14 +15,14 @@ namespace JBro::Internal
     struct GameObjectHandleAccess
     {
         // 번호만 든 핸들이다. 캐시는 비어 있고 처음 쓸 때 번호로 찾는다.
-        static GameObjectHandle FromId(InstanceId objectId)
+        static Handle::GameObject FromId(InstanceId objectId)
         {
-            GameObjectHandle handle;
+            Handle::GameObject handle;
             handle.m_instanceId = objectId;
             return handle;
         }
 
-        static GameObject* Resolve(const GameObjectHandle& handle)
+        static Object::GameObject* Resolve(const Handle::GameObject& handle)
         {
             return handle.Resolve();
         }
@@ -37,7 +37,7 @@ namespace JBro::Internal
             ValueCodec made;
             made.ToText = [](const void* value, char* buffer, std::size_t capacity,
                 std::size_t& required) noexcept -> bool {
-                const InstanceId objectId = static_cast<const GameObjectHandle*>(value)->GetInstanceId();
+                const InstanceId objectId = static_cast<const Handle::GameObject*>(value)->GetInstanceId();
                 char local[32];
                 std::size_t length = 0;
                 if (objectId != InvalidInstanceId)
@@ -72,10 +72,10 @@ namespace JBro::Internal
                 {
                     return false;
                 }
-                GameObjectHandle& handle = *static_cast<GameObjectHandle*>(value);
+                Handle::GameObject& handle = *static_cast<Handle::GameObject*>(value);
                 if (length == 0)
                 {
-                    handle = GameObjectHandle{};
+                    handle = Handle::GameObject{};
                     return true;
                 }
                 if (text[0] == '@')
@@ -105,11 +105,11 @@ namespace JBro::Internal
                 return true;
             };
             made.Equals = [](const void* left, const void* right) noexcept -> bool {
-                return static_cast<const GameObjectHandle*>(left)->GetInstanceId()
-                    == static_cast<const GameObjectHandle*>(right)->GetInstanceId();
+                return static_cast<const Handle::GameObject*>(left)->GetInstanceId()
+                    == static_cast<const Handle::GameObject*>(right)->GetInstanceId();
             };
             made.Assign = [](void* destination, const void* source) noexcept {
-                *static_cast<GameObjectHandle*>(destination) = *static_cast<const GameObjectHandle*>(source);
+                *static_cast<Handle::GameObject*>(destination) = *static_cast<const Handle::GameObject*>(source);
             };
             return made;
         }();
@@ -121,15 +121,15 @@ namespace JBro
 {
     // 잎사귀다. 에디터는 이 타입 이름을 보고 캔버스의 오브젝트를 고르는 칸을 그린다.
     template <>
-    struct TypeDescriptorOf<GameObjectHandle>
+    struct TypeDescriptorOf<Handle::GameObject>
     {
         static const TypeDescriptor& Get()
         {
             static const TypeDescriptor descriptor = [] {
                 TypeDescriptor made;
-                made.typeName = NameTable::Get().Intern("JBro.GameObjectHandle");
-                made.size = static_cast<std::uint32_t>(sizeof(GameObjectHandle));
-                made.alignment = static_cast<std::uint32_t>(alignof(GameObjectHandle));
+                made.typeName = NameTable::Get().Intern("JBro.Handle.GameObject");
+                made.size = static_cast<std::uint32_t>(sizeof(Handle::GameObject));
+                made.alignment = static_cast<std::uint32_t>(alignof(Handle::GameObject));
                 made.triviallyCopyable = true;
                 made.codec = &Internal::GetGameObjectHandleCodec();
                 return made;

@@ -11,7 +11,10 @@
 namespace JBro
 {
     class Canvas;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 컴포넌트 하나를 붙인다. 되돌리면 뗀다.
     //

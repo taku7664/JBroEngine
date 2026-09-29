@@ -159,7 +159,7 @@ namespace JBro::ScriptProject
         case FieldType::Color:
             return "Color";
         case FieldType::GameObject:
-            return "GameObjectHandle";
+            return "GameObject";
         case FieldType::Asset:
             return "AssetHandle";
         default:

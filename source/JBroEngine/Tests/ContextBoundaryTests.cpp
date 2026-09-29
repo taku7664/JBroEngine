@@ -123,7 +123,7 @@ namespace
         }
 
         void OverlapBox(const JBro::Rect& area,
-            JBro::Array<JBro::GameObjectHandle>& results, std::uint32_t layerMask) const override
+            JBro::Array<JBro::Handle::GameObject>& results, std::uint32_t layerMask) const override
         {
             ++overlapCalls;
             Check(area.min.x == 1.0f && area.min.y == 2.0f
@@ -143,13 +143,13 @@ namespace
             lastDistance = distance;
             hits.Clear();
         }
-        JBro::GameObjectHandle OverlapPoint(JBro::Vector2, std::uint32_t layerMask) const override
+        JBro::Handle::GameObject OverlapPoint(JBro::Vector2, std::uint32_t layerMask) const override
         {
             ++otherCalls;
             lastMask = layerMask;
             return {};
         }
-        void OverlapCircle(JBro::Vector2, float radius, JBro::Array<JBro::GameObjectHandle>& results,
+        void OverlapCircle(JBro::Vector2, float radius, JBro::Array<JBro::Handle::GameObject>& results,
             std::uint32_t layerMask) const override
         {
             ++otherCalls;
@@ -202,7 +202,7 @@ namespace
         const JBro::Service::Physics2DService service;
         JBro::RaycastHit2D hit;
         hit.point = {9.0f, 9.0f};
-        JBro::Array<JBro::GameObjectHandle> results;
+        JBro::Array<JBro::Handle::GameObject> results;
         results.Reserve(4);
         const auto* storage = results.Data();
         const auto capacity = results.Capacity();

@@ -11,7 +11,7 @@ namespace JBro
             && ordinal == other.ordinal;
     }
 
-    ComponentBase* FindComponentAt(GameObject& object, ComponentTypeId typeId,
+    ComponentBase* FindComponentAt(Object::GameObject& object, ComponentTypeId typeId,
         std::uint32_t ordinal)
     {
         std::uint32_t seen = 0;
@@ -37,7 +37,7 @@ namespace JBro
         return nullptr;
     }
 
-    bool FindComponentOrdinal(const GameObject& object, const ComponentBase& component,
+    bool FindComponentOrdinal(const Object::GameObject& object, const ComponentBase& component,
         std::uint32_t& ordinal)
     {
         std::uint32_t seen = 0;
@@ -62,7 +62,7 @@ namespace JBro
     ComponentBase* ResolveComponent(const EditorObjectRegistry& registry,
         const ComponentAddress& address)
     {
-        GameObject* object = registry.Resolve(address.objectId);
+        Object::GameObject* object = registry.Resolve(address.objectId);
         if (object == nullptr)
         {
             return nullptr;
@@ -70,7 +70,7 @@ namespace JBro
         return FindComponentAt(*object, address.typeId, address.ordinal);
     }
 
-    bool MakeComponentAddress(EditorObjectRegistry& registry, GameObject& object,
+    bool MakeComponentAddress(EditorObjectRegistry& registry, Object::GameObject& object,
         const ComponentBase& component, ComponentAddress& address)
     {
         std::uint32_t ordinal = 0;

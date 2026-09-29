@@ -253,7 +253,7 @@ namespace JBro::System
             Radian              pushedAngle = 0.0f;
             bool                seen = false;
             // 이번 스텝 안에서만 유효하다. 동기화마다 다시 잡는다.
-            GameObject*             object = nullptr;
+            Object::GameObject*             object = nullptr;
             Component::Transform2D* transform = nullptr;
             Component::Rigidbody2D* rigidbodyComponent = nullptr;
         };
@@ -264,8 +264,8 @@ namespace JBro::System
             InstanceId         collider = InvalidInstanceId;
             InstanceId         object = InvalidInstanceId;
             // 스크립트에 넘길 값(handle)과 호스트가 부를 자리(SafePtr) 둘 다 든다. 오브젝트가 사라지면 둘 다 죽는다.
-            GameObjectHandle   owner;
-            SafePtr<GameObject> ownerObject;
+            Handle::GameObject   owner;
+            SafePtr<Object::GameObject> ownerObject;
             std::uint64_t      signature = 0;
             // 트리거 여부가 바뀌면 도형을 새로 만든다(훅의 종류가 바뀐다). 나머지는 제자리에서 바꾼다.
             bool               isTrigger = false;
@@ -414,7 +414,7 @@ namespace JBro::System
         // 질의 하나가 도형마다 받는 것. 폴리곤 콜라이더는 볼록 조각마다 한 번씩 불린다.
         struct QueryShape
         {
-            GameObject*                     owner = nullptr;
+            Object::GameObject*                     owner = nullptr;
             const Component::Collider2D*    collider = nullptr;
             const Physics2D::ConvexPolygon* polygon = nullptr;
             const Physics2D::Circle*        circle = nullptr;
@@ -450,7 +450,7 @@ namespace JBro::System
             {
                 return;
             }
-            GameObject* owner = Internal::CanvasAccess::GetOwner(collider);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(collider);
             Internal::ObjectPose objectPose;
             if (owner == nullptr || false == Internal::CalculateObjectPose(canvas, owner, objectPose))
             {
@@ -563,7 +563,7 @@ namespace JBro::System
                 { std::fmax(from.x, to.x) + radius, std::fmax(from.y, to.y) + radius } };
         }
 
-        RaycastHit2D MakeHit(Canvas& canvas, GameObject* owner, Vector2 point, Vector2 normal, float distance)
+        RaycastHit2D MakeHit(Canvas& canvas, Object::GameObject* owner, Vector2 point, Vector2 normal, float distance)
         {
             RaycastHit2D hit;
             hit.other = owner->GetScriptHandle();
@@ -574,10 +574,10 @@ namespace JBro::System
             return hit;
         }
 
-        void AddUnique(Array<GameObjectHandle>& results, GameObject* owner)
+        void AddUnique(Array<Handle::GameObject>& results, Object::GameObject* owner)
         {
             const InstanceId id = owner->GetInstanceId();
-            for (const GameObjectHandle& existing : results)
+            for (const Handle::GameObject& existing : results)
             {
                 if (existing.GetInstanceId() == id)
                 {
@@ -660,7 +660,7 @@ namespace JBro::System
     }
 
     void Physics2DSystem::OverlapBox(
-        const Rect& area, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
+        const Rect& area, Array<Handle::GameObject>& results, std::uint32_t layerMask) const
     {
         results.Clear();
         Physics2D::ConvexPolygon box;
@@ -682,9 +682,9 @@ namespace JBro::System
         });
     }
 
-    GameObjectHandle Physics2DSystem::OverlapPoint(Vector2 point, std::uint32_t layerMask) const
+    Handle::GameObject Physics2DSystem::OverlapPoint(Vector2 point, std::uint32_t layerMask) const
     {
-        GameObjectHandle found;
+        Handle::GameObject found;
         ForEachQueryShape(layerMask, Rect{ point, point }, [&](const QueryShape& shape)
         {
             if (found.GetInstanceId() != InvalidInstanceId)
@@ -703,7 +703,7 @@ namespace JBro::System
     }
 
     void Physics2DSystem::OverlapCircle(
-        Vector2 center, float radius, Array<GameObjectHandle>& results, std::uint32_t layerMask) const
+        Vector2 center, float radius, Array<Handle::GameObject>& results, std::uint32_t layerMask) const
     {
         results.Clear();
         if (radius < 0.0f)
@@ -858,7 +858,7 @@ namespace JBro::System
 
         // ── 1. 바디 ─────────────────────────────────────────────────────────────────
         // 한 오브젝트에 바디 하나다. 켜진 Rigidbody2D 가 있으면 그 종류이고, 콜라이더만 있으면 정적이다.
-        const auto ensureBody = [&](GameObject* object) -> State::BodyLink*
+        const auto ensureBody = [&](Object::GameObject* object) -> State::BodyLink*
         {
             if (object == nullptr)
             {
@@ -1032,7 +1032,7 @@ namespace JBro::System
             {
                 return;
             }
-            GameObject* object = Internal::CanvasAccess::GetOwner(collider);
+            Object::GameObject* object = Internal::CanvasAccess::GetOwner(collider);
             State::BodyLink* body = ensureBody(object);
             if (body == nullptr)
             {
@@ -1194,13 +1194,13 @@ namespace JBro::System
             return Vector2{ scale.x != 0.0f ? value.x / scale.x : 0.0f, scale.y != 0.0f ? value.y / scale.y : 0.0f };
         };
         // 조인트 하나를 맞춘다. 두 몸이 없으면 연결을 두지 않는다(보이지 않은 연결은 아래에서 지운다).
-        const auto syncJoint = [&](ComponentBase& component, GameObjectHandle connected, bool hinge,
+        const auto syncJoint = [&](ComponentBase& component, Handle::GameObject connected, bool hinge,
                                    const auto& configure, const auto& signatureOf, const auto& create, const auto& update) {
             if (false == component.IsActiveComponent())
             {
                 return;
             }
-            GameObject* object = Internal::CanvasAccess::GetOwner(component);
+            Object::GameObject* object = Internal::CanvasAccess::GetOwner(component);
             State::BodyLink* own = object != nullptr ? bodyOf(object->GetInstanceId()) : nullptr;
             const InstanceId connectedId = connected.GetInstanceId();
             State::BodyLink* other = bodyOf(connectedId);
@@ -1386,7 +1386,7 @@ namespace JBro::System
 
             Vector2 localPosition = origin;
             Radian localRotation = angle;
-            GameObject* parent = link.object->GetParent();
+            Object::GameObject* parent = link.object->GetParent();
             Internal::ObjectPose parentPose;
             if (parent != nullptr && Internal::CalculateObjectPose(canvas, parent, parentPose))
             {
@@ -1473,7 +1473,7 @@ namespace JBro::System
 
         // 훅이 오브젝트를 지워도 지나간 객체 위에서 다음 훅이 불리지 않게, 발송 내내 파괴를 미룬다(§8).
         Canvas::IterationGuard guard(canvas);
-        const auto deliver = [&](GameObject* self, const Collision2D& hit, Phase phase, bool trigger)
+        const auto deliver = [&](Object::GameObject* self, const Collision2D& hit, Phase phase, bool trigger)
         {
             if (self == nullptr || false == self->IsActiveInHierarchy())
             {
@@ -1526,10 +1526,10 @@ namespace JBro::System
         {
             const State::ShapeLink* linkA = ownerOf(event.userDataA);
             const State::ShapeLink* linkB = ownerOf(event.userDataB);
-            const GameObjectHandle handleA = linkA != nullptr ? linkA->owner : GameObjectHandle{};
-            const GameObjectHandle handleB = linkB != nullptr ? linkB->owner : GameObjectHandle{};
-            GameObject* objectA = linkA != nullptr ? linkA->ownerObject.TryGet() : nullptr;
-            GameObject* objectB = linkB != nullptr ? linkB->ownerObject.TryGet() : nullptr;
+            const Handle::GameObject handleA = linkA != nullptr ? linkA->owner : Handle::GameObject{};
+            const Handle::GameObject handleB = linkB != nullptr ? linkB->owner : Handle::GameObject{};
+            Object::GameObject* objectA = linkA != nullptr ? linkA->ownerObject.TryGet() : nullptr;
+            Object::GameObject* objectB = linkB != nullptr ? linkB->ownerObject.TryGet() : nullptr;
 
             // 각 스크립트는 자기 쪽에서 본 법선(자기 → 상대)을 받는다.
             Collision2D forA;

@@ -188,7 +188,7 @@ namespace
         // 렌더 월드에 들어가고, `Custom` 이면 저작 값이다(D-117).
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("hero");
+            JBro::Object::GameObject* object = canvas.CreateObject("hero");
             auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
             auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
             Check(transform != nullptr && sprite != nullptr, "the probe object must have its components");
@@ -268,13 +268,13 @@ namespace
             context.renderer = &renderer;
             Check(framework.Initialize(context), "the framework initializes with assets and a renderer");
             JBro::Canvas* canvas = framework.GetCanvas();
-            JBro::GameObject* cameraObject = canvas->CreateObject("camera");
+            JBro::Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
-            JBro::GameObject* heroObject = canvas->CreateObject("hero");
+            JBro::Object::GameObject* heroObject = canvas->CreateObject("hero");
             canvas->AttachComponent<JBro::Component::Transform2D>(heroObject);
             auto* hero = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(heroObject);
             hero->spriteId = spriteC;

@@ -1154,8 +1154,8 @@ namespace
 
         JBro::RegisterBuiltinProperties<Weighted>();
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
         auto* a = canvas->AttachComponent<Weighted>(alpha);
         auto* b = canvas->AttachComponent<Weighted>(beta);
         Check(a != nullptr && b != nullptr, "both must hold a list");
@@ -1167,7 +1167,7 @@ namespace
         {
             b->weights.Add(value);
         }
-        JBro::GameObject* chosen[] = {alpha, beta};
+        JBro::Object::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -1262,7 +1262,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        JBro::Object::GameObject* cup = canvas->CreateObject("Cup");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
         auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
         Check(collider != nullptr, "and a collider");
@@ -1411,8 +1411,8 @@ namespace
 
         JBro::RegisterBuiltinProperties<Signalled>();
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
         auto* a = canvas->AttachComponent<Signalled>(alpha);
         auto* b = canvas->AttachComponent<Signalled>(beta);
         Check(a != nullptr && b != nullptr, "both must hold a list of signals");
@@ -1421,7 +1421,7 @@ namespace
         b->signals.Add(Signal{10.0f, false, 5.0f});
         b->signals.Add(Signal{50.0f, false, 5.0f});
         b->signals.Add(Signal{0.0f, true, 5.0f});
-        JBro::GameObject* chosen[] = {alpha, beta};
+        JBro::Object::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -1584,8 +1584,8 @@ namespace
 
         JBro::RegisterBuiltinProperties<Signalled>();
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
         auto* a = canvas->AttachComponent<Signalled>(alpha);
         auto* b = canvas->AttachComponent<Signalled>(beta);
         Check(a != nullptr && b != nullptr, "both must hold a list of signals");
@@ -1594,7 +1594,7 @@ namespace
         b->signals.Add(Signal{10.0f, false, 5.0f});
         b->signals.Add(Signal{50.0f, true, 5.0f});
         b->signals.Add(Signal{0.0f, false, 5.0f});
-        JBro::GameObject* chosen[] = {alpha, beta};
+        JBro::Object::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -1771,8 +1771,8 @@ namespace
 
         JBro::RegisterBuiltinProperties<Toggled>();
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
         auto* a = canvas->AttachComponent<Toggled>(alpha);
         auto* b = canvas->AttachComponent<Toggled>(beta);
         Check(a != nullptr && b != nullptr, "both must hold the three lists");
@@ -1800,7 +1800,7 @@ namespace
         {
             b->tones.Add(tone);
         }
-        JBro::GameObject* chosen[] = {alpha, beta};
+        JBro::Object::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -2097,7 +2097,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Saved");
+        JBro::Object::GameObject* object = canvas->CreateObject("Saved");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         transform->position = {1.0f, 2.0f};
         Check(editor.GetCanvasPath().empty(), "a fresh project knows no canvas path");
@@ -2129,8 +2129,8 @@ namespace
             Check(reader.OpenProject(project), "the reader must open a project");
             JBro::CanvasFileError error;
             Check(reader.LoadCanvas(dialog.path.c_str(), error), "the reader must load the saved file");
-            JBro::GameObject* loaded = nullptr;
-            reader.GetCanvas()->ForEachObject([&loaded](JBro::GameObject& found) {
+            JBro::Object::GameObject* loaded = nullptr;
+            reader.GetCanvas()->ForEachObject([&loaded](JBro::Object::GameObject& found) {
                 if (std::strcmp(found.GetTag(), "Saved") == 0)
                 {
                     loaded = &found;
@@ -2263,11 +2263,11 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(alpha);
         Check(transform != nullptr && sprite != nullptr, "both components must attach");
-        JBro::GameObject* chosen[] = {alpha};
+        JBro::Object::GameObject* chosen[] = {alpha};
         editor.SelectObjects({chosen, 1});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -2347,10 +2347,10 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* holder = canvas->CreateObject("Holder");
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* holder = canvas->CreateObject("Holder");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
         alpha->SetParent(holder);
-        JBro::GameObject* leaf = canvas->CreateObject("Leaf");
+        JBro::Object::GameObject* leaf = canvas->CreateObject("Leaf");
         leaf->SetParent(alpha);
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
         transform->SetRotationRadian(JBro::Radian(0.5f));
@@ -2360,7 +2360,7 @@ namespace
         Check(false == editor.PasteClipboard(), "and pasting an empty clipboard does nothing");
 
         // 부모와 자식을 함께 골라도 맨 위 것 하나만 뜬다 - 자식은 그 안에 있다.
-        JBro::GameObject* chosen[] = {alpha, leaf};
+        JBro::Object::GameObject* chosen[] = {alpha, leaf};
         editor.SelectObjects({chosen, 2});
         Check(editor.CopySelection(), "copying the chosen tree must go through");
         Check(editor.HasClipboard(), "and fill the clipboard");
@@ -2370,7 +2370,7 @@ namespace
         Check(editor.PasteClipboard(), "pasting must go through");
         Check(canvas->GetObjectCount() == before + 2, "and add the tree once, not the child twice");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo");
-        JBro::GameObject* pasted = editor.GetSelectedObject();
+        JBro::Object::GameObject* pasted = editor.GetSelectedObject();
         Check(pasted != nullptr && pasted != alpha && std::strcmp(pasted->GetTag(), "Alpha") == 0,
             "and choose the pasted root instead of the source");
         Check(editor.GetSelectionCount() == 1, "and nothing else");
@@ -2383,9 +2383,9 @@ namespace
         Check(canvas->GetObjectCount() == before, "and take the pasted tree away");
 
         // 뜨지 못하는 것이 하나라도 섞여 있으면 클립보드를 건드리지 않는다.
-        JBro::GameObject* sealed = canvas->CreateObject("Sealed");
+        JBro::Object::GameObject* sealed = canvas->CreateObject("Sealed");
         Check(canvas->AttachComponent<Opaque>(sealed) != nullptr, "the opaque component must attach");
-        JBro::GameObject* mixed[] = {alpha, sealed};
+        JBro::Object::GameObject* mixed[] = {alpha, sealed};
         editor.SelectObjects({mixed, 2});
         Check(false == editor.CopySelection(), "copying a tree that cannot be captured is refused");
         editor.ClearSelection();
@@ -2499,7 +2499,7 @@ namespace
         const JBro::LayerId otherId = other.GetId();
 
         // 자리를 대지 않으면 원점이다.
-        JBro::GameObject* plain = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* plain = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(plain != nullptr, "creating an object must go through");
         auto* plainTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(plain);
         Check(plainTransform != nullptr && plainTransform->position.x == 0.0f
@@ -2514,7 +2514,7 @@ namespace
         placement.position[0] = 2.5f;
         placement.position[1] = -7.25f;
         placement.layer = otherId;
-        JBro::GameObject* placed = JBro::EditorActions::CreateObject(editor, nullptr, placement);
+        JBro::Object::GameObject* placed = JBro::EditorActions::CreateObject(editor, nullptr, placement);
         Check(placed != nullptr, "creating a placed object must go through");
         Check(editor.GetCommands().GetUndoCount() == undo + 1, "as one undo, not two");
         auto* placedTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(placed);
@@ -2526,8 +2526,8 @@ namespace
         Check(editor.GetCommands().Redo(), "redo must run");
 
         // **고른 것의 레이어를 따른다.** 규칙은 한 곳에 있고 메뉴와 단축키가 함께 쓴다.
-        JBro::GameObject* inOther = nullptr;
-        canvas->ForEachObject([&](JBro::GameObject& each) {
+        JBro::Object::GameObject* inOther = nullptr;
+        canvas->ForEachObject([&](JBro::Object::GameObject& each) {
             if (each.GetLayerId() == otherId)
             {
                 inOther = &each;
@@ -2537,16 +2537,16 @@ namespace
         editor.SetSelectedObject(inOther);
         Check(JBro::EditorActions::ResolveTargetLayer(editor, nullptr) == otherId,
             "with that object chosen, new objects belong in its layer");
-        JBro::GameObject* sibling = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* sibling = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(sibling != nullptr && sibling->GetLayerId() == otherId,
             "and that is where the next one lands");
 
         // 부모가 있으면 부모를 따른다 - 고른 것보다 부모가 먼저다.
-        JBro::GameObject* base = canvas->CreateObject("Base");
+        JBro::Object::GameObject* base = canvas->CreateObject("Base");
         Check(canvas->SetObjectLayer(base, defaultLayer), "the base must sit in the default layer");
         Check(JBro::EditorActions::ResolveTargetLayer(editor, base) == defaultLayer,
             "a child belongs in its parent's layer");
-        JBro::GameObject* child = JBro::EditorActions::CreateObject(editor, base);
+        JBro::Object::GameObject* child = JBro::EditorActions::CreateObject(editor, base);
         Check(child != nullptr && child->GetLayerId() == defaultLayer,
             "so the created child lands there, not in the chosen object's layer");
 
@@ -2578,8 +2578,8 @@ namespace
         const JBro::LayerId otherId = other.GetId();
         Check(otherId != canvas->GetDefaultLayer(), "the probe layer must not be the default one");
 
-        JBro::GameObject* object = canvas->CreateObject("Painted");
-        JBro::GameObject* child = canvas->CreateObject("PaintedChild");
+        JBro::Object::GameObject* object = canvas->CreateObject("Painted");
+        JBro::Object::GameObject* child = canvas->CreateObject("PaintedChild");
         child->SetParent(object);
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
             "the object needs a transform");
@@ -2591,9 +2591,9 @@ namespace
         editor.SetSelectedObject(object);
         Check(JBro::EditorActions::DeleteSelection(editor), "deleting must go through");
         Check(editor.GetCommands().Undo(), "undo must run");
-        JBro::GameObject* restored = nullptr;
-        JBro::GameObject* restoredChild = nullptr;
-        canvas->ForEachObject([&](JBro::GameObject& each) {
+        JBro::Object::GameObject* restored = nullptr;
+        JBro::Object::GameObject* restoredChild = nullptr;
+        canvas->ForEachObject([&](JBro::Object::GameObject& each) {
             if (std::strcmp(each.GetTag(), "Painted") == 0)
             {
                 restored = &each;
@@ -2612,7 +2612,7 @@ namespace
         editor.SetSelectedObject(restored);
         Check(editor.CopySelection(), "copying must go through");
         Check(editor.PasteClipboard(), "pasting must go through");
-        JBro::GameObject* pasted = editor.GetSelectedObject();
+        JBro::Object::GameObject* pasted = editor.GetSelectedObject();
         Check(pasted != nullptr && pasted != restored, "the pasted object must be a new one");
         Check(pasted->GetLayerId() == otherId, "and land in the copied object's layer");
         Check(editor.GetCommands().Undo(), "undo must run");
@@ -2650,8 +2650,8 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* source = canvas->CreateObject("Source");
-        JBro::GameObject* target = canvas->CreateObject("Target");
+        JBro::Object::GameObject* source = canvas->CreateObject("Source");
+        JBro::Object::GameObject* target = canvas->CreateObject("Target");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(source);
         Check(transform != nullptr, "the source needs a transform to copy");
         transform->position = {3.0f, -4.0f};
@@ -2776,7 +2776,7 @@ namespace
         project.name = {name, sizeof(name) - 1};
         Check(editor.OpenProject(project), "the probe project must open");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Probe");
+        JBro::Object::GameObject* object = canvas->CreateObject("Probe");
         Check(object != nullptr, "the probe object must exist");
 
         const auto find = [](const JBro::EditorActions::AddComponentList& list,
@@ -2884,7 +2884,7 @@ namespace
             "with no camera in the canvas the game submits nothing");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        JBro::Object::GameObject* eye = canvas->CreateObject("Eye");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr,
             "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
@@ -2936,7 +2936,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        JBro::Object::GameObject* eye = canvas->CreateObject("Eye");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr,
             "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
@@ -3007,14 +3007,14 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
         auto* a = canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
         auto* b = canvas->AttachComponent<JBro::Component::Transform2D>(beta);
         Check(a != nullptr && b != nullptr, "both must have transforms");
         a->position = JBro::Vector2{0.0f, 0.0f};
         b->position = JBro::Vector2{50.0f, 7.0f};
-        JBro::GameObject* chosen[] = {alpha, beta};
+        JBro::Object::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -3086,8 +3086,8 @@ namespace
 
         JBro::RegisterBuiltinProperties<Pointed>();
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
         auto* a = canvas->AttachComponent<Pointed>(alpha);
         auto* b = canvas->AttachComponent<Pointed>(beta);
         Check(a != nullptr && b != nullptr, "both must hold a list of points");
@@ -3096,7 +3096,7 @@ namespace
         b->points.Add(JBro::Vector2{10.0f, 10.0f});
         b->points.Add(JBro::Vector2{50.0f, 50.0f});
         b->points.Add(JBro::Vector2{0.0f, 0.0f});
-        JBro::GameObject* chosen[] = {alpha, beta};
+        JBro::Object::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -3163,13 +3163,13 @@ namespace
 
         JBro::Canvas* canvas = editor.GetCanvas();
         Check(canvas != nullptr, "the probe project must have a canvas");
-        JBro::GameObject* object = canvas->CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas->CreateObject("Subject");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the subject must have a transform");
         // **물리는 다른 오브젝트에 둔다.** Transform2D 는 필드를 여덟 개 내놓고
         // 그중 다섯이 한 단계 더 내려가서, 한 오브젝트에 둘을 붙이면 아래쪽
         // 컴포넌트가 패널 밖으로 밀려 만질 수 없다.
-        JBro::GameObject* heavy = canvas->CreateObject("Heavy");
+        JBro::Object::GameObject* heavy = canvas->CreateObject("Heavy");
         auto* body = canvas->AttachComponent<JBro::Component::Rigidbody2D>(heavy);
         Check(body != nullptr, "the heavy object must have a body");
         editor.SetSelectedObject(object);
@@ -3303,7 +3303,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas->CreateObject("Subject");
         // `spriteId` 는 AssetId 라 에셋 드롭다운으로 그려진다(D-116). 프로젝트에 파일이 없으니
         // 목록은 비우기 항목뿐이다.
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
@@ -3369,7 +3369,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* subject = canvas->CreateObject("Subject");
+        JBro::Object::GameObject* subject = canvas->CreateObject("Subject");
         editor.SetSelectedObject(subject);
         JBro::EditorPanel* game = editor.FindPanel("Game");
         JBro::EditorPanel* inspector = editor.FindPanel("Inspector");
@@ -3520,7 +3520,7 @@ namespace
         Check(false == spriteAsset.IsNull(), "the scan must have registered hero.png as a sprite");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Hero");
+        JBro::Object::GameObject* object = canvas->CreateObject("Hero");
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the hero must have a sprite renderer");
         editor.SetSelectedObject(object);
@@ -3704,7 +3704,7 @@ namespace
 
         // ── 소스: 다른 것을 고르면 미리 듣기가 멈춘다 ──
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Speaker");
+        JBro::Object::GameObject* object = canvas->CreateObject("Speaker");
         canvas->AttachComponent<JBro::Component::Transform2D>(object);
         auto* source = canvas->AttachComponent<JBro::Component::AudioSource>(object);
         Check(source != nullptr, "the speaker must have an audio source");
@@ -4256,7 +4256,7 @@ namespace
 
         // 오브젝트를 고르면 에셋 선택은 빈다.
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas->CreateObject("Subject");
         editor.SetSelectedObject(object);
         Check(editor.GetSelectedAsset().IsNull() && editor.GetSelectedAssetMeta() == nullptr,
             "selecting an object clears the asset selection");
@@ -4371,9 +4371,9 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* first = canvas->CreateObject("First");
-        JBro::GameObject* second = canvas->CreateObject("Second");
-        JBro::GameObject* third = canvas->CreateObject("Third");
+        JBro::Object::GameObject* first = canvas->CreateObject("First");
+        JBro::Object::GameObject* second = canvas->CreateObject("Second");
+        JBro::Object::GameObject* third = canvas->CreateObject("Third");
 
         Check(editor.GetSelectionCount() == 0, "nothing is chosen yet");
         Check(editor.GetSelectedObject() == nullptr, "so there is no main one");
@@ -4406,7 +4406,7 @@ namespace
         Check(editor.GetSelectedObject() == third,
             "removing the main one must hand the job to what is left");
 
-        JBro::GameObject* objects[] = {second, third, first};
+        JBro::Object::GameObject* objects[] = {second, third, first};
         editor.SelectObjects({objects, 3});
         Check(editor.GetSelectionCount() == 3, "choosing a list chooses all of it");
         Check(editor.GetSelectedObject() == second, "and the head of the list leads");
@@ -4422,7 +4422,7 @@ namespace
         Check(editor.GetSelectionCount() == 2, "a destroyed object stops counting");
         Check(editor.GetSelectedObject() == nullptr,
             "and if it was the main one, there is no main one");
-        const JBro::Array<JBro::GameObject*> living = editor.GetSelectedObjects();
+        const JBro::Array<JBro::Object::GameObject*> living = editor.GetSelectedObjects();
         Check(living.Size() == 2, "only the living come back");
         for (std::size_t index = 0; index < living.Size(); ++index)
         {
@@ -4452,16 +4452,16 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* root = canvas->CreateObject("Root");
-        JBro::GameObject* child = canvas->CreateObject("Child");
-        JBro::GameObject* grandchild = canvas->CreateObject("Grandchild");
-        JBro::GameObject* stranger = canvas->CreateObject("Stranger");
+        JBro::Object::GameObject* root = canvas->CreateObject("Root");
+        JBro::Object::GameObject* child = canvas->CreateObject("Child");
+        JBro::Object::GameObject* grandchild = canvas->CreateObject("Grandchild");
+        JBro::Object::GameObject* stranger = canvas->CreateObject("Stranger");
         child->SetParent(root);
         grandchild->SetParent(child);
 
         // 자식만 골랐으면 자식이 최상위다.
         editor.SetSelectedObject(child);
-        JBro::Array<JBro::GameObject*> tops = editor.GetTopLevelSelectedObjects();
+        JBro::Array<JBro::Object::GameObject*> tops = editor.GetTopLevelSelectedObjects();
         Check(tops.Size() == 1 && tops[0] == child,
             "a child on its own is the top of its own selection");
 
@@ -4523,9 +4523,9 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
-        JBro::GameObject* gamma = canvas->CreateObject("Gamma");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* gamma = canvas->CreateObject("Gamma");
         auto* alphaTransform =
             canvas->AttachComponent<JBro::Component::Transform2D>(alpha);
         auto* betaTransform =
@@ -4540,7 +4540,7 @@ namespace
         betaTransform->SetRotationRadian(JBro::Radian(10.0f));
         gammaTransform->SetRotationRadian(JBro::Radian(20.0f));
 
-        JBro::GameObject* chosen[] = {alpha, beta, gamma};
+        JBro::Object::GameObject* chosen[] = {alpha, beta, gamma};
         editor.SelectObjects({chosen, 3});
         Check(editor.GetSelectionCount() == 3, "three must be chosen");
         Check(editor.GetSelectedObject() == alpha, "and the first leads");
@@ -4618,8 +4618,8 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* parent = canvas->CreateObject("Parent");
-        JBro::GameObject* child = canvas->CreateObject("Child");
+        JBro::Object::GameObject* parent = canvas->CreateObject("Parent");
+        JBro::Object::GameObject* child = canvas->CreateObject("Child");
         child->SetParent(parent);
         auto* parentTransform =
             canvas->AttachComponent<JBro::Component::Transform2D>(parent);
@@ -4628,7 +4628,7 @@ namespace
         parentTransform->SetRotationRadian(JBro::Radian(0.0f));
         childTransform->SetRotationRadian(JBro::Radian(100.0f));
 
-        JBro::GameObject* chosen[] = {parent, child};
+        JBro::Object::GameObject* chosen[] = {parent, child};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -4681,8 +4681,8 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
 
         // 둘 다 콜라이더를 두 개씩 단다. 반지름을 전부 다르게 두어야
         // 무엇이 바뀌었는지 가려낼 수 있다.
@@ -4698,7 +4698,7 @@ namespace
         betaFirst->radius = 3.0f;
         betaSecond->radius = 4.0f;
 
-        JBro::GameObject* chosen[] = {alpha, beta};
+        JBro::Object::GameObject* chosen[] = {alpha, beta};
         editor.SelectObjects({chosen, 2});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -4764,7 +4764,7 @@ namespace
 
         JBro::Canvas* canvas = editor.GetCanvas();
         Check(canvas != nullptr, "the probe project must have a canvas");
-        JBro::GameObject* object = canvas->CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas->CreateObject("Subject");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the subject must have a transform");
 
@@ -4806,10 +4806,10 @@ namespace
         editor.Shutdown();
     }
 
-    JBro::GameObject* FindByName(JBro::Canvas& canvas, const char* name)
+    JBro::Object::GameObject* FindByName(JBro::Canvas& canvas, const char* name)
     {
-        JBro::GameObject* found = nullptr;
-        canvas.ForEachObject([&](JBro::GameObject& object) {
+        JBro::Object::GameObject* found = nullptr;
+        canvas.ForEachObject([&](JBro::Object::GameObject& object) {
             if (found == nullptr && std::strcmp(object.GetTag(), name) == 0)
             {
                 found = &object;
@@ -4843,13 +4843,13 @@ namespace
         Check(canvas != nullptr, "the probe project must have a canvas");
 
         // 부모와 자식을 만든다. 지우면 나무가 통째로 없어져야 한다.
-        JBro::GameObject* parent = canvas->CreateObject("Parent");
+        JBro::Object::GameObject* parent = canvas->CreateObject("Parent");
         auto* parentTransform =
             canvas->AttachComponent<JBro::Component::Transform2D>(parent);
         parentTransform->position = {3.5f, -1.25f};
         parentTransform->SetRotationRadian(JBro::Radian(0.75f));
 
-        JBro::GameObject* child = canvas->CreateObject("Child");
+        JBro::Object::GameObject* child = canvas->CreateObject("Child");
         child->SetParent(parent);
         auto* childSprite =
             canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(child);
@@ -4874,7 +4874,7 @@ namespace
 
         // **같은 번호로 돌아와야 한다.** 그러지 않으면 그 번호를 들고 있는
         // 커맨드들이 되살아난 오브젝트를 못 찾는다.
-        JBro::GameObject* restored = ids.Resolve(parentId);
+        JBro::Object::GameObject* restored = ids.Resolve(parentId);
         Check(restored != nullptr, "the old number must find the restored object");
         Check(std::strcmp(restored->GetTag(), "Parent") == 0, "with its name");
 
@@ -4885,7 +4885,7 @@ namespace
         Check(restoredTransform->GetRotationRadian() > 0.74f && restoredTransform->GetRotationRadian() < 0.76f,
             "and the rotation");
 
-        JBro::GameObject* restoredChild = FindByName(*canvas, "Child");
+        JBro::Object::GameObject* restoredChild = FindByName(*canvas, "Child");
         Check(restoredChild != nullptr, "the child must be back too");
         Check(restoredChild->GetParent() == restored, "under the same parent");
         auto* restoredSprite =
@@ -5252,7 +5252,7 @@ namespace
         // 그려지지 않은 채 패널에 붙고, 그래도 화면은 그럴듯하게 나온다.
         JBro::Canvas* canvas = editor.GetCanvas();
         Check(canvas != nullptr, "the probe project must have a canvas");
-        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        JBro::Object::GameObject* eye = canvas->CreateObject("Eye");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr,
             "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
@@ -5556,7 +5556,7 @@ namespace
         JBro::Canvas* canvas = editor.GetCanvas();
         Check(canvas != nullptr, "an open project must have a canvas");
 
-        JBro::GameObject* object = canvas->CreateObject("Saved");
+        JBro::Object::GameObject* object = canvas->CreateObject("Saved");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         transform->position = { 4.5f, -1.25f };
 
@@ -5586,8 +5586,8 @@ namespace
         }
         Check(reopened->GetObjectCount() == 1, "the object must come back");
 
-        JBro::GameObject* loaded = nullptr;
-        reopened->ForEachObject([&loaded](JBro::GameObject& found) { loaded = &found; });
+        JBro::Object::GameObject* loaded = nullptr;
+        reopened->ForEachObject([&loaded](JBro::Object::GameObject& found) { loaded = &found; });
         Check(loaded != nullptr && std::strcmp(loaded->GetTag(), "Saved") == 0,
             "and come back under its own name");
         auto* loadedTransform = reopened->FindComponentRaw<JBro::Component::Transform2D>(loaded);
@@ -5691,12 +5691,12 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({320, 240}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        JBro::Object::GameObject* eye = canvas->CreateObject("Eye");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(eye) != nullptr, "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
         camera->primary = true;
-        JBro::GameObject* box = canvas->CreateObject("Box");
+        JBro::Object::GameObject* box = canvas->CreateObject("Box");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
         Check(transform != nullptr, "the box needs a transform for the gizmo to hold");
         editor.SetSelectedObject(box);
@@ -5771,12 +5771,12 @@ namespace
         Check(editor.Tick(Frame), "the editor must tick with W down");
         PostMessageW(hwnd, WM_KEYUP, 'W', 0);
         Check(editor.Tick(Frame), "the editor must tick with W up");
-        JBro::GameObject* parent = canvas->CreateObject("Turned");
+        JBro::Object::GameObject* parent = canvas->CreateObject("Turned");
         auto* parentTransform = canvas->AttachComponent<JBro::Component::Transform2D>(parent);
         Check(parentTransform != nullptr, "the parent needs a transform");
         // 90 **도** 다. 회전은 라디안이라 도를 그대로 넣으면 안 된다(D-247).
         parentTransform->SetRotation(JBro::Degree(90.0f));
-        JBro::GameObject* child = canvas->CreateObject("Child");
+        JBro::Object::GameObject* child = canvas->CreateObject("Child");
         auto* childTransform = canvas->AttachComponent<JBro::Component::Transform2D>(child);
         Check(childTransform != nullptr, "the child needs a transform");
         child->SetParent(parent);
@@ -5846,7 +5846,7 @@ namespace
         JBro::Canvas* canvas = editor.GetCanvas();
         for (int i = 0; i < 1100; ++i)
         {
-            JBro::GameObject* box = canvas->CreateObject("Box");
+            JBro::Object::GameObject* box = canvas->CreateObject("Box");
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
             transform->position = JBro::Vector2{static_cast<float>(i % 100) * 2.0f, static_cast<float>(i / 100) * 2.0f};
             canvas->AttachComponent<JBro::Component::Collider2D>(box);
@@ -5904,7 +5904,7 @@ namespace
         JBro::Canvas* canvas = editor.GetCanvas();
         const auto place = [&](const char* tag, JBro::Vector2 position, JBro::Vector2 size,
                                JBro::Component::ColliderShape2D shape, bool dynamic) {
-            JBro::GameObject* object = canvas->CreateObject(tag);
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
             Check(transform != nullptr, "each object needs a transform");
             transform->position = position;
@@ -5919,8 +5919,8 @@ namespace
             return object;
         };
         place("Ground", {0.0f, -0.5f}, {40.0f, 1.0f}, JBro::Component::ColliderShape2D::Box, false);
-        JBro::GameObject* box = place("Box", {0.0f, 3.0f}, {1.0f, 1.0f}, JBro::Component::ColliderShape2D::Box, true);
-        JBro::GameObject* pill =
+        JBro::Object::GameObject* box = place("Box", {0.0f, 3.0f}, {1.0f, 1.0f}, JBro::Component::ColliderShape2D::Box, true);
+        JBro::Object::GameObject* pill =
             place("Pill", {4.0f, 3.0f}, {2.0f, 1.0f}, JBro::Component::ColliderShape2D::Capsule, true);
         Check(editor.Tick(Frame), "the editor must tick before play");
         auto* boxTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(box);
@@ -5936,10 +5936,10 @@ namespace
         Check(std::fabs(pillTransform->position.y - 0.5f) < 0.02f, "and the capsule lies on it, a radius up");
 
         editor.StopSimulation();
-        JBro::Array<JBro::GameObject*> roots;
+        JBro::Array<JBro::Object::GameObject*> roots;
         canvas->GetRootObjects(roots);
         bool boxBack = false;
-        for (JBro::GameObject* root : roots)
+        for (JBro::Object::GameObject* root : roots)
         {
             if (std::strcmp(root->GetTag(), "Box") == 0)
             {
@@ -5971,7 +5971,7 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* box = canvas->CreateObject("Box");
+        JBro::Object::GameObject* box = canvas->CreateObject("Box");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(box);
         transform->position = {0.0f, 3.0f};
         canvas->AttachComponent<JBro::Component::Collider2D>(box);
@@ -6043,7 +6043,7 @@ namespace
         Check(false == editor.IsSimulationPlaying(), "the editor opens stopped");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* kept = canvas->CreateObject("Kept");
+        JBro::Object::GameObject* kept = canvas->CreateObject("Kept");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(kept);
         Check(transform != nullptr, "the object needs a transform");
         transform->position = JBro::Vector2{3.0f, 4.0f};
@@ -6069,7 +6069,7 @@ namespace
         }
 
         // 게임이 하는 일을 흉내 낸다: 오브젝트를 하나 만들고 값을 고친다.
-        JBro::GameObject* spawned = canvas->CreateObject("Spawned");
+        JBro::Object::GameObject* spawned = canvas->CreateObject("Spawned");
         Check(spawned != nullptr, "the running game may spawn");
         transform->position = JBro::Vector2{-9.0f, -9.0f};
         Check(editor.Tick(Frame), "the editor must tick while playing");
@@ -6092,7 +6092,7 @@ namespace
         Check(false == editor.IsSimulationPlaying(), "stop must stop");
         Check(canvas->GetObjectCount() == 1, "what the game made must be gone");
 
-        JBro::Array<JBro::GameObject*> roots;
+        JBro::Array<JBro::Object::GameObject*> roots;
         canvas->GetRootObjects(roots);
         Check(roots.Size() == 1, "and one root must be back");
         Check(std::strcmp(roots[0]->GetTag(), "Kept") == 0, "the one that was there before play");
@@ -6131,9 +6131,9 @@ namespace
 
         JBro::Canvas* canvas = editor.GetCanvas();
         // 가까이 둘, 멀리 하나. 상자가 앞의 둘만 잡아야 한다.
-        JBro::GameObject* left = canvas->CreateObject("Left");
-        JBro::GameObject* right = canvas->CreateObject("Right");
-        JBro::GameObject* far_ = canvas->CreateObject("Far");
+        JBro::Object::GameObject* left = canvas->CreateObject("Left");
+        JBro::Object::GameObject* right = canvas->CreateObject("Right");
+        JBro::Object::GameObject* far_ = canvas->CreateObject("Far");
         auto* leftTransform = canvas->AttachComponent<JBro::Component::Transform2D>(left);
         auto* rightTransform = canvas->AttachComponent<JBro::Component::Transform2D>(right);
         auto* farTransform = canvas->AttachComponent<JBro::Component::Transform2D>(far_);
@@ -6143,8 +6143,8 @@ namespace
         rightTransform->position = JBro::Vector2{1.0f, 0.0f};
         farTransform->position = JBro::Vector2{0.0f, 4.0f};
         // 왼쪽에는 자식과 손자가 있다. 둘 다 상자 밖(아래)에 있어도 부모가 걸리면 함께 골라진다(D-253, 기존 `CollectSubtree`).
-        JBro::GameObject* hand = canvas->CreateObject("Hand");
-        JBro::GameObject* finger = canvas->CreateObject("Finger");
+        JBro::Object::GameObject* hand = canvas->CreateObject("Hand");
+        JBro::Object::GameObject* finger = canvas->CreateObject("Finger");
         auto* handTransform = canvas->AttachComponent<JBro::Component::Transform2D>(hand);
         auto* fingerTransform = canvas->AttachComponent<JBro::Component::Transform2D>(finger);
         Check(handTransform != nullptr && fingerTransform != nullptr, "the children need transforms");
@@ -6185,7 +6185,7 @@ namespace
         Check(editor.IsSelected(hand) && editor.IsSelected(finger), "and every child of what it touched, even outside the box");
         Check(editor.GetSelectionCount() == 4, "the two, the child and the grandchild - nothing twice");
         Check(false == editor.IsSelected(far_), "and not the one outside it");
-        const JBro::Array<JBro::GameObject*> roots = editor.GetTopLevelSelectedObjects();
+        const JBro::Array<JBro::Object::GameObject*> roots = editor.GetTopLevelSelectedObjects();
         Check(roots.Size() == 2, "moving the selection still moves only the two parents");
 
         // **끌지 않고 누른 것은 상자가 아니다.** 빈 곳을 한 번 누르면 선택이 풀린다.
@@ -6250,7 +6250,7 @@ namespace
 
         // 그 카메라로 손잡이가 선다. 오브젝트를 하나 놓고 골라 본다.
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* box = canvas->CreateObject("Box");
+        JBro::Object::GameObject* box = canvas->CreateObject("Box");
         Check(canvas->AttachComponent<JBro::Component::Transform3D>(box) != nullptr,
             "the box needs a 3D transform for the gizmo to hold");
         editor.SetSelectedObject(box);
@@ -6660,7 +6660,7 @@ namespace
         Check(false == spriteAsset.IsNull(), "the scan must have registered hero.png as a sprite");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Hero");
+        JBro::Object::GameObject* object = canvas->CreateObject("Hero");
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the hero must have a sprite renderer");
         editor.SetSelectedObject(object);
@@ -7138,7 +7138,7 @@ namespace
         // **프레임 고르기**(D-165, 기존 `SpriteFramePick`). 인스펙터가 시작하고 뷰어가 끝내며, 칸은 커맨드로 들어간다.
         {
             JBro::Canvas* canvas = editor.GetCanvas();
-            JBro::GameObject* hero = canvas->CreateObject("Hero");
+            JBro::Object::GameObject* hero = canvas->CreateObject("Hero");
             canvas->AttachComponent<JBro::Component::Transform2D>(hero);
             auto* renderer = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(hero);
             Check(renderer != nullptr, "the hero must have a sprite renderer");
@@ -7515,8 +7515,8 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* body = canvas->CreateObject("Body");
-        JBro::GameObject* arm = canvas->CreateObject("Arm");
+        JBro::Object::GameObject* body = canvas->CreateObject("Body");
+        JBro::Object::GameObject* arm = canvas->CreateObject("Arm");
         auto* bodyTransform = canvas->AttachComponent<JBro::Component::Transform2D>(body);
         auto* armTransform = canvas->AttachComponent<JBro::Component::Transform2D>(arm);
         Check(bodyTransform != nullptr && armTransform != nullptr, "both need transforms");
@@ -7686,7 +7686,7 @@ namespace
         // 파란 몸(2 x 2, 원점)으로 들어가고, 빨간 이웃(2 x 2, 오른쪽)은 밖에 남는다.
         JBro::Canvas* canvas = editor.GetCanvas();
         const auto makeSquare = [&](const char* tag, JBro::Vector2 position, JBro::Color tint) {
-            JBro::GameObject* object = canvas->CreateObject(tag);
+            JBro::Object::GameObject* object = canvas->CreateObject(tag);
             auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
             auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
             Check(transform != nullptr && sprite != nullptr, "the square needs a transform and a sprite");
@@ -7696,7 +7696,7 @@ namespace
             sprite->tint = tint;
             return object;
         };
-        JBro::GameObject* body = makeSquare("Body", JBro::Vector2{0.0f, 0.0f}, JBro::Color{0.0f, 0.0f, 1.0f, 1.0f});
+        JBro::Object::GameObject* body = makeSquare("Body", JBro::Vector2{0.0f, 0.0f}, JBro::Color{0.0f, 0.0f, 1.0f, 1.0f});
         makeSquare("Neighbour", JBro::Vector2{1.8f, 0.0f}, JBro::Color{1.0f, 0.0f, 0.0f, 1.0f});
         HWND hwnd = FindOwnEditorWindow();
         Check(hwnd != nullptr, "the editor window must be findable");
@@ -7894,7 +7894,7 @@ namespace
             project.name = {name, sizeof(name) - 1};
             project.framework = kind;
             Check(editor.OpenProject(project), "the probe project must open");
-            JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
+            JBro::Object::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
             Check(made != nullptr, "the create action must make an object");
             JBro::Canvas* canvas = editor.GetCanvas();
             const bool has = kind == JBro::FrameworkKind::Framework3D
@@ -7902,10 +7902,10 @@ namespace
                 : canvas->FindComponentRaw<JBro::Component::Transform2D>(made) != nullptr;
             Check(has, "a created object carries its framework's transform");
             Check(editor.GetCommands().Undo() && editor.GetCommands().Redo(), "creation undoes and redoes");
-            JBro::GameObject* again = editor.GetSelectedObject();
+            JBro::Object::GameObject* again = editor.GetSelectedObject();
             if (again == nullptr)
             {
-                JBro::Array<JBro::GameObject*> roots;
+                JBro::Array<JBro::Object::GameObject*> roots;
                 canvas->GetRootObjects(roots);
                 again = roots.Size() > 0 ? roots[0] : nullptr;
             }
@@ -8061,7 +8061,7 @@ namespace
         // 반폭이 1 유닛이다. 선언된 `size`(1x1)를 쓰던 예전 셈이라면 반폭이 50 유닛이라,
         // 두 칸은 화면에서 확실히 갈린다.
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Hero");
+        JBro::Object::GameObject* object = canvas->CreateObject("Hero");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(transform != nullptr && sprite != nullptr, "the hero needs both components");
@@ -8228,7 +8228,7 @@ namespace
         const JBro::AssetId fontAsset = fontRecord->id;
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Label");
+        JBro::Object::GameObject* object = canvas->CreateObject("Label");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(object);
         auto* label = canvas->AttachComponent<JBro::Component::Text2D>(object);
         Check(transform != nullptr && label != nullptr, "the label needs a transform and a text");
@@ -8563,7 +8563,7 @@ namespace
         const JBro::AssetId fontAsset = fontRecord->id;
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Caption");
+        JBro::Object::GameObject* object = canvas->CreateObject("Caption");
         canvas->AttachComponent<JBro::Component::Transform2D>(object);
         auto* caption = canvas->AttachComponent<JBro::Component::Text2D>(object);
         JBro::TextStore::Get().Assign(caption->text, "A", 1);
@@ -8657,7 +8657,7 @@ namespace
         Check(editor.OpenProjectFile(projectPath.c_str(), error), "the project reopens");
         Check(editor.GetProjectFile().fonts.Size() == 1, "and reads its font list back");
         JBro::Canvas* reopened = editor.GetCanvas();
-        JBro::GameObject* again = reopened->CreateObject("Caption");
+        JBro::Object::GameObject* again = reopened->CreateObject("Caption");
         reopened->AttachComponent<JBro::Component::Transform2D>(again);
         auto* second = reopened->AttachComponent<JBro::Component::Text2D>(again);
         JBro::TextStore::Get().Assign(second->text, "A", 1);
@@ -8787,7 +8787,7 @@ namespace
             }
 
             JBro::Canvas* canvas = editor.GetCanvas();
-            JBro::GameObject* object = canvas->CreateObject("Remembered");
+            JBro::Object::GameObject* object = canvas->CreateObject("Remembered");
             Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
                 "the probe object needs a transform");
             const JBro::String canvasPath =
@@ -8933,7 +8933,7 @@ namespace
         JBro::Canvas* canvas = editor.GetCanvas();
         for (int index = 0; index < 3; ++index)
         {
-            JBro::GameObject* object = canvas->CreateObject("Counted");
+            JBro::Object::GameObject* object = canvas->CreateObject("Counted");
             Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
                 "each probe object needs a transform");
         }
@@ -8983,7 +8983,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* body = canvas->CreateObject("Body");
+        JBro::Object::GameObject* body = canvas->CreateObject("Body");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(body) != nullptr,
             "the object needs a transform");
         JBro::Component::Collider2D* collider =
@@ -9052,7 +9052,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* pill = canvas->CreateObject("Pill");
+        JBro::Object::GameObject* pill = canvas->CreateObject("Pill");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(pill) != nullptr, "the pill needs a transform");
         auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(pill);
         Check(collider != nullptr, "and a collider");
@@ -9114,7 +9114,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        JBro::Object::GameObject* cup = canvas->CreateObject("Cup");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
         auto* collider = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
         Check(collider != nullptr, "and a collider");
@@ -9345,7 +9345,7 @@ namespace
 
         // ── 고르기는 셋이 서로 배타다 ─────────────────────────
         Check(false == editor.IsCanvasSelected(), "nothing is selected to begin with");
-        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        JBro::Object::GameObject* probe = canvas->CreateObject("Probe");
         editor.SetSelectedObject(probe);
         editor.SetCanvasSelected(true);
         Check(editor.IsCanvasSelected(), "choosing the canvas must take");
@@ -9470,8 +9470,8 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
         Check(alpha != nullptr && beta != nullptr, "the probe objects must be made");
         editor.SetSelectedObject(alpha);
         HWND hwnd = FindOwnEditorWindow();
@@ -10283,13 +10283,13 @@ namespace
     // 부모 줄의 Id 다 - 조상부터 내려오며 같은 순서로 쌓아야 같은 값이 나온다.
     //
     // 맨 위에는 **레이어**가 있다(D-135). 뿌리 오브젝트도 그 레이어 마디 아래에 선다.
-    ImGuiID HierarchyRowId(const JBro::GameObject* object)
+    ImGuiID HierarchyRowId(const JBro::Object::GameObject* object)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Hierarchy");
         Check(window != nullptr, "the hierarchy must have a window");
-        const JBro::GameObject* chain[16] = {};
+        const JBro::Object::GameObject* chain[16] = {};
         std::size_t depth = 0;
-        for (const JBro::GameObject* walk = object;
+        for (const JBro::Object::GameObject* walk = object;
             walk != nullptr && depth < 16; walk = walk->GetParent())
         {
             chain[depth++] = walk;
@@ -10299,7 +10299,7 @@ namespace
         ImGuiID seed = LabelId(PushedId(window->ID, layerId), "##layer");
         for (std::size_t step = depth; step > 0; --step)
         {
-            const JBro::GameObject* at = chain[step - 1];
+            const JBro::Object::GameObject* at = chain[step - 1];
             // `ImGui::PushID(const void*)` 와 같은 계산이다.
             seed = LabelId(ImHashData(&at, sizeof(at), seed), "##node");
         }
@@ -10308,7 +10308,7 @@ namespace
 
     // 계층 창을 위아래로 훑어 그 줄이 가리켜지는 자리를 찾는다.
     bool FindHierarchyRow(
-        JBro::EditorApplication& editor, HWND hwnd, const JBro::GameObject* object, Spot& spot)
+        JBro::EditorApplication& editor, HWND hwnd, const JBro::Object::GameObject* object, Spot& spot)
     {
         ImGuiWindow* window = ImGui::FindWindowByName("Hierarchy");
         Check(window != nullptr, "the hierarchy must have a window");
@@ -10351,8 +10351,8 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* body = canvas->CreateObject("Body");
-        JBro::GameObject* arm = canvas->CreateObject("Arm");
+        JBro::Object::GameObject* body = canvas->CreateObject("Body");
+        JBro::Object::GameObject* arm = canvas->CreateObject("Arm");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(body) != nullptr
                 && canvas->AttachComponent<JBro::Component::Transform2D>(arm) != nullptr,
             "both need transforms");
@@ -10431,7 +10431,7 @@ namespace
         Check(renderer != nullptr, "the editor must expose its renderer");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* red = canvas->CreateObject("Red");
+        JBro::Object::GameObject* red = canvas->CreateObject("Red");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(red) != nullptr, "the sprite needs a transform");
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(red);
         Check(sprite != nullptr, "the sprite renderer must attach");
@@ -10500,7 +10500,7 @@ namespace
         }
 
         // **게임 뷰는 감춘 것을 그대로 그린다.** 감추는 것은 편집을 위한 것이다.
-        JBro::GameObject* eyeObject = canvas->CreateObject("Camera");
+        JBro::Object::GameObject* eyeObject = canvas->CreateObject("Camera");
         canvas->AttachComponent<JBro::Component::Transform2D>(eyeObject);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eyeObject);
         Check(camera != nullptr, "the probe camera must attach");
@@ -10544,15 +10544,15 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
-        JBro::GameObject* gamma = canvas->CreateObject("Gamma");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* gamma = canvas->CreateObject("Gamma");
         for (int frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
         }
 
-        JBro::Array<JBro::GameObject*> roots;
+        JBro::Array<JBro::Object::GameObject*> roots;
         canvas->GetRootObjects(roots);
         Check(roots.Size() == 3 && roots[0] == alpha && roots[1] == beta && roots[2] == gamma,
             "the three roots start in the order they were made");
@@ -10702,14 +10702,14 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
         Check(canvas != nullptr, "the probe has a canvas");
-        JBro::GameObject* eye = canvas->CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas->CreateObject("eye");
         canvas->AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         camera->primary = true;
         camera->orthographicSize = 5.0f;
         JBro::Layer& ui = canvas->CreateLayer("UI");
         const JBro::LayerId uiId = ui.GetId();
-        JBro::GameObject* badge = canvas->CreateObject("badge");
+        JBro::Object::GameObject* badge = canvas->CreateObject("badge");
         Check(canvas->SetObjectLayer(badge, uiId), "the badge goes on the layer");
         auto* place = canvas->AttachComponent<JBro::Component::Transform2D>(badge);
         place->position = {5.0f, 0.0f};
@@ -10916,7 +10916,7 @@ namespace
 
         // 지금 캔버스에 무언가 만들어 두고 첫 캔버스를 연다.
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* stale = canvas->CreateObject("Stale");
+        JBro::Object::GameObject* stale = canvas->CreateObject("Stale");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(stale) != nullptr,
             "the stale object needs a transform");
         editor.SetSelectedObject(stale);
@@ -10933,7 +10933,7 @@ namespace
         Check(editor.GetCommands().GetUndoCount() == 0, "and empty the undo stack");
 
         // 연 캔버스에 오브젝트를 만들고 저장한 뒤, 빈 캔버스를 열었다가 다시 돌아온다.
-        JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(made != nullptr, "the new canvas must accept an object");
         JBro::CanvasFileError saveError;
         const std::filesystem::path firstPath = root / "Assets" / first.c_str();
@@ -11063,9 +11063,9 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
-        JBro::GameObject* nameless = canvas->CreateObject("");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* nameless = canvas->CreateObject("");
 
         char text[256] = {};
         editor.ClearSelection();
@@ -11082,7 +11082,7 @@ namespace
         Check(std::strcmp(text, expected) == 0,
             "one chosen object is named, and nothing is counted after it");
 
-        JBro::GameObject* both[] = {alpha, beta};
+        JBro::Object::GameObject* both[] = {alpha, beta};
         editor.SelectObjects({both, 2});
         editor.DescribeSelection(text, sizeof(text));
         std::snprintf(expected, sizeof(expected),
@@ -11129,7 +11129,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* target = canvas->CreateObject("Turned");
+        JBro::Object::GameObject* target = canvas->CreateObject("Turned");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(target);
         Check(transform != nullptr, "the object needs a transform");
         // **90도 돌려 둔다.** 그러면 로컬 X 는 화면의 위쪽이고 월드 X 는 오른쪽이라,
@@ -11646,7 +11646,7 @@ namespace
     class ObjectMenuProbePanel final : public JBro::EditorPanel
     {
     public:
-        explicit ObjectMenuProbePanel(JBro::GameObject* target)
+        explicit ObjectMenuProbePanel(JBro::Object::GameObject* target)
             : m_target(target)
         {
         }
@@ -11697,7 +11697,7 @@ namespace
 
     private:
         JBro::EditorApplication* m_editor = nullptr;
-        JBro::GameObject* m_target = nullptr;
+        JBro::Object::GameObject* m_target = nullptr;
         bool m_open = false;
         bool m_close = false;
     };
@@ -11730,13 +11730,13 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        JBro::Object::GameObject* probe = canvas->CreateObject("Probe");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(probe);
         auto* first = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
         auto* second = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
         Check(transform != nullptr && first != nullptr && second != nullptr && first != second,
             "the probe needs a transform and two colliders");
-        JBro::GameObject* other = canvas->CreateObject("Other");
+        JBro::Object::GameObject* other = canvas->CreateObject("Other");
         Check(canvas->AttachComponent<JBro::Component::Collider2D>(other) != nullptr, "the other object has a collider");
         const JBro::ComponentTypeId colliderType = first->GetTypeId();
 
@@ -11747,7 +11747,7 @@ namespace
         auto panel = JBro::MakeOwnerPtr<ObjectMenuProbePanel>(probe);
         ObjectMenuProbePanel* menuProbe = panel.Get();
         Check(editor.AddPanel(std::move(panel)), "the menu probe panel must be taken");
-        JBro::GameObject* one[] = {probe};
+        JBro::Object::GameObject* one[] = {probe};
         editor.SelectObjects({one, 1});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -11801,7 +11801,7 @@ namespace
         g_componentHook.returnValue = true;
 
         // 여럿을 고르면 공통 항목만 선다.
-        JBro::GameObject* both[] = {probe, other};
+        JBro::Object::GameObject* both[] = {probe, other};
         editor.SelectObjects({both, 2});
         for (int frame = 0; frame < 2; ++frame)
         {
@@ -11854,7 +11854,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        JBro::Object::GameObject* probe = canvas->CreateObject("Probe");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(probe);
         auto* first = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
         auto* second = canvas->AttachComponent<JBro::Component::Collider2D>(probe);
@@ -11865,7 +11865,7 @@ namespace
         g_componentHook = {};
         Check(editor.GetComponentMenus().Register(colliderType, &ProbeComponentHook, &owner),
             "the probe hook must be taken");
-        JBro::GameObject* one[] = {probe};
+        JBro::Object::GameObject* one[] = {probe};
         editor.SelectObjects({one, 1});
         for (int frame = 0; frame < 4; ++frame)
         {
@@ -11970,7 +11970,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* cup = canvas->CreateObject("Cup");
+        JBro::Object::GameObject* cup = canvas->CreateObject("Cup");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(cup) != nullptr, "the cup needs a transform");
         auto* left = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
         auto* right = canvas->AttachComponent<JBro::Component::Collider2D>(cup);
@@ -12084,7 +12084,7 @@ namespace
         Check(hoveredAt(leftCorner) == vertex, "and it stays forgotten when it is a polygon again");
 
         pickSecond();
-        JBro::GameObject* saucer = canvas->CreateObject("Saucer");
+        JBro::Object::GameObject* saucer = canvas->CreateObject("Saucer");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(saucer) != nullptr, "the saucer needs a transform");
         editor.SetSelectedObject(saucer);
         Check(hoveredAt(rightCorner) != vertex, "choosing another object stops editing the picked collider");
@@ -12141,14 +12141,14 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* eye = canvas->CreateObject("Eye");
+        JBro::Object::GameObject* eye = canvas->CreateObject("Eye");
         auto* eyePlace = canvas->AttachComponent<JBro::Component::Transform2D>(eye);
         Check(eyePlace != nullptr, "the camera needs a transform");
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the camera must attach");
         camera->primary = true;
         camera->orthographicSize = 0.0f;
-        JBro::GameObject* chosen[] = {eye};
+        JBro::Object::GameObject* chosen[] = {eye};
         editor.SelectObjects({chosen, 1});
         for (int frame = 0; frame < 5; ++frame)
         {
@@ -12200,7 +12200,7 @@ namespace
         // 월드 (1.0, 0.5) 에 있던 것은 화면 한가운데였다 - 화면 레이어에서 (0, 0) 이어야 한다. 스냅 전 뷰로 재면 한가운데에서 벗어난다.
         eyePlace->position = {1.03f, 0.51f};
         JBro::Layer& ui = canvas->CreateLayer("UI");
-        JBro::GameObject* badge = canvas->CreateObject("Badge");
+        JBro::Object::GameObject* badge = canvas->CreateObject("Badge");
         Check(canvas->SetObjectLayer(badge, ui.GetId()), "the badge goes on the layer");
         auto* badgePlace = canvas->AttachComponent<JBro::Component::Transform2D>(badge);
         badgePlace->position = {1.0f, 0.5f};
@@ -12237,7 +12237,7 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* target = canvas->CreateObject("Target");
+        JBro::Object::GameObject* target = canvas->CreateObject("Target");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(target);
         Check(transform != nullptr, "the object needs a transform to be pickable");
         transform->position = JBro::Vector2{0.0f, 0.0f};
@@ -12335,10 +12335,10 @@ namespace
         Check(hwnd != nullptr, "the editor window must be findable");
 
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* alpha = canvas->CreateObject("Alpha");
-        JBro::GameObject* beta = canvas->CreateObject("Beta");
-        JBro::GameObject* gamma = canvas->CreateObject("Gamma");
-        JBro::GameObject* delta = canvas->CreateObject("Delta");
+        JBro::Object::GameObject* alpha = canvas->CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas->CreateObject("Beta");
+        JBro::Object::GameObject* gamma = canvas->CreateObject("Gamma");
+        JBro::Object::GameObject* delta = canvas->CreateObject("Delta");
         for (int frame = 0; frame < 4; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");

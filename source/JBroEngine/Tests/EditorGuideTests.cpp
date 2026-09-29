@@ -580,7 +580,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the add component guide not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr && editor.GetSelectedObject() == object, "the new object must be made and picked");
         Check(object->GetComponents().Size() == 1, "a new object starts with its transform only, or the last step proves nothing");
         Tick(editor, 3);
@@ -758,8 +758,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; the hierarchy path not verified" << std::endl;
             return;
         }
-        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* child = JBro::EditorActions::CreateObject(editor, parent);
+        JBro::Object::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* child = JBro::EditorActions::CreateObject(editor, parent);
         Check(parent != nullptr && child != nullptr && child->GetParent() == parent, "a parent and its child must be made");
         Tick(editor, 3);
 
@@ -818,7 +818,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; retreating steps not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         Tick(editor, 3);
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
@@ -846,7 +846,7 @@ namespace
         Check(editor.GetGuide().IsRunning() && editor.GetGuide().GetStepIndex() == 0, "deleting it goes back to picking too");
 
         // 마지막 단계(컴포넌트 추가)에서 선택을 비워도 돌아간다.
-        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(other != nullptr, "another object must be made and picked");
         Tick(editor, 2);
         Check(editor.GetGuide().GetStepIndex() == 1, "the new pick passes the first step");
@@ -969,7 +969,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; going back not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made and picked");
         Tick(editor, 3);
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
@@ -1004,7 +1004,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; step memos not verified" << std::endl;
             return;
         }
-        JBro::GameObject* first = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* first = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(first != nullptr && editor.GetSelectedObject() == first, "the first object must be made and picked");
         // 컴포넌트를 하나 더 붙여 둔다 - "둘 이상" 으로 물으면 마지막 단계가 아무것도 안 해도 끝난다.
         JBro::EditorActions::AddComponentList list;
@@ -1042,7 +1042,7 @@ namespace
         editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
         Check(editor.GetGuide().GetStepIndex() == 0, "so pressing it does not skip picking");
         // 새 오브젝트를 추가하면 그것이 선택된다 - 선택이 바뀌었으니 넘어간다.
-        JBro::GameObject* added = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* added = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(added != nullptr && editor.GetSelectedObject() == added, "the added object is picked");
         Tick(editor, 2);
         Check(editor.GetGuide().GetStepIndex() == 1, "a newly picked object passes the selection step");

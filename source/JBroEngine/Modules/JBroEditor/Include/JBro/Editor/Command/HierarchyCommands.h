@@ -8,7 +8,10 @@
 namespace JBro
 {
     class Canvas;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 계층에서 오브젝트를 옮긴다. 부모를 바꾸거나, 형제들 사이에서 자리를 바꾼다.
     //
@@ -57,7 +60,7 @@ namespace JBro
         // 지금 자리를 뜬다.
         bool Capture(Placement& placement) const;
         // 새 부모 아래에서 지금 월드 자리를 지키는 로컬 값을 구한다.
-        bool ComputeWorldStay(GameObject& object, GameObject* newParent,
+        bool ComputeWorldStay(Object::GameObject& object, Object::GameObject* newParent,
             Placement& placement) const;
 
         Canvas* m_canvas = nullptr;

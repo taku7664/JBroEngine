@@ -11,7 +11,10 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
     class Layer;
     class GameScript2D;
 }
@@ -44,8 +47,8 @@ namespace JBro::System
 
         InputResult OnInput(InputView& input) override;
 
-        bool ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const override;
-        bool LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const override;
+        bool ScreenToLayer(Vector2 pixel, Handle::GameObject object, Vector2& point) const override;
+        bool LayerToScreen(Vector2 point, Handle::GameObject object, Vector2& pixel) const override;
         bool IsPointerOverButton() const override;
 
         // 픽셀을 이 레이어의 좌표로 옮긴다. 월드 레이어는 주 카메라(`Camera2DSystem` 과 같은 고르기)를 쓴다.
@@ -71,8 +74,8 @@ namespace JBro::System
         enum class Hook : std::uint8_t { Enter, Exit, Down, Up, Click };
 
         static Pointer ReadPointer(InputView& input);
-        bool HitTest(const Component::Button2D& button, GameObject& owner, const Layer& layer, const Pointer& pointer) const;
-        void CallHook(GameObject* object, Hook hook);
+        bool HitTest(const Component::Button2D& button, Object::GameObject& owner, const Layer& layer, const Pointer& pointer) const;
+        void CallHook(Object::GameObject* object, Hook hook);
         void RefreshScriptKeys();
 
         Canvas*          m_canvas = nullptr;

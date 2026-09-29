@@ -55,11 +55,11 @@ namespace JBro
         SystemScheduler& GetSystems();
 
         // 오브젝트
-        GameObject* CreateObject(const char* name = nullptr);
+        Object::GameObject* CreateObject(const char* name = nullptr);
         // 되살리기용이다(D-233): 지운 오브젝트를 되돌릴 때 옛 오브젝트 번호를 다시 쓴다 - 그 오브젝트를 가리키던 참조 필드가
         // 그대로 이어진다. 그 번호가 살아 있으면(다른 오브젝트가 쓴다) 새 번호를 받는다.
-        GameObject* CreateObject(const char* name, InstanceId preferredId);
-        bool        DestroyObject(GameObject* object);
+        Object::GameObject* CreateObject(const char* name, InstanceId preferredId);
+        bool        DestroyObject(Object::GameObject* object);
         std::size_t GetObjectCount() const;
 
         // **캔버스를 비운다**(D-174). 오브젝트를 모두 없애고 레이어를 기본 하나로 되돌린다.
@@ -82,11 +82,11 @@ namespace JBro
         // **물어볼 때 풀과 맞춘다.** 부모가 바뀌는 것은 `GameObject` 안에서 일어나고
         // Canvas 는 그 자리를 보지 못한다 - 여기서 죽었거나 더 이상 뿌리가 아닌 것을
         // 빼고, 새로 뿌리가 된 것을 뒤에 붙인다. 한 번 자리를 잡은 것은 그대로 둔다.
-        void        GetRootObjects(Array<GameObject*>& result);
+        void        GetRootObjects(Array<Object::GameObject*>& result);
         // 뿌리들 사이에서 몇 번째인가. 뿌리가 아니면 거짓이다.
-        bool        FindRootIndex(const GameObject* object, std::size_t& index);
+        bool        FindRootIndex(const Object::GameObject* object, std::size_t& index);
         // 뿌리들 사이의 자리를 옮긴다. 끝을 넘으면 맨 뒤로 간다. 뿌리가 아니면 거짓이다.
-        bool        SetRootIndex(GameObject* object, std::size_t index);
+        bool        SetRootIndex(Object::GameObject* object, std::size_t index);
 
         // 순회 중 요청된 파괴를 실제로 수행한다(D-45). Framework 가 FixedUpdate 묶음 뒤와
         // Update 뒤 두 지점에서 부른다. 순회 중에 부르면 아무 일도 하지 않는다.
@@ -98,7 +98,7 @@ namespace JBro
         Layer&      CreateLayer(const char* name = nullptr);
         bool        DestroyLayer(LayerId layer);
         bool        MoveLayer(LayerId layer, std::size_t newIndex);
-        bool        SetObjectLayer(GameObject* object, LayerId layer);
+        bool        SetObjectLayer(Object::GameObject* object, LayerId layer);
         Layer*      FindLayer(LayerId layer);
         std::size_t GetLayerCount() const;
 
@@ -131,18 +131,18 @@ namespace JBro
 
         // 같은 타입을 여러 개 붙일 수 있다. 시스템 순회는 타입 풀을 직접 순회한다.
         template<typename T>
-        T* AttachComponent(GameObject* owner);
+        T* AttachComponent(Object::GameObject* owner);
 
         template<typename T>
-        bool DetachComponent(GameObject* owner, T* component);
+        bool DetachComponent(Object::GameObject* owner, T* component);
 
         template<typename T>
-        T* FindComponentRaw(GameObject* owner);
+        T* FindComponentRaw(Object::GameObject* owner);
 
         // Replaces results in attachment order. Pointers are short-lived borrowed references.
         // Reserve results during setup to avoid allocation on repeated queries.
         template<typename T>
-        void FindComponentsRaw(GameObject* owner, Array<T*>& results);
+        void FindComponentsRaw(Object::GameObject* owner, Array<T*>& results);
 
         template<typename T, typename Fn>
         void ForEach(Fn&& function);
@@ -150,10 +150,10 @@ namespace JBro
         // 이름으로 스크립트를 붙인다(H5). 타입이 DLL 안에 있어 호스트가 컴파일 시간에
         // 알 수 없으므로, 무엇을 만들지는 ScriptRegistry 가 알려 준다.
         // 등록되지 않은 이름이면 nullptr 이다.
-        GameScriptBase* AttachScript(GameObject* owner, NameId scriptName);
-        GameScriptBase* AttachScript(GameObject* owner, const char* scriptName);
+        GameScriptBase* AttachScript(Object::GameObject* owner, NameId scriptName);
+        GameScriptBase* AttachScript(Object::GameObject* owner, const char* scriptName);
         // 번호를 정해 붙인다(D-268). 그 번호를 누가 쓰고 있으면 새 번호다. 핫 리로드가 뜬 스크립트를 같은 번호로 되살린다.
-        GameScriptBase* AttachScript(GameObject* owner, NameId scriptName, InstanceId preferredId);
+        GameScriptBase* AttachScript(Object::GameObject* owner, NameId scriptName, InstanceId preferredId);
         // 이름으로 붙인 스크립트(스크립트 풀의 것)인가. 정적으로 붙인 스크립트(`AttachComponent<T>`)는 아니다.
         bool IsModuleScript(const ComponentBase* component) const;
         // **이름으로 붙인 스크립트를 모두 떼고 스크립트 풀까지 지운다**(D-268). 스크립트 DLL 을 내리기 **전에** 부른다 -
@@ -161,17 +161,17 @@ namespace JBro
         // 값을 남기려면 먼저 `KeepScriptsAsText`(`CanvasFile.h`)로 뜬다. 뗀 개수다.
         std::size_t ReleaseModuleScripts();
         // 이름으로 붙인 스크립트를 뗀다. 풀 자리까지 돌려준다 - `GameObject::DetachComponent` 만 부르면 슬롯만 빠진다.
-        bool DetachScript(GameObject* owner, GameScriptBase* script);
+        bool DetachScript(Object::GameObject* owner, GameScriptBase* script);
 
         // 이 엔진이 모르는 컴포넌트를 오브젝트에 달아 둔다(D-264). 파일 순서대로 더한다 - `position` 이 줄지 않아야 한다.
         // 오브젝트가 사라지면 함께 사라진다.
-        bool AddUnresolvedComponent(GameObject* owner, UnresolvedComponent component);
+        bool AddUnresolvedComponent(Object::GameObject* owner, UnresolvedComponent component);
         // 없으면 nullptr 이다.
-        const Array<UnresolvedComponent>* FindUnresolvedComponents(const GameObject* owner) const;
+        const Array<UnresolvedComponent>* FindUnresolvedComponents(const Object::GameObject* owner) const;
         // 캔버스 전체에서 몇 개인가. 에디터가 "이 캔버스에 실행되지 않는 컴포넌트가 있다" 고 알리는 데 쓴다.
         std::size_t GetUnresolvedComponentCount() const;
         // 한 오브젝트의 모르는 컴포넌트를 통째로 바꾼다(D-268). 비어 있으면 지운다. `position` 이 줄면 아무것도 바꾸지 않고 거짓이다.
-        bool ReplaceUnresolvedComponents(GameObject* owner, Array<UnresolvedComponent> components);
+        bool ReplaceUnresolvedComponents(Object::GameObject* owner, Array<UnresolvedComponent> components);
         // 마지막으로 읽은 캔버스 파일의 오브젝트 차례다(파일 안 번호 → 오브젝트 번호). 파일에서 온 모르는 컴포넌트는 오브젝트 참조를
         // 파일 안 번호로 들고 있어, 뒤에 그 타입을 알게 되어 되살릴 때 이것으로 푼다(D-268).
         void SetFileObjectOrder(Array<InstanceId> order);
@@ -310,7 +310,7 @@ namespace JBro
 
         bool DestroyComponent(ComponentBase* component);
         bool RegisterComponentInstance(
-            GameObject* owner,
+            Object::GameObject* owner,
             ComponentBase* component,
             RefCategory category,
             InstanceId preferredId = InvalidInstanceId);
@@ -324,14 +324,14 @@ namespace JBro
         void MarkScriptOrderDirty();
         static void MarkScriptOrderDirtyFromObject(Canvas* canvas);
 
-        bool DestroyObjectNow(GameObject* object);
+        bool DestroyObjectNow(Object::GameObject* object);
         bool DestroyComponentNow(ComponentBase* component);
         // GameObject::RequestDestroy 가 건너오는 지점. GameObject 헤더는 Canvas 정의를 알지 않는다.
-        static bool DestroyObjectFromHandle(Canvas* canvas, GameObject* object);
+        static bool DestroyObjectFromHandle(Canvas* canvas, Object::GameObject* object);
         static InstanceId GenerateCanvasInstanceId();
 
         JAllocator                                      m_allocator;
-        OwnerPtr<TObjectPool<GameObject>>               m_objects;
+        OwnerPtr<TObjectPool<Object::GameObject>>               m_objects;
         Array<OwnerPtr<Layer>>                          m_layers;
         LayerId                                      m_defaultLayer = InvalidLayerId;
         // 기본은 지금까지 화면에 나오던 어두운 회색이다(D-186). 아무것도 적히지 않은
@@ -345,10 +345,10 @@ namespace JBro
         Table<InstanceId, Array<UnresolvedComponent>>   m_unresolvedComponents;
         Array<InstanceId>                               m_fileObjectOrder;
         // 뿌리의 보이는 순서(D-128). `GetRootObjects` 만 이것을 맞추고 읽는다.
-        Array<SafePtr<GameObject>>                      m_rootOrder;
+        Array<SafePtr<Object::GameObject>>                      m_rootOrder;
         // 맞출 때 "이미 목록에 있는가" 를 재는 자리다. 매번 만들지 않으려고 멤버로 둔다.
-        Table<const GameObject*, std::uint8_t>          m_rootSeen;
-        Array<SafePtr<GameObject>>                      m_pendingDestroyObjects;
+        Table<const Object::GameObject*, std::uint8_t>          m_rootSeen;
+        Array<SafePtr<Object::GameObject>>                      m_pendingDestroyObjects;
         Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;
         std::size_t                                     m_iterationDepth = 0;
         // 0 은 "아직 아무것도 본 적 없음" 을 뜻하는 쪽이 쓰므로 1 에서 시작한다.
@@ -364,7 +364,7 @@ namespace JBro
     }
 
     template<typename T>
-    T* Canvas::AttachComponent(GameObject* owner)
+    T* Canvas::AttachComponent(Object::GameObject* owner)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         if (owner == nullptr || owner->GetCanvas() != this)
@@ -439,7 +439,7 @@ namespace JBro
     }
 
     template<typename T>
-    bool Canvas::DetachComponent(GameObject* owner, T* component)
+    bool Canvas::DetachComponent(Object::GameObject* owner, T* component)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         if (owner == nullptr
@@ -453,7 +453,7 @@ namespace JBro
     }
 
     template<typename T>
-    T* Canvas::FindComponentRaw(GameObject* owner)
+    T* Canvas::FindComponentRaw(Object::GameObject* owner)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         if (owner == nullptr || owner->GetCanvas() != this)
@@ -480,7 +480,7 @@ namespace JBro
     }
 
     template<typename T>
-    void Canvas::FindComponentsRaw(GameObject* owner, Array<T*>& results)
+    void Canvas::FindComponentsRaw(Object::GameObject* owner, Array<T*>& results)
     {
         static_assert(std::is_base_of_v<ComponentBase, T>);
         results.Clear();

@@ -10,12 +10,15 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 이번 프레임에 뜬 주 카메라다. 행렬이 아니라 값이다 - 행렬은 브리지가 만든다(§2.2).
     struct RenderCamera3D
     {
-        GameObject* owner = nullptr;
+        Object::GameObject* owner = nullptr;
         Vector3 position;
         Quaternion rotation;
         Component::CameraProjection3D projection = Component::CameraProjection3D::Perspective;
@@ -28,7 +31,7 @@ namespace JBro
 
     struct MeshRenderItem
     {
-        GameObject* owner = nullptr;
+        Object::GameObject* owner = nullptr;
         Vector3 position;
         Quaternion rotation;
         Vector3 scale{1.0f, 1.0f, 1.0f};
@@ -41,7 +44,7 @@ namespace JBro
     // 것이다. 빌보드면 브리지가 회전을 뷰의 카메라 것으로 바꾼다. 뒤→앞 정렬도 뷰마다 브리지가 한다.
     struct WorldTextRenderItem
     {
-        GameObject* owner = nullptr;
+        Object::GameObject* owner = nullptr;
         Vector3 position;
         Quaternion rotation;
         Vector3 scale{1.0f, 1.0f, 1.0f};

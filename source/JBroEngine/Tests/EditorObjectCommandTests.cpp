@@ -304,7 +304,7 @@ namespace
     }
 
     JBro::ComponentAddress AddressOf(JBro::EditorObjectRegistry& ids,
-        JBro::GameObject& object, const JBro::ComponentBase& component)
+        JBro::Object::GameObject& object, const JBro::ComponentBase& component)
     {
         JBro::ComponentAddress address;
         Check(JBro::MakeComponentAddress(ids, object, component, address),
@@ -328,8 +328,8 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::EditorObjectRegistry ids;
 
-        JBro::GameObject* first = canvas.CreateObject("First");
-        JBro::GameObject* second = canvas.CreateObject("Second");
+        JBro::Object::GameObject* first = canvas.CreateObject("First");
+        JBro::Object::GameObject* second = canvas.CreateObject("Second");
 
         const JBro::EditorObjectId firstId = ids.Track(first);
         Check(firstId != JBro::InvalidEditorObjectId, "a real object must get a number");
@@ -358,7 +358,7 @@ namespace
         // 번호를 들고 있는 커맨드가 그 번호로 전혀 다른 오브젝트를 집는다.
         ids.Clear();
         Check(ids.GetCount() == 0, "clearing must empty the table");
-        JBro::GameObject* third = canvas.CreateObject("Third");
+        JBro::Object::GameObject* third = canvas.CreateObject("Third");
         const JBro::EditorObjectId thirdId = ids.Track(third);
         Check(thirdId != firstId, "numbers must not be handed out a second time");
     }
@@ -382,7 +382,7 @@ namespace
     {
         RegisterOnce();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Probe");
+        JBro::Object::GameObject* object = canvas.CreateObject("Probe");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the probe must have a transform");
         JBro::ComponentBase* component = transform;
@@ -428,7 +428,7 @@ namespace
     {
         RegisterOnce();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Probe");
+        JBro::Object::GameObject* object = canvas.CreateObject("Probe");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         JBro::ComponentBase* component = transform;
         const JBro::ComponentTypeId typeId = component->GetTypeId();
@@ -467,7 +467,7 @@ namespace
     {
         RegisterOnce();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Probe");
+        JBro::Object::GameObject* object = canvas.CreateObject("Probe");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         JBro::ComponentBase* component = transform;
         const JBro::ComponentTypeId typeId = component->GetTypeId();
@@ -509,8 +509,8 @@ namespace
     {
         RegisterOnce();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* first = canvas.CreateObject("First");
-        JBro::GameObject* second = canvas.CreateObject("Second");
+        JBro::Object::GameObject* first = canvas.CreateObject("First");
+        JBro::Object::GameObject* second = canvas.CreateObject("Second");
         auto* firstTransform = canvas.AttachComponent<JBro::Component::Transform2D>(first);
         auto* secondTransform = canvas.AttachComponent<JBro::Component::Transform2D>(second);
         JBro::EditorObjectRegistry ids;
@@ -578,7 +578,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the subject must have a transform");
         transform->SetRotationRadian(JBro::Radian(0.5f));
@@ -598,7 +598,7 @@ namespace
         canvas.FlushPendingDestroy();
 
         Check(commands.Undo(), "undoing the delete must run");
-        JBro::GameObject* restored = ids.Resolve(id);
+        JBro::Object::GameObject* restored = ids.Resolve(id);
         Check(restored != nullptr, "and bring the object back under its number");
         auto* restoredTransform =
             restored->GetComponent<JBro::Component::Transform2D>().Get();
@@ -623,9 +623,9 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::EditorObjectRegistry ids;
 
-        JBro::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::Object::GameObject* parent = canvas.CreateObject("Parent");
         canvas.AttachComponent<JBro::Component::Transform2D>(parent);
-        JBro::GameObject* child = canvas.CreateObject("Child");
+        JBro::Object::GameObject* child = canvas.CreateObject("Child");
         child->SetParent(parent);
         // 자식에만 리플렉션 없는 컴포넌트를 붙인다. **뿌리는 멀쩡하므로 스냅샷은
         // 비어 있지 않다** - 여기가 조용히 잃던 자리다.
@@ -641,7 +641,7 @@ namespace
             "and must leave every object where it was");
 
         // 뿌리 자신이 못 뜨는 경우도 같다.
-        JBro::GameObject* lone = canvas.CreateObject("Lone");
+        JBro::Object::GameObject* lone = canvas.CreateObject("Lone");
         canvas.AttachComponent<UnreflectedProbe>(lone);
         const std::size_t now = canvas.GetObjectCount();
         JBro::DeleteObjectCommand onLone(canvas, ids, lone);
@@ -671,7 +671,7 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::EditorObjectRegistry ids;
 
-        JBro::GameObject* object = canvas.CreateObject("Sleeping");
+        JBro::Object::GameObject* object = canvas.CreateObject("Sleeping");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         transform->SetRotationRadian(JBro::Radian(0.25f));
@@ -684,7 +684,7 @@ namespace
         Check(ids.Resolve(id) == nullptr, "and the object must be gone");
 
         command.Undo();
-        JBro::GameObject* restored = ids.Resolve(id);
+        JBro::Object::GameObject* restored = ids.Resolve(id);
         Check(restored != nullptr, "undo must bring it back under the same number");
         Check(false == restored->IsActiveSelf(),
             "an object that was switched off must come back switched off");
@@ -708,7 +708,7 @@ namespace
         return JBro::NameTable::Get().Intern(name);
     }
 
-    std::size_t CountComponents(const JBro::GameObject& object, JBro::ComponentTypeId typeId)
+    std::size_t CountComponents(const JBro::Object::GameObject& object, JBro::ComponentTypeId typeId)
     {
         std::size_t found = 0;
         const JBro::Array<JBro::ComponentSlot>& components = object.GetComponents();
@@ -732,7 +732,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         const JBro::EditorObjectId id = ids.Track(object);
         const JBro::ComponentTypeId spriteType =
             JBro::MakeStableTypeId(JBro::Component::SpriteRenderer2D::StaticTypeName());
@@ -794,7 +794,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         const JBro::EditorObjectId id = ids.Track(object);
         auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(sprite != nullptr, "the subject must have a sprite renderer");
@@ -834,7 +834,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         const JBro::EditorObjectId id = ids.Track(object);
         auto* first = canvas.AttachComponent<JBro::Component::Collider2D>(object);
         auto* second = canvas.AttachComponent<JBro::Component::Collider2D>(object);
@@ -874,7 +874,7 @@ namespace
     {
         RegisterOnce();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         JBro::ComponentBase* slots[4] = {};
         for (int index = 0; index < 4; ++index)
         {
@@ -905,7 +905,7 @@ namespace
         const int toEnd[4] = {3, 2, 0, 1};
         expect(toEnd, "so it lands last");
 
-        JBro::GameObject* stranger = canvas.CreateObject("Stranger");
+        JBro::Object::GameObject* stranger = canvas.CreateObject("Stranger");
         auto* foreign = canvas.AttachComponent<JBro::Component::Collider2D>(stranger);
         std::size_t index = 0;
         Check(false == object->FindComponentIndex(foreign, index),
@@ -922,7 +922,7 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         const JBro::EditorObjectId id = ids.Track(object);
         JBro::ComponentBase* slots[3] = {
             canvas.AttachComponent<JBro::Component::Transform2D>(object),
@@ -967,8 +967,8 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* parent = canvas.CreateObject("Parent");
-        JBro::GameObject* child = canvas.CreateObject("Child");
+        JBro::Object::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("Child");
         child->SetParent(parent);
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(parent);
         transform->position = {3.0f, 4.0f};
@@ -992,7 +992,7 @@ namespace
         const JBro::Array<JBro::EditorObjectId> pasted = raw->GetPastedRootIds();
         Check(pasted.Size() == 1 && pasted[0] != JBro::InvalidEditorObjectId && pasted[0] != sourceId,
             "under a number of its own, not the source's");
-        JBro::GameObject* copy = ids.Resolve(pasted[0]);
+        JBro::Object::GameObject* copy = ids.Resolve(pasted[0]);
         Check(copy != nullptr && copy != parent && std::strcmp(copy->GetTag(), "Parent") == 0,
             "the pasted root must be a new object with the same name");
         Check(copy->GetParent() == nullptr, "at the canvas root when no parent was given");
@@ -1001,7 +1001,7 @@ namespace
                 && copiedTransform->position.x == 3.0f,
             "with its own component carrying the copied values");
         Check(copy->GetChildren().Size() == 1, "and its child");
-        JBro::GameObject* copiedChild = copy->GetChildren()[0].TryGet();
+        JBro::Object::GameObject* copiedChild = copy->GetChildren()[0].TryGet();
         auto* copiedSprite = canvas.FindComponentRaw<JBro::Component::SpriteRenderer2D>(copiedChild);
         Check(copiedSprite != nullptr && copiedSprite->renderOrder == 9,
             "whose component also carries its values");
@@ -1045,7 +1045,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         const JBro::EditorObjectId id = ids.Track(object);
         // 앞에 다른 타입을 하나 둔다. 떼는 것이 0번 슬롯이면 "원래 자리" 와
         // "언제나 맨 앞" 을 가려내지 못한다.
@@ -1115,7 +1115,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Subject");
+        JBro::Object::GameObject* object = canvas.CreateObject("Subject");
         const JBro::EditorObjectId id = ids.Track(object);
         auto* probe = canvas.AttachComponent<UnreflectedProbe>(object);
         Check(probe != nullptr, "the probe must attach");
@@ -1258,7 +1258,7 @@ namespace
     // 고정 버퍼로 읽었다 - 컨테이너를 넣는 순간 잘리거나 빠진다.
     constexpr std::size_t SampleCount = 200;
 
-    Stocked* MakeStocked(JBro::Canvas& canvas, JBro::GameObject* object)
+    Stocked* MakeStocked(JBro::Canvas& canvas, JBro::Object::GameObject* object)
     {
         JBro::RegisterBuiltinProperties<Stocked>();
         JBro::RegisterComponentType<Stocked>();
@@ -1297,7 +1297,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Holder");
+        JBro::Object::GameObject* object = canvas.CreateObject("Holder");
         const JBro::EditorObjectId id = ids.Track(object);
         MakeStocked(canvas, object);
 
@@ -1307,7 +1307,7 @@ namespace
         canvas.FlushPendingDestroy();
         Check(commands.Undo(), "and undoing it must run");
 
-        JBro::GameObject* restored = ids.Resolve(id);
+        JBro::Object::GameObject* restored = ids.Resolve(id);
         Check(restored != nullptr, "the holder must come back");
         CheckStocked(restored->GetComponent<Stocked>().Get(), "with its stocked component");
     }
@@ -1319,7 +1319,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Holder");
+        JBro::Object::GameObject* object = canvas.CreateObject("Holder");
         const JBro::EditorObjectId id = ids.Track(object);
         Stocked* stocked = MakeStocked(canvas, object);
 
@@ -1340,7 +1340,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Holder");
+        JBro::Object::GameObject* object = canvas.CreateObject("Holder");
         Stocked* stocked = MakeStocked(canvas, object);
         const JBro::PropertyTable* table =
             JBro::PropertyRegistry::Lookup(Stocked::StaticTypeName());
@@ -1388,7 +1388,7 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::EditorObjectRegistry ids;
 
-        JBro::GameObject* object = canvas.CreateObject("Holder");
+        JBro::Object::GameObject* object = canvas.CreateObject("Holder");
         const JBro::EditorObjectId id = ids.Track(object);
         auto* obstinate = canvas.AttachComponent<Obstinate>(object);
         Check(obstinate != nullptr, "the obstinate component must attach");
@@ -1425,7 +1425,7 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* object = canvas.CreateObject("Holder");
+        JBro::Object::GameObject* object = canvas.CreateObject("Holder");
         const JBro::EditorObjectId id = ids.Track(object);
 
         // 넷째 칸은 길이 담는다. 떼었다 되돌리면 값이 돌아와야 한다 - 경계를 한 칸
@@ -1682,8 +1682,8 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* first = canvas.CreateObject("Near");
-        JBro::GameObject* second = canvas.CreateObject("Far");
+        JBro::Object::GameObject* first = canvas.CreateObject("Near");
+        JBro::Object::GameObject* second = canvas.CreateObject("Far");
         auto* near_ = canvas.AttachComponent<Lighthouse>(first);
         auto* far_ = canvas.AttachComponent<Lighthouse>(second);
         Check(near_ != nullptr && far_ != nullptr, "both lighthouses must attach");
@@ -1780,8 +1780,8 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* first = canvas.CreateObject("First");
-        JBro::GameObject* second = canvas.CreateObject("Second");
+        JBro::Object::GameObject* first = canvas.CreateObject("First");
+        JBro::Object::GameObject* second = canvas.CreateObject("Second");
         Stocked* long_ = MakeStocked(canvas, first);
         Stocked* short_ = MakeStocked(canvas, second);
         short_->colors.RemoveAt(1);
@@ -1864,10 +1864,10 @@ namespace
     {
         RegisterOnce();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* parent = canvas.CreateObject("Parent");
-        JBro::GameObject* first = canvas.CreateObject("First");
-        JBro::GameObject* second = canvas.CreateObject("Second");
-        JBro::GameObject* third = canvas.CreateObject("Third");
+        JBro::Object::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::Object::GameObject* first = canvas.CreateObject("First");
+        JBro::Object::GameObject* second = canvas.CreateObject("Second");
+        JBro::Object::GameObject* third = canvas.CreateObject("Third");
         first->SetParent(parent);
         second->SetParent(parent);
         third->SetParent(parent);
@@ -1883,7 +1883,7 @@ namespace
         // 셋 [a,b,c] 에서 b 를 뺄 때는 마지막을 끌어다 덮어도 [a,c] 가 되어
         // 밀어낸 것과 결과가 같다. 넷 [a,b,c,d] 에서 b 를 빼야 갈린다 -
         // 밀면 [a,c,d], 끌어다 덮으면 [a,d,c] 다.
-        JBro::GameObject* fourth = canvas.CreateObject("Fourth");
+        JBro::Object::GameObject* fourth = canvas.CreateObject("Fourth");
         fourth->SetParent(parent);
 
         second->SetParent(nullptr);
@@ -1922,10 +1922,10 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* alpha = canvas.CreateObject("Alpha");
-        JBro::GameObject* beta = canvas.CreateObject("Beta");
-        JBro::GameObject* moved = canvas.CreateObject("Moved");
-        JBro::GameObject* sibling = canvas.CreateObject("Sibling");
+        JBro::Object::GameObject* alpha = canvas.CreateObject("Alpha");
+        JBro::Object::GameObject* beta = canvas.CreateObject("Beta");
+        JBro::Object::GameObject* moved = canvas.CreateObject("Moved");
+        JBro::Object::GameObject* sibling = canvas.CreateObject("Sibling");
         moved->SetParent(alpha);
         sibling->SetParent(alpha);
 
@@ -1952,8 +1952,8 @@ namespace
 
         // **0 번이 아닌 자리로도 옮겨져야 한다.** 늘 맨 앞에 꽂는 구현과
         // 구분하려면 0 이 아닌 자리를 한 번은 써야 한다.
-        JBro::GameObject* one = canvas.CreateObject("One");
-        JBro::GameObject* two = canvas.CreateObject("Two");
+        JBro::Object::GameObject* one = canvas.CreateObject("One");
+        JBro::Object::GameObject* two = canvas.CreateObject("Two");
         one->SetParent(beta);
         two->SetParent(beta);
         // 지금 beta 의 자식은 [moved, one, two] 다.
@@ -2000,10 +2000,10 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* anchor = canvas.CreateObject("Anchor");
+        JBro::Object::GameObject* anchor = canvas.CreateObject("Anchor");
         auto* anchorTransform =
             canvas.AttachComponent<JBro::Component::Transform2D>(anchor);
-        JBro::GameObject* floating = canvas.CreateObject("Floating");
+        JBro::Object::GameObject* floating = canvas.CreateObject("Floating");
         auto* floatingTransform =
             canvas.AttachComponent<JBro::Component::Transform2D>(floating);
 
@@ -2048,9 +2048,9 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* anchor = canvas.CreateObject("Anchor");
+        JBro::Object::GameObject* anchor = canvas.CreateObject("Anchor");
         canvas.AttachComponent<JBro::Component::Transform2D>(anchor);
-        JBro::GameObject* fresh = canvas.CreateObject("Fresh");
+        JBro::Object::GameObject* fresh = canvas.CreateObject("Fresh");
         auto* freshTransform =
             canvas.AttachComponent<JBro::Component::Transform2D>(fresh);
         freshTransform->position = {5.0f, 6.0f};
@@ -2065,7 +2065,7 @@ namespace
         Check(NearlyEqual(freshTransform->position.y, 6.0f), "both parts of it");
 
         // 트랜스폼이 아예 없는 오브젝트도 옮겨져야 한다.
-        JBro::GameObject* bare = canvas.CreateObject("Bare");
+        JBro::Object::GameObject* bare = canvas.CreateObject("Bare");
         Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveInHierarchyCommand>(
                 canvas, ids, ids.Track(bare), ids.Track(anchor), 0)),
             "an object with no transform must move too");
@@ -2079,11 +2079,11 @@ namespace
         RegisterOnce();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
 
-        JBro::GameObject* first = canvas.CreateObject("First");
-        JBro::GameObject* second = canvas.CreateObject("Second");
-        JBro::GameObject* third = canvas.CreateObject("Third");
+        JBro::Object::GameObject* first = canvas.CreateObject("First");
+        JBro::Object::GameObject* second = canvas.CreateObject("Second");
+        JBro::Object::GameObject* third = canvas.CreateObject("Third");
 
-        JBro::Array<JBro::GameObject*> roots;
+        JBro::Array<JBro::Object::GameObject*> roots;
         canvas.GetRootObjects(roots);
         Check(roots.Size() == 3, "all three are roots");
         Check(roots[0] == first && roots[1] == second && roots[2] == third,
@@ -2127,11 +2127,11 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* first = canvas.CreateObject("First");
-        JBro::GameObject* second = canvas.CreateObject("Second");
-        JBro::GameObject* third = canvas.CreateObject("Third");
+        JBro::Object::GameObject* first = canvas.CreateObject("First");
+        JBro::Object::GameObject* second = canvas.CreateObject("Second");
+        JBro::Object::GameObject* third = canvas.CreateObject("Third");
 
-        JBro::Array<JBro::GameObject*> roots;
+        JBro::Array<JBro::Object::GameObject*> roots;
         canvas.GetRootObjects(roots);
         Check(roots[0] == first && roots[1] == second && roots[2] == third,
             "they start in the order they were made");
@@ -2150,8 +2150,8 @@ namespace
 
         // **부모를 떼는 것**. 뿌리로 올라간 자리까지 정해지고, 되돌리면 부모와
         // 그 안의 자리가 함께 돌아온다.
-        JBro::GameObject* child = canvas.CreateObject("Child");
-        JBro::GameObject* laterSibling = canvas.CreateObject("LaterSibling");
+        JBro::Object::GameObject* child = canvas.CreateObject("Child");
+        JBro::Object::GameObject* laterSibling = canvas.CreateObject("LaterSibling");
         child->SetParent(first);
         laterSibling->SetParent(first);
         const JBro::EditorObjectId childId = ids.Track(child);
@@ -2221,8 +2221,8 @@ namespace
             "setting it to what it already is is not an edit");
 
         // ── 오브젝트를 옮긴다. 자식도 함께 간다. ─────────────────────────
-        JBro::GameObject* parent = canvas.CreateObject("Parent");
-        JBro::GameObject* child = canvas.CreateObject("Child");
+        JBro::Object::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("Child");
         child->SetParent(parent);
         const JBro::LayerId original = parent->GetLayerId();
         Check(child->GetLayerId() == original, "both start on the default layer");
@@ -2276,9 +2276,9 @@ namespace
         JBro::EditorObjectRegistry ids;
         JBro::EditorCommandManager commands;
 
-        JBro::GameObject* anchor = canvas.CreateObject("Anchor");
-        JBro::GameObject* rig = canvas.CreateObject("Rig");
-        JBro::GameObject* inside = canvas.CreateObject("Inside");
+        JBro::Object::GameObject* anchor = canvas.CreateObject("Anchor");
+        JBro::Object::GameObject* rig = canvas.CreateObject("Rig");
+        JBro::Object::GameObject* inside = canvas.CreateObject("Inside");
         inside->SetParent(rig);
         DistanceJoint2D* toInside = canvas.AttachComponent<DistanceJoint2D>(rig);
         toInside->connectedObject = inside->GetScriptHandle();
@@ -2301,8 +2301,8 @@ namespace
         JBro::PasteObjectsCommand* raw = paste.Get();
         Check(commands.Execute(std::move(paste)), "the rig is pasted");
         const auto check = [&](const char* what) {
-            JBro::GameObject* copy = ids.Resolve(raw->GetPastedRootIds()[0]);
-            JBro::GameObject* copiedInside = copy != nullptr && copy->GetChildren().Size() == 1 ? copy->GetChildren()[0].TryGet() : nullptr;
+            JBro::Object::GameObject* copy = ids.Resolve(raw->GetPastedRootIds()[0]);
+            JBro::Object::GameObject* copiedInside = copy != nullptr && copy->GetChildren().Size() == 1 ? copy->GetChildren()[0].TryGet() : nullptr;
             DistanceJoint2D* copiedToInside = copy != nullptr ? canvas.FindComponentRaw<DistanceJoint2D>(copy) : nullptr;
             DistanceJoint2D* copiedToAnchor = copiedInside != nullptr ? canvas.FindComponentRaw<DistanceJoint2D>(copiedInside) : nullptr;
             Check(copiedToInside != nullptr && copiedToInside->connectedObject.GetInstanceId() == copiedInside->GetInstanceId(), what);
@@ -2331,7 +2331,7 @@ namespace
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
             JBro::EditorObjectRegistry ids;
             JBro::EditorCommandManager commands;
-            JBro::GameObject* object = canvas.CreateObject("Scripted");
+            JBro::Object::GameObject* object = canvas.CreateObject("Scripted");
             const JBro::EditorObjectId id = ids.Track(object);
             const JBro::NameId scriptName = JBro::NameTable::Get().Intern(EditorScriptProbe::StaticTypeName());
 

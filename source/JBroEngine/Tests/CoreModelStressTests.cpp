@@ -127,16 +127,16 @@ namespace
     void RunDeferredDestroyWithQueuedPair(bool attachParentLast, const char* label)
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* parent = canvas.CreateObject("parent");
-        JBro::GameObject* child = canvas.CreateObject("child");
-        JBro::GameObject* bystander = canvas.CreateObject("bystander");
+        JBro::Object::GameObject* parent = canvas.CreateObject("parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("child");
+        JBro::Object::GameObject* bystander = canvas.CreateObject("bystander");
         child->SetParent(parent);
 
-        JBro::GameObject* const attachOrder[3] = {
+        JBro::Object::GameObject* const attachOrder[3] = {
             attachParentLast ? child : parent,
             attachParentLast ? parent : child,
             bystander};
-        for (JBro::GameObject* object : attachOrder)
+        for (JBro::Object::GameObject* object : attachOrder)
         {
             Check(canvas.AttachComponent<JBro::Component::Transform2D>(object) != nullptr,
                 "stress fixture must attach a transform to each object");
@@ -148,7 +148,7 @@ namespace
             [&](JBro::Component::Transform2D& transform)
         {
             ++visited;
-            JBro::GameObject* owner = JBro::Internal::CanvasAccess::GetOwner(transform);
+            JBro::Object::GameObject* owner = JBro::Internal::CanvasAccess::GetOwner(transform);
             if (owner == bystander)
             {
                 return;
@@ -181,7 +181,7 @@ namespace
     void TestDeferredComponentDestroyDuringIteration()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("multi");
+        JBro::Object::GameObject* object = canvas.CreateObject("multi");
         auto* first = canvas.AttachComponent<JBro::Component::Collider2D>(object);
         auto* second = canvas.AttachComponent<JBro::Component::Collider2D>(object);
         Check(first != nullptr && second != nullptr && first != second,
@@ -228,7 +228,7 @@ namespace
 
         // 태그는 이제 정수다. 문자열 API 는 표를 거쳐 그대로 동작해야 한다.
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("enemy spawner");
+        JBro::Object::GameObject* object = canvas.CreateObject("enemy spawner");
         Check(object != nullptr, "the tagged object must be created");
         Check(std::strcmp(object->GetTag(), "enemy spawner") == 0,
             "an object must give back the name it was created with");
@@ -244,7 +244,7 @@ namespace
     void TestCachedTypeIdMatchesTheVirtualAnswer()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("typed");
+        JBro::Object::GameObject* object = canvas.CreateObject("typed");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         auto* body = canvas.AttachComponent<JBro::Component::Rigidbody2D>(object);
@@ -278,7 +278,7 @@ namespace
         JBro::Layer& second = canvas.CreateLayer("second");
         JBro::Layer& third = canvas.CreateLayer("third");
 
-        JBro::GameObject* onSecond = canvas.CreateObject("on second");
+        JBro::Object::GameObject* onSecond = canvas.CreateObject("on second");
         Check(canvas.SetObjectLayer(onSecond, second.GetId()), "object must take a layer");
         Check(onSecond->GetLayer() == &second, "object must point at its layer");
 
@@ -301,15 +301,15 @@ namespace
     void TestHandleDoesNotReviveOnARecycledSlot()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* first = canvas.CreateObject("first");
-        const JBro::GameObjectHandle stale = first->GetScriptHandle();
+        JBro::Object::GameObject* first = canvas.CreateObject("first");
+        const JBro::Handle::GameObject stale = first->GetScriptHandle();
         Check(stale.IsValid(), "a fresh handle must resolve");
 
         Check(canvas.DestroyObject(first), "the object must be destroyable");
         Check(false == stale.IsValid(), "a handle to a destroyed object must not resolve");
 
         // 같은 슬롯이 거의 확실히 재사용된다.
-        JBro::GameObject* second = canvas.CreateObject("second");
+        JBro::Object::GameObject* second = canvas.CreateObject("second");
         Check(second != nullptr, "the canvas must keep creating");
         Check(false == stale.IsValid(),
             "a stale handle must not resolve onto whatever took the slot");

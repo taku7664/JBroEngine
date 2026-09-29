@@ -138,10 +138,10 @@ namespace
         }
     };
 
-    JBro::GameObject* PlaceCube(JBro::Canvas& canvas, const char* name, const JBro::Vector3& position,
+    JBro::Object::GameObject* PlaceCube(JBro::Canvas& canvas, const char* name, const JBro::Vector3& position,
         const JBro::Vector3& scale, const JBro::Color& tint)
     {
-        JBro::GameObject* object = canvas.CreateObject(name);
+        JBro::Object::GameObject* object = canvas.CreateObject(name);
         auto* transform = canvas.AttachComponent<JBro::Component::Transform3D>(object);
         transform->position = position;
         transform->scale = scale;
@@ -170,7 +170,7 @@ namespace
         Check(stage.renderer.GetMeshCount() == 1, "initializing must upload the builtin cube");
         JBro::Canvas& canvas = *framework.GetCanvas();
 
-        JBro::GameObject* eye = canvas.CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
         camera->primary = true;
@@ -223,7 +223,7 @@ namespace
         context.renderer = &stage.renderer;
         Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
         JBro::Canvas& canvas = *framework.GetCanvas();
-        JBro::GameObject* eye = canvas.CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 4.0f};
         auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
         camera->primary = true;

@@ -150,7 +150,7 @@ namespace JBro
             m_audioAsset = {};
         }
         m_audioDrawn = false;
-        GameObject* object = m_editor->GetSelectedObject();
+        Object::GameObject* object = m_editor->GetSelectedObject();
         if (object == nullptr)
         {
             // 오브젝트 대신 에셋이 골라져 있으면 그 임포트 옵션이다(D-120).
@@ -191,7 +191,7 @@ namespace JBro
                         // **고른 것이 다 따라간다**(D-142). 여럿을 골라 놓고 하나만 꺼지면
                         // 나머지는 화면에서 그대로라 무엇이 바뀌었는지 알 수 없다.
                         Array<EditorObjectId> ids;
-                        const Array<GameObject*> chosenObjects = m_editor->GetSelectedObjects();
+                        const Array<Object::GameObject*> chosenObjects = m_editor->GetSelectedObjects();
                         for (std::size_t index = 0; index < chosenObjects.Size(); ++index)
                         {
                             if (chosenObjects[index] != nullptr)
@@ -478,7 +478,7 @@ namespace JBro
 
     // 붙일 수 있는 것은 레지스트리에 있는 것이다. 인스펙터는 여기서도 타입을
     // 하나도 모른다 - 표가 늘면 목록이 는다.
-    void InspectorPanel::DrawAddComponent(GameObject& object)
+    void InspectorPanel::DrawAddComponent(Object::GameObject& object)
     {
         // 검색 드롭다운 하나다(D-116). 현재 번호를 늘 -1 로 주므로 트리거에는 "컴포넌트
         // 추가" 가 보이고, 고르면 그 자리에서 커맨드 하나가 나간다.
@@ -508,14 +508,14 @@ namespace JBro
             *m_editor, object, list.typeNames[static_cast<std::size_t>(chosen)]);
     }
 
-    void InspectorPanel::MoveComponent(GameObject& object, std::size_t from, std::size_t to)
+    void InspectorPanel::MoveComponent(Object::GameObject& object, std::size_t from, std::size_t to)
     {
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
         m_editor->GetCommands().Execute(MakeOwnerPtr<MoveComponentCommand>(
             m_editor->GetObjectIds(), objectId, from, to));
     }
 
-    void InspectorPanel::RemoveComponent(GameObject& object, ComponentBase& component)
+    void InspectorPanel::RemoveComponent(Object::GameObject& object, ComponentBase& component)
     {
         Canvas* canvas = m_editor->GetCanvas();
         if (canvas == nullptr)
@@ -683,7 +683,7 @@ namespace JBro
 
     void InspectorPanel::DrawObjectField(const TypeDescriptor& type, void* address, Context& context)
     {
-        GameObjectHandle& handle = *static_cast<GameObjectHandle*>(address);
+        Handle::GameObject& handle = *static_cast<Handle::GameObject*>(address);
         m_objectNames.Clear();
         m_objectIds.Clear();
         m_objectNames.Add(String(Loc::TextOr(LocKeys::InspectorObjectNone, "None")));
@@ -691,7 +691,7 @@ namespace JBro
         int current = handle.GetInstanceId() == InvalidInstanceId ? 0 : -1;
         if (Canvas* canvas = m_editor->GetCanvas())
         {
-            canvas->ForEachObject([&](GameObject& object) {
+            canvas->ForEachObject([&](Object::GameObject& object) {
                 if (object.GetInstanceId() == handle.GetInstanceId())
                 {
                     current = static_cast<int>(m_objectIds.Size());
@@ -720,7 +720,7 @@ namespace JBro
         }
         if (dropped != 0)
         {
-            GameObject* object = m_editor->GetObjectIds().Resolve(static_cast<EditorObjectId>(dropped));
+            Object::GameObject* object = m_editor->GetObjectIds().Resolve(static_cast<EditorObjectId>(dropped));
             if (object == nullptr)
             {
                 return;
@@ -729,7 +729,7 @@ namespace JBro
         }
         else if (chosen >= 0 && static_cast<std::size_t>(chosen) < m_objectIds.Size())
         {
-            handle = chosen == 0 ? GameObjectHandle{} : Internal::GameObjectHandleAccess::FromId(m_objectIds[static_cast<std::size_t>(chosen)]);
+            handle = chosen == 0 ? Handle::GameObject{} : Internal::GameObjectHandleAccess::FromId(m_objectIds[static_cast<std::size_t>(chosen)]);
         }
         else
         {
@@ -1038,7 +1038,7 @@ namespace JBro
 
         // **조상이 함께 골라졌으면 뺀다.** 부모를 옮기면 자식은 따라 움직이므로
         // 둘 다 대상으로 삼으면 자식에게 두 번 적용된다(기존 `GetSelectedTopLevel`).
-        const Array<GameObject*> chosen = m_editor->GetTopLevelSelectedObjects();
+        const Array<Object::GameObject*> chosen = m_editor->GetTopLevelSelectedObjects();
         for (std::size_t index = 0; index < chosen.Size(); ++index)
         {
             if (ComponentBase* found =
@@ -1846,7 +1846,7 @@ namespace JBro
             return;
         }
         // 오브젝트 참조는 캔버스의 오브젝트 목록이다(D-233).
-        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.GameObjectHandle"))
+        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.Handle.GameObject"))
         {
             DrawObjectField(type, address, context);
             return;

@@ -93,9 +93,9 @@ namespace
         JBro::Layer& front = canvas.CreateLayer("front");
 
         // 기본 레이어에 부모 → 자식 → 손자 사슬을 세운다.
-        JBro::GameObject* root = canvas.CreateObject("root");
-        JBro::GameObject* child = canvas.CreateObject("child");
-        JBro::GameObject* grandChild = canvas.CreateObject("grandchild");
+        JBro::Object::GameObject* root = canvas.CreateObject("root");
+        JBro::Object::GameObject* child = canvas.CreateObject("child");
+        JBro::Object::GameObject* grandChild = canvas.CreateObject("grandchild");
         child->SetParent(root);
         grandChild->SetParent(child);
 
@@ -105,7 +105,7 @@ namespace
         canvas.AttachComponent<ProbeScript>(child)->mark = 2;
 
         // 앞 레이어의 오브젝트는 기본 레이어 전부보다 뒤에 와야 한다.
-        JBro::GameObject* onFront = canvas.CreateObject("on front");
+        JBro::Object::GameObject* onFront = canvas.CreateObject("on front");
         Check(canvas.SetObjectLayer(onFront, front.GetId()), "the probe object must move layers");
         canvas.AttachComponent<ProbeScript>(onFront)->mark = 9;
 
@@ -126,7 +126,7 @@ namespace
         JBro::System::ScriptSystem scripts;
         scripts.Initialize(canvas);
 
-        JBro::GameObject* object = canvas.CreateObject("scripted");
+        JBro::Object::GameObject* object = canvas.CreateObject("scripted");
         auto* script = canvas.AttachComponent<ProbeScript>(object);
         script->mark = 1;
 
@@ -147,7 +147,7 @@ namespace
         Check(callLog.Size() == 2, "an already started script must keep updating");
 
         // 나중에 붙은 스크립트는 그 프레임에 시작한다.
-        JBro::GameObject* late = canvas.CreateObject("late");
+        JBro::Object::GameObject* late = canvas.CreateObject("late");
         auto* lateScript = canvas.AttachComponent<ProbeScript>(late);
         lateScript->mark = 2;
         scripts.Update(canvas, 0.5f);
@@ -165,7 +165,7 @@ namespace
         JBro::System::ScriptSystem scripts;
         scripts.Initialize(canvas);
 
-        JBro::GameObject* first = canvas.CreateObject("first");
+        JBro::Object::GameObject* first = canvas.CreateObject("first");
         canvas.AttachComponent<ProbeScript>(first)->mark = 1;
 
         // 아직 한 번도 Update 를 돌지 않았으므로 고정 스텝은 아무것도 부르면 안 된다.
@@ -188,8 +188,8 @@ namespace
         JBro::System::ScriptSystem scripts;
         scripts.Initialize(canvas);
 
-        JBro::GameObject* kept = canvas.CreateObject("kept");
-        JBro::GameObject* dropped = canvas.CreateObject("dropped");
+        JBro::Object::GameObject* kept = canvas.CreateObject("kept");
+        JBro::Object::GameObject* dropped = canvas.CreateObject("dropped");
         auto* keptScript = canvas.AttachComponent<ProbeScript>(kept);
         auto* droppedScript = canvas.AttachComponent<ProbeScript>(dropped);
         keptScript->mark = 1;
@@ -242,7 +242,7 @@ namespace
     // 위에서 가상 함수를 불러도 그냥 도는 수가 있고, 그러면 "안 터졌으니 괜찮다" 는
     // 잘못된 결론이 난다. 그래서 파수병 값을 두고 **파괴된 뒤에 불렸는지를 직접 본다**.
     JBro::Canvas*    activeCanvas = nullptr;
-    JBro::GameObject* victimObject = nullptr;
+    JBro::Object::GameObject* victimObject = nullptr;
     bool victimRanWhileAlive = false;
     bool victimRanAfterDestruction = false;
 
@@ -317,8 +317,8 @@ namespace
         victimRanAfterDestruction = false;
 
         // 먼저 만든 것이 먼저 돈다(같은 레이어·같은 깊이면 InstanceId 순서다).
-        JBro::GameObject* killer = canvas.CreateObject("killer");
-        JBro::GameObject* victim = canvas.CreateObject("victim");
+        JBro::Object::GameObject* killer = canvas.CreateObject("killer");
+        JBro::Object::GameObject* victim = canvas.CreateObject("victim");
         victimObject = victim;
         canvas.AttachComponent<KillerScript>(killer);
         canvas.AttachComponent<VictimScript>(victim);
@@ -354,10 +354,10 @@ namespace
         scripts.Initialize(canvas);
 
         // 만드는 차례가 A, A의 자식, B, B의 자식이다.
-        JBro::GameObject* rootA = canvas.CreateObject("A");
-        JBro::GameObject* childA = canvas.CreateObject("A1");
-        JBro::GameObject* rootB = canvas.CreateObject("B");
-        JBro::GameObject* childB = canvas.CreateObject("B1");
+        JBro::Object::GameObject* rootA = canvas.CreateObject("A");
+        JBro::Object::GameObject* childA = canvas.CreateObject("A1");
+        JBro::Object::GameObject* rootB = canvas.CreateObject("B");
+        JBro::Object::GameObject* childB = canvas.CreateObject("B1");
         childA->SetParent(rootA);
         childB->SetParent(rootB);
 
@@ -386,7 +386,7 @@ namespace
         JBro::System::ScriptSystem scripts;
         scripts.Initialize(canvas);
 
-        JBro::GameObject* object = canvas.CreateObject("two scripts");
+        JBro::Object::GameObject* object = canvas.CreateObject("two scripts");
         auto* first = canvas.AttachComponent<ProbeScript>(object);
         auto* second = canvas.AttachComponent<ProbeScript>(object);
         first->mark = 1;
@@ -417,8 +417,8 @@ namespace
         JBro::System::ScriptSystem scripts;
         scripts.Initialize(canvas);
 
-        JBro::GameObject* parent = canvas.CreateObject("parent");
-        JBro::GameObject* child = canvas.CreateObject("child");
+        JBro::Object::GameObject* parent = canvas.CreateObject("parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("child");
         canvas.AttachComponent<ProbeScript>(parent)->mark = 1;
         canvas.AttachComponent<ProbeScript>(child)->mark = 2;
 
@@ -459,7 +459,7 @@ namespace
             "creating a layer and moving an object into it must mark the order stale");
 
         const std::size_t beforeAttach = scripts.GetRebuildCount();
-        JBro::GameObject* late = canvas.CreateObject("late");
+        JBro::Object::GameObject* late = canvas.CreateObject("late");
         canvas.AttachComponent<ProbeScript>(late)->mark = 3;
         scripts.Update(canvas, 0.016f);
         Check(scripts.GetRebuildCount() == beforeAttach + 1,

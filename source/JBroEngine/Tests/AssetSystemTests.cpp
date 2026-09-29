@@ -432,10 +432,10 @@ namespace
         context.assets = &fixture.assets;
         Check(framework.Initialize(context), "a framework without a renderer initializes");
         JBro::Canvas* canvas = framework.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("hero");
+        JBro::Object::GameObject* object = canvas->CreateObject("hero");
         auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         sprite->spriteId = fixture.spriteId;
-        JBro::GameObject* other = canvas->CreateObject("ghost");
+        JBro::Object::GameObject* other = canvas->CreateObject("ghost");
         auto* missing = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(other);
         missing->spriteId = JBro::Uuid::FromName("nobody");
         missing->sprite = JBro::AssetHandle{3, 3};

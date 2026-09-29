@@ -117,9 +117,9 @@ namespace JBro::Internal
             InstanceId focus = InvalidInstanceId;
         };
 
-        bool IsInFocus(const GameObject* owner, InstanceId focus)
+        bool IsInFocus(const Object::GameObject* owner, InstanceId focus)
         {
-            for (const GameObject* at = owner; at != nullptr; at = at->GetParent())
+            for (const Object::GameObject* at = owner; at != nullptr; at = at->GetParent())
             {
                 if (at->GetInstanceId() == focus)
                 {

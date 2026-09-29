@@ -33,7 +33,7 @@ namespace JBro::System
             {
                 return;
             }
-            GameObject* owner = Internal::CanvasAccess::GetOwner(sprite);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(sprite);
             // 비가시 레이어는 렌더만 빠진다. 시뮬레이션은 계속 돈다(§7).
             const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
             if (layer != nullptr && false == layer->IsVisible())

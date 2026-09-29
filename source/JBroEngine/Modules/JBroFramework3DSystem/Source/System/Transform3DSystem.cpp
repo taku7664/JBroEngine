@@ -11,7 +11,7 @@ namespace JBro::System
     {
         void PropagateWorldTransform(
             Canvas& canvas,
-            GameObject& object,
+            Object::GameObject& object,
             Component::Transform3D& transform,
             const Vector3& parentPosition,
             const Quaternion& parentRotation,
@@ -25,9 +25,9 @@ namespace JBro::System
             transform.worldScale = Multiply(parentScale, transform.scale);
             transform.worldValid = true;
 
-            for (const SafePtr<GameObject>& childReference : object.GetChildren())
+            for (const SafePtr<Object::GameObject>& childReference : object.GetChildren())
             {
-                GameObject* child = childReference.TryGet();
+                Object::GameObject* child = childReference.TryGet();
                 if (child == nullptr)
                 {
                     continue;
@@ -62,7 +62,7 @@ namespace JBro::System
             {
                 return;
             }
-            GameObject* owner = Internal::CanvasAccess::GetOwner(transform);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(transform);
             if (owner == nullptr)
             {
                 return;

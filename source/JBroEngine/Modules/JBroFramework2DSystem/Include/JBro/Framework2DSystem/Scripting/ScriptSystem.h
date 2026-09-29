@@ -66,7 +66,7 @@ namespace JBro::System
         // 다시 세운다(D-45 의 지연 재구축).
         void EnsureOrder(Canvas& canvas);
         void Rebuild(Canvas& canvas);
-        void AppendScripts(GameObject& object);
+        void AppendScripts(Object::GameObject& object);
         bool IsScript(const ComponentBase* component) const;
         void BuildInputChain(Canvas& canvas);
         void SortInputChain();
@@ -75,12 +75,12 @@ namespace JBro::System
         // `m_collected` 를 주소로 정렬한 것. 컴포넌트 슬롯이 스크립트인지 이분 탐색으로
         // 가른다 - 재구축은 cold path 이므로 여기서 dynamic_cast 를 쓰지 않는다(§9).
         Array<const ComponentBase*>  m_scriptKeys;
-        Array<GameObject*>           m_roots;
+        Array<Object::GameObject*>           m_roots;
         // 깊이 우선 순회를 재귀 대신 이 배열로 돈다. **재구축이 힙을 건드리면 안 된다** -
         // 정상 프레임에 스폰과 파괴가 들어 있고(D-54) 그것이 목록을 헌 것으로 만들므로,
         // 재구축은 드물어도 "정상 프레임" 안에서 일어난다. 멤버로 두면 `Clear` 가 용량을
         // 남기므로 두 번째 재구축부터 할당이 0 이다(§9).
-        Array<GameObject*>           m_walkStack;
+        Array<Object::GameObject*>           m_walkStack;
         Array<ScriptEntry>           m_ordered;
 
         // 입력 레이어 체인이다(D-214). 실행 순서 목록과 같은 때에 다시 세운다 - 켜고 끄기·파괴·핫 리로드가 모두

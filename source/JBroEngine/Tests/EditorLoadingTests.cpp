@@ -166,8 +166,8 @@ namespace
     JBro::Component::SpriteRenderer2D* FindHeroSprite(JBro::EditorApplication& editor)
     {
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* hero = nullptr;
-        canvas->ForEachObject([&hero](JBro::GameObject& object) { hero = &object; });
+        JBro::Object::GameObject* hero = nullptr;
+        canvas->ForEachObject([&hero](JBro::Object::GameObject& object) { hero = &object; });
         Check(hero != nullptr, "the opened canvas must hold its object");
         return canvas->FindComponentRaw<JBro::Component::SpriteRenderer2D>(hero);
     }
@@ -176,7 +176,7 @@ namespace
     void WriteSpriteCanvas(JBro::EditorApplication& editor, const JBro::AssetId& sprite, const std::filesystem::path& path)
     {
         JBro::Canvas* canvas = editor.GetCanvas();
-        JBro::GameObject* object = canvas->CreateObject("Hero");
+        JBro::Object::GameObject* object = canvas->CreateObject("Hero");
         Check(canvas->AttachComponent<JBro::Component::Transform2D>(object) != nullptr, "the hero takes a transform");
         auto* renderer = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         Check(renderer != nullptr, "the hero takes a sprite renderer");

@@ -12,7 +12,7 @@ namespace JBro
         {
             return;
         }
-        canvas.ForEachObject([visitor, user](GameObject& object)
+        canvas.ForEachObject([visitor, user](Object::GameObject& object)
         {
             for (const ComponentSlot& slot : object.GetComponents())
             {

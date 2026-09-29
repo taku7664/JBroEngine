@@ -43,7 +43,7 @@ namespace JBro::EditorActions
         // **컴포넌트마다 더한 항목을 인스턴스마다 하위 메뉴로 세운다**(D-220). 줄 이름은 번역하지 않는 타입
         // 이름이고, 같은 타입이 둘 이상이면 둘째부터 `(2)` 처럼 번호를 붙인다(인스펙터의 슬롯 순서와 같다).
         // 항목이 없는 타입은 줄을 만들지 않는다. **거짓이면 오브젝트가 더 이상 없을 수 있다.**
-        bool DrawComponentSubmenus(EditorApplication& editor, GameObject& object,
+        bool DrawComponentSubmenus(EditorApplication& editor, Object::GameObject& object,
             const ObjectPlacement& placement)
         {
             ComponentMenuTable& table = editor.GetComponentMenus();
@@ -114,21 +114,21 @@ namespace JBro::EditorActions
         }
     }
 
-    LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent)
+    LayerId ResolveTargetLayer(EditorApplication& editor, Object::GameObject* parent)
     {
         // 부모가 있으면 부모를 따른다. 자식만 다른 칸에 있으면 부모를 감춰도 자식이 남는다.
         if (parent != nullptr)
         {
             return parent->GetLayerId();
         }
-        if (GameObject* selected = editor.GetSelectedObject())
+        if (Object::GameObject* selected = editor.GetSelectedObject())
         {
             return selected->GetLayerId();
         }
         return InvalidLayerId;
     }
 
-    GameObject* CreateObject(EditorApplication& editor, GameObject* parent,
+    Object::GameObject* CreateObject(EditorApplication& editor, Object::GameObject* parent,
         const ObjectPlacement& placement)
     {
         Canvas* canvas = editor.GetCanvas();
@@ -156,12 +156,12 @@ namespace JBro::EditorActions
             return nullptr;
         }
         // 만든 것을 고른다. 만들자마자 이름과 값을 손보는 것이 다음 손짓이다.
-        GameObject* created = ids.Resolve(raw->GetObjectId());
+        Object::GameObject* created = ids.Resolve(raw->GetObjectId());
         editor.SetSelectedObject(created);
         return created;
     }
 
-    bool Unparent(EditorApplication& editor, GameObject& object)
+    bool Unparent(EditorApplication& editor, Object::GameObject& object)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr || object.GetParent() == nullptr)
@@ -170,13 +170,13 @@ namespace JBro::EditorActions
         }
         EditorObjectRegistry& ids = editor.GetObjectIds();
         // 뿌리 맨 뒤로 간다. 어디에 놓을지 고른 것이 아니므로 끝이 가장 덜 놀랍다.
-        Array<GameObject*> roots;
+        Array<Object::GameObject*> roots;
         canvas->GetRootObjects(roots);
         return editor.GetCommands().Execute(MakeOwnerPtr<MoveInHierarchyCommand>(
             *canvas, ids, ids.Track(&object), InvalidEditorObjectId, roots.Size()));
     }
 
-    bool DeleteObject(EditorApplication& editor, GameObject& object)
+    bool DeleteObject(EditorApplication& editor, Object::GameObject& object)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -198,7 +198,7 @@ namespace JBro::EditorActions
             return false;
         }
         // **맨 위 것들만**이다. 부모를 지우면 자식은 따라 사라진다.
-        const Array<GameObject*> targets = editor.GetTopLevelSelectedObjects();
+        const Array<Object::GameObject*> targets = editor.GetTopLevelSelectedObjects();
         if (targets.Size() == 0)
         {
             return false;
@@ -208,7 +208,7 @@ namespace JBro::EditorActions
         bool any = false;
         for (std::size_t index = 0; index < targets.Size(); ++index)
         {
-            GameObject* object = targets[index];
+            Object::GameObject* object = targets[index];
             if (object == nullptr)
             {
                 continue;
@@ -222,7 +222,7 @@ namespace JBro::EditorActions
         return any;
     }
 
-    bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent,
+    bool DrawCreateObjectItem(EditorApplication& editor, Object::GameObject* parent,
         const ObjectPlacement& placement)
     {
         if (false == Widget::MenuItem(
@@ -234,7 +234,7 @@ namespace JBro::EditorActions
         return CreateObject(editor, parent, placement) != nullptr;
     }
 
-    bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent,
+    bool DrawCreateChildItem(EditorApplication& editor, Object::GameObject& parent,
         const ObjectPlacement& placement)
     {
         if (false == Widget::MenuItem(
@@ -246,7 +246,7 @@ namespace JBro::EditorActions
         return CreateObject(editor, &parent, placement) != nullptr;
     }
 
-    bool DrawUnparentItem(EditorApplication& editor, GameObject& object)
+    bool DrawUnparentItem(EditorApplication& editor, Object::GameObject& object)
     {
         // **부모가 없으면 항목 자체를 내지 않는다.** 회색으로 두면 무엇을 해야 켜지는지
         // 알 수 없고, 뿌리 오브젝트에는 영원히 켜지지 않는다.
@@ -281,7 +281,7 @@ namespace JBro::EditorActions
         return editor.PasteClipboard();
     }
 
-    bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object)
+    bool DrawPasteAsChildItem(EditorApplication& editor, Object::GameObject& object)
     {
         // **고른 것 안으로 붙인다**(D-166, 기존 `PasteObjectsAsChild`). 줄에서 연 메뉴이므로 그 줄이 곧 부모다.
         if (false == Widget::MenuItem(
@@ -294,7 +294,7 @@ namespace JBro::EditorActions
         return editor.PasteClipboard(true);
     }
 
-    bool DrawDeleteItem(EditorApplication& editor, GameObject& object)
+    bool DrawDeleteItem(EditorApplication& editor, Object::GameObject& object)
     {
         if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"), "Del",
                 editor.GetCanvas() != nullptr, NoProjectReason()))
@@ -304,7 +304,7 @@ namespace JBro::EditorActions
         return DeleteObject(editor, object);
     }
 
-    void BuildAddComponentList(const GameObject& object, AddComponentList& out)
+    void BuildAddComponentList(const Object::GameObject& object, AddComponentList& out)
     {
         out.typeNames.Clear();
         out.names.Clear();
@@ -357,7 +357,7 @@ namespace JBro::EditorActions
         }
     }
 
-    bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName)
+    bool AddComponent(EditorApplication& editor, Object::GameObject& object, NameId typeName)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr
@@ -370,7 +370,7 @@ namespace JBro::EditorActions
             *canvas, editor.GetObjectIds(), objectId, typeName));
     }
 
-    bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object)
+    bool DrawAddComponentMenu(EditorApplication& editor, Object::GameObject& object)
     {
         if (false == Widget::BeginMenu(
                 Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component")))
@@ -413,7 +413,7 @@ namespace JBro::EditorActions
         return added;
     }
 
-    bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
+    bool DrawObjectMenu(EditorApplication& editor, Object::GameObject& object,
         const ObjectPlacement& placement)
     {
         // 우클릭한 것을 고른 것으로 삼는다. 메뉴가 무엇에 대한 것인지 보이는 것과 어긋나면 안 된다.

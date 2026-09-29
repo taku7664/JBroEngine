@@ -11,14 +11,14 @@
 
 namespace JBro
 {
-    bool ObjectTreeSnapshot::Capture(const Canvas& canvas, EditorObjectRegistry& registry, GameObject& root)
+    bool ObjectTreeSnapshot::Capture(const Canvas& canvas, EditorObjectRegistry& registry, Object::GameObject& root)
     {
         objects.Clear();
         return CaptureInto(canvas, registry, root, -1);
     }
 
     bool ObjectTreeSnapshot::CaptureInto(
-        const Canvas& canvas, EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex)
+        const Canvas& canvas, EditorObjectRegistry& registry, Object::GameObject& object, std::int64_t parentIndex)
     {
         ObjectSnapshotEntry entry;
         entry.id = registry.Track(&object);
@@ -56,10 +56,10 @@ namespace JBro
         const std::int64_t self = static_cast<std::int64_t>(objects.Size());
         objects.Add(std::move(entry));
 
-        const Array<SafePtr<GameObject>>& children = object.GetChildren();
+        const Array<SafePtr<Object::GameObject>>& children = object.GetChildren();
         for (std::size_t index = 0; index < children.Size(); ++index)
         {
-            if (GameObject* child = children[index].TryGet())
+            if (Object::GameObject* child = children[index].TryGet())
             {
                 if (false == CaptureInto(canvas, registry, *child, self))
                 {
@@ -71,22 +71,22 @@ namespace JBro
     }
 
     bool ObjectTreeSnapshot::Restore(
-        Canvas& canvas, EditorObjectRegistry& registry, GameObject* outerParent, bool rebind)
+        Canvas& canvas, EditorObjectRegistry& registry, Object::GameObject* outerParent, bool rebind)
     {
         // 만든 것을 순서대로 들고 있는다. 부모는 늘 먼저 나오므로 앞에서부터
         // 만들면 붙일 자리가 이미 있다.
-        Array<GameObject*> created;
+        Array<Object::GameObject*> created;
         for (std::size_t index = 0; index < objects.Size(); ++index)
         {
             ObjectSnapshotEntry& entry = objects[index];
             // 되살리기는 옛 번호로, 붙여넣기의 첫 실행은 새 번호로 만든다. 다시 하기는 첫 실행이 받은 번호를 다시 쓴다.
-            GameObject* object = canvas.CreateObject(entry.name.c_str(), rebind ? entry.instanceId : InvalidInstanceId);
+            Object::GameObject* object = canvas.CreateObject(entry.name.c_str(), rebind ? entry.instanceId : InvalidInstanceId);
             if (object == nullptr)
             {
                 return false;
             }
             entry.instanceId = object->GetInstanceId();
-            GameObject* parent = entry.parentIndex < 0
+            Object::GameObject* parent = entry.parentIndex < 0
                 ? outerParent
                 : created[static_cast<std::size_t>(entry.parentIndex)];
             if (parent != nullptr)
@@ -144,7 +144,7 @@ namespace JBro
         return true;
     }
 
-    void ObjectTreeSnapshot::RetargetReferences(const Array<GameObject*>& created) const
+    void ObjectTreeSnapshot::RetargetReferences(const Array<Object::GameObject*>& created) const
     {
         // **나무 안의 참조는 나무 안의 새 오브젝트로 옮긴다**(D-233). 붙여넣은 조인트가 원본의 상대를 붙잡지 않고 함께 붙여넣은
         // 상대를 잡는다. 나무 밖을 가리키는 참조는 그대로 둔다. 맨 위 필드만 본다 - 참조 필드를 가진 컴포넌트가 그렇게 선언한다.
@@ -157,8 +157,8 @@ namespace JBro
         {
             return;
         }
-        const NameId handleType = NameTable::Get().Intern("JBro.GameObjectHandle");
-        for (GameObject* object : created)
+        const NameId handleType = NameTable::Get().Intern("JBro.Handle.GameObject");
+        for (Object::GameObject* object : created)
         {
             for (const ComponentSlot& slot : object->GetComponents())
             {
@@ -175,7 +175,7 @@ namespace JBro
                     {
                         continue;
                     }
-                    GameObjectHandle& handle = *static_cast<GameObjectHandle*>(property.Address(component));
+                    Handle::GameObject& handle = *static_cast<Handle::GameObject*>(property.Address(component));
                     for (const ObjectSnapshotEntry& entry : objects)
                     {
                         if (entry.sourceInstanceId != InvalidInstanceId && handle.GetInstanceId() == entry.sourceInstanceId)
@@ -195,7 +195,7 @@ namespace JBro
         {
             return false;
         }
-        GameObject* object = registry.Resolve(objects[0].id);
+        Object::GameObject* object = registry.Resolve(objects[0].id);
         if (object == nullptr)
         {
             return false;

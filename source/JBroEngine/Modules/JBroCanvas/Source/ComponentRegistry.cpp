@@ -49,11 +49,11 @@ namespace JBro
             out.typeId = script.typeId;
             out.category = ComponentCategory::Script;
             out.multiplicity = ComponentMultiplicity::Multiple;
-            out.Attach = [](Canvas& canvas, GameObject* owner, NameId name) -> ComponentBase*
+            out.Attach = [](Canvas& canvas, Object::GameObject* owner, NameId name) -> ComponentBase*
             {
                 return canvas.AttachScript(owner, name);
             };
-            out.Detach = [](Canvas& canvas, GameObject* owner, ComponentBase* component) -> bool
+            out.Detach = [](Canvas& canvas, Object::GameObject* owner, ComponentBase* component) -> bool
             {
                 // 스크립트 풀에서 온 것만 뗀다. 내림 변환은 그 타입이 스크립트 표에 있을 때만 옳다.
                 if (component == nullptr || ScriptRegistry::Get().Find(component->GetTypeId()) == nullptr)
@@ -165,7 +165,7 @@ namespace JBro
         return types;
     }
 
-    bool ComponentRegistry::CanAttach(const GameObject& object, NameId name) const
+    bool ComponentRegistry::CanAttach(const Object::GameObject& object, NameId name) const
     {
         ComponentTypeInfo found;
         if (false == FindAttachable(name, found))

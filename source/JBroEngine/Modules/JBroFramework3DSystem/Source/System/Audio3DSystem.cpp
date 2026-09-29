@@ -17,7 +17,7 @@ namespace JBro::System
     {
         const Component::Transform3D* WorldOf(Canvas& canvas, const ComponentBase& component)
         {
-            GameObject* owner = Internal::CanvasAccess::GetOwner(component);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(component);
             const auto* transform = canvas.FindComponentRaw<Component::Transform3D>(owner);
             if (transform == nullptr || false == transform->IsActiveComponent() || false == transform->worldValid)
             {

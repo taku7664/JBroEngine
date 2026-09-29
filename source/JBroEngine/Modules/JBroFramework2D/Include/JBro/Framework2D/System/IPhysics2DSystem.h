@@ -25,12 +25,12 @@ namespace JBro::System
         virtual void RaycastAll(Vector2 origin, Vector2 direction, float distance, Array<RaycastHit2D>& hits,
             std::uint32_t layerMask) const = 0;
         // 축 정렬 상자와 겹치는 오브젝트. 오브젝트마다 한 번이다.
-        virtual void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
+        virtual void OverlapBox(const Rect& area, Array<Handle::GameObject>& results,
             std::uint32_t layerMask) const = 0;
         // 점을 품은 첫 오브젝트. 없으면 빈 핸들이다.
-        virtual GameObjectHandle OverlapPoint(Vector2 point, std::uint32_t layerMask) const = 0;
+        virtual Handle::GameObject OverlapPoint(Vector2 point, std::uint32_t layerMask) const = 0;
         // 원과 겹치는 오브젝트. 오브젝트마다 한 번이다.
-        virtual void OverlapCircle(Vector2 center, float radius, Array<GameObjectHandle>& results,
+        virtual void OverlapCircle(Vector2 center, float radius, Array<Handle::GameObject>& results,
             std::uint32_t layerMask) const = 0;
         // 원을 밀어 처음 닿는 콜라이더. point 는 맞은 순간의 접촉점이다.
         virtual bool CircleCast(Vector2 origin, float radius, Vector2 direction, float distance, RaycastHit2D& hit,

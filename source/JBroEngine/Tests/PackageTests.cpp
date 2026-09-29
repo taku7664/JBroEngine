@@ -409,7 +409,7 @@ namespace
             spriteId = owned[0];
             // 시작 캔버스: 스프라이트 하나를 그린다.
             Canvas* canvas = framework.GetCanvas();
-            GameObject* hero = canvas->CreateObject("hero");
+            Object::GameObject* hero = canvas->CreateObject("hero");
             canvas->AttachComponent<Component::Transform2D>(hero);
             canvas->AttachComponent<Component::SpriteRenderer2D>(hero)->spriteId = spriteId;
             canvas->AttachComponent<Component::AudioSource>(hero)->clipId = soundId;

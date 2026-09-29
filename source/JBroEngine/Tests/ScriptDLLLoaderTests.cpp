@@ -730,7 +730,7 @@ namespace
         JBro::String savedWithScript;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("scripted by name");
+            JBro::Object::GameObject* object = canvas.CreateObject("scripted by name");
             JBro::GameScriptBase* script = canvas.AttachScript(object, "ProbeRegisteredScript");
             Check(script != nullptr, "the canvas must attach a script it only knows by name");
 
@@ -777,7 +777,7 @@ namespace
             Check(false == stale.IsValid(),
                 "a reference to a destroyed script must not stay valid");
 
-            JBro::GameObject* second = canvas.CreateObject("second scripted");
+            JBro::Object::GameObject* second = canvas.CreateObject("second scripted");
             JBro::GameScriptBase* reborn = canvas.AttachScript(second, "ProbeRegisteredScript");
             Check(reborn != nullptr, "the pool must serve a second script");
             Check(false == stale.IsValid(),

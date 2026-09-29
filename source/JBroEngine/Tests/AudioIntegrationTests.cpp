@@ -623,9 +623,9 @@ namespace
             canvas = framework.GetCanvas();
         }
 
-        Component::AudioSource* AddSource(const char* name, float x, bool loop, GameObject** out = nullptr)
+        Component::AudioSource* AddSource(const char* name, float x, bool loop, Object::GameObject** out = nullptr)
         {
-            GameObject* object = canvas->CreateObject(name);
+            Object::GameObject* object = canvas->CreateObject(name);
             auto* transform = canvas->AttachComponent<Component::Transform2D>(object);
             transform->position = {x, 0.0f};
             auto* source = canvas->AttachComponent<Component::AudioSource>(object);
@@ -916,7 +916,7 @@ namespace
             "enabling it again plays once more");
 
         // 루프는 멈출 때까지 운다.
-        GameObject* themeObject = nullptr;
+        Object::GameObject* themeObject = nullptr;
         Component::AudioSource* looping = scene.AddSource("theme", 0.0f, true, &themeObject);
         scene.framework.BindCanvasAssets();
         scene.Frame();
@@ -970,10 +970,10 @@ namespace
         scene.Frame();
 
         // 공간화: 리스너 오른쪽의 소스는 오른쪽이 크다. 변환을 옮기면 따라간다.
-        GameObject* ear = scene.canvas->CreateObject("ear");
+        Object::GameObject* ear = scene.canvas->CreateObject("ear");
         scene.canvas->AttachComponent<Component::Transform2D>(ear);
         scene.canvas->AttachComponent<Component::AudioListener2D>(ear);
-        GameObject* bee = nullptr;
+        Object::GameObject* bee = nullptr;
         Component::AudioSource* buzz = scene.AddSource("bee", 8.0f, true, &bee);
         buzz->spatial = true;
         buzz->attenuation = AudioAttenuation::Linear;

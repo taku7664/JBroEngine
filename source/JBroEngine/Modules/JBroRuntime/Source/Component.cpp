@@ -24,20 +24,20 @@ namespace JBro
         m_typeId = GetTypeId();
     }
 
-    GameObjectHandle ComponentBase::GetOwner() const
+    Handle::GameObject ComponentBase::GetOwner() const
     {
-        GameObject* owner = m_owner.TryGet();
-        return owner == nullptr ? GameObjectHandle() : owner->GetScriptHandle();
+        Object::GameObject* owner = m_owner.TryGet();
+        return owner == nullptr ? Handle::GameObject() : owner->GetScriptHandle();
     }
 
-    GameObject* ComponentBase::GetOwnerObject() const
+    Object::GameObject* ComponentBase::GetOwnerObject() const
     {
         return m_owner.TryGet();
     }
 
     bool ComponentBase::IsActiveComponent() const
     {
-        GameObject* owner = m_owner.TryGet();
+        Object::GameObject* owner = m_owner.TryGet();
         return m_enabled && owner != nullptr && owner->IsActiveInHierarchy();
     }
 
@@ -77,7 +77,7 @@ namespace JBro
         OnDisabled();
     }
 
-    void ComponentBase::SetOwner(GameObject* owner)
+    void ComponentBase::SetOwner(Object::GameObject* owner)
     {
         if (owner == nullptr)
         {

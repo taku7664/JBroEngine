@@ -185,7 +185,7 @@ namespace
         template<typename T>
         T* Add(int mark)
         {
-            GameObject* object = canvas.CreateObject("probe");
+            Object::GameObject* object = canvas.CreateObject("probe");
             T* script = canvas.AttachComponent<T>(object);
             script->mark = mark;
             return script;
@@ -547,7 +547,7 @@ namespace
         framework.SetScreenSpace(frame);
         Canvas* canvas = framework.GetCanvas();
 
-        GameObject* eye = canvas->CreateObject("eye");
+        Object::GameObject* eye = canvas->CreateObject("eye");
         canvas->AttachComponent<Component::Transform2D>(eye);
         auto* camera = canvas->AttachComponent<Component::Camera2D>(eye);
         camera->primary = true;
@@ -556,7 +556,7 @@ namespace
         Layer& hud = canvas->CreateLayer("HUD");
         hud.SetSpace(LayerSpace::Screen);
         const auto makeButton = [&](const char* name, Layer* layer, Vector2 position, Vector2 size) {
-            GameObject* object = canvas->CreateObject(name);
+            Object::GameObject* object = canvas->CreateObject(name);
             if (layer != nullptr)
             {
                 canvas->SetObjectLayer(object, layer->GetId());
@@ -566,9 +566,9 @@ namespace
             canvas->AttachComponent<Component::SpriteRenderer2D>(object);
             return object;
         };
-        GameObject* play = makeButton("play", &hud, {0.0f, 0.0f}, {40.0f, 20.0f});
-        GameObject* sign = makeButton("sign", nullptr, {60.0f, 0.0f}, {20.0f, 20.0f});
-        GameObject* under = makeButton("under", nullptr, {0.0f, 0.0f}, {30.0f, 30.0f});
+        Object::GameObject* play = makeButton("play", &hud, {0.0f, 0.0f}, {40.0f, 20.0f});
+        Object::GameObject* sign = makeButton("sign", nullptr, {60.0f, 0.0f}, {20.0f, 20.0f});
+        Object::GameObject* under = makeButton("under", nullptr, {0.0f, 0.0f}, {30.0f, 30.0f});
         auto* playButton = canvas->FindComponentRaw<Component::Button2D>(play);
         auto* playSprite = canvas->FindComponentRaw<Component::SpriteRenderer2D>(play);
         auto* probe = canvas->AttachComponent<ButtonProbe>(play);
@@ -672,7 +672,7 @@ namespace
         Vector2 pixel;
         Check(screen.LayerToScreen({60.0f, 0.0f}, sign->GetScriptHandle(), pixel) && closeTo(pixel.x, 160.0f) && closeTo(pixel.y, 50.0f),
             "a world point goes back to its pixel");
-        Check(false == screen.ScreenToLayer({1.0f, 1.0f}, GameObjectHandle{}, point), "an empty handle has no layer");
+        Check(false == screen.ScreenToLayer({1.0f, 1.0f}, Handle::GameObject{}, point), "an empty handle has no layer");
 
         framework.UnbindScriptContexts();
         framework.Shutdown();

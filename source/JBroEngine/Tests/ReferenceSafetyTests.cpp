@@ -331,8 +331,8 @@ namespace
         registry.Clear();
 
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* parent = canvas.CreateObject("Parent");
-        JBro::GameObject* child = canvas.CreateObject("Child");
+        JBro::Object::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("Child");
         Check(parent != nullptr && child != nullptr, "Canvas must create pooled objects");
         Check(canvas.GetObjectCount() == 2, "Canvas must report live objects");
         Check(registry.GetLiveCount() == 2, "created objects must be registered");
@@ -367,7 +367,7 @@ namespace
         });
         Check(visited == 2 && total == 33, "typed Canvas iteration must visit live components");
 
-        JBro::GameObjectHandle handle = parent->GetScriptHandle();
+        JBro::Handle::GameObject handle = parent->GetScriptHandle();
         Check(handle.IsValid(), "handle must resolve a live object");
         Check(handle.GetComponent<TestComponent>().Get() == first,
             "handle component lookup must preserve first-match semantics");
@@ -377,8 +377,8 @@ namespace
         Check(false == first->IsActiveComponent(),
             "component active gate must include owner hierarchy state");
 
-        JBro::SafePtr<JBro::GameObject> parentSafe = parent->SafeFromThis();
-        JBro::SafePtr<JBro::GameObject> childSafe = child->SafeFromThis();
+        JBro::SafePtr<JBro::Object::GameObject> parentSafe = parent->SafeFromThis();
+        JBro::SafePtr<JBro::Object::GameObject> childSafe = child->SafeFromThis();
         handle.Destroy();
         Check(false == handle.IsValid(), "destroyed object handle must become invalid");
         Check(false == parentSafe.IsValid() && false == childSafe.IsValid(),
@@ -402,8 +402,8 @@ namespace
         {
             JBro::Canvas firstCanvas(JBro::CreateDefaultAllocator());
             JBro::Canvas secondCanvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* first = firstCanvas.CreateObject("FirstCanvasObject");
-            JBro::GameObject* second = secondCanvas.CreateObject("SecondCanvasObject");
+            JBro::Object::GameObject* first = firstCanvas.CreateObject("FirstCanvasObject");
+            JBro::Object::GameObject* second = secondCanvas.CreateObject("SecondCanvasObject");
             Check(first != nullptr && second != nullptr,
                 "multiple canvases must both create registered objects");
             Check(first->GetInstanceId() != second->GetInstanceId(),

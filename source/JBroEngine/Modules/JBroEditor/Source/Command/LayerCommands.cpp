@@ -27,13 +27,13 @@ namespace JBro
         }
 
         // 이 오브젝트와 그 모든 자손. 레이어는 부분 트리 전체가 함께 간다.
-        void CollectSubtree(GameObject& object, Array<GameObject*>& result)
+        void CollectSubtree(Object::GameObject& object, Array<Object::GameObject*>& result)
         {
             result.Add(&object);
-            const Array<SafePtr<GameObject>>& children = object.GetChildren();
+            const Array<SafePtr<Object::GameObject>>& children = object.GetChildren();
             for (std::size_t index = 0; index < children.Size(); ++index)
             {
-                if (GameObject* child = children[index].TryGet())
+                if (Object::GameObject* child = children[index].TryGet())
                 {
                     CollectSubtree(*child, result);
                 }
@@ -115,7 +115,7 @@ namespace JBro
         m_space = found->GetSpace();
         m_scaleMode = found->GetScaleMode();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
-        canvas.ForEachObject([this, layer](GameObject& object)
+        canvas.ForEachObject([this, layer](Object::GameObject& object)
         {
             if (object.GetLayerId() == layer)
             {
@@ -155,7 +155,7 @@ namespace JBro
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
         {
-            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            if (Object::GameObject* object = m_registry->Resolve(m_objects[index]))
             {
                 m_canvas->SetObjectLayer(object, m_layerId);
             }
@@ -307,7 +307,7 @@ namespace JBro
         // 옮길 루트의 옛 자리를 먼저 뜬다. 하나라도 못 뜨면 실행하지 않는다.
         for (const RootMove& move : moves)
         {
-            GameObject* object = registry.Resolve(move.object);
+            Object::GameObject* object = registry.Resolve(move.object);
             const auto* transform = object != nullptr ? canvas.FindComponentRaw<Component::Transform2D>(object) : nullptr;
             if (transform == nullptr)
             {
@@ -335,7 +335,7 @@ namespace JBro
         const Array<RootMove>& moves = after ? m_after : m_before;
         for (const RootMove& move : moves)
         {
-            GameObject* object = m_registry->Resolve(move.object);
+            Object::GameObject* object = m_registry->Resolve(move.object);
             auto* transform = object != nullptr ? m_canvas->FindComponentRaw<Component::Transform2D>(object) : nullptr;
             if (transform != nullptr)
             {
@@ -430,14 +430,14 @@ namespace JBro
         , m_objectId(objectId)
         , m_after(layer)
     {
-        GameObject* object = registry.Resolve(objectId);
+        Object::GameObject* object = registry.Resolve(objectId);
         if (object == nullptr || canvas.FindLayer(layer) == nullptr)
         {
             return;
         }
         // **되살릴 값을 먼저 뜬다**(§11.5). 부분 트리의 오브젝트마다 원래 레이어다 -
         // 자식이 부모와 다른 레이어에 있었을 수도 있고, 되돌리면 저마다 제 자리로 가야 한다.
-        Array<GameObject*> subtree;
+        Array<Object::GameObject*> subtree;
         CollectSubtree(*object, subtree);
         for (std::size_t index = 0; index < subtree.Size(); ++index)
         {
@@ -459,7 +459,7 @@ namespace JBro
         bool any = false;
         for (std::size_t index = 0; index < m_before.Size(); ++index)
         {
-            if (GameObject* object = m_registry->Resolve(m_before[index].objectId))
+            if (Object::GameObject* object = m_registry->Resolve(m_before[index].objectId))
             {
                 if (m_canvas->SetObjectLayer(object, layer))
                 {
@@ -497,7 +497,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < m_before.Size(); ++index)
         {
-            if (GameObject* object = m_registry->Resolve(m_before[index].objectId))
+            if (Object::GameObject* object = m_registry->Resolve(m_before[index].objectId))
             {
                 m_canvas->SetObjectLayer(object, m_before[index].layer);
             }

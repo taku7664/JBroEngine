@@ -82,7 +82,7 @@ namespace
             JBRO_FIELD(float, Speed) = 1.0f;
             JBRO_FIELD(float, Lives) = 3.0f;
             JBRO_FIELD(float, Gone) = 0.0f;
-            JBRO_FIELD(GameObjectHandle, Target);
+            JBRO_FIELD(Handle::GameObject, Target);
         };
     }
 
@@ -104,7 +104,7 @@ namespace
 
             JBRO_FIELD(float, Speed) = 1.0f;
             JBRO_FIELD(int, Lives) = 0;
-            JBRO_FIELD(GameObjectHandle, Target);
+            JBRO_FIELD(Handle::GameObject, Target);
             JBRO_FIELD(float, Jump) = 9.0f;
         };
     }
@@ -163,7 +163,7 @@ namespace
         PropertyRegistry m_properties;
     };
 
-    ComponentBase* AttachBuiltin(Canvas& canvas, GameObject* object, const char* name)
+    ComponentBase* AttachBuiltin(Canvas& canvas, Object::GameObject* object, const char* name)
     {
         ComponentTypeInfo info;
         Check(ComponentRegistry::Get().FindAttachable(MakeNameId(name), info), "the builtin is known");
@@ -171,7 +171,7 @@ namespace
     }
 
     // 오브젝트의 컴포넌트 차례를 타입 이름으로 적는다. 모르는 컴포넌트는 `?이름` 으로 그 자리에 끼운다.
-    String DescribeOrder(Canvas& canvas, GameObject* object)
+    String DescribeOrder(Canvas& canvas, Object::GameObject* object)
     {
         String text;
         const Array<ComponentSlot>& components = object->GetComponents();
@@ -220,8 +220,8 @@ namespace
         Check(RegisterScriptType<First::HotProbe>(), "the first version registers");
 
         Canvas canvas(CreateDefaultAllocator());
-        GameObject* target = canvas.CreateObject("Target");
-        GameObject* holder = canvas.CreateObject("Holder");
+        Object::GameObject* target = canvas.CreateObject("Target");
+        Object::GameObject* holder = canvas.CreateObject("Holder");
         ComponentBase* transform = AttachBuiltin(canvas, holder, "Component::Transform2D");
         Check(transform != nullptr, "a builtin goes first");
         auto* one = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
@@ -310,7 +310,7 @@ namespace
         ScopedScriptTables tables;
         Check(RegisterScriptType<First::HotProbe>(), "the first version registers");
         Canvas canvas(CreateDefaultAllocator());
-        GameObject* holder = canvas.CreateObject("Holder");
+        Object::GameObject* holder = canvas.CreateObject("Holder");
         auto* script = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
         script->Speed = 3.5f;
 
@@ -352,8 +352,8 @@ namespace
         {
             Canvas canvas(CreateDefaultAllocator());
             canvas.CreateObject("Spacer");
-            GameObject* target = canvas.CreateObject("Target");
-            GameObject* holder = canvas.CreateObject("Holder");
+            Object::GameObject* target = canvas.CreateObject("Target");
+            Object::GameObject* holder = canvas.CreateObject("Holder");
             auto* script = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
             script->Target = Internal::GameObjectHandleAccess::FromId(target->GetInstanceId());
             CanvasFileError error;
@@ -369,7 +369,7 @@ namespace
         Check(RegisterScriptType<First::HotProbe>(), "the library arrives");
         Array<ComponentResolveNote> notes;
         Check(ResolveKeptComponents(canvas, notes) == 1 && notes.IsEmpty(), "the script comes back");
-        const GameObject* found = Internal::GameObjectHandleAccess::Resolve(FindScript<First::HotProbe>(canvas)->Target);
+        const Object::GameObject* found = Internal::GameObjectHandleAccess::Resolve(FindScript<First::HotProbe>(canvas)->Target);
         Check(found != nullptr && std::strcmp(found->GetTag(), "Target") == 0, "pointing at the object the file named");
         tables.Clear();
         canvas.ReleaseModuleScripts();
@@ -468,7 +468,7 @@ namespace
         Check(ProbeRevision(editor) == 1, "the first revision of the probe");
         Canvas* canvas = editor.GetCanvas();
         Check(canvas != nullptr, "the editor has a canvas");
-        GameObject* object = canvas->CreateObject("Scripted");
+        Object::GameObject* object = canvas->CreateObject("Scripted");
         Check(canvas->AttachScript(object, "ProbeRegisteredScript") != nullptr, "the probe script attaches");
         const PropertyInfo* speed = FindField("ProbeRegisteredScript", "Speed");
         Check(speed != nullptr, "the probe script has its speed field");

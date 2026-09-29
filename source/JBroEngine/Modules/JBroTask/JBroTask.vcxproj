@@ -25,7 +25,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <!--
     엔진과 에디터가 함께 쓰는 태스크 관리자다(D-209). Tier E 커널이고 캔버스·스크립트를 모른다.
-    JBroCore 만 본다. JBroRuntime 의 include 경로를 받지 않으므로 `Ref<T>`·`GameObjectHandle` 헤더를 넣으면
+    JBroCore 만 본다. JBroRuntime 의 include 경로를 받지 않으므로 `Ref<T>`·`Handle::GameObject` 헤더를 넣으면
     컴파일이 실패한다. 스크립트 타깃은 이 모듈의 경로를 받지 않는다(TierProbe 의 Task).
   -->
   <ItemDefinitionGroup>

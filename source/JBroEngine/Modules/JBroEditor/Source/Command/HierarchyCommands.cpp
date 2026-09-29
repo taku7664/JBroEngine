@@ -10,7 +10,7 @@ namespace JBro
 {
     namespace
     {
-        Component::Transform2D* FindTransform(Canvas& canvas, GameObject& object)
+        Component::Transform2D* FindTransform(Canvas& canvas, Object::GameObject& object)
         {
             return canvas.FindComponentRaw<Component::Transform2D>(&object);
         }
@@ -26,18 +26,18 @@ namespace JBro
         , m_registry(&registry)
         , m_objectId(objectId)
     {
-        GameObject* object = registry.Resolve(objectId);
+        Object::GameObject* object = registry.Resolve(objectId);
         if (object == nullptr)
         {
             return;
         }
-        GameObject* newParent = newParentId != InvalidEditorObjectId
+        Object::GameObject* newParent = newParentId != InvalidEditorObjectId
             ? registry.Resolve(newParentId)
             : nullptr;
 
         // **자기 밑으로는 못 들어간다.** `SetParent` 가 거절하지만, 거절당한
         // 뒤에 순서만 바뀌어 있으면 반쯤 적용된 상태가 된다 - 아예 뜨지 않는다.
-        for (GameObject* walk = newParent; walk != nullptr; walk = walk->GetParent())
+        for (Object::GameObject* walk = newParent; walk != nullptr; walk = walk->GetParent())
         {
             if (walk == object)
             {
@@ -65,12 +65,12 @@ namespace JBro
 
     bool MoveInHierarchyCommand::Capture(Placement& placement) const
     {
-        GameObject* object = m_registry->Resolve(m_objectId);
+        Object::GameObject* object = m_registry->Resolve(m_objectId);
         if (object == nullptr)
         {
             return false;
         }
-        GameObject* parent = object->GetParent();
+        Object::GameObject* parent = object->GetParent();
         placement.parentId = parent != nullptr ? m_registry->Track(parent)
             : InvalidEditorObjectId;
         placement.siblingIndex = 0;
@@ -95,7 +95,7 @@ namespace JBro
     }
 
     bool MoveInHierarchyCommand::ComputeWorldStay(
-        GameObject& object, GameObject* newParent, Placement& placement) const
+        Object::GameObject& object, Object::GameObject* newParent, Placement& placement) const
     {
         Component::Transform2D* transform = FindTransform(*m_canvas, object);
         if (transform == nullptr)
@@ -162,12 +162,12 @@ namespace JBro
 
     bool MoveInHierarchyCommand::Apply(const Placement& placement)
     {
-        GameObject* object = m_registry->Resolve(m_objectId);
+        Object::GameObject* object = m_registry->Resolve(m_objectId);
         if (object == nullptr)
         {
             return false;
         }
-        GameObject* parent = placement.parentId != InvalidEditorObjectId
+        Object::GameObject* parent = placement.parentId != InvalidEditorObjectId
             ? m_registry->Resolve(placement.parentId)
             : nullptr;
 

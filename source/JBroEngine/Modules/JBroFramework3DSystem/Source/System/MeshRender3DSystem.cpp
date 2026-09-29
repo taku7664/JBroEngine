@@ -37,7 +37,7 @@ namespace JBro::System
             {
                 return;
             }
-            GameObject* owner = Internal::CanvasAccess::GetOwner(renderer);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(renderer);
             const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
             if (layer != nullptr && false == layer->IsVisible())
             {

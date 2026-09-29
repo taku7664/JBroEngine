@@ -17,7 +17,10 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
     struct ComponentMenuContext;
     namespace Component
     {
@@ -65,9 +68,9 @@ namespace JBro
 
         // **이 오브젝트 안으로 들어간다**(D-254, 기존 `SetFocusContext`). 캔버스 뷰와 계층 창의 두 번 누르기가 같은 길이다.
         // 고르기는 부르는 쪽이 한다 - 캔버스 뷰는 자손까지, 계층 창은 그 줄 하나를 고른다.
-        void StepInto(GameObject& object);
+        void StepInto(Object::GameObject& object);
         // 지금 들어가 있는 오브젝트다. 뿌리면 nullptr 이다.
-        GameObject* GetFocus() const;
+        Object::GameObject* GetFocus() const;
 
     private:
         // 그림이 붙은 화면 사각형과 그때의 카메라다. 겹쳐 그리는 것들이 전부 이것을 쓴다.
@@ -99,7 +102,7 @@ namespace JBro
         void DrawSelectionOutlines(const ViewRect& rect);
         // 고른 것이 스프라이트면 **그림의 실제 모양**을 두른다(D-149). 아직 재지 못했거나
         // 스프라이트가 아니면 거짓이고, 부르는 쪽이 사각형으로 두른다.
-        bool DrawSpriteContour(const ViewRect& rect, GameObject& object, ImU32 color);
+        bool DrawSpriteContour(const ViewRect& rect, Object::GameObject& object, ImU32 color);
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);
@@ -120,7 +123,7 @@ namespace JBro
         };
         struct PolygonTarget
         {
-            GameObject*            object = nullptr;
+            Object::GameObject*            object = nullptr;
             Component::Collider2D* collider = nullptr;
             ComponentAddress       address;
             PolygonPose            pose;
@@ -157,7 +160,7 @@ namespace JBro
         // (기존 엔진 `CCanvasViewTool` 의 드래그 박스 선택). 상자를 그리는 것도 여기다.
         void HandleBoxSelect(const ViewRect& rect, bool hovered);
         // 이 오브젝트와 그 자손을 모두 선택에 더한다(D-253).
-        void AddTreeToSelection(GameObject& object);
+        void AddTreeToSelection(Object::GameObject& object);
         void DrawContextMenu(const ViewRect& rect);
         // 고른 것들이 다 보이도록 카메라를 맞춘다. 고른 것이 없으면 캔버스 전체다.
         void FrameSelection();
@@ -174,12 +177,12 @@ namespace JBro
         // 그리는 카메라가 가려는 카메라를 따라간다(D-252, 기존 `CAMERA_SMOOTH_SPEED`). 3D 는 곧바로 맞춘다.
         void FollowCameraGoal(float deltaSeconds);
         // 이 오브젝트와 그 자손이 차지하는 사각형을 늘려 담는다. 트랜스폼이 하나도 없으면 `any` 가 그대로다.
-        void IncludeTreeBounds(const GameObject& object,
+        void IncludeTreeBounds(const Object::GameObject& object,
             float& minX, float& minY, float& maxX, float& maxY, bool& any) const;
         // 두 번 눌러 들어가거나 나온 오브젝트로 카메라가 줌해 간다(D-252, 기존 `FocusOnEntity`).
-        void FocusCameraOn(const GameObject& object);
+        void FocusCameraOn(const Object::GameObject& object);
         // 이 화면 점에 걸리는 오브젝트. 없으면 nullptr 이다. 앞에 그려지는 것이 먼저 잡힌다.
-        GameObject* PickAt(const ViewRect& rect, float screenX, float screenY) const;
+        Object::GameObject* PickAt(const ViewRect& rect, float screenX, float screenY) const;
 
         // ── 들어가 고르기(D-157, 기존 `CCanvasViewEditContext`) ──────────────────
         //
@@ -192,23 +195,23 @@ namespace JBro
         // 마우스가 이 뷰의 그림 위에 있는가(D-179). 기즈모 손잡이에 가려도 참이다.
         bool PointerInView(const ViewRect& rect) const;
         // 한 층 나온다(D-254). 나온 오브젝트를 돌려준다. 뿌리면 아무것도 하지 않고 nullptr 이다.
-        GameObject* StepOut();
+        Object::GameObject* StepOut();
         // **나올 때 돌아갈 자리를 한 번만 적는다**(D-257, D-254 를 고친다). 들어가기 직전에 지금 층의 카메라를 적고, 그 층으로 나올 때 그리로
         // 돌아가며 버린다 - 뿌리로 나오면 들어가기 전의 뿌리 자리, A 로 나오면 A 안에서 더 들어가기 전의 자리다. 들어갈 때는 늘 오브젝트에 맞춘다.
         void RememberCamera();
         // 적힌 자리로 가고 지운다. 없거나 보기가 다르면 거짓이다(그래도 지운다).
         bool TakeCamera(std::uint64_t context);
         // 누른 오브젝트를 고른다(D-254, 기존 `CollectSubtree`). 들어가 있는 오브젝트 자신이면 그것 하나, 아니면 자손까지다.
-        void SelectPicked(GameObject& picked);
-        void RemoveTreeFromSelection(GameObject& object);
+        void SelectPicked(Object::GameObject& picked);
+        void RemoveTreeFromSelection(Object::GameObject& object);
         // 걸린 오브젝트를 **지금 층의 오브젝트**로 올린다. 뿌리에서는 맨 위 조상, 들어가 있으면
         // 그 오브젝트의 직계 자식(또는 그 오브젝트 자신). 들어간 오브젝트 밖이면 nullptr 이다.
-        GameObject* MapToLevel(GameObject* hit) const;
+        Object::GameObject* MapToLevel(Object::GameObject* hit) const;
         // 화면 왼쪽 위의 상태 글자(D-172, 기존 캔버스 뷰의 오버레이): 고른 것, 편집 카메라,
         // 그리고 들어가 있으면 그 사실과 나오는 법.
         void DrawOverlay(const ViewRect& rect);
         // 오브젝트가 화면에서 차지하는 사각형(회전은 무시한 외접 사각형)을 월드로 낸다.
-        bool GetWorldBounds(const GameObject& object,
+        bool GetWorldBounds(const Object::GameObject& object,
             float& minX, float& minY, float& maxX, float& maxY) const;
 
         EditorApplication* m_editor = nullptr;
@@ -255,9 +258,9 @@ namespace JBro
         float m_otherCenterY = 0.0f;
         float m_otherSize = 5.0f;
         // 고른 것이 바뀐 프레임에만 보기를 따라 바꾼다 - 손으로 바꾼 보기를 매 프레임 되돌리지 않는다.
-        GameObject* m_lastSelection = nullptr;
+        Object::GameObject* m_lastSelection = nullptr;
         // 이 오브젝트가 지금 보기의 공간에 있는가. 그리기·고르기·테두리가 같은 규칙이다.
-        bool InViewSpace(const GameObject& object) const;
+        bool InViewSpace(const Object::GameObject& object) const;
         void DrawReferenceRect(const ViewRect& rect);
         // 3D 의 궤도 카메라(D-136). 바라보는 점의 높이와, 그 점에서의 거리와 각이다.
         float m_centerZ = 0.0f;

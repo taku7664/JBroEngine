@@ -12,7 +12,10 @@
 namespace JBro
 {
     class Canvas;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 오브젝트 나무 하나를 글자로 뜬 것이다. 지우기의 되돌리기(D-76)와 복사·붙여넣기가
     // 같은 것을 쓴다 - 둘 다 "나무를 떠 두었다가 컴포넌트를 새로 붙이고 값을 다시 써 넣는"
@@ -53,7 +56,7 @@ namespace JBro
         // `root` 와 그 아래 전부를 뜬다. 컴포넌트 하나라도 뜨지 못하면 거짓이고, 그때의
         // 내용은 믿지 않는다 - 반쪽 스냅샷으로 지우거나 붙이면 조용히 잃는다.
         // `canvas` 는 `root` 가 사는 캔버스다. 모르는 컴포넌트(D-264)를 캔버스가 들고 있어 그것까지 뜬다.
-        bool Capture(const Canvas& canvas, EditorObjectRegistry& registry, GameObject& root);
+        bool Capture(const Canvas& canvas, EditorObjectRegistry& registry, Object::GameObject& root);
 
         // 나무를 다시 만든다. `outerParent` 아래에 뿌리를 두고(널이면 캔버스 뿌리),
         // `rebind` 가 참이면 옛 번호에 다시 걸고(지우기 되돌리기), 거짓이면 새 번호를 받아
@@ -61,11 +64,11 @@ namespace JBro
         bool Restore(
             Canvas& canvas,
             EditorObjectRegistry& registry,
-            GameObject* outerParent,
+            Object::GameObject* outerParent,
             bool rebind);
 
         // 붙여넣은 나무 안을 가리키는 오브젝트 참조를 새 오브젝트로 옮긴다(D-233).
-        void RetargetReferences(const Array<GameObject*>& created) const;
+        void RetargetReferences(const Array<Object::GameObject*>& created) const;
 
         // 뿌리를 번호로 찾아 나무째 지운다. 자식은 캔버스가 함께 지운다.
         bool DestroyRoot(Canvas& canvas, EditorObjectRegistry& registry) const;
@@ -76,6 +79,6 @@ namespace JBro
         }
 
     private:
-        bool CaptureInto(const Canvas& canvas, EditorObjectRegistry& registry, GameObject& object, std::int64_t parentIndex);
+        bool CaptureInto(const Canvas& canvas, EditorObjectRegistry& registry, Object::GameObject& object, std::int64_t parentIndex);
     };
 }

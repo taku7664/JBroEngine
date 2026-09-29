@@ -123,7 +123,7 @@ namespace
     // 캔버스 파일의 YAML 은 값을 이스케이프하지 않는다. 코덱이 한 줄로 접은 것이 파일을 지나 그대로 돌아와야 한다.
     void TestTricky(Canvas& canvas, const char* sample)
     {
-        GameObject* object = canvas.CreateObject("label");
+        Object::GameObject* object = canvas.CreateObject("label");
         canvas.AttachComponent<Component::Transform2D>(object);
         auto* text = canvas.AttachComponent<Component::Text2D>(object);
         TextStore::Get().Assign(text->text, sample, std::strlen(sample));
@@ -186,8 +186,8 @@ namespace
         const std::uint32_t baseline = TextStore::Get().GetLiveCount();
         {
             Canvas canvas(CreateDefaultAllocator());
-            GameObject* a = canvas.CreateObject("a");
-            GameObject* b = canvas.CreateObject("b");
+            Object::GameObject* a = canvas.CreateObject("a");
+            Object::GameObject* b = canvas.CreateObject("b");
             auto* first = canvas.AttachComponent<Component::Text2D>(a);
             auto* second = canvas.AttachComponent<Component::Text2D>(b);
             TextStore::Get().Assign(first->text, "original", 8);
@@ -616,14 +616,14 @@ namespace
             Check(framework.Initialize(context), "the framework initializes");
             Check(framework.BindScriptContexts(), "the script contexts bind");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
 
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.fontId;
@@ -760,7 +760,7 @@ namespace
             Check(FindDark(gpu).count == dark.count, "unclipped again it is whole");
 
             // 5. 페이지가 넘치면 둘째 페이지가 생긴다. 첫 페이지의 A 는 그대로 그려진다.
-            GameObject* crowdObject = canvas->CreateObject("crowd");
+            Object::GameObject* crowdObject = canvas->CreateObject("crowd");
             auto* crowdTransform = canvas->AttachComponent<Component::Transform2D>(crowdObject);
             crowdTransform->position = {100.0f, 100.0f};
             auto* crowd = canvas->AttachComponent<Component::Text2D>(crowdObject);
@@ -787,7 +787,7 @@ namespace
             Check(texts->GetLibrary().GetPageTextureCount() == 1, "and the text on screen fills one page again");
             Check(FindDark(gpu).count == dark.count, "the A draws the same after being drawn again");
             // 5-2. 보이는 글자만으로 한도를 넘으면(곧바로 또 넘치면) 비우지 않고 그 폰트의 한도를 올린다 - 매 프레임 다시 뜨지 않는다.
-            GameObject* again = canvas->CreateObject("crowd again");
+            Object::GameObject* again = canvas->CreateObject("crowd again");
             auto* againTransform = canvas->AttachComponent<Component::Transform2D>(again);
             againTransform->position = {100.0f, 100.0f};
             auto* crowdAgain = canvas->AttachComponent<Component::Text2D>(again);
@@ -807,7 +807,7 @@ namespace
             gpu.Paint(framework);
 
             // 5-3. 글자도 스프라이트 제출 상한(여기서는 64)을 나눠 쓴다. 넘친 글자 수를 세고 알린다. 줄이면 다시 0 이다.
-            GameObject* longObject = canvas->CreateObject("long");
+            Object::GameObject* longObject = canvas->CreateObject("long");
             auto* longTransform = canvas->AttachComponent<Component::Transform2D>(longObject);
             longTransform->position = {100.0f, 100.0f};
             auto* longText = canvas->AttachComponent<Component::Text2D>(longObject);
@@ -876,12 +876,12 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.fontId;
@@ -983,14 +983,14 @@ namespace
             screen.targetHeight = 64.0f;
             framework.SetScreenSpace(screen);
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
             // 월드의 파랑: 가운데 한 유닛(32 픽셀).
-            GameObject* ground = canvas->CreateObject("ground");
+            Object::GameObject* ground = canvas->CreateObject("ground");
             canvas->AttachComponent<Component::Transform2D>(ground);
             auto* blue = canvas->AttachComponent<Component::SpriteRenderer2D>(ground);
             blue->sizeMode = Component::SpriteSizeMode::Custom;
@@ -999,7 +999,7 @@ namespace
             // 화면 레이어는 월드 레이어보다 아래 차례여도 위에 그려진다.
             Layer& ui = canvas->CreateLayer("UI");
             ui.SetSpace(LayerSpace::Screen);
-            GameObject* badge = canvas->CreateObject("badge");
+            Object::GameObject* badge = canvas->CreateObject("badge");
             Check(canvas->SetObjectLayer(badge, ui.GetId()), "the badge goes on the screen layer");
             auto* place = canvas->AttachComponent<Component::Transform2D>(badge);
             place->anchor = {1.0f, 1.0f};
@@ -1070,7 +1070,7 @@ namespace
             // 화면 레이어의 글자: 글자 픽셀이 기준 픽셀이다. 기준 = 대상이면 40 px 의 A 가 월드의 PPU 와 무관하게 40 px 로 선다.
             canvas->DestroyObject(badge);
             canvas->FlushPendingDestroy();
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             Check(canvas->SetObjectLayer(labelObject, ui.GetId()), "the label goes on the screen layer");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
@@ -1171,13 +1171,13 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.fontId;
@@ -1253,13 +1253,13 @@ namespace
             context.tasks = &tasks;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.fontId;
@@ -1372,13 +1372,13 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.fontId;
@@ -1448,13 +1448,13 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.fontId;
@@ -1577,12 +1577,12 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the 3D framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* eye = canvas->CreateObject("eye");
+            Object::GameObject* eye = canvas->CreateObject("eye");
             canvas->AttachComponent<Component::Transform3D>(eye)->position = {0.0f, 0.0f, 3.0f};
             auto* camera = canvas->AttachComponent<Component::Camera3D>(eye);
             camera->primary = true;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             auto* place = canvas->AttachComponent<Component::Transform3D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text3D>(labelObject);
             label->fontId = project.fontId;
@@ -1605,7 +1605,7 @@ namespace
                 "the block is over a unit tall (40 px at 32 px per unit)");
 
             // 앞의 상자가 가린다.
-            GameObject* box = canvas->CreateObject("box");
+            Object::GameObject* box = canvas->CreateObject("box");
             canvas->AttachComponent<Component::Transform3D>(box)->position = {0.0f, 0.0f, 1.5f};
             auto* mesh = canvas->AttachComponent<Component::MeshRenderer3D>(box);
             mesh->meshId = MeshLibrary::BuiltinCubeId();
@@ -1657,7 +1657,7 @@ namespace
             // 뒤→앞: 가까운 파랑을 먼저 붙인다.
             label->color = {0.0f, 0.0f, 1.0f, 0.5f};
             place->position = {0.0f, 0.0f, 0.5f};
-            GameObject* farObject = canvas->CreateObject("far");
+            Object::GameObject* farObject = canvas->CreateObject("far");
             canvas->AttachComponent<Component::Transform3D>(farObject);
             auto* farLabel = canvas->AttachComponent<Component::Text3D>(farObject);
             farLabel->fontId = project.fontId;
@@ -1685,7 +1685,7 @@ namespace
             Check(gpu.renderer.GetLastFrameStats().worldTextCount == 2, "two glyphs went to the renderer as world text");
 
             // 폰트를 못 찾는 텍스트는 그리지 않고 그렇다고 말한다(인스펙터 경고가 이것을 묻는다).
-            GameObject* lostObject = canvas->CreateObject("lost");
+            Object::GameObject* lostObject = canvas->CreateObject("lost");
             canvas->AttachComponent<Component::Transform3D>(lostObject);
             auto* lost = canvas->AttachComponent<Component::Text3D>(lostObject);
             lost->fontId = Uuid::FromName("a font that is not in the project");
@@ -1798,13 +1798,13 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             const auto makeLabel = [&](const char* name) {
-                GameObject* object = canvas->CreateObject(name);
+                Object::GameObject* object = canvas->CreateObject(name);
                 canvas->AttachComponent<Component::Transform2D>(object);
                 auto* label = canvas->AttachComponent<Component::Text2D>(object);
                 label->fontId = project.fontId;
@@ -1919,13 +1919,13 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.familyId;
@@ -2069,14 +2069,14 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
 
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontId = project.fontId;
@@ -2260,14 +2260,14 @@ namespace
             context.renderer = &gpu.renderer;
             Check(framework.Initialize(context), "the framework initializes");
             Canvas* canvas = framework.GetCanvas();
-            GameObject* cameraObject = canvas->CreateObject("camera");
+            Object::GameObject* cameraObject = canvas->CreateObject("camera");
             canvas->AttachComponent<Component::Transform2D>(cameraObject);
             auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
             camera->primary = true;
             camera->orthographicSize = 1.0f;
             camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
 
-            GameObject* labelObject = canvas->CreateObject("label");
+            Object::GameObject* labelObject = canvas->CreateObject("label");
             canvas->AttachComponent<Component::Transform2D>(labelObject);
             auto* label = canvas->AttachComponent<Component::Text2D>(labelObject);
             label->fontSize = 40.0f;

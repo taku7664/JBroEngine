@@ -4,13 +4,13 @@
 
 namespace JBro::Service
 {
-    bool Screen2DService::ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const
+    bool Screen2DService::ScreenToLayer(Vector2 pixel, Handle::GameObject object, Vector2& point) const
     {
         const System::IScreen2DSystem* system = GetFramework2DSystems().Screen2D;
         return system != nullptr && system->ScreenToLayer(pixel, object, point);
     }
 
-    bool Screen2DService::LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const
+    bool Screen2DService::LayerToScreen(Vector2 point, Handle::GameObject object, Vector2& pixel) const
     {
         const System::IScreen2DSystem* system = GetFramework2DSystems().Screen2D;
         return system != nullptr && system->LayerToScreen(point, object, pixel);

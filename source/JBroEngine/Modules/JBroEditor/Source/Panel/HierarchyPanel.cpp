@@ -77,13 +77,13 @@ namespace JBro
         }
 
         // 끌어 온 것을 이 부모 밑에 넣을 수 있는가. 자기 자신과 자기 자손은 안 된다.
-        bool CanReparent(const GameObject* dragged, const GameObject* newParent)
+        bool CanReparent(const Object::GameObject* dragged, const Object::GameObject* newParent)
         {
             if (dragged == nullptr)
             {
                 return false;
             }
-            for (const GameObject* walk = newParent; walk != nullptr; walk = walk->GetParent())
+            for (const Object::GameObject* walk = newParent; walk != nullptr; walk = walk->GetParent())
             {
                 if (walk == dragged)
                 {
@@ -110,7 +110,7 @@ namespace JBro
         return true;
     }
 
-    bool HierarchyPanel::Matches(const GameObject& object) const
+    bool HierarchyPanel::Matches(const Object::GameObject& object) const
     {
         if (m_filter.size() == 0)
         {
@@ -122,10 +122,10 @@ namespace JBro
         }
         // **자식이 걸리면 부모도 남는다.** 부모를 지우면 걸린 자식이 나무에서
         // 떨어져 나가 어디에 있던 것인지 알 수 없다.
-        const Array<SafePtr<GameObject>>& children = object.GetChildren();
+        const Array<SafePtr<Object::GameObject>>& children = object.GetChildren();
         for (std::size_t index = 0; index < children.Size(); ++index)
         {
-            if (const GameObject* child = children[index].TryGet())
+            if (const Object::GameObject* child = children[index].TryGet())
             {
                 if (Matches(*child))
                 {
@@ -247,7 +247,7 @@ namespace JBro
                 EditorObjectId id = InvalidEditorObjectId;
                 if (Widget::AcceptDropValue(Widget::DragKind::HierarchyObject, id))
                 {
-                    if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
+                    if (Object::GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
                     {
                         RecordDrop(*dragged, nullptr, m_roots.Size());
                     }
@@ -262,14 +262,14 @@ namespace JBro
 
     void HierarchyPanel::FlushRangeSelection()
     {
-        GameObject* clicked = m_rangeClick.TryGet();
-        m_rangeClick = SafePtr<GameObject>();
+        Object::GameObject* clicked = m_rangeClick.TryGet();
+        m_rangeClick = SafePtr<Object::GameObject>();
         if (clicked == nullptr)
         {
             return;
         }
         // 기준이 없거나 이 프레임에 보이지 않으면 찍은 줄이 새 기준이다.
-        GameObject* anchor = m_selectionAnchor.TryGet();
+        Object::GameObject* anchor = m_selectionAnchor.TryGet();
         const std::size_t clickedIndex = m_visibleRows.IndexOf(clicked);
         const std::size_t anchorIndex = anchor != nullptr
             ? m_visibleRows.IndexOf(anchor)
@@ -283,7 +283,7 @@ namespace JBro
         }
         const std::size_t first = anchorIndex < clickedIndex ? anchorIndex : clickedIndex;
         const std::size_t last = anchorIndex < clickedIndex ? clickedIndex : anchorIndex;
-        Array<GameObject*> range;
+        Array<Object::GameObject*> range;
         range.Reserve(last - first + 1);
         for (std::size_t index = first; index <= last; ++index)
         {
@@ -359,7 +359,7 @@ namespace JBro
             bool any = false;
             for (std::size_t at = 0; at < m_roots.Size(); ++at)
             {
-                GameObject* root = m_roots[at];
+                Object::GameObject* root = m_roots[at];
                 if (root == nullptr || root->GetLayerId() != layerId)
                 {
                     continue;
@@ -431,7 +431,7 @@ namespace JBro
             EditorObjectId id = InvalidEditorObjectId;
             if (Widget::AcceptDropValue(Widget::DragKind::HierarchyObject, id))
             {
-                if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
+                if (Object::GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
                 {
                     // 레이어에 놓는 것은 **뿌리로 올리고 그 레이어로 보내는** 것이다.
                     // 자식인 채로 레이어만 바꾸면 부모와 다른 칸에 놓여 화면에서 사라진 것처럼 된다.
@@ -543,7 +543,7 @@ namespace JBro
         return alive;
     }
 
-    void HierarchyPanel::DrawDragSource(GameObject& object)
+    void HierarchyPanel::DrawDragSource(Object::GameObject& object)
     {
         if (false == Widget::BeginDragSource())
         {
@@ -561,7 +561,7 @@ namespace JBro
     }
 
     void HierarchyPanel::DrawRowDropTarget(
-        GameObject& object, GameObject* parent, std::size_t indexInParent,
+        Object::GameObject& object, Object::GameObject* parent, std::size_t indexInParent,
         const ImRect& rowRect)
     {
         if (false == m_dragActive
@@ -614,7 +614,7 @@ namespace JBro
         EditorObjectId id = InvalidEditorObjectId;
         if (payload.delivered && Widget::ReadDropValue(payload, id))
         {
-            if (GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
+            if (Object::GameObject* dragged = m_editor->GetObjectIds().Resolve(id))
             {
                 if (where == DropWhere::Into)
                 {
@@ -632,14 +632,14 @@ namespace JBro
     }
 
     void HierarchyPanel::RecordDrop(
-        GameObject& dragged, GameObject* parent, std::size_t insertAt)
+        Object::GameObject& dragged, Object::GameObject* parent, std::size_t insertAt)
     {
         if (&dragged == parent || false == CanReparent(&dragged, parent))
         {
             return;
         }
         m_dragged = dragged.SafeFromThis();
-        m_dropParent = parent != nullptr ? parent->SafeFromThis() : SafePtr<GameObject>();
+        m_dropParent = parent != nullptr ? parent->SafeFromThis() : SafePtr<Object::GameObject>();
         m_dropToRoot = parent == nullptr;
         m_dropInsertAt = insertAt;
         m_hasDrop = true;
@@ -662,9 +662,9 @@ namespace JBro
         }
         m_hasDrop = false;
 
-        GameObject* dragged = m_dragged.TryGet();
+        Object::GameObject* dragged = m_dragged.TryGet();
         m_dragged = {};
-        GameObject* parent = m_dropParent.TryGet();
+        Object::GameObject* parent = m_dropParent.TryGet();
         m_dropParent = {};
         if (dragged == nullptr)
         {
@@ -687,7 +687,7 @@ namespace JBro
         // 전을 기준으로 센 것이라, 아래로 옮길 때 한 칸을 빼 주지 않으면 늘 하나씩
         // 밀린 자리에 놓인다.
         std::size_t target = m_dropInsertAt;
-        GameObject* oldParent = dragged->GetParent();
+        Object::GameObject* oldParent = dragged->GetParent();
         if (oldParent == parent)
         {
             std::size_t own = 0;
@@ -706,7 +706,7 @@ namespace JBro
             ? ids.Track(parent) : InvalidEditorObjectId;
         // 레이어로 떨어뜨린 것이면 옮기기와 레이어 바꾸기가 **한 손짓**이다.
         // 되돌리기 한 번이 둘 다 되돌려야 한다.
-        GameObject* layerTargetObject = m_layerDropObject.TryGet();
+        Object::GameObject* layerTargetObject = m_layerDropObject.TryGet();
         const LayerId layerTarget = layerTargetObject == dragged
             ? m_layerDropTarget : InvalidLayerId;
         m_layerDropObject = {};
@@ -737,15 +737,15 @@ namespace JBro
         }
     }
 
-    bool HierarchyPanel::IsOnRevealPath(const GameObject& object) const
+    bool HierarchyPanel::IsOnRevealPath(const Object::GameObject& object) const
     {
-        const GameObject* target = m_reveal.TryGet();
+        const Object::GameObject* target = m_reveal.TryGet();
         if (target == nullptr)
         {
             return false;
         }
         // 자기 자신은 펼칠 필요가 없다. 조상만이다.
-        for (const GameObject* walk = target->GetParent();
+        for (const Object::GameObject* walk = target->GetParent();
             walk != nullptr; walk = walk->GetParent())
         {
             if (walk == &object)
@@ -756,7 +756,7 @@ namespace JBro
         return false;
     }
 
-    bool HierarchyPanel::DrawObjectContextMenu(GameObject& object)
+    bool HierarchyPanel::DrawObjectContextMenu(Object::GameObject& object)
     {
         if (false == Widget::BeginContextMenu("##ObjectMenu"))
         {
@@ -770,7 +770,7 @@ namespace JBro
     }
 
     void HierarchyPanel::DrawObject(
-        GameObject& object, GameObject* parent, std::size_t indexInParent)
+        Object::GameObject& object, Object::GameObject* parent, std::size_t indexInParent)
     {
         if (false == Matches(object))
         {
@@ -923,10 +923,10 @@ namespace JBro
 
         if (opened && hasChildren)
         {
-            const Array<SafePtr<GameObject>>& children = object.GetChildren();
+            const Array<SafePtr<Object::GameObject>>& children = object.GetChildren();
             for (std::size_t index = 0; index < children.Size(); ++index)
             {
-                if (GameObject* child = children[index].TryGet())
+                if (Object::GameObject* child = children[index].TryGet())
                 {
                     DrawObject(*child, &object, index);
                 }

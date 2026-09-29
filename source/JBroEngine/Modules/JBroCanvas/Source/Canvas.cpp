@@ -19,7 +19,7 @@ namespace JBro
 
     Canvas::Canvas(JAllocator allocator)
         : m_allocator(allocator)
-        , m_objects(MakeOwnerPtr<TObjectPool<GameObject>>(allocator))
+        , m_objects(MakeOwnerPtr<TObjectPool<Object::GameObject>>(allocator))
     {
         GetCanvasInstanceIdGenerator().BeginFrame();
         CreateLayer("Default");
@@ -30,8 +30,8 @@ namespace JBro
         m_systems.RemoveAllSystems(*this);
         while (m_objects->GetLiveCount() != 0)
         {
-            GameObject* object = nullptr;
-            m_objects->ForEachLive([&object](GameObject& candidate)
+            Object::GameObject* object = nullptr;
+            m_objects->ForEachLive([&object](Object::GameObject& candidate)
             {
                 if (object == nullptr)
                 {
@@ -57,14 +57,14 @@ namespace JBro
         return m_systems;
     }
 
-    GameObject* Canvas::CreateObject(const char* name)
+    Object::GameObject* Canvas::CreateObject(const char* name)
     {
         return CreateObject(name, InvalidInstanceId);
     }
 
-    GameObject* Canvas::CreateObject(const char* name, InstanceId preferredId)
+    Object::GameObject* Canvas::CreateObject(const char* name, InstanceId preferredId)
     {
-        GameObject* object = m_objects->Create();
+        Object::GameObject* object = m_objects->Create();
         if (object == nullptr)
         {
             return nullptr;
@@ -102,7 +102,7 @@ namespace JBro
         return object;
     }
 
-    bool Canvas::DestroyObject(GameObject* object)
+    bool Canvas::DestroyObject(Object::GameObject* object)
     {
         if (object == nullptr
             || object->m_canvas != this
@@ -114,7 +114,7 @@ namespace JBro
         // 순회 중이면 요청만 받아 두고 안전 지점에서 수행한다(D-45).
         if (IsIterating())
         {
-            SafePtr<GameObject> pending = object->SafeFromThis();
+            SafePtr<Object::GameObject> pending = object->SafeFromThis();
             if (false == pending.IsValid())
             {
                 return false;
@@ -126,7 +126,7 @@ namespace JBro
         return DestroyObjectNow(object);
     }
 
-    bool Canvas::DestroyObjectNow(GameObject* object)
+    bool Canvas::DestroyObjectNow(Object::GameObject* object)
     {
         Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
         if (registry.Resolve(object->m_handle, RefCategory::Object) != object)
@@ -137,8 +137,8 @@ namespace JBro
 
         while (false == object->m_children.IsEmpty())
         {
-            SafePtr<GameObject> childRef = object->m_children.Last();
-            GameObject* child = childRef.TryGet();
+            SafePtr<Object::GameObject> childRef = object->m_children.Last();
+            Object::GameObject* child = childRef.TryGet();
             if (child == nullptr)
             {
                 object->m_children.RemoveAtSwap(object->m_children.Size() - 1);
@@ -201,8 +201,8 @@ namespace JBro
         // 자식은 따라 사라지므로 다시 셀 때마다 남은 것만 나온다.
         while (m_objects->GetLiveCount() != 0)
         {
-            GameObject* object = nullptr;
-            m_objects->ForEachLive([&object](GameObject& candidate)
+            Object::GameObject* object = nullptr;
+            m_objects->ForEachLive([&object](Object::GameObject& candidate)
             {
                 if (object == nullptr)
                 {
@@ -228,20 +228,20 @@ namespace JBro
         return true;
     }
 
-    void Canvas::GetRootObjects(Array<GameObject*>& result)
+    void Canvas::GetRootObjects(Array<Object::GameObject*>& result)
     {
         // **죽었거나 더 이상 뿌리가 아닌 것을 먼저 뺀다.** 순서를 지키며 빼야 한다 -
         // 마지막 것으로 덮으면 부모를 하나 바꾼 것만으로 남은 뿌리들의 차례가 흐트러진다.
-        m_rootOrder.RemoveAll([](const SafePtr<GameObject>& reference)
+        m_rootOrder.RemoveAll([](const SafePtr<Object::GameObject>& reference)
         {
-            const GameObject* object = reference.TryGet();
+            const Object::GameObject* object = reference.TryGet();
             return object == nullptr || object->GetParent() != nullptr;
         });
 
         m_rootSeen.Clear();
         for (std::size_t index = 0; index < m_rootOrder.Size(); ++index)
         {
-            if (const GameObject* object = m_rootOrder[index].TryGet())
+            if (const Object::GameObject* object = m_rootOrder[index].TryGet())
             {
                 m_rootSeen.TryAdd(object, std::uint8_t{1});
             }
@@ -249,13 +249,13 @@ namespace JBro
 
         // 새로 뿌리가 된 것은 뒤에 붙는다. 풀 순회 순서는 **여기서만** 쓰인다 -
         // 한 번 붙고 나면 그 뒤로는 이 목록이 순서다.
-        ForEachObject([this](GameObject& object)
+        ForEachObject([this](Object::GameObject& object)
         {
             if (object.GetParent() != nullptr || m_rootSeen.Contains(&object))
             {
                 return;
             }
-            SafePtr<GameObject> reference = object.SafeFromThis();
+            SafePtr<Object::GameObject> reference = object.SafeFromThis();
             if (reference.IsValid())
             {
                 m_rootSeen.TryAdd(&object, std::uint8_t{1});
@@ -266,20 +266,20 @@ namespace JBro
         result.Clear();
         for (std::size_t index = 0; index < m_rootOrder.Size(); ++index)
         {
-            if (GameObject* object = m_rootOrder[index].TryGet())
+            if (Object::GameObject* object = m_rootOrder[index].TryGet())
             {
                 result.Add(object);
             }
         }
     }
 
-    bool Canvas::FindRootIndex(const GameObject* object, std::size_t& index)
+    bool Canvas::FindRootIndex(const Object::GameObject* object, std::size_t& index)
     {
         if (object == nullptr || object->GetParent() != nullptr)
         {
             return false;
         }
-        Array<GameObject*> roots;
+        Array<Object::GameObject*> roots;
         GetRootObjects(roots);
         for (std::size_t at = 0; at < roots.Size(); ++at)
         {
@@ -292,7 +292,7 @@ namespace JBro
         return false;
     }
 
-    bool Canvas::SetRootIndex(GameObject* object, std::size_t index)
+    bool Canvas::SetRootIndex(Object::GameObject* object, std::size_t index)
     {
         std::size_t current = 0;
         if (false == FindRootIndex(object, current))
@@ -311,7 +311,7 @@ namespace JBro
         {
             return true;
         }
-        SafePtr<GameObject> moved = m_rootOrder[current];
+        SafePtr<Object::GameObject> moved = m_rootOrder[current];
         m_rootOrder.RemoveAt(current);
         m_rootOrder.Insert(target, std::move(moved));
         return true;
@@ -375,7 +375,7 @@ namespace JBro
             }
         }
 
-        m_objects->ForEachLive([layer, replacement, replacementRef](GameObject& object)
+        m_objects->ForEachLive([layer, replacement, replacementRef](Object::GameObject& object)
         {
             if (object.GetLayerId() == layer)
             {
@@ -408,7 +408,7 @@ namespace JBro
         return true;
     }
 
-    bool Canvas::SetObjectLayer(GameObject* object, LayerId layer)
+    bool Canvas::SetObjectLayer(Object::GameObject* object, LayerId layer)
     {
         if (object == nullptr || object->GetCanvas() != this)
         {
@@ -511,7 +511,7 @@ namespace JBro
             return false;
         }
 
-        GameObject* owner = component->GetOwnerObject();
+        Object::GameObject* owner = component->GetOwnerObject();
         if (owner == nullptr || owner->GetCanvas() != this)
         {
             return false;
@@ -532,7 +532,7 @@ namespace JBro
 
     bool Canvas::DestroyComponentNow(ComponentBase* component)
     {
-        GameObject* owner = component->GetOwnerObject();
+        Object::GameObject* owner = component->GetOwnerObject();
         if (owner == nullptr || owner->GetCanvas() != this)
         {
             return false;
@@ -579,7 +579,7 @@ namespace JBro
     }
 
     bool Canvas::RegisterComponentInstance(
-        GameObject* owner,
+        Object::GameObject* owner,
         ComponentBase* component,
         RefCategory category,
         InstanceId preferredId)
@@ -668,17 +668,17 @@ namespace JBro
 
     // 컴포넌트를 먼저 걷는다. 오브젝트 파괴가 자기 컴포넌트를 이미 정리하므로 순서를 뒤집으면
     // 큐에 남은 컴포넌트가 죽은 대상을 가리킨다. SafePtr 이 그것을 걸러 주지만 무의미한 일을 하게 된다.
-    GameScriptBase* Canvas::AttachScript(GameObject* owner, const char* scriptName)
+    GameScriptBase* Canvas::AttachScript(Object::GameObject* owner, const char* scriptName)
     {
         return AttachScript(owner, MakeNameId(scriptName));
     }
 
-    GameScriptBase* Canvas::AttachScript(GameObject* owner, NameId scriptName)
+    GameScriptBase* Canvas::AttachScript(Object::GameObject* owner, NameId scriptName)
     {
         return AttachScript(owner, scriptName, InvalidInstanceId);
     }
 
-    GameScriptBase* Canvas::AttachScript(GameObject* owner, NameId scriptName, InstanceId preferredId)
+    GameScriptBase* Canvas::AttachScript(Object::GameObject* owner, NameId scriptName, InstanceId preferredId)
     {
         if (owner == nullptr || owner->GetCanvas() != this || scriptName == InvalidNameId)
         {
@@ -745,7 +745,7 @@ namespace JBro
         return script;
     }
 
-    bool Canvas::DetachScript(GameObject* owner, GameScriptBase* script)
+    bool Canvas::DetachScript(Object::GameObject* owner, GameScriptBase* script)
     {
         if (owner == nullptr
             || script == nullptr
@@ -786,7 +786,7 @@ namespace JBro
         return released;
     }
 
-    bool Canvas::ReplaceUnresolvedComponents(GameObject* owner, Array<UnresolvedComponent> components)
+    bool Canvas::ReplaceUnresolvedComponents(Object::GameObject* owner, Array<UnresolvedComponent> components)
     {
         if (owner == nullptr || owner->GetCanvas() != this)
         {
@@ -813,7 +813,7 @@ namespace JBro
         return m_fileObjectOrder;
     }
 
-    bool Canvas::AddUnresolvedComponent(GameObject* owner, UnresolvedComponent component)
+    bool Canvas::AddUnresolvedComponent(Object::GameObject* owner, UnresolvedComponent component)
     {
         if (owner == nullptr || owner->GetCanvas() != this)
         {
@@ -837,7 +837,7 @@ namespace JBro
         return true;
     }
 
-    const Array<UnresolvedComponent>* Canvas::FindUnresolvedComponents(const GameObject* owner) const
+    const Array<UnresolvedComponent>* Canvas::FindUnresolvedComponents(const Object::GameObject* owner) const
     {
         if (owner == nullptr || owner->GetCanvas() != this)
         {
@@ -921,10 +921,10 @@ namespace JBro
 
         while (false == m_pendingDestroyObjects.IsEmpty())
         {
-            SafePtr<GameObject> pending = m_pendingDestroyObjects.Last();
+            SafePtr<Object::GameObject> pending = m_pendingDestroyObjects.Last();
             m_pendingDestroyObjects.RemoveAt(m_pendingDestroyObjects.Size() - 1);
             // 부모가 먼저 파괴되면서 이 항목이 이미 죽었을 수 있다. SafePtr 이 그것을 걸러 준다.
-            if (GameObject* object = pending.TryGet())
+            if (Object::GameObject* object = pending.TryGet())
             {
                 object->m_destroying = false;
                 DestroyObjectNow(object);
@@ -932,7 +932,7 @@ namespace JBro
         }
     }
 
-    bool Canvas::DestroyObjectFromHandle(Canvas* canvas, GameObject* object)
+    bool Canvas::DestroyObjectFromHandle(Canvas* canvas, Object::GameObject* object)
     {
         if (canvas == nullptr)
         {

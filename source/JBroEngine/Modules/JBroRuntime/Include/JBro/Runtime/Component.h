@@ -11,7 +11,10 @@
 namespace JBro
 {
     class Canvas;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
     class GameScriptBase;
 
     namespace Internal
@@ -47,7 +50,7 @@ namespace JBro
         // 컴포넌트 배열을 훑으며 타입을 비교하므로, 캐시가 없으면 원소마다 가상 호출이 돈다(§9).
         ComponentTypeId  GetCachedTypeId() const;
         // 스크립트 표면이므로 소유 오브젝트는 핸들로 준다. 실 객체는 엔진 계층만 본다.
-        GameObjectHandle GetOwner() const;
+        Handle::GameObject GetOwner() const;
 
         // §8.1 단일 활성 게이트. 모든 시스템이 이 함수 하나만 본다.
         bool IsActiveComponent() const;
@@ -56,15 +59,15 @@ namespace JBro
 
     private:
         friend class Canvas;
-        friend class GameObject;
+        friend class Object::GameObject;
         friend class Internal::CanvasAccess;
 
-        GameObject* GetOwnerObject() const;
-        void SetOwner(GameObject* owner);
+        Object::GameObject* GetOwnerObject() const;
+        void SetOwner(Object::GameObject* owner);
         void CacheTypeId();
         void SetInstanceIdentity(InstanceId instanceId, InstanceHandle handle);
 
-        SafePtr<GameObject> m_owner;
+        SafePtr<Object::GameObject> m_owner;
         ComponentTypeId     m_typeId = InvalidComponentTypeId;
         InstanceId          m_instanceId = InvalidInstanceId;
         InstanceHandle      m_handle;

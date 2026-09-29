@@ -6,7 +6,10 @@
 namespace JBro
 {
     class EditorApplication;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     namespace Widget
     {
@@ -21,7 +24,7 @@ namespace JBro
     struct FieldExtraContext
     {
         EditorApplication* editor = nullptr;
-        GameObject* owner = nullptr;
+        Object::GameObject* owner = nullptr;
         ComponentBase* component = nullptr;
         ComponentTypeId typeId = 0;
     };

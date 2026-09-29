@@ -97,7 +97,7 @@ namespace JBro::System
 
     void Text3DSystem::Submit(Canvas& canvas, const Component::Text3D& text, const Entry& entry)
     {
-        GameObject* owner = Internal::CanvasAccess::GetOwner(text);
+        Object::GameObject* owner = Internal::CanvasAccess::GetOwner(text);
         const Layer* layer = owner != nullptr ? owner->GetLayer() : nullptr;
         if (layer != nullptr && false == layer->IsVisible())
         {

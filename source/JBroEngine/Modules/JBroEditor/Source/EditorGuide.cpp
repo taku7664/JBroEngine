@@ -19,7 +19,7 @@ namespace JBro
         // 선택한 오브젝트의 에디터 번호다. 없으면 0 이다.
         std::uint64_t SelectedObjectId(EditorApplication& editor)
         {
-            GameObject* object = editor.GetSelectedObject();
+            Object::GameObject* object = editor.GetSelectedObject();
             return object != nullptr ? editor.GetObjectIds().Track(object) : 0;
         }
 
@@ -39,7 +39,7 @@ namespace JBro
         // [0] 들어설 때 선택되어 있던 오브젝트, [1] 그 오브젝트의 컴포넌트 수.
         void RememberComponentCount(EditorApplication& editor, GuideStepMemo& memo)
         {
-            const GameObject* object = editor.GetSelectedObject();
+            const Object::GameObject* object = editor.GetSelectedObject();
             memo.values[0] = SelectedObjectId(editor);
             memo.values[1] = object != nullptr ? object->GetComponents().Size() : 0;
         }
@@ -48,7 +48,7 @@ namespace JBro
         // 붙인 것이 아니지만, 옮긴 뒤에 그 오브젝트에 붙인 것은 붙인 것이다.
         bool ComponentAdded(EditorApplication& editor, GuideStepMemo& memo)
         {
-            const GameObject* object = editor.GetSelectedObject();
+            const Object::GameObject* object = editor.GetSelectedObject();
             if (object == nullptr)
             {
                 return false;
@@ -77,7 +77,7 @@ namespace JBro
         // 타입을 이름으로 고정하지 않으므로 두 프레임워크에서 같은 가이드가 돈다.
         bool FirstFieldPath(EditorApplication& editor, GuideFocusPath& path)
         {
-            const GameObject* object = editor.GetSelectedObject();
+            const Object::GameObject* object = editor.GetSelectedObject();
             if (object == nullptr || object->GetComponents().Size() == 0)
             {
                 return false;
@@ -430,7 +430,7 @@ namespace JBro
             return nullptr;
         }
 
-        bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path)
+        bool AppendObjectPath(EditorApplication& editor, Object::GameObject& object, GuideFocusPath& path)
         {
             const Layer* layer = object.GetLayer();
             if (layer == nullptr)
@@ -438,9 +438,9 @@ namespace JBro
                 return false;
             }
             // 조상을 뿌리부터 적어야 한다. 부모 사슬은 아래에서 위로 가므로 먼저 모아 뒤집는다.
-            GameObject* chain[GuideFocusPath::Capacity];
+            Object::GameObject* chain[GuideFocusPath::Capacity];
             std::uint32_t depth = 0;
-            for (GameObject* walk = &object; walk != nullptr; walk = walk->GetParent())
+            for (Object::GameObject* walk = &object; walk != nullptr; walk = walk->GetParent())
             {
                 if (depth >= GuideFocusPath::Capacity)
                 {

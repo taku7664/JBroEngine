@@ -59,7 +59,7 @@ namespace JBro
     {
         ComponentTypeInfo found;
         const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
-        GameObject* object = m_registry->Resolve(m_address.objectId);
+        Object::GameObject* object = m_registry->Resolve(m_address.objectId);
         if (info == nullptr || info->Attach == nullptr || object == nullptr)
         {
             return false;
@@ -105,7 +105,7 @@ namespace JBro
     {
         ComponentTypeInfo found;
         const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
-        GameObject* object = m_registry->Resolve(m_address.objectId);
+        Object::GameObject* object = m_registry->Resolve(m_address.objectId);
         if (false == m_added || info == nullptr || info->Detach == nullptr
             || object == nullptr)
         {
@@ -130,7 +130,7 @@ namespace JBro
 
     ComponentBase* AddComponentCommand::GetComponent() const
     {
-        GameObject* object = m_registry->Resolve(m_address.objectId);
+        Object::GameObject* object = m_registry->Resolve(m_address.objectId);
         if (false == m_added || object == nullptr)
         {
             return nullptr;
@@ -149,7 +149,7 @@ namespace JBro
         , m_registry(&registry)
     {
         m_address.objectId = objectId;
-        GameObject* object = registry.Resolve(objectId);
+        Object::GameObject* object = registry.Resolve(objectId);
         if (object == nullptr || component == nullptr)
         {
             return;
@@ -176,7 +176,7 @@ namespace JBro
     {
         ComponentTypeInfo found;
         const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
-        GameObject* object = m_registry->Resolve(m_address.objectId);
+        Object::GameObject* object = m_registry->Resolve(m_address.objectId);
         if (info == nullptr || info->Detach == nullptr || object == nullptr)
         {
             return false;
@@ -204,7 +204,7 @@ namespace JBro
     {
         ComponentTypeInfo found;
         const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
-        GameObject* object = m_registry->Resolve(m_address.objectId);
+        Object::GameObject* object = m_registry->Resolve(m_address.objectId);
         if (false == m_captured || info == nullptr || info->Attach == nullptr
             || object == nullptr)
         {
@@ -242,7 +242,7 @@ namespace JBro
         , m_address(address)
         , m_values(values)
     {
-        GameObject* object = registry.Resolve(address.objectId);
+        Object::GameObject* object = registry.Resolve(address.objectId);
         if (object == nullptr)
         {
             return;
@@ -263,7 +263,7 @@ namespace JBro
 
     bool PasteComponentValuesCommand::Apply(const ComponentSnapshot& values)
     {
-        GameObject* object = m_registry->Resolve(m_address.objectId);
+        Object::GameObject* object = m_registry->Resolve(m_address.objectId);
         if (object == nullptr)
         {
             return false;
@@ -318,7 +318,7 @@ namespace JBro
 
     bool MoveComponentCommand::Move(std::size_t from, std::size_t to)
     {
-        GameObject* object = m_registry->Resolve(m_objectId);
+        Object::GameObject* object = m_registry->Resolve(m_objectId);
         if (object == nullptr || from == to)
         {
             return false;

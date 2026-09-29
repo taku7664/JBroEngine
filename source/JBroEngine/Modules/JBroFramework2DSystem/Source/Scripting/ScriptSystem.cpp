@@ -70,7 +70,7 @@ namespace JBro::System
         return low < m_scriptKeys.Size() && m_scriptKeys[low] == component;
     }
 
-    void ScriptSystem::AppendScripts(GameObject& object)
+    void ScriptSystem::AppendScripts(Object::GameObject& object)
     {
         // **오브젝트 안의 차례는 컴포넌트 배열 자리 그대로다**(D-45). 여기서 다시
         // 정렬하면 떼었다 되돌린 컴포넌트가 제 자리를 잃는다.
@@ -144,7 +144,7 @@ namespace JBro::System
 
         // 루트를 (레이어 합성 순서, 생성 순서) 로 줄 세운다. 구 엔진과 같은 키다.
         m_roots.Clear();
-        canvas.ForEachObject([this](GameObject& object)
+        canvas.ForEachObject([this](Object::GameObject& object)
         {
             if (object.GetParent() == nullptr)
             {
@@ -152,7 +152,7 @@ namespace JBro::System
             }
         });
         std::sort(m_roots.begin(), m_roots.end(),
-            [](const GameObject* left, const GameObject* right)
+            [](const Object::GameObject* left, const Object::GameObject* right)
         {
             const Layer* leftLayer  = left->GetLayer();
             const Layer* rightLayer = right->GetLayer();
@@ -181,7 +181,7 @@ namespace JBro::System
 
         while (false == m_walkStack.IsEmpty())
         {
-            GameObject* object = m_walkStack.Last();
+            Object::GameObject* object = m_walkStack.Last();
             m_walkStack.Resize(m_walkStack.Size() - 1);
             AppendScripts(*object);
 
@@ -190,10 +190,10 @@ namespace JBro::System
             // 순서였다. 이 엔진에는 `SetChildIndex` 가 있고 계층에서 끌어 옮기면 그것이
             // 움직인다(D-84) - 정렬해 버리면 사용자가 옮긴 자리를 실행 순서가 무시한다.
             // 아무도 옮기지 않았으면 배열 자리가 생성 순서이므로 구 엔진과 같은 결과다.
-            const Array<SafePtr<GameObject>>& children = object->GetChildren();
+            const Array<SafePtr<Object::GameObject>>& children = object->GetChildren();
             for (std::size_t at = children.Size(); at > 0; --at)
             {
-                if (GameObject* child = children[at - 1].TryGet())
+                if (Object::GameObject* child = children[at - 1].TryGet())
                 {
                     m_walkStack.Add(child);
                 }

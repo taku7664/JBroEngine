@@ -4,35 +4,35 @@
 
 namespace JBro
 {
-    GameObject::GameObject() = default;
-    GameObject::~GameObject() = default;
+    Object::GameObject::GameObject() = default;
+    Object::GameObject::~GameObject() = default;
 
-    InstanceId GameObject::GetInstanceId() const
+    InstanceId Object::GameObject::GetInstanceId() const
     {
         return m_instanceId;
     }
 
-    InstanceHandle GameObject::GetHandle() const
+    InstanceHandle Object::GameObject::GetHandle() const
     {
         return m_handle;
     }
 
-    GameObjectHandle GameObject::GetScriptHandle() const
+    Handle::GameObject Object::GameObject::GetScriptHandle() const
     {
-        return GameObjectHandle(this);
+        return Handle::GameObject(this);
     }
 
-    Canvas* GameObject::GetCanvas() const
+    Canvas* Object::GameObject::GetCanvas() const
     {
         return m_canvas;
     }
 
-    GameObject* GameObject::GetParent() const
+    Object::GameObject* Object::GameObject::GetParent() const
     {
         return m_parent.TryGet();
     }
 
-    void GameObject::SetParent(GameObject* parent)
+    void Object::GameObject::SetParent(Object::GameObject* parent)
     {
         if (parent == this || m_parent.TryGet() == parent)
         {
@@ -41,7 +41,7 @@ namespace JBro
         // 계층이 바뀌면 깊이 우선 순회의 결과가 달라진다(D-45).
         MarkScriptOrderDirty();
 
-        for (GameObject* ancestor = parent;
+        for (Object::GameObject* ancestor = parent;
             ancestor != nullptr;
             ancestor = ancestor->GetParent())
         {
@@ -51,14 +51,14 @@ namespace JBro
             }
         }
 
-        GameObject* oldParent = m_parent.TryGet();
+        Object::GameObject* oldParent = m_parent.TryGet();
         if (oldParent != nullptr)
         {
             // **순서를 지키며 뺀다.** 마지막 것을 끌어다 덮으면(RemoveAllSwap)
             // 부모를 바꾸는 것만으로 남은 형제들의 차례가 흐트러진다 - 계층
             // 패널에서 눈에 보이는 순서이고, 끌어 옮긴 것을 되돌려도 제자리로
             // 돌아오지 않게 된다.
-            oldParent->m_children.RemoveAll([this](const SafePtr<GameObject>& child)
+            oldParent->m_children.RemoveAll([this](const SafePtr<Object::GameObject>& child)
             {
                 return child.TryGet() == this;
             });
@@ -73,7 +73,7 @@ namespace JBro
         }
 
         m_parent = parent->SafeFromThis();
-        SafePtr<GameObject> self = SafeFromThis();
+        SafePtr<Object::GameObject> self = SafeFromThis();
         if (self.IsValid())
         {
             parent->m_children.Add(std::move(self));
@@ -81,32 +81,32 @@ namespace JBro
         RefreshActiveInHierarchy();
     }
 
-    const Array<SafePtr<GameObject>>& GameObject::GetChildren() const
+    const Array<SafePtr<Object::GameObject>>& Object::GameObject::GetChildren() const
     {
         return m_children;
     }
 
-    Layer* GameObject::GetLayer() const
+    Layer* Object::GameObject::GetLayer() const
     {
         return m_layer.TryGet();
     }
 
-    std::uint32_t GameObject::GetLayerId() const
+    std::uint32_t Object::GameObject::GetLayerId() const
     {
         return m_layerIndex;
     }
 
-    bool GameObject::IsActiveSelf() const
+    bool Object::GameObject::IsActiveSelf() const
     {
         return m_active;
     }
 
-    bool GameObject::IsActiveInHierarchy() const
+    bool Object::GameObject::IsActiveInHierarchy() const
     {
         return m_activeInHierarchy;
     }
 
-    void GameObject::SetActive(bool active)
+    void Object::GameObject::SetActive(bool active)
     {
         if (m_active == active)
         {
@@ -118,9 +118,9 @@ namespace JBro
 
     // 자기 값과 부모의 캐시로 결과를 정하고, 바뀐 경우에만 자식으로 내려간다.
     // 비용은 실제로 상태가 뒤집힌 부분 트리에만 든다.
-    void GameObject::RefreshActiveInHierarchy()
+    void Object::GameObject::RefreshActiveInHierarchy()
     {
-        const GameObject* parent = m_parent.TryGet();
+        const Object::GameObject* parent = m_parent.TryGet();
         const bool resolved = m_active && (parent == nullptr || parent->m_activeInHierarchy);
         if (m_activeInHierarchy == resolved)
         {
@@ -128,51 +128,51 @@ namespace JBro
         }
         m_activeInHierarchy = resolved;
 
-        for (const SafePtr<GameObject>& childReference : m_children)
+        for (const SafePtr<Object::GameObject>& childReference : m_children)
         {
-            if (GameObject* child = childReference.TryGet())
+            if (Object::GameObject* child = childReference.TryGet())
             {
                 child->RefreshActiveInHierarchy();
             }
         }
     }
 
-    const char* GameObject::GetTag() const
+    const char* Object::GameObject::GetTag() const
     {
         return NameTable::Get().Resolve(m_tag);
     }
 
-    void GameObject::SetTag(const char* tag)
+    void Object::GameObject::SetTag(const char* tag)
     {
         m_tag = NameTable::Get().Intern(tag);
     }
 
-    NameId GameObject::GetTagId() const
+    NameId Object::GameObject::GetTagId() const
     {
         return m_tag;
     }
 
-    void GameObject::SetTagId(NameId tag)
+    void Object::GameObject::SetTagId(NameId tag)
     {
         m_tag = tag;
     }
 
-    std::uint32_t GameObject::GetFlags() const
+    std::uint32_t Object::GameObject::GetFlags() const
     {
         return m_flags.Get();
     }
 
-    void GameObject::SetFlags(std::uint32_t flags)
+    void Object::GameObject::SetFlags(std::uint32_t flags)
     {
         m_flags.Set(flags);
     }
 
-    const Array<ComponentSlot>& GameObject::GetComponents() const
+    const Array<ComponentSlot>& Object::GameObject::GetComponents() const
     {
         return m_components;
     }
 
-    void GameObject::SetInstanceIdentity(
+    void Object::GameObject::SetInstanceIdentity(
         InstanceId instanceId,
         InstanceHandle handle)
     {
@@ -180,7 +180,7 @@ namespace JBro
         m_handle = handle;
     }
 
-    void GameObject::BindCanvas(
+    void Object::GameObject::BindCanvas(
         Canvas* canvas,
         DestroyFunction destroyFunction,
         ScriptOrderDirtyFunction scriptOrderDirtyFunction)
@@ -190,7 +190,7 @@ namespace JBro
         m_scriptOrderDirtyFunction = scriptOrderDirtyFunction;
     }
 
-    void GameObject::MarkScriptOrderDirty()
+    void Object::GameObject::MarkScriptOrderDirty()
     {
         if (m_canvas == nullptr || m_scriptOrderDirtyFunction == nullptr)
         {
@@ -199,13 +199,13 @@ namespace JBro
         m_scriptOrderDirtyFunction(m_canvas);
     }
 
-    void GameObject::SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex)
+    void Object::GameObject::SetLayer(SafePtr<Layer> layer, std::uint32_t layerIndex)
     {
         m_layer = std::move(layer);
         m_layerIndex = layerIndex;
     }
 
-    void GameObject::AttachComponent(ComponentBase* component)
+    void Object::GameObject::AttachComponent(ComponentBase* component)
     {
         if (component == nullptr)
         {
@@ -226,7 +226,7 @@ namespace JBro
         component->SetOwner(this);
     }
 
-    bool GameObject::FindChildIndex(const GameObject* child, std::size_t& index) const
+    bool Object::GameObject::FindChildIndex(const Object::GameObject* child, std::size_t& index) const
     {
         for (std::size_t at = 0; at < m_children.Size(); ++at)
         {
@@ -239,7 +239,7 @@ namespace JBro
         return false;
     }
 
-    bool GameObject::SetChildIndex(GameObject* child, std::size_t index)
+    bool Object::GameObject::SetChildIndex(Object::GameObject* child, std::size_t index)
     {
         std::size_t from = 0;
         if (child == nullptr || false == FindChildIndex(child, from))
@@ -254,7 +254,7 @@ namespace JBro
         }
         // 형제 자리도 실행 차례다 - 깊이 우선 순회가 자식 배열을 그대로 내려간다(D-45).
         MarkScriptOrderDirty();
-        SafePtr<GameObject> moved = m_children[from];
+        SafePtr<Object::GameObject> moved = m_children[from];
         if (from < to)
         {
             for (std::size_t at = from; at < to; ++at)
@@ -273,7 +273,7 @@ namespace JBro
         return true;
     }
 
-    bool GameObject::FindComponentIndex(const ComponentBase* component, std::size_t& index) const
+    bool Object::GameObject::FindComponentIndex(const ComponentBase* component, std::size_t& index) const
     {
         if (component == nullptr)
         {
@@ -290,7 +290,7 @@ namespace JBro
         return false;
     }
 
-    bool GameObject::SetComponentIndex(const ComponentBase* component, std::size_t index)
+    bool Object::GameObject::SetComponentIndex(const ComponentBase* component, std::size_t index)
     {
         std::size_t from = 0;
         if (false == FindComponentIndex(component, from))
@@ -325,7 +325,7 @@ namespace JBro
         return true;
     }
 
-    bool GameObject::DetachComponent(ComponentBase* component)
+    bool Object::GameObject::DetachComponent(ComponentBase* component)
     {
         if (component == nullptr)
         {
@@ -345,7 +345,7 @@ namespace JBro
         return true;
     }
 
-    InstanceRef GameObject::FindComponentReference(ComponentTypeId typeId) const
+    InstanceRef Object::GameObject::FindComponentReference(ComponentTypeId typeId) const
     {
         for (const ComponentSlot& slot : m_components)
         {
@@ -366,7 +366,7 @@ namespace JBro
         return {};
     }
 
-    bool GameObject::RequestDestroy()
+    bool Object::GameObject::RequestDestroy()
     {
         if (m_canvas == nullptr || m_destroyFunction == nullptr)
         {

@@ -243,7 +243,7 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(DistanceJoint2D)
 
-        JBRO_FIELD(GameObjectHandle, connectedObject);
+        JBRO_FIELD(Handle::GameObject, connectedObject);
         JBRO_FIELD(Vector2, anchor);
         JBRO_FIELD(Vector2, connectedAnchor);
         // 참이면 조인트가 처음 이어지는 순간 두 앵커 사이의 거리를 distance 에 적는다.
@@ -275,7 +275,7 @@ namespace JBro::Component
 
         JBRO_REFLECT_BODY(HingeJoint2D)
 
-        JBRO_FIELD(GameObjectHandle, connectedObject);
+        JBRO_FIELD(Handle::GameObject, connectedObject);
         JBRO_FIELD(Vector2, anchor);
         JBRO_FIELD(Vector2, connectedAnchor);
         // 참이면 조인트가 처음 이어지는 순간 anchor 가 놓인 자리를 상대의 로컬(없으면 월드)로 connectedAnchor 에 적는다.
@@ -296,7 +296,7 @@ namespace JBro
     // 충돌·트리거 훅이 받는 접촉이다(D-207). normal 은 받는 쪽에서 상대 쪽이다. 트리거와 끝 이벤트는 point·normal 이 0 이다.
     struct Collision2D
     {
-        GameObjectHandle other;
+        Handle::GameObject other;
         Component::BodyType2D bodyType = Component::BodyType2D::Dynamic;
         Vector2 point;
         Vector2 normal;
@@ -310,7 +310,7 @@ namespace JBro
     // normal 은 쏜 방향의 반대, point 는 쏜 모양의 중심이다.
     struct RaycastHit2D
     {
-        GameObjectHandle other;
+        Handle::GameObject other;
         Component::BodyType2D bodyType = Component::BodyType2D::Static;
         Vector2 point;
         Vector2 normal;

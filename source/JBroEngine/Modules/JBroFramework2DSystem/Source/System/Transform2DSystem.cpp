@@ -12,7 +12,7 @@ namespace JBro::System
         // 예전에는 같은 노드에서 WorldTransform2D 를 한 번 더 찾아야 했다.
         void PropagateWorldTransform(
             Canvas& canvas,
-            GameObject& object,
+            Object::GameObject& object,
             Component::Transform2D& transform,
             const Matrix3x2& parentWorld,
             Radian parentRotation,
@@ -31,9 +31,9 @@ namespace JBro::System
                 transform.scale.y * parentScale.y};
             transform.worldValid = true;
 
-            for (const SafePtr<GameObject>& childReference : object.GetChildren())
+            for (const SafePtr<Object::GameObject>& childReference : object.GetChildren())
             {
-                GameObject* child = childReference.TryGet();
+                Object::GameObject* child = childReference.TryGet();
                 if (child == nullptr)
                 {
                     continue;
@@ -89,7 +89,7 @@ namespace JBro::System
                 return;
             }
 
-            GameObject* owner = Internal::CanvasAccess::GetOwner(transform);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(transform);
             if (owner == nullptr)
             {
                 return;

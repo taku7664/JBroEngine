@@ -29,7 +29,7 @@ namespace JBro::Service
         physics->RaycastAll(origin, direction, distance, hits, layerMask);
     }
 
-    void Physics2DService::OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
+    void Physics2DService::OverlapBox(const Rect& area, Array<Handle::GameObject>& results,
         std::uint32_t layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
@@ -41,7 +41,7 @@ namespace JBro::Service
         physics->OverlapBox(area, results, layerMask);
     }
 
-    GameObjectHandle Physics2DService::OverlapPoint(Vector2 point, std::uint32_t layerMask) const
+    Handle::GameObject Physics2DService::OverlapPoint(Vector2 point, std::uint32_t layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;
         if (physics == nullptr)
@@ -51,7 +51,7 @@ namespace JBro::Service
         return physics->OverlapPoint(point, layerMask);
     }
 
-    void Physics2DService::OverlapCircle(Vector2 center, float radius, Array<GameObjectHandle>& results,
+    void Physics2DService::OverlapCircle(Vector2 center, float radius, Array<Handle::GameObject>& results,
         std::uint32_t layerMask) const
     {
         System::IPhysics2DSystem* physics = GetFramework2DSystems().Physics2D;

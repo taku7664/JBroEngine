@@ -124,16 +124,16 @@ namespace
         }
 
     private:
-        GameObjectHandle           m_target;
+        GameObject           m_target;
         Ref<Component::Transform2D> m_transform;
         float                      m_elapsed = 0.0f;
     };
 
     // 스크립트가 보는 참조의 형태를 고정한다(D-5, D-44).
-    static_assert(sizeof(GameObjectHandle) == 16,
+    static_assert(sizeof(GameObject) == 16,
         "a script must see the 16-byte object handle");
     static_assert(sizeof(Ref<Component::Transform2D>) == 24,
         "a script must see the 24-byte component reference");
-    static_assert(std::is_same_v<decltype(TierProbeScript{}.GetOwner()), GameObjectHandle>,
+    static_assert(std::is_same_v<decltype(TierProbeScript{}.GetOwner()), GameObject>,
         "a script must receive its owner as a handle, not a raw object");
 }

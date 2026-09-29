@@ -79,7 +79,7 @@ namespace
         Check(Contains(header, "    JBRO_SCRIPT_BODY(Player)\r\n"), "the body macro names the class");
         Check(Contains(header, "    JBRO_FIELD(float, Speed) = 0.0f;\r\n")
                 && Contains(header, "    JBRO_FIELD(bool, Alive) = false;\r\n")
-                && Contains(header, "    JBRO_FIELD(GameObjectHandle, Target) = {};\r\n"),
+                && Contains(header, "    JBRO_FIELD(GameObject, Target) = {};\r\n"),
             "every field is declared with a value, never left uninitialised");
         const char* const hooks[] = {"OnCreate", "OnStart", "OnUpdate", "OnFixedUpdate", "OnDestroy"};
         const String source = ScriptProject::MakeScriptSource("Player", FrameworkKind::Framework2D);

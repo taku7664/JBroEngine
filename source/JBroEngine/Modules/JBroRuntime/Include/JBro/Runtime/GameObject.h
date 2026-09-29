@@ -4,7 +4,7 @@
 // include 경로로는 막을 수 없다 — 스크립트 DLL 이 JBroRuntime 을 링크하므로 경로가 열려 있다.
 // 그래서 프렐류드를 거쳤는지를 표식으로 확인한다(§9.5).
 #if defined(JBRO_SCRIPT_TARGET) && !defined(JBRO_SCRIPT_PRELUDE)
-#error "A script reaches game objects through <JBro/ScriptAPI.h> and GameObjectHandle, not <JBro/Runtime/GameObject.h>."
+#error "A script reaches game objects through <JBro/ScriptAPI.h> and the GameObject handle, not <JBro/Runtime/GameObject.h>."
 #endif
 
 #include <JBro/Core/Core.h>
@@ -22,8 +22,12 @@
 namespace JBro
 {
     class Canvas;
-    class GameObjectHandle;
     class Layer;
+
+    namespace Handle
+    {
+        class GameObject;
+    }
 
     // 오브젝트가 들고 있는 컴포넌트 하나다. 타입 id 를 참조 옆에 복사해 두어,
     // 타입으로 찾을 때 후보마다 제어 블록을 따라가지 않게 한다(§3.4).
@@ -41,6 +45,11 @@ namespace JBro
     // 패킹할 때 지우는 비트들이다. 에디터에서만 뜻이 있다.
     inline constexpr std::uint32_t EditorOnlyObjectFlags = ObjectFlagEditorHidden;
 
+}
+
+// 엔진의 오브젝트다. 스크립트가 보는 같은 이름의 핸들은 `JBro::Handle::GameObject` 다(D-271).
+namespace JBro::Object
+{
     // TObjectPool 이 소유하는 주소 안정 객체. Transform 은 멤버가 아니라 컴포넌트다.
     class GameObject final : public EnableSafeFromThis<GameObject>
     {
@@ -53,7 +62,7 @@ namespace JBro
 
         InstanceId     GetInstanceId() const;
         InstanceHandle GetHandle() const;
-        GameObjectHandle GetScriptHandle() const;
+        Handle::GameObject GetScriptHandle() const;
 
         // 계층
         GameObject*                       GetParent() const;
@@ -117,8 +126,8 @@ namespace JBro
         Array<Ref<T>> GetComponents() const;
 
     private:
-        friend class Canvas;
-        friend class GameObjectHandle;
+        friend class JBro::Canvas;
+        friend class Handle::GameObject;
 
         // Canvas 는 오브젝트를 소유하는 실행 계층이고 이 헤더는 스크립트가 링크하는 계층이다.
         // 정의를 끌어오면 그 경계가 무너지므로, 파괴 호출만 함수 포인터로 건너간다.

@@ -11,7 +11,7 @@
 #include <type_traits>
 
 #if defined(JBRO_TEST_REF_GAMEOBJECT_LEAK)
-JBro::Ref<JBro::GameObject> forbiddenGameObjectReference;
+JBro::Ref<JBro::Object::GameObject> forbiddenGameObjectReference;
 #endif
 
 namespace
@@ -69,7 +69,20 @@ namespace
         static_cast<void>(ambiguous);
 #endif
 
-        GameObjectHandle handle;
+        // **스크립트가 쓰는 `GameObject` 는 핸들이다**(D-271). 프렐류드가 `JBro::Handle` 을 열고 `JBro::Object` 는 열지 않으므로
+        // 엔진의 오브젝트 클래스와 이름이 겹치지 않는다. 엔진 클래스가 다시 `JBro` 에 바로 놓이면 이 줄이 모호해져 먼저 깨진다.
+        static_assert(std::is_same_v<GameObject, JBro::Handle::GameObject>,
+            "the prelude must make GameObject mean the handle");
+        static_assert(sizeof(GameObject) == 16, "and the handle stays 16 bytes");
+
+#if defined(JBRO_TEST_OBJECT_NAMESPACE_IN_PRELUDE)
+        // **음성 시험.** 엔진 네임스페이스까지 열면 두 `GameObject` 가 한자리에 놓여 컴파일이 실패해야 한다.
+        using namespace JBro::Object;
+        GameObject ambiguousObject;
+        static_cast<void>(ambiguousObject);
+#endif
+
+        GameObject handle;
         Ref<ComponentBase> componentReference;
         ServiceContext services;
         Check(false == handle.IsValid() && false == static_cast<bool>(componentReference)

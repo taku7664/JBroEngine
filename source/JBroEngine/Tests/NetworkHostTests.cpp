@@ -61,7 +61,7 @@ namespace
         }
     };
 
-    JBro::Component::Transform2D* FindReplica(Side& server, Side& client, JBro::GameObject* serverObject)
+    JBro::Component::Transform2D* FindReplica(Side& server, Side& client, JBro::Object::GameObject* serverObject)
     {
         const JBro::Network::NetworkObjectId id = server.host.FindNetworkId(serverObject->GetInstanceId());
         if (JBro::Network::InvalidNetworkObjectId == id)
@@ -74,7 +74,7 @@ namespace
             return nullptr;
         }
         JBro::Component::Transform2D* found = nullptr;
-        client.canvas.ForEachObject([&](JBro::GameObject& object)
+        client.canvas.ForEachObject([&](JBro::Object::GameObject& object)
         {
             if (object.GetInstanceId() == local)
             {
@@ -84,7 +84,7 @@ namespace
         return found;
     }
 
-    bool Matches(Side& server, Side& client, JBro::GameObject* serverObject)
+    bool Matches(Side& server, Side& client, JBro::Object::GameObject* serverObject)
     {
         JBro::Component::Transform2D* mine = server.canvas.FindComponentRaw<JBro::Component::Transform2D>(serverObject);
         JBro::Component::Transform2D* theirs = FindReplica(server, client, serverObject);
@@ -111,7 +111,7 @@ namespace
         Check(false == client.host.HasAuthority(0) && server.host.HasAuthority(0), "only the server has authority");
 
         constexpr int Count = 20;
-        JBro::GameObject* objects[Count] = {};
+        JBro::Object::GameObject* objects[Count] = {};
         for (int index = 0; index < Count; ++index)
         {
             objects[index] = server.canvas.CreateObject("replicated");
@@ -220,7 +220,7 @@ namespace
         Check(side.host.IsReplicating(), "now replication stands");
         Check(side.host.GetTransport().GetReservedBytes() > 0, "and the transport took its budget");
 
-        JBro::GameObject* object = side.canvas.CreateObject();
+        JBro::Object::GameObject* object = side.canvas.CreateObject();
         side.canvas.AttachComponent<JBro::Component::Transform2D>(object);
         side.Frame();
         Check(JBro::Network::InvalidNetworkObjectId != side.host.FindNetworkId(object->GetInstanceId()),

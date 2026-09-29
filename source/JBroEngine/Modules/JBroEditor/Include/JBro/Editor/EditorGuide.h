@@ -9,7 +9,10 @@
 namespace JBro
 {
     class EditorApplication;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 가이드(D-251, `tasks/guide-focus-plan.md` §2.6)다. 단계마다 가이드 포커스로 한 자리를 가리키고,
     // 끝나는 조건이 맞으면 다음 단계로 간다. **가이드는 편집을 대신하지 않는다** - 편집은 사람이 하고,
@@ -145,6 +148,6 @@ namespace JBro
 
         // 계층에서 오브젝트까지 가는 경로(레이어 창 → 레이어 줄 → 조상 줄들 → 그 줄)를 `path` 뒤에 붙인다.
         // 조상이 경로 용량을 넘으면 거짓이다.
-        bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path);
+        bool AppendObjectPath(EditorApplication& editor, Object::GameObject& object, GuideFocusPath& path);
     }
 }

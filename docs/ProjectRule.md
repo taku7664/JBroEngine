@@ -211,7 +211,7 @@
   | 층 | 모듈 | 내용 |
   |---|---|---|
   | Tier S | `JBroCore` | 값 타입·컨테이너·`StableTypeId`·`InstanceIdGenerator`·텍스트 배치 enum(`TextOptions.h`, 2D·3D 텍스트 공용, D-222)·**수학 값 타입**(`Types/Math2D.h` 의 `Vector2`·`Rect`·`Matrix3x2`, `Types/Math3D.h` 의 `Vector3`·`Quaternion`, `Types/Matrix4x4.h` 의 `Matrix4x4`, D-241)·**각도 강타입**(`Types/Angle.h` 의 `Degree`·`Radian` 과 `Pi`·`TwoPi`·`DegreesToRadians`·`RadiansToDegrees`, D-247)·**크기**(`Types/Size.h` 의 `Size`·`SizeU`·`SizeI`, RHI 의 `Extent2D` 가 `SizeU` 다)·**비트 묶음**(`Types/BitFlag.h`)·**안전 영역**(`Types/SafeArea.h`)·**프레임 생존 표시**(`Types/FrameLiveness.h` 의 `RemoveStaleEntries`, 모두 D-249) |
-  | Tier S | `JBroRuntime` | `ComponentBase`·`GameObject`·`GameObjectHandle`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
+  | Tier S | `JBroRuntime` | `ComponentBase`·`Object::GameObject`·`Handle::GameObject`·`Ref<T>`·`GameScriptBase`·`SystemContext`·`ServiceContext`·`ScriptModule`·`Internal/InstanceRegistry`·`TextStore`·`TextId`(컴포넌트 밖의 글자, D-211) |
   | Tier S | `JBroFramework2D` | 컴포넌트·서비스·`GameScript2D`·`Layer2D` 값 타입·`Internal/ScriptModuleContext`·`ScriptAPI.h` |
   | Tier S | `JBroAssetTypes` | `AssetId`·`AssetHandle`·`AssetMetadata`·`Asset::*` (헤더 전용) |
   | Tier S | `JBroAudioTypes` | 차원 무관 `Component::AudioSource`·`Service::AudioService`·`AudioBusName`·오디오 값 타입·`Internal/` 확장 블록 (D-197) |
@@ -231,7 +231,7 @@
   | Tier E | `JBroTextRendering` | 텍스트 렌더링 공용: `TextLibrary`(폰트·아틀라스·페이지 텍스처)·`GlyphMesh`(글리프 쿼드)·`TextBlock`(레이아웃 캐시). Core·Text·AssetTypes·Asset·RHI·Graphics·Task·Platform·Runtime 에 기대고 캔버스·컴포넌트·프레임워크를 모른다. 2D·3D 텍스트 시스템이 쓴다 (D-222) |
   | Tier E | `JBroTask` | 태스크 관리자: `TaskManager`(워커 풀·메인 스레드 콜백)·`TaskGroup`·`Task`. `JBroCore` 에만 기대고 캔버스·스크립트를 모른다. 엔진(`EngineInstance`)이 들고 에디터와 함께 쓴다 (D-209·D-212) |
 
-  > `GameObject` 는 Tier S다. `ComponentBase`·`GameObjectHandle`·`GameScriptBase` 가 그 정의를 필요로 하고
+  > `Object::GameObject` 는 Tier S다. `ComponentBase`·`Handle::GameObject`·`GameScriptBase` 가 그 정의를 필요로 하고
   > 셋 다 스크립트 DLL 이 링크하기 때문이다. 스크립트가 그 선언을 받지 않는 것은 프렐류드가
   > `GameObject.h` 를 include 하지 않아서이며, 다른 Tier E 타입처럼 include 경로가 막아 주지는 않는다.
   > 이 분리는 단계 1에서 완료했다. 기록은 `tasks/structural-refactor-plan.md` §8·§9다.
@@ -326,7 +326,7 @@
 - 스크립트가 엔진 실 객체에 도달하는 경로는 서비스를 통한다. (MUST)
   `Canvas` 같은 Tier E 구현 타입은 스크립트 헤더에 **선언조차 나타나지 않는다.**
   `GameObject`는 §3의 사유로 Tier S에 있으나 프렐류드가 그 헤더를 include하지 않아 같은 결과가 된다.
-  Tier S의 `ComponentBase::GetOwner()`·`GameScriptBase::GetGameObject()`는 `GameObjectHandle`을 반환하며,
+  Tier S의 `ComponentBase::GetOwner()`·`GameScriptBase::GetGameObject()`는 `Handle::GameObject`를 반환하며,
   `GameObject*`·`Canvas*`를 돌려주는 접근은 `JBroCanvas`의 `Internal::CanvasAccess`
   (구 엔진 `CCanvasRuntimeAccess` 패턴)에만 둔다. (D-42)
   `ScriptAPI.h`는 각 Framework 모듈의 `Include/JBro/ScriptAPI.h`에 두어 include 경로는 하나, 내용은 차원별이다. (D-18, D-42)
@@ -348,7 +348,7 @@
 - **핸들은 스크립트 노출 표면에만 적용한다.** (MUST)
   스크립트가 다른 오브젝트를 오래 들고 있는 자리가 실제 댕글링이 나는 곳이고,
   거기만 `GameObject` 핸들로 덮는다.
-- **스크립트에 노출하는 참조는 `JBro::Handle` 의 핸들과 스크립트용 `Ref<T>` 다. 핸들의 이름은 엔진 타입과 같다.** (MUST) (D-271, **구현 전** - 아래 옛 문단이 지금 코드다)
+- **스크립트에 노출하는 참조는 `JBro::Handle` 의 핸들과 스크립트용 `Ref<T>` 다. 핸들의 이름은 엔진 타입과 같다.** (MUST) (D-271. **이름은 섰다**(1 단계: `Object::GameObject`·`Handle::GameObject`·프렐류드의 `using`). 빌트인 핸들과 스크립트 분리는 구현 전이고, 아래 옛 문단의 컴포넌트 `Ref<T>` 가 지금 코드다)
   - 오브젝트는 `Handle::GameObject`(16B), 빌트인 컴포넌트는 `Handle::Transform2D` 처럼 타입마다 하나(24B, 저장부 `InstanceRef`)다. 프렐류드가 `using namespace JBro;` 와 `using namespace JBro::Handle;` 을 연다.
   - 엔진 타입은 `JBro::Object::GameObject`·`JBro::Component::*` 에 있고 프렐류드는 그 네임스페이스를 열지 않는다. 컴포넌트 데이터 헤더는 스크립트 대상 빌드에서 `#error` 다.
   - `GetComponent<T>` 의 `T` 는 핸들 타입이다. 핸들의 타입 이름은 데이터 클래스와 같아 타입 id 가 같고, 오브젝트에서 확인해 있으면 채운 핸들을, 없으면 빈 핸들을 돌려준다.
@@ -356,15 +356,15 @@
   - `Ref<T>` 는 스크립트 전용이다. 스크립트는 컴포넌트가 아니다 - `GameScriptBase` 는 `ComponentBase` 를 상속하지 않고, 오브젝트는 컴포넌트 목록과 스크립트 목록을 따로 들며,
     스크립트 실행 순서는 스크립트 목록의 차례다. 캔버스 파일은 `Components:` 와 `Scripts:` 를 따로 적고 옛 형식을 읽지 않는다.
 
-  아래는 D-271 전의 계약이고 지금 코드다. 구현이 끝나면 지운다.
-  `GameObject`는 16B `GameObjectHandle`로 다루며, `operator->` 없이 안전 멤버만 제공한다.
+  아래는 D-271 전의 계약 중 아직 코드에 남은 것이다. 구현이 끝나면 지운다.
+  `GameObject`는 16B `Handle::GameObject`로 다루며, `operator->` 없이 안전 멤버만 제공한다.
   컴포넌트 · 스크립트는 24B `Ref<T>`를 쓰고 카테고리는 `T`에서 컴파일타임에 결정한다.
   에셋은 `AssetHandle`, 캔버스는 스크립트에 노출하지 않으므로 `RefCategory::Asset`·`Canvas`는 두지 않는다. (D-53)
   이 둘 외에 타입별 핸들을 추가하지 않는다. 두 크기(16B·24B)는 영구 고정이다. (D-44)
-- `GameObjectHandle`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
+- `Handle::GameObject`·`Ref<T>`는 `SafePtr`와 같이 **메인 스레드 전용**이다. 해석 캐시를 워커에서 갱신하지 않는다. (MUST) (D-54)
 - **워커 스레드의 일은 `JBroTask` 의 `TaskManager` 에 태스크로 등록한다.** 모듈마다 `std::thread` 를 새로 들지 않는다. 예외는 실시간 마감이
   있는 오디오 스트리머·장치 스레드, OS 대기에서 막히는 파일 감시, 그리고 스텝 안에서 나눴다 합치는 2D 물리의 전용 워커(아래)다. (SHOULD) (D-209, D-223)
-  - `Task::Run` 은 워커에서 돈다. 그 안에서 `SafePtr`·`OwnerPtr`·`Ref<T>`·`GameObjectHandle` 을 만들거나 복사하거나 파괴하지 않는다. 값과 raw
+  - `Task::Run` 은 워커에서 돈다. 그 안에서 `SafePtr`·`OwnerPtr`·`Ref<T>`·`Handle::GameObject` 을 만들거나 복사하거나 파괴하지 않는다. 값과 raw
     포인터만 쓰고, 대상의 수명은 등록한 쪽이 태스크가 끝날 때까지 보장한다. 풀에 넣는 것 같은 마무리는 메인 스레드의 `OnFinished` 가 한다. (MUST)
   - 태스크를 넘기는 모양은 가상 함수다(`Task::Run`·`OnFinished`). `std::function` 본문을 받지 않는다 - 캡처한 `SafePtr` 가 워커에서 소멸할 수 있다. (MUST) (D-212)
   - 묶음은 다 채운 뒤 통째로 제출한다. 완료는 제출한 뒤에만 판정하고, 콜백은 `EngineInstance::Tick` 첫머리의 `Update` 에서 메인 스레드로 온다. (MUST) (D-212)
@@ -398,8 +398,8 @@
   **경로가 둘인 게 아니라 접근자 하나에 사용법이 둘이다.**
   `operator->` 는 내부적으로 `Get()` 을 부르며, Debug 빌드 assert 만 차이다.
 - 스크립트가 대상의 수명 밖까지 보관하는 멤버에는 raw pointer를 저장하지 않는다. (MUST)
-  `GameObject`를 저장하면 `GameObjectHandle`, 그 외 대상을 저장하면 `Ref<T>`를 멤버로 둔다.
-- **컴포넌트가 저장되는 값으로 다른 오브젝트를 가리키면 `GameObjectHandle` 필드를 둔다**(리플렉션 잎사귀 `JBro.GameObjectHandle`). (MUST) (D-233)
+  `GameObject`를 저장하면 `Handle::GameObject`, 그 외 대상을 저장하면 `Ref<T>`를 멤버로 둔다.
+- **컴포넌트가 저장되는 값으로 다른 오브젝트를 가리키면 `Handle::GameObject` 필드를 둔다**(리플렉션 잎사귀 `JBro.Handle.GameObject`). (MUST) (D-233)
   캔버스 파일에는 그 오브젝트의 파일 안 번호로, 되돌리기·클립보드·스냅숏 글자에는 이번 실행의 오브젝트 번호(`@번호`)로 적힌다.
   오브젝트 번호(`InstanceId`)를 파일에 쓰지 않는다 - 실행마다 다르다. 지운 오브젝트를 되돌리면 옛 번호로 되살아나 참조가 이어진다.
   엔진 내부 참조는 이 규칙을 스크립트 핸들로 우회하지 않고 §6의 소유권과 `SafePtr<T>` 계약을 따른다.
@@ -430,7 +430,7 @@
   디바이스 로스트의 올바른 처리는 null 검사가 아니라 GPU 리소스 재생성이다.
   약참조는 크래시를 조용한 버그로 바꿀 뿐 안전을 주지 않는다.
 
-### 6.1 `GameObjectHandle`과 `Ref<T>`의 형태와 무효 접근
+### 6.1 `Handle::GameObject`와 `Ref<T>`의 형태와 무효 접근
 
 - `Ref<T>` 의 저장부는 `InstanceRef` 하나다. 별도의 핸들 베이스 타입을 두지 않는다. (MUST)
 
@@ -476,13 +476,13 @@
 
   활성 Canvas 가 사용하는 레지스트리는 프로세스 전역이며, InstanceId도 프로세스에서 유일하다.
   `WorldHandle`이나 World 레지스트리 같은 중간 조회 계층은 두지 않는다.
-- `GameObjectHandle`은 16B `{InstanceHandle, InstanceId}` 값이며
+- `Handle::GameObject`는 16B `{InstanceHandle, InstanceId}` 값이며
   **자주 쓰는 안전 멤버**를 제공한다. (MUST)
   `Destroy()` / `SetActive()` / `GetComponent<T>()` 등은 무효여도 로그만 남기고
   아무 일도 하지 않는다. `operator->`는 제공하지 않는다.
 
   ```cpp
-  GameObjectHandle target;
+  GameObject target;                           // 스크립트에서는 핸들이다(D-271)
   target.Destroy();                            // 안전 멤버. if 불필요
   Ref<Component::Transform2D> transform = target.GetComponent<Component::Transform2D>();
   if (auto* value = transform.Get())            // Ref<T>는 실패를 직접 확인한다
@@ -492,7 +492,7 @@
   ```
 
   GameObject만 안전 명령용 Handle을 쓰며, 컴포넌트·스크립트별 Handle은 만들지 않는다.
-- **`GameObjectHandle`에는 `operator->`를 추가하지 않는다.** (MUST)
+- **`Handle::GameObject`에는 `operator->`를 추가하지 않는다.** (MUST)
   안전 멤버 내부에서 대상 해석에 실패하면 즉시 `return`할 수 있어야 한다.
 - **안전 경로의 무효 접근은 로그를 남기고 아무 일도 하지 않는다.** (MUST)
   크래시도, 예외도, 절반 실행도 없어야 한다. 사용자가 `if` 를 쓰지 않아도 안전해야 한다.
@@ -507,11 +507,11 @@
 - 핸들을 해석해 얻은 raw pointer 는 장기 보관하지 않는다. 검증 이후 짧은 스코프에서만 쓴다. (MUST)
 - **스크립트는 오브젝트를 `GetServiceContext().Objects` 로 만들고 찾는다.** (MUST) (D-270, 구현 전)
   레이어는 `LayerHandle { LayerId }` 로 가리키고 `Layer` 자체를 프렐류드에 넣지 않는다.
-  `LayerHandle[name]` 은 그 레이어의 뿌리 오브젝트를, `GameObjectHandle[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이를 가리지 않는 찾기는 `FindInChildren` 이다.
+  `LayerHandle[name]` 은 그 레이어의 뿌리 오브젝트를, `GameObject[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이를 가리지 않는 찾기는 `FindInChildren` 이다.
   같은 이름이 여럿이면 계층에 보이는 순서의 첫 번째이고, 못 찾으면 빈 핸들이다.
   **`[]` 와 `Find` 는 이름만 본다. 태그는 `FindWithTag`·`CompareTag` 같은 함수로만 찾는다** - 이름과 태그는 서로 다른 `NameId` 칸이다.
   찾기는 매 프레임 부르지 않고 `OnStart` 에서 찾아 핸들을 든다.
-  오브젝트 삭제는 `GameObjectHandle::Destroy()` 하나이며, **삭제를 요청한 순간부터 모든 사본의 `IsValid()` 가 거짓이고 찾기에서 빠진다.**
+  오브젝트 삭제는 `Handle::GameObject::Destroy()` 하나이며, **삭제를 요청한 순간부터 모든 사본의 `IsValid()` 가 거짓이고 찾기에서 빠진다.**
   만들 때 차원의 기본 트랜스폼은 프레임워크 구현이 붙인다.
 
 ### 6.2 스크립트 DLL ABI와 핫 리로드 수명

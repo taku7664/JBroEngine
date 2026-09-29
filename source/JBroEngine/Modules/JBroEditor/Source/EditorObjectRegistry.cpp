@@ -4,7 +4,7 @@
 
 namespace JBro
 {
-    EditorObjectId EditorObjectRegistry::Track(GameObject* object)
+    EditorObjectId EditorObjectRegistry::Track(Object::GameObject* object)
     {
         if (object == nullptr)
         {
@@ -25,7 +25,7 @@ namespace JBro
         return entry.id;
     }
 
-    GameObject* EditorObjectRegistry::Resolve(EditorObjectId id) const
+    Object::GameObject* EditorObjectRegistry::Resolve(EditorObjectId id) const
     {
         if (id == InvalidEditorObjectId)
         {
@@ -41,7 +41,7 @@ namespace JBro
         return nullptr;
     }
 
-    bool EditorObjectRegistry::Rebind(EditorObjectId id, GameObject* object)
+    bool EditorObjectRegistry::Rebind(EditorObjectId id, Object::GameObject* object)
     {
         if (id == InvalidEditorObjectId || object == nullptr)
         {

@@ -59,7 +59,7 @@ namespace
             "moving a missing layer must fail without indexing outside the layer array");
         Check(false == canvas.DestroyLayer(backgroundIndex),
             "destroying a missing layer must fail without indexing outside the layer array");
-        JBro::GameObject* object = canvas.CreateObject("layer lookup");
+        JBro::Object::GameObject* object = canvas.CreateObject("layer lookup");
         Check(object != nullptr && false == canvas.SetObjectLayer(object, backgroundIndex),
             "assigning a missing layer must fail without indexing outside the layer array");
 
@@ -122,7 +122,7 @@ namespace
         Check(framework.Initialize(context), "Framework3D must initialize its runtime canvas");
         JBro::Canvas* canvas = framework.GetCanvas();
         Check(canvas != nullptr, "Framework3D must expose its runtime canvas");
-        JBro::GameObject* object = canvas->CreateObject("3D object");
+        JBro::Object::GameObject* object = canvas->CreateObject("3D object");
         Check(object != nullptr, "Framework3D canvas must create objects without Framework2D");
         auto* transform = canvas->AttachComponent<JBro::Component::Transform3D>(object);
         Check(transform != nullptr
@@ -217,7 +217,7 @@ namespace
         canvas.ForEach<LifecycleProbe>([&](LifecycleProbe& probe)
         {
             ++visited;
-            JBro::GameObject* owner = JBro::Internal::CanvasAccess::GetOwner(probe);
+            JBro::Object::GameObject* owner = JBro::Internal::CanvasAccess::GetOwner(probe);
             Check(canvas.DestroyObject(owner),
                 "a destroy request made while iterating must be accepted");
             Check(canvas.IsIterating(), "the guard must report an active iteration");
@@ -419,7 +419,7 @@ namespace
         static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::Component::Collider2D>);
 
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("multi-component");
+        JBro::Object::GameObject* object = canvas.CreateObject("multi-component");
         Check(object != nullptr, "component test object must be created");
 
         JBro::Component::Collider2D* first =

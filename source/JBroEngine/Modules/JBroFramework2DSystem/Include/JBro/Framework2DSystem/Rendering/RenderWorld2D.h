@@ -11,11 +11,14 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     struct RenderCamera2D
     {
-        GameObject* owner            = nullptr;
+        Object::GameObject* owner            = nullptr;
         Matrix3x2   view;
         float       orthographicSize = 10.0f;
         float       pixelsPerUnit = 100.0f;
@@ -27,7 +30,7 @@ namespace JBro
 
     struct SpriteRenderItem
     {
-        GameObject*   owner = nullptr;
+        Object::GameObject*   owner = nullptr;
         InstanceId    sourceId = InvalidInstanceId;
         // 레이어 합성 순서. 정렬 키의 최상위다(D-46).
         std::uint16_t layerOrder = 0;

@@ -9,7 +9,10 @@
 namespace JBro
 {
     // GameObject는 전용 GameObjectHandle을 사용하고, Ref<T>는 그 외 영속 참조에 사용한다.
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     struct InstanceHandle                    // 8B. 이번 실행에서의 위치
     {
@@ -73,8 +76,8 @@ namespace JBro
     class Ref : public InstanceRef
     {
     public:
-        static_assert(false == std::is_same_v<std::remove_cv_t<T>, GameObject>,
-            "GameObject references must use GameObjectHandle, not Ref<GameObject>");
+        static_assert(false == std::is_same_v<std::remove_cv_t<T>, Object::GameObject>,
+            "GameObject references must use the GameObject handle, not Ref<Object::GameObject>");
 
         static constexpr RefCategory Category = RefCategoryOf<T>::value;
 

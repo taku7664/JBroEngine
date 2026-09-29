@@ -5,7 +5,10 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 에디터가 오브젝트에 붙이는 안정된 번호다(D-72).
     //
@@ -24,11 +27,11 @@ namespace JBro
     {
     public:
         // 이미 아는 오브젝트면 그 번호를, 처음 보면 새 번호를 준다.
-        EditorObjectId Track(GameObject* object);
+        EditorObjectId Track(Object::GameObject* object);
         // 번호로 찾는다. 사라졌거나 모르는 번호면 nullptr 이다.
-        GameObject* Resolve(EditorObjectId id) const;
+        Object::GameObject* Resolve(EditorObjectId id) const;
         // 되살린 오브젝트를 옛 번호에 다시 건다. 삭제를 되돌릴 때 쓴다.
-        bool Rebind(EditorObjectId id, GameObject* object);
+        bool Rebind(EditorObjectId id, Object::GameObject* object);
         void Clear();
         std::size_t GetCount() const;
 
@@ -36,7 +39,7 @@ namespace JBro
         struct Entry
         {
             EditorObjectId id = InvalidEditorObjectId;
-            SafePtr<GameObject> object;
+            SafePtr<Object::GameObject> object;
         };
 
         // 선형 탐색이다. 씬 하나 분량이고 매 프레임 도는 길이 아니다 -

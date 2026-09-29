@@ -2,7 +2,7 @@
 
 namespace JBro
 {
-    GameObjectHandle GameScriptBase::GetGameObject() const
+    Handle::GameObject GameScriptBase::GetGameObject() const
     {
         return GetOwner();
     }

@@ -118,9 +118,9 @@ namespace
     void TestTransformHierarchyPropagates()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* parent = canvas.CreateObject("parent");
-        JBro::GameObject* child = canvas.CreateObject("child");
-        JBro::GameObject* loner = canvas.CreateObject("loner");
+        JBro::Object::GameObject* parent = canvas.CreateObject("parent");
+        JBro::Object::GameObject* child = canvas.CreateObject("child");
+        JBro::Object::GameObject* loner = canvas.CreateObject("loner");
         auto* parentLocal = canvas.AttachComponent<JBro::Component::Transform3D>(parent);
         auto* childLocal = canvas.AttachComponent<JBro::Component::Transform3D>(child);
         auto* lonerLocal = canvas.AttachComponent<JBro::Component::Transform3D>(loner);
@@ -162,9 +162,9 @@ namespace
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         JBro::RenderWorld3D world;
-        JBro::GameObject* first = canvas.CreateObject("first");
-        JBro::GameObject* second = canvas.CreateObject("second");
-        JBro::GameObject* eyeless = canvas.CreateObject("eyeless");
+        JBro::Object::GameObject* first = canvas.CreateObject("first");
+        JBro::Object::GameObject* second = canvas.CreateObject("second");
+        JBro::Object::GameObject* eyeless = canvas.CreateObject("eyeless");
         auto* firstTransform = canvas.AttachComponent<JBro::Component::Transform3D>(first);
         canvas.AttachComponent<JBro::Component::Transform3D>(second);
         firstTransform->position = {0.0f, 0.0f, 5.0f};
@@ -232,11 +232,11 @@ namespace
         Check(library.Resolve(JBro::MeshLibrary::BuiltinCubeId()).index == 7, "a registered id resolves");
         Check(library.Resolve(JBro::Uuid::FromName("builtin/nothing")).generation == 0, "an unknown id does not");
 
-        JBro::GameObject* shown = canvas.CreateObject("shown");
-        JBro::GameObject* hidden = canvas.CreateObject("hidden");
-        JBro::GameObject* placeless = canvas.CreateObject("placeless");
-        JBro::GameObject* unnamed = canvas.CreateObject("unnamed");
-        for (JBro::GameObject* object : {shown, hidden, unnamed})
+        JBro::Object::GameObject* shown = canvas.CreateObject("shown");
+        JBro::Object::GameObject* hidden = canvas.CreateObject("hidden");
+        JBro::Object::GameObject* placeless = canvas.CreateObject("placeless");
+        JBro::Object::GameObject* unnamed = canvas.CreateObject("unnamed");
+        for (JBro::Object::GameObject* object : {shown, hidden, unnamed})
         {
             canvas.AttachComponent<JBro::Component::Transform3D>(object);
         }
@@ -288,11 +288,11 @@ namespace
         Check(framework.Initialize(context), "the 3D framework must initialize without a renderer");
         JBro::Canvas* canvas = framework.GetCanvas();
         Check(canvas != nullptr, "and own a canvas");
-        JBro::GameObject* eye = canvas->CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas->CreateObject("eye");
         auto* eyeTransform = canvas->AttachComponent<JBro::Component::Transform3D>(eye);
         eyeTransform->position = {0.0f, 1.0f, 4.0f};
         canvas->AttachComponent<JBro::Component::Camera3D>(eye)->primary = true;
-        JBro::GameObject* box = canvas->CreateObject("box");
+        JBro::Object::GameObject* box = canvas->CreateObject("box");
         canvas->AttachComponent<JBro::Component::Transform3D>(box);
         auto* boxMesh = canvas->AttachComponent<JBro::Component::MeshRenderer3D>(box);
         boxMesh->meshId = JBro::MeshLibrary::BuiltinCubeId();

@@ -2947,6 +2947,10 @@ EditorApplication::Tick
   (9) **순서.** ① 이름: 엔진 `GameObject` → `Object::GameObject`, `GameObjectHandle` → `Handle::GameObject`, 프렐류드의 `using`. ② 컴포넌트와 스크립트 분리. ③ 빌트인 핸들(2D 7 종·3D 6 종)과 데이터 헤더 막기·서비스 인자.
   ④ 3.6 오브젝트 API(D-270). 단계마다 빌드·시험을 통과시키고 커밋한다.
   (10) 번호: 이 브랜치(`ide`)의 D-264~D-270 은 main 의 D-264~D-270 과 번호가 겹친다. 병합할 때 main 뒤로 한꺼번에 옮긴다.
+  (11) **1 단계(이름)가 섰다**(2026-09-29). 엔진 소스 106 파일을 기계적으로 바꿨다 - 코드의 `GameObject` 는 `Object::GameObject`, `JBro::GameObject` 는 `JBro::Object::GameObject`,
+  `GameObjectHandle` 은 `Handle::GameObject`(스크립트 대상 소스는 `GameObject`), 앞선언은 `namespace Object { class GameObject; }` 다. `Object::GameObject` 안의 `friend class Canvas;` 는
+  `friend class JBro::Canvas;` 로 적어야 한다 - 수식 없는 friend 선언은 가장 안쪽 네임스페이스에 새 클래스를 선언한다. 리플렉션 잎사귀는 `JBro.Handle.GameObject`, 스크립트 프로젝트의
+  필드 틀은 `JBRO_FIELD(GameObject, …)` 다. Debug·Debug_Game2D·Debug_Game3D 가 빌드되고 전체 시험이 지난다.
 
 - **D-270. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **구현 전이다 - 계약만 섰다.**
   Updates: D-45, D-51, cpp-script-plan §3.6·§4, ProjectRule §6.1.
