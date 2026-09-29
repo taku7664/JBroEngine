@@ -3,6 +3,7 @@
 #include <JBro/Core/Yaml.h>
 #include <JBro/Platform/WindowsPlatform.h>
 
+#include <cctype>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -376,13 +377,27 @@ namespace
             }
         }
         Check(sources.size() > 100000, "the editor sources must actually have been read");
+        // 내장 가이드는 글자로 적혀 키를 `Key: <키>` 줄로 부른다(D-267). 키 뒤가 키의 글자이면 다른 키의 앞부분이다.
+        const auto namedInGuideText = [&sources](const std::string& key) {
+            const std::string line = "Key: " + key;
+            for (std::size_t at = sources.find(line); at != std::string::npos; at = sources.find(line, at + 1))
+            {
+                const std::size_t after = at + line.size();
+                const char next = after < sources.size() ? sources[after] : '\n';
+                if (false == (std::isalnum(static_cast<unsigned char>(next)) || next == '_' || next == '.'))
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
         for (const auto& [name, key] : declared)
         {
             if (key.rfind("component_category.", 0) == 0)
             {
                 continue;
             }
-            if (sources.find(name) == std::string::npos)
+            if (sources.find(name) == std::string::npos && false == namedInGuideText(key))
             {
                 std::cout << "  " << name << " (" << key << ")" << std::endl;
                 Check(false, "a key nobody names is a translation nobody needs");

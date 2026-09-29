@@ -445,6 +445,10 @@ Steps:
    (`EditorGuideFocus::GetUnseenSeconds`). 시험의 단언과 변이 하나(M27)가 이것을 잰다.
    `[열림]` 몰이 한 번에서 `확인` 뒤에 내장 가이드 `컴포넌트 추가하기` 가 켜진 화면이 찍혔다. 켜는 자리는 `도움말` 메뉴뿐이고, 같은 손짓을 다시 돌려 보았으나
    재현되지 않았다(창이 화면에 떠 있어 다른 입력이 섞였을 수 있다).
+   **뒤늦게 찾은 회귀(2026-09-29, 9 단계를 하며):** 내장 가이드를 글자로 옮기자 `guide.add_component_*`·`guide.build_game_*` 키 열 개를 코드가 상수 이름
+   (`LocKeys::GuideAddComponentTitle`)이 아니라 YAML 의 `Key:` 줄로 부르게 되었고, 로컬라이징 시험 ③("a key nobody names is a translation nobody needs")이
+   이것을 쓰지 않는 키로 보아, 6 단계부터 main 의 전체 시험이 거기서 멈춰 있었다. 시험 ③ 이 상수 이름 **또는** `Key: <키>` 줄(키 뒤가
+   키의 글자가 아닌 것)을 부른 것으로 보게 고쳤다. 상수는 시험 ①② 가 번역 표와 맞춰 보므로 남긴다.
 
 7. **[섰다] 행동은 한 줄(D-268, §2.9).** `EditorGuideActions.cpp` 를 메뉴 표 + 한 줄 행동 표로 다시 짰다. `EditorCommand::GetSubject` 와 커맨드 관리자의
    실행 기록(`GetExecuteCount`·`GetExecuted`, 최근 32 개), 새 대상 `HierarchyBackground`·`CanvasViewBackground`, 공용 메뉴 항목과 편집 메뉴 항목의
