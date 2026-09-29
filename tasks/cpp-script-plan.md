@@ -124,7 +124,35 @@ DLL 이 없거나 그 타입이 없어진 스크립트는 **저장된 값을 그
 
 - 완료 조건: `Probe.cpp` 가 손으로 하던 바인딩을 이것으로 바꿔도 기존 스크립트 모듈 시험이 모두 통과한다.
 - 검증: 바인딩 목록에서 서비스 하나를 빼는 뮤테이션을 시험이 잡는다. 2D 매크로를 3D 프렐류드에서 쓰면 컴파일이 실패한다(음성 시험).
-- 확인이 필요한 것: 매크로 이름과, 구현을 헤더에 둘지 정적 라이브러리에 둘지.
+- ~~확인이 필요한 것: 매크로 이름과, 구현을 헤더에 둘지 정적 라이브러리에 둘지.~~ 정했다(D-265).
+
+**진행 (2026-09-29, D-265).** 섰다. 사용자가 쓰는 모양:
+
+```cpp
+// Contents/Scripts/Player.h
+class Player final : public JBro::GameScript2D
+{
+    JBRO_SCRIPT_BODY(Player)
+public:
+    void OnUpdate() override;
+    JBRO_FIELD(float, Speed) = 3.0f;
+};
+
+// Contents/Scripts/Player.cpp
+JBRO_REGISTER_SCRIPT_2D(Player);
+
+// Contents/Scripts/ScriptModule.cpp (프로젝트에 하나, 3.3 에서 에디터가 만든다)
+JBRO_SCRIPT_MODULE_2D()
+```
+
+- 구현: `Runtime/ScriptRegistry.h` 의 `JBRO_SCRIPT_BODY`·`ScriptTypeRegistration`·`RegisterPendingScriptTypes`, `Framework2D`/`3D` 의 `Scripting/ScriptModule.h`·`.cpp`,
+  3D 의 `Scripting/GameScript.h`(`RegisterScriptType3D`, 3D 프렐류드가 include 한다). `Probe.cpp` 가 손으로 하던 진입점·바인딩 약 90 줄을 두 줄로 바꿨다.
+- 검증: 시험 DLL 을 호스트가 열었을 때 호스트가 넘긴 컨텍스트 열 개(입력·세이브·로컬라이징·오디오·네트워크의 서비스와 시스템)가 DLL 사본과 바이트로 같다.
+  3D API 가 3D 블록 둘을 요구하고, 미뤄 둔 등록이 부를 때 두 표에 들어가며 두 번째 등록은 거절된다(`ScriptModuleEntryTests`). 2D 프로젝트에서 3D 진입점 헤더는 C1083(음성).
+- 뮤테이션: 네트워크·로컬라이징 시스템 바인딩 빼기, `Load` 의 등록 빼기, 목록에 걸기 빼기, 등록 거절 무시, 3D 요구 블록 바꾸기, `JBRO_SCRIPT_BODY` 가 모든 타입에 같은 이름을 주기가 잡혔다.
+  오디오·입력·세이브 **서비스** 컨텍스트와 2D 서비스 컨텍스트 바인딩 빼기는 살아남았다 - 그 서비스 객체들에는 멤버가 없어(헤더로 확인) 묶든 안 묶든 DLL 쪽 바이트가 같다.
+  같은 동작의 변이로 보고, 상태를 드는 시스템 컨텍스트 쪽 검사로 갈음한다.
+- 남은 것: 3D 는 시험 DLL 이 없어 `Load` 를 실제로 부르지 않았다(호스트 프로세스에서 부르면 공통 컨텍스트를 비운다). 3D 게임 스크립트를 쓰기 시작할 때 3D 시험 DLL 을 둔다.
 
 ### 3.3 사용자 스크립트 프로젝트
 
@@ -163,7 +191,7 @@ DLL 이 없거나 그 타입이 없어진 스크립트는 **저장된 값을 그
 ## 4. 열림
 
 - ~~`[열림]` 3.1 의 모르는 스크립트를 들고 있는 모양~~ 캔버스 쪽 자료다(D-264).
-- `[열림]` 3.2 의 매크로 이름과 구현 자리.
+- ~~`[열림]` 3.2 의 매크로 이름과 구현 자리~~ 정했다(D-265).
 - ~~`[열림]` 3.3 의 프로젝트를 만드는 곳~~ 에디터다(2026-09-29). 폴더 자리도 정했다(기존 엔진과 같다).
 - ~~`[열림]` 스크립트 한 개를 파일 하나로 쓰는 방법~~ 기존 엔진처럼 `.h`/`.cpp` 로 나눈다(2026-09-29 사용자 지시).
 - `[열림]` §2.2 의 엔진 위치를 스크립트 프로젝트에 알리는 방법, 게임 빌드의 스크립트 DLL 구성(Debug/Release).

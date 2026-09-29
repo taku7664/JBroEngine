@@ -530,6 +530,10 @@
   로드 컨텍스트가 호스트의 `ScriptRegistry` 와 스크립트 `PropertyRegistry` 를 넘기고 DLL 은 둘 다에 묶는다. 등록은 `RegisterScriptType<T>`
   하나로 두 표에 함께 한다. 호스트는 정상 언로드뿐 아니라 **`Load` 가 실패한 뒤에도** 두 표를 비운다 - 표의 항목은 DLL 안의 생성 함수와
   필드 접근자를 가리킨다.
+- **게임 스크립트 DLL 의 진입점은 `JBRO_SCRIPT_MODULE_2D()`/`_3D()` 로만 낸다. 스크립트 등록은 그 스크립트의 `.cpp` 에 `JBRO_REGISTER_SCRIPT_2D`/`_3D` 한 줄이다.** (MUST) (D-265)
+  컨텍스트 검증·바인딩·해제는 `JBroFramework2D`/`3D` 의 `Scripting/ScriptModule.cpp` 한 자리에 있고 사용자 코드에 두지 않는다.
+  등록은 `Load` 가 호스트 표를 모두 묶은 뒤에 한다(정적 초기화 때 하지 않는다, D-44). 스크립트 필드는 `JBRO_FIELD` 로 적고,
+  헤더를 읽어 소스를 생성하는 도구를 빌드 경로에 두지 않는다.
 
 ## 7. 엔진 서비스
 

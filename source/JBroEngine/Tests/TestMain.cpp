@@ -77,6 +77,7 @@ int RunContextBoundaryTests();
 int RunScriptApiPreludeTests();
 int RunPublicHeaderCompositionTests();
 int RunScriptDLLLoaderTests();
+int RunScriptModuleEntryTests();
 int RunScriptCompilerLexerTests();
 int RunScriptCompilerParserTests();
 int RunScriptCompilerCommandLineTests();
@@ -422,6 +423,10 @@ int main()
             return 1;
         }
         if (RunScriptDLLLoaderTests() != 0)
+        {
+            return 1;
+        }
+        if (RunScriptModuleEntryTests() != 0)
         {
             return 1;
         }

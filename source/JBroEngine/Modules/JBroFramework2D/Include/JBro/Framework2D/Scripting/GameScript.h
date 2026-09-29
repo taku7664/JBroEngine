@@ -48,3 +48,12 @@ namespace JBro
         return RegisterScriptType<T>();
     }
 }
+
+// 2D 스크립트 하나를 등록한다(cpp-script-plan §3.2). 그 스크립트의 `.cpp` 에 한 줄 쓴다 - 목록 파일이 따로 없다.
+// 실제 등록은 모듈이 실릴 때 호스트 표를 묶은 뒤에 한다(`ScriptTypeRegistration`).
+#define JBRO_REGISTER_SCRIPT_2D(Type)                                                          \
+    static ::JBro::ScriptTypeRegistration JBRO_SCRIPT_CONCAT(JBroScriptRegistration_, __LINE__)( \
+        []() -> bool                                                                           \
+        {                                                                                      \
+            return ::JBro::RegisterScriptType2D<Type>();                                       \
+        })

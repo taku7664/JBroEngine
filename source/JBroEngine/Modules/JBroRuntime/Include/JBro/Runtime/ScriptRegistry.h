@@ -160,4 +160,49 @@ namespace JBro
         return ScriptRegistry::Get().Register(MakeScriptTypeInfo<T>())
             && PropertyRegistry::RegisterScript(name, GetPropertyTable<T>());
     }
+
+    // 스크립트 타입 하나의 **미뤄 둔** 등록이다(cpp-script-plan §3.2). `JBRO_REGISTER_SCRIPT_2D` 가 스크립트의 `.cpp` 에 정적 객체로 하나 둔다.
+    //
+    // 정적 초기화는 DLL 이 실릴 때, 호스트 표를 묶기 **전에** 돈다. 그때 등록하면 이름이 DLL 사본의 이름표에 들어가 호스트가 찾지 못한다(D-44).
+    // 그래서 여기서는 이 모듈의 목록에 제 주소만 걸고, 실제 등록은 모듈의 `Load` 가 호스트 표를 묶은 뒤 `RegisterPendingScriptTypes` 로 한다.
+    // 힙을 쓰지 않는다 - 노드가 다음 노드를 가리킨다. 목록은 모듈(DLL)마다 하나다. Runtime 을 저마다 정적 링크하기 때문이다.
+    //
+    // **스크립트 `.cpp` 는 DLL 프로젝트에 직접 넣는다.** 정적 라이브러리에 넣으면 링커가 아무도 부르지 않는 그 오브젝트 파일을 버려 등록이 사라진다.
+    class ScriptTypeRegistration final
+    {
+    public:
+        using RegisterFunction = bool (*)();
+
+        explicit ScriptTypeRegistration(RegisterFunction registerType) noexcept;
+        ScriptTypeRegistration(const ScriptTypeRegistration&) = delete;
+        ScriptTypeRegistration& operator=(const ScriptTypeRegistration&) = delete;
+
+    private:
+        friend bool RegisterPendingScriptTypes();
+
+        RegisterFunction        m_register = nullptr;
+        ScriptTypeRegistration* m_next = nullptr;
+    };
+
+    // 이 모듈에 걸린 등록을 모두 한다. 하나라도 거절되면(이름이 겹쳤다) 거짓이다. 던지면 그대로 던진다 - 부르는 `Load` 가 경계에서 받는다.
+    bool RegisterPendingScriptTypes();
 }
+
+#define JBRO_SCRIPT_CONCAT_INNER(Left, Right) Left##Right
+#define JBRO_SCRIPT_CONCAT(Left, Right) JBRO_SCRIPT_CONCAT_INNER(Left, Right)
+
+// 스크립트 클래스 본문을 연다(cpp-script-plan §3.2). 타입 이름·타입 id·리플렉션의 기준점을 한 줄로 낸다.
+// 타입 이름은 **클래스 이름 그대로**다 - 캔버스 파일의 `Type:` 과 에디터의 컴포넌트 이름이 이것이다. 이름을 바꾸면 저장된 캔버스는
+// 그 스크립트를 모르는 컴포넌트로 들고 있게 된다(D-264). 빌트인 컴포넌트와 같은 이름이면 등록이 거절된다.
+// 이 매크로 다음 줄부터는 private 이다(`JBRO_REFLECT_BODY` 와 같다).
+#define JBRO_SCRIPT_BODY(Type)                                                       \
+    public:                                                                          \
+        static constexpr const char* StaticTypeName()                                \
+        {                                                                            \
+            return #Type;                                                            \
+        }                                                                            \
+        ::JBro::ComponentTypeId GetTypeId() const override                           \
+        {                                                                            \
+            return ::JBro::MakeStableTypeId(StaticTypeName());                       \
+        }                                                                            \
+    JBRO_REFLECT_BODY(Type)

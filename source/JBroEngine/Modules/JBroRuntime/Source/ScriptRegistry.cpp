@@ -5,6 +5,27 @@ namespace JBro
     namespace
     {
         ScriptRegistry* g_boundScriptRegistry = nullptr;
+        // 상수 초기화라 어느 번역 단위의 정적 객체가 먼저 걸어도 이미 널이다.
+        ScriptTypeRegistration* g_pendingScriptTypes = nullptr;
+    }
+
+    ScriptTypeRegistration::ScriptTypeRegistration(RegisterFunction registerType) noexcept
+        : m_register(registerType)
+        , m_next(g_pendingScriptTypes)
+    {
+        g_pendingScriptTypes = this;
+    }
+
+    bool RegisterPendingScriptTypes()
+    {
+        for (ScriptTypeRegistration* entry = g_pendingScriptTypes; entry != nullptr; entry = entry->m_next)
+        {
+            if (entry->m_register == nullptr || false == entry->m_register())
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     ScriptRegistry& ScriptRegistry::Local()

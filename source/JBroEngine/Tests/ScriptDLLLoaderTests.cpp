@@ -8,6 +8,14 @@
 #include <JBro/Host/ScriptDLLLoader.h>
 #include <JBro/InputTypes/ServiceContext.h>
 #include <JBro/SaveTypes/ServiceContext.h>
+#include <JBro/AudioTypes/Internal/SystemContext.h>
+#include <JBro/AudioTypes/ServiceContext.h>
+#include <JBro/InputTypes/Internal/SystemContext.h>
+#include <JBro/LocalizationTypes/Internal/SystemContext.h>
+#include <JBro/LocalizationTypes/ServiceContext.h>
+#include <JBro/Network/Internal/SystemContext.h>
+#include <JBro/Network/ServiceContext.h>
+#include <JBro/SaveTypes/Internal/SystemContext.h>
 #include <JBro/Host/GameLocalization.h>
 #include <JBro/Internal/InstanceRegistry.h>
 #include <JBro/Canvas/Canvas.h>
@@ -700,7 +708,7 @@ namespace
             "a loaded script DLL must register into the host script registry");
 
         const JBro::ScriptTypeInfo* registered =
-            JBro::ScriptRegistry::Local().Find("Probe::RegisteredScript");
+            JBro::ScriptRegistry::Local().Find("ProbeRegisteredScript");
         Check(registered != nullptr, "the host must see the type the DLL registered");
         Check(registered->size == getRegisteredSize(),
             "the host must allocate the size the DLL reports, not a guess");
@@ -714,7 +722,7 @@ namespace
         Check(getScriptProperties != nullptr
                 && getScriptProperties() == reinterpret_cast<std::uintptr_t>(&JBro::PropertyRegistry::ScriptLocal()),
             "a loaded script DLL must register its property tables into the host table");
-        const JBro::PropertyTable* scriptTable = JBro::PropertyRegistry::Lookup("Probe::RegisteredScript");
+        const JBro::PropertyTable* scriptTable = JBro::PropertyRegistry::Lookup("ProbeRegisteredScript");
         Check(scriptTable != nullptr && scriptTable->count == 1
                 && std::strcmp(JBro::NameTable::Local().Resolve(scriptTable->properties[0].name), "Speed") == 0,
             "the host must find the script's field by the name the DLL declared");
@@ -723,7 +731,7 @@ namespace
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
             JBro::GameObject* object = canvas.CreateObject("scripted by name");
-            JBro::GameScriptBase* script = canvas.AttachScript(object, "Probe::RegisteredScript");
+            JBro::GameScriptBase* script = canvas.AttachScript(object, "ProbeRegisteredScript");
             Check(script != nullptr, "the canvas must attach a script it only knows by name");
 
             // 스크립트가 붙은 캔버스를 저장하고 다시 연다(cpp-script-plan §3.1). 값은 DLL 이 등록한 접근자로 오간다.
@@ -770,7 +778,7 @@ namespace
                 "a reference to a destroyed script must not stay valid");
 
             JBro::GameObject* second = canvas.CreateObject("second scripted");
-            JBro::GameScriptBase* reborn = canvas.AttachScript(second, "Probe::RegisteredScript");
+            JBro::GameScriptBase* reborn = canvas.AttachScript(second, "ProbeRegisteredScript");
             Check(reborn != nullptr, "the pool must serve a second script");
             Check(false == stale.IsValid(),
                 "a stale reference must not revive on the slot the new script took");
@@ -796,7 +804,7 @@ namespace
         Check(getReloadedRevision != nullptr && getReloadedRevision() == 2,
             "reload must execute code from the replacement script DLL");
         Check(JBro::PropertyRegistry::ScriptLocal().GetCount() == 1
-                && JBro::PropertyRegistry::Lookup("Probe::RegisteredScript") != nullptr,
+                && JBro::PropertyRegistry::Lookup("ProbeRegisteredScript") != nullptr,
             "reload must clear the old property tables and take the replacement's");
         Check(CountShadowLibraries(files) == 1,
             "reload must delete the old shadow DLL before retaining its replacement");
@@ -1051,6 +1059,45 @@ namespace
         Check(JBro::String(localized, localizedSize) == "menu.start", "a key with no table comes back as itself inside the DLL");
         Check(engine.GetLocalization() != nullptr && engine.GetLocalization()->GetLocaleName() == "en-US",
             "and the locale the DLL set is the host's");
+
+        // **호스트가 넘기는 서비스가 모두 DLL 사본에 묶인다**(cpp-script-plan §3.2). 진입점을 손으로 쓰던 때는 시험 DLL 조차
+        // 오디오·네트워크를 묶지 않았다. 바인딩 목록은 이제 엔진(`JBroFramework2D`) 한 곳에 있고, 여기서 열 개를 모두 견준다.
+        {
+            using CopyContext = std::uint32_t (*)(std::uint32_t, void*, std::uint32_t) noexcept;
+            const auto copyContext = reinterpret_cast<CopyContext>(
+                engine.GetScriptModule().GetSymbol("JBroScriptProbe_CopyContext"));
+            Check(copyContext != nullptr, "the probe must export its context copies");
+            struct HostContext
+            {
+                const void*   data;
+                std::uint32_t size;
+                const char*   name;
+            };
+            const HostContext host[] =
+            {
+                {&JBro::GetInputServices(), sizeof(JBro::InputServiceContext), "input services"},
+                {&JBro::GetInputSystems(), sizeof(JBro::InputSystemContext), "input systems"},
+                {&JBro::GetSaveServices(), sizeof(JBro::SaveServiceContext), "save services"},
+                {&JBro::GetSaveSystems(), sizeof(JBro::SaveSystemContext), "save systems"},
+                {&JBro::GetLocalizationServices(), sizeof(JBro::LocalizationServiceContext), "localization services"},
+                {&JBro::GetLocalizationSystems(), sizeof(JBro::LocalizationSystemContext), "localization systems"},
+                {&JBro::GetAudioServices(), sizeof(JBro::AudioServiceContext), "audio services"},
+                {&JBro::GetAudioSystems(), sizeof(JBro::AudioSystemContext), "audio systems"},
+                {&JBro::GetNetworkServices(), sizeof(JBro::NetworkServiceContext), "network services"},
+                {&JBro::GetNetworkSystems(), sizeof(JBro::NetworkSystemContext), "network systems"},
+            };
+            for (std::uint32_t index = 0; index < sizeof(host) / sizeof(host[0]); ++index)
+            {
+                alignas(16) unsigned char copied[256] = {};
+                const bool same = copyContext(index, copied, sizeof(copied)) == host[index].size
+                    && std::memcmp(copied, host[index].data, host[index].size) == 0;
+                if (false == same)
+                {
+                    std::cout << "  the DLL's copy differs from the host's: " << host[index].name << '\n';
+                }
+                Check(same, "every context the host hands over must be bound inside the script DLL");
+            }
+        }
 
         engine.CloseProject();
         Check(framework.unbindCount == 1, "closing must unbind the contexts once");
