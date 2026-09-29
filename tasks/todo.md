@@ -738,7 +738,7 @@ EditorApplication::Tick
 
 ### 참조와 식별자
 
-- **D-5. 스크립트에 노출하는 참조는 두 가지뿐이다.**
+- **D-5. 스크립트에 노출하는 참조는 두 가지뿐이다.** **D-271 로 바뀌었다** - 핸들은 `JBro::Handle` 에 엔진 타입과 같은 이름으로 있고(`GameObject`·`Transform2D`), 빌트인 컴포넌트도 핸들이며, `Ref<T>` 는 스크립트 전용이다.
   1. **`GameObjectHandle`** (16B) — GameObject 만 예외. `IF` 없이 안전 멤버 호출
      (`.Destroy()` / `.SetActive()` / `.GetComponent<T>()` 등). `operator->` 없음.
   2. **`Ref<T>`** (24B) — 그 외 모든 참조 (컴포넌트/스크립트/에셋/캔버스). 저장 · 직렬화용.
@@ -2923,6 +2923,30 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-271. 스크립트가 보는 참조는 `JBro::Handle` 의 핸들이고, 이름은 엔진 타입과 같다. 빌트인 컴포넌트도 핸들이며, 스크립트는 컴포넌트가 아니다.** (2026-09-29, 사용자 지시: "빌트인 컴포넌트도 핸들화시키고, 컴포넌트와 스크립트를 분리한다", "Transform2D라는 이름이 핸들이어야해 … 핸들타입->타입id->확인->있으면 핸들 반환", "스크립트는 GameObjectHandle이 아니라 GameObject를 써야하는데?", "캔버스 마이그레이션 지원 안해도 됨", "네임스페이스도 Object로 해. 그리고 핸들도 JBro::Handle::인데 … using namespace JBro::Handle 이거도 추가해") **구현 전이다 - 계약만 섰다.**
+  Updates: D-5, D-42, D-44, D-45, D-48, D-233, D-264, D-268, D-270, cpp-script-plan §3.6, ProjectRule §5·§6.
+  (1) **핸들은 `JBro::Handle` 에 있고 엔진 타입과 이름이 같다.** `Handle::GameObject`(16B, 지금의 `GameObjectHandle`), `Handle::Transform2D`·`Handle::SpriteRenderer2D` 같은
+  빌트인 컴포넌트마다 하나(24B, 저장부는 `InstanceRef`). 게임 스크립트 프렐류드는 `using namespace JBro;` 와 **`using namespace JBro::Handle;`** 을 연다 -
+  스크립트에서 `GameObject`·`Transform2D` 라고 쓰면 핸들이다. D-5 의 `GameObjectHandle` 이라는 이름은 없어진다(문서와 코드가 D-5 부터 그 이름이었다).
+  (2) **엔진 타입은 네임스페이스로 물러난다.** 오브젝트 클래스는 `JBro::Object::GameObject`, 컴포넌트 데이터 클래스는 지금 그대로 `JBro::Component::Transform2D` 다.
+  프렐류드는 `Object`·`Component` 를 열지 않으므로 이름이 겹치지 않는다. 컴포넌트 데이터 헤더도 `GameObject.h` 처럼 스크립트 대상 빌드에서 `#error` 로 막는다 -
+  정규화해 써도 스크립트는 데이터 클래스에 닿지 못한다(음성 컴파일 시험으로 확인한다).
+  (3) **`GetComponent<T>` 의 `T` 는 핸들 타입이다.** 핸들의 `StaticTypeName()` 은 데이터 클래스와 같은 글자(`"Component::Transform2D"`)라 타입 id 가 같다 -
+  핸들 타입 → 타입 id → 오브젝트의 컴포넌트 목록에서 확인 → 있으면 {오브젝트 번호, 컴포넌트 번호, 캐시} 를 채운 핸들, 없으면 빈 핸들. 캔버스 파일의 타입 이름·레지스트리·에디터는 바뀌지 않는다.
+  (4) **빌트인 핸들의 멤버는 안전 멤버다.** 무효면 로그를 남기고 아무것도 하지 않으며, 값을 돌려주는 멤버는 로그를 남기고 기본값을 돌려준다(`GameObject::IsActive` 와 같다).
+  `operator->` 와 생 포인터를 내주는 길은 없다. 1 차 멤버는 지금 공개 필드와 접근자를 getter/setter 로 옮긴 것이고, **월드 캐시는 getter 만 둔다** - 3.6 의 `ReadOnly` 항목이 이것으로 닫힌다.
+  서비스 인자(`AudioService` 의 `Ref<Component::AudioSource>` 등)도 핸들로 바꾼다. 저장되는 필드(`JBRO_FIELD(Camera2D, target)`)는 `InstanceRef` 모양 그대로 저장·복원된다.
+  (5) **`Ref<T>` 는 스크립트 전용이다.** 사용자 타입의 메서드를 불러야 하므로 지금처럼 `Get()`·`operator->` 로 포인터를 준다. 스크립트별 핸들을 코드 생성으로 만들지 않는다(D-6 그대로).
+  (6) **컴포넌트와 스크립트를 가른다.** `GameScriptBase` 는 `ComponentBase` 를 상속하지 않고 자기 소유자·번호·켜짐을 든다. 오브젝트는 빌트인 목록(`m_components`)과 스크립트 목록(`m_scripts`)을 따로 든다.
+  **스크립트 실행 순서는 스크립트 목록의 차례다**(D-45 를 바꾼다 - 빌트인 자리를 옮겨도 스크립트 순서가 바뀌지 않는다). 캔버스 파일은 오브젝트마다 `Components:` 와 `Scripts:` 를 따로 적고,
+  모르는 컴포넌트 보관(D-264)과 핫 리로드의 글자 뜨기(D-268)는 스크립트 쪽에만 남는다. 에디터 인스펙터는 두 묶음을 나눠 보이고 추가 메뉴도 "컴포넌트 추가"·"스크립트 추가" 로 나눈다.
+  `GameScriptBase` 의 가상 함수 표는 DLL ABI 라(D-48) 컨텍스트 판번호를 올리고 옛 DLL 은 받지 않는다.
+  (7) **캔버스 마이그레이션은 하지 않는다.** 스크립트가 `Components:` 안에 섞인 옛 파일은 읽지 않는다. 저장소의 시험 데이터만 새 형식으로 바꾼다. 리플렉션 잎사귀 이름(`JBro.GameObjectHandle`, D-233)도 새 이름으로 바꾼다.
+  (8) **D-270 을 이 모양으로 읽는다.** `GameObjectHandle` 은 `GameObject`(핸들)이고, `AddComponent<T>` 는 핸들 `T` 를, 스크립트는 `AddScript<T>` 가 `Ref<T>` 를 돌려준다. `LayerHandle` 은 `Handle::Layer` 가 된다.
+  (9) **순서.** ① 이름: 엔진 `GameObject` → `Object::GameObject`, `GameObjectHandle` → `Handle::GameObject`, 프렐류드의 `using`. ② 컴포넌트와 스크립트 분리. ③ 빌트인 핸들(2D 7 종·3D 6 종)과 데이터 헤더 막기·서비스 인자.
+  ④ 3.6 오브젝트 API(D-270). 단계마다 빌드·시험을 통과시키고 커밋한다.
+  (10) 번호: 이 브랜치(`ide`)의 D-264~D-270 은 main 의 D-264~D-270 과 번호가 겹친다. 병합할 때 main 뒤로 한꺼번에 옮긴다.
 
 - **D-270. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **구현 전이다 - 계약만 섰다.**
   Updates: D-45, D-51, cpp-script-plan §3.6·§4, ProjectRule §6.1.

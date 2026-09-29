@@ -243,6 +243,13 @@ JBRO_SCRIPT_MODULE_2D()
 
 ### 3.6 스크립트 API 의 구멍
 
+**먼저 참조의 모양을 바꾼다(D-271, 구현 전).** 오브젝트 API 는 그 위에 선다.
+
+1. 이름: 엔진 `GameObject` → `JBro::Object::GameObject`, `GameObjectHandle` → `JBro::Handle::GameObject`, 프렐류드에 `using namespace JBro::Handle;`.
+2. 컴포넌트와 스크립트 분리: `GameScriptBase` 가 `ComponentBase` 를 떠나고, 오브젝트의 스크립트 목록·실행 순서·캔버스 파일의 `Scripts:`·인스펙터와 추가 메뉴·핫 리로드를 옮긴다. 옛 캔버스 파일은 읽지 않는다.
+3. 빌트인 핸들: 2D 7 종·3D 6 종의 `Handle::*`, 데이터 헤더를 스크립트 대상에서 막는 음성 시험, 서비스 인자를 핸들로.
+4. 아래 오브젝트 만들기·찾기(D-270 을 D-271 의 이름으로 읽는다).
+
 - 오브젝트 만들기·찾기: **모양이 섰다(D-270), 구현 전이다.**
   - 이름과 태그를 나눈다. 지금 태그 칸이 이름이 되고 태그는 새 칸이다. `[]`·`Find` 는 이름만, 태그는 `FindWithTag`·`CompareTag` 같은 함수로만 찾는다.
   - `LayerHandle { LayerId }`(4B) 를 새로 두고, `LayerHandle[name]` 은 그 레이어의 뿌리를, `GameObjectHandle[name]` 은 직계 자식을 **한 단계만** 찾는다. 깊이는 `FindInChildren`.
@@ -250,7 +257,7 @@ JBRO_SCRIPT_MODULE_2D()
   - 기본 트랜스폼은 프레임워크 구현이 붙인다. 삭제는 `handle.Destroy()` 하나이고, 요청한 순간부터 모든 사본이 무효이며 찾기에서 빠진다.
   - 프리팹(`PrefabSpawner`)은 뒤로 미룬다.
   - 구현하며 잴 것: 순회 중에 만든 오브젝트의 스크립트 훅이 언제부터 도는가.
-- `ReadOnly` 필드: 월드 캐시를 스크립트가 쓰지 못하게 한다(getter 뒤로 옮기거나 쓰기를 컴파일 에러로 만든다).
+- `ReadOnly` 필드: 월드 캐시를 스크립트가 쓰지 못하게 한다. **빌트인 핸들(D-271)이 getter 만 두어 닫는다** - 위 3 단계.
 
 ### 3.7 3D
 

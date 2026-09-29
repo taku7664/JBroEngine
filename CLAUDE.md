@@ -22,7 +22,9 @@
 - 최상위 실행 단위는 `Canvas` 다. Canvas가 오브젝트 풀과 타입별 컴포넌트 풀을 직접 소유한다.
   `World` / ECS / `Scene` / `SceneManager` 같은 중복 수명 계층은 이름을 바꿔서도 만들지 않는다
 - 스크립트 참조는 GameObject 전용 16B `GameObjectHandle`과 그 외 타입용 24B `Ref<T>`로 나눈다.
-  GameObjectHandle의 안전 멤버는 무효 접근을 로그로 남기고 무시한다
+  GameObjectHandle의 안전 멤버는 무효 접근을 로그로 남기고 무시한다.
+  **D-271 로 바뀌는 중이다(구현 전)**: 핸들은 `JBro::Handle` 에 엔진 타입과 같은 이름(`GameObject`·`Transform2D`)으로 두고, 빌트인 컴포넌트도 핸들이며,
+  `Ref<T>` 는 스크립트 전용이고, 스크립트는 컴포넌트가 아니다. 엔진 타입은 `JBro::Object::GameObject`·`JBro::Component::*`
 - 차원과 무관한 공개 값 타입은 JBroCore에 한 번만 정의한다. Framework가 같은 공개 타입을
   재정의하지 않으며, 이식 완료는 기존 임시 정의 제거와 결합 공개 헤더 컴파일까지 포함한다
 - 호스트와 게임 DLL 경계를 넘는 데이터는 POD 여야 한다
