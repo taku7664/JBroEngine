@@ -3473,6 +3473,7 @@ namespace JBro
             Widget::EndMenu();
         }
 
+        Widget::SetNextItemTarget(GuideFocusTargets::Menu("menu.edit"));
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuEdit, "Edit")))
         {
             // **할 수 없는 것은 회색으로 보인다.** 눌리는데 아무 일도 안 하면
@@ -3484,6 +3485,8 @@ namespace JBro
             DrawShortcutItem(EditorShortcut::Paste, Loc::TextOr(LocKeys::HierarchyPaste, "Paste"));
             DrawShortcutItem(EditorShortcut::PasteAsChild,
                 Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"));
+            // 가이드의 `object.delete` 가 편집 메뉴로 올 때 가리키는 항목이다(D-267).
+            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.delete"));
             DrawShortcutItem(EditorShortcut::DeleteSelection,
                 Loc::TextOr(LocKeys::HierarchyDelete, "Delete"));
             Widget::EndMenu();
@@ -3563,7 +3566,7 @@ namespace JBro
                 for (std::uint32_t index = 0; index < EditorGuides::GetBuiltinCount(); ++index)
                 {
                     const Guide& guide = EditorGuides::GetBuiltin(index);
-                    if (Widget::MenuItem(Loc::TextOr(guide.titleKey, guide.titleFallback), nullptr, hasCanvas,
+                    if (Widget::MenuItem(Loc::TextFor(guide.title.key, guide.title.string, guide.title.locale), nullptr, hasCanvas,
                             Loc::TextOr(LocKeys::BlockedNoProject, "no project is open")))
                     {
                         StartGuide(guide.id);
@@ -3592,8 +3595,8 @@ namespace JBro
             std::snprintf(progress, sizeof(progress), Loc::TextOr(LocKeys::GuideProgress, "%u / %u"),
                 m_guide.GetStepIndex() + 1, total);
             balloon.progress = progress;
-            balloon.title = Loc::TextOr(step->titleKey, step->titleFallback);
-            balloon.body = Loc::TextOr(step->bodyKey, step->bodyFallback);
+            balloon.title = Loc::TextFor(step->title.key, step->title.string, step->title.locale);
+            balloon.body = Loc::TextFor(step->body.key, step->body.string, step->body.locale);
             // 어느 단추를 둘지는 단계가 정한다(`GuideStep::canSkip` 등).
             if (m_guide.ShowsSkip())
             {
@@ -4239,6 +4242,30 @@ namespace JBro
             return false;
         }
         return m_guide.Start(*guide, *this, m_guideFocus);
+    }
+
+    bool EditorApplication::StartGuideFromText(const char* text, std::size_t length, String& error)
+    {
+        if (GetCanvas() == nullptr)
+        {
+            error = "no project is open";
+            return false;
+        }
+        OwnerPtr<LoadedGuide> loaded;
+        if (false == EditorGuides::Parse(text, length, loaded, error))
+        {
+            Log::Write(LogLevel::Warning, "editor", "guide text rejected: %s", error.c_str());
+            return false;
+        }
+        // 돌던 가이드가 옛 글자를 가리키므로 먼저 멈추고 바꾼다.
+        m_guide.Stop(m_guideFocus);
+        m_textGuide = std::move(loaded);
+        if (false == m_guide.Start(m_textGuide->Get(), *this, m_guideFocus))
+        {
+            error = "no step of the guide has anything to point at";
+            return false;
+        }
+        return true;
     }
 
     EditorGuide& EditorApplication::GetGuide()

@@ -820,12 +820,22 @@ namespace JBro
         // 나중에 눈 표시나 배지를 같은 줄에 얹을 자리가 이것이다.
         Widget::TreeDrawContext row;
         // 가이드 포커스가 켜져 있을 때만 번호를 묻는다(D-251). 번호표는 선형 탐색이라 줄마다 묻기에는 무겁다.
-        if (const EditorGuideFocus* focus = Widget::GetGuideFocus(); focus != nullptr && focus->IsActive())
+        const EditorGuideFocus* guideFocus = Widget::GetGuideFocus();
+        const bool guided = guideFocus != nullptr && guideFocus->IsActive();
+        const std::uint64_t guideId = guided ? m_editor->GetObjectIds().Track(&object) : 0;
+        if (guided)
         {
-            Widget::SetNextItemTarget(GuideFocusTargets::HierarchyObject(m_editor->GetObjectIds().Track(&object)));
+            Widget::SetNextItemTarget(GuideFocusTargets::HierarchyObject(guideId));
         }
         const bool opened = Widget::TreeBegin("##node", flags, &row);
         Widget::TreeEnd();
+        if (guided)
+        {
+            // 같은 줄을 **우클릭 메뉴의 자리**로도 알린다(D-267). 열림은 그 줄의 메뉴가 떠 있는가다 - 가이드가 "우클릭해서
+            // 삭제" 로 데려갈 때 메뉴가 열리면 구멍이 그 안의 항목으로 옮겨 간다. 메뉴의 ID 는 `DrawObjectContextMenu` 와 같다.
+            Widget::ReportGuideTarget(GuideFocusTargets::HierarchyObjectMenu(guideId), ImGui::GetItemRectMin(),
+                ImGui::GetItemRectMax(), ImGui::IsPopupOpen("##ObjectMenu"), false);
+        }
         if (m_reveal.TryGet() == &object)
         {
             // 닿았다. 보이는 자리로 끌어다 놓고 요청을 비운다 - 한 번짜리다.

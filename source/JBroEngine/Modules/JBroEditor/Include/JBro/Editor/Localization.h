@@ -31,6 +31,9 @@ namespace JBro
 
         // 키를 찾는다. 현재 로케일 → 폴백 → nullptr 순이다.
         const char* Find(const char* key) const;
+        // 한 벌에서만 찾는다. 없으면 nullptr 이다. `Loc::TextFor` 가 원문을 사이에 끼우려고 쓴다.
+        const char* FindInLocale(const char* key) const;
+        const char* FindInFallback(const char* key) const;
 
         const String& GetLocale() const;
         const String& GetFallbackLocale() const;
@@ -55,5 +58,10 @@ namespace JBro
         const char* Text(const char* key);
         // 없으면 넘긴 원문을 돌려준다.
         const char* TextOr(const char* key, const char* fallback);
+        // **원문이 어느 로케일인지 아는 글자**다(D-267). 데이터로 온 글자(가이드)는 원문이 영어라는 보장이 없다 -
+        // 에디터 안의 에이전트는 사용자의 말로 적는다. 차례는 현재 로케일의 표 → 원문이 현재 로케일이면 원문 →
+        // 폴백 로케일의 표 → 원문이다. 원문이 현재 로케일인데 폴백 표의 영어를 보이면 사용자는 제 말로 적힌 것을 못 본다.
+        // `locale` 이 비었으면 영어 원문으로 보고 `TextOr` 와 같다.
+        const char* TextFor(const char* key, const char* string, const char* locale);
     }
 }

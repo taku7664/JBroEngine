@@ -90,6 +90,21 @@ namespace JBro
         {
             return { MakeNameId("inspector.add_component"), 0 };
         }
+
+        GuideFocusTarget Action(const char* name)
+        {
+            return { MakeNameId("action"), MakeNameId(name) };
+        }
+
+        GuideFocusTarget HierarchyObjectMenu(std::uint64_t editorObjectId)
+        {
+            return { MakeNameId("hierarchy.object_menu"), editorObjectId };
+        }
+
+        GuideFocusTarget CanvasViewObject(std::uint64_t editorObjectId)
+        {
+            return { MakeNameId("canvas_view.object"), editorObjectId };
+        }
     }
 
     bool GuideFocusPath::Push(const GuideFocusTarget& target, GuideFocusOpen opener)

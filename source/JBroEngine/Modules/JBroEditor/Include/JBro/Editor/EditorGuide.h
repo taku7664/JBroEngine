@@ -3,6 +3,8 @@
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Delegate.h>
+#include <JBro/Types/SafePtr.h>
+#include <JBro/Types/String.h>
 
 #include <cstdint>
 
@@ -10,6 +12,7 @@ namespace JBro
 {
     class EditorApplication;
     class GameObject;
+    class YamlWriter;
 
     // 가이드(D-251, `tasks/guide-focus-plan.md` §2.6)다. 단계마다 가이드 포커스로 한 자리를 가리키고,
     // 끝나는 조건이 맞으면 다음 단계로 간다. **가이드는 편집을 대신하지 않는다** - 편집은 사람이 하고,
@@ -33,17 +36,30 @@ namespace JBro
         std::uint64_t values[4] = {};
     };
 
+    // 가이드에 나오는 글자 하나다. **키 · 원문 · 원문의 로케일**을 함께 든다(D-267). 가이드는 코드가 아니라 데이터로도
+    // 오므로(에이전트가 그 자리에서 짓는다) 키만으로는 무엇을 보일지 모른다 - 표에 키가 없으면 원문을 보인다.
+    // 고르는 차례는 `Loc::TextFor` 가 정한다.
+    struct GuideText
+    {
+        const char* key = nullptr;
+        const char* string = nullptr;
+        // 원문의 로케일(`ko-KR`). 비우면 영어 원문으로 본다(`en-US`).
+        const char* locale = nullptr;
+    };
+
     struct GuideStep
     {
         GuideFocusPath path;
         // 경로를 데이터에서 짓는다(선택한 오브젝트의 첫 컴포넌트처럼). 걸려 있으면 `path` 대신 이것을 단계에 들어갈 때
         // 한 번 부른다. 거짓이면 가리킬 것이 없는 것이라 그 단계를 건너뛴다.
         Delegate<bool(EditorApplication&, GuideFocusPath&)> buildPath;
-        // 말풍선의 글자. 로컬라이징 키와 키가 없을 때의 영어 원문이다(§11.2).
-        const char* titleKey = nullptr;
-        const char* titleFallback = nullptr;
-        const char* bodyKey = nullptr;
-        const char* bodyFallback = nullptr;
+        // **경로가 끊기면 다른 길을 짓는다**(D-267). 같은 일에 들어가는 길이 여럿이면(계층 줄의 우클릭 · 캔버스 뷰의 우클릭 ·
+        // 편집 메뉴) 하나가 막혀도 다른 길로 데려간다. 참이면 그 길로 다시 가고, 거짓이면 길이 더 없는 것이다 -
+        // 그때는 `retreatOnBreak` 와 건너뛰기가 전처럼 이어받는다.
+        Delegate<bool(EditorApplication&, GuideFocusPath&)> nextRoute;
+        // 말풍선의 글자다.
+        GuideText title;
+        GuideText body;
         GuideStepEnd end = GuideStepEnd::NextButton;
         // 단계에 들어설 때 한 번 부른다(이전으로 돌아와 다시 들어설 때도). 비었으면 적어 둔 값은 전부 0 이다.
         Delegate<void(EditorApplication&, GuideStepMemo&)> onEnter;
@@ -77,9 +93,32 @@ namespace JBro
     {
         // 저장되지 않는 이름이다. 메뉴와 시험이 이것으로 찾는다.
         const char* id = nullptr;
-        const char* titleKey = nullptr;
-        const char* titleFallback = nullptr;
+        GuideText title;
         Array<GuideStep> steps;
+    };
+
+    class GuideStepBinding;
+
+    // **글자로 적힌 가이드를 읽은 것**이다(D-267, `tasks/guide-focus-plan.md` §2.8). 가이드에 적힌 것은 "무엇을 하게 할지"
+    // (`Do: object.delete`)이고, 그 일이 어느 패널의 어느 줄을 거쳐 가는지는 에디터의 행동 표가 안다 - 적는 쪽(에이전트)은
+    // 화면의 모양을 몰라도 된다. 글자와 단계의 판단을 모두 들고 있으므로 가이드가 끝날 때까지 살아 있어야 한다.
+    class LoadedGuide
+    {
+    public:
+        LoadedGuide();
+        ~LoadedGuide();
+        LoadedGuide(const LoadedGuide&) = delete;
+        LoadedGuide& operator=(const LoadedGuide&) = delete;
+
+        const Guide& Get() const noexcept { return m_guide; }
+
+    private:
+        friend struct GuideLoader;
+
+        Guide m_guide;
+        String m_id;
+        String m_title[3];
+        Array<OwnerPtr<GuideStepBinding>> m_bindings;
     };
 
     // 가이드 한 편을 몬다. `EditorApplication` 이 하나 들고, 막을 그린 뒤 프레임마다 `Update` 를 부른다.
@@ -146,5 +185,13 @@ namespace JBro
         // 계층에서 오브젝트까지 가는 경로(레이어 창 → 레이어 줄 → 조상 줄들 → 그 줄)를 `path` 뒤에 붙인다.
         // 조상이 경로 용량을 넘으면 거짓이다.
         bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path);
+
+        // **글자로 적힌 가이드를 읽는다**(D-267). 형식은 `tasks/guide-focus-plan.md` §2.8.1 다. 모르는 행동·길·키를 만나면
+        // 추측하지 않고 줄 번호와 함께 `error` 에 적고 거짓이다(`out` 은 손대지 않는다).
+        bool Parse(const char* text, std::size_t length, OwnerPtr<LoadedGuide>& out, String& error);
+
+        // **가이드를 적는 쪽이 쓸 수 있는 행동 목록**이다(D-267). 행동 이름 · 받는 인자 · 들어가는 길 · 끝나는 방식을 적는다.
+        // 에디터 안의 에이전트는 이것만 보고 가이드를 짓는다 - 패널의 모양이 바뀌어도 이 목록의 이름은 그대로다.
+        void WriteCatalog(YamlWriter& writer);
     }
 }

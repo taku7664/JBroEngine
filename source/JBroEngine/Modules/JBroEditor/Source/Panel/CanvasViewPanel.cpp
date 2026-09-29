@@ -18,6 +18,7 @@
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/DragDrop.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
@@ -473,6 +474,7 @@ namespace JBro
             HandlePicking(rect, hovered);
         }
         DrawContextMenu(rect);
+        ReportGuideTargets(rect);
     }
 
     void CanvasViewPanel::DrawPreviewLocale()
@@ -2163,6 +2165,7 @@ namespace JBro
 
     void CanvasViewPanel::DrawContextMenu(const ViewRect& rect)
     {
+        m_contextObject = {};
         // 화면을 옮기려고 오른쪽 단추를 끌었으면 메뉴를 열지 않는다.
         if (m_panMoved)
         {
@@ -2213,6 +2216,7 @@ namespace JBro
             : MapToLevel(PickAt(rect, opened.x, opened.y));
         if (under != nullptr)
         {
+            m_contextObject = under->SafeFromThis();
             EditorActions::DrawObjectMenu(*m_editor, *under, placement);
         }
         else
@@ -2282,6 +2286,11 @@ namespace JBro
             m_goalSize = 5.0f;
             return;
         }
+        FrameBounds(minX, minY, maxX, maxY);
+    }
+
+    void CanvasViewPanel::FrameBounds(float minX, float minY, float maxX, float maxY)
+    {
         m_goalX = (minX + maxX) * 0.5f;
         m_goalY = (minY + maxY) * 0.5f;
         // 가장자리에 붙지 않게 조금 넓게 잡는다.
@@ -2290,6 +2299,72 @@ namespace JBro
         m_goalSize = std::clamp(
             (std::max)(halfHeight, halfWidth * 0.75f),
             MinOrthographicSize, MaxOrthographicSize);
+    }
+
+    void CanvasViewPanel::ReportGuideTargets(const ViewRect& rect)
+    {
+        const EditorGuideFocus* focus = Widget::GetGuideFocus();
+        if (focus == nullptr || false == focus->IsActive() || Is3D())
+        {
+            return;
+        }
+        // 경로의 칸은 여덟을 넘지 않는다. 캔버스 뷰의 오브젝트인 칸만 본다.
+        const GuideFocusPath& path = focus->GetPath();
+        const NameId kind = GuideFocusTargets::CanvasViewObject(0).name;
+        for (std::uint32_t index = 0; index < path.count; ++index)
+        {
+            const GuideFocusTarget& target = path.targets[index];
+            if (target.name != kind)
+            {
+                continue;
+            }
+            GameObject* object = m_editor->GetObjectIds().Resolve(target.key);
+            if (object == nullptr)
+            {
+                continue;
+            }
+            if (false == InViewSpace(*object))
+            {
+                // 다른 공간(월드/UI)의 레이어다. 지금 칸이면 그 공간으로 보기를 옮긴다 - 다음 프레임에 그려진다.
+                if (focus->ShouldScrollTo(target))
+                {
+                    SetScreenView(false == m_screenView);
+                }
+                continue;
+            }
+            float minX = 0.0f;
+            float minY = 0.0f;
+            float maxX = 0.0f;
+            float maxY = 0.0f;
+            if (false == GetWorldBounds(*object, minX, minY, maxX, maxY))
+            {
+                continue;
+            }
+            float x0 = 0.0f;
+            float y0 = 0.0f;
+            float x1 = 0.0f;
+            float y1 = 0.0f;
+            WorldToScreen(rect, minX, maxY, x0, y0);
+            WorldToScreen(rect, maxX, minY, x1, y1);
+            // 뷰 밖으로 삐져나간 몫은 자른다. 구멍이 이웃 패널까지 뚫리면 그쪽도 눌린다.
+            const ImVec2 min((std::max)(x0, rect.left), (std::max)(y0, rect.top));
+            const ImVec2 max((std::min)(x1, rect.left + rect.width), (std::min)(y1, rect.top + rect.height));
+            const bool onScreen = min.x < max.x && min.y < max.y;
+            if (false == onScreen && focus->ShouldScrollTo(target))
+            {
+                // 화면 밖이다. 카메라를 그리로 옮긴다 - 카메라가 따라가는 동안 구멍도 따라온다.
+                FrameBounds(minX, minY, maxX, maxY);
+            }
+            const bool menuOpen = m_contextObject.TryGet() == object;
+            if (onScreen)
+            {
+                Widget::ReportGuideTarget(target, min, max, menuOpen, false);
+            }
+            else
+            {
+                Widget::ReportGuideTarget(target, ImVec2(x0, y0), ImVec2(x1, y1), menuOpen, false);
+            }
+        }
     }
 
     void CanvasViewPanel::IncludeTreeBounds(const GameObject& object,

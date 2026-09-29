@@ -11,6 +11,7 @@
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <imgui.h>
@@ -296,6 +297,8 @@ namespace JBro::EditorActions
 
     bool DrawDeleteItem(EditorApplication& editor, GameObject& object)
     {
+        // 계층 줄과 캔버스 뷰가 함께 쓰는 한 벌이라 표식도 한 번이다(D-267). 가이드의 `object.delete` 가 가리킨다.
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.delete"));
         if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"), "Del",
                 editor.GetCanvas() != nullptr, NoProjectReason()))
         {

@@ -116,6 +116,26 @@ namespace JBro
         return nullptr;
     }
 
+    const char* LocalizationTable::FindInLocale(const char* key) const
+    {
+        if (key == nullptr || *key == '\0')
+        {
+            return nullptr;
+        }
+        const String* found = m_entries.Find(String(key));
+        return found != nullptr ? found->c_str() : nullptr;
+    }
+
+    const char* LocalizationTable::FindInFallback(const char* key) const
+    {
+        if (key == nullptr || *key == '\0')
+        {
+            return nullptr;
+        }
+        const String* found = m_fallbackEntries.Find(String(key));
+        return found != nullptr ? found->c_str() : nullptr;
+    }
+
     const String& LocalizationTable::GetLocale() const
     {
         return m_locale;
@@ -152,6 +172,28 @@ namespace JBro
                 return found;
             }
             return fallback != nullptr ? fallback : (key != nullptr ? key : "");
+        }
+
+        const char* TextFor(const char* key, const char* string, const char* locale)
+        {
+            if (locale == nullptr || *locale == '\0')
+            {
+                return TextOr(key, string);
+            }
+            const LocalizationTable& table = LocalizationTable::Get();
+            if (const char* found = table.FindInLocale(key))
+            {
+                return found;
+            }
+            if (string != nullptr && table.GetLocale() == locale)
+            {
+                return string;
+            }
+            if (const char* found = table.FindInFallback(key))
+            {
+                return found;
+            }
+            return string != nullptr ? string : (key != nullptr ? key : "");
         }
     }
 }

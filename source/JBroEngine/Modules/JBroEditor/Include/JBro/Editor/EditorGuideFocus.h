@@ -50,6 +50,14 @@ namespace JBro
         GuideFocusTarget InspectorComponent(std::uint64_t componentTypeId);
         GuideFocusTarget InspectorField(std::uint64_t componentTypeId, NameId fieldName);
         GuideFocusTarget InspectorAddComponent();
+        // **행동 하나를 부르는 메뉴 항목**이다(D-267). 이름은 가이드의 행동 이름(`object.delete`)이다. 같은 행동이 여러 메뉴에
+        // 있어도(계층·캔버스 뷰의 우클릭 메뉴, 편집 메뉴) 한 번에 열린 메뉴는 하나라 이름 하나로 가리킨다.
+        GuideFocusTarget Action(const char* name);
+        // 계층의 오브젝트 줄에서 연 **우클릭 메뉴**다. 줄과 자리는 같지만 열림이 다르다 - 줄의 열림은 자식 마디가 펼쳐졌는가이고,
+        // 이것의 열림은 그 줄의 우클릭 메뉴가 떠 있는가다.
+        GuideFocusTarget HierarchyObjectMenu(std::uint64_t editorObjectId);
+        // 캔버스 뷰에 그려진 오브젝트다. 자리는 화면에 비친 오브젝트의 사각형이고, 열림은 그 오브젝트의 우클릭 메뉴가 떠 있는가다.
+        GuideFocusTarget CanvasViewObject(std::uint64_t editorObjectId);
     }
 
     // 경로의 한 칸을 누가 여는가.
@@ -212,6 +220,9 @@ namespace JBro
         bool ConsumeActivated() noexcept;
         // 지금 칸이 `BrokenSeconds` 동안 그려지지 않아 경로가 끊겼다. 로그는 한 번 남긴다.
         bool IsBroken() const noexcept { return m_broken; }
+        // 지금 칸이 그려지지 않은 채 흐른 시간이다(그려지면 0). 끊겼다고 보기 전에 알아야 하는 쪽이 쓴다 - 해낸 일이 대상을
+        // 없앤 것(지웠다)은 끊긴 것이 아니다.
+        float GetUnseenSeconds() const noexcept { return m_unseen; }
 
     private:
         bool IsPointerAllowed() const noexcept;

@@ -402,6 +402,10 @@ namespace JBro
         const EditorGuideFocus& GetGuideFocus() const;
         // 가이드다(D-251). 도움말 메뉴가 내장 가이드를 이 이름으로 켠다(`EditorGuides`). 캔버스가 없거나 모르는 이름이면 거짓이다.
         bool StartGuide(const char* id);
+        // **글자로 적힌 가이드를 켠다**(D-267). 에디터 안의 에이전트가 사용자의 물음에 맞춰 지은 가이드를 이것으로 넘긴다 -
+        // 같은 프로세스이므로 파일이나 파이프를 거치지 않는다. 형식은 `EditorGuides::Parse` 다. 읽지 못하면 까닭을 `error` 에
+        // 적고 거짓이며, 이미 돌던 가이드는 그대로 둔다. 읽었으면 돌던 가이드를 멈추고 이것을 켠다.
+        bool StartGuideFromText(const char* text, std::size_t length, String& error);
         EditorGuide& GetGuide();
         // 단축키 관리자다(D-228). 패널·도구·외부 에디터가 제 단축키를 여기에 이름으로 등록한다. 사용자가 조합을 바꾸면
         // 다음 틱이 끝날 때 환경설정 파일에 적힌다.
@@ -718,6 +722,8 @@ namespace JBro
         EditorNotifications m_notifications;
         EditorGuideFocus m_guideFocus;
         EditorGuide m_guide;
+        // 글자로 받은 가이드다. `m_guide` 가 가리키므로 다음 가이드를 받을 때까지 들고 있는다.
+        OwnerPtr<LoadedGuide> m_textGuide;
         // 가이드 포커스가 거른 이번 프레임의 입력이다. 프레임마다 비우고 다시 채운다 - 용량은 남아 다시 잡지 않는다.
         Array<InputEvent> m_filteredInput;
         // 브라우저가 찾아가야 할 에셋. 비어 있으면 기다리는 것이 없다(D-193).

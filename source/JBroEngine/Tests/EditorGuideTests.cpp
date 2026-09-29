@@ -1,4 +1,5 @@
 ﻿#include <JBro/Core/Log.h>
+#include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorGuide.h>
@@ -645,6 +646,7 @@ namespace
         }
         Check(ClickBalloonRightmostButton(editor, hwnd), "the balloon's Next button must be found and pressed");
         Check(editor.GetGuide().GetStepIndex() == 2, "Next goes on to adding a component");
+        Check(editor.GetGuideFocus().IsKeyboardAllowed(), "the add step lets the keyboard through - the list has a search box");
         Check(WaitUntilSettled(editor, 1), "the hole must reach the add component box");
 
         int x = 0;
@@ -1182,6 +1184,419 @@ namespace
     }
 }
 
+namespace
+{
+    // ── 글자로 적힌 가이드(D-267) ─────────────────────────────────────
+
+    bool ParseGuide(const char* text, JBro::OwnerPtr<JBro::LoadedGuide>& out, JBro::String& error)
+    {
+        return JBro::EditorGuides::Parse(text, std::strlen(text), out, error);
+    }
+
+    bool Contains(const JBro::String& text, const char* part)
+    {
+        return text.find(part) != JBro::String::npos;
+    }
+
+    constexpr const char* TextBlock = R"(    Title:
+      Key: test.title
+      String: T
+      Loc: en-US
+    Body:
+      Key: test.body
+      String: B
+      Loc: en-US
+)";
+
+    // 머리와 단계 하나를 붙여 한 편을 짓는다. `step` 은 대시 줄부터 쓴다(글자 블록은 뒤에 붙인다).
+    JBro::String OneStepGuide(const char* step)
+    {
+        JBro::String text = "Id: test.guide\nTitle:\n  Key: test.guide_title\n  String: G\n  Loc: en-US\nSteps:\n";
+        text += step;
+        text += TextBlock;
+        return text;
+    }
+
+    // 형식을 어기면 줄 번호와 까닭을 말하고 거절한다. 모르는 것을 짐작해 채우지 않는다.
+    void TestAWrittenGuideIsReadOrRejectedWithAReason()
+    {
+        JBro::OwnerPtr<JBro::LoadedGuide> loaded;
+        JBro::String error;
+        const JBro::String good = OneStepGuide("  - Do: object.delete\n    Object: 12345\n    Via: canvas_view\n");
+        Check(ParseGuide(good.c_str(), loaded, error), "a well-formed guide must be read");
+        const JBro::Guide& guide = loaded->Get();
+        Check(std::strcmp(guide.id, "test.guide") == 0 && guide.steps.Size() == 1, "its id and one step");
+        const JBro::GuideStep& step = guide.steps[0];
+        Check(std::strcmp(step.title.key, "test.title") == 0 && std::strcmp(step.title.string, "T") == 0
+                && std::strcmp(step.title.locale, "en-US") == 0,
+            "the title keeps its key, its text and the text's locale");
+        Check(step.end == JBro::GuideStepEnd::Condition && step.condition.IsBound(), "deleting ends when the object is gone");
+        Check(step.buildPath.IsBound() && step.nextRoute.IsBound(), "the path comes from the action, not from the text");
+        Check(false == step.canGoNext && false == step.keyboard, "the action's defaults: no Next past a delete, no keyboard");
+
+        struct Bad
+        {
+            const char* step;
+            const char* reason;
+        };
+        const Bad bad[] = {
+            { "  - Do: object.explode\n    Object: 1\n", "unknown action" },
+            { "  - Do: object.delete\n", "needs Object" },
+            { "  - Do: object.delete\n    Object: Player\n", "instance id or Selection" },
+            { "  - Do: object.delete\n    Object: 1\n    Via: inspector\n", "cannot go by that route" },
+            { "  - Do: game.build\n    Object: 1\n", "takes no Object" },
+            { "  - Do: field.edit\n    End: done\n", "End must be" },
+            { "  - Do: game.build\n    Colour: red\n", "unknown key 'Colour'" },
+            { "  - Do: game.build\n    RetreatTo: later\n", "names no earlier step" },
+            { "  - Do: game.build\n    Keyboard: maybe\n", "true or false" },
+        };
+        for (const Bad& entry : bad)
+        {
+            JBro::OwnerPtr<JBro::LoadedGuide> rejected;
+            JBro::String reason;
+            const JBro::String text = OneStepGuide(entry.step);
+            Check(false == ParseGuide(text.c_str(), rejected, reason), entry.reason);
+            Check(rejected.Get() == nullptr, "a rejected guide leaves nothing behind");
+            if (false == Contains(reason, entry.reason) || false == Contains(reason, "line "))
+            {
+                std::cout << "  reason was: " << reason << std::endl;
+            }
+            Check(Contains(reason, entry.reason) && Contains(reason, "line "), entry.reason);
+        }
+
+        // 글자의 셋 중 하나라도 빠지면 거절한다. 키만 있으면 표에 없을 때 보일 것이 없다.
+        const char* noLocale = "Id: g\nTitle:\n  Key: k\n  String: s\nSteps:\n  - Do: game.build\n";
+        JBro::OwnerPtr<JBro::LoadedGuide> rejected;
+        Check(false == ParseGuide(noLocale, rejected, error) && Contains(error, "'Loc'"), "a text without its locale is rejected");
+
+        // 에이전트가 읽는 목록에 행동과 길이 다 있다.
+        JBro::YamlWriter writer;
+        JBro::EditorGuides::WriteCatalog(writer);
+        const JBro::String& catalog = writer.GetText();
+        Check(Contains(catalog, "Do: object.delete") && Contains(catalog, "- hierarchy") && Contains(catalog, "- canvas_view")
+                && Contains(catalog, "- edit_menu"),
+            "the catalog names delete and its three routes");
+        Check(Contains(catalog, "Do: object.select") && Contains(catalog, "Do: component.add") && Contains(catalog, "Do: game.build")
+                && Contains(catalog, "Do: field.edit"),
+            "and every other action");
+        // 목록은 다시 읽힌다 - 에이전트에게 넘길 때 같은 형식이다.
+        JBro::YamlDocument document;
+        JBro::YamlError yamlError;
+        Check(document.Parse(catalog.c_str(), catalog.size(), yamlError), "the catalog is valid YAML of our subset");
+    }
+
+    // 원문의 로케일을 아는 글자 고르기. 표의 번역이 먼저이고, 원문이 지금 로케일이면 폴백 표보다 원문이다.
+    void TestAWrittenTextPicksTheTableThenItsOwnWords()
+    {
+        const JBro::LocalizationTable& table = JBro::LocalizationTable::Get();
+        const char* current = table.GetLocale().c_str();
+        const char* known = table.FindInLocale(JBro::LocKeys::GuideSkip);
+        if (known == nullptr)
+        {
+            std::cout << "  [skip] no localization table is loaded; written guide text not verified" << std::endl;
+            return;
+        }
+        Check(std::strcmp(JBro::Loc::TextFor(JBro::LocKeys::GuideSkip, "own words", current), known) == 0,
+            "a key the table knows shows the table's text");
+        Check(std::strcmp(JBro::Loc::TextFor("test.nowhere", "own words", current), "own words") == 0,
+            "a key it does not know shows the written words");
+        Check(std::strcmp(JBro::Loc::TextFor("test.nowhere", "own words", "xx-XX"), "own words") == 0,
+            "even when they are in another language - better than a bare key");
+        Check(std::strcmp(JBro::Loc::TextFor(JBro::LocKeys::GuideSkip, "own words", nullptr), known) == 0,
+            "no locale reads like TextOr");
+    }
+
+    JBro::String DeleteGuide(JBro::InstanceId id, const char* via)
+    {
+        char step[160] = {};
+        std::snprintf(step, sizeof(step), "  - Do: object.delete\n    Object: %llu\n    Via: %s\n",
+            static_cast<unsigned long long>(id), via);
+        return OneStepGuide(step);
+    }
+
+    void RightClickAt(JBro::EditorApplication& editor, HWND hwnd, int x, int y)
+    {
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+        Tick(editor, 1);
+        PostMessageW(hwnd, WM_RBUTTONDOWN, MK_RBUTTON, MAKELPARAM(x, y));
+        Tick(editor, 1);
+        PostMessageW(hwnd, WM_RBUTTONUP, 0, MAKELPARAM(x, y));
+        Tick(editor, 1);
+    }
+
+    bool HoleInsideWindow(const JBro::EditorGuideFocus& focus, const ImGuiWindow* window)
+    {
+        const Rect& hole = focus.GetHoleRect();
+        const float pad = EditorGuideFocus::HolePadding + 1.0f;
+        return window != nullptr && hole.min.x >= window->Pos.x - pad && hole.min.y >= window->Pos.y - pad
+            && hole.max.x <= window->Pos.x + window->Size.x + pad && hole.max.y <= window->Pos.y + window->Size.y + pad;
+    }
+
+    // 우클릭 메뉴를 연 뒤 구멍이 그 안의 삭제로 옮겨 가고, 누르면 지워지고, 확인을 기다린다.
+    void FinishDeleteThroughTheMenu(JBro::EditorApplication& editor, HWND hwnd, JBro::GameObject* object, std::uint32_t menuLevel)
+    {
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(WaitUntilSettled(editor, menuLevel), "the hole must reach the object");
+        Tick(editor, 60);
+        Check(focus.GetLevel() == menuLevel, "the menu is never opened for the user - they right-click");
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        // 왼쪽 단추로 누르는 것은 우클릭 메뉴를 열지 않는다.
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        Check(focus.GetLevel() == menuLevel, "a left click on the object does not count as opening its menu");
+        RightClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        Check(ImGui::GetCurrentContext()->OpenPopupStack.Size == 1, "right-clicking the object opens its menu");
+        Check(WaitUntilSettled(editor, menuLevel + 1), "and the hole moves into the menu to Delete");
+        const ImGuiWindow* menu = ImGui::GetCurrentContext()->OpenPopupStack[0].Window;
+        Check(HoleInsideWindow(focus, menu), "the hole sits on an item of the open menu");
+        // 메뉴의 첫 항목(오브젝트 추가)은 구멍 밖이다. 눌리지 않는다.
+        const float firstItemY = menu->Pos.y + ImGui::GetStyle().WindowPadding.y + ImGui::GetFrameHeight() * 0.5f;
+        const float menuX = menu->Pos.x + menu->Size.x * 0.5f;
+        Check(firstItemY < focus.GetHoleRect().min.y, "the first item is above Delete, or the next check proves nothing");
+        Check(false == focus.IsAllowed({ menuX, firstItemY }), "the other items of the object's menu are covered");
+
+        const JBro::SafePtr<JBro::GameObject> watch = object->SafeFromThis();
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 3);
+        Check(watch.TryGet() == nullptr, "pressing Delete in the hole deletes the object");
+        Check(editor.GetGuide().IsRunning() && editor.GetGuide().IsConfirming(), "the last step waits for OK instead of vanishing");
+        // 지운 것의 항목은 사라졌다. 빈 테두리를 남기거나 끊긴 것으로 치지 않고 경로의 첫 칸으로 물러난다.
+        Tick(editor, 45);
+        Check(focus.GetPath().count == 1 && false == focus.IsBroken(),
+            "with its target deleted, the done step steps back to the first level instead of breaking");
+        Check(editor.GetGuide().IsConfirming(), "and still waits for OK");
+        editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
+        Check(false == editor.GetGuide().IsRunning(), "OK ends it");
+        // 되돌리기로 살아난다 - 가이드가 편집을 대신하지 않고 커맨드를 거쳤다.
+        Check(editor.GetCommands().CanUndo(), "the delete went through a command");
+    }
+
+    void TestADeleteGuideGoesByTheLayersWindow()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideDeleteHierarchyProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the delete guide by the layers window not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::GameObject* child = JBro::EditorActions::CreateObject(editor, parent);
+        Check(child != nullptr && child->GetParent() == parent, "a parent and its child must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+
+        JBro::String error;
+        const JBro::String text = DeleteGuide(child->GetInstanceId(), "hierarchy");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        // 창 · 레이어 · 부모 · 그 줄의 메뉴 · 삭제
+        Check(path.count == 5, "the layers window, the layer, the parent, the child's menu and Delete");
+        Check(path.open[3] == GuideFocusOpen::User, "the child's menu is the user's to open");
+        Check(path.targets[4] == JBro::GuideFocusTargets::Action("object.delete"), "and the path ends on Delete");
+        FinishDeleteThroughTheMenu(editor, hwnd, child, 3);
+        Check(parent->GetChildren().Size() == 0, "the parent is left and only the child went");
+    }
+
+    void TestADeleteGuideGoesByTheCanvasView()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideDeleteCanvasProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the delete guide by the canvas view not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "an object must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+
+        JBro::String error;
+        const JBro::String text = DeleteGuide(object->GetInstanceId(), "canvas_view");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        Check(path.count == 3 && path.targets[0] == JBro::GuideFocusTargets::Panel("CanvasView"),
+            "the canvas view, the object in it and Delete");
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the object in the canvas view");
+        Check(HoleInsideWindow(editor.GetGuideFocus(), ImGui::FindWindowByName("CanvasView")),
+            "the hole is on the object drawn in the canvas view, clipped to the view");
+        FinishDeleteThroughTheMenu(editor, hwnd, object, 1);
+    }
+
+    // 캔버스 뷰 밖에 있는 오브젝트를 가리키면 카메라가 그리로 간다. 구멍은 이웃 패널로 뚫리지 않는다.
+    void TestAnObjectOffTheCanvasViewIsBroughtIntoView()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideOffscreenProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; an object off the canvas view not verified" << std::endl;
+            return;
+        }
+        JBro::ObjectPlacement distant;
+        distant.hasPosition = true;
+        distant.position[0] = 400.0f;
+        distant.position[1] = -300.0f;
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr, distant);
+        Check(object != nullptr, "an object must be made far away");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+
+        JBro::String error;
+        const JBro::String text = DeleteGuide(object->GetInstanceId(), "canvas_view");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        // 처음에는 오브젝트가 뷰 밖이다 - 구멍이 뷰 안에 들어오면 카메라가 옮겨 간 것이다.
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the object once the camera has moved to it");
+        Check(HoleInsideWindow(editor.GetGuideFocus(), ImGui::FindWindowByName("CanvasView")),
+            "the object is brought into the view and the hole stays inside it");
+        Check(editor.GetGuide().IsRunning() && editor.GetGuideFocus().GetPath().targets[0]
+                == JBro::GuideFocusTargets::Panel("CanvasView"),
+            "and the step did not break off to another route");
+    }
+
+    // 고른 길이 그려지지 않으면(계층 줄이 검색에 가려졌다) 같은 일에 드는 다음 길로 간다. 말없이 건너뛰지 않는다.
+    void TestAHiddenRouteGivesWayToTheNext()
+    {
+        QuietLog quiet;
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideRouteProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; route fallback not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "an object must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+
+        // 계층의 검색 칸에 아무 이름과도 맞지 않는 글자를 친다. 줄이 모두 가려진다.
+        const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(hierarchy != nullptr, "the layers window must be there");
+        const int searchX = static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f);
+        const int searchY = static_cast<int>(hierarchy->Pos.y + hierarchy->TitleBarHeight + ImGui::GetStyle().WindowPadding.y
+            + ImGui::GetFrameHeight() * 0.5f);
+        ClickAt(editor, hwnd, searchX, searchY);
+        for (const wchar_t letter : { L'q', L'z', L'x' })
+        {
+            PostMessageW(hwnd, WM_CHAR, letter, 0);
+            Tick(editor, 1);
+        }
+        Tick(editor, 3);
+        Check(ImGui::GetIO().WantTextInput, "the search box must have taken the letters");
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Tick(editor, 1);
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, static_cast<LPARAM>(0xC0000001u));
+        Tick(editor, 2);
+
+        JBro::String error;
+        const JBro::String text = DeleteGuide(object->GetInstanceId(), "auto");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Check(editor.GetGuideFocus().GetPath().targets[0] == JBro::GuideFocusTargets::Panel("Hierarchy"),
+            "auto starts with the first route, the layers window");
+        Tick(editor, 60);
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        Check(editor.GetGuide().IsRunning(), "the step is not skipped");
+        Check(path.targets[0] == JBro::GuideFocusTargets::Panel("CanvasView"), "it goes by the canvas view instead");
+        FinishDeleteThroughTheMenu(editor, hwnd, object, 1);
+    }
+
+    // 편집 메뉴로 가는 길: 선택한 것을 지우는 항목이라 가리킨 오브젝트 하나만 고른 뒤, 사용자가 메뉴를 열면 삭제로 간다.
+    // `Object: Selection` 은 단계에 들어설 때 선택한 오브젝트다.
+    void TestADeleteGuideGoesByTheEditMenu()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideDeleteMenuProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the delete guide by the edit menu not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* keep = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(keep != nullptr && object != nullptr, "two objects must be made");
+        editor.SetSelectedObject(object);
+        editor.AddToSelection(keep);
+        Check(editor.GetSelectedObjects().Size() == 2, "both are picked, or the next check proves nothing");
+        Tick(editor, 3);
+
+        const JBro::String text = OneStepGuide("  - Do: object.delete\n    Object: Selection\n    Via: edit_menu\n");
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        Check(path.count == 2 && path.targets[0] == JBro::GuideFocusTargets::Menu("menu.edit")
+                && path.open[0] == GuideFocusOpen::User,
+            "the Edit menu, which the user opens, and Delete in it");
+        Check(editor.GetSelectedObjects().Size() == 1 && editor.GetSelectedObject() == object,
+            "only the object to delete stays picked - the menu item deletes every picked object");
+
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(WaitUntilSettled(editor, 0), "the hole must reach the Edit menu");
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        Check(WaitUntilSettled(editor, 1), "opening the menu moves the hole onto Delete");
+        const JBro::SafePtr<JBro::GameObject> watch = object->SafeFromThis();
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 3);
+        Check(watch.TryGet() == nullptr, "pressing Delete deletes the object");
+        Check(keep->SafeFromThis().TryGet() != nullptr, "and only that one");
+        Check(editor.GetGuide().IsConfirming(), "the step is done and waits for OK");
+    }
+
+    // 정해 둔 오브젝트를 고르는 단계: 다른 것을 골라서는 넘어가지 않고, 다음도 막힌다. 그것을 고르면 넘어간다.
+    void TestSelectingAGivenObjectWaitsForThatObject()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideSelectProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; selecting a given object not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* wanted = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(wanted != nullptr && other != nullptr, "two objects must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+
+        char step[96] = {};
+        std::snprintf(step, sizeof(step), "  - Do: object.select\n    Object: %llu\n",
+            static_cast<unsigned long long>(wanted->GetInstanceId()));
+        const JBro::String text = OneStepGuide(step);
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const GuideFocusPath& path = editor.GetGuideFocus().GetPath();
+        Check(path.targets[path.count - 1]
+                == JBro::GuideFocusTargets::HierarchyObject(editor.GetObjectIds().Track(wanted)),
+            "the path ends on the wanted object's row");
+        JBro::EditorGuide& run = editor.GetGuide();
+        Tick(editor, 2);
+        editor.SetSelectedObject(other);
+        Tick(editor, 2);
+        Check(run.IsRunning() && false == run.IsConfirming(), "picking another object does not finish the step");
+        Check(run.WhyNextBlocked(editor) != nullptr, "and Next is held back until the wanted one is picked");
+        editor.SetSelectedObject(wanted);
+        Tick(editor, 2);
+        Check(run.IsConfirming(), "picking the wanted object finishes it");
+
+        // 읽지 못한 가이드는 돌던 가이드를 건드리지 않는다.
+        const char* broken = "Id: x\nSteps:\n  - Do: nothing\n";
+        Check(false == editor.StartGuideFromText(broken, std::strlen(broken), error), "a broken text is refused");
+        Check(run.IsRunning() && run.IsConfirming(), "and the running guide goes on");
+        editor.CloseProject();
+        Check(false == run.IsRunning(), "closing the project stops it");
+    }
+}
+
 int RunEditorGuideTests()
 {
     TestAClosedLevelOpensOnlyAfterTheHoleSettlesAndDwells();
@@ -1204,6 +1619,14 @@ int RunEditorGuideTests()
     TestAStepReturnedToWaitsForNext();
     TestConditionsAskWhatChangedSinceTheStepBegan();
     TestAModalLiftsTheVeilUntilItCloses();
+    TestAWrittenGuideIsReadOrRejectedWithAReason();
+    TestAWrittenTextPicksTheTableThenItsOwnWords();
+    TestADeleteGuideGoesByTheLayersWindow();
+    TestADeleteGuideGoesByTheCanvasView();
+    TestAnObjectOffTheCanvasViewIsBroughtIntoView();
+    TestAHiddenRouteGivesWayToTheNext();
+    TestADeleteGuideGoesByTheEditMenu();
+    TestSelectingAGivenObjectWaitsForThatObject();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }

@@ -159,8 +159,13 @@ namespace JBro
         // 이 오브젝트와 그 자손을 모두 선택에 더한다(D-253).
         void AddTreeToSelection(GameObject& object);
         void DrawContextMenu(const ViewRect& rect);
+        // 가이드가 캔버스 뷰의 오브젝트를 가리키고 있으면 그 오브젝트가 화면에 비친 사각형을 알린다(D-267). 열림은 그 오브젝트의
+        // 우클릭 메뉴가 떠 있는가다. 지금 칸인데 화면 밖이면 카메라를 그리로 옮긴다.
+        void ReportGuideTargets(const ViewRect& rect);
         // 고른 것들이 다 보이도록 카메라를 맞춘다. 고른 것이 없으면 캔버스 전체다.
         void FrameSelection();
+        // 월드의 이 사각형이 다 보이도록 가려는 카메라를 맞춘다.
+        void FrameBounds(float minX, float minY, float maxX, float maxY);
 
         // 월드 한 점을 그림 위 화면 점으로. 카메라가 직교라 나눗셈 한 번이다.
         void WorldToScreen(const ViewRect& rect, float worldX, float worldY,
@@ -311,6 +316,9 @@ namespace JBro
         // 화면을 옮기려던 것이지 메뉴를 부르려던 것이 아니다.
         bool m_panning = false;
         bool m_panMoved = false;
+        // 지금 떠 있는 우클릭 메뉴가 어느 오브젝트의 것인가. 빈 곳의 메뉴거나 메뉴가 없으면 빈다 - 가이드가 "이 오브젝트를
+        // 우클릭했다" 를 이것으로 안다(D-267).
+        SafePtr<GameObject> m_contextObject;
         // 상자 선택 중인가와 그 시작 자리(화면 좌표). 끌기가 임계값을 넘어야 시작한다 -
         // 넘기 전에 시작하면 그냥 클릭한 것도 빈 상자가 되어 선택이 풀린다.
         bool m_boxSelecting = false;

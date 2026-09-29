@@ -3,9 +3,6 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Editor/EditorApplication.h>
-#include <JBro/Editor/Localization.h>
-#include <JBro/Editor/LocalizationKeys.h>
-#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 
 #include <cstring>
@@ -14,178 +11,84 @@ namespace JBro
 {
     namespace
     {
-        // ── 조건과 경로 ───────────────────────────────────────────
+        // **내장 가이드도 글자로 적는다**(D-267). 에이전트가 짓는 가이드와 같은 형식·같은 행동 표를 거친다 - 길이 둘이면
+        // 한쪽만 고쳐지고, 형식이 실제로 쓸 만한지는 쓰는 곳이 있어야 드러난다. 원문은 영어이고 번역은 로케일 표에 있다.
+        constexpr const char* AddComponentGuide = R"(Id: guide.add_component
+Title:
+  Key: guide.add_component_title
+  String: Adding a Component
+  Loc: en-US
+Steps:
+  - Id: pick
+    Do: object.select
+    Title:
+      Key: guide.add_component_select_title
+      String: Pick an Object
+      Loc: en-US
+    Body:
+      Key: guide.add_component_select_body
+      String: "Pick an object in the Layers window. If you already picked one, press Next. If there is none, right-click an empty spot and add one - it is picked for you."
+      Loc: en-US
+  - Do: field.edit
+    RetreatTo: pick
+    Title:
+      Key: guide.add_component_field_title
+      String: Change a Value
+      Loc: en-US
+    Body:
+      Key: guide.add_component_field_body
+      String: "Drag or type in this field to change the value. Press Next when you are done."
+      Loc: en-US
+  - Do: component.add
+    RetreatTo: pick
+    Title:
+      Key: guide.add_component_add_title
+      String: Add a Component
+      Loc: en-US
+    Body:
+      Key: guide.add_component_add_body
+      String: "Open this list and pick a component to attach."
+      Loc: en-US
+)";
 
-        // 선택한 오브젝트의 에디터 번호다. 없으면 0 이다.
-        std::uint64_t SelectedObjectId(EditorApplication& editor)
-        {
-            GameObject* object = editor.GetSelectedObject();
-            return object != nullptr ? editor.GetObjectIds().Track(object) : 0;
-        }
+        constexpr const char* BuildGameGuide = R"(Id: guide.build_game
+Title:
+  Key: guide.build_game_title
+  String: Building the Game
+  Loc: en-US
+Steps:
+  - Do: game.build
+    Title:
+      Key: guide.build_game_step_title
+      String: Build Game
+      Loc: en-US
+    Body:
+      Key: guide.build_game_step_body
+      String: "Open the File menu and choose Build Game to pack the project into a game you can run."
+      Loc: en-US
+)";
 
-        // [0] 들어설 때 선택되어 있던 오브젝트.
-        void RememberSelection(EditorApplication& editor, GuideStepMemo& memo)
+        Array<OwnerPtr<LoadedGuide>> BuildBuiltins()
         {
-            memo.values[0] = SelectedObjectId(editor);
-        }
-
-        // 들어설 때와 다른 오브젝트가 선택됐다. 추가한 오브젝트는 곧 선택되므로 추가해도 넘어간다.
-        bool SelectionChanged(EditorApplication& editor, GuideStepMemo& memo)
-        {
-            const std::uint64_t now = SelectedObjectId(editor);
-            return now != 0 && now != memo.values[0];
-        }
-
-        // [0] 들어설 때 선택되어 있던 오브젝트, [1] 그 오브젝트의 컴포넌트 수.
-        void RememberComponentCount(EditorApplication& editor, GuideStepMemo& memo)
-        {
-            const GameObject* object = editor.GetSelectedObject();
-            memo.values[0] = SelectedObjectId(editor);
-            memo.values[1] = object != nullptr ? object->GetComponents().Size() : 0;
-        }
-
-        // 고른 오브젝트의 컴포넌트가 늘었다. **다른 오브젝트로 옮겨 고르면 그 오브젝트로 기준을 다시 잡는다** - 옮긴 것만으로는
-        // 붙인 것이 아니지만, 옮긴 뒤에 그 오브젝트에 붙인 것은 붙인 것이다.
-        bool ComponentAdded(EditorApplication& editor, GuideStepMemo& memo)
-        {
-            const GameObject* object = editor.GetSelectedObject();
-            if (object == nullptr)
+            Array<OwnerPtr<LoadedGuide>> guides;
+            for (const char* text : { AddComponentGuide, BuildGameGuide })
             {
-                return false;
-            }
-            const std::uint64_t now = SelectedObjectId(editor);
-            if (now != memo.values[0])
-            {
-                memo.values[0] = now;
-                memo.values[1] = object->GetComponents().Size();
-                return false;
-            }
-            return object->GetComponents().Size() > memo.values[1];
-        }
-
-        // 오브젝트를 고르지 않았으면 다음으로 가지 못한다.
-        const char* NeedSelectedObject(EditorApplication& editor)
-        {
-            if (editor.GetSelectedObject() != nullptr)
-            {
-                return nullptr;
-            }
-            return Loc::TextOr(LocKeys::GuideNeedSelectedObject, "pick an object first");
-        }
-
-        // 선택한 오브젝트의 첫 컴포넌트와 그 맨 위 필드다. 2D 면 `Transform2D.position`, 3D 면 `Transform3D` 의 것이다 -
-        // 타입을 이름으로 고정하지 않으므로 두 프레임워크에서 같은 가이드가 돈다.
-        bool FirstFieldPath(EditorApplication& editor, GuideFocusPath& path)
-        {
-            const GameObject* object = editor.GetSelectedObject();
-            if (object == nullptr || object->GetComponents().Size() == 0)
-            {
-                return false;
-            }
-            const ComponentTypeId typeId = object->GetComponents()[0].typeId;
-            const PropertyTable* table = PropertyRegistry::Lookup(typeId);
-            if (table == nullptr)
-            {
-                return false;
-            }
-            for (std::uint32_t index = 0; index < table->count; ++index)
-            {
-                const PropertyInfo& property = table->properties[index];
-                // 인스펙터가 그리지 않는 필드는 가리킬 수 없다(`DrawFieldsInto` 와 같은 거르기).
-                if (property.type == nullptr || property.Address == nullptr)
+                OwnerPtr<LoadedGuide> guide;
+                String error;
+                if (false == EditorGuides::Parse(text, std::strlen(text), guide, error))
                 {
+                    // 내장 가이드가 읽히지 않는 것은 에디터의 고장이다. 시험이 잡는다(`EditorGuideTests`).
+                    Log::Write(LogLevel::Error, "editor", "built-in guide does not parse: %s", error.c_str());
                     continue;
                 }
-                return path.Push(GuideFocusTargets::Panel("Inspector"))
-                    && path.Push(GuideFocusTargets::InspectorComponent(typeId))
-                    && path.Push(GuideFocusTargets::InspectorField(typeId, property.name));
-            }
-            return false;
-        }
-
-        GuideStep MakeStep(const char* titleKey, const char* titleFallback, const char* bodyKey, const char* bodyFallback)
-        {
-            GuideStep step;
-            step.titleKey = titleKey;
-            step.titleFallback = titleFallback;
-            step.bodyKey = bodyKey;
-            step.bodyFallback = bodyFallback;
-            return step;
-        }
-
-        Array<Guide> BuildBuiltins()
-        {
-            Array<Guide> guides;
-
-            // ── 컴포넌트 추가하기 ─────────────────────────────────
-            {
-                Guide guide;
-                guide.id = "guide.add_component";
-                guide.titleKey = LocKeys::GuideAddComponentTitle;
-                guide.titleFallback = "Adding a Component";
-
-                GuideStep select = MakeStep(LocKeys::GuideAddComponentSelectTitle, "Pick an Object",
-                    LocKeys::GuideAddComponentSelectBody,
-                    "Pick an object in the Layers window. If you already picked one, press Next. If there is none, right-click an empty spot and add one - it is picked for you.");
-                select.path.Push(GuideFocusTargets::Panel("Hierarchy"));
-                select.end = GuideStepEnd::Condition;
-                select.onEnter = Delegate<void(EditorApplication&, GuideStepMemo&)>::Bind<&RememberSelection>();
-                select.condition = Delegate<bool(EditorApplication&, GuideStepMemo&)>::Bind<&SelectionChanged>();
-                // 이미 골라 둔 사람은 다시 고를 필요 없이 다음을 누른다. 고른 것이 없으면 다음은 회색이다.
-                select.canGoNext = true;
-                select.nextBlockedReason = Delegate<const char*(EditorApplication&)>::Bind<&NeedSelectedObject>();
-                guide.steps.Add(std::move(select));
-
-                GuideStep field = MakeStep(LocKeys::GuideAddComponentFieldTitle, "Change a Value",
-                    LocKeys::GuideAddComponentFieldBody,
-                    "Drag or type in this field to change the value. Press Next when you are done.");
-                field.buildPath = Delegate<bool(EditorApplication&, GuideFocusPath&)>::Bind<&FirstFieldPath>();
-                field.end = GuideStepEnd::NextButton;
-                field.keyboard = true;
-                field.nextBlockedReason = Delegate<const char*(EditorApplication&)>::Bind<&NeedSelectedObject>();
-                // 도중에 선택을 비우거나 오브젝트를 지우면 필드가 사라진다. 고르는 단계로 돌아간다.
-                field.retreatOnBreak = 0;
-                guide.steps.Add(std::move(field));
-
-                GuideStep add = MakeStep(LocKeys::GuideAddComponentAddTitle, "Add a Component",
-                    LocKeys::GuideAddComponentAddBody, "Open this list and pick a component to attach.");
-                add.path.Push(GuideFocusTargets::Panel("Inspector"));
-                add.path.Push(GuideFocusTargets::InspectorAddComponent(), GuideFocusOpen::User);
-                add.end = GuideStepEnd::Condition;
-                add.onEnter = Delegate<void(EditorApplication&, GuideStepMemo&)>::Bind<&RememberComponentCount>();
-                add.condition = Delegate<bool(EditorApplication&, GuideStepMemo&)>::Bind<&ComponentAdded>();
-                add.retreatOnBreak = 0;
-                // 목록 위의 검색 칸에 칠 수 있어야 한다.
-                add.keyboard = true;
-                guide.steps.Add(std::move(add));
-
-                guides.Add(std::move(guide));
-            }
-
-            // ── 게임 빌드하기 ─────────────────────────────────────
-            {
-                Guide guide;
-                guide.id = "guide.build_game";
-                guide.titleKey = LocKeys::GuideBuildGameTitle;
-                guide.titleFallback = "Building the Game";
-
-                GuideStep build = MakeStep(LocKeys::GuideBuildGameStepTitle, "Build Game",
-                    LocKeys::GuideBuildGameStepBody,
-                    "Open the File menu and choose Build Game to pack the project into a game you can run.");
-                // 메뉴는 사용자가 연다. 열리면 구멍이 그 안의 항목으로 옮겨 간다.
-                build.path.Push(GuideFocusTargets::Menu("menu.file"), GuideFocusOpen::User);
-                build.path.Push(GuideFocusTargets::Menu("menu.build_game"));
-                build.end = GuideStepEnd::TargetActivated;
-                guide.steps.Add(std::move(build));
-
                 guides.Add(std::move(guide));
             }
             return guides;
         }
 
-        Array<Guide>& Builtins()
+        Array<OwnerPtr<LoadedGuide>>& Builtins()
         {
-            static Array<Guide> guides = BuildBuiltins();
+            static Array<OwnerPtr<LoadedGuide>> guides = BuildBuiltins();
             return guides;
         }
     }
@@ -346,6 +249,16 @@ namespace JBro
             {
                 m_finished = true;
                 Stop(focus);
+                return;
+            }
+            // **해낸 일이 대상을 없앴다**(지운 오브젝트의 삭제 항목, D-267). 사라진 자리에 빈 테두리를 남기지 않고 경로의 첫 칸(그 일을
+            // 한 패널)으로 물러난다. 기다렸다가 끊긴 것으로 치면 다 한 일에 경고가 남는다.
+            const GuideFocusPath& path = focus.GetPath();
+            if (path.count > 1 && focus.GetUnseenSeconds() > 0.0f)
+            {
+                GuideFocusPath rest;
+                rest.Push(path.targets[0], path.open[0]);
+                focus.Begin(rest);
             }
             return;
         }
@@ -366,6 +279,16 @@ namespace JBro
             }
         }
         const bool broken = focus.IsBroken();
+        if (broken && false == done && step.nextRoute.IsBound())
+        {
+            // 같은 일에 드는 다른 길이 있으면 그리로 간다(계층 줄이 검색에 가려졌으면 캔버스 뷰로).
+            GuideFocusPath path;
+            if (step.nextRoute.Invoke(editor, path) && focus.Begin(path))
+            {
+                focus.SetKeyboardAllowed(step.keyboard);
+                return;
+            }
+        }
         if (broken && step.retreatOnBreak >= 0 && static_cast<std::uint32_t>(step.retreatOnBreak) < m_step)
         {
             // 가리킬 것을 다시 마련하는 단계로 돌아간다. 돌아온 것이 아니라 새로 들어선 것이다 - 조건으로 넘어가야 한다.
@@ -411,7 +334,7 @@ namespace JBro
 
         const Guide& GetBuiltin(std::uint32_t index)
         {
-            return Builtins()[index];
+            return Builtins()[index]->Get();
         }
 
         const Guide* FindBuiltin(const char* id)
@@ -420,11 +343,11 @@ namespace JBro
             {
                 return nullptr;
             }
-            for (const Guide& guide : Builtins())
+            for (const OwnerPtr<LoadedGuide>& guide : Builtins())
             {
-                if (std::strcmp(guide.id, id) == 0)
+                if (std::strcmp(guide->Get().id, id) == 0)
                 {
-                    return &guide;
+                    return &guide->Get();
                 }
             }
             return nullptr;
