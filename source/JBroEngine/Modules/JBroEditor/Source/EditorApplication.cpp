@@ -60,6 +60,7 @@
 #include "Panel/GameViewPanel.h"
 #include "Panel/HierarchyPanel.h"
 #include "Panel/InspectorPanel.h"
+#include "Panel/BuildResultsPanel.h"
 #include "Panel/LogPanel.h"
 #include "Panel/ProfilerPanel.h"
 #include "Panel/ProjectSettingsPanel.h"
@@ -305,6 +306,12 @@ namespace JBro
         }
         m_shortcuts->Read(document, document.GetRoot());
         m_savedShortcutRevision = m_shortcuts->GetRevision();
+        // 오류 줄을 여는 편집기다(D-267). 모르는 이름이면 기본값으로 둔다.
+        String scriptEditor;
+        if (document.FindScalar(document.GetRoot(), "ScriptEditor", scriptEditor))
+        {
+            ScriptBuild::ParseEditorKind(scriptEditor.c_str(), m_scriptEditor);
+        }
     }
 
     void EditorApplication::SavePreferences()
@@ -316,6 +323,7 @@ namespace JBro
         }
         YamlWriter writer;
         writer.WriteInt("Version", 1);
+        writer.WriteString("ScriptEditor", ScriptBuild::EditorKindName(m_scriptEditor));
         m_shortcuts->Write(writer);
         const String& text = writer.GetText();
         const String folder = EditorPaths::FolderOf(m_preferencesPath.c_str());
@@ -2285,14 +2293,198 @@ namespace JBro
 
     bool EditorApplication::OpenScriptFile(const char* relativePath)
     {
+        // 오류 줄과 같은 편집기다(D-267). 스크립트를 셸의 기본 앱으로 열면 `.cpp` 가 엉뚱한 프로그램에 붙기 쉽다.
         const String path = EditorPaths::JoinPath(GetScriptRoot().c_str(), relativePath);
-        return false == GetScriptRoot().empty() && m_platform->OpenPathWithShell(path.c_str());
+        return false == GetScriptRoot().empty() && OpenInScriptEditor(path, 1);
     }
 
     bool EditorApplication::RevealScriptPath(const char* relativePath)
     {
         const String path = EditorPaths::JoinPath(GetScriptRoot().c_str(), relativePath);
         return false == GetScriptRoot().empty() && m_platform->RevealInFileBrowser(path.c_str());
+    }
+
+    namespace
+    {
+        // 빌드 실패 알림을 누르면 `빌드 결과` 를 연다. 오류가 줄마다 거기 있다.
+        class OpenBuildResultsAction final : public NotificationAction
+        {
+        public:
+            void OnClick(EditorApplication& editor) override
+            {
+                if (EditorPanel* panel = editor.FindPanel("BuildResults"))
+                {
+                    panel->SetOpen(true);
+                    panel->RequestFocus();
+                }
+            }
+        };
+    }
+
+    String EditorApplication::GetToolScratchFolder() const
+    {
+        const String folder = m_platform->GetUserDataFolder();
+        if (false == folder.empty())
+        {
+            return EditorPaths::JoinPath(folder.c_str(), "JBroEngine/Editor/Tools");
+        }
+        const String contents = GetScriptContentsRoot();
+        return contents.empty() ? contents : EditorPaths::JoinPath(contents.c_str(), "../x64");
+    }
+
+    bool EditorApplication::BuildScripts()
+    {
+        if (m_scriptBuildState == ScriptBuildState::Running)
+        {
+            return false;
+        }
+        const String contents = GetScriptContentsRoot();
+        if (contents.empty() || false == ScriptProject::HasProject(*m_platform, contents.c_str()))
+        {
+            m_notifications.Notify(NotificationLevel::Warning, Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built"),
+                Loc::TextOr(LocKeys::NotifyNoScriptProject,
+                    "There is no script project yet. Create a script from Scripts in the asset browser first"));
+            return false;
+        }
+        if (m_msbuildPath.empty())
+        {
+            m_msbuildPath = ScriptBuild::LocateMSBuild(*m_platform, GetToolScratchFolder().c_str());
+        }
+        if (m_msbuildPath.empty())
+        {
+            m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built"),
+                Loc::TextOr(LocKeys::NotifyMSBuildMissing, "MSBuild was not found. Install Visual Studio with the C++ workload"));
+            return false;
+        }
+        // 엔진이 그 사이 옮겨졌을 수 있다. 같으면 쓰지 않는다(D-266).
+        const String engineRoot = ScriptProject::FindEngineRoot(*m_platform, m_platform->GetExecutableFolder().c_str());
+        if (false == engineRoot.empty())
+        {
+            ScriptProject::RefreshEngineProps(*m_platform, contents.c_str(), engineRoot.c_str());
+        }
+        const String outputFolder = EditorPaths::JoinPath(EditorPaths::FolderOf(m_projectFilePath.c_str()).c_str(), "x64");
+        m_platform->CreateDirectoryAt(outputFolder.c_str());
+        m_scriptBuildLog = EditorPaths::JoinPath(outputFolder.c_str(), "ScriptBuild.log");
+        // 지난 빌드의 로그를 남기면 이번 빌드가 로그를 못 쓰고 끝났을 때 지난 진단을 이번 것으로 읽는다.
+        m_platform->DeleteFileAt(m_scriptBuildLog.c_str());
+        const String projectFile = EditorPaths::JoinPath(contents.c_str(), "GameScript.vcxproj");
+        const String command = ScriptBuild::MakeBuildCommand(m_msbuildPath.c_str(), projectFile.c_str(), "Debug", m_scriptBuildLog.c_str());
+        m_scriptBuild = m_platform->StartProcess(command.c_str(), contents.c_str(), nullptr);
+        if (m_scriptBuild.process == nullptr)
+        {
+            m_notifications.Notify(NotificationLevel::Error, Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built"),
+                m_msbuildPath.c_str());
+            return false;
+        }
+        m_scriptBuildState = ScriptBuildState::Running;
+        m_scriptDiagnostics.Clear();
+        Log::Write(LogLevel::Info, "script", "building the scripts: %s", projectFile.c_str());
+        if (EditorPanel* panel = FindPanel("BuildResults"))
+        {
+            panel->SetOpen(true);
+        }
+        return true;
+    }
+
+    void EditorApplication::PollScriptBuild()
+    {
+        if (m_scriptBuildState != ScriptBuildState::Running)
+        {
+            return;
+        }
+        std::int32_t exitCode = 0;
+        const ProcessStatus status = m_platform->PollProcess(m_scriptBuild, exitCode);
+        if (status == ProcessStatus::Running)
+        {
+            return;
+        }
+        m_platform->CloseProcess(m_scriptBuild);
+        Array<std::byte> bytes;
+        if (m_platform->ReadWholeFile(m_scriptBuildLog.c_str(), bytes))
+        {
+            ScriptBuild::ParseLog(reinterpret_cast<const char*>(bytes.Data()), bytes.Size(), m_scriptDiagnostics);
+        }
+        std::size_t errors = 0;
+        for (const ScriptBuild::Diagnostic& diagnostic : m_scriptDiagnostics)
+        {
+            errors += diagnostic.isError ? 1 : 0;
+            // 로그에도 남긴다. 빌드 결과 창을 지워도 무엇이 있었는지 찾을 곳이 있어야 한다.
+            Log::Write(diagnostic.isError ? LogLevel::Error : LogLevel::Warning, "script", "%s(%u): %s %s",
+                diagnostic.file.c_str(), diagnostic.line, diagnostic.code.c_str(), diagnostic.message.c_str());
+        }
+        const bool succeeded = status == ProcessStatus::Exited && exitCode == 0;
+        if (false == succeeded && errors == 0)
+        {
+            // 진단 없이 실패했다(도구가 죽었다거나). 적어도 로그 파일을 열 줄 하나는 남긴다 - 빈 창에 "실패" 만 있으면 찾아갈 곳이 없다.
+            ScriptBuild::Diagnostic diagnostic;
+            diagnostic.file = m_scriptBuildLog;
+            diagnostic.isError = true;
+            diagnostic.message = Loc::TextOr(LocKeys::BuildResultsNoDiagnostic, "The build failed without an error line. Open the log to see why");
+            m_scriptDiagnostics.Add(std::move(diagnostic));
+        }
+        m_scriptBuildState = succeeded ? ScriptBuildState::Succeeded : ScriptBuildState::Failed;
+        if (succeeded)
+        {
+            // 새 DLL 은 프로젝트를 다시 열 때 실린다. 핫 리로드는 다음 단계다(cpp-script-plan §3.5).
+            m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsBuilt, "The scripts were built"),
+                Loc::TextOr(LocKeys::BuildResultsSucceeded, "Built. The new code loads when the project is reopened"));
+            return;
+        }
+        NotificationDesc desc;
+        desc.level = NotificationLevel::Error;
+        desc.title = Loc::TextOr(LocKeys::NotifyScriptsBuildFailed, "The scripts could not be built");
+        desc.id = "script_build_failed";
+        desc.action = MakeOwnerPtr<OpenBuildResultsAction>();
+        m_notifications.Notify(std::move(desc));
+    }
+
+    void EditorApplication::ClearScriptDiagnostics()
+    {
+        m_scriptDiagnostics.Clear();
+        if (m_scriptBuildState != ScriptBuildState::Running)
+        {
+            m_scriptBuildState = ScriptBuildState::Idle;
+        }
+    }
+
+    bool EditorApplication::OpenScriptDiagnostic(std::size_t index)
+    {
+        if (index >= m_scriptDiagnostics.Size() || m_scriptDiagnostics[index].file.empty())
+        {
+            return false;
+        }
+        const ScriptBuild::Diagnostic& diagnostic = m_scriptDiagnostics[index];
+        return OpenInScriptEditor(diagnostic.file, diagnostic.line);
+    }
+
+    bool EditorApplication::OpenInScriptEditor(const String& file, std::uint32_t line)
+    {
+        if (m_scriptEditorPath.empty() && m_scriptEditor == ScriptBuild::EditorKind::VisualStudio)
+        {
+            m_scriptEditorPath = ScriptBuild::LocateVisualStudio(*m_platform, GetToolScratchFolder().c_str());
+        }
+        else if (m_scriptEditorPath.empty() && m_scriptEditor == ScriptBuild::EditorKind::VisualStudioCode)
+        {
+            m_scriptEditorPath = ScriptBuild::LocateVisualStudioCode(*m_platform);
+        }
+        const String command = ScriptBuild::MakeOpenAtLineCommand(m_scriptEditor, m_scriptEditorPath.c_str(), file.c_str(), line);
+        if (false == command.empty() && m_platform->LaunchProcess(command.c_str(), nullptr))
+        {
+            return true;
+        }
+        // 편집기를 못 찾았거나 기본 앱을 골랐다. 줄은 못 넘기지만 파일은 연다.
+        return m_platform->OpenPathWithShell(file.c_str());
+    }
+
+    void EditorApplication::SetScriptEditor(ScriptBuild::EditorKind kind)
+    {
+        if (kind == m_scriptEditor)
+        {
+            return;
+        }
+        m_scriptEditor = kind;
+        m_scriptEditorPath.clear();
+        SavePreferences();
     }
 
     void EditorApplication::OpenNewScriptPopup(const char* folder)
@@ -2753,6 +2945,7 @@ namespace JBro
                 || false == AddPanel(MakeOwnerPtr<AssetBrowserPanel>())
                 || false == AddPanel(MakeOwnerPtr<StatsPanel>())
                 || false == AddPanel(MakeOwnerPtr<LogPanel>())
+                || false == AddPanel(MakeOwnerPtr<BuildResultsPanel>())
                 || false == AddPanel(MakeOwnerPtr<ProjectSettingsPanel>())
                 || false == AddPanel(MakeOwnerPtr<ProfilerPanel>())
                 || false == AddPanel(MakeOwnerPtr<ShortcutPanel>())
@@ -3563,6 +3756,13 @@ namespace JBro
                 {
                     GameBuildReport report;
                     BuildGameForProject(report);
+                }
+                // **스크립트 빌드**(D-267). 파일이 있어야 스크립트 자리를 안다. 도는 동안은 다시 누르지 못한다.
+                const bool building = m_scriptBuildState == ScriptBuildState::Running;
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuBuildScripts, "Build Scripts"), nullptr,
+                        false == (noFile || building), building ? Loc::TextOr(LocKeys::BuildResultsBuilding, "Building...") : why))
+                {
+                    BuildScripts();
                 }
             }
             ImGui::Separator();
@@ -4493,6 +4693,8 @@ namespace JBro
         }
         // 워커로 여는 캔버스가 끝났으면 여기서 바인딩한다(D-236). UI 보다 먼저라 이 프레임부터 그림이 붙는다.
         PollCanvasLoad();
+        // 스크립트 빌드가 끝났으면 진단을 모은다(D-267). 기다리지 않는다 - 끝났는지만 본다.
+        PollScriptBuild();
         // 그림 만드는 몫을 이 프레임 몫으로 되돌린다. UI 가 그리면서 부른다.
         if (m_thumbnails.Get() != nullptr)
         {
@@ -4581,6 +4783,13 @@ namespace JBro
         if (false == m_initialized || m_framework.Get() == nullptr)
         {
             return;
+        }
+        // 도는 스크립트 빌드는 끝낸다. 남기면 다음 프로젝트를 여는 동안 컴파일러가 이 프로젝트의 산출물을 붙잡는다.
+        if (m_scriptBuildState == ScriptBuildState::Running)
+        {
+            m_platform->CloseProcess(m_scriptBuild);
+            m_scriptBuildState = ScriptBuildState::Idle;
+            Log::Write(LogLevel::Info, "script", "the script build was stopped because the project closed");
         }
         // 재생 중이면 재생 전 캔버스로 되돌린 뒤 닫는다 - 되살린 캔버스가 이 프로젝트의 마지막 모습이다.
         StopSimulation();

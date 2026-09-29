@@ -7,6 +7,8 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/FieldLabel.h>
 #include <JBro/Editor/Widget/Fields.h>
+#include <JBro/Editor/Widget/FilterCombo.h>
+#include <JBro/Editor/Widget/FormLayout.h>
 
 #include <imgui.h>
 
@@ -80,6 +82,10 @@ namespace JBro
             {
                 m_page = Page::Shortcuts;
             }
+            if (Widget::SelectableRow(Loc::TextOr(LocKeys::EditorSettingsScripts, "Scripts"), m_page == Page::Scripts))
+            {
+                m_page = Page::Scripts;
+            }
         }
         ImGui::EndChild();
         ImGui::SameLine();
@@ -89,8 +95,39 @@ namespace JBro
             {
                 DrawShortcuts();
             }
+            else if (m_page == Page::Scripts)
+            {
+                DrawScripts();
+            }
         }
         ImGui::EndChild();
+    }
+
+    void EditorSettingsPanel::DrawScripts()
+    {
+        // 고르는 즉시 저장한다. 에디터 언어처럼 저장 단추를 두지 않는다 - 다른 설정과 묶여 되돌릴 값이 없다.
+        Widget::FormLayout layout("##scripts");
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::EditorSettingsScriptEditor, "Script Editor"))
+                .Tooltip(Loc::TextOr(LocKeys::EditorSettingsScriptEditorHelp,
+                    "Clicking an error in Build Results opens that line in this editor")),
+            [&]() {
+                // 편집기 이름은 제품 이름이라 번역하지 않는다. 기본 앱만 글자로 쓴다.
+                const char* const names[] = {
+                    Loc::TextOr(LocKeys::ScriptEditorSystem, "Default app (no line jump)"),
+                    "Visual Studio",
+                    "Visual Studio Code",
+                };
+                static_assert(sizeof(names) / sizeof(names[0]) == static_cast<std::size_t>(ScriptBuild::EditorKind::Count));
+                int current = static_cast<int>(m_editor->GetScriptEditor());
+                if (Widget::FilterCombo("##scriptEditor", ArrayView<const char* const>(names, 3), current)
+                        .ShowFilter(false)
+                        .Draw()
+                    && current >= 0)
+                {
+                    m_editor->SetScriptEditor(static_cast<ScriptBuild::EditorKind>(current));
+                }
+            });
     }
 
     void EditorSettingsPanel::DrawShortcuts()

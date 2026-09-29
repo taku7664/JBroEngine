@@ -82,6 +82,7 @@
   **3.1·3.2 가 섰다**(D-264·D-265). 스크립트 프로퍼티 표가 호스트로 오고, 캔버스 파일이 모르는 컴포넌트를 읽은 그대로 되쓰며, 에디터는 `FindAttachable` 로 스크립트를 붙인다.
   스크립트는 `JBRO_SCRIPT_BODY`·`JBRO_FIELD` 로 적고, `.cpp` 마다 `JBRO_REGISTER_SCRIPT_2D` 한 줄, 프로젝트에 `JBRO_SCRIPT_MODULE_2D()` 하나다.
   3.3 도 섰다(D-266) - 에셋 브라우저의 `스크립트` 뿌리에서 우클릭 `새 스크립트`, 프로젝트 파일은 한 번만 쓰고 엔진 위치는 `JBroEngine.props` 를 열 때마다 맞춘다.
+  3.4 도 섰다(D-267) - 파일 메뉴 `스크립트 빌드` 가 MSBuild 를 자식 프로세스로 띄우고, 오류는 `빌드 결과` 패널에서 눌러 에디터 설정에서 고른 편집기로 그 줄을 연다.
   담당자에게 넘길 남은 일이 §3.3 끝에 있다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.

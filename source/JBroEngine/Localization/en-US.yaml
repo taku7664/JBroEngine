@@ -317,6 +317,23 @@ Entries:
   assets.rescan: Rescan
   assets.new_canvas: New Canvas
   assets.new_script: New Script
+  menu.build_scripts: Build Scripts
+  panel.build_results: Build Results
+  build_results.build: Build
+  build_results.building: Building...
+  build_results.clear: Clear
+  build_results.errors: "%d errors"
+  build_results.warnings: "%d warnings"
+  build_results.empty: No build yet
+  build_results.succeeded: Built. The new code loads when the project is reopened
+  build_results.open_hint: Click to open this line in the editor
+  notify.scripts_built: The scripts were built
+  notify.scripts_build_failed: The scripts could not be built
+  notify.no_script_project: There is no script project yet. Create a script from Scripts in the asset browser first
+  notify.msbuild_missing: MSBuild was not found. Install Visual Studio with the C++ workload
+  editor_settings.script_editor: Script Editor
+  editor_settings.script_editor_help: Clicking an error in Build Results opens that line in this editor
+  script_editor.system: Default app (no line jump)
   assets.scripts_root: Scripts
   assets.scripts_empty: No scripts yet. Right-click to create one
   assets.open_script: Open
@@ -391,6 +408,8 @@ Entries:
   panel.editor_settings: Editor Settings
   menu.settings_editor: Editor Settings
   editor_settings.shortcuts: Shortcuts
+  editor_settings.scripts: Scripts
+  build_results.no_diagnostic: The build failed without an error line. Open the log to see why
   editor_settings.search_hint: Search by name or key
   editor_settings.press_key: Press a key
   editor_settings.capture_hint: Press Esc to cancel

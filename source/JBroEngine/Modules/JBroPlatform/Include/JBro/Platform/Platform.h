@@ -41,6 +41,22 @@ namespace JBro
         void* opaque = nullptr;
     };
 
+    // 띄운 자식 프로세스 하나다(cpp-script-plan §3.4). `CloseProcess` 로 닫을 때까지만 뜻이 있다. 둘 다 운영체제의 핸들이다 -
+    // `group` 은 그 프로세스가 다시 띄운 것들(MSBuild 의 컴파일러 따위)까지 한 번에 끝내는 묶음이다.
+    struct ChildProcess
+    {
+        void* process = nullptr;
+        void* group = nullptr;
+    };
+
+    enum class ProcessStatus : std::uint8_t
+    {
+        Running,
+        Exited,
+        // 띄우지 못했거나 이미 닫은 것이다.
+        Invalid
+    };
+
     struct WindowState
     {
         // Client area in surface pixels, not the outer window rectangle.
@@ -280,6 +296,42 @@ namespace JBro
         {
             (void)utf8Path;
             return false;
+        }
+        // **자식 프로세스를 띄우고 기다리지 않는다**(cpp-script-plan §3.4). 에디터가 스크립트를 빌드하는 길이다 - 빌드는 워커가 아니라
+        // 자식 프로세스이고, 에디터는 `PollProcess` 로 끝을 보며 프레임을 계속 돈다. `utf8CommandLine` 은 실행 파일 경로(따옴표로 감싼다)와
+        // 인자를 담은 명령줄 전체다. 표준 출력과 오류는 `utf8OutputFile` 에 쓰고, 널이면 버린다. 창을 띄우지 않는다.
+        // 띄우지 못하면 빈 `ChildProcess` 다. 없는 플랫폼이면 늘 그렇다.
+        virtual ChildProcess StartProcess(const char* utf8CommandLine, const char* utf8WorkingFolder, const char* utf8OutputFile)
+        {
+            (void)utf8CommandLine;
+            (void)utf8WorkingFolder;
+            (void)utf8OutputFile;
+            return {};
+        }
+        // 끝났으면 `Exited` 와 종료 코드다. 기다리지 않는다.
+        virtual ProcessStatus PollProcess(const ChildProcess& process, std::int32_t& exitCode)
+        {
+            (void)process;
+            (void)exitCode;
+            return ProcessStatus::Invalid;
+        }
+        // 핸들을 놓는다. **아직 돌고 있으면 그것이 띄운 것까지 끝낸다** - 에디터가 닫히거나 빌드를 그만둘 때 컴파일러가 남아 산출물을 붙잡지 않게.
+        virtual void CloseProcess(ChildProcess& process)
+        {
+            process = {};
+        }
+        // 띄우고 잊는다. 편집기처럼 에디터보다 오래 살아야 하는 프로그램을 연다 - `StartProcess` 와 달리 묶지도 끝내지도 않는다.
+        virtual bool LaunchProcess(const char* utf8CommandLine, const char* utf8WorkingFolder)
+        {
+            (void)utf8CommandLine;
+            (void)utf8WorkingFolder;
+            return false;
+        }
+        // 환경 변수 하나(UTF-8). 없으면 빈 글자다. `VSINSTALLDIR` 처럼 도구를 찾는 데 쓴다.
+        virtual String ReadEnvironmentVariable(const char* name) const
+        {
+            (void)name;
+            return String();
         }
         virtual bool DirectoryExists(const char* utf8Path) const
         {

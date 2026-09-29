@@ -317,6 +317,23 @@ Entries:
   assets.rescan: 새로 고침
   assets.new_canvas: 새 캔버스
   assets.new_script: 새 스크립트
+  menu.build_scripts: 스크립트 빌드
+  panel.build_results: 빌드 결과
+  build_results.build: 빌드
+  build_results.building: 빌드하는 중...
+  build_results.clear: 지우기
+  build_results.errors: 오류 %d개
+  build_results.warnings: 경고 %d개
+  build_results.empty: 아직 빌드하지 않았습니다
+  build_results.succeeded: 빌드했습니다. 새 코드는 프로젝트를 다시 열면 실립니다
+  build_results.open_hint: 누르면 편집기에서 이 줄을 엽니다
+  notify.scripts_built: 스크립트를 빌드했습니다
+  notify.scripts_build_failed: 스크립트를 빌드하지 못했습니다
+  notify.no_script_project: 스크립트 프로젝트가 없습니다. 에셋 브라우저의 스크립트에서 새 스크립트를 먼저 만드세요
+  notify.msbuild_missing: MSBuild 를 찾지 못했습니다. Visual Studio 의 C++ 워크로드를 설치하세요
+  editor_settings.script_editor: 스크립트 편집기
+  editor_settings.script_editor_help: 빌드 결과에서 오류를 누르면 이 편집기로 그 줄을 엽니다
+  script_editor.system: 기본 앱 (줄 이동 없음)
   assets.scripts_root: 스크립트
   assets.scripts_empty: 스크립트가 없습니다. 우클릭해 새 스크립트를 만드세요
   assets.open_script: 열기
@@ -391,6 +408,8 @@ Entries:
   panel.editor_settings: 에디터 설정
   menu.settings_editor: 에디터 설정
   editor_settings.shortcuts: 단축키
+  editor_settings.scripts: 스크립트
+  build_results.no_diagnostic: 오류 줄 없이 빌드가 실패했습니다. 로그를 열어 까닭을 확인하세요
   editor_settings.search_hint: 이름이나 키로 검색
   editor_settings.press_key: 키를 누르세요
   editor_settings.capture_hint: Esc 를 누르면 취소합니다

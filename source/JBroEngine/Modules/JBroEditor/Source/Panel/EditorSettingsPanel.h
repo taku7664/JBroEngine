@@ -13,6 +13,8 @@ namespace JBro
     // 누르면 다음에 누른 키가 그 조합이 된다(Esc 는 취소). 검색은 이름·무리·저장 이름·지금 조합 글자를 본다. 겹치는 조합은 줄 끝에
     // 표시하고 까닭을 툴팁으로 말한다.
     //
+    // 두 번째 항목은 **스크립트**다: 빌드 결과의 오류 줄을 무엇으로 열지 고른다(cpp-script-plan §3.4, D-267).
+    //
     // 처음에는 닫혀 있다. 설정 메뉴에서 연다.
     class EditorSettingsPanel final : public EditorPanel
     {
@@ -28,9 +30,11 @@ namespace JBro
         enum class Page : std::uint8_t
         {
             Shortcuts,
+            Scripts,
         };
 
         void DrawShortcuts();
+        void DrawScripts();
         void DrawShortcutRow(std::uint32_t index, const EditorShortcutView& view);
         // 잡는 중이면 이번 프레임에 눌린 키를 본다. Esc 는 취소, 다른 키는 그 조합이 된다.
         void UpdateCapture();

@@ -561,7 +561,7 @@ namespace
         // 정작 무엇이 빠졌는지는 말해 주지 않는다.
         const char* const expected[] = {
             "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
-            "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
+            "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings", "BuildResults"};
         for (const char* title : expected)
         {
             Check(editor.FindPanel(title) != nullptr, title);
@@ -4755,7 +4755,7 @@ namespace
 
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
         // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
-        Check(editor.GetPanelCount() == 11, "the default panels must be registered");
+        Check(editor.GetPanelCount() == 12, "the default panels must be registered");
         Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");

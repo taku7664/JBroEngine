@@ -39,6 +39,12 @@ namespace JBro
         bool GetFileWriteTime(const char* utf8Path, std::int64_t& outUnixSeconds) const override;
         bool OpenPathWithShell(const char* utf8Path) override;
         bool RevealInFileBrowser(const char* utf8Path) override;
+        // `WindowsProcess.cpp` 의 것이다.
+        ChildProcess StartProcess(const char* utf8CommandLine, const char* utf8WorkingFolder, const char* utf8OutputFile) override;
+        ProcessStatus PollProcess(const ChildProcess& process, std::int32_t& exitCode) override;
+        void CloseProcess(ChildProcess& process) override;
+        bool LaunchProcess(const char* utf8CommandLine, const char* utf8WorkingFolder) override;
+        String ReadEnvironmentVariable(const char* name) const override;
         bool FileExists(const char* utf8Path) const override;
         bool DirectoryExists(const char* utf8Path) const override;
         bool EnumerateDirectory(const char* utf8Root, DirectoryVisitor visitor, void* user) override;
