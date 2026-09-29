@@ -115,6 +115,11 @@ Steps:
         m_finished = false;
         m_revisiting = false;
         m_confirming = false;
+        m_results.Clear();
+        for (std::uint32_t index = 0; index < guide.steps.Size(); ++index)
+        {
+            m_results.Add(0);
+        }
         if (false == EnterStep(0, editor, focus))
         {
             m_guide = nullptr;
@@ -169,8 +174,24 @@ Steps:
                 m_confirming = false;
                 return true;
             }
+            // 받을 결과가 비었다(남긴 단계를 건너뛰었거나 그 오브젝트가 사라졌다). 남긴 단계로 돌아가 다시 하게 한다.
+            const std::int32_t retreat = m_guide->steps[index].retreatOnMissing;
+            if (retreat >= 0 && static_cast<std::uint32_t>(retreat) < index
+                && TryEnter(static_cast<std::uint32_t>(retreat), editor, focus))
+            {
+                Log::Write(LogLevel::Info, "editor", "guide %s: step %u has nothing to point at; back to step %u",
+                    m_guide->id, index + 1, static_cast<std::uint32_t>(retreat) + 1);
+                m_revisiting = false;
+                m_confirming = false;
+                return true;
+            }
         }
         return false;
+    }
+
+    std::uint64_t EditorGuide::GetResult(std::uint32_t step) const noexcept
+    {
+        return step < m_results.Size() ? m_results[step] : 0;
     }
 
     bool EditorGuide::ShowsSkip() const noexcept
@@ -309,6 +330,11 @@ Steps:
         if (false == done)
         {
             return;
+        }
+        // 해낸 단계는 남길 것을 적는다. 끊겨서 넘어가는 단계는 남기지 않는다 - 뒤 단계가 그것을 받으면 되돌아온다.
+        if (m_step < m_results.Size())
+        {
+            m_results[m_step] = false == broken && step.result.IsBound() ? step.result.Invoke(editor, m_memo) : 0;
         }
         const bool last = m_step + 1 >= m_guide->steps.Size();
         if (last && false == nextPressed && false == broken)

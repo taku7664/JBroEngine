@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstring>
 #include <cwchar>
+#include <initializer_list>
 #include <iostream>
 #include <stdexcept>
 
@@ -1244,7 +1245,7 @@ namespace
         const Bad bad[] = {
             { "  - Do: object.explode\n    Object: 1\n", "unknown action" },
             { "  - Do: object.delete\n", "needs Object" },
-            { "  - Do: object.delete\n    Object: Player\n", "instance id or Selection" },
+            { "  - Do: object.delete\n    Object: Player\n", "instance id, Selection or $step" },
             { "  - Do: object.delete\n    Object: 1\n    Via: inspector\n", "cannot go by that route" },
             { "  - Do: game.build\n    Object: 1\n", "takes no Object" },
             { "  - Do: field.edit\n    End: done\n", "End must be" },
@@ -1903,6 +1904,176 @@ namespace
     }
 }
 
+namespace
+{
+    // ── 단계 사이 참조(D-269) ─────────────────────────────────────────
+
+    // 제목과 본문 블록을 붙인 단계 하나다. `body` 는 `Do:` 줄 다음에 올 줄들이다.
+    JBro::String Step(const char* id, const char* action, const char* body)
+    {
+        JBro::String text = "  - Id: ";
+        text += id;
+        text += "\n    Do: ";
+        text += action;
+        text += "\n";
+        text += body;
+        text += TextBlock;
+        return text;
+    }
+
+    JBro::String Guide(std::initializer_list<JBro::String> steps)
+    {
+        JBro::String text = "Id: test.refs\nTitle:\n  Key: test.refs_title\n  String: R\n  Loc: en-US\nSteps:\n";
+        for (const JBro::String& step : steps)
+        {
+            text += step;
+        }
+        return text;
+    }
+
+    // `$단계Id` 는 앞에 있는, 오브젝트를 남기는 단계만 가리킨다.
+    void TestAStepReferenceNamesAnEarlierStepThatLeavesAnObject()
+    {
+        JBro::OwnerPtr<JBro::LoadedGuide> loaded;
+        JBro::String error;
+        JBro::String text = Guide({ Step("made", "object.create", ""), Step("add", "component.add", "    Object: $made\n") });
+        Check(ParseGuide(text.c_str(), loaded, error), error.c_str());
+        const JBro::GuideStep& second = loaded->Get().steps[1];
+        Check(second.retreatOnBreak == 0 && second.retreatOnMissing == 0, "losing what it got sends it back to the step that left it");
+        Check(loaded->Get().steps[0].result.IsBound(), "a step that makes an object leaves it");
+
+        struct Bad
+        {
+            JBro::String text;
+            const char* reason;
+        };
+        const Bad bad[] = {
+            { Guide({ Step("a", "component.add", "    Object: $made\n"), Step("made", "object.create", "") }), "names no earlier step" },
+            { Guide({ Step("c", "object.copy", "    Object: 1\n"), Step("d", "object.delete", "    Object: $c\n") }), "leaves no object" },
+            { Guide({ Step("x", "object.delete", "    Object: $\n") }), "instance id, Selection or $step" },
+        };
+        for (const Bad& entry : bad)
+        {
+            JBro::OwnerPtr<JBro::LoadedGuide> rejected;
+            JBro::String reason;
+            Check(false == ParseGuide(entry.text.c_str(), rejected, reason), entry.reason);
+            if (false == Contains(reason, entry.reason))
+            {
+                std::cout << "  reason was: " << reason << std::endl;
+            }
+            Check(Contains(reason, entry.reason), entry.reason);
+        }
+        // `RetreatTo` 를 적었으면 그리로 간다.
+        text = Guide({ Step("pick", "object.select", ""), Step("made", "object.create", ""),
+            Step("add", "component.add", "    Object: $made\n    RetreatTo: pick\n") });
+        Check(ParseGuide(text.c_str(), loaded, error), error.c_str());
+        Check(loaded->Get().steps[2].retreatOnMissing == 0, "RetreatTo wins over the step that left the object");
+
+        JBro::YamlWriter writer;
+        JBro::EditorGuides::WriteCatalog(writer);
+        Check(Contains(writer.GetText(), "Leaves: object") && Contains(writer.GetText(), "$stepId"), "the catalog tells which actions leave an object");
+    }
+
+    // 만든 오브젝트를 뒤 단계가 받는다. 사용자가 사이에 다른 것을 골라도 그 오브젝트다.
+    void TestALaterStepGetsTheObjectAnEarlierStepMade()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideRefProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; step references not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(other != nullptr, "another object must be there");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 2);
+        const JBro::String text = Guide({ Step("made", "object.create", "    Via: hierarchy\n"),
+            Step("add", "component.add", "    Object: $made\n") });
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        RightClickMenuAndPress(editor, hwnd, 1, static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
+            static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
+        Tick(editor, 2);
+        JBro::EditorGuide& run = editor.GetGuide();
+        Check(run.GetStepIndex() == 1, "making the object moves on");
+        JBro::GameObject* made = editor.GetObjectIds().Resolve(run.GetResult(0));
+        Check(made != nullptr && made != other, "the first step left the object it made");
+        Check(editor.GetSelectedObject() == made, "the second step picks the object it got, to show it in the inspector");
+        // 사용자가 다른 것을 골라 거기에 붙여도 끝나지 않는다.
+        editor.SetSelectedObject(other);
+        JBro::EditorActions::AddComponentList list;
+        JBro::EditorActions::BuildAddComponentList(*other, list);
+        JBro::NameId type = JBro::InvalidNameId;
+        for (std::size_t index = 0; index < list.typeNames.Size() && type == JBro::InvalidNameId; ++index)
+        {
+            type = list.addable[index] ? list.typeNames[index] : JBro::InvalidNameId;
+        }
+        Check(type != JBro::InvalidNameId && JBro::EditorActions::AddComponent(editor, *other, type), "a component goes on the other object");
+        Tick(editor, 2);
+        Check(false == run.IsConfirming(), "adding to the other object does not finish a step bound to the made one");
+        Check(JBro::EditorActions::AddComponent(editor, *made, type), "and on the made one");
+        Tick(editor, 2);
+        Check(run.IsConfirming(), "that finishes it");
+        Check(editor.GetObjectIds().Resolve(run.GetResult(1)) == made, "and the add step leaves the same object");
+    }
+
+    // 받은 것을 잃으면 그것을 남긴 단계로 돌아간다 - 도중에 사라져도, 들어설 때 이미 없어도.
+    void TestLosingAReferencedObjectGoesBackToTheStepThatLeftIt()
+    {
+        QuietLog quiet;
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideRefLostProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; lost references not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* a = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::GameObject* b = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(a != nullptr && b != nullptr, "two objects must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 2);
+        const JBro::String text = Guide({ Step("pick", "object.select", ""), Step("second", "object.select", ""),
+            Step("add", "component.add", "    Object: $pick\n") });
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        JBro::EditorGuide& run = editor.GetGuide();
+        editor.SetSelectedObject(a);
+        Tick(editor, 2);
+        Check(run.GetStepIndex() == 1 && run.GetResult(0) == editor.GetObjectIds().Track(a), "the pick step left a");
+        // 두 번째 단계에 있는 동안 a 를 지운다. 세 번째 단계에 들어설 때 받을 것이 없다.
+        Check(JBro::EditorActions::DeleteObject(editor, *a), "a is deleted");
+        editor.SetSelectedObject(b);
+        Tick(editor, 3);
+        Check(run.IsRunning() && run.GetStepIndex() == 0, "entering a step whose object is gone goes back to the step that left it");
+
+        // 새 오브젝트를 만들어(곧 선택된다) 고르고, b 로 옮겨 두 단계를 지나 세 번째에 들어선다. 이번에는 도중에 지운다.
+        JBro::GameObject* c = JBro::EditorActions::CreateObject(editor, nullptr);
+        Tick(editor, 2);
+        editor.SetSelectedObject(b);
+        Tick(editor, 2);
+        Check(c != nullptr && run.GetStepIndex() == 2, "c is picked, then b, and the add step is on c");
+        Check(editor.GetSelectedObject() == c, "the add step picks c to show it in the inspector");
+        Check(JBro::EditorActions::DeleteObject(editor, *c), "c is deleted while the step points at it");
+        Tick(editor, 60);
+        Check(run.IsRunning() && run.GetStepIndex() == 0, "losing it mid-step also goes back to the step that left it");
+
+        // 결과는 가이드마다 새로 잡는다. 앞 가이드가 남긴 것이 다음 가이드의 같은 자리로 새어 들면 없는 단계의 결과를 받는다.
+        // 앞 가이드가 **살아 있는** 오브젝트를 남긴 채로 멈춘다 - 지운 것이 남아 있으면 새어 들어도 빈 결과와 같아 보인다.
+        JBro::GameObject* d = JBro::EditorActions::CreateObject(editor, nullptr);
+        Tick(editor, 2);
+        Check(d != nullptr && run.GetStepIndex() == 1 && run.GetResult(0) == editor.GetObjectIds().Track(d),
+            "the pick step left a live object before the guide stops");
+        run.Stop(editor.GetGuideFocus());
+        const JBro::String lost = Guide({ Step("pick", "object.select", "    Object: 999999999\n"),
+            Step("add", "component.add", "    Object: $pick\n") });
+        Check(false == editor.StartGuideFromText(lost.c_str(), lost.size(), error),
+            "a guide whose only producer finds nothing has nothing to show - an earlier guide's result must not stand in");
+    }
+}
+
 int RunEditorGuideTests()
 {
     TestAClosedLevelOpensOnlyAfterTheHoleSettlesAndDwells();
@@ -1939,6 +2110,9 @@ int RunEditorGuideTests()
     TestAnUnparentGuideWaitsForItsOwnObject();
     TestCommandEndsMatchNameSubjectAndType();
     TestACreateGuideGoesByTheCanvasViewEmptySpot();
+    TestAStepReferenceNamesAnEarlierStepThatLeavesAnObject();
+    TestALaterStepGetsTheObjectAnEarlierStepMade();
+    TestLosingAReferencedObjectGoesBackToTheStepThatLeftIt();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }

@@ -131,12 +131,15 @@ namespace JBro
         {
             None,
             Id,
-            Selection
+            Selection,
+            // 앞 단계가 남긴 것(`$단계Id`, D-269).
+            Step
         };
 
         const GuideActionInfo* action = nullptr;
         ObjectRef objectRef = ObjectRef::None;
         InstanceId objectId = InvalidInstanceId;
+        std::uint32_t refStep = 0;
         bool hasComponent = false;
         ComponentTypeId componentType = 0;
         bool hasField = false;
@@ -157,6 +160,7 @@ namespace JBro
         void OnEnter(EditorApplication& editor, GuideStepMemo& memo);
         bool Condition(EditorApplication& editor, GuideStepMemo& memo);
         const char* NextBlocked(EditorApplication& editor);
+        std::uint64_t Result(EditorApplication& editor, GuideStepMemo& memo);
 
     private:
         bool ResolveObject(EditorApplication& editor);
@@ -186,6 +190,8 @@ namespace JBro
             bool takesField = false;
             bool keyboard = false;
             bool canGoNext = false;
+            // 끝나며 오브젝트를 남기는가(D-269). 커맨드로 끝나면 그 커맨드가 다룬 오브젝트, 선택이면 끝날 때 선택된 오브젝트다.
+            bool leavesObject = false;
             // ── 메뉴 항목이 아닌 행동 ──
             GuideRoute routes[2] = {};
             std::uint32_t routeCount = 0;
@@ -393,7 +399,7 @@ namespace JBro
         // ── 표 ───────────────────────────────────────────────────────
 
         GuideActionInfo MenuAction(const char* name, const char* summary, std::uint8_t menus, const char* command,
-            Subject subject, ObjectParam object, const char* objectKey = "Object")
+            Subject subject, ObjectParam object, const char* objectKey = "Object", bool leavesObject = false)
         {
             GuideActionInfo info;
             info.name = name;
@@ -403,6 +409,7 @@ namespace JBro
             info.subject = subject;
             info.object = object;
             info.objectKey = objectKey;
+            info.leavesObject = leavesObject;
             info.end = command != nullptr ? GuideStepEnd::Condition : GuideStepEnd::TargetActivated;
             return info;
         }
@@ -412,17 +419,17 @@ namespace JBro
             static const GuideActionInfo actions[] = {
                 // ── 메뉴 항목: 한 줄씩 ──
                 MenuAction("object.create", "Create an object. With Parent, as its child (from the parent's right-click menu); without, at the root (right-click an empty spot).",
-                    ObjectMenu | BackgroundMenu, "Create Object", Subject::ChildOf, ObjectParam::Optional, "Parent"),
+                    ObjectMenu | BackgroundMenu, "Create Object", Subject::ChildOf, ObjectParam::Optional, "Parent", true),
                 MenuAction("object.delete", "Delete an object.",
                     ObjectMenu | EditMenu, "Delete Object", Subject::Same, ObjectParam::Required),
                 MenuAction("object.unparent", "Move an object out of its parent to the root.",
-                    ObjectMenu, "Move In Hierarchy", Subject::Same, ObjectParam::Required),
+                    ObjectMenu, "Move In Hierarchy", Subject::Same, ObjectParam::Required, "Object", true),
                 MenuAction("object.copy", "Copy an object. Ends when Copy is pressed.",
                     ObjectMenu | EditMenu, nullptr, Subject::Any, ObjectParam::Required),
                 MenuAction("object.paste", "Paste the copied objects at the root.",
-                    BackgroundMenu | EditMenu, "Paste Objects", Subject::Any, ObjectParam::None),
+                    BackgroundMenu | EditMenu, "Paste Objects", Subject::Any, ObjectParam::None, "Object", true),
                 MenuAction("object.paste_as_child", "Paste the copied objects as children of an object.",
-                    ObjectMenu | EditMenu, "Paste Objects", Subject::ChildOf, ObjectParam::Required),
+                    ObjectMenu | EditMenu, "Paste Objects", Subject::ChildOf, ObjectParam::Required, "Object", true),
                 MenuAction("edit.undo", "Undo the last edit. Ends when Undo is pressed.",
                     EditMenu, nullptr, Subject::Any, ObjectParam::None),
                 MenuAction("edit.redo", "Redo the last undone edit. Ends when Redo is pressed.",
@@ -433,7 +440,7 @@ namespace JBro
                     // 컴포넌트 추가 칸은 목록의 항목에 표식이 없어 칸을 여는 것까지 가리킨다. 목록 검색에 글자를 친다.
                     GuideActionInfo info = MenuAction("component.add",
                         "Add a component from the inspector list. With Component, ends when that type is attached; otherwise when any is.",
-                        InspectorAdd, "Add Component", Subject::Same, ObjectParam::Optional);
+                        InspectorAdd, "Add Component", Subject::Same, ObjectParam::Optional, "Object", true);
                     info.takesComponent = true;
                     info.keyboard = true;
                     return info;
@@ -449,6 +456,7 @@ namespace JBro
                     info.routeCount = 2;
                     info.end = GuideStepEnd::Condition;
                     info.canGoNext = true;
+                    info.leavesObject = true;
                     info.build = &BuildSelect;
                     info.enter = &EnterSelect;
                     info.done = &DoneSelect;
@@ -568,6 +576,11 @@ namespace JBro
         {
             found = editor.GetSelectedObject();
         }
+        else if (objectRef == ObjectRef::Step)
+        {
+            // 앞 단계가 남긴 번호다. 지웠다 되돌려도 같은 번호에 다시 걸린다(`Rebind`).
+            found = editor.GetObjectIds().Resolve(editor.GetGuide().GetResult(refStep));
+        }
         else if (objectRef == ObjectRef::Id)
         {
             if (Canvas* canvas = editor.GetCanvas())
@@ -669,9 +682,10 @@ namespace JBro
             action->enter(*this, editor, memo);
             return;
         }
-        // [0] 들어설 때까지 실행된 커맨드 수, [1] 거기까지 훑었다.
+        // [0] 들어설 때까지 실행된 커맨드 수, [1] 거기까지 훑었다, [2] 맞은 커맨드가 다룬 오브젝트(남길 것).
         memo.values[0] = editor.GetCommands().GetExecuteCount();
         memo.values[1] = memo.values[0];
+        memo.values[2] = 0;
     }
 
     // 들어선 뒤 실행된 커맨드 가운데 이 행동의 커맨드가 이 단계의 오브젝트에 일어났는가. 새로 실행된 것만 훑는다 - 커맨드가
@@ -715,6 +729,7 @@ namespace JBro
             if (matches)
             {
                 memo.values[1] = count;
+                memo.values[2] = ran.subject;
                 return true;
             }
         }
@@ -734,6 +749,16 @@ namespace JBro
     const char* GuideStepBinding::NextBlocked(EditorApplication& editor)
     {
         return action->blocked != nullptr ? action->blocked(*this, editor) : nullptr;
+    }
+
+    std::uint64_t GuideStepBinding::Result(EditorApplication& editor, GuideStepMemo& memo)
+    {
+        if (false == action->leavesObject)
+        {
+            return 0;
+        }
+        // 선택은 끝날 때 선택된 것이다(다음으로 넘긴 경우도 같다). 나머지는 맞은 커맨드가 다룬 것이다.
+        return action->done == &DoneSelect ? SelectedObjectId(editor) : memo.values[2];
     }
 
     LoadedGuide::LoadedGuide() = default;
@@ -812,7 +837,8 @@ namespace JBro
             return true;
         }
 
-        bool ReadObject(std::uint32_t node, const GuideActionInfo& action, GuideStepBinding& binding)
+        bool ReadObject(std::uint32_t node, const GuideActionInfo& action, GuideStepBinding& binding,
+            const Array<String>& stepIds, const Array<const GuideActionInfo*>& stepActions)
         {
             // 오브젝트 인자는 행동이 정한 이름 하나로만 받는다. 다른 이름으로 적으면 모르는 키다.
             const char* otherKey = std::strcmp(action.objectKey, "Object") == 0 ? "Parent" : "Object";
@@ -844,18 +870,40 @@ namespace JBro
                 binding.objectRef = GuideStepBinding::ObjectRef::Selection;
                 return true;
             }
+            if (value.size() > 1 && value[0] == '$')
+            {
+                // 앞 단계가 남긴 것이다. 뒤 단계나 없는 단계를 가리키면 그 결과가 올 때가 없다.
+                const char* name = value.c_str() + 1;
+                for (std::size_t index = 0; index < stepIds.Size(); ++index)
+                {
+                    if (stepIds[index] != name)
+                    {
+                        continue;
+                    }
+                    if (false == stepActions[index]->leavesObject)
+                    {
+                        char reason[128] = {};
+                        std::snprintf(reason, sizeof(reason), "step '%s' (%s) leaves no object", name, stepActions[index]->name);
+                        return Fail(node, "%s", reason);
+                    }
+                    binding.objectRef = GuideStepBinding::ObjectRef::Step;
+                    binding.refStep = static_cast<std::uint32_t>(index);
+                    return true;
+                }
+                return Fail(node, "'%s' names no earlier step", value.c_str());
+            }
             char* end = nullptr;
             const unsigned long long id = std::strtoull(value.c_str(), &end, 10);
             if (end == value.c_str() || *end != '\0' || id == 0)
             {
-                return Fail(node, "Object must be an instance id or Selection, not '%s'", value.c_str());
+                return Fail(node, "Object must be an instance id, Selection or $step, not '%s'", value.c_str());
             }
             binding.objectRef = GuideStepBinding::ObjectRef::Id;
             binding.objectId = static_cast<InstanceId>(id);
             return true;
         }
 
-        bool ReadStep(std::uint32_t node, LoadedGuide& loaded, Array<String>& stepIds)
+        bool ReadStep(std::uint32_t node, LoadedGuide& loaded, Array<String>& stepIds, Array<const GuideActionInfo*>& stepActions)
         {
             if (document.GetKind(node) != YamlKind::Map)
             {
@@ -880,7 +928,7 @@ namespace JBro
 
             OwnerPtr<GuideStepBinding> binding = MakeOwnerPtr<GuideStepBinding>();
             binding->action = action;
-            if (false == ReadObject(node, *action, *binding))
+            if (false == ReadObject(node, *action, *binding, stepIds, stepActions))
             {
                 return false;
             }
@@ -980,6 +1028,15 @@ namespace JBro
                     return Fail(node, "RetreatTo '%s' names no earlier step", retreat.c_str());
                 }
             }
+            if (binding->objectRef == GuideStepBinding::ObjectRef::Step)
+            {
+                // 받은 것을 잃으면(들어설 때 비었거나 도중에 사라졌다) 그것을 남긴 단계로 돌아간다. `RetreatTo` 를 적었으면 그리로 간다.
+                if (step.retreatOnBreak < 0)
+                {
+                    step.retreatOnBreak = static_cast<std::int32_t>(binding->refStep);
+                }
+                step.retreatOnMissing = step.retreatOnBreak;
+            }
 
             GuideStepBinding* raw = binding.Get();
             step.title = { raw->texts[0].c_str(), raw->texts[1].c_str(), raw->texts[2].c_str() };
@@ -995,7 +1052,12 @@ namespace JBro
             {
                 step.nextBlockedReason = Delegate<const char*(EditorApplication&)>::Bind<&GuideStepBinding::NextBlocked>(raw);
             }
+            if (action->leavesObject)
+            {
+                step.result = Delegate<std::uint64_t(EditorApplication&, GuideStepMemo&)>::Bind<&GuideStepBinding::Result>(raw);
+            }
             stepIds.Add(std::move(id));
+            stepActions.Add(action);
             loaded.m_bindings.Add(std::move(binding));
             loaded.m_guide.steps.Add(std::move(step));
             return true;
@@ -1027,9 +1089,10 @@ namespace JBro
                 return Fail(root, "a guide needs at least one step under 'Steps'");
             }
             Array<String> stepIds;
+            Array<const GuideActionInfo*> stepActions;
             for (std::size_t index = 0; index < document.GetCount(steps); ++index)
             {
-                if (false == ReadStep(document.GetElement(steps, index), loaded, stepIds))
+                if (false == ReadStep(document.GetElement(steps, index), loaded, stepIds, stepActions))
                 {
                     return false;
                 }
@@ -1069,7 +1132,7 @@ namespace JBro
             writer.WriteString("Format", "Title and Body are maps of Key (localization key), String (the text), Loc (locale of String)");
             writer.EndMap();
             writer.BeginMap("Object");
-            writer.WriteString("Format", "an instance id, or Selection for the object selected when the step begins");
+            writer.WriteString("Format", "an instance id, Selection for the object selected when the step begins, or $stepId for the object an earlier step left");
             writer.EndMap();
             writer.BeginMap("Step");
             writer.WriteString("Keys", "Id Do Object Parent Component Field Via Title Body End Keyboard Skip Back Next RetreatTo");
@@ -1117,6 +1180,10 @@ namespace JBro
                 }
                 writer.EndSequence();
                 writer.WriteString("End", EndName(action.end));
+                if (action.leavesObject)
+                {
+                    writer.WriteString("Leaves", "object");
+                }
                 writer.EndMap();
             }
             writer.EndSequence();

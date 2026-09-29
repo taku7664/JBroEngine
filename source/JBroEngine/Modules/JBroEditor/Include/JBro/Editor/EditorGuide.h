@@ -72,6 +72,12 @@ namespace JBro
         // **이 단계가 끊기면 돌아갈 단계**다. 음수면 앞으로 건너뛴다. 값 바꾸기 도중에 선택을 비우거나 오브젝트를 지우면 뒤의
         // 단계도 모두 가리킬 것이 없다 - 건너뛰면 가이드가 말없이 끝나므로, 그것을 다시 마련하는 단계로 돌아간다.
         std::int32_t retreatOnBreak = -1;
+        // **단계가 끝날 때 남기는 오브젝트**(에디터 번호)다(D-269). 뒤 단계가 `$단계Id` 로 받는다 - 가이드를 짓는 때에는 없던 오브젝트
+        // (가이드 도중에 만든 것)를 가리키는 길이 이것이다. 0 을 돌려주면 남긴 것이 없다. 비었으면 남기지 않는다.
+        Delegate<std::uint64_t(EditorApplication&, GuideStepMemo&)> result;
+        // **들어서려는데 받을 결과가 비었으면 돌아갈 단계**다(D-269). 그 결과를 남긴 단계로 돌아가 다시 하게 한다 - 앞으로 건너뛰면
+        // 가리킬 것이 없는 단계들이 줄줄이 빠져 가이드가 말없이 끝난다. 음수면 전처럼 앞으로 건너뛴다.
+        std::int32_t retreatOnMissing = -1;
         // 글자를 치는 단계인가(값을 입력한다, 목록을 검색한다).
         bool keyboard = false;
 
@@ -156,6 +162,9 @@ namespace JBro
         // **마지막 단계를 해냈고 확인을 기다린다.** 조건이나 대상 누름으로 끝나는 마지막 단계는 해내자마자 닫지 않는다 -
         // 사람이 결과를 보고 확인을 눌러야 끝난다. 이때 건너뛰기는 없고(건너뛸 것이 없다) 이전은 단계가 정한 대로다.
         bool IsConfirming() const noexcept { return m_confirming; }
+        // `step` 번째 단계가 끝나며 남긴 오브젝트(에디터 번호)다(D-269). 아직 끝나지 않았거나 남긴 것이 없으면 0 이다.
+        // 이 가이드가 켜진 동안만 뜻이 있다 - 켤 때 비운다.
+        std::uint64_t GetResult(std::uint32_t step) const noexcept;
 
         // 한 프레임을 나아간다. 가이드 포커스가 꺼졌으면(Esc) 멈춘다. 경로가 끊긴 단계는 로그를 남기고 건너뛴다.
         void Update(EditorApplication& editor, EditorGuideFocus& focus, GuideFocusAction action);
@@ -172,6 +181,8 @@ namespace JBro
         bool m_revisiting = false;
         bool m_confirming = false;
         GuideStepMemo m_memo;
+        // 단계마다 남긴 오브젝트다. 켤 때 단계 수만큼 0 으로 잡는다.
+        Array<std::uint64_t> m_results;
     };
 
     // 에디터에 들어 있는 가이드다.
