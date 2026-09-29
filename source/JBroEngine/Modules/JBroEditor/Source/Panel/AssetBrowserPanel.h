@@ -116,6 +116,22 @@ namespace JBro
         // 이 폴더가 저 폴더의 안인가(자기 자신 포함). 폴더를 자기 안으로 옮기지 못하게 한다.
         static bool IsInside(const String& path, const String& folder);
 
+        // **스크립트 자리**(cpp-script-plan §3.3, D-266, 기존 `Scripts` 루트). 스크립트는 에셋이 아니라 레지스트리에 없으므로
+        // 디스크를 직접 읽는다. 폴더 나무에는 뿌리 한 줄만 두고, 오른쪽 칸이 그 안의 폴더와 소스 파일을 보인다.
+        // 지금은 보기·새 스크립트·열기·탐색기에서 보기만 한다 - 이름 바꾸기·지우기·옮기기는 아직 없다(cpp-script-plan §4).
+        void CollectScripts();
+        void DrawScriptRootRow();
+        void DrawScriptContents();
+        void DrawScriptBreadcrumb();
+        void DrawScriptMenu(const String& relativePath);
+        // 참이면 오른쪽 칸이 스크립트 자리다. `m_scriptFolder` 는 `Scripts` 기준 상대경로다.
+        bool m_inScripts = false;
+        String m_scriptFolder;
+        Array<String> m_scriptFolders;
+        Array<String> m_scriptFiles;
+        // 마지막으로 읽은 스크립트 판번호다(`EditorApplication::GetScriptFilesRevision`). 0 이면 아직 읽지 않았다.
+        std::uint64_t m_scriptRevision = 0;
+
         EditorApplication* m_editor = nullptr;
         String m_filter;
         Array<Entry> m_entries;

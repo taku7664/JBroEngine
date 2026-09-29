@@ -316,6 +316,20 @@ Entries:
   common.cancel: Cancel
   assets.rescan: Rescan
   assets.new_canvas: New Canvas
+  assets.new_script: New Script
+  assets.scripts_root: Scripts
+  assets.scripts_empty: No scripts yet. Right-click to create one
+  assets.open_script: Open
+  new_script.name: Name
+  new_script.name_hint: The class name. Canvas files save the script under this name
+  new_script.advanced: Advanced Options
+  new_script.fields: Fields
+  new_script.invalid_name: Use letters, digits and underscores, and do not start with a digit
+  new_script.reserved_name: C++ or the engine already uses that name
+  new_script.type_taken: A component or script with that name already exists
+  new_script.file_taken: A file with that name is already in this folder
+  new_script.invalid_field: A field name is empty, cannot be used, or appears twice
+  new_script.failed: The script could not be created
   assets.new_font_family: New Font Family
   assets.new_string_table: New String Table
   assets.duplicate: Duplicate

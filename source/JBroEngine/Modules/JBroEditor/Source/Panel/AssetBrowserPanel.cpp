@@ -670,6 +670,7 @@ namespace JBro
             if (clicked)
             {
                 m_openFolder = child;
+                m_inScripts = false;
             }
             if (opened)
             {
@@ -677,6 +678,179 @@ namespace JBro
                 Widget::TreePop();
             }
             ImGui::PopID();
+        }
+    }
+
+    void AssetBrowserPanel::CollectScripts()
+    {
+        const std::uint64_t revision = m_editor->GetScriptFilesRevision();
+        if (revision == m_scriptRevision)
+        {
+            return;
+        }
+        m_scriptRevision = revision;
+        m_editor->CollectScriptFiles(m_scriptFolders, m_scriptFiles);
+    }
+
+    void AssetBrowserPanel::DrawScriptRootRow()
+    {
+        if (m_editor->GetScriptRoot().empty())
+        {
+            return;
+        }
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf
+            | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+        if (m_inScripts)
+        {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
+        Widget::TreeDrawContext row;
+        Widget::TreeBegin("##scriptsRoot", flags, &row);
+        Widget::TreeEnd();
+        const bool clicked = ImGui::IsItemClicked();
+        if (Widget::BeginContextMenu("##ScriptsRootMenu"))
+        {
+            DrawScriptMenu(String());
+            Widget::EndContextMenu();
+        }
+        if (row.IsVisible)
+        {
+            const ImVec2 cursor = ImGui::GetCursorScreenPos();
+            ImGui::SetCursorScreenPos(row.ContentRect.Min);
+            Widget::Text(Loc::TextOr(LocKeys::AssetsScriptsRoot, "Scripts"));
+            ImGui::SetCursorScreenPos(cursor);
+        }
+        if (clicked)
+        {
+            m_inScripts = true;
+            m_scriptFolder.clear();
+            // 누를 때마다 다시 읽는다. 스크립트 폴더는 감시하지 않으므로 VS 에서 더한 파일은 이때 보인다.
+            m_editor->MarkScriptFilesChanged();
+        }
+    }
+
+    void AssetBrowserPanel::DrawScriptBreadcrumb()
+    {
+        if (Widget::TextButton(Loc::TextOr(LocKeys::AssetsScriptsRoot, "Scripts")))
+        {
+            m_scriptFolder.clear();
+        }
+        Array<String> chain;
+        for (String walk = m_scriptFolder; false == walk.empty(); walk = ParentOf(walk))
+        {
+            chain.Add(walk);
+        }
+        for (std::size_t step = chain.Size(); step > 0; --step)
+        {
+            const String& part = chain[step - 1];
+            ImGui::SameLine(0.0f, 4.0f);
+            Widget::HintTextF("/");
+            ImGui::SameLine(0.0f, 4.0f);
+            ImGui::PushID(part.c_str());
+            if (Widget::TextButton(EditorPaths::LeafOfPath(part)))
+            {
+                m_scriptFolder = part;
+            }
+            ImGui::PopID();
+        }
+    }
+
+    void AssetBrowserPanel::DrawScriptContents()
+    {
+        CollectScripts();
+        bool any = false;
+        for (const String& folder : m_scriptFolders)
+        {
+            if (ParentOf(folder) != m_scriptFolder)
+            {
+                continue;
+            }
+            any = true;
+            ImGui::PushID(folder.c_str());
+            Widget::TreeDrawContext row;
+            Widget::TreeBegin("##scriptFolder", ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
+                | ImGuiTreeNodeFlags_SpanAvailWidth, &row);
+            Widget::TreeEnd();
+            const bool clicked = ImGui::IsItemClicked();
+            if (Widget::BeginContextMenu("##ScriptFolderMenu"))
+            {
+                DrawScriptMenu(folder);
+                Widget::EndContextMenu();
+            }
+            if (row.IsVisible)
+            {
+                const ImVec2 cursor = ImGui::GetCursorScreenPos();
+                ImGui::SetCursorScreenPos(row.ContentRect.Min);
+                Widget::TextF("%s/", EditorPaths::LeafOfPath(folder));
+                ImGui::SetCursorScreenPos(cursor);
+            }
+            if (clicked)
+            {
+                m_scriptFolder = folder;
+            }
+            ImGui::PopID();
+        }
+        for (const String& file : m_scriptFiles)
+        {
+            if (ParentOf(file) != m_scriptFolder || false == Widget::MatchesFilter(EditorPaths::LeafOfPath(file), m_filter.c_str()))
+            {
+                continue;
+            }
+            any = true;
+            ImGui::PushID(file.c_str());
+            Widget::TreeDrawContext row;
+            Widget::TreeBegin("##scriptFile", ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen
+                | ImGuiTreeNodeFlags_SpanAvailWidth, &row);
+            Widget::TreeEnd();
+            // 두 번 누르면 연다. 이 PC 가 그 확장자에 건 프로그램이다(Visual Studio 등).
+            if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left))
+            {
+                m_editor->OpenScriptFile(file.c_str());
+            }
+            if (Widget::BeginContextMenu("##ScriptFileMenu"))
+            {
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsOpenScript, "Open")))
+                {
+                    m_editor->OpenScriptFile(file.c_str());
+                }
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
+                {
+                    m_editor->RevealScriptPath(file.c_str());
+                }
+                Widget::EndContextMenu();
+            }
+            if (row.IsVisible)
+            {
+                const ImVec2 cursor = ImGui::GetCursorScreenPos();
+                ImGui::SetCursorScreenPos(row.ContentRect.Min);
+                Widget::Text(EditorPaths::LeafOfPath(file));
+                ImGui::SetCursorScreenPos(cursor);
+            }
+            ImGui::PopID();
+        }
+        if (false == any)
+        {
+            Widget::HintText(Loc::TextOr(LocKeys::AssetsScriptsEmpty, "No scripts yet. Right-click to create one"));
+        }
+    }
+
+    void AssetBrowserPanel::DrawScriptMenu(const String& relativePath)
+    {
+        // 폴더에서 열었으면 그 폴더에, 빈자리에서 열었으면 지금 보는 폴더에 만든다.
+        const String folder = relativePath.empty() ? m_scriptFolder : relativePath;
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewScript, "New Script")))
+        {
+            m_inScripts = true;
+            m_scriptFolder = folder;
+            m_editor->OpenNewScriptPopup(folder.c_str());
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
+        {
+            m_editor->RevealScriptPath(folder.c_str());
+        }
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsRescan, "Rescan")))
+        {
+            m_editor->MarkScriptFilesChanged();
         }
     }
 
@@ -1093,6 +1267,7 @@ namespace JBro
             if (const AssetRecord* record = m_editor->GetAssetRegistry().Find(wanted))
             {
                 m_openFolder = EditorPaths::FolderOf(record->relativePath.c_str());
+                m_inScripts = false;
                 SelectOnly(record->relativePath);
                 m_anchor = record->relativePath;
                 m_editor->SetSelectedAsset(record->id);
@@ -1137,7 +1312,14 @@ namespace JBro
             Widget::HoveredTooltip(Loc::TextOr(LocKeys::AssetsSortTooltip, "sort by"));
         }
         ImGui::SameLine(0.0f, 12.0f);
-        DrawBreadcrumb();
+        if (m_inScripts)
+        {
+            DrawScriptBreadcrumb();
+        }
+        else
+        {
+            DrawBreadcrumb();
+        }
         if (false == m_editor->IsWatchingAssets())
         {
             // 감시가 서지 않았거나 워커가 죽었다. 사용자가 "왜 반영이 안 되지" 로 겪지 않게 말한다.
@@ -1152,7 +1334,8 @@ namespace JBro
         ImGui::Separator();
 
         Collect();
-        if (m_entries.IsEmpty() && m_folders.IsEmpty())
+        // 에셋이 하나도 없어도 스크립트 자리는 보여야 한다 - 새 프로젝트가 처음 만드는 것이 스크립트일 수 있다.
+        if (m_entries.IsEmpty() && m_folders.IsEmpty() && m_editor->GetScriptRoot().empty())
         {
             Widget::HintText(Loc::TextOr(LocKeys::AssetsEmpty, "the asset folder has no files"));
             // 파일이 하나도 없어도 폴더는 만들 수 있어야 한다.
@@ -1192,8 +1375,10 @@ namespace JBro
             if (rootClicked)
             {
                 m_openFolder.clear();
+                m_inScripts = false;
             }
             DrawFolderTree(String());
+            DrawScriptRootRow();
         }
         ImGui::EndChild();
 
@@ -1204,11 +1389,23 @@ namespace JBro
 
         if (ImGui::BeginChild("##contents", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders))
         {
-            DrawContents();
-            if (Widget::BeginContextMenu("##AssetsBackground", true))
+            if (m_inScripts)
             {
-                DrawBackgroundMenu();
-                Widget::EndContextMenu();
+                DrawScriptContents();
+                if (Widget::BeginContextMenu("##ScriptsBackground", true))
+                {
+                    DrawScriptMenu(String());
+                    Widget::EndContextMenu();
+                }
+            }
+            else
+            {
+                DrawContents();
+                if (Widget::BeginContextMenu("##AssetsBackground", true))
+                {
+                    DrawBackgroundMenu();
+                    Widget::EndContextMenu();
+                }
             }
         }
         ImGui::EndChild();

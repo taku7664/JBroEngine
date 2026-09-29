@@ -10,6 +10,7 @@
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/EditorSpriteContours.h>
+#include <JBro/Editor/ScriptProject.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPopup.h>
@@ -571,6 +572,24 @@ namespace JBro
         // **새 문자열 표를 만든다**(D-226). `.jstrings` 를 쓰고, 프로젝트에 기본 언어(없으면 첫 언어)가 있으면 메타의 로케일로 적는다.
         // 고르고 에셋 브라우저에서 보인다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateStringTableAsset(const char* folder);
+        // **스크립트 자리**(cpp-script-plan §3.3, D-266). `<프로젝트>/<ScriptSourceDirectory>` 와 그 아래 `Scripts`. 프로젝트가 없으면 빈 글자다.
+        String GetScriptContentsRoot() const;
+        String GetScriptRoot() const;
+        // 스크립트 `.h`/`.cpp` 를 `folder`(스크립트 자리 기준 상대경로, 빈 글자면 `Scripts` 뿌리)에 만든다. 스크립트 프로젝트가 없으면
+        // 먼저 만들고 엔진 위치(`JBroEngine.props`)를 맞춘다. 만든 헤더의 실제 경로이고, 실패하면 빈 글자이며 `error` 에 까닭이 있다.
+        String CreateScript(const char* folder, const char* className, const Array<ScriptProject::FieldSpec>& fields, String& error);
+        // 스크립트 폴더의 파일이 바뀔 때마다 오른다. 에셋 브라우저가 디스크를 다시 읽을지 이것으로 정한다.
+        std::uint64_t GetScriptFilesRevision() const { return m_scriptFilesRevision; }
+        // 새 스크립트 창이 이름을 매 프레임 본다. `folder` 는 스크립트 자리 기준 상대경로다.
+        ScriptProject::NameProblem CheckScriptName(const char* folder, const char* name);
+        // 스크립트 자리의 폴더와 소스 파일(`.h`·`.hpp`·`.cpp`·`.inl`)을 `Scripts` 기준 상대경로로 모은다. 디스크를 읽으므로 매 프레임 부르지 않는다.
+        void CollectScriptFiles(Array<String>& folders, Array<String>& files);
+        // 스크립트 파일을 이 PC 가 그 확장자에 건 프로그램으로 연다(Visual Studio 등). `relativePath` 는 `Scripts` 기준이다.
+        bool OpenScriptFile(const char* relativePath);
+        bool RevealScriptPath(const char* relativePath);
+        // 새 스크립트 창을 띄운다(`NewScriptPopup`).
+        void OpenNewScriptPopup(const char* folder);
+        void MarkScriptFilesChanged() { ++m_scriptFilesRevision; }
         // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
         // 재생 전의 언어로 되돌린다(게임이 바꾼 로케일이 편집 화면에 남지 않게).
         String GetPreviewLocale() const;
@@ -808,6 +827,7 @@ namespace JBro
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,
         // 그것을 뚫으려면 호스트 계층이 `Canvas` 를 보아야 한다(D-42 가 막는 방향이다).
         FrameworkKind m_frameworkKind = FrameworkKind::Framework2D;
+        std::uint64_t m_scriptFilesRevision = 1;
         // 상대경로를 풀 기준이다. 파일로 열었을 때만 채워진다.
         String m_projectFilePath;
         // 글자 표가 사는 곳과 지금 언어·폴백이다(D-146). 언어를 바꾸려면 다시 읽어야 하고,

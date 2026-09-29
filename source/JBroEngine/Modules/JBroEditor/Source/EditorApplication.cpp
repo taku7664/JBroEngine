@@ -51,6 +51,7 @@
 
 #include "EditorThumbnails.h"
 #include "NewProjectPopup.h"
+#include "NewScriptPopup.h"
 #include "Tool/SpriteViewerWindow.h"
 
 #include "Panel/AssetBrowserPanel.h"
@@ -428,6 +429,18 @@ namespace JBro
         BindAssetTools();
         // 재생도 게임과 같은 물리 스레드로 돈다(D-223).
         ApplyPhysicsSettings();
+        // **스크립트 프로젝트가 있으면 엔진 위치를 맞춘다**(D-266). 엔진 폴더를 옮기거나 다른 PC 에서 받아도 한 번 열면 빌드된다.
+        // 스크립트 프로젝트가 없는 프로젝트에는 아무것도 쓰지 않는다.
+        if (const String contents = GetScriptContentsRoot(); false == contents.empty()
+            && ScriptProject::HasProject(*m_platform, contents.c_str()))
+        {
+            const String engineRoot = ScriptProject::FindEngineRoot(*m_platform, m_platform->GetExecutableFolder().c_str());
+            if (engineRoot.empty() || false == ScriptProject::RefreshEngineProps(*m_platform, contents.c_str(), engineRoot.c_str()))
+            {
+                Log::Write(LogLevel::Warning, "script",
+                    "the script project cannot be told where this engine is; scripts will not build until it can");
+            }
+        }
 
         // ── 세션을 되살린다(D-146) ──────────────────────────────────────────
         const ProjectFile& file = GetProjectFile();
@@ -2159,6 +2172,132 @@ namespace JBro
             RevealAssetInBrowser(record->id);
         }
         return created;
+    }
+
+    String EditorApplication::GetScriptContentsRoot() const
+    {
+        if (m_projectFilePath.empty())
+        {
+            return String();
+        }
+        const String projectFolder = EditorPaths::FolderOf(m_projectFilePath.c_str());
+        const String& relative = GetProjectFile().scriptSourceDirectory;
+        return relative.empty() ? projectFolder : EditorPaths::JoinPath(projectFolder.c_str(), relative.c_str());
+    }
+
+    String EditorApplication::GetScriptRoot() const
+    {
+        const String contents = GetScriptContentsRoot();
+        return contents.empty() ? contents : EditorPaths::JoinPath(contents.c_str(), "Scripts");
+    }
+
+    String EditorApplication::CreateScript(const char* folder, const char* className,
+        const Array<ScriptProject::FieldSpec>& fields, String& error)
+    {
+        const String contents = GetScriptContentsRoot();
+        if (contents.empty())
+        {
+            error = "no project is open";
+            return String();
+        }
+        // 엔진 폴더를 못 찾으면 만들지 않는다. 만들어 봐야 빌드되지 않는다 - 설치본에는 아직 헤더와 .lib 가 없다(cpp-script-plan §4).
+        const String engineRoot = ScriptProject::FindEngineRoot(*m_platform, m_platform->GetExecutableFolder().c_str());
+        if (engineRoot.empty())
+        {
+            error = "this engine has no script SDK next to it";
+            return String();
+        }
+        if (false == ScriptProject::EnsureProject(*m_platform, contents.c_str(), m_frameworkKind, error)
+            || false == ScriptProject::RefreshEngineProps(*m_platform, contents.c_str(), engineRoot.c_str()))
+        {
+            if (error.empty())
+            {
+                error = "could not write JBroEngine.props";
+            }
+            return String();
+        }
+        const String target = EditorPaths::JoinPath(GetScriptRoot().c_str(), folder != nullptr ? folder : "");
+        if (false == ScriptProject::CreateScript(*m_platform, target.c_str(), className, fields, m_frameworkKind, error))
+        {
+            return String();
+        }
+        MarkScriptFilesChanged();
+        Log::Write(LogLevel::Info, "script", "created the script %s in %s", className, target.c_str());
+        return EditorPaths::JoinPath(target.c_str(), (String(className) + ".h").c_str());
+    }
+
+    ScriptProject::NameProblem EditorApplication::CheckScriptName(const char* folder, const char* name)
+    {
+        const String target = EditorPaths::JoinPath(GetScriptRoot().c_str(), folder != nullptr ? folder : "");
+        return ScriptProject::CheckScriptName(*m_platform, target.c_str(), name);
+    }
+
+    namespace
+    {
+        struct ScriptFileCollector
+        {
+            Array<String>* folders = nullptr;
+            Array<String>* files = nullptr;
+        };
+
+        bool IsScriptSource(const char* path)
+        {
+            const char* dot = std::strrchr(path, '.');
+            return dot != nullptr && (std::strcmp(dot, ".h") == 0 || std::strcmp(dot, ".hpp") == 0
+                || std::strcmp(dot, ".cpp") == 0 || std::strcmp(dot, ".inl") == 0);
+        }
+    }
+
+    void EditorApplication::CollectScriptFiles(Array<String>& folders, Array<String>& files)
+    {
+        folders.Clear();
+        files.Clear();
+        const String root = GetScriptRoot();
+        if (root.empty())
+        {
+            return;
+        }
+        ScriptFileCollector collector;
+        collector.folders = &folders;
+        collector.files = &files;
+        m_platform->EnumerateDirectory(root.c_str(),
+            [](const char* relative, bool isDirectory, void* user) -> bool {
+                ScriptFileCollector& into = *static_cast<ScriptFileCollector*>(user);
+                // 숨김 폴더(`.vs` 따위)는 내려가지 않는다.
+                const char* leaf = EditorPaths::LeafOfPath(relative);
+                if (leaf != nullptr && leaf[0] == '.')
+                {
+                    return false;
+                }
+                if (isDirectory)
+                {
+                    into.folders->Add(String(relative));
+                    return true;
+                }
+                if (IsScriptSource(relative))
+                {
+                    into.files->Add(String(relative));
+                }
+                return false;
+            },
+            &collector);
+    }
+
+    bool EditorApplication::OpenScriptFile(const char* relativePath)
+    {
+        const String path = EditorPaths::JoinPath(GetScriptRoot().c_str(), relativePath);
+        return false == GetScriptRoot().empty() && m_platform->OpenPathWithShell(path.c_str());
+    }
+
+    bool EditorApplication::RevealScriptPath(const char* relativePath)
+    {
+        const String path = EditorPaths::JoinPath(GetScriptRoot().c_str(), relativePath);
+        return false == GetScriptRoot().empty() && m_platform->RevealInFileBrowser(path.c_str());
+    }
+
+    void EditorApplication::OpenNewScriptPopup(const char* folder)
+    {
+        OpenPopup(MakeOwnerPtr<NewScriptPopup>(folder));
     }
 
     String EditorApplication::CreateStringTableAsset(const char* folder)

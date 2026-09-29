@@ -316,6 +316,20 @@ Entries:
   common.cancel: 취소
   assets.rescan: 새로 고침
   assets.new_canvas: 새 캔버스
+  assets.new_script: 새 스크립트
+  assets.scripts_root: 스크립트
+  assets.scripts_empty: 스크립트가 없습니다. 우클릭해 새 스크립트를 만드세요
+  assets.open_script: 열기
+  new_script.name: 이름
+  new_script.name_hint: 클래스 이름입니다. 캔버스 파일에 이 이름으로 저장됩니다
+  new_script.advanced: 고급 옵션
+  new_script.fields: 필드
+  new_script.invalid_name: 영문자, 숫자, 밑줄만 쓸 수 있고 숫자로 시작할 수 없습니다
+  new_script.reserved_name: C++ 나 엔진이 이미 쓰는 이름입니다
+  new_script.type_taken: 같은 이름의 컴포넌트나 스크립트가 이미 있습니다
+  new_script.file_taken: 이 폴더에 같은 이름의 파일이 이미 있습니다
+  new_script.invalid_field: 필드 이름이 비어 있거나, 쓸 수 없는 이름이거나, 겹칩니다
+  new_script.failed: 스크립트를 만들지 못했습니다
   assets.new_font_family: 새 폰트 패밀리
   assets.new_string_table: 새 문자열 표
   assets.duplicate: 복제

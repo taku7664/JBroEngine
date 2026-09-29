@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    사용자 게임 스크립트 프로젝트(`<프로젝트>/Contents/GameScript.vcxproj`)가 가져가는 설정이다(cpp-script-plan §3.3, D-266).
+    에디터가 만든 vcxproj 는 `Microsoft.Cpp.props` 앞에서 이것을, `Microsoft.Cpp.targets` 앞에서 `JBro.GameScript.targets` 를 import 한다.
+    **사용자 프로젝트 파일을 다시 쓰지 않는다**(기존 엔진의 C2) - 엔진 모듈이 늘거나 경로가 바뀌면 이 두 파일만 고친다.
+
+    지금은 엔진 소스 폴더(이 파일이 있는 곳)를 가리킨다. 엔진 설치본에는 헤더와 .lib 가 없다(launcher-plan Q2) -
+    설치본용 SDK 모양은 아직 정하지 않았다(cpp-script-plan §4).
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)JBro.Common.props" />
+
+  <PropertyGroup Label="JBroGameScript">
+    <!-- 엔진의 정적 라이브러리가 있는 곳. 스크립트와 같은 구성(Debug/Release)의 엔진을 먼저 빌드해 둬야 한다. -->
+    <JBroGameScriptLibDir>$(JBroBuildDir)$(Platform)\$(Configuration)\</JBroGameScriptLibDir>
+    <JBroGameScriptNetworkLibDir>$(JBroRoot)..\JBroNetwork\Build\$(Platform)\$(Configuration)\</JBroGameScriptNetworkLibDir>
+    <!--
+      산출물은 프로젝트 안이다. `JBro.Common.props` 의 OutDir·IntDir 은 엔진 빌드 폴더라 덮는다 - 덮지 않으면 사용자 DLL 이 엔진 폴더에 쌓인다.
+      DLL 은 `.jproject` 의 `ScriptOutputLibraryPath` 기본값(`x64/Debug/GameScript.dll`, 프로젝트 파일 기준)에 떨어진다.
+    -->
+    <OutDir>$(MSBuildProjectDirectory)\..\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\..\$(Platform)\Intermediate\$(Configuration)\</IntDir>
+    <TargetName>GameScript</TargetName>
+  </PropertyGroup>
+</Project>

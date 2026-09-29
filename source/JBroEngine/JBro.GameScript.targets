@@ -1,0 +1,31 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!--
+    사용자 게임 스크립트 프로젝트의 컴파일·링크 설정이다(cpp-script-plan §3.3, D-266). `Microsoft.Cpp.props` 뒤, `Microsoft.Cpp.targets` 앞에서
+    import 된다 - 시험 DLL(`Tests/ScriptModuleProbe`)의 ItemDefinitionGroup 과 같은 자리다.
+
+    include 는 스크립트 타깃이 받는 집합(`JBroScriptIncludes`)뿐이다. Tier E 헤더를 include 하면 C1083 이다(ProjectRule §11).
+    링크 목록은 스크립트 DLL 이 부르는 모듈이다. 모듈이 늘면 여기만 고친다.
+  -->
+  <PropertyGroup>
+    <JBroGameScriptFrameworkLib Condition="'$(JBroScriptDimension)' == '2D'">JBroFramework2D.lib</JBroGameScriptFrameworkLib>
+    <JBroGameScriptFrameworkLib Condition="'$(JBroScriptDimension)' == '3D'">JBroFramework3D.lib</JBroGameScriptFrameworkLib>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(JBroGameScriptLibDir);$(JBroGameScriptNetworkLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(JBroGameScriptFrameworkLib);JBroRuntime.lib;JBroCore.lib;JBroAudioTypes.lib;JBroInputTypes.lib;JBroSaveTypes.lib;JBroLocalizationTypes.lib;JBroNetwork.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- 엔진 라이브러리가 없으면 링커의 LNK1181 대신 무엇을 해야 하는지 말한다. -->
+  <Target Name="JBroGameScriptCheckEngineBuild" BeforeTargets="Link">
+    <Error Condition="!Exists('$(JBroGameScriptLibDir)JBroRuntime.lib')"
+           Text="The JBro engine has not been built for $(Configuration)|$(Platform) at $(JBroGameScriptLibDir). Build the engine in the same configuration first." />
+  </Target>
+</Project>
