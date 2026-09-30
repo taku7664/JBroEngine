@@ -3,6 +3,9 @@
 #include <JBro/Editor/Widget/Common.h>
 
 #include <JBro/Types/ArrayView.h>
+#include <JBro/Types/NameTable.h>
+
+#include <cstdint>
 
 namespace JBro::Widget
 {
@@ -47,6 +50,9 @@ namespace JBro::Widget
         FilterCombo& ItemEnabled(ArrayView<const bool> enabled);
         // 못 고르는 항목에 마우스를 올렸을 때 뜨는 까닭이다.
         FilterCombo& DisabledTooltip(const char* text);
+        // **항목마다 가이드 포커스 표식을 단다**(반례 ④). `i` 번 항목의 표식은 `{ name, keys[i] }` 다. 항목 배열과 길이가 같아야 하고,
+        // 다르면 무시한다. 가이드가 목록의 한 항목을 가리킬 수 있다 - 없으면 목록을 통째로 열 수밖에 없다.
+        FilterCombo& ItemTargets(NameId name, ArrayView<const std::uint64_t> keys);
         FilterCombo& Width(float width);
         // 스크롤 없이 보이는 최대 줄 수. 1~8 로 자른다.
         FilterCombo& MaxVisibleItems(int count);
@@ -62,6 +68,8 @@ namespace JBro::Widget
         int& m_currentIndex;
         ArrayView<const char* const> m_groups;
         ArrayView<const bool> m_enabled;
+        ArrayView<const std::uint64_t> m_targetKeys;
+        NameId m_targetName = InvalidNameId;
         const char* m_emptyText = nullptr;
         const char* m_filterHint = nullptr;
         const char* m_noItemsText = nullptr;

@@ -83,6 +83,8 @@ namespace JBro
             Array<const char*> names;
             // 항목마다의 갈래 이름이다. 이미 번역되어 있다.
             Array<const char*> groups;
+            // 같은 갈래의 번역하지 않은 이름(`Rendering`)이다. 가이드 포커스 표식이 쓴다 - 번역된 이름은 언어마다 바뀐다.
+            Array<const char*> categories;
             // 거짓이면 이미 붙어 있어 더 붙일 수 없다.
             Array<bool>        addable;
         };

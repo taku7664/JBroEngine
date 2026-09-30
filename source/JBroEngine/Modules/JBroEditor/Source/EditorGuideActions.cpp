@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/EditorGuide.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Core/Yaml.h>
@@ -68,7 +69,7 @@ namespace JBro
             EditMenu = 1 << 2,
             // 메뉴 막대의 `파일`.
             FileMenu = 1 << 3,
-            // 인스펙터의 컴포넌트 추가 칸. 목록의 항목에는 표식이 없어 칸이 끝이다.
+            // 인스펙터의 컴포넌트 추가 칸. 컴포넌트를 적었으면 목록의 그 항목까지 가고, 아니면 칸이 끝이다(반례 ④).
             InspectorAdd = 1 << 4
         };
 
@@ -89,14 +90,15 @@ namespace JBro
         };
 
         // **메뉴마다 들어가는 길이다. 이 표가 한 번 짓는다.** 차례가 `Via: auto` 의 차례다.
+        // 인스펙터 칸이 맨 앞이다 - 그 칸을 쓰는 행동(컴포넌트 추가)은 오브젝트 메뉴에도 있지만, 붙인 것이 바로 보이는 칸이 먼저다.
         constexpr MenuRoute MenuRoutes[] = {
+            { InspectorAdd, GuideRoute::Inspector, MenuObject::Optional },
             { ObjectMenu, GuideRoute::Hierarchy, MenuObject::Required },
             { ObjectMenu, GuideRoute::CanvasView, MenuObject::Required },
             { BackgroundMenu, GuideRoute::Hierarchy, MenuObject::Forbidden },
             { BackgroundMenu, GuideRoute::CanvasView, MenuObject::Forbidden },
             { EditMenu, GuideRoute::EditMenu, MenuObject::Optional },
             { FileMenu, GuideRoute::MainMenu, MenuObject::Forbidden },
-            { InspectorAdd, GuideRoute::Inspector, MenuObject::Optional },
         };
         constexpr std::uint32_t MenuRouteCount = sizeof(MenuRoutes) / sizeof(MenuRoutes[0]);
 
@@ -188,6 +190,8 @@ namespace JBro
             const char* objectKey = "Object";
             bool takesComponent = false;
             bool takesField = false;
+            // 적힌 컴포넌트를 목록의 항목(`GuideFocusTargets::ComponentListItem`)으로 가리키는가. 그러면 그 단계는 키보드를 닫는다.
+            bool pointsAtListItem = false;
             bool keyboard = false;
             bool canGoNext = false;
             // 끝나며 오브젝트를 남기는가(D-269). 커맨드로 끝나면 그 커맨드가 다룬 오브젝트, 선택이면 끝날 때 선택된 오브젝트다.
@@ -437,11 +441,13 @@ namespace JBro
                 MenuAction("game.build", "Open the File menu and choose Build Game. Ends when Build Game is pressed.",
                     FileMenu, nullptr, Subject::Any, ObjectParam::None),
                 [] {
-                    // 컴포넌트 추가 칸은 목록의 항목에 표식이 없어 칸을 여는 것까지 가리킨다. 목록 검색에 글자를 친다.
+                    // 컴포넌트를 적으면 목록의 그 항목까지 가리킨다(반례 ④). 적지 않으면 목록을 열고 검색에 글자를 쳐서 고른다 -
+                    // 그때만 키보드를 연다(`ListKeyboard`). 항목을 가리키는 동안 검색하면 그 항목이 걸러져 사라진다.
                     GuideActionInfo info = MenuAction("component.add",
-                        "Add a component from the inspector list. With Component, ends when that type is attached; otherwise when any is.",
-                        InspectorAdd, "Add Component", Subject::Same, ObjectParam::Optional, "Object", true);
+                        "Add a component, from the inspector list or the object's right-click menu. With Component, points at that type in the list and ends when it is attached; otherwise ends when any is.",
+                        InspectorAdd | ObjectMenu, "Add Component", Subject::Same, ObjectParam::Optional, "Object", true);
                     info.takesComponent = true;
+                    info.pointsAtListItem = true;
                     info.keyboard = true;
                     return info;
                 }(),
@@ -632,8 +638,27 @@ namespace JBro
             {
                 return false;
             }
-            // 컴포넌트 추가 칸은 칸 자체가 끝이다. 나머지는 연 메뉴의 그 항목이 끝이다.
-            if (entry->menu != InspectorAdd && false == path.Push(GuideFocusTargets::Action(action->name)))
+            const bool toListItem = action->pointsAtListItem && hasComponent;
+            if (entry->menu != InspectorAdd)
+            {
+                // 연 메뉴의 그 항목이다. 목록 항목까지 가면 그 항목은 하위 메뉴라 사용자가 연다.
+                if (false == path.Push(GuideFocusTargets::Action(action->name), toListItem ? GuideFocusOpen::User : GuideFocusOpen::Auto))
+                {
+                    return false;
+                }
+                if (toListItem)
+                {
+                    // 오브젝트 메뉴의 목록은 갈래마다 하위 메뉴다. 모르는 타입이면(스크립트가 안 실렸다) 갈래를 몰라 이 길은 없다.
+                    const ComponentTypeInfo* type = ComponentRegistry::Get().Find(componentType);
+                    if (type == nullptr || false == path.Push(GuideFocusTargets::ComponentCategoryMenu(
+                            type->category != nullptr ? type->category : ComponentCategory::Default), GuideFocusOpen::User))
+                    {
+                        return false;
+                    }
+                }
+            }
+            // 컴포넌트 추가 칸은 적힌 컴포넌트가 없으면 칸 자체가 끝이다 - 목록에서 아무거나 고른다.
+            if (toListItem && false == path.Push(GuideFocusTargets::ComponentListItem(componentType)))
             {
                 return false;
             }
@@ -995,7 +1020,8 @@ namespace JBro
                     return Fail(node, "End must be next, target or done (done only where the action has one), not '%s'", value.c_str());
                 }
             }
-            step.keyboard = action->keyboard;
+            // 목록의 항목을 가리키는 단계는 검색을 닫는다 - 글자를 치면 그 항목이 걸러져 사라진다.
+            step.keyboard = action->keyboard && false == (action->pointsAtListItem && binding->hasComponent);
             step.canGoNext = action->canGoNext;
             if (false == ReadBool(node, "Keyboard", step.keyboard) || false == ReadBool(node, "Skip", step.canSkip)
                 || false == ReadBool(node, "Back", step.canGoBack) || false == ReadBool(node, "Next", step.canGoNext))

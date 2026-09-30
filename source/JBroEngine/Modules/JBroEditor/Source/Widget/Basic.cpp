@@ -108,7 +108,7 @@ namespace JBro::Widget
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
         const bool chosen = ImGui::MenuItem(label, shortcut, false, enabled);
-        Internal::ReportLastItem(target, false, chosen);
+        Internal::ReportLastItem(target, false, chosen, enabled, disabledReason);
         DisabledReason(false == enabled, disabledReason);
         return chosen;
     }
@@ -156,7 +156,7 @@ namespace JBro::Widget
         // ImGui 가 마지막 항목을 메뉴 머리로 되돌려 두므로 그 사각형이 머리의 것이다.
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
         const bool open = ImGui::BeginMenu(label, enabled);
-        Internal::ReportLastItem(target, open, false);
+        Internal::ReportLastItem(target, open, false, enabled);
         return open;
     }
 

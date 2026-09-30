@@ -5,6 +5,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 
 namespace JBro
 {
@@ -114,6 +115,16 @@ namespace JBro
         GuideFocusTarget CanvasViewBackground()
         {
             return { MakeNameId("canvas_view.background"), 0 };
+        }
+
+        GuideFocusTarget ComponentListItem(std::uint64_t componentTypeId)
+        {
+            return { MakeNameId("component.list_item"), componentTypeId };
+        }
+
+        GuideFocusTarget ComponentCategoryMenu(const char* category)
+        {
+            return { MakeNameId("component.category_menu"), MakeNameId(category) };
         }
     }
 
@@ -429,8 +440,8 @@ namespace JBro
         m_balloonSeen = false;
     }
 
-    void EditorGuideFocus::Report(
-        const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated)
+    void EditorGuideFocus::Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated,
+        bool enabled, const char* disabledReason)
     {
         if (false == m_active)
         {
@@ -448,6 +459,17 @@ namespace JBro
         seen.opened = opened;
         seen.visible = visible;
         seen.activated = activated;
+        seen.enabled = enabled;
+        if (index == m_level && false == enabled)
+        {
+            std::snprintf(m_disabledReason, sizeof(m_disabledReason), "%s", disabledReason != nullptr ? disabledReason : "");
+        }
+    }
+
+    bool EditorGuideFocus::IsCurrentDisabled() const noexcept
+    {
+        // 그려지지 않은 칸은 `BeginFrame` 이 켜진 것으로 비워 둔다 - 지난 프레임의 회색을 끌고 오지 않는다.
+        return m_active && m_level < m_path.count && false == m_seen[m_level].enabled;
     }
 
     void EditorGuideFocus::ReportPopup(const Rect& rect)

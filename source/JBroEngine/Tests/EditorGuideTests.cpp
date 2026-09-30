@@ -1,4 +1,5 @@
 ﻿#include <JBro/Canvas/Canvas.h>
+#include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Core/Log.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorActions.h>
@@ -2311,6 +2312,255 @@ namespace
     }
 }
 
+namespace
+{
+    // ── 목록의 항목과 회색 항목(반례 ④⑥) ─────────────────────────────────
+
+    // **지금 칸이 회색이면 모델이 까닭과 함께 안다.** 까닭은 베껴 둔다 - 부른 쪽의 글자는 그 프레임만 산다.
+    void TestADisabledCurrentLevelIsKnownWithItsReason()
+    {
+        EditorGuideFocus focus;
+        Check(focus.Begin(ThreeLevels()), "the focus must start");
+        char reason[32] = "nothing has been copied";
+        focus.BeginFrame();
+        focus.Report(A, RectA, false, true, false, false, reason);
+        reason[0] = 'X';
+        Check(focus.IsCurrentDisabled(), "a grey current level is known");
+        Check(std::strcmp(focus.GetDisabledReason(), "nothing has been copied") == 0, "with its reason, copied");
+        focus.Update(Frame);
+
+        focus.BeginFrame();
+        focus.Report(A, RectA, false, true, false);
+        Check(false == focus.IsCurrentDisabled(), "once it is drawn enabled, it is not");
+        focus.Update(Frame);
+
+        // 지금 칸이 아닌 칸이 회색이어도 지금 칸의 일이 아니다.
+        focus.BeginFrame();
+        focus.Report(A, RectA, false, true, false);
+        focus.Report(B, RectB, false, true, false, false, "not this one");
+        Check(false == focus.IsCurrentDisabled(), "a grey level further on is not the current one");
+        focus.Update(Frame);
+
+        // 그려지지 않은 프레임은 모른다고 한다 - 지난 프레임의 회색을 끌고 오지 않는다.
+        focus.BeginFrame();
+        Check(false == focus.IsCurrentDisabled(), "an undrawn level is not called grey");
+
+        // 긴 까닭은 잘려도 끝이 닫힌다.
+        JBro::String longReason(EditorGuideFocus::DisabledReasonCapacity + 40, 'r');
+        focus.Report(A, RectA, false, true, false, false, longReason.c_str());
+        Check(std::strlen(focus.GetDisabledReason()) == EditorGuideFocus::DisabledReasonCapacity - 1, "a long reason is cut, not overrun");
+        focus.Update(Frame);
+    }
+
+    JBro::ComponentTypeId SpriteType()
+    {
+        return JBro::MakeStableTypeId("Component::SpriteRenderer2D");
+    }
+
+    bool HasComponentOfType(const JBro::GameObject& object, JBro::ComponentTypeId typeId)
+    {
+        for (const auto& slot : object.GetComponents())
+        {
+            if (slot.typeId == typeId)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    const ImGuiWindow* OpenComboList()
+    {
+        const ImGuiWindow* combo = nullptr;
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->WasActive && (window->Flags & ImGuiWindowFlags_Popup) != 0 && std::strstr(window->Name, "##Combo_") != nullptr)
+            {
+                combo = window;
+            }
+        }
+        return combo;
+    }
+
+    JBro::String AddSpriteGuide(const char* extra)
+    {
+        char body[256] = {};
+        std::snprintf(body, sizeof(body), "    Component: SpriteRenderer2D\n%s", extra);
+        return ActionGuide("component.add", body);
+    }
+
+    // **컴포넌트를 적으면 인스펙터 목록의 그 항목까지 가리킨다**(반례 ④). 목록의 다른 항목은 막이 덮고, 검색 칸은 닫힌다.
+    void TestAnAddComponentGuidePointsAtTheItemInTheList()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideListItemProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; list items not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr && editor.GetSelectedObject() == object, "the object must be made and picked");
+        Tick(editor, 3);
+        const JBro::String text = AddSpriteGuide("");
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        const GuideFocusPath& path = focus.GetPath();
+        Check(path.count == 3 && path.targets[0] == JBro::GuideFocusTargets::Panel("Inspector")
+                && path.targets[1] == JBro::GuideFocusTargets::InspectorAddComponent() && path.open[1] == GuideFocusOpen::User
+                && path.targets[2] == JBro::GuideFocusTargets::ComponentListItem(SpriteType()),
+            "the inspector, its add box the user opens, and the SpriteRenderer2D item");
+        Check(false == focus.IsKeyboardAllowed(), "pointing at one item closes the search box - typing would filter it away");
+
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the add box");
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        const ImGuiWindow* combo = OpenComboList();
+        Check(combo != nullptr, "pressing the box opens its list");
+        Check(WaitUntilSettled(editor, 2), "and the hole moves onto the item");
+        Check(HoleInsideWindow(focus, combo), "the item is in the open list");
+        // 목록의 맨 위(검색 칸)는 구멍 밖이다.
+        Check(false == focus.IsAllowed({ combo->Pos.x + combo->Size.x * 0.5f, combo->Pos.y + ImGui::GetStyle().WindowPadding.y + 2.0f }),
+            "the rest of the list is covered");
+        Check(false == focus.IsCurrentDisabled(), "an item that can be added is not grey");
+
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 3);
+        Check(HasComponentOfType(*object, SpriteType()), "pressing the item in the hole adds that component");
+        Check(editor.GetGuide().IsConfirming(), "and the step knows");
+    }
+
+    // **가리킨 항목이 회색이면 말풍선이 까닭을 적을 수 있게 모델이 안다**(반례 ⑥) - 이미 붙은 컴포넌트 · 복사해 둔 것이 없는 붙여넣기.
+    void TestAGreyItemInTheHoleIsKnownWithItsReason()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideGreyItemProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; grey items not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        editor.SetSelectedObject(object);
+        Tick(editor, 3);
+        // 이미 붙어 있어 더 붙일 수 없는 타입을 목록에서 찾는다(새 오브젝트의 트랜스폼).
+        JBro::EditorActions::AddComponentList list;
+        JBro::EditorActions::BuildAddComponentList(*object, list);
+        std::size_t grey = list.typeNames.Size();
+        for (std::size_t index = 0; index < list.typeNames.Size() && grey == list.typeNames.Size(); ++index)
+        {
+            grey = list.addable[index] ? grey : index;
+        }
+        Check(grey < list.typeNames.Size(), "some type must already be on the new object and not addable again");
+        char body[160] = {};
+        std::snprintf(body, sizeof(body), "    Component: %s\n", list.names[grey]);
+        JBro::String text = ActionGuide("component.add", body);
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the add box");
+        Check(false == focus.IsCurrentDisabled(), "the box itself can be pressed");
+        // 말풍선의 높이를 재 둔다. 회색 항목에 닿으면 까닭 한 줄이 붙어 커진다(글자를 읽는 시험이 없어 높이로 본다).
+        Tick(editor, 5);
+        const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
+        Check(balloon != nullptr, "the balloon must be up");
+        const float plainHeight = balloon->Size.y;
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        Check(WaitUntilSettled(editor, 2), "the hole moves onto the item even though it is grey");
+        Check(focus.IsCurrentDisabled(), "the item already added is known to be grey");
+        Check(std::strcmp(focus.GetDisabledReason(), JBro::Loc::TextOr(JBro::LocKeys::CommonAlreadyAdded, "Already added")) == 0,
+            "with the list's own reason");
+        Tick(editor, 5);
+        Check(balloon->Size.y > plainHeight + 1.0f, "and the balloon grows by the line that says why it cannot be pressed");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+        Tick(editor, 2);
+
+        // 복사해 둔 것이 없으면 빈자리 메뉴의 붙여넣기가 회색이다.
+        Check(false == editor.HasClipboard(), "nothing is copied yet");
+        text = ActionGuide("object.paste", "    Via: hierarchy\n");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the layers window");
+        RightClickAt(editor, hwnd, static_cast<int>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
+            static_cast<int>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
+        Tick(editor, 2);
+        Check(WaitUntilSettled(editor, 2), "the menu opens and the hole moves onto Paste");
+        Check(focus.IsCurrentDisabled(), "Paste with nothing copied is known to be grey");
+        Check(std::strcmp(focus.GetDisabledReason(), JBro::Loc::TextOr(JBro::LocKeys::BlockedClipboardEmpty, "nothing has been copied")) == 0,
+            "with the menu item's own reason");
+    }
+
+    // **오브젝트 메뉴로도 간다** - `컴포넌트 추가` 하위 메뉴, 그 갈래, 그 항목. 셋 다 사용자가 연다.
+    void TestAnAddComponentGuideGoesByTheObjectsMenu()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideListMenuProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the component submenu not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+        char extra[128] = {};
+        // 길을 적지 않으면 오브젝트가 있어도 인스펙터 칸이 먼저다 - 붙인 것이 바로 보이는 자리다.
+        std::snprintf(extra, sizeof(extra), "    Object: %llu\n", static_cast<unsigned long long>(object->GetInstanceId()));
+        JBro::String text = AddSpriteGuide(extra);
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Check(editor.GetGuideFocus().GetPath().targets[0] == JBro::GuideFocusTargets::Panel("Inspector"),
+            "without a route the inspector's box comes first");
+        std::snprintf(extra, sizeof(extra), "    Object: %llu\n    Via: hierarchy\n",
+            static_cast<unsigned long long>(object->GetInstanceId()));
+        text = AddSpriteGuide(extra);
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        const GuideFocusPath& path = focus.GetPath();
+        const JBro::ComponentTypeInfo* type = JBro::ComponentRegistry::Get().Find(SpriteType());
+        Check(type != nullptr, "the sprite type must be registered");
+        const char* category = type->category != nullptr ? type->category : JBro::ComponentCategory::Default;
+        const std::uint32_t last = path.count - 1;
+        Check(path.count >= 5 && path.targets[last] == JBro::GuideFocusTargets::ComponentListItem(SpriteType())
+                && path.targets[last - 1] == JBro::GuideFocusTargets::ComponentCategoryMenu(category) && path.open[last - 1] == GuideFocusOpen::User
+                && path.targets[last - 2] == JBro::GuideFocusTargets::Action("component.add") && path.open[last - 2] == GuideFocusOpen::User,
+            "the object's menu, its add submenu, the sprite's group and the item, each opened by the user");
+
+        // 줄을 우클릭해 메뉴를 열고, 하위 메뉴와 갈래를 차례로 올려 연다(메뉴 안의 하위 메뉴는 올리면 열린다).
+        const std::uint32_t menuLevel = last - 3;
+        Check(WaitUntilSettled(editor, menuLevel), "the hole must reach the object's row");
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        RightClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        for (std::uint32_t level = menuLevel + 1; level < last; ++level)
+        {
+            Check(WaitUntilSettled(editor, level), "the hole moves onto the next submenu");
+            HoleCenter(focus, x, y);
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Tick(editor, 20);
+        }
+        Check(WaitUntilSettled(editor, last), "the hole reaches the sprite item in its group");
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 3);
+        Check(HasComponentOfType(*object, SpriteType()), "pressing it adds the sprite to that object");
+        Check(editor.GetGuide().IsConfirming(), "and the step knows");
+    }
+}
+
 int RunEditorGuideTests()
 {
     TestAClosedLevelOpensOnlyAfterTheHoleSettlesAndDwells();
@@ -2352,6 +2602,10 @@ int RunEditorGuideTests()
     TestLosingAReferencedObjectGoesBackToTheStepThatLeftIt();
     TestTheControlPortStartsAGuideFromAnotherProcess();
     TestTheEditorOpensItsControlPortOnLoopback();
+    TestADisabledCurrentLevelIsKnownWithItsReason();
+    TestAnAddComponentGuidePointsAtTheItemInTheList();
+    TestAGreyItemInTheHoleIsKnownWithItsReason();
+    TestAnAddComponentGuideGoesByTheObjectsMenu();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }

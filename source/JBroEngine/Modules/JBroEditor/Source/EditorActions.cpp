@@ -320,6 +320,7 @@ namespace JBro::EditorActions
         out.typeNames.Clear();
         out.names.Clear();
         out.groups.Clear();
+        out.categories.Clear();
         out.addable.Clear();
 
         ComponentRegistry& registry = ComponentRegistry::Get();
@@ -362,6 +363,7 @@ namespace JBro::EditorActions
                 out.typeNames.Add(types[index]->name);
                 out.names.Add(EditorNames::DisplayTypeName(name));
                 out.groups.Add(groupLabel);
+                out.categories.Add(category);
                 out.addable.Add(registry.CanAttach(object, types[index]->name));
             }
         }
@@ -382,6 +384,8 @@ namespace JBro::EditorActions
 
     bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object)
     {
+        // 가이드가 하위 메뉴 · 갈래 · 항목을 차례로 가리킨다(반례 ④). 인스펙터의 목록과 항목 표식이 같다.
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("component.add"));
         if (false == Widget::BeginMenu(
                 Loc::TextOr(LocKeys::InspectorAddComponent, "Add Component")))
         {
@@ -403,12 +407,14 @@ namespace JBro::EditorActions
                     Widget::EndMenu();
                 }
                 drawnGroup = list.groups[index];
+                Widget::SetNextItemTarget(GuideFocusTargets::ComponentCategoryMenu(list.categories[index]));
                 inGroup = Widget::BeginMenu(drawnGroup);
             }
             if (false == inGroup)
             {
                 continue;
             }
+            Widget::SetNextItemTarget(GuideFocusTargets::ComponentListItem(list.typeNames[index]));
             if (Widget::MenuItem(list.names[index], nullptr, list.addable[index],
                     Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")))
             {
@@ -490,6 +496,8 @@ namespace JBro::EditorActions
             return true;
         }
         // 빈자리의 붙여넣기는 뿌리에 붙는다. 고른 것 밑이 아니다.
+        // 행동 표가 빈자리 메뉴의 길을 가진다(D-268) - 표식이 없으면 그 길은 그려지지 않아 늘 편집 메뉴로 넘어갔다.
+        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
         if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V",
                 editor.HasClipboard(), ClipboardEmptyReason()))
         {

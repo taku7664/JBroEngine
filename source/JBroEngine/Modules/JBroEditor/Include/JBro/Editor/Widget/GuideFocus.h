@@ -28,7 +28,9 @@ namespace JBro::Widget
         // 이 대상을 이번 프레임에 열어야 하면 `SetNextItemOpen(true)` 를 건다.
         void OpenIfGuided(const GuideFocusTarget& target);
         // 방금 그린 항목(`GetItemRect`)을 알린다. 지금 칸인데 잘려 있으면 그 자리로 굴린다.
-        void ReportLastItem(const GuideFocusTarget& target, bool opened, bool activated);
+        // 회색 항목이면 `enabled` 를 거짓으로, 그 까닭(툴팁의 글자)을 함께 넘긴다 - 말풍선이 왜 안 눌리는지 적는다.
+        void ReportLastItem(const GuideFocusTarget& target, bool opened, bool activated,
+            bool enabled = true, const char* disabledReason = nullptr);
     }
 
     // 항목 하나가 아닌 자리(표의 한 줄·패널 창)를 알린다. 대상이 비었으면 아무 일도 없다.

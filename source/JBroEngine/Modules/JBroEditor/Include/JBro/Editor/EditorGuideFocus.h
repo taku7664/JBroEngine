@@ -62,6 +62,11 @@ namespace JBro
         // 떠 있는가다 - 오브젝트 줄이나 오브젝트를 우클릭해 연 메뉴는 이것이 아니다.
         GuideFocusTarget HierarchyBackground();
         GuideFocusTarget CanvasViewBackground();
+        // **컴포넌트 목록의 항목**이다(반례 ④). 인스펙터의 컴포넌트 추가 칸이 연 목록과 오브젝트 메뉴의 `컴포넌트 추가` 하위 메뉴가
+        // 같은 이름을 단다 - 한 번에 열린 목록은 하나다. `key` 는 타입 번호(`ComponentTypeId`)다.
+        GuideFocusTarget ComponentListItem(std::uint64_t componentTypeId);
+        // 오브젝트 메뉴의 `컴포넌트 추가` 안에 있는 **갈래 하위 메뉴**다. `key` 는 번역하지 않은 갈래 이름(`Rendering`)의 `MakeNameId` 다.
+        GuideFocusTarget ComponentCategoryMenu(const char* category);
     }
 
     // 경로의 한 칸을 누가 여는가.
@@ -111,6 +116,8 @@ namespace JBro
         static constexpr float FadeSeconds = 0.18f;
         // 구멍이 대상보다 넓은 여백(픽셀). 테두리가 대상의 글자를 덮지 않는다.
         static constexpr float HolePadding = 4.0f;
+        // 회색 항목의 까닭을 베껴 두는 칸(널 문자 포함). 넘치면 자른다.
+        static constexpr std::uint32_t DisabledReasonCapacity = 192;
 
         EditorGuideFocus() = default;
         EditorGuideFocus(const EditorGuideFocus&) = delete;
@@ -173,7 +180,10 @@ namespace JBro
         // 경로에 든 대상을 그렸다. 경로에 없는 대상은 무시한다(켜져 있지 않아도 무시한다).
         // `opened` 는 그 칸이 열려 있어 안쪽이 그려지는가다(잎사귀는 뜻이 없다). `visible` 은 스크롤로
         // 잘리지 않았는가, `activated` 는 이번 프레임에 눌렸거나 편집을 마쳤는가다.
-        void Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated);
+        // `enabled` 가 거짓이면 회색이라 누를 수 없는 항목이다(붙여넣을 것이 없다, 이미 붙은 컴포넌트). `disabledReason` 은 그 까닭이고
+        // 모델이 베껴 든다 - 부르는 쪽의 글자는 이 프레임만 산다.
+        void Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated,
+            bool enabled = true, const char* disabledReason = nullptr);
         // 이 경로가 켜진 뒤에 열린 팝업(메뉴·콤보·우클릭 메뉴)이다. 열린 차례대로 알린다.
         //
         // **누가 열었는지로 가른다.** 경로의 중간 칸(메뉴 머리)이 연 팝업은 그 안의 다음 칸만 누를 수 있고 나머지는 막이 덮는다 -
@@ -227,6 +237,10 @@ namespace JBro
         // 지금 칸이 그려지지 않은 채 흐른 시간이다(그려지면 0). 끊겼다고 보기 전에 알아야 하는 쪽이 쓴다 - 해낸 일이 대상을
         // 없앤 것(지웠다)은 끊긴 것이 아니다.
         float GetUnseenSeconds() const noexcept { return m_unseen; }
+        // **지금 칸이 회색이라 누를 수 없는가**(반례 ⑥). 이번 프레임에 그려진 지금 칸이 꺼져 있을 때다 - 말풍선이 그 까닭을 적는다.
+        // 구멍만 뚫고 기다리면 사용자는 왜 안 눌리는지 모른다. 까닭을 받지 못했으면 빈 글자다.
+        bool IsCurrentDisabled() const noexcept;
+        const char* GetDisabledReason() const noexcept { return m_disabledReason; }
 
     private:
         bool IsPointerAllowed() const noexcept;
@@ -242,7 +256,10 @@ namespace JBro
             bool opened = false;
             bool visible = false;
             bool activated = false;
+            bool enabled = true;
         };
+        // 지금 칸이 꺼져 있을 때 받은 까닭이다. 지금 칸의 보고가 올 때마다 다시 쓴다.
+        char m_disabledReason[DisabledReasonCapacity] = {};
 
         GuideFocusPath m_path;
         Rect m_allowed[AllowedRectCapacity] = {};

@@ -475,6 +475,8 @@ namespace JBro
             .ItemGroups(ArrayView<const char* const>(list.groups.Data(), list.groups.Size()))
             .ItemEnabled(ArrayView<const bool>(list.addable.Data(), list.addable.Size()))
             .DisabledTooltip(Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added"))
+            .ItemTargets(GuideFocusTargets::ComponentListItem(0).name,
+                ArrayView<const std::uint64_t>(list.typeNames.Data(), list.typeNames.Size()))
             .Width(-FLT_MIN)
             .Draw();
         if (false == picked || chosen < 0

@@ -195,7 +195,8 @@ namespace JBro::Widget
             }
         }
 
-        void ReportLastItem(const GuideFocusTarget& target, bool opened, bool activated)
+        void ReportLastItem(const GuideFocusTarget& target, bool opened, bool activated,
+            bool enabled, const char* disabledReason)
         {
             if (false == target.IsValid() || g_focus == nullptr || false == g_focus->IsActive())
             {
@@ -207,7 +208,8 @@ namespace JBro::Widget
                 // 지금 칸이 스크롤 밖이다. 이 줄이 가운데 오게 굴린다 - 다음 프레임에 보인다.
                 ImGui::SetScrollHereY(0.5f);
             }
-            g_focus->Report(target, ToRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax()), opened, visible, activated);
+            g_focus->Report(target, ToRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax()), opened, visible, activated,
+                enabled, disabledReason);
         }
     }
 

@@ -126,6 +126,13 @@ namespace JBro::Widget
         return *this;
     }
 
+    FilterCombo& FilterCombo::ItemTargets(NameId name, ArrayView<const std::uint64_t> keys)
+    {
+        m_targetName = name;
+        m_targetKeys = keys;
+        return *this;
+    }
+
     FilterCombo& FilterCombo::Width(float width)
     {
         m_width = width;
@@ -145,6 +152,7 @@ namespace JBro::Widget
         // 갈래는 항목과 길이가 맞을 때만 쓴다. 어긋난 배열을 읽으면 그 자리에서 죽는다.
         const bool hasGroups = m_groups.Size() == m_items.Size() && m_items.Size() > 0;
         const bool hasEnabled = m_enabled.Size() == m_items.Size();
+        const bool hasTargets = m_targetName != InvalidNameId && m_targetKeys.Size() == m_items.Size();
         // **제목줄도 자리를 먹는다.** 항목 수만으로 팝업 높이를 잡으면 갈래가 붙는 만큼
         // 목록이 창 밖으로 흘러 마지막 갈래가 잘린다.
         int groupCount = 0;
@@ -207,11 +215,12 @@ namespace JBro::Widget
         ImGui::SetNextWindowSizeConstraints(
             ImVec2(popupWidth, 0.0f), ImVec2(FLT_MAX, popupMaxHeight));
 
-        // **트리거는 열기 전에 알린다.** 열린 뒤에는 지금 창이 팝업이라 트리거의 자리를 잴 수 없다. 콤보는 잎사귀라
-        // 열림은 뜻이 없고, 열린 목록은 가이드 포커스가 "이 경로에서 열린 팝업" 으로 따로 연다.
+        // **트리거는 열기 전에 알린다.** 열린 뒤에는 지금 창이 팝업이라 트리거의 자리를 잴 수 없다. 열림은 목록이 떠 있는가다 -
+        // 가이드가 목록의 항목까지 가리키면(반례 ④) 목록이 뜬 것을 보고 한 칸 들어간다. 팝업 이름은 `BeginCombo` 가 짓는 것과 같다.
         const ImVec2 frameMin = ImGui::GetCursorScreenPos();
+        const bool listOpen = ImGui::IsPopupOpen(ImHashStr("##ComboPopup", 0, comboId), ImGuiPopupFlags_None);
         ReportGuideTarget(target, frameMin,
-            ImVec2(frameMin.x + ImGui::CalcItemWidth(), frameMin.y + ImGui::GetFrameHeight()), false, false);
+            ImVec2(frameMin.x + ImGui::CalcItemWidth(), frameMin.y + ImGui::GetFrameHeight()), listOpen, false);
         if (false == ImGui::BeginCombo(id, preview))
         {
             return false;
@@ -271,11 +280,18 @@ namespace JBro::Widget
             ImGui::PushID(index);
             const bool selected = index == m_currentIndex;
             ImGui::BeginDisabled(false == enabled);
-            if (ImGui::Selectable(item, selected) && enabled)
+            const bool pressed = ImGui::Selectable(item, selected) && enabled;
+            if (pressed)
             {
                 chosen = index;
             }
             ImGui::EndDisabled();
+            if (hasTargets)
+            {
+                // 회색 항목도 알린다 - 가이드가 가리킨 항목이 이미 붙어 있으면 왜 안 눌리는지 말풍선이 적는다(반례 ⑥).
+                Internal::ReportLastItem(GuideFocusTarget{ m_targetName, m_targetKeys[at] }, false, pressed, enabled,
+                    m_disabledTooltip);
+            }
             if (false == enabled && m_disabledTooltip != nullptr
                 && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
             {

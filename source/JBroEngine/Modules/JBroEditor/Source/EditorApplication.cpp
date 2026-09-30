@@ -3611,6 +3611,7 @@ namespace JBro
 
         Widget::GuideFocusBalloon balloon;
         char progress[32] = {};
+        char disabledNote[256] = {};
         const GuideStep* step = m_guide.GetStep();
         if (step != nullptr)
         {
@@ -3646,6 +3647,21 @@ namespace JBro
             if (m_guide.IsConfirming())
             {
                 balloon.note = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
+            }
+            else if (m_guideFocus.IsCurrentDisabled())
+            {
+                // **가리킨 항목이 회색이면 까닭을 적는다**(반례 ⑥). 구멍만 뚫고 기다리면 사람은 왜 안 눌리는지 모른다.
+                const char* reason = m_guideFocus.GetDisabledReason();
+                if (reason[0] != '\0')
+                {
+                    std::snprintf(disabledNote, sizeof(disabledNote),
+                        Loc::TextOr(LocKeys::GuideTargetDisabledBecause, "You can't press this right now: %s"), reason);
+                    balloon.note = disabledNote;
+                }
+                else
+                {
+                    balloon.note = Loc::TextOr(LocKeys::GuideTargetDisabled, "You can't press this right now");
+                }
             }
         }
         const GuideFocusAction action = Widget::GuideFocus(m_guideFocus, balloon);
