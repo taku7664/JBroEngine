@@ -1363,8 +1363,8 @@ namespace JBro
         Component::Collider2D* collider = static_cast<Component::Collider2D*>(component);
         collider->points = after;
         String text;
-        const bool read = SetPropertyCommand::ReadValue(*component, address.typeId, path, text);
-        SetPropertyCommand::ApplyValue(*component, address.typeId, path, before);
+        const bool read = SetPropertyCommand::ReadValue(component, address.typeId, path, text);
+        SetPropertyCommand::ApplyValue(component, address.typeId, path, before);
         if (false == read || text == before)
         {
             return;
@@ -1386,7 +1386,7 @@ namespace JBro
                 SetPropertyCommand::Path path;
                 if (SetPropertyCommand::MakeFieldPath(m_dragAddress.typeId, "points", path))
                 {
-                    SetPropertyCommand::ApplyValue(*component, m_dragAddress.typeId, path, m_dragBefore);
+                    SetPropertyCommand::ApplyValue(component, m_dragAddress.typeId, path, m_dragBefore);
                 }
             }
             m_vertexDragging = false;
@@ -1449,7 +1449,7 @@ namespace JBro
             {
                 SetPropertyCommand::Path path;
                 if (SetPropertyCommand::MakeFieldPath(target.address.typeId, "points", path)
-                    && SetPropertyCommand::ReadValue(collider, target.address.typeId, path, m_dragBefore))
+                    && SetPropertyCommand::ReadValue(&collider, target.address.typeId, path, m_dragBefore))
                 {
                     m_dragPoints = m_outlineScratch;
                     m_dragVertex = m_polygonHover.index;
@@ -1469,7 +1469,7 @@ namespace JBro
                 SetPropertyCommand::Path path;
                 String before;
                 if (SetPropertyCommand::MakeFieldPath(target.address.typeId, "points", path)
-                    && SetPropertyCommand::ReadValue(collider, target.address.typeId, path, before))
+                    && SetPropertyCommand::ReadValue(&collider, target.address.typeId, path, before))
                 {
                     Array<Vector2> after = m_outlineScratch;
                     PolygonEditModel::InsertOnEdge(after, m_polygonHover.index,
@@ -1556,7 +1556,7 @@ namespace JBro
                 SetPropertyCommand::Path path;
                 String before;
                 if (SetPropertyCommand::MakeFieldPath(m_menuAddress.typeId, "points", path)
-                    && SetPropertyCommand::ReadValue(*collider, m_menuAddress.typeId, path, before))
+                    && SetPropertyCommand::ReadValue(collider, m_menuAddress.typeId, path, before))
                 {
                     Array<Vector2> after = m_outlineScratch;
                     if (PolygonEditModel::RemoveVertex(after, m_menuVertex, minimum))

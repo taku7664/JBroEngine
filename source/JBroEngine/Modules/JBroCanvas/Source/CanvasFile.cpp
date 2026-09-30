@@ -37,10 +37,12 @@ namespace JBro
             return false;
         }
 
-        // 컴포넌트 하나의 키들을 지금 자리에 적는다. 파일은 나열의 항목 안에, 핫 리로드는 맨 위에 적는다(D-268).
-        bool WriteComponentFields(
+        // 컴포넌트나 스크립트 하나의 키들을 지금 자리에 적는다. 파일은 나열의 항목 안에, 핫 리로드는 맨 위에 적는다(D-268).
+        // `instance` 는 그 타입의 객체다 - 프로퍼티 표의 자리는 그 타입 기준이다.
+        bool WriteFields(
             YamlWriter& writer,
-            const ComponentBase& component,
+            const void* instance,
+            bool enabled,
             ComponentTypeId typeId,
             CanvasFileError& error)
         {
@@ -50,16 +52,14 @@ namespace JBro
             const PropertyTable* table = PropertyRegistry::Lookup(typeId);
             if (table == nullptr)
             {
-                // 등록되지 않은 타입이다. 조용히 빠뜨리면 씬이 한 컴포넌트를 잃은 채로
-                // 저장되고 아무도 모른다.
-                return Fail(error, "this component type never registered its properties");
+                // 등록되지 않은 타입이다. 조용히 빠뜨리면 씬이 하나를 잃은 채로 저장되고 아무도 모른다.
+                return Fail(error, "this type never registered its properties");
             }
 
             // 타입을 먼저 적는다. 읽는 쪽이 무엇을 읽는지 알고 시작한다.
             writer.WriteString("Type", typeName);
-            // IsActiveComponent 는 오브젝트 활성까지 합친 값이다. 그것을 적으면
-            // 꺼진 오브젝트를 저장했다 열 때 컴포넌트가 **영구히** 꺼진다.
-            writer.WriteBool("IsEnabled", component.IsEnabled());
+            // 오브젝트 활성까지 합친 값을 적으면 꺼진 오브젝트를 저장했다 열 때 **영구히** 꺼진다. 제 켜짐만 적는다.
+            writer.WriteBool("IsEnabled", enabled);
             for (std::uint32_t i = 0; i < table->count; ++i)
             {
                 const PropertyInfo& property = table->properties[i];
@@ -69,7 +69,7 @@ namespace JBro
                 }
                 ReflectedYamlError reflected;
                 if (false == WriteReflectedValue(writer, NameTable::Get().Resolve(property.name),
-                    *property.type, property.ConstAddress(&component), reflected))
+                    *property.type, property.ConstAddress(instance), reflected))
                 {
                     return FailFrom(error, reflected);
                 }
@@ -78,10 +78,7 @@ namespace JBro
             return true;
         }
 
-        bool WriteComponent(
-            YamlWriter& writer,
-            const ComponentSlot& slot,
-            CanvasFileError& error)
+        bool WriteComponent(YamlWriter& writer, const ComponentSlot& slot, CanvasFileError& error)
         {
             const ComponentBase* component = slot.reference.TryGet();
             if (component == nullptr)
@@ -89,7 +86,7 @@ namespace JBro
                 return Fail(error, "an object holds a component that is already gone");
             }
             writer.BeginMap(nullptr);
-            if (false == WriteComponentFields(writer, *component, slot.typeId, error))
+            if (false == WriteFields(writer, component, component->IsEnabled(), slot.typeId, error))
             {
                 return false;
             }
@@ -97,25 +94,40 @@ namespace JBro
             return true;
         }
 
-        // 모르는 컴포넌트를 읽은 그대로 되쓴다(D-264).
-        bool WriteUnresolvedComponent(
+        bool WriteScript(YamlWriter& writer, const GameScriptBase* script, ComponentTypeId typeId, CanvasFileError& error)
+        {
+            if (script == nullptr)
+            {
+                return Fail(error, "an object holds a script that is already gone");
+            }
+            writer.BeginMap(nullptr);
+            if (false == WriteFields(writer, script, script->IsEnabled(), typeId, error))
+            {
+                return false;
+            }
+            writer.EndMap();
+            return true;
+        }
+
+        // 모르는 스크립트를 읽은 그대로 되쓴다(D-264).
+        bool WriteUnresolvedScript(
             YamlWriter& writer,
-            const UnresolvedComponent& kept,
+            const UnresolvedScript& kept,
             CanvasWriteMode mode,
             CanvasFileError& error)
         {
             error.typeName = kept.typeName;
             if (mode == CanvasWriteMode::Package)
             {
-                // 게임은 이 컴포넌트 없이 돈다. 조용히 묶으면 빌드는 되고 게임에서 스크립트 하나가 사라진다.
-                return Fail(error, "a component this engine does not know cannot go into a game");
+                // 게임은 이 스크립트 없이 돈다. 조용히 묶으면 빌드는 되고 게임에서 스크립트 하나가 사라진다.
+                return Fail(error, "a script this engine does not know cannot go into a game");
             }
             YamlDocument document;
             YamlError parseError;
             if (false == document.Parse(kept.text.c_str(), kept.text.size(), parseError)
                 || document.GetKind(document.GetRoot()) != YamlKind::Map)
             {
-                return Fail(error, "a component this engine does not know could not be written back");
+                return Fail(error, "a script this engine does not know could not be written back");
             }
             WriteYamlNode(writer, document, document.GetRoot(), nullptr);
             error.typeName.clear();
@@ -136,6 +148,59 @@ namespace JBro
                     CollectInOrder(child, ordered);
                 }
             }
+        }
+
+        // 한 오브젝트의 스크립트를 파일에 적는 차례로 늘어놓은 한 칸이다. 붙은 것이거나(`script`) 모르는 것(`kept`)이다.
+        struct ScriptEntry
+        {
+            GameScriptBase* script = nullptr;
+            ComponentTypeId typeId = InvalidComponentTypeId;
+            const UnresolvedScript* kept = nullptr;
+        };
+
+        // 모르는 것은 그 앞에 있던 붙은 것의 개수 자리에 끼운다. 그 뒤로 스크립트를 떼면 자리가 앞당겨진다.
+        void OrderScripts(const Object::GameObject& object, const Array<UnresolvedScript>* kept, Array<ScriptEntry>& entries)
+        {
+            entries.Clear();
+            const Array<ScriptSlot>& scripts = object.GetScripts();
+            const std::size_t keptCount = kept != nullptr ? kept->Size() : 0;
+            std::size_t nextKept = 0;
+            for (std::size_t s = 0; s <= scripts.Size(); ++s)
+            {
+                while (nextKept < keptCount && ((*kept)[nextKept].position <= s || s == scripts.Size()))
+                {
+                    ScriptEntry entry;
+                    entry.kept = &(*kept)[nextKept];
+                    entries.Add(entry);
+                    ++nextKept;
+                }
+                if (s < scripts.Size())
+                {
+                    ScriptEntry entry;
+                    entry.script = scripts[s].reference.TryGet();
+                    entry.typeId = scripts[s].typeId;
+                    entries.Add(entry);
+                }
+            }
+        }
+
+        // 파일의 한 항목을 붙인 것에 읽어 넣는다. `Type`·`IsEnabled` 는 형식의 키라 필드가 아니다.
+        bool ReadFields(const YamlDocument& document, std::uint32_t saved, ComponentTypeId typeId, void* instance,
+            CanvasFileError& error)
+        {
+            const PropertyTable* table = PropertyRegistry::Lookup(typeId);
+            if (table == nullptr)
+            {
+                return Fail(error, "this type never registered its properties");
+            }
+            static const char* const formatKeys[] = { "Type", "IsEnabled" };
+            ReflectedYamlError reflected;
+            if (false == ReadReflectedFields(document, saved, *table, instance,
+                formatKeys, sizeof(formatKeys) / sizeof(formatKeys[0]), reflected))
+            {
+                return FailFrom(error, reflected);
+            }
+            return true;
         }
     }
 
@@ -221,6 +286,7 @@ namespace JBro
         }
         writer.EndSequence();
 
+        Array<ScriptEntry> scriptEntries;
         writer.BeginSequence("Objects");
         for (std::size_t i = 0; i < ordered.Size(); ++i)
         {
@@ -254,27 +320,37 @@ namespace JBro
             writer.WriteInt("LayerId", static_cast<std::int64_t>(object->GetLayerId()));
 
             writer.BeginSequence("Components");
-            const Array<ComponentSlot>& components = object->GetComponents();
-            // 모르는 컴포넌트는 읽을 때 앞에 있던 컴포넌트 개수 자리에 끼운다. 그 뒤로 컴포넌트를 떼면 자리가 앞당겨진다.
-            const Array<UnresolvedComponent>* kept = canvas.FindUnresolvedComponents(object);
-            const std::size_t keptCount = kept != nullptr ? kept->Size() : 0;
-            std::size_t nextKept = 0;
-            for (std::size_t c = 0; c <= components.Size(); ++c)
+            for (const ComponentSlot& slot : object->GetComponents())
             {
-                while (nextKept < keptCount && ((*kept)[nextKept].position <= c || c == components.Size()))
-                {
-                    if (false == WriteUnresolvedComponent(writer, (*kept)[nextKept], mode, error))
-                    {
-                        return false;
-                    }
-                    ++nextKept;
-                }
-                if (c < components.Size() && false == WriteComponent(writer, components[c], error))
+                if (false == WriteComponent(writer, slot, error))
                 {
                     return false;
                 }
             }
             writer.EndSequence();
+
+            // **스크립트는 따로 적는다**(D-271). 없으면 키를 적지 않는다 - 스크립트가 없는 오브젝트가 대부분이다.
+            OrderScripts(*object, canvas.FindUnresolvedScripts(object), scriptEntries);
+            if (false == scriptEntries.IsEmpty())
+            {
+                writer.BeginSequence("Scripts");
+                for (const ScriptEntry& entry : scriptEntries)
+                {
+                    if (entry.kept != nullptr)
+                    {
+                        if (false == WriteUnresolvedScript(writer, *entry.kept, mode, error))
+                        {
+                            return false;
+                        }
+                        continue;
+                    }
+                    if (false == WriteScript(writer, entry.script, entry.typeId, error))
+                    {
+                        return false;
+                    }
+                }
+                writer.EndSequence();
+            }
             writer.EndMap();
         }
         writer.EndSequence();
@@ -431,7 +507,7 @@ namespace JBro
             }
         }
 
-        // 모르는 컴포넌트가 들고 있는 파일 안 번호를 뒤에 풀 수 있게 이 파일의 차례를 캔버스에 둔다(D-268).
+        // 모르는 스크립트가 들고 있는 파일 안 번호를 뒤에 풀 수 있게 이 파일의 차례를 캔버스에 둔다(D-268).
         {
             Array<InstanceId> order;
             order.Reserve(created.Size());
@@ -458,7 +534,6 @@ namespace JBro
             error.objectName = object->GetTag();
 
             const std::uint32_t components = document.Find(entry, "Components");
-            std::uint32_t resolvedCount = 0;
             for (std::size_t c = 0; c < document.GetCount(components); ++c)
             {
                 const std::uint32_t saved = document.GetElement(components, c);
@@ -469,9 +544,46 @@ namespace JBro
                 }
                 error.typeName = typeName;
 
-                // 빌트인 먼저, 그다음 스크립트다. 프로퍼티 표의 찾는 순서와 같다.
-                ComponentTypeInfo info;
-                if (false == ComponentRegistry::Get().FindAttachable(MakeNameId(typeName.c_str()), info))
+                const ComponentTypeInfo* info = ComponentRegistry::Get().Find(MakeNameId(typeName.c_str()));
+                if (info == nullptr)
+                {
+                    // **스크립트는 `Scripts` 에 있어야 한다**(D-271). 둘이 한 목록이던 파일은 옮겨 읽지 않는다(사용자 결정 2026-09-29).
+                    return Fail(error, ScriptRegistry::Get().Find(MakeNameId(typeName.c_str())) != nullptr
+                        ? "a script is listed among the components - this file is from before scripts were separated from components"
+                        : "a component in this file is not one this engine knows");
+                }
+                ComponentBase* component = info->Attach(canvas, object);
+                if (component == nullptr)
+                {
+                    return Fail(error, "a component in this file could not be attached");
+                }
+                if (false == ReadFields(document, saved, info->typeId, component, error))
+                {
+                    return false;
+                }
+                bool enabled = true;
+                if (document.FindBool(saved, "IsEnabled", enabled))
+                {
+                    component->SetEnabled(enabled);
+                }
+                error.typeName.clear();
+            }
+
+            const std::uint32_t scripts = document.Find(entry, "Scripts");
+            std::uint32_t resolvedCount = 0;
+            for (std::size_t s = 0; s < document.GetCount(scripts); ++s)
+            {
+                const std::uint32_t saved = document.GetElement(scripts, s);
+                String typeName;
+                if (false == document.FindScalar(saved, "Type", typeName))
+                {
+                    return Fail(error, "a script in this file does not say what it is");
+                }
+                error.typeName = typeName;
+
+                const NameId name = MakeNameId(typeName.c_str());
+                const ScriptTypeInfo* type = ScriptRegistry::Get().Find(name);
+                if (type == nullptr)
                 {
                     // **모르는 이름은 멈추지도 버리지도 않는다**(D-264). DLL 을 아직 빌드하지 않은 프로젝트도 캔버스를 연다.
                     YamlWriter fragment;
@@ -479,42 +591,31 @@ namespace JBro
                     {
                         WriteYamlNode(fragment, document, document.GetValue(saved, key), document.GetKey(saved, key));
                     }
-                    UnresolvedComponent kept;
+                    UnresolvedScript kept;
                     kept.typeName = typeName;
                     kept.text = fragment.GetText();
                     kept.position = resolvedCount;
-                    if (false == canvas.AddUnresolvedComponent(object, std::move(kept)))
+                    if (false == canvas.AddUnresolvedScript(object, std::move(kept)))
                     {
-                        return Fail(error, "a component this engine does not know could not be kept");
+                        return Fail(error, "a script this engine does not know could not be kept");
                     }
                     error.typeName.clear();
                     continue;
                 }
-                ComponentBase* component = info.Attach(canvas, object, info.name);
-                if (component == nullptr)
+                GameScriptBase* script = canvas.AttachScript(object, name);
+                if (script == nullptr)
                 {
-                    return Fail(error, "a component in this file could not be attached");
+                    return Fail(error, "a script in this file could not be attached");
                 }
                 ++resolvedCount;
-
-                const PropertyTable* table = PropertyRegistry::Lookup(info.typeId);
-                if (table == nullptr)
+                if (false == ReadFields(document, saved, type->typeId, script, error))
                 {
-                    return Fail(error, "this component type never registered its properties");
+                    return false;
                 }
-
-                static const char* const formatKeys[] = { "Type", "IsEnabled" };
-                ReflectedYamlError reflected;
-                if (false == ReadReflectedFields(document, saved, *table, component,
-                    formatKeys, sizeof(formatKeys) / sizeof(formatKeys[0]), reflected))
-                {
-                    return FailFrom(error, reflected);
-                }
-
                 bool enabled = true;
                 if (document.FindBool(saved, "IsEnabled", enabled))
                 {
-                    component->SetEnabled(enabled);
+                    script->SetEnabled(enabled);
                 }
                 error.typeName.clear();
             }
@@ -539,40 +640,6 @@ namespace JBro
             for (Object::GameObject* root : roots)
             {
                 CollectInOrder(root, ordered);
-            }
-        }
-
-        // 한 오브젝트의 컴포넌트를 파일에 적는 차례로 늘어놓은 한 칸이다. 붙은 것이거나(`component`) 모르는 것(`kept`)이다.
-        struct ComponentEntry
-        {
-            ComponentBase* component = nullptr;
-            ComponentTypeId typeId = InvalidComponentTypeId;
-            const UnresolvedComponent* kept = nullptr;
-        };
-
-        // `WriteCanvasText` 가 쓰는 것과 같은 차례다: 모르는 것은 그 앞에 있던 붙은 것의 개수 자리에 끼운다.
-        void OrderEntries(const Object::GameObject& object, const Array<UnresolvedComponent>* kept, Array<ComponentEntry>& entries)
-        {
-            entries.Clear();
-            const Array<ComponentSlot>& components = object.GetComponents();
-            const std::size_t keptCount = kept != nullptr ? kept->Size() : 0;
-            std::size_t nextKept = 0;
-            for (std::size_t c = 0; c <= components.Size(); ++c)
-            {
-                while (nextKept < keptCount && ((*kept)[nextKept].position <= c || c == components.Size()))
-                {
-                    ComponentEntry entry;
-                    entry.kept = &(*kept)[nextKept];
-                    entries.Add(entry);
-                    ++nextKept;
-                }
-                if (c < components.Size())
-                {
-                    ComponentEntry entry;
-                    entry.component = components[c].reference.TryGet();
-                    entry.typeId = components[c].typeId;
-                    entries.Add(entry);
-                }
             }
         }
 
@@ -606,19 +673,18 @@ namespace JBro
         struct Replacement
         {
             Object::GameObject* object = nullptr;
-            Array<UnresolvedComponent> components;
+            Array<UnresolvedScript> scripts;
         };
         Array<Replacement> replacements;
-        Array<ComponentEntry> entries;
+        Array<ScriptEntry> entries;
         for (Object::GameObject* object : ordered)
         {
             error.objectName = object->GetTag();
-            const Array<UnresolvedComponent>* existing = canvas.FindUnresolvedComponents(object);
-            OrderEntries(*object, existing, entries);
+            OrderScripts(*object, canvas.FindUnresolvedScripts(object), entries);
             bool changes = false;
-            for (const ComponentEntry& entry : entries)
+            for (const ScriptEntry& entry : entries)
             {
-                changes = changes || (entry.component != nullptr && canvas.IsModuleScript(entry.component));
+                changes = changes || (entry.script != nullptr && canvas.IsModuleScript(entry.script));
             }
             if (false == changes)
             {
@@ -627,31 +693,31 @@ namespace JBro
             Replacement replacement;
             replacement.object = object;
             std::uint32_t resolvedBefore = 0;
-            for (const ComponentEntry& entry : entries)
+            for (const ScriptEntry& entry : entries)
             {
                 if (entry.kept != nullptr)
                 {
-                    UnresolvedComponent copy = *entry.kept;
+                    UnresolvedScript copy = *entry.kept;
                     copy.position = resolvedBefore;
-                    replacement.components.Add(std::move(copy));
+                    replacement.scripts.Add(std::move(copy));
                     continue;
                 }
-                if (entry.component == nullptr || false == canvas.IsModuleScript(entry.component))
+                if (entry.script == nullptr || false == canvas.IsModuleScript(entry.script))
                 {
                     ++resolvedBefore;
                     continue;
                 }
                 YamlWriter writer;
-                if (false == WriteComponentFields(writer, *entry.component, entry.typeId, error))
+                if (false == WriteFields(writer, entry.script, entry.script->IsEnabled(), entry.typeId, error))
                 {
                     return false;
                 }
-                UnresolvedComponent script;
+                UnresolvedScript script;
                 script.typeName = NameTable::Get().Resolve(entry.typeId);
                 script.text = writer.GetText();
                 script.position = resolvedBefore;
-                script.componentId = entry.component->GetInstanceId();
-                replacement.components.Add(std::move(script));
+                script.componentId = entry.script->GetInstanceId();
+                replacement.scripts.Add(std::move(script));
                 ++kept;
             }
             replacements.Add(std::move(replacement));
@@ -660,13 +726,13 @@ namespace JBro
 
         for (Replacement& replacement : replacements)
         {
-            canvas.ReplaceUnresolvedComponents(replacement.object, std::move(replacement.components));
+            canvas.ReplaceUnresolvedScripts(replacement.object, std::move(replacement.scripts));
         }
         canvas.ReleaseModuleScripts();
         return true;
     }
 
-    std::size_t ResolveKeptComponents(Canvas& canvas, Array<ComponentResolveNote>& notes)
+    std::size_t ResolveKeptScripts(Canvas& canvas, Array<ScriptResolveNote>& notes)
     {
         notes.Clear();
         Array<Object::GameObject*> ordered;
@@ -684,59 +750,57 @@ namespace JBro
         ObjectRefRemapScope remapScope(remap);
 
         std::size_t resolved = 0;
-        Array<ComponentEntry> entries;
+        Array<ScriptEntry> entries;
         for (Object::GameObject* object : ordered)
         {
-            const Array<UnresolvedComponent>* existing = canvas.FindUnresolvedComponents(object);
+            const Array<UnresolvedScript>* existing = canvas.FindUnresolvedScripts(object);
             if (existing == nullptr || existing->IsEmpty())
             {
                 continue;
             }
             // 붙이는 동안 원래 목록이 바뀌므로 사본으로 걷는다.
-            const Array<UnresolvedComponent> keptCopy = *existing;
-            OrderEntries(*object, &keptCopy, entries);
+            const Array<UnresolvedScript> keptCopy = *existing;
+            OrderScripts(*object, &keptCopy, entries);
 
-            Array<UnresolvedComponent> remaining;
+            Array<UnresolvedScript> remaining;
             std::size_t resolvedBefore = 0;
             bool changed = false;
-            for (const ComponentEntry& entry : entries)
+            for (const ScriptEntry& entry : entries)
             {
                 if (entry.kept == nullptr)
                 {
                     ++resolvedBefore;
                     continue;
                 }
-                const UnresolvedComponent& kept = *entry.kept;
+                const UnresolvedScript& kept = *entry.kept;
                 const NameId name = MakeNameId(kept.typeName.c_str());
-                ComponentTypeInfo info;
+                const ScriptTypeInfo* type = ScriptRegistry::Get().Find(name);
                 YamlDocument document;
                 YamlError parseError;
-                const bool known = ComponentRegistry::Get().FindAttachable(name, info)
+                const bool known = type != nullptr
                     && document.Parse(kept.text.c_str(), kept.text.size(), parseError)
                     && document.GetKind(document.GetRoot()) == YamlKind::Map;
-                ComponentBase* component = nullptr;
+                GameScriptBase* script = nullptr;
                 if (known)
                 {
-                    component = ScriptRegistry::Get().Find(name) != nullptr
-                        ? canvas.AttachScript(object, name, kept.componentId)
-                        : info.Attach(canvas, object, name);
-                    if (component == nullptr)
+                    script = canvas.AttachScript(object, name, kept.componentId);
+                    if (script == nullptr)
                     {
-                        ComponentResolveNote note;
-                        note.kind = ComponentResolveNote::Kind::NotAttached;
+                        ScriptResolveNote note;
+                        note.kind = ScriptResolveNote::Kind::NotAttached;
                         note.objectName = object->GetTag();
                         note.typeName = kept.typeName;
                         notes.Add(std::move(note));
                     }
                 }
-                const PropertyTable* table = component != nullptr ? PropertyRegistry::Lookup(info.typeId) : nullptr;
-                if (component == nullptr || table == nullptr)
+                const PropertyTable* table = script != nullptr ? PropertyRegistry::Lookup(type->typeId) : nullptr;
+                if (script == nullptr || table == nullptr)
                 {
-                    if (component != nullptr && info.Detach != nullptr)
+                    if (script != nullptr)
                     {
-                        info.Detach(canvas, object, component);
+                        canvas.DetachScript(object, script);
                     }
-                    UnresolvedComponent copy = kept;
+                    UnresolvedScript copy = kept;
                     copy.position = static_cast<std::uint32_t>(resolvedBefore);
                     remaining.Add(std::move(copy));
                     continue;
@@ -754,13 +818,13 @@ namespace JBro
                     ReflectedYamlError reflected;
                     if (property != nullptr
                         && ReadReflectedValue(document, document.GetValue(root, key), *property->type,
-                            property->Address(component), reflected))
+                            property->Address(script), reflected))
                     {
                         continue;
                     }
-                    ComponentResolveNote note;
-                    note.kind = property == nullptr ? ComponentResolveNote::Kind::FieldDropped
-                                                    : ComponentResolveNote::Kind::FieldUnreadable;
+                    ScriptResolveNote note;
+                    note.kind = property == nullptr ? ScriptResolveNote::Kind::FieldDropped
+                                                    : ScriptResolveNote::Kind::FieldUnreadable;
                     note.objectName = object->GetTag();
                     note.typeName = kept.typeName;
                     note.fieldName = fieldName;
@@ -769,17 +833,17 @@ namespace JBro
                 bool enabled = true;
                 if (document.FindBool(root, "IsEnabled", enabled))
                 {
-                    component->SetEnabled(enabled);
+                    script->SetEnabled(enabled);
                 }
                 // 붙이면 맨 뒤다. 들고 있던 자리로 옮긴다.
-                object->SetComponentIndex(component, resolvedBefore);
+                object->SetScriptIndex(script, resolvedBefore);
                 ++resolvedBefore;
                 ++resolved;
                 changed = true;
             }
             if (changed)
             {
-                canvas.ReplaceUnresolvedComponents(object, std::move(remaining));
+                canvas.ReplaceUnresolvedScripts(object, std::move(remaining));
             }
         }
         return resolved;

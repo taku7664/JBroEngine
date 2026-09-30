@@ -137,6 +137,23 @@ namespace
         }
     };
 
+    // 호스트 코드가 아는 스크립트다(`AttachScript<T>`). DLL 의 풀에 들지 않는다(D-271).
+    class HostProbe final : public GameScriptBase
+    {
+        JBRO_REFLECT_BODY(HostProbe)
+    public:
+        JBRO_FIELD(float, Weight) = 1.0f;
+
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::HostProbe";
+        }
+        ComponentTypeId GetTypeId() const override
+        {
+            return MakeStableTypeId(StaticTypeName());
+        }
+    };
+
     // 이 시험만의 스크립트 표다. 다른 시험이 등록한 것을 건드리지 않는다. 끝나면 원래 표로 되돌린다.
     class ScopedScriptTables final
     {
@@ -165,30 +182,36 @@ namespace
 
     ComponentBase* AttachBuiltin(Canvas& canvas, Object::GameObject* object, const char* name)
     {
-        ComponentTypeInfo info;
-        Check(ComponentRegistry::Get().FindAttachable(MakeNameId(name), info), "the builtin is known");
-        return info.Attach(canvas, object, info.name);
+        const ComponentTypeInfo* info = ComponentRegistry::Get().Find(MakeNameId(name));
+        Check(info != nullptr, "the builtin is known");
+        return info->Attach(canvas, object);
     }
 
-    // 오브젝트의 컴포넌트 차례를 타입 이름으로 적는다. 모르는 컴포넌트는 `?이름` 으로 그 자리에 끼운다.
+    // 오브젝트의 컴포넌트 차례, `|`, 스크립트 차례를 타입 이름으로 적는다(D-271). 모르는 스크립트는 `?이름` 으로 그 자리에 끼운다.
     String DescribeOrder(Canvas& canvas, Object::GameObject* object)
     {
         String text;
-        const Array<ComponentSlot>& components = object->GetComponents();
-        const Array<UnresolvedComponent>* kept = canvas.FindUnresolvedComponents(object);
-        std::size_t nextKept = 0;
-        for (std::size_t c = 0; c <= components.Size(); ++c)
+        for (const ComponentSlot& slot : object->GetComponents())
         {
-            while (kept != nullptr && nextKept < kept->Size() && ((*kept)[nextKept].position <= c || c == components.Size()))
+            text += NameTable::Get().Resolve(slot.typeId);
+            text += " ";
+        }
+        text += "| ";
+        const Array<ScriptSlot>& scripts = object->GetScripts();
+        const Array<UnresolvedScript>* kept = canvas.FindUnresolvedScripts(object);
+        std::size_t nextKept = 0;
+        for (std::size_t s = 0; s <= scripts.Size(); ++s)
+        {
+            while (kept != nullptr && nextKept < kept->Size() && ((*kept)[nextKept].position <= s || s == scripts.Size()))
             {
                 text += "?";
                 text += (*kept)[nextKept].typeName;
                 text += " ";
                 ++nextKept;
             }
-            if (c < components.Size())
+            if (s < scripts.Size())
             {
-                text += NameTable::Get().Resolve(components[c].typeId);
+                text += NameTable::Get().Resolve(scripts[s].typeId);
                 text += " ";
             }
         }
@@ -225,14 +248,20 @@ namespace
         ComponentBase* transform = AttachBuiltin(canvas, holder, "Component::Transform2D");
         Check(transform != nullptr, "a builtin goes first");
         auto* one = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
-        Check(AttachBuiltin(canvas, holder, "Component::SpriteRenderer2D") != nullptr, "a builtin sits between the two scripts");
+        Check(AttachBuiltin(canvas, holder, "Component::SpriteRenderer2D") != nullptr,
+            "a builtin attached between the two scripts goes to the components");
+        // 호스트가 아는 스크립트가 둘 사이에 있다. 떠 두는 동안 이것만 남고, 되살린 것은 이것의 앞뒤 제자리로 온다.
+        // 저장하려면 표가 있어야 한다(표 없는 타입은 저장을 멈춘다).
+        Check(PropertyRegistry::RegisterScript(NameTable::Get().Intern(HostProbe::StaticTypeName()), GetPropertyTable<HostProbe>()),
+            "the host script's table registers");
+        Check(canvas.AttachScript<HostProbe>(holder) != nullptr, "a host script sits between the two");
         auto* two = static_cast<First::HotProbe*>(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()));
         Check(one != nullptr && two != nullptr, "two copies of the script attach");
-        UnresolvedComponent mystery;
+        UnresolvedScript mystery;
         mystery.typeName = "Test::Mystery";
         mystery.text = "Type: Test::Mystery\nIsEnabled: true\nValue: 5\n";
-        mystery.position = 4;
-        Check(canvas.AddUnresolvedComponent(holder, mystery), "a component nobody knows sits at the end");
+        mystery.position = 3;
+        Check(canvas.AddUnresolvedScript(holder, mystery), "a script nobody knows sits at the end");
 
         one->Speed = 7.25f;
         one->Lives = 2.5f;
@@ -246,7 +275,7 @@ namespace
         reference.ComponentId = oneId;
         Check(reference.Get() == reinterpret_cast<Second::HotProbe*>(one), "a reference finds the first script");
         const String before = DescribeOrder(canvas, holder);
-        Check(before == "Component::Transform2D Test::HotProbe Component::SpriteRenderer2D Test::HotProbe ?Test::Mystery ", before.c_str());
+        Check(before == "Component::Transform2D Component::SpriteRenderer2D | Test::HotProbe Test::HostProbe Test::HotProbe ?Test::Mystery ", before.c_str());
 
         std::size_t kept = 0;
         CanvasFileError error;
@@ -254,9 +283,9 @@ namespace
         Check(kept == 2, "both scripts are set aside");
         Array<GameScriptBase*> scripts;
         canvas.CollectScripts(scripts);
-        Check(scripts.IsEmpty(), "and taken off the object");
-        Check(DescribeOrder(canvas, holder) == "Component::Transform2D ?Test::HotProbe Component::SpriteRenderer2D ?Test::HotProbe ?Test::Mystery ",
-            "each keeps its place among the builtins");
+        Check(scripts.Size() == 1, "and taken off the object - only the host's script stays");
+        Check(DescribeOrder(canvas, holder) == "Component::Transform2D Component::SpriteRenderer2D | ?Test::HotProbe Test::HostProbe ?Test::HotProbe ?Test::Mystery ",
+            "each keeps its place in the script list");
         Check(reference.Get() == nullptr, "a reference finds nothing while the script is away");
         Check(holder->GetComponents()[0].reference.TryGet() == transform, "the builtins are left where they were");
 
@@ -268,12 +297,23 @@ namespace
         // 새 판을 싣는다. 로더가 내릴 때처럼 표를 비우고 새로 등록한다.
         tables.Clear();
         Check(RegisterScriptType<Second::HotProbe>(), "the second version registers");
-        Array<ComponentResolveNote> notes;
-        Check(ResolveKeptComponents(canvas, notes) == 2, "both scripts come back");
+        Array<ScriptResolveNote> notes;
+        Check(ResolveKeptScripts(canvas, notes) == 2, "both scripts come back");
         Check(DescribeOrder(canvas, holder) == before, "in the places they had");
         Check(holder->GetComponents()[0].reference.TryGet() == transform, "and the builtin was never touched");
 
-        auto* newOne = FindScript<Second::HotProbe>(canvas);
+        Second::HotProbe* newOne = nullptr;
+        {
+            Array<GameScriptBase*> all;
+            canvas.CollectScripts(all);
+            for (GameScriptBase* script : all)
+            {
+                if (script->GetInstanceId() == oneId)
+                {
+                    newOne = static_cast<Second::HotProbe*>(script);
+                }
+            }
+        }
         Check(newOne != nullptr && newOne->GetInstanceId() == oneId, "the first comes back under its own number");
         Check(newOne->Speed == 7.25f, "a field that matches keeps its value");
         Check(newOne->Jump == 9.0f, "a new field starts at its default");
@@ -288,18 +328,19 @@ namespace
             secondDisabled = secondDisabled || (script->GetInstanceId() == twoId && false == script->IsEnabled());
         }
         Check(secondDisabled, "the second comes back under its number and still switched off");
+        Check(reborn.Size() == 3, "beside the host's script");
 
         std::size_t dropped = 0;
         std::size_t unreadable = 0;
-        for (const ComponentResolveNote& note : notes)
+        for (const ScriptResolveNote& note : notes)
         {
             Check(note.objectName == "Holder" && note.typeName == "Test::HotProbe", "each note names the object and the script");
-            dropped += note.kind == ComponentResolveNote::Kind::FieldDropped && note.fieldName == "Gone" ? 1 : 0;
-            unreadable += note.kind == ComponentResolveNote::Kind::FieldUnreadable && note.fieldName == "Lives" ? 1 : 0;
+            dropped += note.kind == ScriptResolveNote::Kind::FieldDropped && note.fieldName == "Gone" ? 1 : 0;
+            unreadable += note.kind == ScriptResolveNote::Kind::FieldUnreadable && note.fieldName == "Lives" ? 1 : 0;
         }
         Check(notes.Size() == 3 && dropped == 2 && unreadable == 1,
             "the removed field is reported for both, the changed one where it did not read");
-        Check(canvas.GetUnresolvedComponentCount() == 1, "the component nobody knows stays as it was");
+        Check(canvas.GetUnresolvedScriptCount() == 1, "the script nobody knows stays as it was");
         tables.Clear();
         canvas.ReleaseModuleScripts();
     }
@@ -318,12 +359,12 @@ namespace
         CanvasFileError error;
         Check(KeepScriptsAsText(canvas, kept, error) && kept == 1, "the script is set aside");
         tables.Clear();
-        Array<ComponentResolveNote> notes;
-        Check(ResolveKeptComponents(canvas, notes) == 0 && notes.IsEmpty(), "a library without the type brings nothing back");
-        Check(canvas.GetUnresolvedComponentCount() == 1, "and the script waits with its values");
+        Array<ScriptResolveNote> notes;
+        Check(ResolveKeptScripts(canvas, notes) == 0 && notes.IsEmpty(), "a library without the type brings nothing back");
+        Check(canvas.GetUnresolvedScriptCount() == 1, "and the script waits with its values");
         // 다음 빌드에서 돌아온다.
         Check(RegisterScriptType<First::HotProbe>(), "the type comes back");
-        Check(ResolveKeptComponents(canvas, notes) == 1, "and so does the script");
+        Check(ResolveKeptScripts(canvas, notes) == 1, "and so does the script");
         Check(FindScript<First::HotProbe>(canvas) != nullptr && FindScript<First::HotProbe>(canvas)->Speed == 3.5f,
             "with its value");
 
@@ -334,11 +375,19 @@ namespace
         Check(false == KeepScriptsAsText(canvas, kept, error), "a script that cannot be written stops the whole step");
         Array<GameScriptBase*> scripts;
         canvas.CollectScripts(scripts);
-        Check(scripts.Size() == 2 && canvas.GetUnresolvedComponentCount() == 0, "and nothing was taken off");
+        Check(scripts.Size() == 2 && canvas.GetUnresolvedScriptCount() == 0, "and nothing was taken off");
         Check(canvas.ReleaseModuleScripts() == 2, "releasing takes off every script from the library");
         canvas.CollectScripts(scripts);
         Check(scripts.IsEmpty(), "leaving none");
         Check(canvas.AttachScript(holder, First::HotProbe::StaticTypeName()) != nullptr, "and a script attaches again afterwards");
+
+        // **호스트가 아는 타입은 DLL 을 내려도 남는다**(D-271). 그 코드는 DLL 안에 있지 않다 - 풀 표가 따로다.
+        auto* host = canvas.AttachScript<HostProbe>(holder);
+        Check(host != nullptr && false == canvas.IsModuleScript(host), "a host type attaches outside the library's pools");
+        Check(canvas.ReleaseModuleScripts() == 1, "releasing the library takes off only the library's script");
+        canvas.CollectScripts(scripts);
+        Check(scripts.Size() == 1 && scripts[0] == host && holder->GetScripts().Size() == 1,
+            "and leaves the host's script on its object");
         tables.Clear();
         canvas.ReleaseModuleScripts();
     }
@@ -365,10 +414,10 @@ namespace
         Canvas canvas(CreateDefaultAllocator());
         CanvasFileError error;
         Check(ReadCanvasText(canvas, text.c_str(), text.size(), error), "the canvas opens without the library");
-        Check(canvas.GetUnresolvedComponentCount() == 1, "holding the script it does not know");
+        Check(canvas.GetUnresolvedScriptCount() == 1, "holding the script it does not know");
         Check(RegisterScriptType<First::HotProbe>(), "the library arrives");
-        Array<ComponentResolveNote> notes;
-        Check(ResolveKeptComponents(canvas, notes) == 1 && notes.IsEmpty(), "the script comes back");
+        Array<ScriptResolveNote> notes;
+        Check(ResolveKeptScripts(canvas, notes) == 1 && notes.IsEmpty(), "the script comes back");
         const Object::GameObject* found = Internal::GameObjectHandleAccess::Resolve(FindScript<First::HotProbe>(canvas)->Target);
         Check(found != nullptr && std::strcmp(found->GetTag(), "Target") == 0, "pointing at the object the file named");
         tables.Clear();
@@ -531,7 +580,7 @@ namespace
         // 새 DLL 을 싣지 못하면 스크립트는 값을 든 채 캔버스에 남는다.
         fs::remove(library);
         Check(false == editor.ReloadScripts(), "a missing library does not load");
-        Check(OnlyScript(*canvas) == nullptr && canvas->GetUnresolvedComponentCount() == 1, "the script waits in the canvas");
+        Check(OnlyScript(*canvas) == nullptr && canvas->GetUnresolvedScriptCount() == 1, "the script waits in the canvas");
         String saved;
         CanvasFileError canvasError;
         Check(WriteCanvasText(*canvas, saved, canvasError) && Contains(saved, "Speed: 7.25"), "with its value");

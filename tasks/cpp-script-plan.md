@@ -247,7 +247,11 @@ JBRO_SCRIPT_MODULE_2D()
 
 1. ~~이름~~ **섰다**(2026-09-29): 엔진 `GameObject` → `JBro::Object::GameObject`, `GameObjectHandle` → `JBro::Handle::GameObject`, 프렐류드에 `using namespace JBro::Handle;`.
    리플렉션 잎사귀는 `JBro.Handle.GameObject`. 프렐류드 시험이 `GameObject` 가 핸들로 풀리는지 단언하고, `JBRO_TEST_OBJECT_NAMESPACE_IN_PRELUDE` 를 켜면 모호해 컴파일이 실패한다.
-2. 컴포넌트와 스크립트 분리: `GameScriptBase` 가 `ComponentBase` 를 떠나고, 오브젝트의 스크립트 목록·실행 순서·캔버스 파일의 `Scripts:`·인스펙터와 추가 메뉴·핫 리로드를 옮긴다. 옛 캔버스 파일은 읽지 않는다.
+2. ~~컴포넌트와 스크립트 분리~~ **섰다**(2026-09-30): `GameScriptBase` 가 `ComponentBase` 를 떠나 제 소유자·번호·켜짐을 들고, 오브젝트가 스크립트 목록(`ScriptSlot`)을 따로 든다.
+   스크립트는 스크립트 풀에만 살고(이름으로 붙인 DLL 타입과 `AttachScript<T>` 의 호스트 타입은 풀 표가 따로), 실행 순서·버튼·물리 훅은 오브젝트의 스크립트 목록을 돈다.
+   캔버스 파일은 `Scripts:` 를 따로 적고 모르는 것은 스크립트만 든다(`UnresolvedScript`, `ResolveKeptScripts`). `ComponentRegistry` 는 빌트인만 든다.
+   에디터는 "붙은 것"(`AttachedRef`, 컴포넌트 또는 스크립트)과 주소의 `kind` 로 필드 편집·스냅숏·붙이기·떼기·옮기기·붙여넣기를 한 길로 다루고,
+   인스펙터는 컴포넌트 목록 아래 스크립트 목록과 `스크립트 추가` 를 따로 그린다. 오브젝트 메뉴에도 `스크립트 추가` 가 선다. 에셋 해석 패스는 스크립트의 에셋 필드도 돈다.
 3. 빌트인 핸들: 2D 7 종·3D 6 종의 `Handle::*`, 데이터 헤더를 스크립트 대상에서 막는 음성 시험, 서비스 인자를 핸들로.
 4. 아래 오브젝트 만들기·찾기(D-270 을 D-271 의 이름으로 읽는다).
 

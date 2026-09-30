@@ -3,6 +3,7 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Platform/Platform.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Types/Uuid.h>
 
 #include <cstdio>
@@ -181,8 +182,8 @@ namespace JBro::ScriptProject
         {
             return NameProblem::Reserved;
         }
-        ComponentTypeInfo existing;
-        if (ComponentRegistry::Get().FindAttachable(MakeNameId(name), existing))
+        // 빌트인 컴포넌트와 이미 등록된 스크립트의 이름은 쓸 수 없다(D-271 - 두 표는 같은 이름을 받지 않는다).
+        if (ComponentRegistry::Get().Find(MakeNameId(name)) != nullptr || ScriptRegistry::Get().Find(MakeNameId(name)) != nullptr)
         {
             return NameProblem::TakenByType;
         }

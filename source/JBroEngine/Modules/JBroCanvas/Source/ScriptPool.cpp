@@ -188,6 +188,22 @@ namespace JBro
         return script;
     }
 
+    bool ScriptPool::Owns(const GameScriptBase* script) const
+    {
+        if (script == nullptr)
+        {
+            return false;
+        }
+        for (const SlotInfo& slot : m_slots)
+        {
+            if (slot.alive && slot.script == script)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool ScriptPool::Destroy(GameScriptBase* script)
     {
         if (script == nullptr)

@@ -152,6 +152,23 @@ namespace JBro
             }
         }
 
+        // 스크립트를 먼저 뗀다. 스크립트의 `OnDetached` 는 같은 오브젝트의 컴포넌트를 아직 볼 수 있어야 한다.
+        while (false == object->m_scripts.IsEmpty())
+        {
+            SafePtr<GameScriptBase> scriptRef = object->m_scripts.Last().reference;
+            GameScriptBase* script = scriptRef.TryGet();
+            if (script == nullptr)
+            {
+                object->m_scripts.RemoveAt(object->m_scripts.Size() - 1);
+                continue;
+            }
+            if (false == DestroyScriptNow(script))
+            {
+                object->m_destroying = false;
+                return false;
+            }
+        }
+
         while (false == object->m_components.IsEmpty())
         {
             SafePtr<ComponentBase> componentRef = object->m_components.Last().reference;
@@ -170,7 +187,7 @@ namespace JBro
         }
 
         object->SetParent(nullptr);
-        m_unresolvedComponents.Remove(object->GetInstanceId());
+        m_unresolvedScripts.Remove(object->GetInstanceId());
         const InstanceHandle handle = object->m_handle;
         if (false == registry.Unregister(handle))
         {
@@ -538,18 +555,10 @@ namespace JBro
             return false;
         }
 
-        // 타입 풀에 없으면 이름으로 붙인 스크립트다. 둘 중 하나에는 반드시 있어야 한다 —
-        // 여기서 못 찾으면 오브젝트를 파괴할 수 없고 Canvas 해체가 멈춘다.
+        // 타입 풀에는 반드시 있어야 한다 - 여기서 못 찾으면 오브젝트를 파괴할 수 없고 Canvas 해체가 멈춘다.
         OwnerPtr<IComponentBucket>* bucket =
             m_componentBuckets.Find(component->GetTypeId());
-        OwnerPtr<ScriptPool>* scriptPool = nullptr;
         if (bucket == nullptr)
-        {
-            // NameId 와 ComponentTypeId 는 같은 문자열에 같은 해시를 건 값이다
-            // (MakeNameId 가 MakeStableTypeId 다). ScriptRegistry 가 그 동일성을 확인한다.
-            scriptPool = m_scriptPools.Find(component->GetTypeId());
-        }
-        if (bucket == nullptr && scriptPool == nullptr)
         {
             return false;
         }
@@ -565,17 +574,75 @@ namespace JBro
             owner->AttachComponent(component);
             return false;
         }
-        if (bucket != nullptr)
+        return (*bucket)->Destroy(component);
+    }
+
+    bool Canvas::DestroyScript(GameScriptBase* script)
+    {
+        if (script == nullptr)
         {
-            if ((*bucket)->HoldsScripts())
-            {
-                MarkScriptOrderDirty();
-            }
-            return (*bucket)->Destroy(component);
+            return false;
         }
-        // 이름으로 붙인 것은 전부 스크립트다.
+        Object::GameObject* owner = script->GetOwnerObject();
+        if (owner == nullptr || owner->GetCanvas() != this)
+        {
+            return false;
+        }
+        if (IsIterating())
+        {
+            SafePtr<GameScriptBase> pending = script->SafeFromThis();
+            if (false == pending.IsValid())
+            {
+                return false;
+            }
+            m_pendingDestroyScripts.Add(std::move(pending));
+            return true;
+        }
+        return DestroyScriptNow(script);
+    }
+
+    bool Canvas::DestroyScriptNow(GameScriptBase* script)
+    {
+        Object::GameObject* owner = script->GetOwnerObject();
+        if (owner == nullptr || owner->GetCanvas() != this)
+        {
+            return false;
+        }
+        // 두 풀 표 중 하나에는 반드시 있다. 못 찾으면 오브젝트를 파괴할 수 없고 Canvas 해체가 멈춘다.
+        ScriptPool* pool = FindScriptPool(*script);
+        if (pool == nullptr)
+        {
+            return false;
+        }
+
+        script->OnDetached();
+        if (false == owner->DetachScript(script))
+        {
+            return false;
+        }
+        if (false == UnregisterScriptInstance(script))
+        {
+            owner->AttachScript(script);
+            return false;
+        }
         MarkScriptOrderDirty();
-        return (*scriptPool)->Destroy(static_cast<GameScriptBase*>(component));
+        return pool->Destroy(script);
+    }
+
+    ScriptPool* Canvas::FindScriptPool(const GameScriptBase& script) const
+    {
+        // NameId 와 ComponentTypeId 는 같은 문자열에 같은 해시를 건 값이다(MakeNameId 가 MakeStableTypeId 다).
+        // 같은 이름의 풀이 두 표에 다 있을 수 있어(DLL 타입과 호스트 타입) 이 스크립트를 든 쪽을 고른다.
+        const ComponentTypeId typeId = script.GetCachedTypeId();
+        for (const Table<NameId, OwnerPtr<ScriptPool>>* pools : { &m_scriptPools, &m_staticScriptPools })
+        {
+            const OwnerPtr<ScriptPool>* found = pools->Find(typeId);
+            if (found != nullptr && found->Get() != nullptr && found->Get()->Owns(&script))
+            {
+                return found->Get();
+            }
+        }
+        return nullptr;
     }
 
     bool Canvas::RegisterComponentInstance(
@@ -609,6 +676,32 @@ namespace JBro
             return false;
         }
         component->SetInstanceIdentity(InvalidInstanceId, {});
+        return true;
+    }
+
+    bool Canvas::RegisterScriptInstance(Object::GameObject* owner, GameScriptBase* script, InstanceId preferredId)
+    {
+        Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
+        const bool reuse = preferredId != InvalidInstanceId
+            && registry.Resolve(owner->GetInstanceId(), preferredId, RefCategory::Script).Pointer == nullptr;
+        const InstanceId scriptId = reuse ? preferredId : GenerateCanvasInstanceId();
+        const InstanceHandle handle = registry.Register(owner->GetInstanceId(), scriptId, RefCategory::Script, script);
+        if (false == handle.IsSet())
+        {
+            return false;
+        }
+        script->SetInstanceIdentity(scriptId, handle);
+        return true;
+    }
+
+    bool Canvas::UnregisterScriptInstance(GameScriptBase* script)
+    {
+        Internal::InstanceRegistry& registry = Internal::InstanceRegistry::Get();
+        if (false == registry.Unregister(script->GetHandle()))
+        {
+            return false;
+        }
+        script->SetInstanceIdentity(InvalidInstanceId, {});
         return true;
     }
 
@@ -663,7 +756,7 @@ namespace JBro
 
     std::size_t Canvas::GetPendingDestroyCount() const
     {
-        return m_pendingDestroyComponents.Size() + m_pendingDestroyObjects.Size();
+        return m_pendingDestroyComponents.Size() + m_pendingDestroyScripts.Size() + m_pendingDestroyObjects.Size();
     }
 
     // 컴포넌트를 먼저 걷는다. 오브젝트 파괴가 자기 컴포넌트를 이미 정리하므로 순서를 뒤집으면
@@ -689,20 +782,30 @@ namespace JBro
         {
             return nullptr;
         }
+        return AttachScriptOfType(owner, *type, true, preferredId);
+    }
 
-        OwnerPtr<ScriptPool>* existing = m_scriptPools.Find(scriptName);
+    GameScriptBase* Canvas::AttachScriptOfType(Object::GameObject* owner, const ScriptTypeInfo& type, bool module,
+        InstanceId preferredId)
+    {
+        if (owner == nullptr || owner->GetCanvas() != this || type.name == InvalidNameId)
+        {
+            return nullptr;
+        }
+        Table<NameId, OwnerPtr<ScriptPool>>& pools = module ? m_scriptPools : m_staticScriptPools;
+        OwnerPtr<ScriptPool>* existing = pools.Find(type.name);
         if (existing == nullptr)
         {
             OwnerPtr<ScriptPool> pool = MakeOwnerPtr<ScriptPool>();
-            if (false == pool->Initialize(*type, m_allocator))
+            if (false == pool->Initialize(type, m_allocator))
             {
                 return nullptr;
             }
-            if (false == m_scriptPools.TryAdd(scriptName, std::move(pool)))
+            if (false == pools.TryAdd(type.name, std::move(pool)))
             {
                 return nullptr;
             }
-            existing = m_scriptPools.Find(scriptName);
+            existing = pools.Find(type.name);
         }
         if (existing == nullptr || existing->Get() == nullptr)
         {
@@ -717,25 +820,25 @@ namespace JBro
         }
         script->CacheTypeId();
 
-        if (false == RegisterComponentInstance(owner, script, RefCategory::Script, preferredId))
+        if (false == RegisterScriptInstance(owner, script, preferredId))
         {
             pool.Destroy(script);
             return nullptr;
         }
         try
         {
-            owner->AttachComponent(script);
+            owner->AttachScript(script);
         }
         catch (...)
         {
-            UnregisterComponentInstance(script);
+            UnregisterScriptInstance(script);
             pool.Destroy(script);
             throw;
         }
         MarkScriptOrderDirty();
         if (script->GetOwnerObject() != owner)
         {
-            UnregisterComponentInstance(script);
+            UnregisterScriptInstance(script);
             pool.Destroy(script);
             return nullptr;
         }
@@ -754,13 +857,17 @@ namespace JBro
         {
             return false;
         }
-        return DestroyComponent(script);
+        return DestroyScript(script);
     }
 
-    bool Canvas::IsModuleScript(const ComponentBase* component) const
+    bool Canvas::IsModuleScript(const GameScriptBase* script) const
     {
-        // 스크립트 풀은 이름으로 붙인 것만 든다. 빌트인과 정적으로 붙인 스크립트는 타입 풀에 있다.
-        return component != nullptr && m_scriptPools.Find(component->GetTypeId()) != nullptr;
+        if (script == nullptr)
+        {
+            return false;
+        }
+        const OwnerPtr<ScriptPool>* found = m_scriptPools.Find(script->GetCachedTypeId());
+        return found != nullptr && found->Get() != nullptr && found->Get()->Owns(script);
     }
 
     std::size_t Canvas::ReleaseModuleScripts()
@@ -780,27 +887,27 @@ namespace JBro
         std::size_t released = 0;
         for (GameScriptBase* script : scripts)
         {
-            released += DestroyComponentNow(script) ? 1 : 0;
+            released += DestroyScriptNow(script) ? 1 : 0;
         }
         m_scriptPools.Clear();
         return released;
     }
 
-    bool Canvas::ReplaceUnresolvedComponents(Object::GameObject* owner, Array<UnresolvedComponent> components)
+    bool Canvas::ReplaceUnresolvedScripts(Object::GameObject* owner, Array<UnresolvedScript> scripts)
     {
         if (owner == nullptr || owner->GetCanvas() != this)
         {
             return false;
         }
-        for (std::size_t index = 1; index < components.Size(); ++index)
+        for (std::size_t index = 1; index < scripts.Size(); ++index)
         {
-            if (components[index].position < components[index - 1].position)
+            if (scripts[index].position < scripts[index - 1].position)
             {
                 return false;
             }
         }
-        m_unresolvedComponents.Remove(owner->GetInstanceId());
-        return components.IsEmpty() || m_unresolvedComponents.TryAdd(owner->GetInstanceId(), std::move(components));
+        m_unresolvedScripts.Remove(owner->GetInstanceId());
+        return scripts.IsEmpty() || m_unresolvedScripts.TryAdd(owner->GetInstanceId(), std::move(scripts));
     }
 
     void Canvas::SetFileObjectOrder(Array<InstanceId> order)
@@ -813,43 +920,43 @@ namespace JBro
         return m_fileObjectOrder;
     }
 
-    bool Canvas::AddUnresolvedComponent(Object::GameObject* owner, UnresolvedComponent component)
+    bool Canvas::AddUnresolvedScript(Object::GameObject* owner, UnresolvedScript script)
     {
         if (owner == nullptr || owner->GetCanvas() != this)
         {
             return false;
         }
-        Array<UnresolvedComponent>* kept = m_unresolvedComponents.Find(owner->GetInstanceId());
+        Array<UnresolvedScript>* kept = m_unresolvedScripts.Find(owner->GetInstanceId());
         if (kept == nullptr)
         {
-            if (false == m_unresolvedComponents.TryAdd(owner->GetInstanceId(), Array<UnresolvedComponent>{}))
+            if (false == m_unresolvedScripts.TryAdd(owner->GetInstanceId(), Array<UnresolvedScript>{}))
             {
                 return false;
             }
-            kept = m_unresolvedComponents.Find(owner->GetInstanceId());
+            kept = m_unresolvedScripts.Find(owner->GetInstanceId());
         }
         // 자리가 뒤로 가면 저장이 순서를 뒤섞는다. 되쓰는 쪽은 앞에서부터 한 번만 훑는다.
-        if (kept == nullptr || (false == kept->IsEmpty() && kept->Last().position > component.position))
+        if (kept == nullptr || (false == kept->IsEmpty() && kept->Last().position > script.position))
         {
             return false;
         }
-        kept->Add(std::move(component));
+        kept->Add(std::move(script));
         return true;
     }
 
-    const Array<UnresolvedComponent>* Canvas::FindUnresolvedComponents(const Object::GameObject* owner) const
+    const Array<UnresolvedScript>* Canvas::FindUnresolvedScripts(const Object::GameObject* owner) const
     {
         if (owner == nullptr || owner->GetCanvas() != this)
         {
             return nullptr;
         }
-        return m_unresolvedComponents.Find(owner->GetInstanceId());
+        return m_unresolvedScripts.Find(owner->GetInstanceId());
     }
 
-    std::size_t Canvas::GetUnresolvedComponentCount() const
+    std::size_t Canvas::GetUnresolvedScriptCount() const
     {
         std::size_t count = 0;
-        for (const auto& entry : m_unresolvedComponents)
+        for (const auto& entry : m_unresolvedScripts)
         {
             count += entry.MappedValue.Size();
         }
@@ -861,45 +968,26 @@ namespace JBro
         results.Clear();
         // 모으는 동안 파괴가 배열을 흔들면 안 된다. 가드가 그 동안의 파괴를 큐로 보낸다.
         IterationGuard guard(*this);
-        for (auto& entry : m_componentBuckets)
+        // 이름으로 붙인 것과 정적으로 붙인 것이 같은 목록에 들어간다. 스케줄러가 둘을 구분할 이유가 없다.
+        for (Table<NameId, OwnerPtr<ScriptPool>>* pools : { &m_scriptPools, &m_staticScriptPools })
         {
-            if (IComponentBucket* bucket = entry.MappedValue.Get())
+            for (auto& entry : *pools)
             {
-                bucket->AppendScripts(results);
-            }
-        }
-        // 이름으로 붙인 것들도 같은 목록에 들어간다. 스케줄러가 둘을 구분할 이유가 없다.
-        for (auto& entry : m_scriptPools)
-        {
-            if (ScriptPool* pool = entry.MappedValue.Get())
-            {
-                pool->ForEachLive([&results](GameScriptBase& script)
+                if (ScriptPool* pool = entry.MappedValue.Get())
                 {
-                    results.Add(&script);
-                });
+                    pool->ForEachLive([&results](GameScriptBase& script)
+                    {
+                        results.Add(&script);
+                    });
+                }
             }
         }
     }
 
     ScriptInputBinding Canvas::FindScriptInputBinding(const GameScriptBase& script) const
     {
-        const ComponentTypeId typeId = script.GetCachedTypeId();
-        if (const OwnerPtr<IComponentBucket>* bucket = m_componentBuckets.Find(typeId))
-        {
-            if (bucket->Get() != nullptr)
-            {
-                return (*bucket)->GetInputBinding();
-            }
-        }
-        for (const auto& entry : m_scriptPools)
-        {
-            const ScriptPool* pool = entry.MappedValue.Get();
-            if (pool != nullptr && pool->GetType().typeId == typeId)
-            {
-                return pool->GetType().input;
-            }
-        }
-        return {};
+        const ScriptPool* pool = FindScriptPool(script);
+        return pool != nullptr ? pool->GetType().input : ScriptInputBinding{};
     }
 
     void Canvas::FlushPendingDestroy()
@@ -907,6 +995,17 @@ namespace JBro
         if (IsIterating())
         {
             return;
+        }
+
+        // 스크립트를 먼저 걷는다. 컴포넌트와 같은 까닭이다 - 오브젝트 파괴가 제 것을 이미 정리한다.
+        while (false == m_pendingDestroyScripts.IsEmpty())
+        {
+            SafePtr<GameScriptBase> pending = m_pendingDestroyScripts.Last();
+            m_pendingDestroyScripts.RemoveAt(m_pendingDestroyScripts.Size() - 1);
+            if (GameScriptBase* script = pending.TryGet())
+            {
+                DestroyScriptNow(script);
+            }
         }
 
         while (false == m_pendingDestroyComponents.IsEmpty())

@@ -750,7 +750,7 @@ namespace
                 JBro::Array<JBro::GameScriptBase*> reopenedScripts;
                 reopened.CollectScripts(reopenedScripts);
                 Check(reopenedScripts.Size() == 1 && *speedOf(reopenedScripts[0]) == 7.25f
-                        && reopened.GetUnresolvedComponentCount() == 0,
+                        && reopened.GetUnresolvedScriptCount() == 0,
                     "the script comes back as a script, with the value it was saved with");
             }
             Check(script->GetTypeId() == registered->typeId,
@@ -767,7 +767,7 @@ namespace
 
             // 슬롯은 재사용된다. 죽은 스크립트를 보던 참조가 그 자리에 들어온
             // 새 스크립트를 가리키게 되면 안 된다 — 남의 수명을 자기 것처럼 보게 된다.
-            JBro::SafePtr<JBro::ComponentBase> stale = script->SafeFromThis();
+            JBro::SafePtr<JBro::GameScriptBase> stale = script->SafeFromThis();
             Check(stale.IsValid(), "a live script must hand out a valid reference");
 
             Check(canvas.DestroyObject(object), "the scripted object must be destroyed");
@@ -818,7 +818,7 @@ namespace
             JBro::CanvasFileError fileError;
             JBro::String written;
             Check(JBro::ReadCanvasText(withoutModule, savedWithScript.c_str(), savedWithScript.size(), fileError)
-                    && withoutModule.GetUnresolvedComponentCount() == 1,
+                    && withoutModule.GetUnresolvedScriptCount() == 1,
                 "a canvas whose script module is not loaded must still open, keeping the script");
             Check(JBro::WriteCanvasText(withoutModule, written, fileError) && written == savedWithScript,
                 "and saving it again must keep the script's values");

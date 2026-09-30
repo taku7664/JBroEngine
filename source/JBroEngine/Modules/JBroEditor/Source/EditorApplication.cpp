@@ -1548,11 +1548,11 @@ namespace JBro
         {
             return false;
         }
-        // 모르는 컴포넌트는 들고만 있고 돌지 않는다(D-264). 스크립트 DLL 을 빌드하지 않았거나 타입을 지운 것이다.
-        if (const std::size_t unresolved = canvas->GetUnresolvedComponentCount(); unresolved != 0)
+        // 모르는 스크립트는 들고만 있고 돌지 않는다(D-264). 스크립트 DLL 을 빌드하지 않았거나 타입을 지운 것이다.
+        if (const std::size_t unresolved = canvas->GetUnresolvedScriptCount(); unresolved != 0)
         {
             Log::Write(LogLevel::Warning, "canvas",
-                "%zu components in this canvas are not known to this engine or the script module; they are kept as saved and do not run",
+                "%zu scripts in this canvas are not known to the script module; they are kept as saved and do not run",
                 unresolved);
         }
         m_canvasPath = path;
@@ -1665,12 +1665,12 @@ namespace JBro
         return true;
     }
 
-    bool EditorApplication::CopyComponent(ComponentBase& component)
+    bool EditorApplication::CopyComponent(AttachedRef attached)
     {
         // **뜨지 못하면 클립보드를 건드리지 않는다**(오브젝트 복사와 같은 규칙). 프로퍼티를
         // 등록하지 않은 타입이 그렇다 - 붙여 봐야 기본값이 하나 더 생길 뿐이다.
         ComponentSnapshot snapshot;
-        if (false == CaptureComponent(component, snapshot))
+        if (false == CaptureAttached(attached, snapshot))
         {
             return false;
         }
@@ -1690,7 +1690,7 @@ namespace JBro
         {
             return false;
         }
-        return ComponentRegistry::Get().CanAttach(object, NameTable::Get().Intern(typeName));
+        return CanAttachByName(object, NameTable::Get().Intern(typeName));
     }
 
     bool EditorApplication::PasteComponent(Object::GameObject& object)
@@ -1710,19 +1710,20 @@ namespace JBro
             NameTable::Get().Intern(typeName), m_componentClipboard));
     }
 
-    bool EditorApplication::CanPasteComponentValues(const ComponentBase& component) const
+    bool EditorApplication::CanPasteComponentValues(AttachedRef attached) const
     {
-        return m_hasComponentClipboard && m_componentClipboard.typeId == component.GetTypeId();
+        return m_hasComponentClipboard && static_cast<bool>(attached)
+            && m_componentClipboard.kind == attached.GetKind() && m_componentClipboard.typeId == attached.GetTypeId();
     }
 
-    bool EditorApplication::PasteComponentValues(Object::GameObject& object, ComponentBase& component)
+    bool EditorApplication::PasteComponentValues(Object::GameObject& object, AttachedRef attached)
     {
-        if (false == CanPasteComponentValues(component))
+        if (false == CanPasteComponentValues(attached))
         {
             return false;
         }
         ComponentAddress address;
-        if (false == MakeComponentAddress(m_objectIds, object, component, address))
+        if (false == MakeAttachedAddress(m_objectIds, object, attached, address))
         {
             return false;
         }
@@ -1878,7 +1879,7 @@ namespace JBro
         String before;
         if (component == nullptr
             || false == SetPropertyCommand::MakeFieldPath(target.typeId, "frameIndex", path)
-            || false == SetPropertyCommand::ReadValue(*component, target.typeId, path, before))
+            || false == SetPropertyCommand::ReadValue(component, target.typeId, path, before))
         {
             return false;
         }
@@ -2624,13 +2625,13 @@ namespace JBro
             m_commands.Clear();
             Log::Write(LogLevel::Info, "script", "the undo history was cleared because script fields changed");
         }
-        Array<ComponentResolveNote> notes;
-        const std::size_t resolved = canvas != nullptr ? ResolveKeptComponents(*canvas, notes) : 0;
-        for (const ComponentResolveNote& note : notes)
+        Array<ScriptResolveNote> notes;
+        const std::size_t resolved = canvas != nullptr ? ResolveKeptScripts(*canvas, notes) : 0;
+        for (const ScriptResolveNote& note : notes)
         {
-            const char* what = note.kind == ComponentResolveNote::Kind::FieldDropped
+            const char* what = note.kind == ScriptResolveNote::Kind::FieldDropped
                 ? "the field is gone from the code, so its value was dropped"
-                : (note.kind == ComponentResolveNote::Kind::FieldUnreadable
+                : (note.kind == ScriptResolveNote::Kind::FieldUnreadable
                     ? "the value no longer reads as the field's type, so it went back to the default"
                     : "the script could not be attached again, so it stays set aside with its values");
             Log::Write(LogLevel::Warning, "script", "%s on '%s'%s%s: %s", note.typeName.c_str(), note.objectName.c_str(),
@@ -2648,8 +2649,8 @@ namespace JBro
             return false;
         }
         Log::Write(LogLevel::Info, "script",
-            "reloaded the script library: set %zu scripts aside, attached %zu again, %zu components still wait for their type",
-            kept, resolved, canvas != nullptr ? canvas->GetUnresolvedComponentCount() : 0);
+            "reloaded the script library: set %zu scripts aside, attached %zu again, %zu scripts still wait for their type",
+            kept, resolved, canvas != nullptr ? canvas->GetUnresolvedScriptCount() : 0);
         m_notifications.Notify(NotificationLevel::Success, Loc::TextOr(LocKeys::NotifyScriptsReloaded, "The scripts were reloaded"),
             notes.IsEmpty() ? nullptr
                             : Loc::TextOr(LocKeys::NotifyScriptsReloadNotes, "Some field values could not be carried over. See the log"));

@@ -110,8 +110,6 @@ namespace JBro::System
         m_hovered = InvalidInstanceId;
         m_pressed = InvalidInstanceId;
         m_pointerOver = false;
-        m_collectedScripts.Clear();
-        m_scriptKeys.Clear();
         m_hookTargets.Clear();
     }
 
@@ -231,43 +229,21 @@ namespace JBro::System
         return std::fabs(localX - button.offset.x) <= halfWidth && std::fabs(localY - button.offset.y) <= halfHeight;
     }
 
-    void Button2DSystem::RefreshScriptKeys()
-    {
-        const std::uint64_t revision = m_canvas->GetScriptOrderRevision();
-        if (revision == m_scriptRevision)
-        {
-            return;
-        }
-        m_canvas->CollectScripts(m_collectedScripts);
-        m_scriptKeys.Clear();
-        for (GameScriptBase* script : m_collectedScripts)
-        {
-            if (script != nullptr)
-            {
-                m_scriptKeys.Add(static_cast<const ComponentBase*>(script));
-            }
-        }
-        std::sort(m_scriptKeys.begin(), m_scriptKeys.end());
-        m_scriptRevision = revision;
-    }
-
     void Button2DSystem::CallHook(Object::GameObject* object, Hook hook)
     {
         if (object == nullptr || false == object->IsActiveInHierarchy())
         {
             return;
         }
-        RefreshScriptKeys();
-        // 먼저 모은 뒤 부른다. 훅이 컴포넌트를 붙이거나 떼면 슬롯 배열이 흔들린다.
+        // 먼저 모은 뒤 부른다. 훅이 스크립트를 붙이거나 떼면 목록이 흔들린다.
         m_hookTargets.Clear();
-        for (const ComponentSlot& slot : object->GetComponents())
+        for (const ScriptSlot& slot : object->GetScripts())
         {
-            ComponentBase* component = slot.reference.TryGet();
-            if (component != nullptr && component->IsActiveComponent()
-                && std::binary_search(m_scriptKeys.begin(), m_scriptKeys.end(), static_cast<const ComponentBase*>(component)))
+            GameScriptBase* script = slot.reference.TryGet();
+            if (script != nullptr && script->IsActiveScript())
             {
                 // 2D 프로젝트의 스크립트는 모두 GameScript2D 다(D-207).
-                m_hookTargets.Add(static_cast<GameScript2D*>(static_cast<GameScriptBase*>(component)));
+                m_hookTargets.Add(static_cast<GameScript2D*>(script));
             }
         }
         for (GameScript2D* script : m_hookTargets)

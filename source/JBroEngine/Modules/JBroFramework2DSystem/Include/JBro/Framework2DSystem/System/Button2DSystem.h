@@ -76,7 +76,6 @@ namespace JBro::System
         static Pointer ReadPointer(InputView& input);
         bool HitTest(const Component::Button2D& button, Object::GameObject& owner, const Layer& layer, const Pointer& pointer) const;
         void CallHook(Object::GameObject* object, Hook hook);
-        void RefreshScriptKeys();
 
         Canvas*          m_canvas = nullptr;
         ScriptSystem*    m_scripts = nullptr;
@@ -86,10 +85,7 @@ namespace JBro::System
         InstanceId       m_pressed = InvalidInstanceId;
         bool             m_pointerOver = false;
 
-        // 훅을 부를 스크립트를 가른다(물리와 같은 방식, D-207). 스크립트 순서가 바뀐 때만 다시 모은다.
-        Array<GameScriptBase*>       m_collectedScripts;
-        Array<const ComponentBase*>  m_scriptKeys;
-        std::uint64_t                m_scriptRevision = ~std::uint64_t{0};
+        // 훅을 부를 스크립트를 먼저 모으는 자리다. 멤버로 두어 부를 때마다 할당하지 않는다.
         Array<GameScript2D*>         m_hookTargets;
     };
 }

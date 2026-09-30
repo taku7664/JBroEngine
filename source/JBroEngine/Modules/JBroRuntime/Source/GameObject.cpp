@@ -172,6 +172,11 @@ namespace JBro
         return m_components;
     }
 
+    const Array<ScriptSlot>& Object::GameObject::GetScripts() const
+    {
+        return m_scripts;
+    }
+
     void Object::GameObject::SetInstanceIdentity(
         InstanceId instanceId,
         InstanceHandle handle)
@@ -224,6 +229,115 @@ namespace JBro
         slot.reference = std::move(safe);
         m_components.Add(std::move(slot));
         component->SetOwner(this);
+    }
+
+    void Object::GameObject::AttachScript(GameScriptBase* script)
+    {
+        if (script == nullptr)
+        {
+            return;
+        }
+        SafePtr<GameScriptBase> safe = script->SafeFromThis();
+        if (false == safe.IsValid())
+        {
+            return;
+        }
+        ScriptSlot slot;
+        slot.typeId = script->GetCachedTypeId();
+        slot.reference = std::move(safe);
+        m_scripts.Add(std::move(slot));
+        script->SetOwner(this);
+    }
+
+    bool Object::GameObject::DetachScript(GameScriptBase* script)
+    {
+        if (script == nullptr)
+        {
+            return false;
+        }
+        // 차례를 지키며 뺀다 - 스크립트 목록의 차례가 실행 순서다(D-45).
+        const std::size_t removed = m_scripts.RemoveAll([script](const ScriptSlot& candidate)
+        {
+            return candidate.reference.TryGet() == script;
+        });
+        if (removed == 0)
+        {
+            return false;
+        }
+        script->SetOwner(nullptr);
+        return true;
+    }
+
+    bool Object::GameObject::FindScriptIndex(const GameScriptBase* script, std::size_t& index) const
+    {
+        if (script == nullptr)
+        {
+            return false;
+        }
+        for (std::size_t at = 0; at < m_scripts.Size(); ++at)
+        {
+            if (m_scripts[at].reference.TryGet() == script)
+            {
+                index = at;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Object::GameObject::SetScriptIndex(const GameScriptBase* script, std::size_t index)
+    {
+        std::size_t from = 0;
+        if (false == FindScriptIndex(script, from))
+        {
+            return false;
+        }
+        const std::size_t last = m_scripts.Size() - 1;
+        const std::size_t to = index > last ? last : index;
+        if (from == to)
+        {
+            return true;
+        }
+        // 오브젝트 안의 실행 차례가 이 자리다(D-45).
+        MarkScriptOrderDirty();
+        // 밀어서 끼운다. 마지막 것과 바꾸면 사이에 있던 것들의 차례가 흐트러진다(D-84).
+        ScriptSlot moved = m_scripts[from];
+        if (from < to)
+        {
+            for (std::size_t at = from; at < to; ++at)
+            {
+                m_scripts[at] = m_scripts[at + 1];
+            }
+        }
+        else
+        {
+            for (std::size_t at = from; at > to; --at)
+            {
+                m_scripts[at] = m_scripts[at - 1];
+            }
+        }
+        m_scripts[to] = moved;
+        return true;
+    }
+
+    InstanceRef Object::GameObject::FindScriptReference(ComponentTypeId typeId) const
+    {
+        for (const ScriptSlot& slot : m_scripts)
+        {
+            if (slot.typeId != typeId)
+            {
+                continue;
+            }
+            if (GameScriptBase* script = slot.reference.TryGet())
+            {
+                InstanceRef result;
+                result.ObjectId = m_instanceId;
+                result.ComponentId = script->GetInstanceId();
+                result.Cached = script->GetHandle();
+                return result;
+            }
+        }
+        return {};
     }
 
     bool Object::GameObject::FindChildIndex(const Object::GameObject* child, std::size_t& index) const
@@ -303,8 +417,6 @@ namespace JBro
         {
             return true;
         }
-        // 오브젝트 안의 실행 차례가 이 자리다(D-45).
-        MarkScriptOrderDirty();
         // 밀어서 끼운다. 마지막 것과 바꾸면 사이에 있던 것들의 차례가 흐트러진다(D-84).
         ComponentSlot moved = m_components[from];
         if (from < to)

@@ -23,7 +23,7 @@
   `World` / ECS / `Scene` / `SceneManager` 같은 중복 수명 계층은 이름을 바꿔서도 만들지 않는다
 - 스크립트 참조는 GameObject 전용 16B 핸들(`JBro::Handle::GameObject`, 스크립트에서는 `GameObject`)과 그 외 타입용 24B `Ref<T>`로 나눈다.
   핸들의 안전 멤버는 무효 접근을 로그로 남기고 무시한다. 엔진의 오브젝트 클래스는 `JBro::Object::GameObject` 이고 프렐류드는 `JBro`·`JBro::Handle` 을 연다.
-  **D-271 로 바뀌는 중이다(이름만 섰다)**: 핸들은 `JBro::Handle` 에 엔진 타입과 같은 이름(`GameObject`·`Transform2D`)으로 두고, 빌트인 컴포넌트도 핸들이며,
+  **D-271 로 바뀌는 중이다(이름과 컴포넌트·스크립트 분리가 섰고 빌트인 핸들이 남았다)**: 핸들은 `JBro::Handle` 에 엔진 타입과 같은 이름(`GameObject`·`Transform2D`)으로 두고, 빌트인 컴포넌트도 핸들이며,
   `Ref<T>` 는 스크립트 전용이고, 스크립트는 컴포넌트가 아니다. 엔진 타입은 `JBro::Object::GameObject`·`JBro::Component::*`
 - 차원과 무관한 공개 값 타입은 JBroCore에 한 번만 정의한다. Framework가 같은 공개 타입을
   재정의하지 않으며, 이식 완료는 기존 임시 정의 제거와 결합 공개 헤더 컴파일까지 포함한다

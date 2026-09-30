@@ -439,7 +439,7 @@ namespace
         JBro::Testing::AttachClock(context);
         Check(framework.Initialize(context), "the framework starts with the clock");
         JBro::Canvas* canvas = framework.GetCanvas();
-        ClockProbe* probe = canvas->AttachComponent<ClockProbe>(canvas->CreateObject("clock"));
+        ClockProbe* probe = canvas->AttachScript<ClockProbe>(canvas->CreateObject("clock"));
         Check(probe != nullptr, "the probe script must attach");
 
         // 첫 프레임은 스크립트가 시작하는 프레임이다. 고정 스텝은 시작한 스크립트만 받으므로 한 프레임을 먼저 돈다.

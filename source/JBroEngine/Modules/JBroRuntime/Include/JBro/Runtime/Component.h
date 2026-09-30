@@ -15,14 +15,13 @@ namespace JBro
     {
         class GameObject;
     }
-    class GameScriptBase;
 
     namespace Internal
     {
         class CanvasAccess;
     }
 
-    // 모든 컴포넌트의 다형성 베이스. 파생 타입은 반드시
+    // 빌트인 컴포넌트의 다형성 베이스. 스크립트는 여기서 파생하지 않는다(`GameScriptBase`, D-271). 파생 타입은 반드시
     //   static constexpr const char* StaticTypeName() { return "..."; }
     // 을 제공하고 GetTypeId() 를 그것으로 구현한다.
     class ComponentBase : public EnableSafeFromThis<ComponentBase>
@@ -37,8 +36,7 @@ namespace JBro
         //
         // OnAttached 는 소유 오브젝트와 식별자가 확정된 직후다. 형제 컴포넌트 캐시를 잡는 자리이며,
         // 매 프레임 조회를 없애는 것이 이 훅의 존재 이유다(§9).
-        // OnDetached 는 풀에 반납되기 직전이다. GameScriptBase 의 OnCreate 는 OnAttached 뒤에,
-        // OnDestroy 는 OnDetached 앞에 온다.
+        // OnDetached 는 풀에 반납되기 직전이다.
         virtual void OnAttached();
         virtual void OnDetached();
         virtual void OnEnabled();
@@ -75,7 +73,7 @@ namespace JBro
     };
 
     template<typename T>
-        requires (std::is_base_of_v<ComponentBase, T> && !std::is_base_of_v<GameScriptBase, T>)
+        requires std::is_base_of_v<ComponentBase, T>
     struct RefCategoryOf<T>
     {
         static constexpr RefCategory value = RefCategory::Component;

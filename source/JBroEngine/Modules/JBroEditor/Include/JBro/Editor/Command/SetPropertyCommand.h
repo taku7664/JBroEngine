@@ -58,8 +58,9 @@ namespace JBro
         // 처음에는 가지로 보고 거절해, 인스펙터가 커밋하지 못하고 위젯이 쓴 값이 그대로 남았다.
         // 중간이 사라졌거나 잎사귀가 아니면 거짓이다. **스냅샷을 뜨고 되살리는 쪽도 같은 길을 쓴다** -
         // 두 군데가 따로 걸어 내려가면 한쪽만 고쳐지는 날이 온다.
+        // `instance` 는 그 타입의 객체다 - 컴포넌트든 스크립트든(D-271) 프로퍼티 표의 자리가 그 주소 기준이다.
         static bool ResolveLeaf(
-            ComponentBase& component,
+            void* instance,
             ComponentTypeId typeId,
             const Path& path,
             void*& address,
@@ -71,14 +72,14 @@ namespace JBro
 
         // 현재 값을 글자로 읽는다. 편집 전 값을 잡아 두는 데 쓴다.
         static bool ReadValue(
-            ComponentBase& component,
+            void* instance,
             ComponentTypeId typeId,
             const Path& path,
             String& text);
         // 글자를 써 넣는다. 되살리기가 스냅샷을 되돌릴 때도 이 길이다.
         // 글자로 통째 쓰는 값은 전부 되거나 하나도 안 된다 - 못 읽으면 쓰기 전 상태로 돌려놓는다.
         static bool ApplyValue(
-            ComponentBase& component,
+            void* instance,
             ComponentTypeId typeId,
             const Path& path,
             const String& text);

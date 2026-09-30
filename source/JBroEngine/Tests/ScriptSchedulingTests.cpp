@@ -100,14 +100,14 @@ namespace
         grandChild->SetParent(child);
 
         // 계층의 손자를 먼저 붙여서, 순서가 부착 순서가 아니라 깊이로 정해지는지 본다.
-        canvas.AttachComponent<ProbeScript>(grandChild)->mark = 3;
-        canvas.AttachComponent<ProbeScript>(root)->mark = 1;
-        canvas.AttachComponent<ProbeScript>(child)->mark = 2;
+        canvas.AttachScript<ProbeScript>(grandChild)->mark = 3;
+        canvas.AttachScript<ProbeScript>(root)->mark = 1;
+        canvas.AttachScript<ProbeScript>(child)->mark = 2;
 
         // 앞 레이어의 오브젝트는 기본 레이어 전부보다 뒤에 와야 한다.
         JBro::Object::GameObject* onFront = canvas.CreateObject("on front");
         Check(canvas.SetObjectLayer(onFront, front.GetId()), "the probe object must move layers");
-        canvas.AttachComponent<ProbeScript>(onFront)->mark = 9;
+        canvas.AttachScript<ProbeScript>(onFront)->mark = 9;
 
         scripts.Update(canvas, 1.0f / 60.0f);
         Check(scripts.GetLastUpdateCount() == 4, "every active script must run once per update");
@@ -127,7 +127,7 @@ namespace
         scripts.Initialize(canvas);
 
         JBro::Object::GameObject* object = canvas.CreateObject("scripted");
-        auto* script = canvas.AttachComponent<ProbeScript>(object);
+        auto* script = canvas.AttachScript<ProbeScript>(object);
         script->mark = 1;
 
         // 스크립트는 델타를 시계에서 읽는다(D-242). 호스트가 하듯 시계를 먼저 연다. 0.05 초는 고정 스텝 셋이라 상한(넷) 안이다 -
@@ -148,7 +148,7 @@ namespace
 
         // 나중에 붙은 스크립트는 그 프레임에 시작한다.
         JBro::Object::GameObject* late = canvas.CreateObject("late");
-        auto* lateScript = canvas.AttachComponent<ProbeScript>(late);
+        auto* lateScript = canvas.AttachScript<ProbeScript>(late);
         lateScript->mark = 2;
         scripts.Update(canvas, 0.5f);
         Check(createLog.Size() == 2 && lateScript->startCount == 1,
@@ -166,7 +166,7 @@ namespace
         scripts.Initialize(canvas);
 
         JBro::Object::GameObject* first = canvas.CreateObject("first");
-        canvas.AttachComponent<ProbeScript>(first)->mark = 1;
+        canvas.AttachScript<ProbeScript>(first)->mark = 1;
 
         // 아직 한 번도 Update 를 돌지 않았으므로 고정 스텝은 아무것도 부르면 안 된다.
         scripts.FixedUpdate(canvas, 1.0f / 60.0f);
@@ -190,8 +190,8 @@ namespace
 
         JBro::Object::GameObject* kept = canvas.CreateObject("kept");
         JBro::Object::GameObject* dropped = canvas.CreateObject("dropped");
-        auto* keptScript = canvas.AttachComponent<ProbeScript>(kept);
-        auto* droppedScript = canvas.AttachComponent<ProbeScript>(dropped);
+        auto* keptScript = canvas.AttachScript<ProbeScript>(kept);
+        auto* droppedScript = canvas.AttachScript<ProbeScript>(dropped);
         keptScript->mark = 1;
         droppedScript->mark = 2;
 
@@ -320,8 +320,8 @@ namespace
         JBro::Object::GameObject* killer = canvas.CreateObject("killer");
         JBro::Object::GameObject* victim = canvas.CreateObject("victim");
         victimObject = victim;
-        canvas.AttachComponent<KillerScript>(killer);
-        canvas.AttachComponent<VictimScript>(victim);
+        canvas.AttachScript<KillerScript>(killer);
+        canvas.AttachScript<VictimScript>(victim);
 
         scripts.Update(canvas, 0.016f);
 
@@ -361,10 +361,10 @@ namespace
         childA->SetParent(rootA);
         childB->SetParent(rootB);
 
-        canvas.AttachComponent<ProbeScript>(rootA)->mark = 1;
-        canvas.AttachComponent<ProbeScript>(childA)->mark = 2;
-        canvas.AttachComponent<ProbeScript>(rootB)->mark = 3;
-        canvas.AttachComponent<ProbeScript>(childB)->mark = 4;
+        canvas.AttachScript<ProbeScript>(rootA)->mark = 1;
+        canvas.AttachScript<ProbeScript>(childA)->mark = 2;
+        canvas.AttachScript<ProbeScript>(rootB)->mark = 3;
+        canvas.AttachScript<ProbeScript>(childB)->mark = 4;
 
         scripts.Update(canvas, 0.016f);
 
@@ -387,8 +387,8 @@ namespace
         scripts.Initialize(canvas);
 
         JBro::Object::GameObject* object = canvas.CreateObject("two scripts");
-        auto* first = canvas.AttachComponent<ProbeScript>(object);
-        auto* second = canvas.AttachComponent<ProbeScript>(object);
+        auto* first = canvas.AttachScript<ProbeScript>(object);
+        auto* second = canvas.AttachScript<ProbeScript>(object);
         first->mark = 1;
         second->mark = 2;
 
@@ -397,7 +397,7 @@ namespace
             "attachment order must be the order they run in");
 
         // 나중에 붙인 것을 맨 앞자리로 보낸다. 되돌리기가 하는 일과 같다.
-        Check(object->SetComponentIndex(second, 0), "the component must move to the first slot");
+        Check(object->SetScriptIndex(second, 0), "the script must move to the first slot");
         callLog.Clear();
         scripts.Update(canvas, 0.016f);
         Check(callLog.Size() == 2 && callLog[0] == 2 && callLog[1] == 1,
@@ -419,8 +419,8 @@ namespace
 
         JBro::Object::GameObject* parent = canvas.CreateObject("parent");
         JBro::Object::GameObject* child = canvas.CreateObject("child");
-        canvas.AttachComponent<ProbeScript>(parent)->mark = 1;
-        canvas.AttachComponent<ProbeScript>(child)->mark = 2;
+        canvas.AttachScript<ProbeScript>(parent)->mark = 1;
+        canvas.AttachScript<ProbeScript>(child)->mark = 2;
 
         scripts.Update(canvas, 0.016f);
         const std::size_t afterFirst = scripts.GetRebuildCount();
@@ -434,7 +434,7 @@ namespace
             "an untouched frame must not rebuild the execution order");
 
         // 스크립트를 껐다 켜는 것은 순서를 바꾸지 않는다 - 목록에 남고 도는 것만 고른다.
-        JBro::Ref<ProbeScript> childScript = child->GetComponent<ProbeScript>();
+        JBro::Ref<ProbeScript> childScript = child->GetScript<ProbeScript>();
         Check(childScript.Get() != nullptr, "the child script must be reachable");
         childScript->SetEnabled(false);
         callLog.Clear();
@@ -460,7 +460,7 @@ namespace
 
         const std::size_t beforeAttach = scripts.GetRebuildCount();
         JBro::Object::GameObject* late = canvas.CreateObject("late");
-        canvas.AttachComponent<ProbeScript>(late)->mark = 3;
+        canvas.AttachScript<ProbeScript>(late)->mark = 3;
         scripts.Update(canvas, 0.016f);
         Check(scripts.GetRebuildCount() == beforeAttach + 1,
             "attaching a script must mark the order stale");

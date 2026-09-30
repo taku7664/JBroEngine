@@ -23,17 +23,18 @@
 
 namespace JBro
 {
-    // 캔버스 파일에 있는데 이 엔진이 이름을 모르는 컴포넌트다(cpp-script-plan §3.1, D-264).
+    // 캔버스 파일에 있는데 이 엔진이 이름을 모르는 스크립트다(cpp-script-plan §3.1, D-264, D-271).
     //
     // 스크립트 DLL 을 아직 빌드하지 않았거나 그 타입을 지운 프로젝트가 캔버스를 연다. 읽기를 멈추면 그 캔버스를
     // 열 길이 없고, 버리면 다음 저장이 그 값을 지운다. 그래서 **읽은 그대로 들고 있다가 저장할 때 되쓴다.**
     // 실행되지 않고 인스펙터에 값이 나오지 않는다 - 그 타입을 아는 코드가 없기 때문이다.
-    struct UnresolvedComponent
+    // 빌트인 컴포넌트에는 이것이 없다 - 엔진이 모르는 빌트인은 파일이 틀린 것이다.
+    struct UnresolvedScript
     {
         String typeName;
-        // 파일의 그 컴포넌트를 맵 하나로 다시 적은 YAML 이다. `Type` 과 `IsEnabled` 도 들어 있다.
+        // 파일의 그 스크립트를 맵 하나로 다시 적은 YAML 이다. `Type` 과 `IsEnabled` 도 들어 있다.
         String text;
-        // 파일에서 이것보다 앞에 있던, 알아본 컴포넌트의 개수다. 저장할 때 같은 자리에 끼운다.
+        // 파일에서 이것보다 앞에 있던, 알아본 스크립트의 개수다. 저장할 때 같은 자리에 끼운다.
         std::uint32_t position = 0;
         // 핫 리로드가 뜬 스크립트면 그 컴포넌트의 번호다(D-268). 되살릴 때 같은 번호로 붙여 `Ref<T>` 가 새 인스턴스를 찾는다.
         // 파일에서 읽은 것은 비어 있다. 파일에 적지 않는다.
@@ -149,42 +150,46 @@ namespace JBro
 
         // 이름으로 스크립트를 붙인다(H5). 타입이 DLL 안에 있어 호스트가 컴파일 시간에
         // 알 수 없으므로, 무엇을 만들지는 ScriptRegistry 가 알려 준다.
-        // 등록되지 않은 이름이면 nullptr 이다.
+        // 등록되지 않은 이름이면 nullptr 이다. 스크립트는 오브젝트의 스크립트 목록 끝에 붙는다(D-271).
         GameScriptBase* AttachScript(Object::GameObject* owner, NameId scriptName);
         GameScriptBase* AttachScript(Object::GameObject* owner, const char* scriptName);
         // 번호를 정해 붙인다(D-268). 그 번호를 누가 쓰고 있으면 새 번호다. 핫 리로드가 뜬 스크립트를 같은 번호로 되살린다.
         GameScriptBase* AttachScript(Object::GameObject* owner, NameId scriptName, InstanceId preferredId);
-        // 이름으로 붙인 스크립트(스크립트 풀의 것)인가. 정적으로 붙인 스크립트(`AttachComponent<T>`)는 아니다.
-        bool IsModuleScript(const ComponentBase* component) const;
-        // **이름으로 붙인 스크립트를 모두 떼고 스크립트 풀까지 지운다**(D-268). 스크립트 DLL 을 내리기 **전에** 부른다 -
+        // 호스트 코드가 아는 타입을 붙인다. 표(`ScriptRegistry`)를 거치지 않는다 - 시험과 엔진 안의 스크립트가 쓴다.
+        // DLL 을 내려도 떼지 않는다(`ReleaseModuleScripts` 는 이름으로 붙인 것만 뗀다).
+        template<typename T>
+        T* AttachScript(Object::GameObject* owner);
+        // 이름으로 붙인 스크립트(DLL 이 등록한 타입)인가. 정적으로 붙인 스크립트(`AttachScript<T>`)는 아니다.
+        bool IsModuleScript(const GameScriptBase* script) const;
+        // **이름으로 붙인 스크립트를 모두 떼고 그 스크립트 풀까지 지운다**(D-268). 스크립트 DLL 을 내리기 **전에** 부른다 -
         // 풀은 DLL 안의 생성·파괴 함수를 들고 있어, 남겨 두면 뒤의 파괴(캔버스 해체 포함)가 사라진 코드를 부른다.
         // 값을 남기려면 먼저 `KeepScriptsAsText`(`CanvasFile.h`)로 뜬다. 뗀 개수다.
         std::size_t ReleaseModuleScripts();
-        // 이름으로 붙인 스크립트를 뗀다. 풀 자리까지 돌려준다 - `GameObject::DetachComponent` 만 부르면 슬롯만 빠진다.
+        // 스크립트를 뗀다. 풀 자리까지 돌려준다. 순회 중이면 안전 지점까지 미룬다.
         bool DetachScript(Object::GameObject* owner, GameScriptBase* script);
+        // 오브젝트의 스크립트 가운데 이 타입의 첫 것이다. 짧게 빌리는 포인터다 - 담아 두지 않는다.
+        template<typename T>
+        T* FindScriptRaw(Object::GameObject* owner);
 
-        // 이 엔진이 모르는 컴포넌트를 오브젝트에 달아 둔다(D-264). 파일 순서대로 더한다 - `position` 이 줄지 않아야 한다.
+        // 이 엔진이 모르는 스크립트를 오브젝트에 달아 둔다(D-264). 파일 순서대로 더한다 - `position` 이 줄지 않아야 한다.
         // 오브젝트가 사라지면 함께 사라진다.
-        bool AddUnresolvedComponent(Object::GameObject* owner, UnresolvedComponent component);
+        bool AddUnresolvedScript(Object::GameObject* owner, UnresolvedScript script);
         // 없으면 nullptr 이다.
-        const Array<UnresolvedComponent>* FindUnresolvedComponents(const Object::GameObject* owner) const;
-        // 캔버스 전체에서 몇 개인가. 에디터가 "이 캔버스에 실행되지 않는 컴포넌트가 있다" 고 알리는 데 쓴다.
-        std::size_t GetUnresolvedComponentCount() const;
-        // 한 오브젝트의 모르는 컴포넌트를 통째로 바꾼다(D-268). 비어 있으면 지운다. `position` 이 줄면 아무것도 바꾸지 않고 거짓이다.
-        bool ReplaceUnresolvedComponents(Object::GameObject* owner, Array<UnresolvedComponent> components);
-        // 마지막으로 읽은 캔버스 파일의 오브젝트 차례다(파일 안 번호 → 오브젝트 번호). 파일에서 온 모르는 컴포넌트는 오브젝트 참조를
+        const Array<UnresolvedScript>* FindUnresolvedScripts(const Object::GameObject* owner) const;
+        // 캔버스 전체에서 몇 개인가. 에디터가 "이 캔버스에 실행되지 않는 스크립트가 있다" 고 알리는 데 쓴다.
+        std::size_t GetUnresolvedScriptCount() const;
+        // 한 오브젝트의 모르는 스크립트를 통째로 바꾼다(D-268). 비어 있으면 지운다. `position` 이 줄면 아무것도 바꾸지 않고 거짓이다.
+        bool ReplaceUnresolvedScripts(Object::GameObject* owner, Array<UnresolvedScript> scripts);
+        // 마지막으로 읽은 캔버스 파일의 오브젝트 차례다(파일 안 번호 → 오브젝트 번호). 파일에서 온 모르는 스크립트는 오브젝트 참조를
         // 파일 안 번호로 들고 있어, 뒤에 그 타입을 알게 되어 되살릴 때 이것으로 푼다(D-268).
         void SetFileObjectOrder(Array<InstanceId> order);
         const Array<InstanceId>& GetFileObjectOrder() const;
 
-        // 타입을 가리지 않고 살아 있는 스크립트를 전부 모은다(D-45).
-        // 어느 풀이 스크립트인지는 AttachComponent<T> 시점에 컴파일 타임으로 정해지므로
-        // 매 프레임 dynamic_cast 가 필요 없다(§9).
+        // 타입을 가리지 않고 살아 있는 스크립트를 전부 모은다(D-45). 스크립트 풀만 돈다 - 스크립트는 컴포넌트 풀에 없다(D-271).
         // 결과는 정렬되지 않은 채로 나온다. 실행 순서를 세우는 것은 부르는 쪽의 일이다.
         void CollectScripts(Array<GameScriptBase*>& results);
 
-        // 이 스크립트의 타입이 입력 핸들러이면 그 썽크를 준다(D-214). 정적으로 붙인 것은 컴포넌트 풀이, 이름으로
-        // 붙인 것(DLL)은 스크립트 풀의 타입 표가 안다. 체인을 세울 때(콜드 경로)만 부른다.
+        // 이 스크립트의 타입이 입력 핸들러이면 그 썽크를 준다(D-214). 스크립트 풀의 타입 표가 안다. 체인을 세울 때(콜드 경로)만 부른다.
         ScriptInputBinding FindScriptInputBinding(const GameScriptBase& script) const;
 
         // 스크립트 실행 목록이 언제 헌 것이 되는지를 알리는 표다(D-45).
@@ -195,7 +200,7 @@ namespace JBro
         // 마지막 값과 견주면 되기 때문이다.
         //
         // 오르는 자리는 D-45 가 이름을 댄 것들이다 - 스크립트 부착·분리, `SetParent`,
-        // 컴포넌트 자리 이동, 레이어 생성·파괴·이동, 오브젝트의 레이어 변경, 오브젝트 파괴.
+        // 스크립트 자리 이동, 레이어 생성·파괴·이동, 오브젝트의 레이어 변경, 오브젝트 파괴.
         std::uint64_t GetScriptOrderRevision() const;
 
         // 순회 깊이를 세는 가드. live 배열이 순회 중에 흔들리면 바깥 순회가 무효화되므로,
@@ -233,12 +238,6 @@ namespace JBro
         {
             virtual ~IComponentBucket() = default;
             virtual bool Destroy(ComponentBase* component) = 0;
-            // 스크립트 풀만 자기 원소를 여기에 쏟는다. 나머지는 아무 일도 하지 않는다.
-            virtual void AppendScripts(Array<GameScriptBase*>& results) = 0;
-            // 파괴할 때 실행 목록을 헌 것으로 표시할지 가른다. 타입은 컴파일 타임에 안다.
-            virtual bool HoldsScripts() const = 0;
-            // 이 풀의 타입이 입력 핸들러인 스크립트이면 그 썽크다(D-214). 아니면 비어 있다.
-            virtual ScriptInputBinding GetInputBinding() const = 0;
             // 풀의 쓰임새. 통계가 이것만 묻는다.
             virtual std::size_t GetLiveCount() const = 0;
             virtual std::size_t GetCapacity() const = 0;
@@ -255,38 +254,6 @@ namespace JBro
             bool Destroy(ComponentBase* component) override
             {
                 return Pool.Destroy(static_cast<T*>(component));
-            }
-
-            void AppendScripts(Array<GameScriptBase*>& results) override
-            {
-                if constexpr (std::is_base_of_v<GameScriptBase, T>)
-                {
-                    Pool.ForEachLive([&results](T& script)
-                    {
-                        results.Add(static_cast<GameScriptBase*>(&script));
-                    });
-                }
-                else
-                {
-                    (void)results;
-                }
-            }
-
-            bool HoldsScripts() const override
-            {
-                return std::is_base_of_v<GameScriptBase, T>;
-            }
-
-            ScriptInputBinding GetInputBinding() const override
-            {
-                if constexpr (std::is_base_of_v<GameScriptBase, T>)
-                {
-                    return MakeScriptInputBinding<T>();
-                }
-                else
-                {
-                    return {};
-                }
             }
 
             std::size_t GetLiveCount() const override
@@ -309,12 +276,20 @@ namespace JBro
         TComponentBucket<T>* FindBucket();
 
         bool DestroyComponent(ComponentBase* component);
+        bool DestroyScript(GameScriptBase* script);
+        bool DestroyScriptNow(GameScriptBase* script);
+        // 두 스크립트 풀 표에서 이 스크립트를 든 풀을 찾는다.
+        ScriptPool* FindScriptPool(const GameScriptBase& script) const;
+        GameScriptBase* AttachScriptOfType(Object::GameObject* owner, const ScriptTypeInfo& type, bool module,
+            InstanceId preferredId);
         bool RegisterComponentInstance(
             Object::GameObject* owner,
             ComponentBase* component,
             RefCategory category,
             InstanceId preferredId = InvalidInstanceId);
         bool UnregisterComponentInstance(ComponentBase* component);
+        bool RegisterScriptInstance(Object::GameObject* owner, GameScriptBase* script, InstanceId preferredId);
+        bool UnregisterScriptInstance(GameScriptBase* script);
         SafePtr<Layer> FindLayerReference(LayerId layer);
         // m_layers 의 순서가 바뀌는 모든 지점에서 부른다. 레이어의 순서 캐시를 갱신하는
         // 유일한 주체다(D-46).
@@ -339,10 +314,12 @@ namespace JBro
         Color                                        m_backgroundColor{0.10f, 0.11f, 0.13f, 1.0f};
         LayerId                                      m_nextLayer = 0;
         Table<ComponentTypeId, OwnerPtr<IComponentBucket>> m_componentBuckets;
-        // 이름으로 붙인 스크립트의 저장소다. 타입마다 하나씩 늦게 만든다.
+        // 이름으로 붙인 스크립트(DLL 이 등록한 타입)의 저장소다. 타입마다 하나씩 늦게 만든다.
         Table<NameId, OwnerPtr<ScriptPool>>             m_scriptPools;
-        // 모르는 컴포넌트(D-264). 오브젝트 번호로 찾는다 - 풀 주소는 파괴 뒤 다른 오브젝트가 쓴다.
-        Table<InstanceId, Array<UnresolvedComponent>>   m_unresolvedComponents;
+        // 호스트 코드가 아는 타입으로 붙인 스크립트(`AttachScript<T>`)의 저장소다. DLL 을 내려도 남는다.
+        Table<NameId, OwnerPtr<ScriptPool>>             m_staticScriptPools;
+        // 모르는 스크립트(D-264). 오브젝트 번호로 찾는다 - 풀 주소는 파괴 뒤 다른 오브젝트가 쓴다.
+        Table<InstanceId, Array<UnresolvedScript>>      m_unresolvedScripts;
         Array<InstanceId>                               m_fileObjectOrder;
         // 뿌리의 보이는 순서(D-128). `GetRootObjects` 만 이것을 맞추고 읽는다.
         Array<SafePtr<Object::GameObject>>                      m_rootOrder;
@@ -350,6 +327,7 @@ namespace JBro
         Table<const Object::GameObject*, std::uint8_t>          m_rootSeen;
         Array<SafePtr<Object::GameObject>>                      m_pendingDestroyObjects;
         Array<SafePtr<ComponentBase>>                   m_pendingDestroyComponents;
+        Array<SafePtr<GameScriptBase>>                  m_pendingDestroyScripts;
         std::size_t                                     m_iterationDepth = 0;
         // 0 은 "아직 아무것도 본 적 없음" 을 뜻하는 쪽이 쓰므로 1 에서 시작한다.
         std::uint64_t                                   m_scriptOrderRevision = 1;
@@ -396,13 +374,6 @@ namespace JBro
             return nullptr;
         }
 
-        // **스크립트일 때만 올린다.** 매 프레임 스폰이 컴포넌트를 붙이는데, 그때마다
-        // 목록을 헌 것으로 만들면 더티 플래그를 둔 뜻이 없어진다. 스크립트인지는
-        // 타입에서 컴파일 타임에 갈린다(§9).
-        if constexpr (std::is_base_of_v<GameScriptBase, T>)
-        {
-            MarkScriptOrderDirty();
-        }
         // 타입은 이 순간 이후로 바뀌지 않는다. 조회가 원소마다 가상 호출을 하지 않도록 캐시한다.
         component->CacheTypeId();
 
@@ -436,6 +407,37 @@ namespace JBro
         // 소유 오브젝트와 식별자가 모두 확정된 뒤에 부른다(D-48).
         component->OnAttached();
         return component;
+    }
+
+    template<typename T>
+    T* Canvas::AttachScript(Object::GameObject* owner)
+    {
+        static_assert(std::is_base_of_v<GameScriptBase, T>);
+        NameTable::Get().Intern(T::StaticTypeName());
+        return static_cast<T*>(AttachScriptOfType(owner, MakeScriptTypeInfo<T>(), false, InvalidInstanceId));
+    }
+
+    template<typename T>
+    T* Canvas::FindScriptRaw(Object::GameObject* owner)
+    {
+        static_assert(std::is_base_of_v<GameScriptBase, T>);
+        if (owner == nullptr || owner->GetCanvas() != this)
+        {
+            return nullptr;
+        }
+        static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
+        for (const ScriptSlot& slot : owner->m_scripts)
+        {
+            if (slot.typeId != TypeId)
+            {
+                continue;
+            }
+            if (GameScriptBase* script = slot.reference.TryGet())
+            {
+                return static_cast<T*>(script);
+            }
+        }
+        return nullptr;
     }
 
     template<typename T>

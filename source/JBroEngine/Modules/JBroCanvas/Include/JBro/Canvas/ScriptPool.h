@@ -31,6 +31,8 @@ namespace JBro
 
         const ScriptTypeInfo& GetType() const;
         std::size_t GetLiveCount() const;
+        // 이 풀의 살아 있는 슬롯인가. 같은 이름의 풀이 둘일 수 있어(DLL 타입과 호스트 타입) 떼는 쪽이 이것으로 고른다.
+        bool Owns(const GameScriptBase* script) const;
 
         template<typename Fn>
         void ForEachLive(Fn&& function)

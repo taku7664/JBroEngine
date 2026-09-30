@@ -12,6 +12,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 
 #include <imgui.h>
 
@@ -315,18 +316,17 @@ namespace JBro::EditorActions
         // 표는 이름 순으로 나온다. 갈래로 다시 묶되 갈래 안의 이름 순은 그대로 남기려고,
         // 갈래를 처음 만난 차례대로 훑으면서 그 갈래의 것만 골라 담는다. 타입은 몇십 개라
         // 이 자리에 정렬을 들여올 이유가 없다.
-        // 스크립트도 담는다(cpp-script-plan §3.1). 스크립트는 빌트인 뒤에 따로 묶인다.
-        const Array<ComponentTypeInfo> types = registry.CollectAttachableTypes();
+        const Array<const ComponentTypeInfo*> types = registry.CollectTypes();
         for (std::size_t lead = 0; lead < types.Size(); ++lead)
         {
-            const char* category = types[lead].category != nullptr
-                ? types[lead].category
+            const char* category = types[lead]->category != nullptr
+                ? types[lead]->category
                 : ComponentCategory::Default;
             bool seen = false;
             for (std::size_t before = 0; before < lead && false == seen; ++before)
             {
-                const char* other = types[before].category != nullptr
-                    ? types[before].category
+                const char* other = types[before]->category != nullptr
+                    ? types[before]->category
                     : ComponentCategory::Default;
                 seen = std::strcmp(other, category) == 0;
             }
@@ -337,31 +337,63 @@ namespace JBro::EditorActions
             const char* groupLabel = EditorNames::ComponentCategoryLabel(category);
             for (std::size_t index = lead; index < types.Size(); ++index)
             {
-                const char* other = types[index].category != nullptr
-                    ? types[index].category
+                const char* other = types[index]->category != nullptr
+                    ? types[index]->category
                     : ComponentCategory::Default;
                 if (std::strcmp(other, category) != 0)
                 {
                     continue;
                 }
-                const char* name = NameTable::Get().Resolve(types[index].name);
+                const char* name = NameTable::Get().Resolve(types[index]->name);
                 if (name == nullptr)
                 {
                     continue;
                 }
-                out.typeNames.Add(types[index].name);
+                out.typeNames.Add(types[index]->name);
                 out.names.Add(EditorNames::DisplayTypeName(name));
                 out.groups.Add(groupLabel);
-                out.addable.Add(registry.CanAttach(object, types[index].name));
+                out.addable.Add(registry.CanAttach(object, types[index]->name));
             }
         }
+    }
+
+    void BuildAddScriptList(const Object::GameObject& object, AddComponentList& out)
+    {
+        (void)object;
+        out.typeNames.Clear();
+        out.names.Clear();
+        out.groups.Clear();
+        out.addable.Clear();
+        // 표는 해시 순이다. 실행할 때마다 같은 차례로 보이게 이름 순으로 끼운다 - 스크립트는 몇십 개라 정렬을 들여올 이유가 없다.
+        ScriptRegistry::Get().ForEach([&out](const ScriptTypeInfo& type)
+        {
+            // 컴포넌트 목록과 같은 화면 이름이다 - 네임스페이스를 떼고 보인다.
+            const char* typeName = NameTable::Get().Resolve(type.name);
+            const char* name = typeName != nullptr ? EditorNames::DisplayTypeName(typeName) : nullptr;
+            if (name == nullptr)
+            {
+                return;
+            }
+            std::size_t at = out.names.Size();
+            while (at > 0 && std::strcmp(out.names[at - 1], name) > 0)
+            {
+                --at;
+            }
+            out.typeNames.Add(type.name);
+            out.names.Add(name);
+            out.addable.Add(true);
+            for (std::size_t index = out.names.Size() - 1; index > at; --index)
+            {
+                std::swap(out.typeNames[index], out.typeNames[index - 1]);
+                std::swap(out.names[index], out.names[index - 1]);
+            }
+        });
     }
 
     bool AddComponent(EditorApplication& editor, Object::GameObject& object, NameId typeName)
     {
         Canvas* canvas = editor.GetCanvas();
-        if (canvas == nullptr
-            || false == ComponentRegistry::Get().CanAttach(object, typeName))
+        if (canvas == nullptr || false == CanAttachByName(object, typeName))
         {
             return false;
         }
@@ -413,6 +445,31 @@ namespace JBro::EditorActions
         return added;
     }
 
+    bool DrawAddScriptMenu(EditorApplication& editor, Object::GameObject& object)
+    {
+        if (false == Widget::BeginMenu(Loc::TextOr(LocKeys::InspectorAddScript, "Add Script")))
+        {
+            return false;
+        }
+        AddComponentList list;
+        BuildAddScriptList(object, list);
+        bool added = false;
+        if (list.typeNames.IsEmpty())
+        {
+            // 빈 하위 메뉴는 고장과 구분되지 않는다. 왜 비었는지 말한다.
+            Widget::MenuItem(Loc::TextOr(LocKeys::InspectorNoScriptTypes, "no script has been built"), nullptr, false);
+        }
+        for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
+        {
+            if (Widget::MenuItem(list.names[index]))
+            {
+                added = AddComponent(editor, object, list.typeNames[index]) || added;
+            }
+        }
+        Widget::EndMenu();
+        return added;
+    }
+
     bool DrawObjectMenu(EditorApplication& editor, Object::GameObject& object,
         const ObjectPlacement& placement)
     {
@@ -440,6 +497,7 @@ namespace JBro::EditorActions
             // 인스펙터까지 눈을 옮기지 않고 그 자리에서 붙인다.
             ImGui::Separator();
             DrawAddComponentMenu(editor, object);
+            DrawAddScriptMenu(editor, object);
         }
         if (alive)
         {

@@ -27,7 +27,7 @@ namespace JBro
             void* address = nullptr;
             const TypeDescriptor* type = nullptr;
             if (false == SetPropertyCommand::MakeFieldPath(typeId, "position", path)
-                || false == SetPropertyCommand::ResolveLeaf(component, typeId, path, address, type)
+                || false == SetPropertyCommand::ResolveLeaf(&component, typeId, path, address, type)
                 || type->fields == nullptr)
             {
                 return;
@@ -98,7 +98,7 @@ namespace JBro
             {
                 if (info->Attach != nullptr)
                 {
-                    ComponentBase* component = info->Attach(*m_canvas, object, info->name);
+                    ComponentBase* component = info->Attach(*m_canvas, object);
                     if (component != nullptr && m_hasPosition)
                     {
                         WriteSpawnPosition(*component, info->typeId, m_position);
@@ -464,12 +464,13 @@ namespace JBro
         , m_address(address)
         , m_after(enabled)
     {
-        ComponentBase* component = ResolveComponent(registry, address);
-        if (component == nullptr)
+        // 컴포넌트와 스크립트가 같은 길이다(D-271).
+        const AttachedRef attached = ResolveAttached(registry, address);
+        if (false == static_cast<bool>(attached))
         {
             return;
         }
-        m_before = component->IsEnabled();
+        m_before = attached.IsEnabled();
         m_captured = true;
     }
 
@@ -480,10 +481,7 @@ namespace JBro
 
     void SetComponentEnabledCommand::Apply(bool enabled)
     {
-        if (ComponentBase* component = ResolveComponent(*m_registry, m_address))
-        {
-            component->SetEnabled(enabled);
-        }
+        ResolveAttached(*m_registry, m_address).SetEnabled(enabled);
     }
 
     bool SetComponentEnabledCommand::Execute()

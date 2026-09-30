@@ -48,7 +48,7 @@ namespace JBro
         // 규칙이 갈리면 같은 손짓이 들어온 자리마다 다른 칸에 오브젝트를 만든다.
         LayerId ResolveTargetLayer(EditorApplication& editor, Object::GameObject* parent);
 
-        // 컴포넌트 하나를 붙인다(D-180). 붙일 수 없는 타입이면 아무 일도 하지 않고 거짓이다.
+        // 컴포넌트나 스크립트 하나를 붙인다(D-180, D-271). 붙일 수 없는 타입이면 아무 일도 하지 않고 거짓이다.
         bool AddComponent(EditorApplication& editor, Object::GameObject& object, NameId typeName);
         // 부모를 떼어 뿌리 맨 뒤로 올린다. 이미 뿌리면 거짓이다.
         bool Unparent(EditorApplication& editor, Object::GameObject& object);
@@ -89,11 +89,16 @@ namespace JBro
             // 거짓이면 이미 붙어 있어 더 붙일 수 없다.
             Array<bool>        addable;
         };
+        // 빌트인 컴포넌트만 담는다. 스크립트는 따로다(D-271).
         void BuildAddComponentList(const Object::GameObject& object, AddComponentList& out);
+        // **붙일 수 있는 스크립트 목록**이다(D-271). 스크립트 DLL 이 등록한 것을 이름 순으로 담는다. 갈래는 없고 모두 붙일 수 있다.
+        void BuildAddScriptList(const Object::GameObject& object, AddComponentList& out);
 
         // 이미 열려 있는 메뉴 안에 `컴포넌트 추가` 하위 메뉴를 그린다(D-180, 기존
         // `DrawAddComponentMenu`). 붙였으면 참이다.
         bool DrawAddComponentMenu(EditorApplication& editor, Object::GameObject& object);
+        // 이미 열려 있는 메뉴 안에 `스크립트 추가` 하위 메뉴를 그린다(D-271). 붙였으면 참이다.
+        bool DrawAddScriptMenu(EditorApplication& editor, Object::GameObject& object);
 
         // 오브젝트 하나를 두고 여는 메뉴 한 벌이다(D-170). 계층의 줄과 캔버스 뷰에서
         // 오브젝트를 우클릭한 자리가 같은 것을 쓴다 - 기존 엔진도 두 화면의 메뉴가 같다.

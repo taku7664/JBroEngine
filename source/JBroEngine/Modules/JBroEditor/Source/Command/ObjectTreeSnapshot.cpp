@@ -1,7 +1,7 @@
 ﻿#include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 
 #include <JBro/Canvas/Canvas.h>
-#include <JBro/Canvas/ComponentRegistry.h>
+#include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
@@ -48,7 +48,21 @@ namespace JBro
             }
             entry.components.Add(std::move(captured));
         }
-        if (const Array<UnresolvedComponent>* kept = canvas.FindUnresolvedComponents(&object))
+        for (const ScriptSlot& slot : object.GetScripts())
+        {
+            GameScriptBase* script = slot.reference.TryGet();
+            if (script == nullptr)
+            {
+                continue;
+            }
+            ComponentSnapshot captured;
+            if (false == CaptureAttached(script, captured))
+            {
+                return false;
+            }
+            entry.scripts.Add(std::move(captured));
+        }
+        if (const Array<UnresolvedScript>* kept = canvas.FindUnresolvedScripts(&object))
         {
             entry.unresolved = *kept;
         }
@@ -114,27 +128,26 @@ namespace JBro
             }
             created.Add(object);
 
-            for (std::size_t c = 0; c < entry.components.Size(); ++c)
+            // 컴포넌트 다음에 스크립트다. 어느 목록인지는 떠 둔 것이 안다(D-271).
+            for (const Array<ComponentSnapshot>* list : { &entry.components, &entry.scripts })
             {
-                const ComponentSnapshot& captured = entry.components[c];
-                const char* typeName = NameTable::Get().Resolve(captured.typeId);
-                // 스크립트도 찾는다(cpp-script-plan §3.1). 빌트인만 보면 스크립트가 붙은 오브젝트는 지웠다 되돌리지 못한다.
-                ComponentTypeInfo info;
-                if (typeName == nullptr
-                    || false == ComponentRegistry::Get().FindAttachable(MakeNameId(typeName), info)
-                    || info.Attach == nullptr)
+                for (const ComponentSnapshot& captured : *list)
                 {
-                    return false;
-                }
-                ComponentBase* component = info.Attach(canvas, object, info.name);
-                if (component == nullptr || false == ApplyComponent(*component, captured))
-                {
-                    return false;
+                    const char* typeName = NameTable::Get().Resolve(captured.typeId);
+                    if (typeName == nullptr)
+                    {
+                        return false;
+                    }
+                    const AttachedRef attached = AttachByName(canvas, *object, MakeNameId(typeName));
+                    if (false == static_cast<bool>(attached) || false == ApplyAttached(attached, captured))
+                    {
+                        return false;
+                    }
                 }
             }
             for (std::size_t u = 0; u < entry.unresolved.Size(); ++u)
             {
-                if (false == canvas.AddUnresolvedComponent(object, entry.unresolved[u]))
+                if (false == canvas.AddUnresolvedScript(object, entry.unresolved[u]))
                 {
                     return false;
                 }
@@ -158,12 +171,23 @@ namespace JBro
             return;
         }
         const NameId handleType = NameTable::Get().Intern("JBro.Handle.GameObject");
+        Array<AttachedRef> attached;
         for (Object::GameObject* object : created)
         {
+            // 컴포넌트와 스크립트 모두의 참조 필드를 옮긴다(D-271).
+            attached.Clear();
             for (const ComponentSlot& slot : object->GetComponents())
             {
-                ComponentBase* component = slot.reference.TryGet();
-                const PropertyTable* table = component != nullptr ? PropertyRegistry::Lookup(component->GetTypeId()) : nullptr;
+                attached.Add(slot.reference.TryGet());
+            }
+            for (const ScriptSlot& slot : object->GetScripts())
+            {
+                attached.Add(slot.reference.TryGet());
+            }
+            for (const AttachedRef& target : attached)
+            {
+                void* instance = target.GetInstance();
+                const PropertyTable* table = instance != nullptr ? PropertyRegistry::Lookup(target.GetTypeId()) : nullptr;
                 if (table == nullptr)
                 {
                     continue;
@@ -175,7 +199,7 @@ namespace JBro
                     {
                         continue;
                     }
-                    Handle::GameObject& handle = *static_cast<Handle::GameObject*>(property.Address(component));
+                    Handle::GameObject& handle = *static_cast<Handle::GameObject*>(property.Address(instance));
                     for (const ObjectSnapshotEntry& entry : objects)
                     {
                         if (entry.sourceInstanceId != InvalidInstanceId && handle.GetInstanceId() == entry.sourceInstanceId)

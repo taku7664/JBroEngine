@@ -93,6 +93,11 @@ Entries:
   inspector.name: Name
   inspector.enabled: Enabled
   inspector.add_component: Add Component
+  inspector.add_script: Add Script
+  inspector.no_script_types: no script has been built
+  inspector.copy_script: Copy Script
+  inspector.paste_script: Paste Script
+  inspector.remove_script: Remove Script
   inspector.move_up: Move Up
   inspector.move_down: Move Down
   inspector.asset_name: Asset
@@ -107,7 +112,7 @@ Entries:
   inspector.no_component_types: no component type has registered itself
   inspector.unregistered_type: this type never registered its properties
   inspector.unknown_component: (unknown component)
-  inspector.unresolved_component: This component could not be found. Its saved values are kept.
+  inspector.unresolved_script: This script could not be found. Its saved values are kept.
   inspector.undrawable_type: (no way to show this type)
   inspector.too_deep: (too deeply nested to edit)
   inspector.too_long: (too long to show)

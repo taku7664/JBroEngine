@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 
 #include <JBro/Runtime/Component.h>
@@ -26,6 +27,8 @@ namespace JBro
 
     struct ComponentSnapshot
     {
+        // 컴포넌트를 뜬 것인가, 스크립트를 뜬 것인가(D-271). 붙여넣기가 어느 목록에 붙일지 이것으로 안다.
+        AttachedKind kind = AttachedKind::Component;
         ComponentTypeId typeId = 0;
         bool enabled = true;
         Array<ComponentValue> values;
@@ -36,8 +39,11 @@ namespace JBro
     // **프로퍼티를 등록하지 않은 타입이거나, 저장할 값 중 하나라도 글자로 뜨지 못하면
     // 거짓이다.** 되살려도 그 값이 비므로, 뜨지 못한 것을 뜬 척하면 부르는 쪽이
     // 성공했다고 말하며 값을 잃는다(D-76). 컨테이너도 통째로 뜬다(D-86).
+    // 컴포넌트와 스크립트가 같은 길이다(D-271).
+    bool CaptureAttached(AttachedRef attached, ComponentSnapshot& out);
     bool CaptureComponent(ComponentBase& component, ComponentSnapshot& out);
 
-    // 떠 둔 값을 컴포넌트에 도로 써 넣는다. 켜짐 여부까지 되돌린다.
+    // 떠 둔 값을 도로 써 넣는다. 켜짐 여부까지 되돌린다. 목록(컴포넌트·스크립트)이나 타입이 다르면 거짓이다.
+    bool ApplyAttached(AttachedRef attached, const ComponentSnapshot& snapshot);
     bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot);
 }

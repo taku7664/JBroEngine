@@ -2951,6 +2951,17 @@ EditorApplication::Tick
   `GameObjectHandle` 은 `Handle::GameObject`(스크립트 대상 소스는 `GameObject`), 앞선언은 `namespace Object { class GameObject; }` 다. `Object::GameObject` 안의 `friend class Canvas;` 는
   `friend class JBro::Canvas;` 로 적어야 한다 - 수식 없는 friend 선언은 가장 안쪽 네임스페이스에 새 클래스를 선언한다. 리플렉션 잎사귀는 `JBro.Handle.GameObject`, 스크립트 프로젝트의
   필드 틀은 `JBRO_FIELD(GameObject, …)` 다. Debug·Debug_Game2D·Debug_Game3D 가 빌드되고 전체 시험이 지난다.
+  (12) **2 단계(컴포넌트와 스크립트 분리)가 섰다**(2026-09-30). 스크립트는 스크립트 풀에만 산다 - 이름으로 붙인 DLL 타입(`m_scriptPools`)과 `AttachScript<T>` 의
+  호스트 타입(`m_staticScriptPools`)은 풀 표가 따로라 `ReleaseModuleScripts` 가 DLL 쪽만 뗀다. 같은 이름의 풀이 두 표에 다 있을 수 있어 떼는 쪽은 `ScriptPool::Owns` 로 고른다.
+  캔버스 파일의 판번호는 1 그대로다 - 스크립트가 없는 캔버스는 형식이 같아 그대로 열리고, `Components` 에 스크립트 이름이 있으면 "D-271 전의 파일" 이라고 말하며 실패한다.
+  에디터는 런타임을 따라 둘로 가르지 않고 `AttachedRef`(컴포넌트 또는 스크립트)와 주소(`ComponentAddress`)의 `kind` 로 같은 커맨드를 쓴다 - 따로 두면 스크립트에서만
+  되돌리기가 빠지는 날이 온다. 필드 도우미(`SetPropertyCommand::ReadValue` 등)는 객체 주소(`void*`)를 받는다. 빌트인 전용 자리(기즈모·캔버스 뷰·필드 확장 훅·컴포넌트 메뉴 표)는 컴포넌트만 본다.
+  컴파일 오류가 나지 않고 스크립트를 빠뜨리던 자리 하나를 찾아 고쳤다 - 에셋 해석 패스(`ForEachReflectedComponent` → `ForEachReflectedInstance`)가 컴포넌트만 돌아 스크립트의 에셋 필드가 묶이지 않았을 것이다.
+  시험: 스크립트가 `Scripts` 로 오가고 차례·값·켜짐이 그대로이며 `Components` 에 섞인 옛 파일은 이유를 말하며 멈춘다, 모르는 스크립트는 읽은 그대로 되쓴다, `Components` 의 모르는 이름은 멈춘다,
+  리플렉션 걸음이 스크립트를 지난다, 스크립트 목록 안의 옮기기·가운데 떼기를 되돌리면 제자리다, 호스트 타입 스크립트는 DLL 을 내려도 남고 핫 리로드가 그 앞뒤 제자리로 되살린다.
+  뮤테이션 14 개(오브젝트 파괴가 스크립트를 두기·풀 표 섞기·`Scripts` 를 `Components` 로 쓰기·모르는 컴포넌트 들고 있기·되살린 자리·켜짐·리플렉션 걸음·목록 이동의 더티·명령의 목록·되돌리기 자리·스냅숏·스케줄러)가
+  모두 의도한 단언에서 죽었다. 실제 에디터 창으로는 재지 않았다(인스펙터의 스크립트 묶음과 `스크립트 추가` 는 코드와 시험 목록으로만 확인했다).
+
 
 - **D-270. 스크립트는 오브젝트를 `Objects` 서비스로 만들고 찾으며, `[]` 는 이름으로 한 단계만 찾는다. 레이어는 새 값 타입 `LayerHandle` 로 가리킨다.** (2026-09-29, 사용자 지시: "오브젝트 만들기, 삭제 형태 제안해봐 … Layer의 [string] 연산자나 GameObject의 [string] 연산자(자식에서 찾기)가 가능해야해", 고른 것: "1. 이름만. 태그는 함수로 2. 나중에. 3. 한단계만. 4. 동의", "일단 문서화만 해") **구현 전이다 - 계약만 섰다.**
   Updates: D-45, D-51, cpp-script-plan §3.6·§4, ProjectRule §6.1.

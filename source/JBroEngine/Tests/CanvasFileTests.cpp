@@ -13,12 +13,15 @@
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Canvas/CanvasFile.h>
+#include <JBro/Canvas/CanvasReflection.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Reflection/ContainerTypeDescriptors.h>
 #include <JBro/Reflection/CoreTypeDescriptors.h>
 #include <JBro/Runtime/GameObject.h>
+#include <JBro/Runtime/GameScriptBase.h>
+#include <JBro/Runtime/ScriptRegistry.h>
 
 #include <cstring>
 #include <iostream>
@@ -990,7 +993,7 @@ namespace
                 "what it did not say must keep the value the code gives it");
         }
 
-        // 이 엔진에 없는 컴포넌트는 멈추지 않고 들고 있는다(D-264). 되쓰는 것은 TestAnUnknownComponentIsKeptAsWritten 이 본다.
+        // **빌트인은 엔진이 모두 안다**(D-271). `Components` 의 모르는 이름은 파일이 틀린 것이다 - 들고 있지 않고 멈춘다.
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
             JBro::String text(
@@ -1007,10 +1010,34 @@ namespace
                 "    Components:\n"
                 "      - Type: Component::Light2D\n"
                 "        IsEnabled: true\n");
+            Check(false == Load(canvas, text, error),
+                "a component this engine does not have must stop the read");
+            Check(error.typeName == "Component::Light2D", "and name it");
+        }
+
+        // 이 엔진이 모르는 **스크립트**는 멈추지 않고 들고 있는다(D-264). 되쓰는 것은 TestAnUnknownScriptIsKeptAsWritten 이 본다.
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::String text(
+                "Version: 1\n"
+                "Layers:\n"
+                "  - Id: 0\n"
+                "    Name: Default\n"
+                "    Visible: true\n"
+                "Objects:\n"
+                "  - Name: A\n"
+                "    Active: true\n"
+                "    ParentIndex: -1\n"
+                "    LayerId: 0\n"
+                "    Components:\n"
+                "      []\n"
+                "    Scripts:\n"
+                "      - Type: Game::Light\n"
+                "        IsEnabled: true\n");
             Check(Load(canvas, text, error),
-                "a component this engine does not have must not stop the read");
-            Check(canvas.GetObjectCount() == 1 && canvas.GetUnresolvedComponentCount() == 1,
-                "the object opens and the unknown component is kept beside it");
+                "a script the module does not have must not stop the read");
+            Check(canvas.GetObjectCount() == 1 && canvas.GetUnresolvedScriptCount() == 1,
+                "the object opens and the unknown script is kept beside it");
         }
 
         // 나열의 개수가 맞지 않는 경우. 순서가 전부이므로 어느 자리가 어느 축인지 알 수 없다.
@@ -1079,10 +1106,9 @@ namespace
         }
     }
 
-    // **폴리곤 콜라이더의 꼭짓점과 표면·거르기 값이 저장했다 열어도 그대로다**(D-199). 내장 컴포넌트의 첫 배열 필드다.
-    // **모르는 컴포넌트는 읽은 그대로, 같은 자리에 되쓴다**(D-264). 스크립트 DLL 을 아직 빌드하지 않은 프로젝트가 캔버스를 열고
+    // **모르는 스크립트는 읽은 그대로, 같은 자리에 되쓴다**(D-264, D-271). 스크립트 DLL 을 아직 빌드하지 않은 프로젝트가 캔버스를 열고
     // 저장해도 스크립트 값이 남아야 한다. 버리면 다음 저장이 그 값을 지우고, 멈추면 캔버스를 열 길이 없다.
-    void TestAnUnknownComponentIsKeptAsWritten()
+    void TestAnUnknownScriptIsKeptAsWritten()
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
         JBro::Component::RegisterBuiltinComponentTypes2D();
@@ -1095,12 +1121,15 @@ namespace
             canvas.AttachComponent<JBro::Component::Camera2D>(object);
             text = Save(canvas);
         }
-        // 두 빌트인 사이와 맨 앞에 끼운다. 맵·나열·빈 글자까지 담아 모양이 그대로 오는지 본다.
-        const char* const first = "      - Type: Component::Transform2D\n";
-        const char* const second = "      - Type: Component::Camera2D\n";
-        const std::size_t firstAt = text.find(first);
-        Check(firstAt != JBro::String::npos && text.find(second) != JBro::String::npos, "the fixture saved both built-ins");
-        text.insert(text.find(second),
+        // 스크립트가 없는 오브젝트는 `Scripts` 를 적지 않는다(D-271). 스크립트 둘을 끝에 더한다 - 맵·나열·빈 글자까지 담아 모양이 그대로 오는지 본다.
+        Check(text.find("Scripts:") == JBro::String::npos, "an object without scripts writes no script list");
+        Check(text.find("      - Type: Component::Transform2D\n") != JBro::String::npos
+                && text.find("      - Type: Component::Camera2D\n") != JBro::String::npos,
+            "the fixture saved both built-ins");
+        text +=
+            "    Scripts:\n"
+            "      - Type: Game::Leading\n"
+            "        IsEnabled: true\n"
             "      - Type: Game::Missing\n"
             "        IsEnabled: false\n"
             "        Speed: 2.5\n"
@@ -1111,35 +1140,115 @@ namespace
             "        Inner:\n"
             "          Name: x\n"
             "          Empty:\n"
-            "            []\n");
-        text.insert(firstAt,
-            "      - Type: Game::Leading\n"
-            "        IsEnabled: true\n");
+            "            []\n";
 
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         LoadOrFail(canvas, text);
-        Check(canvas.GetUnresolvedComponentCount() == 2, "both unknown components are kept");
+        Check(canvas.GetUnresolvedScriptCount() == 2, "both unknown scripts are kept");
         JBro::Object::GameObject* object = nullptr;
         canvas.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
-        Check(object != nullptr && object->GetComponents().Size() == 2, "the known components still attach");
+        Check(object != nullptr && object->GetComponents().Size() == 2 && object->GetScripts().IsEmpty(),
+            "the built-ins still attach and nothing runs in the scripts' place");
 
         const JBro::String again = Save(canvas);
         if (again != text)
         {
             std::cout << "read:" << std::endl << text.c_str() << "written back:" << std::endl << again.c_str();
-            Check(false, "an unknown component must be written back as it was read, in the same place");
+            Check(false, "an unknown script must be written back as it was read, in the same place");
         }
 
-        // 게임에는 그 컴포넌트가 없다. 조용히 묶으면 게임에서 스크립트 하나가 사라진다.
+        // 게임에는 그 스크립트가 없다. 조용히 묶으면 게임에서 스크립트 하나가 사라진다.
         JBro::String packed("not touched");
         JBro::CanvasFileError error;
         Check(false == JBro::WriteCanvasText(canvas, packed, error, JBro::CanvasWriteMode::Package),
-            "a game must not be packed with a component this engine does not know");
+            "a game must not be packed with a script this engine does not know");
         Check(error.typeName == "Game::Leading" && error.objectName == "Scripted", "and the refusal names it");
 
         Check(canvas.DestroyObject(object), "the object goes");
         canvas.FlushPendingDestroy();
-        Check(canvas.GetUnresolvedComponentCount() == 0, "and takes what was kept for it along");
+        Check(canvas.GetUnresolvedScriptCount() == 0, "and takes what was kept for it along");
+    }
+
+    // 캔버스 파일이 스크립트를 `Scripts` 로 오가는지 보는 스크립트다(D-271).
+    class CanvasFileScript final : public JBro::GameScriptBase
+    {
+        JBRO_REFLECT_BODY(CanvasFileScript)
+    public:
+        static constexpr const char* StaticTypeName()
+        {
+            return "Test::CanvasFileScript";
+        }
+
+        JBro::ComponentTypeId GetTypeId() const override
+        {
+            return JBro::MakeStableTypeId(StaticTypeName());
+        }
+
+        JBRO_FIELD(float, Speed) = 1.0f;
+    };
+
+    // **스크립트는 `Scripts` 로 적히고 그리로 돌아온다**(D-271). 컴포넌트 목록에 섞이지 않고, 스크립트끼리의 차례(= 실행 순서)가 그대로다.
+    // 스크립트가 `Components` 에 섞인 옛 파일은 옮겨 읽지 않고 그렇다고 말하며 멈춘다(사용자 결정 2026-09-29).
+    void TestScriptsMakeTheRoundTripInTheirOwnList()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        if (JBro::ScriptRegistry::Get().Find(CanvasFileScript::StaticTypeName()) == nullptr)
+        {
+            Check(JBro::RegisterScriptType<CanvasFileScript>(), "the canvas file probe script registers");
+        }
+
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::Object::GameObject* object = canvas.CreateObject("Scripted");
+            canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            auto* first = static_cast<CanvasFileScript*>(canvas.AttachScript(object, CanvasFileScript::StaticTypeName()));
+            auto* second = static_cast<CanvasFileScript*>(canvas.AttachScript(object, CanvasFileScript::StaticTypeName()));
+            Check(first != nullptr && second != nullptr, "two scripts attach by name");
+            first->Speed = 3.0f;
+            second->Speed = 7.0f;
+            second->SetEnabled(false);
+            Check(object->GetComponents().Size() == 1 && object->GetScripts().Size() == 2,
+                "scripts live in the object's script list, not among its components");
+            text = Save(canvas);
+        }
+        const std::size_t components = text.find("    Components:\n");
+        const std::size_t scripts = text.find("    Scripts:\n");
+        Check(components != JBro::String::npos && scripts != JBro::String::npos && components < scripts,
+            "the file writes the scripts in their own list after the components");
+        Check(text.find("Test::CanvasFileScript") > scripts, "and no script sits among the components");
+
+        JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+        LoadOrFail(canvas, text);
+        JBro::Object::GameObject* object = nullptr;
+        canvas.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
+        Check(object != nullptr && object->GetComponents().Size() == 1 && object->GetScripts().Size() == 2,
+            "the scripts come back to the script list");
+        const auto* first = static_cast<const CanvasFileScript*>(object->GetScripts()[0].reference.TryGet());
+        const auto* second = static_cast<const CanvasFileScript*>(object->GetScripts()[1].reference.TryGet());
+        Check(first != nullptr && second != nullptr && first->Speed == 3.0f && second->Speed == 7.0f,
+            "in the order they had, with their values");
+        Check(first->IsEnabled() && false == second->IsEnabled(), "and switched off where they were off");
+        Check(Save(canvas) == text, "and write back the same");
+
+        // 에셋 해석 패스(D-115)가 도는 길은 스크립트도 지난다 - 스크립트도 에셋 필드를 가진다.
+        std::size_t visited = 0;
+        JBro::ForEachReflectedInstance(canvas, [](const JBro::PropertyTable&, void*, void* user) {
+            ++*static_cast<std::size_t*>(user);
+        }, &visited);
+        Check(visited == 3, "the reflected walk visits the component and both scripts");
+
+        // 옛 파일: 스크립트가 `Components` 에 있다.
+        JBro::String old = text;
+        const std::size_t cut = old.find("    Scripts:\n");
+        old.erase(cut, JBro::String("    Scripts:\n").size());
+        JBro::Canvas refused(JBro::CreateDefaultAllocator());
+        JBro::CanvasFileError error;
+        Check(false == Load(refused, old, error), "a script listed among the components stops the read");
+        Check(error.typeName == "Test::CanvasFileScript"
+                && error.message.find("before scripts were separated") != JBro::String::npos,
+            "and says the file is from before scripts were separated");
     }
 
     void TestAPolygonColliderMakesTheRoundTrip()
@@ -1266,7 +1375,8 @@ int RunCanvasFileTests()
     TestScreenLayersComeBack();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
-    TestAnUnknownComponentIsKeptAsWritten();
+    TestAnUnknownScriptIsKeptAsWritten();
+    TestScriptsMakeTheRoundTripInTheirOwnList();
     TestAPolygonColliderMakesTheRoundTrip();
     TestA3DSceneMakesTheRoundTripToo();
     TestEditorHiddenIsSavedButNotPacked();

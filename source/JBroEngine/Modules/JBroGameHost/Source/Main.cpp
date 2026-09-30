@@ -75,11 +75,11 @@ namespace
                 path.c_str(), error.message.c_str());
             return;
         }
-        // 게임에서는 빠진 스크립트다(D-264). 캔버스는 열되, 그 컴포넌트가 돌지 않는다는 것을 남긴다.
-        if (const std::size_t unresolved = canvas->GetUnresolvedComponentCount(); unresolved != 0)
+        // 게임에서는 빠진 스크립트다(D-264). 캔버스는 열되, 그 스크립트가 돌지 않는다는 것을 남긴다.
+        if (const std::size_t unresolved = canvas->GetUnresolvedScriptCount(); unresolved != 0)
         {
             JBro::Log::Write(JBro::LogLevel::Warning, "canvas",
-                "the startup canvas holds %zu components this game does not know; they do not run: %s",
+                "the startup canvas holds %zu scripts this game does not know; they do not run: %s",
                 unresolved, path.c_str());
         }
         framework.BindCanvasAssets();

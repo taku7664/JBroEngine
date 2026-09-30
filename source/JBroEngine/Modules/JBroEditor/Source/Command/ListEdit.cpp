@@ -124,11 +124,12 @@ namespace JBro
         for (std::size_t index = 0; index < targets.Size(); ++index)
         {
             const ComponentAddress& address = targets[index];
-            ComponentBase* component = ResolveComponent(registry, address);
+            // 컴포넌트와 스크립트가 같은 길이다(D-271).
+            void* component = ResolveAttached(registry, address).GetInstance();
             void* array = nullptr;
             const TypeDescriptor* type = nullptr;
             if (component == nullptr
-                || false == SetPropertyCommand::ResolveLeaf(*component, address.typeId, path,
+                || false == SetPropertyCommand::ResolveLeaf(component, address.typeId, path,
                     array, type)
                 || type->arrayOps == nullptr)
             {
@@ -136,7 +137,7 @@ namespace JBro
             }
 
             String before;
-            if (false == SetPropertyCommand::ReadValue(*component, address.typeId, path, before))
+            if (false == SetPropertyCommand::ReadValue(component, address.typeId, path, before))
             {
                 continue;
             }
@@ -147,10 +148,10 @@ namespace JBro
             }
             String after;
             const bool read = applied
-                && SetPropertyCommand::ReadValue(*component, address.typeId, path, after);
+                && SetPropertyCommand::ReadValue(component, address.typeId, path, after);
             // **도로 되돌린다.** 쓰는 것은 커맨드의 몫이고, 편집이 중간에 막혔으면 반쯤
             // 바뀐 배열이 남아 있다.
-            SetPropertyCommand::ApplyValue(*component, address.typeId, path, before);
+            SetPropertyCommand::ApplyValue(component, address.typeId, path, before);
             if (false == read || after == before)
             {
                 continue;

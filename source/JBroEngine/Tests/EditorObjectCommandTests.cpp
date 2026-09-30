@@ -393,7 +393,7 @@ namespace
 
         transform->SetRotationRadian(JBro::Radian(0.5f));
         JBro::String before;
-        Check(JBro::SetPropertyCommand::ReadValue(*component, typeId, path, before),
+        Check(JBro::SetPropertyCommand::ReadValue(component, typeId, path, before),
             "reading a leaf must work");
 
         JBro::EditorObjectRegistry ids;
@@ -411,10 +411,10 @@ namespace
         const JBro::SetPropertyCommand::Path deep = PathTo(position, 1);
         transform->position = {0.0f, 2.0f};
         JBro::String nested;
-        Check(JBro::SetPropertyCommand::ReadValue(*component, typeId, deep, nested),
+        Check(JBro::SetPropertyCommand::ReadValue(component, typeId, deep, nested),
             "a nested leaf must read too");
         Check(JBro::SetPropertyCommand::ApplyValue(
-                *component, typeId, deep, JBro::String("7.25")),
+                component, typeId, deep, JBro::String("7.25")),
             "and must be writable");
         Check(NearlyEqual(transform->position.y, 7.25f),
             "the write must land on y, not on x");
@@ -439,24 +439,24 @@ namespace
         void* address = nullptr;
         const JBro::TypeDescriptor* type = nullptr;
         Check(false == JBro::SetPropertyCommand::ResolveLeaf(
-                *component, typeId, branch, address, type),
+                component, typeId, branch, address, type),
             "a type with fields is not a leaf and must be refused");
 
         JBro::String text;
-        Check(false == JBro::SetPropertyCommand::ReadValue(*component, typeId, branch, text),
+        Check(false == JBro::SetPropertyCommand::ReadValue(component, typeId, branch, text),
             "so there is no value to read from it");
         Check(false == JBro::SetPropertyCommand::ApplyValue(
-                *component, typeId, branch, JBro::String("1 2")),
+                component, typeId, branch, JBro::String("1 2")),
             "and nothing to write into it");
 
         // 표 밖을 가리키는 길, 빈 길, 너무 깊은 길도 같다.
         JBro::SetPropertyCommand::Path outside = PathTo(9999);
         Check(false == JBro::SetPropertyCommand::ResolveLeaf(
-                *component, typeId, outside, address, type),
+                component, typeId, outside, address, type),
             "an index past the end of the table must be refused");
         JBro::SetPropertyCommand::Path empty;
         Check(false == JBro::SetPropertyCommand::ResolveLeaf(
-                *component, typeId, empty, address, type),
+                component, typeId, empty, address, type),
             "a path of no steps points at nothing");
     }
 
@@ -477,28 +477,28 @@ namespace
             PathTo(FieldIndex(TransformTable(), "position"));
         void* address = nullptr;
         const JBro::TypeDescriptor* type = nullptr;
-        Check(JBro::SetPropertyCommand::ResolveLeaf(*component, typeId, position, address, type),
+        Check(JBro::SetPropertyCommand::ResolveLeaf(component, typeId, position, address, type),
             "a run drawn on one line must be a leaf");
         Check(address == &transform->position, "at the address of the whole run");
 
         JBro::String before;
-        Check(JBro::SetPropertyCommand::ReadValue(*component, typeId, position, before),
+        Check(JBro::SetPropertyCommand::ReadValue(component, typeId, position, before),
             "its value must read as text");
         transform->position = JBro::Vector2{9.0f, 9.0f};
-        Check(JBro::SetPropertyCommand::ApplyValue(*component, typeId, position, before),
+        Check(JBro::SetPropertyCommand::ApplyValue(component, typeId, position, before),
             "and that text must write back");
         Check(NearlyEqual(transform->position.x, 1.5f) && NearlyEqual(transform->position.y, -2.0f),
             "bringing back both members");
 
         // 칸으로도 내려갈 수 있다. 스냅샷이 칸마다 뜨는 길이다.
-        Check(JBro::SetPropertyCommand::ResolveLeaf(*component, typeId, PathTo(
+        Check(JBro::SetPropertyCommand::ResolveLeaf(component, typeId, PathTo(
                 FieldIndex(TransformTable(), "position"), 1), address, type)
                 && address == &transform->position.y,
             "and a member of the run is still a leaf of its own");
 
         // **반만 읽히는 글자는 반만 쓰지 않는다.** 첫 칸을 읽고 둘째에서 막히면 x 만 바뀐다.
         JBro::String broken("Value:\n  - 7\n  - not a number\n");
-        Check(false == JBro::SetPropertyCommand::ApplyValue(*component, typeId, position, broken),
+        Check(false == JBro::SetPropertyCommand::ApplyValue(component, typeId, position, broken),
             "a text that does not parse into the run must be refused");
         Check(NearlyEqual(transform->position.x, 1.5f), "and leave the run as it was");
     }
@@ -1129,7 +1129,7 @@ namespace
 
         // 가리킨 것이 없을 때도 거절한다.
         Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(
-                canvas, ids, id, nullptr)),
+                canvas, ids, id, JBro::AttachedRef{})),
             "removing nothing must be refused");
     }
 
@@ -1349,15 +1349,15 @@ namespace
         const JBro::ComponentTypeId typeId = stocked->GetTypeId();
 
         JBro::String before;
-        Check(JBro::SetPropertyCommand::ReadValue(*stocked, typeId, colors, before),
+        Check(JBro::SetPropertyCommand::ReadValue(stocked, typeId, colors, before),
             "a container must read as one value");
 
         stocked->colors.Add(JBro::Color{0.25f, 0.25f, 0.25f, 1.0f});
         JBro::String after;
-        Check(JBro::SetPropertyCommand::ReadValue(*stocked, typeId, colors, after),
+        Check(JBro::SetPropertyCommand::ReadValue(stocked, typeId, colors, after),
             "and read again after it grew");
         Check(after != before, "the two readings must differ");
-        Check(JBro::SetPropertyCommand::ApplyValue(*stocked, typeId, colors, before),
+        Check(JBro::SetPropertyCommand::ApplyValue(stocked, typeId, colors, before),
             "writing the old reading back must work");
         Check(stocked->colors.Size() == 2, "and shrink it back");
 
@@ -1372,7 +1372,7 @@ namespace
         // 실패하면 배열이 줄어든 채로 남는다 - 되돌리기가 그 상태를 되돌릴 방법이 없다.
         JBro::String broken("Value:");
         broken += "\n  -\n    - 1\n    - 1\n    - 1\n    - 1\n  - not a color\n";
-        Check(false == JBro::SetPropertyCommand::ApplyValue(*stocked, typeId, colors, broken),
+        Check(false == JBro::SetPropertyCommand::ApplyValue(stocked, typeId, colors, broken),
             "a reading that does not parse into the container must be refused");
         Check(stocked->colors.Size() == 2 && NearlyEqual(stocked->colors[1].A, 0.5f),
             "and leave the container as it was");
@@ -2320,6 +2320,7 @@ namespace
 {
     // **스크립트도 빌트인과 같은 커맨드로 붙이고 떼고 되돌린다**(cpp-script-plan §3.1). 처음에는 에디터가 빌트인 표만 보아서
     // 추가 목록에 스크립트가 없었고, 스크립트가 붙은 오브젝트는 값을 뜨지 못해 지우기와 떼기가 막혔다.
+    // 스크립트는 컴포넌트가 아니다(D-271) - 추가 목록이 따로이고, 오브젝트의 스크립트 목록에 붙는다.
     void TestAScriptIsAddedRemovedAndRestoredLikeAnyComponent()
     {
         RegisterOnce();
@@ -2335,8 +2336,17 @@ namespace
             const JBro::EditorObjectId id = ids.Track(object);
             const JBro::NameId scriptName = JBro::NameTable::Get().Intern(EditorScriptProbe::StaticTypeName());
 
+            JBro::EditorActions::AddComponentList components;
+            JBro::EditorActions::BuildAddComponentList(*object, components);
+            bool scriptAmongComponents = false;
+            for (std::size_t index = 0; index < components.typeNames.Size(); ++index)
+            {
+                scriptAmongComponents = scriptAmongComponents || components.typeNames[index] == scriptName;
+            }
+            Check(false == scriptAmongComponents, "the component list does not offer scripts");
+
             JBro::EditorActions::AddComponentList list;
-            JBro::EditorActions::BuildAddComponentList(*object, list);
+            JBro::EditorActions::BuildAddScriptList(*object, list);
             std::size_t listed = list.typeNames.Size();
             for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
             {
@@ -2348,12 +2358,12 @@ namespace
             Check(listed < list.typeNames.Size() && list.addable[listed]
                     && std::strcmp(list.names[listed], "EditorScriptProbe") == 0,
                 "the add list offers the script under its type name");
-            bool builtinAfter = false;
-            for (std::size_t index = listed + 1; index < list.typeNames.Size(); ++index)
+            bool builtinListed = false;
+            for (std::size_t index = 0; index < list.typeNames.Size(); ++index)
             {
-                builtinAfter = builtinAfter || JBro::ComponentRegistry::Get().Find(list.typeNames[index]) != nullptr;
+                builtinListed = builtinListed || JBro::ComponentRegistry::Get().Find(list.typeNames[index]) != nullptr;
             }
-            Check(false == builtinAfter, "scripts come after the built-ins");
+            Check(false == builtinListed, "the script list offers no built-ins");
 
             const auto onlyScript = [&canvas]() -> EditorScriptProbe* {
                 JBro::Array<JBro::GameScriptBase*> scripts;
@@ -2363,6 +2373,8 @@ namespace
             Check(commands.Execute(JBro::MakeOwnerPtr<JBro::AddComponentCommand>(canvas, ids, id, scriptName)),
                 "adding a script goes through the same command");
             Check(onlyScript() != nullptr, "and attaches it");
+            Check(object->GetScripts().Size() == 1 && object->GetComponents().IsEmpty(),
+                "to the object's script list, not its components");
             onlyScript()->Speed = 4.5f;
 
             Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(canvas, ids, id, onlyScript())),
@@ -2380,21 +2392,71 @@ namespace
                 "undoing the delete brings the script back with its value");
 
             // 모르는 컴포넌트(D-264)도 지웠다 되돌리면 읽은 그대로 돌아온다.
-            JBro::UnresolvedComponent kept;
+            JBro::UnresolvedScript kept;
             kept.typeName = "Game::Missing";
             kept.text = "Type: Game::Missing\nIsEnabled: true\n";
             kept.position = 1;
-            Check(canvas.AddUnresolvedComponent(ids.Resolve(id), kept), "an unknown component can be kept on the object");
+            Check(canvas.AddUnresolvedScript(ids.Resolve(id), kept), "an unknown component can be kept on the object");
             Check(commands.Execute(JBro::MakeOwnerPtr<JBro::DeleteObjectCommand>(canvas, ids, ids.Resolve(id))),
                 "the object is deleted again");
             canvas.FlushPendingDestroy();
-            Check(canvas.GetUnresolvedComponentCount() == 0, "taking the kept component along");
+            Check(canvas.GetUnresolvedScriptCount() == 0, "taking the kept component along");
             Check(commands.Undo(), "undo runs");
-            const JBro::Array<JBro::UnresolvedComponent>* back = canvas.FindUnresolvedComponents(ids.Resolve(id));
+            const JBro::Array<JBro::UnresolvedScript>* back = canvas.FindUnresolvedScripts(ids.Resolve(id));
             Check(back != nullptr && back->Size() == 1 && (*back)[0].text == kept.text && (*back)[0].position == 1,
                 "and bringing it back as it was read");
         }
         // 이 시험이 등록한 것을 거둔다. 스크립트 DLL 이 내려갈 때와 같다.
+        JBro::ScriptRegistry::Local().Clear();
+        JBro::PropertyRegistry::ScriptLocal().Clear();
+    }
+
+    // **스크립트는 제 목록 안에서 옮기고, 뗐다 되돌리면 제 자리로 온다**(D-271). 스크립트 목록의 차례가 실행 순서라
+    // 옮기기와 되돌리기가 컴포넌트 목록을 건드리거나 차례를 흐트리면 실행 순서가 조용히 바뀐다.
+    void TestScriptsMoveAndComeBackInTheirOwnList()
+    {
+        RegisterOnce();
+        Check(JBro::RegisterScriptType<EditorScriptProbe>(), "the script probe registers");
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::EditorObjectRegistry ids;
+            JBro::EditorCommandManager commands;
+            JBro::Object::GameObject* object = canvas.CreateObject("Scripted");
+            const JBro::EditorObjectId id = ids.Track(object);
+            auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
+            for (float speed : { 1.0f, 2.0f, 3.0f })
+            {
+                auto* script = static_cast<EditorScriptProbe*>(canvas.AttachScript(object, EditorScriptProbe::StaticTypeName()));
+                Check(script != nullptr, "a script attaches by name");
+                script->Speed = speed;
+            }
+            const auto speeds = [object]() {
+                JBro::String text;
+                for (const JBro::ScriptSlot& slot : object->GetScripts())
+                {
+                    const auto* script = static_cast<const EditorScriptProbe*>(slot.reference.TryGet());
+                    text += script != nullptr ? static_cast<char>('0' + static_cast<int>(script->Speed)) : '?';
+                }
+                return text;
+            };
+            Check(speeds() == "123", "the scripts sit in the order they were attached");
+
+            Check(commands.Execute(JBro::MakeOwnerPtr<JBro::MoveComponentCommand>(ids, id, 2, 0, JBro::AttachedKind::Script)),
+                "moving a script goes through");
+            Check(speeds() == "312", "it moves within the script list");
+            Check(object->GetComponents().Size() == 1 && object->GetComponents()[0].reference.TryGet() == transform,
+                "and leaves the components alone");
+            Check(commands.Undo() && speeds() == "123", "undo puts it back");
+            Check(false == commands.Execute(JBro::MakeOwnerPtr<JBro::MoveComponentCommand>(ids, id, 2, 0)),
+                "the same slots in the component list do not exist and are refused");
+
+            JBro::GameScriptBase* middle = object->GetScripts()[1].reference.TryGet();
+            Check(commands.Execute(JBro::MakeOwnerPtr<JBro::RemoveComponentCommand>(canvas, ids, id, middle)),
+                "removing the middle script goes through");
+            canvas.FlushPendingDestroy();
+            Check(speeds() == "13", "and takes it off");
+            Check(commands.Undo() && speeds() == "123", "undo brings it back to the middle with its value");
+        }
         JBro::ScriptRegistry::Local().Clear();
         JBro::PropertyRegistry::ScriptLocal().Clear();
     }
@@ -2440,6 +2502,7 @@ int RunEditorObjectCommandTests()
     TestMovingAmongRootsAndOutOfAParentCanBeUndone();
     TestLayersCanBeEditedAndUndone();
     TestAScriptIsAddedRemovedAndRestoredLikeAnyComponent();
+    TestScriptsMoveAndComeBackInTheirOwnList();
     std::cout << "Editor object command tests passed.\n";
     return 0;
 }

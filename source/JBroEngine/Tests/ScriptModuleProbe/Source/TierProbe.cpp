@@ -134,6 +134,6 @@ namespace
         "a script must see the 16-byte object handle");
     static_assert(sizeof(Ref<Component::Transform2D>) == 24,
         "a script must see the 24-byte component reference");
-    static_assert(std::is_same_v<decltype(TierProbeScript{}.GetOwner()), GameObject>,
+    static_assert(std::is_same_v<decltype(TierProbeScript{}.GetGameObject()), GameObject>,
         "a script must receive its owner as a handle, not a raw object");
 }

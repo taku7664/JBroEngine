@@ -10,6 +10,7 @@
 #include <JBro/Core/Core.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Runtime/Component.h>
+#include <JBro/Runtime/GameScriptBase.h>
 #include <JBro/Runtime/Ref.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/BitFlag.h>
@@ -36,6 +37,13 @@ namespace JBro
     {
         SafePtr<ComponentBase> reference;
         ComponentTypeId        typeId = 0;
+    };
+
+    // 오브젝트가 들고 있는 스크립트 하나다(D-271). 컴포넌트 슬롯과 같은 까닭으로 타입 id 를 옆에 둔다.
+    struct ScriptSlot
+    {
+        SafePtr<GameScriptBase> reference;
+        ComponentTypeId         typeId = 0;
     };
 
     // 오브젝트 플래그의 비트다(D-163). 캔버스 파일에 `Flags` 로 적힌다.
@@ -113,8 +121,7 @@ namespace JBro::Object
         // "같은 타입 중 몇 번째" 로 가리키고, 자리가 바뀌면 그 번째가 다른 것을 가리킨다.
         //
         // 없는 컴포넌트면 거짓이다. `index` 가 끝을 넘으면 맨 뒤로 간다.
-        // **스크립트 실행 순서가 이 자리를 따른다**(D-45, A3). 그래서 자리를 옮기면
-        // Canvas 의 실행 목록을 헌 것으로 표시한다.
+        // 스크립트 실행 순서와는 상관없다 - 그것은 스크립트 목록의 차례다(D-271).
         bool SetComponentIndex(const ComponentBase* component, std::size_t index);
         // 몇 번째 슬롯인가(타입을 가리지 않는다). 붙어 있지 않으면 거짓이다.
         bool FindComponentIndex(const ComponentBase* component, std::size_t& index) const;
@@ -124,6 +131,18 @@ namespace JBro::Object
 
         template<typename T>
         Array<Ref<T>> GetComponents() const;
+
+        // 스크립트 목록이다(D-271). **스크립트 실행 순서가 이 차례를 따른다**(D-45, A3). 그래서 자리를 옮기면
+        // Canvas 의 실행 목록을 헌 것으로 표시한다. 없는 스크립트면 거짓이고, `index` 가 끝을 넘으면 맨 뒤로 간다.
+        const Array<ScriptSlot>& GetScripts() const;
+        bool SetScriptIndex(const GameScriptBase* script, std::size_t index);
+        bool FindScriptIndex(const GameScriptBase* script, std::size_t& index) const;
+
+        template<typename T>
+        Ref<T> GetScript() const;
+
+        template<typename T>
+        Array<Ref<T>> GetScripts() const;
 
     private:
         friend class JBro::Canvas;
@@ -148,6 +167,9 @@ namespace JBro::Object
         void AttachComponent(ComponentBase* component);
         bool DetachComponent(ComponentBase* component);
         InstanceRef FindComponentReference(ComponentTypeId typeId) const;
+        void AttachScript(GameScriptBase* script);
+        bool DetachScript(GameScriptBase* script);
+        InstanceRef FindScriptReference(ComponentTypeId typeId) const;
         bool RequestDestroy();
         void RefreshActiveInHierarchy();
 
@@ -159,6 +181,7 @@ namespace JBro::Object
         SafePtr<GameObject>           m_parent;
         Array<SafePtr<GameObject>>    m_children;
         Array<ComponentSlot> m_components;
+        Array<ScriptSlot>             m_scripts;
         SafePtr<Layer>                m_layer;
         std::uint32_t                 m_layerIndex = 0;
         // **안에서만 `BitFlag` 다**(D-249). 내주는 것은 생 정수 그대로다 - 캔버스 파일에 숫자로
@@ -180,6 +203,44 @@ namespace JBro::Object
         result.ObjectId = found.ObjectId;
         result.ComponentId = found.ComponentId;
         result.Cached = found.Cached;
+        return result;
+    }
+
+    template<typename T>
+    Ref<T> GameObject::GetScript() const
+    {
+        static_assert(std::is_base_of_v<GameScriptBase, T>);
+        static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
+        const InstanceRef found = FindScriptReference(TypeId);
+        Ref<T> result;
+        result.ObjectId = found.ObjectId;
+        result.ComponentId = found.ComponentId;
+        result.Cached = found.Cached;
+        return result;
+    }
+
+    template<typename T>
+    Array<Ref<T>> GameObject::GetScripts() const
+    {
+        static_assert(std::is_base_of_v<GameScriptBase, T>);
+        static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
+
+        Array<Ref<T>> result;
+        for (const ScriptSlot& slot : m_scripts)
+        {
+            if (slot.typeId != TypeId)
+            {
+                continue;
+            }
+            if (GameScriptBase* script = slot.reference.TryGet())
+            {
+                Ref<T> reference;
+                reference.ObjectId = m_instanceId;
+                reference.ComponentId = script->GetInstanceId();
+                reference.Cached = script->GetHandle();
+                result.Add(reference);
+            }
+        }
         return result;
     }
 

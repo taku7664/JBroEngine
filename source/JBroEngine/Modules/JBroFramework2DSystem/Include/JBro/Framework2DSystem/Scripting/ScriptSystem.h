@@ -11,11 +11,7 @@ namespace JBro::System
 {
     class InputSystem;
 
-    // 스크립트의 실행 순서와 수명 훅을 돌린다(D-45).
-    //
-    // ⚠ 미완이다. 여기서 도는 것은 `Canvas::AttachComponent<T>` 로 **정적으로** 붙인
-    // 스크립트뿐이다. 사용자 스크립트는 DLL 안에서 이름으로 생성되어야 하고 그 경로는
-    // 리플렉션(H5) 이 붙어야 열린다. Open Decision 3 이 못 박은 대로 완료로 치지 않는다.
+    // 스크립트의 실행 순서와 수명 훅을 돌린다(D-45). 이름으로 붙인 스크립트(DLL)와 정적으로 붙인 스크립트(`AttachScript<T>`)를 함께 돈다.
     class ScriptSystem final : public GameSystem
     {
     public:
@@ -58,23 +54,19 @@ namespace JBro::System
         // **구 엔진과 같은 깊이 우선 순회다**(D-45, A3).
         //
         // 레이어 합성 순서로 루트를 줄 세우고, 루트마다 서브트리를 통째로 내려간다.
-        // 한 오브젝트 안에서는 컴포넌트 배열 자리를 그대로 따른다 - `InstanceId` 로
-        // 정렬하면 에디터에서 컴포넌트를 떼었다 되돌렸을 때(D-85 가 원래 자리로 보낸다)
-        // 배열에서는 첫째인 것이 실행은 꼴찌가 된다.
+        // 한 오브젝트 안에서는 스크립트 목록의 차례를 그대로 따른다(D-271) - `InstanceId` 로
+        // 정렬하면 에디터에서 스크립트를 떼었다 되돌렸을 때(D-85 가 원래 자리로 보낸다)
+        // 목록에서는 첫째인 것이 실행은 꼴찌가 된다.
         //
         // **매 프레임 돌지 않는다.** `Canvas::GetScriptOrderRevision()` 이 달라졌을 때만
         // 다시 세운다(D-45 의 지연 재구축).
         void EnsureOrder(Canvas& canvas);
         void Rebuild(Canvas& canvas);
         void AppendScripts(Object::GameObject& object);
-        bool IsScript(const ComponentBase* component) const;
         void BuildInputChain(Canvas& canvas);
         void SortInputChain();
 
         Array<GameScriptBase*>       m_collected;
-        // `m_collected` 를 주소로 정렬한 것. 컴포넌트 슬롯이 스크립트인지 이분 탐색으로
-        // 가른다 - 재구축은 cold path 이므로 여기서 dynamic_cast 를 쓰지 않는다(§9).
-        Array<const ComponentBase*>  m_scriptKeys;
         Array<Object::GameObject*>           m_roots;
         // 깊이 우선 순회를 재귀 대신 이 배열로 돈다. **재구축이 힙을 건드리면 안 된다** -
         // 정상 프레임에 스폰과 파괴가 들어 있고(D-54) 그것이 목록을 헌 것으로 만들므로,

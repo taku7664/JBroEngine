@@ -236,215 +236,250 @@ namespace JBro
         }
         ImGui::Separator();
 
+        // **컴포넌트, 그다음 스크립트다**(D-271). 두 목록은 따로 살고, 자리 옮기기도 제 목록 안에서만 한다.
         const Array<ComponentSlot>& components = object->GetComponents();
         for (std::size_t index = 0; index < components.Size(); ++index)
         {
-            const ComponentSlot& slot = components[index];
-            ComponentBase* component = slot.reference.TryGet();
-            if (component == nullptr)
+            if (false == DrawAttached(*object, components[index].reference.TryGet(), components[index].typeId,
+                    index, components.Size()))
             {
-                continue;
+                return;
             }
-            const char* typeName =
-                DisplayTypeName(NameTable::Get().Resolve(slot.typeId));
+        }
+        ImGui::Spacing();
+        DrawAddComponent(*object);
 
-            // 이름이 아니라 슬롯으로 구분한다. 같은 타입을 두 개 붙일 수 있다.
-            ImGui::PushID(static_cast<int>(index));
-            Widget::SetNextItemTarget(GuideFocusTargets::InspectorComponent(slot.typeId));
-            const bool opened = Widget::CollapsingSection(
-                typeName != nullptr
-                    ? typeName
-                    : Loc::TextOr(LocKeys::InspectorUnknownComponent,
-                        "(unknown component)"));
-            // **머리에 우클릭하면 뗄 수 있다.** 기존 엔진도 여기가 그 자리다.
-            // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
-            if (Widget::BeginContextMenu("##ComponentMenu"))
+        ImGui::Separator();
+        const Array<ScriptSlot>& scripts = object->GetScripts();
+        // 슬롯 번호가 컴포넌트와 겹치므로 Id 를 한 겹 더 두른다.
+        ImGui::PushID("##scripts");
+        for (std::size_t index = 0; index < scripts.Size(); ++index)
+        {
+            if (false == DrawAttached(*object, scripts[index].reference.TryGet(), scripts[index].typeId,
+                    index, scripts.Size()))
             {
-                // **자리 옮기기.** 슬롯 순서가 스크립트 실행 순서다(D-45). 양 끝에서는 그쪽
-                // 항목을 잠근다.
-                std::size_t moveTo = index;
-                if (index == 0)
-                {
-                    ImGui::BeginDisabled();
-                }
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up")))
-                {
-                    moveTo = index - 1;
-                }
-                if (index == 0)
-                {
-                    ImGui::EndDisabled();
-                }
-                const bool last = index + 1 >= components.Size();
-                if (last)
-                {
-                    ImGui::BeginDisabled();
-                }
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down")))
-                {
-                    moveTo = index + 1;
-                }
-                if (last)
-                {
-                    ImGui::EndDisabled();
-                }
-                if (moveTo != index)
-                {
-                    MoveComponent(*object, index, moveTo);
-                    Widget::EndContextMenu();
-                    ImGui::PopID();
-                    // 옮긴 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다. 다음 프레임에 다시 그린다.
-                    return;
-                }
-                ImGui::Separator();
-                // **복사·붙여넣기**(D-167). 기존 엔진도 이 메뉴에 둘을 나란히 두었다.
-                // 복사는 값만 뜨므로 화면이 그대로고, 붙여넣기는 같은 타입을 하나 더 붙인다.
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorCopyComponent,
-                        "Copy Component")))
-                {
-                    m_editor->CopyComponent(*component);
-                }
-                bool pasted = false;
-                {
-                    // 하나만 붙는 타입이 이미 있으면 회색이다(D-180). 눌러도 아무 일이
-                    // 일어나지 않는 항목을 켜 두면 고장과 구분되지 않는다.
-                    const bool canPaste = m_editor->CanPasteComponent(*object);
-                    // 떠 둔 것이 없는 것과, 떠 두었지만 이미 붙어 있는 것은 다른 이야기다.
-                    const char* why = m_editor->HasComponentClipboard()
-                        ? Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")
-                        : Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
-                    if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponent,
-                            "Paste Component"), nullptr, canPaste, why))
-                    {
-                        m_editor->PasteComponent(*object);
-                        pasted = true;
-                    }
-                }
-                if (pasted)
-                {
-                    Widget::EndContextMenu();
-                    ImGui::PopID();
-                    // 슬롯이 하나 늘었다. 이 프레임의 배열은 더 이상 맞지 않는다.
-                    return;
-                }
-                {
-                    // **값만 덮어쓰기.** 떠 둔 것이 같은 타입일 때만 켜진다. `Transform2D` 처럼
-                    // 하나만 있어야 뜻이 서는 타입에서는 이쪽이 쓰는 손짓이다(D-167) -
-                    // 기존 엔진에는 새로 하나 더 붙이는 쪽만 있었다.
-                    const bool canPasteValues = m_editor->CanPasteComponentValues(*component);
-                    if (false == canPasteValues)
-                    {
-                        ImGui::BeginDisabled();
-                    }
-                    if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponentValues,
-                            "Paste Component Values")))
-                    {
-                        m_editor->PasteComponentValues(*object, *component);
-                    }
-                    if (false == canPasteValues)
-                    {
-                        ImGui::EndDisabled();
-                    }
-                }
-                // **컴포넌트마다 더한 항목**(D-220). 오브젝트 메뉴와 같은 표다. 이 메뉴는 이미 이 인스턴스의
-                // 것이므로 하위 메뉴 없이 늘어놓는다. 떼기는 무거운 손짓이라 그 아래 맨 끝에 남긴다.
-                // `Has` 는 주소를 만들기 전에 거르는 것일 뿐이다 - 항목이 없으면 `DrawItems` 는 구분선도 긋지 않는다.
-                ComponentMenuTable& menus = m_editor->GetComponentMenus();
-                ComponentMenuContext hookContext;
-                if (menus.Has(slot.typeId)
-                    && MakeComponentAddress(m_editor->GetObjectIds(), *object, *component, hookContext.address))
-                {
-                    hookContext.editor = m_editor;
-                    hookContext.component = component;
-                    if (false == menus.DrawItems(hookContext, true))
-                    {
-                        Widget::EndContextMenu();
-                        ImGui::PopID();
-                        // 훅이 슬롯 배열을 바꿨을 수 있다. 다음 프레임에 다시 그린다.
-                        return;
-                    }
-                }
-                ImGui::Separator();
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent,
-                        "Remove Component")))
-                {
-                    RemoveComponent(*object, *component);
-                    Widget::EndContextMenu();
-                    ImGui::PopID();
-                    // 뗀 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다.
-                    // 계속 돌면 죽은 슬롯을 읽는다 - 다음 프레임에 다시 그린다.
-                    return;
-                }
-                Widget::EndContextMenu();
+                ImGui::PopID();
+                return;
             }
-            if (opened)
-            {
-                Widget::FormLayout layout("##component");
-                layout.Row(
-                    Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled")),
-                    [&]() {
-                        bool enabled = component->IsEnabled();
-                        if (Widget::Checkbox("##enabled", enabled))
-                        {
-                            // 이것도 커맨드다(D-142). 끈 것을 되돌릴 수 없으면 편집이 아니다.
-                            ComponentAddress address;
-                            if (MakeComponentAddress(
-                                    m_editor->GetObjectIds(), *object, *component, address))
-                            {
-                                m_editor->GetCommands().Execute(
-                                    MakeOwnerPtr<SetComponentEnabledCommand>(
-                                        m_editor->GetObjectIds(), address, enabled));
-                            }
-                        }
-                    });
-
-                const PropertyTable* table = PropertyRegistry::Lookup(slot.typeId);
-                if (table == nullptr)
-                {
-                    layout.FullRow([&]() {
-                        // 저장도 안 되는 컴포넌트다. 조용히 빈 칸으로 두면 왜
-                        // 안 보이는지 알 수 없으므로 그렇게 말해 준다.
-                        Widget::HintTextF("%s",
-                            Loc::TextOr(LocKeys::InspectorUnregisteredType,
-                                "this type never registered its properties"));
-                    });
-                }
-                else
-                {
-                    Context context;
-                    context.owner = object;
-                    context.component = component;
-                    context.typeId = slot.typeId;
-                    DrawFieldsInto(layout, *table, component, context);
-                }
-            }
-            ImGui::PopID();
         }
 
-        // **이 엔진이 모르는 컴포넌트도 보인다**(D-264). 캔버스 파일이 읽은 그대로 들고 있는 것이라 값은 보이지 않는다 -
+        // **이 엔진이 모르는 스크립트도 보인다**(D-264). 캔버스 파일이 읽은 그대로 들고 있는 것이라 값은 보이지 않는다 -
         // 아무것도 안 보이면 스크립트가 사라진 줄 알고, 저장하면 사라지는 줄 안다.
         Canvas* canvas = m_editor->GetCanvas();
-        if (const Array<UnresolvedComponent>* kept = canvas != nullptr ? canvas->FindUnresolvedComponents(object) : nullptr)
+        if (const Array<UnresolvedScript>* kept = canvas != nullptr ? canvas->FindUnresolvedScripts(object) : nullptr)
         {
             for (std::size_t index = 0; index < kept->Size(); ++index)
             {
-                ImGui::PushID(static_cast<int>(components.Size() + index));
+                ImGui::PushID(static_cast<int>(scripts.Size() + index));
                 const char* typeName = DisplayTypeName((*kept)[index].typeName.c_str());
                 if (Widget::CollapsingSection(typeName != nullptr ? typeName : (*kept)[index].typeName.c_str()))
                 {
                     Widget::FormLayout layout("##Unresolved");
                     layout.FullRow([&]() {
                         Widget::HintTextF("%s",
-                            Loc::TextOr(LocKeys::InspectorUnresolvedComponent,
-                                "This component could not be found. Its saved values are kept."));
+                            Loc::TextOr(LocKeys::InspectorUnresolvedScript,
+                                "This script could not be found. Its saved values are kept."));
                     });
                 }
                 ImGui::PopID();
             }
         }
+        ImGui::PopID();
 
         ImGui::Spacing();
-        DrawAddComponent(*object);
+        DrawAddScript(*object);
+    }
+
+    bool InspectorPanel::DrawAttached(Object::GameObject& object, AttachedRef attached, ComponentTypeId typeId,
+        std::size_t index, std::size_t count)
+    {
+        if (false == static_cast<bool>(attached))
+        {
+            return true;
+        }
+        const AttachedKind kind = attached.GetKind();
+        const bool script = kind == AttachedKind::Script;
+        // 이름이 아니라 슬롯으로 구분한다. 같은 타입을 두 개 붙일 수 있다.
+        ImGui::PushID(static_cast<int>(index));
+        const char* typeName =
+            DisplayTypeName(NameTable::Get().Resolve(typeId));
+
+        Widget::SetNextItemTarget(GuideFocusTargets::InspectorComponent(typeId));
+        const bool opened = Widget::CollapsingSection(
+            typeName != nullptr
+                ? typeName
+                : Loc::TextOr(LocKeys::InspectorUnknownComponent,
+                    "(unknown component)"));
+        // **머리에 우클릭하면 뗄 수 있다.** 기존 엔진도 여기가 그 자리다.
+        // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
+        if (Widget::BeginContextMenu("##ComponentMenu"))
+        {
+            // **자리 옮기기.** 제 목록 안에서만 옮긴다. 스크립트 목록의 차례가 실행 순서다(D-45, D-271). 양 끝에서는 그쪽
+            // 항목을 잠근다.
+            std::size_t moveTo = index;
+            if (index == 0)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up")))
+            {
+                moveTo = index - 1;
+            }
+            if (index == 0)
+            {
+                ImGui::EndDisabled();
+            }
+            const bool last = index + 1 >= count;
+            if (last)
+            {
+                ImGui::BeginDisabled();
+            }
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down")))
+            {
+                moveTo = index + 1;
+            }
+            if (last)
+            {
+                ImGui::EndDisabled();
+            }
+            if (moveTo != index)
+            {
+                MoveAttached(object, index, moveTo, kind);
+                Widget::EndContextMenu();
+                ImGui::PopID();
+                // 옮긴 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다. 다음 프레임에 다시 그린다.
+                return false;
+            }
+            ImGui::Separator();
+            // **복사·붙여넣기**(D-167). 기존 엔진도 이 메뉴에 둘을 나란히 두었다.
+            // 복사는 값만 뜨므로 화면이 그대로고, 붙여넣기는 같은 타입을 하나 더 붙인다.
+            if (Widget::MenuItem(script
+                    ? Loc::TextOr(LocKeys::InspectorCopyScript, "Copy Script")
+                    : Loc::TextOr(LocKeys::InspectorCopyComponent, "Copy Component")))
+            {
+                m_editor->CopyComponent(attached);
+            }
+            bool pasted = false;
+            {
+                // 하나만 붙는 타입이 이미 있으면 회색이다(D-180). 눌러도 아무 일이
+                // 일어나지 않는 항목을 켜 두면 고장과 구분되지 않는다.
+                // 떠 둔 것이 같은 목록의 것일 때만 붙인다 - 컴포넌트 메뉴에서 스크립트가 붙으면 어디에 생겼는지 알 수 없다.
+                const bool canPaste = m_editor->CanPasteComponent(object)
+                    && m_editor->GetComponentClipboardKind() == kind;
+                // 떠 둔 것이 없는 것과, 떠 두었지만 이미 붙어 있는 것은 다른 이야기다.
+                const char* why = m_editor->HasComponentClipboard()
+                    ? Loc::TextOr(LocKeys::CommonAlreadyAdded, "Already added")
+                    : Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
+                if (Widget::MenuItem(script
+                        ? Loc::TextOr(LocKeys::InspectorPasteScript, "Paste Script")
+                        : Loc::TextOr(LocKeys::InspectorPasteComponent, "Paste Component"), nullptr, canPaste, why))
+                {
+                    m_editor->PasteComponent(object);
+                    pasted = true;
+                }
+            }
+            if (pasted)
+            {
+                Widget::EndContextMenu();
+                ImGui::PopID();
+                // 슬롯이 하나 늘었다. 이 프레임의 배열은 더 이상 맞지 않는다.
+                return false;
+            }
+            {
+                // **값만 덮어쓰기.** 떠 둔 것이 같은 타입일 때만 켜진다. `Transform2D` 처럼
+                // 하나만 있어야 뜻이 서는 타입에서는 이쪽이 쓰는 손짓이다(D-167) -
+                // 기존 엔진에는 새로 하나 더 붙이는 쪽만 있었다.
+                const bool canPasteValues = m_editor->CanPasteComponentValues(attached);
+                if (false == canPasteValues)
+                {
+                    ImGui::BeginDisabled();
+                }
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorPasteComponentValues,
+                        "Paste Component Values")))
+                {
+                    m_editor->PasteComponentValues(object, attached);
+                }
+                if (false == canPasteValues)
+                {
+                    ImGui::EndDisabled();
+                }
+            }
+            // **컴포넌트마다 더한 항목**(D-220). 오브젝트 메뉴와 같은 표다. 이 메뉴는 이미 이 인스턴스의
+            // 것이므로 하위 메뉴 없이 늘어놓는다. 떼기는 무거운 손짓이라 그 아래 맨 끝에 남긴다.
+            // `Has` 는 주소를 만들기 전에 거르는 것일 뿐이다 - 항목이 없으면 `DrawItems` 는 구분선도 긋지 않는다.
+            ComponentMenuTable& menus = m_editor->GetComponentMenus();
+            ComponentMenuContext hookContext;
+            // 빌트인 컴포넌트만 이 표를 가진다 - 표의 항목은 컴포넌트 타입을 아는 에디터 코드다.
+            if (attached.component != nullptr && menus.Has(typeId)
+                && MakeComponentAddress(m_editor->GetObjectIds(), object, *attached.component, hookContext.address))
+            {
+                hookContext.editor = m_editor;
+                hookContext.component = attached.component;
+                if (false == menus.DrawItems(hookContext, true))
+                {
+                    Widget::EndContextMenu();
+                    ImGui::PopID();
+                    // 훅이 슬롯 배열을 바꿨을 수 있다. 다음 프레임에 다시 그린다.
+                    return false;
+                }
+            }
+            ImGui::Separator();
+            if (Widget::MenuItem(script
+                    ? Loc::TextOr(LocKeys::InspectorRemoveScript, "Remove Script")
+                    : Loc::TextOr(LocKeys::InspectorRemoveComponent, "Remove Component")))
+            {
+                RemoveAttached(object, attached);
+                Widget::EndContextMenu();
+                ImGui::PopID();
+                // 뗀 뒤에는 이 프레임의 슬롯 배열이 더 이상 맞지 않는다.
+                // 계속 돌면 죽은 슬롯을 읽는다 - 다음 프레임에 다시 그린다.
+                return false;
+            }
+            Widget::EndContextMenu();
+        }
+        if (opened)
+        {
+            Widget::FormLayout layout("##component");
+            layout.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorEnabled, "Enabled")),
+                [&]() {
+                    bool enabled = attached.IsEnabled();
+                    if (Widget::Checkbox("##enabled", enabled))
+                    {
+                        // 이것도 커맨드다(D-142). 끈 것을 되돌릴 수 없으면 편집이 아니다.
+                        ComponentAddress address;
+                        if (MakeAttachedAddress(
+                                m_editor->GetObjectIds(), object, attached, address))
+                        {
+                            m_editor->GetCommands().Execute(
+                                MakeOwnerPtr<SetComponentEnabledCommand>(
+                                    m_editor->GetObjectIds(), address, enabled));
+                        }
+                    }
+                });
+
+            const PropertyTable* table = PropertyRegistry::Lookup(typeId);
+            if (table == nullptr)
+            {
+                layout.FullRow([&]() {
+                    // 저장도 안 되는 컴포넌트다. 조용히 빈 칸으로 두면 왜
+                    // 안 보이는지 알 수 없으므로 그렇게 말해 준다.
+                    Widget::HintTextF("%s",
+                        Loc::TextOr(LocKeys::InspectorUnregisteredType,
+                            "this type never registered its properties"));
+                });
+            }
+            else
+            {
+                Context context;
+                context.owner = &object;
+                context.attached = attached;
+                context.typeId = typeId;
+                DrawFieldsInto(layout, *table, attached.GetInstance(), context);
+            }
+        }
+        ImGui::PopID();
+        return true;
     }
 
     // **캔버스 자신의 값**이다(D-186, 기존 `DrawCanvasInspector`). 지금은 배경색 하나다 -
@@ -508,14 +543,35 @@ namespace JBro
             *m_editor, object, list.typeNames[static_cast<std::size_t>(chosen)]);
     }
 
-    void InspectorPanel::MoveComponent(Object::GameObject& object, std::size_t from, std::size_t to)
+    void InspectorPanel::DrawAddScript(Object::GameObject& object)
+    {
+        // 컴포넌트 추가와 같은 검색 드롭다운이다. 목록은 스크립트 DLL 이 등록한 것이다(D-271).
+        EditorActions::AddComponentList list;
+        EditorActions::BuildAddScriptList(object, list);
+        int chosen = -1;
+        const bool picked = Widget::FilterCombo("##AddScript",
+            ArrayView<const char* const>(list.names.Data(), list.names.Size()), chosen)
+            .EmptyText(Loc::TextOr(LocKeys::InspectorAddScript, "Add Script"))
+            .NoItemsText(Loc::TextOr(LocKeys::InspectorNoScriptTypes, "no script has been built"))
+            .Width(-FLT_MIN)
+            .Draw();
+        if (false == picked || chosen < 0
+            || static_cast<std::size_t>(chosen) >= list.typeNames.Size())
+        {
+            return;
+        }
+        EditorActions::AddComponent(
+            *m_editor, object, list.typeNames[static_cast<std::size_t>(chosen)]);
+    }
+
+    void InspectorPanel::MoveAttached(Object::GameObject& object, std::size_t from, std::size_t to, AttachedKind kind)
     {
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
         m_editor->GetCommands().Execute(MakeOwnerPtr<MoveComponentCommand>(
-            m_editor->GetObjectIds(), objectId, from, to));
+            m_editor->GetObjectIds(), objectId, from, to, kind));
     }
 
-    void InspectorPanel::RemoveComponent(Object::GameObject& object, ComponentBase& component)
+    void InspectorPanel::RemoveAttached(Object::GameObject& object, AttachedRef attached)
     {
         Canvas* canvas = m_editor->GetCanvas();
         if (canvas == nullptr)
@@ -524,7 +580,7 @@ namespace JBro
         }
         const EditorObjectId objectId = m_editor->GetObjectIds().Track(&object);
         m_editor->GetCommands().Execute(MakeOwnerPtr<RemoveComponentCommand>(
-            *canvas, m_editor->GetObjectIds(), objectId, &component));
+            *canvas, m_editor->GetObjectIds(), objectId, attached));
     }
 
     bool InspectorPanel::DrawScalarRun(
@@ -920,7 +976,7 @@ namespace JBro
                 if (picked && editable && current >= 0)
                 {
                     String before;
-                    if (SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before))
+                    if (SetPropertyCommand::ReadValue(context.attached.GetInstance(), context.typeId, context.path, before))
                     {
                         const String& chosen = keys[static_cast<std::size_t>(current)];
                         TextStore::Get().Assign(id, chosen.c_str(), chosen.size());
@@ -937,7 +993,7 @@ namespace JBro
             // 편집 전 값은 코덱 글자로 뜬다(길이 제한 없는 길). 새 글자를 저장소에 쓰고 나면 `CommitEdit` 가
             // 옛 글자로 되돌려 놓고 고른 것 모두에 커맨드 하나를 만든다 - 다른 필드와 같은 길이다.
             String before;
-            if (SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before))
+            if (SetPropertyCommand::ReadValue(context.attached.GetInstance(), context.typeId, context.path, before))
             {
                 TextStore::Get().Assign(id, draft.c_str(), draft.size());
                 CommitEdit(type, address, before, context);
@@ -1028,8 +1084,8 @@ namespace JBro
     {
         Array<EditTarget> targets;
         std::uint32_t ordinal = 0;
-        if (context.component == nullptr || context.owner == nullptr
-            || false == FindComponentOrdinal(*context.owner, *context.component, ordinal))
+        if (false == static_cast<bool>(context.attached) || context.owner == nullptr
+            || false == FindAttachedOrdinal(*context.owner, context.attached, ordinal))
         {
             // 주인에게서 자리를 셀 수 없으면 가리킬 방법이 없다. 포인터로 쓰는
             // 커맨드를 만들어 두면 지웠다 되살린 뒤에 조용히 헛돈다.
@@ -1041,8 +1097,8 @@ namespace JBro
         const Array<Object::GameObject*> chosen = m_editor->GetTopLevelSelectedObjects();
         for (std::size_t index = 0; index < chosen.Size(); ++index)
         {
-            if (ComponentBase* found =
-                FindComponentAt(*chosen[index], context.typeId, ordinal))
+            const AttachedRef found = FindAttachedAt(*chosen[index], context.attached.GetKind(), context.typeId, ordinal);
+            if (found)
             {
                 targets.Add(EditTarget{chosen[index], found});
             }
@@ -1051,7 +1107,7 @@ namespace JBro
         {
             // 고른 것이 없거나(인스펙터만 열어 둔 경우) 셈이 어긋났다.
             // 눈앞의 것 하나는 반드시 고쳐져야 한다.
-            targets.Add(EditTarget{context.owner, context.component});
+            targets.Add(EditTarget{context.owner, context.attached});
         }
         return targets;
     }
@@ -1250,7 +1306,7 @@ namespace JBro
         // (`Vector2`·`Color`)은 여기서 돌아갔다 - 위젯이 쓴 값이 커맨드 없이 남았다(D-89).
         String after;
         if (false == SetPropertyCommand::ReadValue(
-                *context.component, context.typeId, context.path, after)
+                context.attached.GetInstance(), context.typeId, context.path, after)
             || after == before)
         {
             return;
@@ -1288,7 +1344,7 @@ namespace JBro
         // **바뀐 값을 도로 되돌려 놓는다.** 커맨드의 `Execute` 가 다시 적용하므로
         // 쓰는 길이 하나로 남는다 - 위젯이 한 번, 커맨드가 한 번 쓰면 되돌리기가
         // 무엇을 되돌리는지가 둘로 갈린다.
-        SetPropertyCommand::ApplyValue(*context.component, context.typeId, context.path, before);
+        SetPropertyCommand::ApplyValue(context.attached.GetInstance(), context.typeId, context.path, before);
         if (numeric)
         {
             // 되돌린 뒤에 빼야 진짜 델타다.
@@ -1308,28 +1364,28 @@ namespace JBro
         auto compound = MakeOwnerPtr<CompoundCommand>("Set Property");
         for (std::size_t index = 0; index < targets.Size(); ++index)
         {
-            ComponentBase* target = targets[index].component;
+            const AttachedRef target = targets[index].attached;
             ComponentAddress address;
-            if (false == MakeComponentAddress(m_editor->GetObjectIds(),
-                *targets[index].owner, *target, address))
+            if (false == MakeAttachedAddress(m_editor->GetObjectIds(),
+                *targets[index].owner, target, address))
             {
                 continue;
             }
             String targetBefore;
             if (false == SetPropertyCommand::ReadValue(
-                *target, context.typeId, context.path, targetBefore))
+                target.GetInstance(), context.typeId, context.path, targetBefore))
             {
                 continue;
             }
 
             String targetAfter = after;
-            if (numeric && target != context.component)
+            if (numeric && false == (target == context.attached))
             {
                 // 그 대상의 값에 같은 델타를 얹고, 그 결과를 글자로 뜬다.
                 // **뜬 뒤에는 도로 돌려놓는다** - 쓰는 것은 커맨드의 몫이다.
                 void* targetAddress = nullptr;
                 const TypeDescriptor* targetType = nullptr;
-                if (false == SetPropertyCommand::ResolveLeaf(*target, context.typeId,
+                if (false == SetPropertyCommand::ResolveLeaf(target.GetInstance(), context.typeId,
                     context.path, targetAddress, targetType))
                 {
                     continue;
@@ -1345,9 +1401,9 @@ namespace JBro
                     *run.values[at] += delta[at];
                 }
                 const bool read = SetPropertyCommand::ReadValue(
-                    *target, context.typeId, context.path, targetAfter);
+                    target.GetInstance(), context.typeId, context.path, targetAfter);
                 SetPropertyCommand::ApplyValue(
-                    *target, context.typeId, context.path, targetBefore);
+                    target.GetInstance(), context.typeId, context.path, targetBefore);
                 if (false == read)
                 {
                     continue;
@@ -1452,8 +1508,8 @@ namespace JBro
         for (std::size_t index = 0; index < targets.Size(); ++index)
         {
             ComponentAddress target;
-            if (MakeComponentAddress(m_editor->GetObjectIds(), *targets[index].owner,
-                *targets[index].component, target))
+            if (MakeAttachedAddress(m_editor->GetObjectIds(), *targets[index].owner,
+                targets[index].attached, target))
             {
                 addresses.Add(target);
             }
@@ -1689,7 +1745,7 @@ namespace JBro
                     // 속살만 고칠 수 있게 된다.
                     Widget::DisableScope locked(false == editable);
                     layout.FullRow([&]() {
-                        if (false == inElement && context.path.depth == 1 && context.component != nullptr)
+                        if (false == inElement && context.path.depth == 1 && static_cast<bool>(context.attached))
                         {
                             Widget::SetNextItemTarget(GuideFocusTargets::InspectorField(context.typeId, property.name));
                         }
@@ -1722,7 +1778,7 @@ namespace JBro
                         property.edit, context);
                 });
             // 컴포넌트의 맨 위 필드 줄은 가이드 포커스가 가리킬 수 있다(D-251). 한 줄 전체가 대상이다.
-            if (false == inElement && context.path.depth == 1 && context.component != nullptr)
+            if (false == inElement && context.path.depth == 1 && static_cast<bool>(context.attached))
             {
                 Widget::ReportGuideTarget(GuideFocusTargets::InspectorField(context.typeId, property.name),
                     layout.GetLastRowMin(), layout.GetLastRowMax(), false, ImGui::IsItemDeactivatedAfterEdit());
@@ -1730,14 +1786,15 @@ namespace JBro
 
             // **이 필드에 붙는 줄이 있으면 바로 밑에 그린다**(D-165). 무엇을 붙일지는 인스펙터가 모른다 - 표가 안다.
             if (false == inElement && context.path.depth == 1 && context.asset == nullptr
-                && context.component != nullptr && context.owner != nullptr)
+                && context.attached.component != nullptr && context.owner != nullptr)
             {
+                // 붙는 줄은 빌트인 컴포넌트의 것이다 - 표의 항목이 컴포넌트 타입을 안다.
                 if (const FieldExtraDraw extra = FindFieldExtra(context.typeId, property.name))
                 {
                     FieldExtraContext extraContext;
                     extraContext.editor = m_editor;
                     extraContext.owner = context.owner;
-                    extraContext.component = context.component;
+                    extraContext.component = context.attached.component;
                     extraContext.typeId = context.typeId;
                     extra(layout, extraContext);
                 }
@@ -1820,8 +1877,8 @@ namespace JBro
             // 숫자 묶음에는 코덱이 없다. 커맨드가 쓰는 글자(전체의 YAML)로 뜬다(D-89). 에셋 옵션에는 컴포넌트가
             // 없다 - 그 편집은 메타 전체를 뜨므로 여기 글자는 쓰이지 않는다.
             String before;
-            const bool snapped = context.component != nullptr
-                ? SetPropertyCommand::ReadValue(*context.component, context.typeId, context.path, before)
+            const bool snapped = static_cast<bool>(context.attached)
+                ? SetPropertyCommand::ReadValue(context.attached.GetInstance(), context.typeId, context.path, before)
                 : context.asset != nullptr;
             if (DrawScalarRun(type, run, edit) && editable)
             {
@@ -1846,7 +1903,7 @@ namespace JBro
             return;
         }
         // 오브젝트 참조는 캔버스의 오브젝트 목록이다(D-233).
-        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.Handle.GameObject"))
+        if (context.element == nullptr && static_cast<bool>(context.attached) && SameName(type.typeName, "JBro.Handle.GameObject"))
         {
             DrawObjectField(type, address, context);
             return;
@@ -1862,7 +1919,7 @@ namespace JBro
 
         // 텍스트의 글자는 줄바꿈을 그대로 치는 여러 줄 칸이다. 한 줄 칸은 줄바꿈을 이스케이프 글자로 보여 주고
         // 512 바이트에서 끊겼다.
-        if (context.element == nullptr && context.component != nullptr && SameName(type.typeName, "JBro.TextId"))
+        if (context.element == nullptr && static_cast<bool>(context.attached) && SameName(type.typeName, "JBro.TextId"))
         {
             // 문자열 표의 키(`textKey`, D-226)는 한 줄이다. 줄바꿈이 든 키는 표에 적을 수 없다.
             DrawTextBody(type, address, editable, false == (label != nullptr && std::strcmp(label, "textKey") == 0), context);

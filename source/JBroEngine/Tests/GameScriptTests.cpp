@@ -56,7 +56,8 @@ namespace
         int fixedUpdates = 0;
     };
 
-    static_assert(std::is_base_of_v<JBro::ComponentBase, JBro::GameScriptBase>);
+    // 스크립트는 컴포넌트가 아니다(D-271).
+    static_assert(false == std::is_base_of_v<JBro::ComponentBase, JBro::GameScriptBase>);
     static_assert(std::is_base_of_v<JBro::GameScriptBase, JBro::GameScript2D>);
     static_assert(std::is_abstract_v<JBro::GameScriptBase>);
     static_assert(std::is_abstract_v<JBro::GameScript2D>);
@@ -72,10 +73,10 @@ int RunGameScriptTests()
 {
     JBro::Canvas canvas(JBro::CreateDefaultAllocator());
     auto* object = canvas.CreateObject("script owner");
-    auto* script = canvas.AttachComponent<ScriptProbe>(object);
+    auto* script = canvas.AttachScript<ScriptProbe>(object);
     if (script == nullptr
         || script->GetGameObject().GetInstanceId() != object->GetInstanceId()
-        || false == script->IsActiveComponent())
+        || false == script->IsActiveScript())
     {
         throw std::runtime_error("split script base must preserve component ownership and activation");
     }
@@ -86,9 +87,9 @@ int RunGameScriptTests()
     {
         throw std::runtime_error("scripts must register separately from ordinary components");
     }
-    auto reference = object->GetComponent<ScriptProbe>();
-    auto fromHandle = object->GetScriptHandle().GetComponent<ScriptProbe>();
-    auto plural = object->GetComponents<ScriptProbe>();
+    auto reference = object->GetScript<ScriptProbe>();
+    auto fromHandle = object->GetScriptHandle().GetScript<ScriptProbe>();
+    auto plural = object->GetScripts<ScriptProbe>();
     if (reference.Get() != script || fromHandle.Get() != script
         || plural.Size() != 1 || plural[0].Get() != script)
     {

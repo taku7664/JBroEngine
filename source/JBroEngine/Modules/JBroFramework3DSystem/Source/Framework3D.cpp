@@ -148,15 +148,15 @@ namespace JBro
 
     namespace
     {
-        void BindComponentAssetsVisitor(const PropertyTable& table, ComponentBase& component, void* user)
+        void BindComponentAssetsVisitor(const PropertyTable& table, void* instance, void* user)
         {
             auto* binding = static_cast<std::pair<AssetSystem*, Array<AssetHandle>*>*>(user);
-            binding->first->BindComponentAssets(table, &component, *binding->second);
+            binding->first->BindComponentAssets(table, instance, *binding->second);
         }
 
-        void CollectComponentAssetIdsVisitor(const PropertyTable& table, ComponentBase& component, void* user)
+        void CollectComponentAssetIdsVisitor(const PropertyTable& table, void* instance, void* user)
         {
-            AssetSystem::CollectComponentAssetIds(table, &component, *static_cast<Array<AssetId>*>(user));
+            AssetSystem::CollectComponentAssetIds(table, instance, *static_cast<Array<AssetId>*>(user));
         }
     }
 
@@ -166,7 +166,7 @@ namespace JBro
         {
             return;
         }
-        ForEachReflectedComponent(*m_canvas, &CollectComponentAssetIdsVisitor, &ids);
+        ForEachReflectedInstance(*m_canvas, &CollectComponentAssetIdsVisitor, &ids);
     }
 
     void Framework3D::BindCanvasAssets()
@@ -177,7 +177,7 @@ namespace JBro
         }
         m_context.assets->ReleaseAll(m_canvasAssets);
         std::pair<AssetSystem*, Array<AssetHandle>*> binding(m_context.assets, &m_canvasAssets);
-        ForEachReflectedComponent(*m_canvas, &BindComponentAssetsVisitor, &binding);
+        ForEachReflectedInstance(*m_canvas, &BindComponentAssetsVisitor, &binding);
         m_context.assets->CollectUnused();
     }
 

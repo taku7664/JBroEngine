@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/ScalarRun.h>
@@ -81,11 +82,12 @@ namespace JBro
             // 줄 배치 안에서 열려 있는 트리 마디 수다. 마디가 열린 자리에서는 표를 끊지 못한다 -
             // 표를 닫으면서 마디가 쌓은 Id 를 뺀다.
             std::uint32_t openTrees = 0;
-            // 컴포넌트의 주인이다. `ComponentBase` 가 주인을 내주는 길은
+            // 그리는 것의 주인이다. 컴포넌트·스크립트가 주인을 내주는 길은
             // 핸들뿐이고 원시 포인터 쪽은 private 이라, 그리는 쪽이 이미
             // 알고 있는 것을 여기 담아 온다.
             Object::GameObject* owner = nullptr;
-            ComponentBase* component = nullptr;
+            // 필드를 그리는 컴포넌트나 스크립트다(D-271). 에셋 옵션을 그리는 중이면 비어 있다.
+            AttachedRef attached;
             ComponentTypeId typeId = 0;
             SetPropertyCommand::Path path;
         };
@@ -160,13 +162,19 @@ namespace JBro
             const PropertyEditInfo* edit,
             const String& before,
             bool snapped);
+        // 컴포넌트나 스크립트 하나의 머리·메뉴·켜짐·필드를 그린다(D-271). `index`·`count` 는 그 목록 안의 자리와 크기다.
+        // 목록이 바뀌어 이 프레임에 더 그리면 안 되면 거짓이다.
+        bool DrawAttached(Object::GameObject& object, AttachedRef attached, ComponentTypeId typeId,
+            std::size_t index, std::size_t count);
         // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
         void DrawAddComponent(Object::GameObject& object);
+        // 스크립트를 붙이는 손잡이(D-271). 컴포넌트 목록과 따로다.
+        void DrawAddScript(Object::GameObject& object);
         // 캔버스 자신을 골랐을 때의 화면이다(D-186).
         void DrawCanvas();
-        void RemoveComponent(Object::GameObject& object, ComponentBase& component);
-        // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.
-        void MoveComponent(Object::GameObject& object, std::size_t from, std::size_t to);
+        void RemoveAttached(Object::GameObject& object, AttachedRef attached);
+        // 그 목록의 슬롯 `from` 을 `to` 자리로. 커맨드로 간다.
+        void MoveAttached(Object::GameObject& object, std::size_t from, std::size_t to, AttachedKind kind);
         // 표의 필드를 **이미 열려 있는 줄 배치 안에** 그린다. 배치를 밖에서
         // 받는 이유는 중첩 구조가 자기 배치를 따로 열어야 하기 때문이다 -
         // 한 표 안에서 다시 표를 열면 칸 폭이 바깥과 따로 논다.
@@ -186,7 +194,7 @@ namespace JBro
         struct EditTarget
         {
             Object::GameObject* owner = nullptr;
-            ComponentBase* component = nullptr;
+            AttachedRef attached;
         };
         Array<EditTarget> CollectEditTargets(const Context& context) const;
 

@@ -38,6 +38,10 @@ namespace JBro::Handle
         template<typename T>
         Ref<T> GetComponent() const;
 
+        // 이 오브젝트의 스크립트를 타입으로 찾는다(D-271). 스크립트는 컴포넌트가 아니므로 `GetComponent` 로는 찾지 않는다.
+        template<typename T>
+        Ref<T> GetScript() const;
+
         InstanceId GetInstanceId() const;
 
     private:
@@ -47,6 +51,7 @@ namespace JBro::Handle
         explicit GameObject(const Object::GameObject* object);
         Object::GameObject* Resolve() const;
         InstanceRef FindComponentReference(ComponentTypeId typeId) const;
+        InstanceRef FindScriptReference(ComponentTypeId typeId) const;
         static void ReportInvalidAccess(const char* operation, InstanceId instanceId);
 
         mutable InstanceHandle m_cached;
@@ -59,6 +64,18 @@ namespace JBro::Handle
         "Handle::GameObject must remain standard layout");
     static_assert(std::is_trivially_copyable_v<GameObject>,
         "Handle::GameObject must remain trivially copyable");
+
+    template<typename T>
+    Ref<T> GameObject::GetScript() const
+    {
+        static constexpr ComponentTypeId TypeId = MakeStableTypeId(T::StaticTypeName());
+        const InstanceRef found = FindScriptReference(TypeId);
+        Ref<T> result;
+        result.ObjectId = found.ObjectId;
+        result.ComponentId = found.ComponentId;
+        result.Cached = found.Cached;
+        return result;
+    }
 
     template<typename T>
     Ref<T> GameObject::GetComponent() const

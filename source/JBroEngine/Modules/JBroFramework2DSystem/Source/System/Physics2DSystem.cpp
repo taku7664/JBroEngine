@@ -309,11 +309,7 @@ namespace JBro::System
         Array<Vector2>                   queryOutline;
         Physics2D::DecomposeScratch   decompose;
 
-        // 오브젝트의 컴포넌트 중 스크립트를 가려내는 표(주소 정렬). ScriptSystem 과 같은 방식이고, 실행 순서 판번호가
-        // 움직였을 때만 다시 만든다 - 프레임 경로에 dynamic_cast 를 두지 않는다(§9).
-        Array<GameScriptBase*>        collectedScripts;
-        Array<const ComponentBase*>   scriptKeys;
-        std::uint64_t                 scriptRevision = std::numeric_limits<std::uint64_t>::max();
+        // 훅을 부를 스크립트를 먼저 모으는 자리다. 멤버로 두어 부를 때마다 할당하지 않는다.
         Array<GameScript2D*>          hookTargets;
 
         const Array<Physics2D::ConvexPolygon>& PiecesFor(const Component::Collider2D& collider, Vector2 scale)
@@ -335,12 +331,6 @@ namespace JBro::System
                 Physics2D::DecomposePolygon(outline.View(), cache->pieces, decompose);
             }
             return cache->pieces;
-        }
-
-        bool IsScript(const ComponentBase* component) const
-        {
-            return component != nullptr
-                && std::binary_search(scriptKeys.begin(), scriptKeys.end(), component);
         }
     };
 
@@ -1436,22 +1426,6 @@ namespace JBro::System
             return;
         }
 
-        const std::uint64_t revision = canvas.GetScriptOrderRevision();
-        if (revision != state.scriptRevision)
-        {
-            canvas.CollectScripts(state.collectedScripts);
-            state.scriptKeys.Clear();
-            for (GameScriptBase* script : state.collectedScripts)
-            {
-                if (script != nullptr)
-                {
-                    state.scriptKeys.Add(static_cast<const ComponentBase*>(script));
-                }
-            }
-            std::sort(state.scriptKeys.begin(), state.scriptKeys.end());
-            state.scriptRevision = revision;
-        }
-
         // 콜라이더 아이디 → 오브젝트. 이번 스텝에 지운 콜라이더는 떠나보낸 연결에서 찾는다(끝 이벤트가 그것이다).
         const auto ownerOf = [&state](std::uint64_t colliderId) -> const State::ShapeLink*
         {
@@ -1479,15 +1453,15 @@ namespace JBro::System
             {
                 return;
             }
-            // 먼저 모은 뒤 부른다. 훅이 컴포넌트를 붙이거나 떼면 슬롯 배열이 흔들린다.
+            // 먼저 모은 뒤 부른다. 훅이 스크립트를 붙이거나 떼면 목록이 흔들린다.
             state.hookTargets.Clear();
-            for (const ComponentSlot& slot : self->GetComponents())
+            for (const ScriptSlot& slot : self->GetScripts())
             {
-                ComponentBase* component = slot.reference.TryGet();
-                if (state.IsScript(component) && component->IsActiveComponent())
+                GameScriptBase* script = slot.reference.TryGet();
+                if (script != nullptr && script->IsActiveScript())
                 {
                     // 2D 프로젝트의 스크립트는 모두 GameScript2D 다. 등록이 컴파일 시간에 그것을 막는다(D-207).
-                    state.hookTargets.Add(static_cast<GameScript2D*>(static_cast<GameScriptBase*>(component)));
+                    state.hookTargets.Add(static_cast<GameScript2D*>(script));
                 }
             }
             for (GameScript2D* script : state.hookTargets)

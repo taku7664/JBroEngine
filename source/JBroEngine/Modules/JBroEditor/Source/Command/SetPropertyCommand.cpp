@@ -78,7 +78,7 @@ namespace JBro
     }
 
     bool SetPropertyCommand::ResolveLeaf(
-        ComponentBase& component,
+        void* instance,
         ComponentTypeId typeId,
         const Path& path,
         void*& address,
@@ -90,7 +90,11 @@ namespace JBro
             return false;
         }
 
-        void* owner = &component;
+        void* owner = instance;
+        if (owner == nullptr)
+        {
+            return false;
+        }
         const TypeDescriptor* found = nullptr;
         for (std::uint32_t step = 0; step < path.depth; ++step)
         {
@@ -125,14 +129,14 @@ namespace JBro
     }
 
     bool SetPropertyCommand::ApplyValue(
-        ComponentBase& component,
+        void* instance,
         ComponentTypeId typeId,
         const Path& path,
         const String& text)
     {
         void* address = nullptr;
         const TypeDescriptor* type = nullptr;
-        if (false == ResolveLeaf(component, typeId, path, address, type))
+        if (false == ResolveLeaf(instance, typeId, path, address, type))
         {
             return false;
         }
@@ -239,14 +243,14 @@ namespace JBro
     }
 
     bool SetPropertyCommand::ReadValue(
-        ComponentBase& component,
+        void* instance,
         ComponentTypeId typeId,
         const Path& path,
         String& text)
     {
         void* address = nullptr;
         const TypeDescriptor* type = nullptr;
-        if (false == ResolveLeaf(component, typeId, path, address, type))
+        if (false == ResolveLeaf(instance, typeId, path, address, type))
         {
             return false;
         }
@@ -261,12 +265,12 @@ namespace JBro
 
     bool SetPropertyCommand::WriteValue(const String& value)
     {
-        ComponentBase* component = ResolveComponent(*m_registry, m_address);
-        if (component == nullptr)
+        const AttachedRef attached = ResolveAttached(*m_registry, m_address);
+        if (false == static_cast<bool>(attached))
         {
-            // 컴포넌트가 사라졌다. 되돌릴 곳이 없는 것은 실패지 사고가 아니다.
+            // 컴포넌트나 스크립트가 사라졌다. 되돌릴 곳이 없는 것은 실패지 사고가 아니다.
             return false;
         }
-        return ApplyValue(*component, m_address.typeId, m_path, value);
+        return ApplyValue(attached.GetInstance(), m_address.typeId, m_path, value);
     }
 }

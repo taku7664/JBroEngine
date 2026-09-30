@@ -2660,7 +2660,7 @@ namespace
         Check(false == editor.HasComponentClipboard(), "the component clipboard starts empty");
         Check(false == editor.PasteComponent(*target), "and pasting it does nothing");
 
-        Check(editor.CopyComponent(*transform), "copying the component must go through");
+        Check(editor.CopyComponent(transform), "copying the component must go through");
         Check(editor.HasComponentClipboard(), "and fill its own clipboard");
         Check(editor.GetComponentClipboardTypeName() != nullptr
                 && std::strstr(editor.GetComponentClipboardTypeName(), "Transform2D") != nullptr,
@@ -2701,7 +2701,7 @@ namespace
         auto* sourceCollider = canvas->AttachComponent<JBro::Component::Collider2D>(source);
         Check(sourceCollider != nullptr, "the probe collider must attach");
         sourceCollider->size = {5.0f, 6.0f};
-        Check(editor.CopyComponent(*sourceCollider), "copying the collider must go through");
+        Check(editor.CopyComponent(sourceCollider), "copying the collider must go through");
         Check(editor.CanPasteComponent(*target), "a collider may be pasted onto the target");
         Check(editor.PasteComponent(*target), "pasting it must go through");
         Check(target->GetComponents().Size() == slots + 1, "and add a slot");
@@ -2712,7 +2712,7 @@ namespace
         Check(editor.GetCommands().Undo(), "and undo the first collider too");
         Check(target->GetComponents().Size() == slots,
             "leaving the target as it was before the colliders");
-        Check(editor.CopyComponent(*transform), "putting the transform back on the clipboard");
+        Check(editor.CopyComponent(transform), "putting the transform back on the clipboard");
 
         // **값만 붙여넣기**는 있는 컴포넌트를 덮는다. 슬롯이 늘지 않는다.
         auto* targetTransform = canvas->FindComponentRaw<JBro::Component::Transform2D>(target);
@@ -2720,9 +2720,9 @@ namespace
         targetTransform->SetRotationRadian(JBro::Radian(0.0f));
         targetTransform->position = {0.0f, 0.0f};
         const std::size_t before = target->GetComponents().Size();
-        Check(editor.CanPasteComponentValues(*targetTransform),
+        Check(editor.CanPasteComponentValues(targetTransform),
             "the clipboard holds that very type");
-        Check(editor.PasteComponentValues(*target, *targetTransform),
+        Check(editor.PasteComponentValues(*target, targetTransform),
             "pasting the values must go through");
         Check(target->GetComponents().Size() == before, "without adding a slot");
         Check(targetTransform->GetRotationRadian() == 1.25f && targetTransform->position.x == 3.0f,
@@ -2734,15 +2734,15 @@ namespace
         // **다른 타입에는 덮지 않는다.** 이름이 다른 것에 값을 밀어 넣을 길이 있으면 안 된다.
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(target);
         Check(camera != nullptr, "the probe camera must attach");
-        Check(false == editor.CanPasteComponentValues(*camera),
+        Check(false == editor.CanPasteComponentValues(camera),
             "a transform cannot be pasted over a camera");
-        Check(false == editor.PasteComponentValues(*target, *camera),
+        Check(false == editor.PasteComponentValues(*target, camera),
             "and asking for it anyway does nothing");
 
         // **뜰 수 없는 타입은 복사도 거절한다.** 붙여 봐야 기본값 하나가 생길 뿐이다.
         auto* opaque = canvas->AttachComponent<Opaque>(source);
         Check(opaque != nullptr, "the opaque component must attach");
-        Check(false == editor.CopyComponent(*opaque),
+        Check(false == editor.CopyComponent(opaque),
             "a component whose properties were never registered cannot be copied");
         Check(editor.GetComponentClipboardTypeName() != nullptr
                 && std::strstr(editor.GetComponentClipboardTypeName(), "Transform2D") != nullptr,

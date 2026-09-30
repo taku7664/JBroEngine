@@ -76,6 +76,17 @@ namespace JBro
         return object->FindComponentReference(typeId);
     }
 
+    InstanceRef Handle::GameObject::FindScriptReference(ComponentTypeId typeId) const
+    {
+        Object::GameObject* object = Resolve();
+        if (object == nullptr)
+        {
+            ReportInvalidAccess("GetScript", m_instanceId);
+            return {};
+        }
+        return object->FindScriptReference(typeId);
+    }
+
     void Handle::GameObject::ReportInvalidAccess(
         const char* operation,
         InstanceId instanceId)
