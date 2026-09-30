@@ -67,6 +67,13 @@ namespace JBro
         GuideFocusTarget ComponentListItem(std::uint64_t componentTypeId);
         // 오브젝트 메뉴의 `컴포넌트 추가` 안에 있는 **갈래 하위 메뉴**다. `key` 는 번역하지 않은 갈래 이름(`Rendering`)의 `MakeNameId` 다.
         GuideFocusTarget ComponentCategoryMenu(const char* category);
+        // **캔버스 뷰의 도구와 그림 위의 점**(반례 ⑦). 기즈모 모드 단추(`이동`·`회전`·`크기`, 열림은 그 모드가 켜져 있는가),
+        // 기즈모 손잡이(모드와 축 - `GizmoMode`·`GizmoAxis` 의 값), `콜라이더 편집` 단추(열림은 편집이 켜져 있는가),
+        // 편집 중인 폴리곤의 포인트(번호). 손잡이와 포인트는 캔버스 뷰가 집기에 쓰는 화면 자리를 그대로 알린다.
+        GuideFocusTarget GizmoModeButton(std::uint32_t mode);
+        GuideFocusTarget GizmoHandle(std::uint32_t mode, std::uint32_t axis);
+        GuideFocusTarget ColliderEditButton();
+        GuideFocusTarget PolygonPoint(std::uint32_t index);
     }
 
     // 경로의 한 칸을 누가 여는가.
@@ -182,8 +189,10 @@ namespace JBro
         // 잘리지 않았는가, `activated` 는 이번 프레임에 눌렸거나 편집을 마쳤는가다.
         // `enabled` 가 거짓이면 회색이라 누를 수 없는 항목이다(붙여넣을 것이 없다, 이미 붙은 컴포넌트). `disabledReason` 은 그 까닭이고
         // 모델이 베껴 든다 - 부르는 쪽의 글자는 이 프레임만 산다.
+        // `round` 면 구멍이 사각형이 아니라 그 사각형에 내접하는 원이다(반례 ⑦) - 캔버스 뷰의 점(기즈모 가운데·회전 고리·폴리곤 포인트·
+        // 그릴 것이 없는 오브젝트)은 사각형으로 뚫으면 둘레의 그림까지 드러난다.
         void Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated,
-            bool enabled = true, const char* disabledReason = nullptr);
+            bool enabled = true, const char* disabledReason = nullptr, bool round = false);
         // 이 경로가 켜진 뒤에 열린 팝업(메뉴·콤보·우클릭 메뉴)이다. 열린 차례대로 알린다.
         //
         // **누가 열었는지로 가른다.** 경로의 중간 칸(메뉴 머리)이 연 팝업은 그 안의 다음 칸만 누를 수 있고 나머지는 막이 덮는다 -
@@ -221,6 +230,8 @@ namespace JBro
         float GetVeilAlpha() const noexcept { return m_veilAlpha; }
         // 구멍이 있는가(지금 칸을 한 번이라도 보았는가)와 지금 구멍의 자리(애니메이션 중인 자리)다.
         bool HasHole() const noexcept { return m_holeKnown; }
+        // 지금 칸이 둥근 대상인가(`Report` 의 `round`). 막은 구멍 사각형에 내접하는 원만 뚫는다.
+        bool IsHoleRound() const noexcept { return m_holeRound; }
         const Rect& GetHoleRect() const noexcept { return m_hole; }
         // 구멍이 지금 칸의 자리에 닿았는가.
         bool IsHoleSettled() const noexcept { return m_holeSettled; }
@@ -257,6 +268,7 @@ namespace JBro
             bool visible = false;
             bool activated = false;
             bool enabled = true;
+            bool round = false;
         };
         // 지금 칸이 꺼져 있을 때 받은 까닭이다. 지금 칸의 보고가 올 때마다 다시 쓴다.
         char m_disabledReason[DisabledReasonCapacity] = {};
@@ -292,6 +304,7 @@ namespace JBro
         Rect m_hole;
         Rect m_holeTarget;
         bool m_holeKnown = false;
+        bool m_holeRound = false;
         bool m_holeSettled = false;
         float m_settledSeconds = 0.0f;
         float m_veilAlpha = 0.0f;

@@ -594,9 +594,9 @@ namespace JBro
                 "read the ruler in world units or in pixels"));
             // 보기 단추가 아니라 **고치는 도구**다. 무리를 가르고 맨 끝에 둔다 - 앞의 단추들 자리를 밀지 않는다.
             Widget::ToolBarSeparator();
-            if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewEditCollider, "Edit Collider")))
+            Widget::SetNextItemTarget(GuideFocusTargets::ColliderEditButton());
+            if (Widget::ToggleButton(Loc::TextOr(LocKeys::CanvasViewEditCollider, "Edit Collider"), m_editCollider))
             {
-                m_editCollider = false == m_editCollider;
                 // 끄면 메뉴로 고른 콜라이더도 잊는다. 다시 켜면 첫 폴리곤부터다.
                 m_pointTarget = {};
             }
@@ -803,7 +803,7 @@ namespace JBro
     }
 
     bool CanvasViewPanel::GetWorldBounds(const GameObject& object,
-        float& minX, float& minY, float& maxX, float& maxY) const
+        float& minX, float& minY, float& maxX, float& maxY, bool* drewNothing) const
     {
         Canvas* canvas = m_editor->GetCanvas();
         if (canvas == nullptr)
@@ -926,12 +926,17 @@ namespace JBro
         }
 
         // 그릴 것이 없으면(빈 오브젝트, 폰트 없는 텍스트) 월드 원점 둘레의 작은 상자다. 크기·회전과 무관하게 같은 크기로 잡힌다.
-        if (false == hasBox || maxX - minX < 0.001f || maxY - minY < 0.001f)
+        const bool empty = false == hasBox || maxX - minX < 0.001f || maxY - minY < 0.001f;
+        if (empty)
         {
             minX = center.x - EmptyObjectHalfSize;
             maxX = center.x + EmptyObjectHalfSize;
             minY = center.y - EmptyObjectHalfSize;
             maxY = center.y + EmptyObjectHalfSize;
+        }
+        if (drewNothing != nullptr)
+        {
+            *drewNothing = empty;
         }
         return true;
     }
@@ -1479,6 +1484,20 @@ namespace JBro
                     CommitPoints(target.address, before, after);
                 }
                 m_vertexPressed = true;
+            }
+        }
+
+        // **포인트를 가이드 포커스에 알린다**(반례 ⑦). 자리는 집기가 쓰는 화면 점이고 구멍은 둥글다. 눌림은 그 포인트를 잡은 프레임이다.
+        if (const EditorGuideFocus* focus = Widget::GetGuideFocus(); focus != nullptr && focus->IsActive())
+        {
+            constexpr float PointHoleRadius = 9.0f;
+            const bool grabbedNow = m_vertexDragging && ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            for (std::size_t index = 0; index < m_screenScratch.Size(); ++index)
+            {
+                const Vector2 p = m_screenScratch[index];
+                Widget::ReportGuideTarget(GuideFocusTargets::PolygonPoint(static_cast<std::uint32_t>(index)),
+                    ImVec2(p.x - PointHoleRadius, p.y - PointHoleRadius), ImVec2(p.x + PointHoleRadius, p.y + PointHoleRadius),
+                    false, grabbedNow && index == m_dragVertex, true);
             }
         }
 
@@ -2317,9 +2336,34 @@ namespace JBro
         // 경로의 칸은 여덟을 넘지 않는다. 캔버스 뷰의 오브젝트인 칸만 본다.
         const GuideFocusPath& path = focus->GetPath();
         const NameId kind = GuideFocusTargets::CanvasViewObject(0).name;
+        const NameId handleKind = GuideFocusTargets::GizmoHandle(0, 0).name;
+        const NameId pointKind = GuideFocusTargets::PolygonPoint(0).name;
         for (std::uint32_t index = 0; index < path.count; ++index)
         {
             const GuideFocusTarget& target = path.targets[index];
+            if ((target.name == handleKind || target.name == pointKind) && focus->ShouldScrollTo(target))
+            {
+                // 손잡이와 포인트는 고른 오브젝트 위에 선다. 그 오브젝트가 화면 밖이면 카메라를 그리로 옮긴다 - 그래야 그려진다.
+                GameObject* selected = m_editor->GetSelectedObject();
+                float minX = 0.0f;
+                float minY = 0.0f;
+                float maxX = 0.0f;
+                float maxY = 0.0f;
+                if (selected != nullptr && InViewSpace(*selected) && GetWorldBounds(*selected, minX, minY, maxX, maxY))
+                {
+                    float x0 = 0.0f;
+                    float y0 = 0.0f;
+                    float x1 = 0.0f;
+                    float y1 = 0.0f;
+                    WorldToScreen(rect, minX, maxY, x0, y0);
+                    WorldToScreen(rect, maxX, minY, x1, y1);
+                    if (x1 < rect.left || x0 > rect.left + rect.width || y1 < rect.top || y0 > rect.top + rect.height)
+                    {
+                        FrameBounds(minX, minY, maxX, maxY);
+                    }
+                }
+                continue;
+            }
             if (target.name != kind)
             {
                 continue;
@@ -2342,7 +2386,9 @@ namespace JBro
             float minY = 0.0f;
             float maxX = 0.0f;
             float maxY = 0.0f;
-            if (false == GetWorldBounds(*object, minX, minY, maxX, maxY))
+            // 스프라이트·글자가 있으면 그 사각형이고, 없으면 오브젝트의 점 둘레다 - 점은 둥글게 뚫는다.
+            bool point = false;
+            if (false == GetWorldBounds(*object, minX, minY, maxX, maxY, &point))
             {
                 continue;
             }
@@ -2364,11 +2410,11 @@ namespace JBro
             const bool menuOpen = m_contextObject.TryGet() == object;
             if (onScreen)
             {
-                Widget::ReportGuideTarget(target, min, max, menuOpen, false);
+                Widget::ReportGuideTarget(target, min, max, menuOpen, false, point);
             }
             else
             {
-                Widget::ReportGuideTarget(target, ImVec2(x0, y0), ImVec2(x1, y1), menuOpen, false);
+                Widget::ReportGuideTarget(target, ImVec2(x0, y0), ImVec2(x1, y1), menuOpen, false, point);
             }
         }
     }

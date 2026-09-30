@@ -1,6 +1,9 @@
 ﻿#include <JBro/Editor/Widget/Gizmo.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 
 #include <imgui_internal.h>
+
+#include <algorithm>
 
 namespace JBro::Widget
 {
@@ -41,6 +44,51 @@ namespace JBro::Widget
                 return IM_COL32(80, 130, 255, 255);
             default:
                 return IM_COL32(240, 240, 240, 255);
+            }
+        }
+
+        // **손잡이를 가이드 포커스에 알린다**(반례 ⑦). 자리는 집기(`GizmoModel::Pick`)가 쓰는 모양 그대로다 - 축은 선분을 집는 거리만큼
+        // 부풀린 사각형, 가운데와 회전 고리는 둥근 구멍이다. 눌림은 그 손잡이로 끌기를 시작한 프레임이다.
+        void ReportHandles(GizmoMode mode, const GizmoHandleShape* handles, std::uint32_t count, const GizmoOutput& output)
+        {
+            const EditorGuideFocus* focus = GetGuideFocus();
+            if (focus == nullptr || false == focus->IsActive())
+            {
+                return;
+            }
+            for (std::uint32_t index = 0; index < count; ++index)
+            {
+                const GizmoHandleShape& handle = handles[index];
+                const GuideFocusTarget target = GuideFocusTargets::GizmoHandle(static_cast<std::uint32_t>(mode),
+                    static_cast<std::uint32_t>(handle.axis));
+                ImVec2 min;
+                ImVec2 max;
+                bool round = true;
+                if (handle.ring)
+                {
+                    min = ImVec2(handle.ringX[0], handle.ringY[0]);
+                    max = min;
+                    for (std::uint32_t point = 1; point < GizmoHandleShape::RingPoints; ++point)
+                    {
+                        min = ImVec2((std::min)(min.x, handle.ringX[point]), (std::min)(min.y, handle.ringY[point]));
+                        max = ImVec2((std::max)(max.x, handle.ringX[point]), (std::max)(max.y, handle.ringY[point]));
+                    }
+                }
+                else if (handle.axis == GizmoAxis::Free)
+                {
+                    const float radius = GizmoModel::CenterRadiusPixels + 3.0f;
+                    min = ImVec2(handle.x0 - radius, handle.y0 - radius);
+                    max = ImVec2(handle.x0 + radius, handle.y0 + radius);
+                }
+                else
+                {
+                    const float pad = GizmoModel::PickDistancePixels;
+                    min = ImVec2((std::min)(handle.x0, handle.x1) - pad, (std::min)(handle.y0, handle.y1) - pad);
+                    max = ImVec2((std::max)(handle.x0, handle.x1) + pad, (std::max)(handle.y0, handle.y1) + pad);
+                    round = false;
+                }
+                const bool activated = output.dragStarted && output.axis == handle.axis;
+                ReportGuideTarget(target, min, max, false, activated, round);
             }
         }
 
@@ -179,6 +227,7 @@ namespace JBro::Widget
             DrawHandle(*draw, mode, handles[index], handles[index].axis == highlighted);
         }
         draw->PopClipRect();
+        ReportHandles(mode, handles, count, output);
         return output;
     }
 
@@ -232,7 +281,11 @@ namespace JBro::Widget
             }
             char label[128];
             ImFormatString(label, sizeof(label), "%s%s", labels[index] != nullptr ? labels[index] : "", suffixes[index]);
-            if (ImGui::Button(label))
+            const bool pressed = ImGui::Button(label);
+            // 가이드가 모드 단추를 가리킬 수 있다(반례 ⑦). 열림은 그 모드가 켜져 있는가다 - 켜져 있으면 다음 칸(손잡이)으로 간다.
+            Internal::ReportLastItem(GuideFocusTargets::GizmoModeButton(static_cast<std::uint32_t>(modes[index])),
+                pressed || mode == modes[index], pressed);
+            if (pressed)
             {
                 mode = modes[index];
             }

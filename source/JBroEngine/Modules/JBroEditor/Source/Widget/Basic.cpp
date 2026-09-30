@@ -62,6 +62,18 @@ namespace JBro::Widget
         return pressed;
     }
 
+    bool ToggleButton(const char* label, bool& on)
+    {
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        const bool pressed = ImGui::Button(label);
+        if (pressed)
+        {
+            on = false == on;
+        }
+        Internal::ReportLastItem(target, on, pressed);
+        return pressed;
+    }
+
     bool SelectableRow(const char* label, bool selected)
     {
         return ImGui::Selectable(label, selected);

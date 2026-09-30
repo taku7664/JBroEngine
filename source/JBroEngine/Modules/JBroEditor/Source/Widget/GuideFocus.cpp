@@ -127,6 +127,29 @@ namespace JBro::Widget
             }
         }
 
+        // **둥근 구멍**이다. `FillVeil` 은 사각형만 뺀다 - 그 사각형 안에서 내접하는 타원 밖의 네 귀퉁이를 막 색으로 다시 칠한다.
+        // 귀퉁이마다 꼭짓점에서 호의 점들로 부채를 편다. 호가 꼭짓점 쪽으로 볼록하므로 부채는 귀퉁이를 빈틈없이 덮는다.
+        void FillOutsideEllipse(ImDrawList& list, const ImRect& hole, ImU32 color)
+        {
+            constexpr int SegmentsPerQuarter = 12;
+            const ImVec2 center = hole.GetCenter();
+            const float rx = hole.GetWidth() * 0.5f;
+            const float ry = hole.GetHeight() * 0.5f;
+            const ImVec2 corners[4] = { hole.Max, ImVec2(hole.Min.x, hole.Max.y), hole.Min, ImVec2(hole.Max.x, hole.Min.y) };
+            for (int quarter = 0; quarter < 4; ++quarter)
+            {
+                const float start = static_cast<float>(quarter) * IM_PI * 0.5f;
+                ImVec2 previous(center.x + rx * ImCos(start), center.y + ry * ImSin(start));
+                for (int step = 1; step <= SegmentsPerQuarter; ++step)
+                {
+                    const float angle = start + (IM_PI * 0.5f) * static_cast<float>(step) / static_cast<float>(SegmentsPerQuarter);
+                    const ImVec2 point(center.x + rx * ImCos(angle), center.y + ry * ImSin(angle));
+                    list.AddTriangleFilled(corners[quarter], previous, point, color);
+                    previous = point;
+                }
+            }
+        }
+
         // 말풍선을 놓을 자리다. 대상의 오른쪽·왼쪽·아래·위 가운데 화면 안에 들어가는 첫 자리이고,
         // 어디에도 안 들어가면 남는 자리가 가장 넓은 쪽에 두고 화면 안으로 민다. `slide` 는 들어오는 쪽이다.
         ImVec2 PlaceBalloon(const ImRect& target, const ImVec2& size, const ImVec2& display, ImVec2& slide)
@@ -214,7 +237,7 @@ namespace JBro::Widget
     }
 
     void ReportGuideTarget(const GuideFocusTarget& target, const ImVec2& min, const ImVec2& max,
-        bool opened, bool activated)
+        bool opened, bool activated, bool round)
     {
         if (false == target.IsValid() || g_focus == nullptr || false == g_focus->IsActive())
         {
@@ -225,7 +248,7 @@ namespace JBro::Widget
         {
             ImGui::SetScrollFromPosY(ImGui::GetCurrentWindow(), min.y - ImGui::GetWindowPos().y, 0.5f);
         }
-        g_focus->Report(target, ToRect(min, max), opened, visible, activated);
+        g_focus->Report(target, ToRect(min, max), opened, visible, activated, true, nullptr, round);
     }
 
     GuideFocusAction GuideFocus(EditorGuideFocus& focus, const GuideFocusBalloon& balloon)
@@ -290,14 +313,26 @@ namespace JBro::Widget
                 ImDrawList& list = *ImGui::GetWindowDrawList();
                 list.PushClipRect(ImVec2(0.0f, 0.0f), display, false);
                 const ImVec4 veil = EditorTheme::GuideVeil;
-                FillVeil(list, display, holes, holeCount,
-                    ImGui::GetColorU32(ImVec4(veil.x, veil.y, veil.z, veil.w * alpha)));
+                const ImU32 veilColor = ImGui::GetColorU32(ImVec4(veil.x, veil.y, veil.z, veil.w * alpha));
+                FillVeil(list, display, holes, holeCount, veilColor);
+                if (focus.IsHoleRound())
+                {
+                    FillOutsideEllipse(list, hole, veilColor);
+                }
                 // 테두리가 숨을 쉰다. 머무는 동안 "여기" 라고 말한다.
                 const float pulse = focus.GetPulse();
                 const ImVec4 ring = EditorTheme::GuideRing;
-                list.AddRect(ImVec2(hole.Min.x - 1.0f, hole.Min.y - 1.0f), ImVec2(hole.Max.x + 1.0f, hole.Max.y + 1.0f),
-                    ImGui::GetColorU32(ImVec4(ring.x, ring.y, ring.z, (0.55f + 0.45f * pulse) * alpha)),
-                    4.0f, 0, 1.5f + 1.0f * pulse);
+                const ImU32 ringColor = ImGui::GetColorU32(ImVec4(ring.x, ring.y, ring.z, (0.55f + 0.45f * pulse) * alpha));
+                if (focus.IsHoleRound())
+                {
+                    list.AddEllipse(hole.GetCenter(), ImVec2(hole.GetWidth() * 0.5f + 1.0f, hole.GetHeight() * 0.5f + 1.0f), ringColor,
+                        0.0f, 0, 1.5f + 1.0f * pulse);
+                }
+                else
+                {
+                    list.AddRect(ImVec2(hole.Min.x - 1.0f, hole.Min.y - 1.0f), ImVec2(hole.Max.x + 1.0f, hole.Max.y + 1.0f),
+                        ringColor, 4.0f, 0, 1.5f + 1.0f * pulse);
+                }
                 list.PopClipRect();
             }
             ImGui::End();

@@ -8,6 +8,9 @@
 #include <JBro/Editor/EditorControlPort.h>
 #include <JBro/Editor/EditorGuide.h>
 #include <JBro/Editor/EditorGuideFocus.h>
+#include <JBro/Framework2D/Component/Transform2D.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
+#include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Editor/EditorPopup.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -2566,6 +2569,250 @@ namespace
     }
 }
 
+namespace
+{
+    // ── 캔버스 뷰의 도구와 점(반례 ⑦) ─────────────────────────────────────
+
+    // **둥근 대상은 둥근 구멍이다.** 모델은 지금 칸이 둥근지를 알고, 막은 그 사각형에 내접하는 원만 뚫는다.
+    void TestARoundTargetMakesARoundHole()
+    {
+        EditorGuideFocus focus;
+        GuideFocusPath path;
+        Check(path.Push(A), "the path must take one level");
+        Check(focus.Begin(path), "the focus must start");
+        for (int frame = 0; frame < 30; ++frame)
+        {
+            focus.BeginFrame();
+            focus.Report(A, RectA, false, true, false, true, nullptr, true);
+            focus.Update(Frame);
+        }
+        Check(focus.IsHoleRound(), "a round target makes a round hole");
+        focus.BeginFrame();
+        focus.Report(A, RectA, false, true, false);
+        focus.Update(Frame);
+        Check(false == focus.IsHoleRound(), "and a square one a square hole");
+    }
+
+    // 사람처럼 끈다 - 올려 두고, 누르고, 몇 번에 나눠 옮기고, 놓는다.
+    void DragAt(JBro::EditorApplication& editor, HWND hwnd, int x, int y, int dx, int dy)
+    {
+        PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+        Tick(editor, 2);
+        PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(x, y));
+        Tick(editor, 1);
+        constexpr int Steps = 6;
+        for (int step = 1; step <= Steps; ++step)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(x + dx * step / Steps, y + dy * step / Steps));
+            Tick(editor, 1);
+        }
+        PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(x + dx, y + dy));
+        Tick(editor, 3);
+    }
+
+    JBro::String CanvasGuide(const char* action, const JBro::GameObject& object, const char* extra)
+    {
+        char body[192] = {};
+        std::snprintf(body, sizeof(body), "    Object: %llu\n%s", static_cast<unsigned long long>(object.GetInstanceId()), extra);
+        return ActionGuide(action, body);
+    }
+
+    JBro::Component::Transform2D* TransformOf(JBro::EditorApplication& editor, JBro::GameObject& object)
+    {
+        return editor.GetCanvas()->FindComponentRaw<JBro::Component::Transform2D>(&object);
+    }
+
+    // **옮기기는 기즈모의 가운데 손잡이를 둥글게 가리킨다.** 이미 이동 모드면 모드 단추를 지나가고, 끌면 `Gizmo` 커맨드가 끝을 알린다.
+    void TestAMoveGuidePointsAtTheGizmosCenter()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideMoveProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the move guide not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+        const JBro::String text = CanvasGuide("object.move", *object, "");
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        const GuideFocusPath& path = focus.GetPath();
+        const std::uint32_t translate = static_cast<std::uint32_t>(JBro::GizmoMode::Translate);
+        Check(path.count == 3 && path.targets[0] == JBro::GuideFocusTargets::Panel("CanvasView")
+                && path.targets[1] == JBro::GuideFocusTargets::GizmoModeButton(translate) && path.open[1] == GuideFocusOpen::User
+                && path.targets[2] == JBro::GuideFocusTargets::GizmoHandle(translate, static_cast<std::uint32_t>(JBro::GizmoAxis::Free)),
+            "the canvas view, the Move button and the gizmo's center handle");
+        Check(editor.GetSelectedObject() == object, "the object is picked so its gizmo shows");
+        Check(WaitUntilSettled(editor, 2), "Move is already on, so the hole goes straight to the center handle");
+        Check(focus.IsHoleRound(), "the center handle is a round hole");
+
+        JBro::Component::Transform2D* transform = TransformOf(editor, *object);
+        Check(transform != nullptr, "the object must have a transform");
+        const float beforeX = transform->position.x;
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        DragAt(editor, hwnd, x, y, 60, 0);
+        Check(transform->position.x > beforeX + 0.01f, "dragging the handle in the hole moves the object");
+        Check(editor.GetGuide().IsConfirming(), "and the Gizmo command tells the step it is done");
+
+        // 오브젝트가 화면 밖이면 손잡이도 밖이다. 카메라를 그리로 옮겨 구멍이 캔버스 뷰 안에 서게 한다.
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+        transform->position = { 400.0f, 300.0f };
+        Tick(editor, 3);
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Check(WaitUntilSettled(editor, 2), "the hole must reach the handle of the far object");
+        Check(HoleInsideWindow(focus, ImGui::FindWindowByName("CanvasView")), "the camera went to the far object, so its handle is in the view");
+    }
+
+    // **돌리기는 회전 단추를 사용자가 누르기를 기다린 뒤 고리를 둥글게 가리킨다.**
+    void TestARotateGuideWaitsForTheModeButtonThenTheRing()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideRotateProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the rotate guide not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        Tick(editor, 3);
+        const JBro::String text = CanvasGuide("object.rotate", *object, "");
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the Rotate button");
+        Tick(editor, 40);
+        Check(focus.GetLevel() == 1, "the button is not pressed for the user - they press it");
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Check(WaitUntilSettled(editor, 2), "pressing Rotate moves the hole onto the ring");
+        Check(focus.IsHoleRound(), "the ring is a round hole");
+
+        JBro::Component::Transform2D* transform = TransformOf(editor, *object);
+        const float before = transform->GetRotationRadian().Get();
+        HoleCenter(focus, x, y);
+        const int ring = static_cast<int>(JBro::GizmoModel::RingRadiusPixels);
+        DragAt(editor, hwnd, x + ring, y, -ring, -ring);
+        Check(std::fabs(transform->GetRotationRadian().Get() - before) > 0.05f, "dragging along the ring turns the object");
+        Check(editor.GetGuide().IsConfirming(), "and the step is done");
+    }
+
+    // **포인트는 `콜라이더 편집` 을 켠 뒤 그 번호의 포인트를 둥글게 가리킨다.** 끌면 `Set Property` 가 끝을 알린다.
+    void TestAPointGuideTurnsOnColliderEditingAndDragsThePoint()
+    {
+        JBro::OwnerPtr<JBro::LoadedGuide> loaded;
+        JBro::String error;
+        struct Bad
+        {
+            const char* text;
+            const char* reason;
+        };
+        const Bad bad[] = {
+            { "  - Do: object.move\n    Point: 1\n", "takes no Point" },
+            { "  - Do: collider.point_move\n    Point: -1\n", "point index" },
+            { "  - Do: collider.point_move\n    Point: two\n", "point index" },
+        };
+        for (const Bad& entry : bad)
+        {
+            JBro::OwnerPtr<JBro::LoadedGuide> rejected;
+            JBro::String reason;
+            Check(false == ParseGuide(OneStepGuide(entry.text).c_str(), rejected, reason) && Contains(reason, entry.reason), entry.reason);
+        }
+        JBro::YamlWriter writer;
+        JBro::EditorGuides::WriteCatalog(writer);
+        Check(Contains(writer.GetText(), "Do: object.move") && Contains(writer.GetText(), "Do: object.rotate")
+                && Contains(writer.GetText(), "Do: object.scale") && Contains(writer.GetText(), "Do: collider.point_move")
+                && Contains(writer.GetText(), "Point: optional"),
+            "the catalog lists the canvas tools and the point argument");
+
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuidePointProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the point guide not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        auto* collider = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
+        Check(collider != nullptr, "the collider must attach");
+        collider->shape = JBro::Component::ColliderShape2D::Polygon;
+        collider->size = { 3.0f, 3.0f };
+        Tick(editor, 3);
+        const JBro::String text = CanvasGuide("collider.point_move", *object, "    Point: 2\n");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        const GuideFocusPath& path = focus.GetPath();
+        Check(path.count == 3 && path.targets[1] == JBro::GuideFocusTargets::ColliderEditButton() && path.open[1] == GuideFocusOpen::User
+                && path.targets[2] == JBro::GuideFocusTargets::PolygonPoint(2),
+            "the canvas view, Edit Collider the user turns on, and point 2");
+        Check(WaitUntilSettled(editor, 1), "the hole must reach Edit Collider");
+        int x = 0;
+        int y = 0;
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Check(WaitUntilSettled(editor, 2), "turning it on moves the hole onto the point");
+        Check(focus.IsHoleRound(), "a point is a round hole");
+
+        HoleCenter(focus, x, y);
+        DragAt(editor, hwnd, x, y, 30, 30);
+        Check(collider->points.Size() >= 3, "the drag wrote the polygon's points");
+        Check(editor.GetGuide().IsConfirming(), "and the Set Property command tells the step it is done");
+
+        // `End: target` 로 적으면 포인트를 잡는 것으로 끝난다 - 포인트를 잡은 프레임이 그 칸의 눌림이다.
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+        Tick(editor, 2);
+        const JBro::String grab = CanvasGuide("collider.point_move", *object, "    Point: 1\n    End: target\n");
+        Check(editor.StartGuideFromText(grab.c_str(), grab.size(), error), error.c_str());
+        Check(WaitUntilSettled(editor, 2), "editing is still on, so the hole goes straight to point 1");
+        HoleCenter(focus, x, y);
+        ClickAt(editor, hwnd, x, y);
+        Tick(editor, 2);
+        Check(editor.GetGuide().IsConfirming(), "grabbing the point ends a step that waits for its target");
+    }
+
+    // **그릴 것이 없는 오브젝트는 캔버스 뷰에서 점이다** - 둥글게 뚫는다. 스프라이트가 있으면 그 사각형이다(클릭 고르기와 같은 상자).
+    void TestAnEmptyObjectInTheCanvasViewIsARoundHole()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideEmptyObjectProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the empty object hole not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+        JBro::String text = CanvasGuide("object.select", *object, "    Via: canvas_view\n");
+        JBro::String error;
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the object in the canvas view");
+        Check(editor.GetGuideFocus().IsHoleRound(), "an object with nothing to draw is a round hole on its point");
+        // 막은 둥근 구멍의 네 귀퉁이를 다시 칠한다 - 글자를 읽지 못하는 것처럼 픽셀도 못 읽으니 막 창의 꼭짓점 수로 본다.
+        const ImGuiWindow* veil = ImGui::FindWindowByName("##guide_focus_veil");
+        Check(veil != nullptr, "the veil must be drawn");
+        const int roundVertices = veil->DrawList->VtxBuffer.Size;
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+        Check(JBro::EditorActions::AddComponent(editor, *object, JBro::MakeStableTypeId("Component::SpriteRenderer2D")), "a sprite goes on");
+        editor.SetSelectedObject(nullptr);
+        Tick(editor, 3);
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Check(WaitUntilSettled(editor, 1), "the hole must reach the sprite");
+        Check(false == editor.GetGuideFocus().IsHoleRound(), "a sprite is its own rectangle");
+        Check(roundVertices > veil->DrawList->VtxBuffer.Size + 100, "the round hole fills the corners the square cut left open");
+    }
+}
+
 int RunEditorGuideTests()
 {
     TestAClosedLevelOpensOnlyAfterTheHoleSettlesAndDwells();
@@ -2611,6 +2858,11 @@ int RunEditorGuideTests()
     TestAnAddComponentGuidePointsAtTheItemInTheList();
     TestAGreyItemInTheHoleIsKnownWithItsReason();
     TestAnAddComponentGuideGoesByTheObjectsMenu();
+    TestARoundTargetMakesARoundHole();
+    TestAMoveGuidePointsAtTheGizmosCenter();
+    TestARotateGuideWaitsForTheModeButtonThenTheRing();
+    TestAPointGuideTurnsOnColliderEditingAndDragsThePoint();
+    TestAnEmptyObjectInTheCanvasViewIsARoundHole();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }

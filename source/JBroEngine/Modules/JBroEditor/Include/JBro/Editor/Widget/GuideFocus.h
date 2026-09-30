@@ -33,9 +33,10 @@ namespace JBro::Widget
             bool enabled = true, const char* disabledReason = nullptr);
     }
 
-    // 항목 하나가 아닌 자리(표의 한 줄·패널 창)를 알린다. 대상이 비었으면 아무 일도 없다.
+    // 항목 하나가 아닌 자리(표의 한 줄·패널 창·캔버스 뷰의 그림)를 알린다. 대상이 비었으면 아무 일도 없다.
+    // `round` 면 구멍이 이 사각형에 내접하는 원이다(캔버스 뷰의 점 - 기즈모 가운데·회전 고리·폴리곤 포인트).
     void ReportGuideTarget(const GuideFocusTarget& target, const ImVec2& min, const ImVec2& max,
-        bool opened, bool activated);
+        bool opened, bool activated, bool round = false);
 
     // 말풍선에 적을 것이다. 글자는 이미 번역된 것이다(§11.2).
     struct GuideFocusBalloon

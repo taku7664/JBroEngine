@@ -46,6 +46,8 @@ namespace JBro
             String newValue);
 
         const char* GetName() const override;
+        // 값을 바꾼 컴포넌트의 오브젝트다(D-268). 기즈모로 옮기기·폴리곤 포인트 옮기기가 이것으로 끝난다(반례 ⑦).
+        EditorObjectId GetSubject() const override { return m_address.objectId; }
         bool Execute() override;
         void Undo() override;
         void Redo() override;

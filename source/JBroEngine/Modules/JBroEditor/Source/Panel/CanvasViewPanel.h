@@ -212,9 +212,10 @@ namespace JBro
         // 화면 왼쪽 위의 상태 글자(D-172, 기존 캔버스 뷰의 오버레이): 고른 것, 편집 카메라,
         // 그리고 들어가 있으면 그 사실과 나오는 법.
         void DrawOverlay(const ViewRect& rect);
-        // 오브젝트가 화면에서 차지하는 사각형(회전은 무시한 외접 사각형)을 월드로 낸다.
+        // 오브젝트가 화면에서 차지하는 사각형(회전은 무시한 외접 사각형)을 월드로 낸다. 클릭 고르기와 가이드 포커스가 함께 쓴다.
+        // `drewNothing` 을 주면 그릴 것이 없어 원점 둘레의 작은 상자로 낸 것인지 알린다(가이드는 그 자리를 둥글게 뚫는다).
         bool GetWorldBounds(const GameObject& object,
-            float& minX, float& minY, float& maxX, float& maxY) const;
+            float& minX, float& minY, float& maxX, float& maxY, bool* drewNothing = nullptr) const;
 
         EditorApplication* m_editor = nullptr;
 

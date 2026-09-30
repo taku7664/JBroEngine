@@ -126,6 +126,26 @@ namespace JBro
         {
             return { MakeNameId("component.category_menu"), MakeNameId(category) };
         }
+
+        GuideFocusTarget GizmoModeButton(std::uint32_t mode)
+        {
+            return { MakeNameId("canvas_view.gizmo_mode"), mode };
+        }
+
+        GuideFocusTarget GizmoHandle(std::uint32_t mode, std::uint32_t axis)
+        {
+            return { MakeNameId("canvas_view.gizmo_handle"), (static_cast<std::uint64_t>(mode) << 8) | axis };
+        }
+
+        GuideFocusTarget ColliderEditButton()
+        {
+            return { MakeNameId("canvas_view.edit_collider"), 0 };
+        }
+
+        GuideFocusTarget PolygonPoint(std::uint32_t index)
+        {
+            return { MakeNameId("canvas_view.polygon_point"), index };
+        }
     }
 
     bool GuideFocusPath::Push(const GuideFocusTarget& target, GuideFocusOpen opener)
@@ -441,7 +461,7 @@ namespace JBro
     }
 
     void EditorGuideFocus::Report(const GuideFocusTarget& target, const Rect& rect, bool opened, bool visible, bool activated,
-        bool enabled, const char* disabledReason)
+        bool enabled, const char* disabledReason, bool round)
     {
         if (false == m_active)
         {
@@ -460,6 +480,7 @@ namespace JBro
         seen.visible = visible;
         seen.activated = activated;
         seen.enabled = enabled;
+        seen.round = round;
         if (index == m_level && false == enabled)
         {
             std::snprintf(m_disabledReason, sizeof(m_disabledReason), "%s", disabledReason != nullptr ? disabledReason : "");
@@ -595,6 +616,7 @@ namespace JBro
         {
             m_unseen = 0.0f;
             m_holeTarget = Inflate(seen.rect, HolePadding);
+            m_holeRound = seen.round;
             allowedTarget = m_holeTarget;
             hasAllowedTarget = true;
             if (false == m_holeKnown)

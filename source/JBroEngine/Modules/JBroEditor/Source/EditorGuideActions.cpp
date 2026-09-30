@@ -6,6 +6,7 @@
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Reflection/PropertyRegistry.h>
@@ -146,6 +147,8 @@ namespace JBro
         ComponentTypeId componentType = 0;
         bool hasField = false;
         NameId fieldName = InvalidNameId;
+        // 폴리곤 포인트의 번호(반례 ⑦). 적지 않으면 첫 포인트다.
+        std::uint32_t pointIndex = 0;
         bool routeFixed = false;
         GuideRoute fixedRoute = GuideRoute::Hierarchy;
 
@@ -190,6 +193,8 @@ namespace JBro
             const char* objectKey = "Object";
             bool takesComponent = false;
             bool takesField = false;
+            // `Point`(폴리곤 포인트 번호)를 받는가.
+            bool takesPoint = false;
             // 적힌 컴포넌트를 목록의 항목(`GuideFocusTargets::ComponentListItem`)으로 가리키는가. 그러면 그 단계는 키보드를 닫는다.
             bool pointsAtListItem = false;
             bool keyboard = false;
@@ -400,6 +405,69 @@ namespace JBro
             return editor.GetSelectedObject() != nullptr ? nullptr : NeedSelectedObject();
         }
 
+        // ── 캔버스 뷰의 도구(반례 ⑦) ─────────────────────────────────
+        //
+        // 손잡이와 포인트는 **고른 오브젝트** 위에 선다. 적힌 오브젝트가 있으면 그것 하나만 고른다(편집 메뉴와 같다) - 여럿을 고른 채면
+        // 기즈모가 함께 옮긴다. 3D 의 캔버스 뷰는 아직 가리키지 않는다(손잡이의 자리를 알리는 것은 2D 뷰다).
+        bool SelectForCanvasTool(GuideStepBinding& binding, EditorApplication& editor)
+        {
+            if (GameObject* target = binding.object.TryGet())
+            {
+                editor.SetSelectedObject(target);
+            }
+            return Is2D(editor) && editor.GetSelectedObject() != nullptr;
+        }
+
+        // 모드 단추(사용자가 누른다, 이미 그 모드면 지나간다) → 손잡이.
+        bool BuildGizmo(GizmoMode mode, GizmoAxis axis, GuideStepBinding& binding, EditorApplication& editor, GuideFocusPath& path)
+        {
+            return SelectForCanvasTool(binding, editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
+                && path.Push(GuideFocusTargets::GizmoModeButton(static_cast<std::uint32_t>(mode)), GuideFocusOpen::User)
+                && path.Push(GuideFocusTargets::GizmoHandle(static_cast<std::uint32_t>(mode), static_cast<std::uint32_t>(axis)));
+        }
+
+        // 옮기기는 가운데 손잡이(화면 평면으로 옮긴다), 돌리기는 고리(2D 는 Z 축 하나), 크기는 가운데(균등).
+        bool BuildMove(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        {
+            return BuildGizmo(GizmoMode::Translate, GizmoAxis::Free, binding, editor, path);
+        }
+
+        bool BuildRotate(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        {
+            return BuildGizmo(GizmoMode::Rotate, GizmoAxis::Z, binding, editor, path);
+        }
+
+        bool BuildScale(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        {
+            return BuildGizmo(GizmoMode::Scale, GizmoAxis::Free, binding, editor, path);
+        }
+
+        // `콜라이더 편집` 단추(켜져 있으면 지나간다) → 그 포인트.
+        bool BuildPointMove(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
+        {
+            return SelectForCanvasTool(binding, editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
+                && path.Push(GuideFocusTargets::ColliderEditButton(), GuideFocusOpen::User)
+                && path.Push(GuideFocusTargets::PolygonPoint(binding.pointIndex));
+        }
+
+        GuideActionInfo CanvasToolAction(const char* name, const char* summary, const char* command,
+            bool (*build)(GuideStepBinding&, EditorApplication&, GuideRoute, GuideFocusPath&))
+        {
+            GuideActionInfo info;
+            info.name = name;
+            info.summary = summary;
+            info.object = ObjectParam::Optional;
+            info.command = command;
+            info.subject = Subject::Same;
+            info.leavesObject = true;
+            info.routes[0] = GuideRoute::CanvasView;
+            info.routeCount = 1;
+            info.end = GuideStepEnd::Condition;
+            info.build = build;
+            info.blocked = &BlockedNeedSelection;
+            return info;
+        }
+
         // ── 표 ───────────────────────────────────────────────────────
 
         GuideActionInfo MenuAction(const char* name, const char* summary, std::uint8_t menus, const char* command,
@@ -482,6 +550,20 @@ namespace JBro
                     info.keyboard = true;
                     info.build = &BuildField;
                     info.blocked = &BlockedNeedSelection;
+                    return info;
+                }(),
+                // ── 캔버스 뷰의 도구(반례 ⑦): 기즈모 손잡이와 폴리곤 포인트. 끝은 그 끌기가 남긴 커맨드다. ──
+                CanvasToolAction("object.move", "Move an object by dragging the move gizmo's center handle in the canvas view.",
+                    "Gizmo", &BuildMove),
+                CanvasToolAction("object.rotate", "Rotate an object by dragging the rotate gizmo's ring in the canvas view.",
+                    "Gizmo", &BuildRotate),
+                CanvasToolAction("object.scale", "Scale an object by dragging the scale gizmo's center handle in the canvas view.",
+                    "Gizmo", &BuildScale),
+                [] {
+                    GuideActionInfo info = CanvasToolAction("collider.point_move",
+                        "Turn on Edit Collider and drag a point of the object's polygon collider. Point is the point's index (default 0).",
+                        "Set Property", &BuildPointMove);
+                    info.takesPoint = true;
                     return info;
                 }(),
             };
@@ -934,7 +1016,7 @@ namespace JBro
             {
                 return Fail(node, "a step must be a map");
             }
-            static const char* const keys[] = { "Id", "Do", "Object", "Parent", "Component", "Field", "Via", "Title", "Body",
+            static const char* const keys[] = { "Id", "Do", "Object", "Parent", "Component", "Field", "Point", "Via", "Title", "Body",
                 "End", "Keyboard", "Skip", "Back", "Next", "RetreatTo" };
             if (false == CheckKeys(node, keys, sizeof(keys) / sizeof(keys[0])))
             {
@@ -969,6 +1051,20 @@ namespace JBro
                 String full = value.find("::") == String::npos ? String("Component::") + value : value;
                 binding->hasComponent = true;
                 binding->componentType = MakeStableTypeId(full.c_str());
+            }
+            if (document.FindScalar(node, "Point", value))
+            {
+                if (false == action->takesPoint)
+                {
+                    return Fail(node, "'%s' takes no Point", action->name);
+                }
+                char* end = nullptr;
+                const unsigned long index = std::strtoul(value.c_str(), &end, 10);
+                if (value.empty() || end == nullptr || *end != '\0' || value[0] == '-' || index > 0xFFFFu)
+                {
+                    return Fail(node, "Point must be a point index, not '%s'", value.c_str());
+                }
+                binding->pointIndex = static_cast<std::uint32_t>(index);
             }
             if (document.FindScalar(node, "Field", value))
             {
@@ -1185,6 +1281,10 @@ namespace JBro
                 if (action.takesField)
                 {
                     writer.WriteString("Field", "optional");
+                }
+                if (action.takesPoint)
+                {
+                    writer.WriteString("Point", "optional point index (default 0)");
                 }
                 writer.BeginSequence("Via");
                 GuideRoute written[MenuRouteCount] = {};

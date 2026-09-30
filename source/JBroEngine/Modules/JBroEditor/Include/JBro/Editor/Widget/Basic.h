@@ -30,6 +30,9 @@ namespace JBro::Widget
     // ── 단추 ────────────────────────────────────────────────────────────────
     // 글자 단추다. 눌렸으면 참이다.
     bool Button(const char* label);
+    // 눌러서 켜고 끄는 글자 단추다(`콜라이더 편집`). 모양은 `Button` 과 같고, 눌리면 `on` 을 뒤집고 참이다.
+    // 가이드 포커스에는 **켜져 있는가를 열림으로** 알린다 - 가이드가 "켜고 나서 그 안의 것" 을 가리킬 수 있다(반례 ⑦).
+    bool ToggleButton(const char* label, bool& on);
     // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
     bool SelectableRow(const char* label, bool selected);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
