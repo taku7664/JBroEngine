@@ -395,6 +395,7 @@ Entries:
   guide.next: Next
   guide.done: OK
   guide.confirm_note: Done. Press OK to finish the guide.
+  guide.progress_done: Done
   guide.need_selected_object: Pick an object first
   guide.need_target_object: Select the highlighted object first
   guide.target_disabled: You can't press this right now

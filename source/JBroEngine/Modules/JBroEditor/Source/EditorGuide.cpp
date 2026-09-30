@@ -272,10 +272,11 @@ Steps:
                 Stop(focus);
                 return;
             }
-            // **해낸 일이 대상을 없앴다**(지운 오브젝트의 삭제 항목, D-267). 사라진 자리에 빈 테두리를 남기지 않고 경로의 첫 칸(그 일을
-            // 한 패널)으로 물러난다. 기다렸다가 끊긴 것으로 치면 다 한 일에 경고가 남는다.
+            // **해낸 일이 대상을 없앴거나 연 것을 닫았다**(지운 오브젝트의 삭제 항목 D-267, 고르면 닫히는 목록·메뉴). 사라진 자리에 빈
+            // 테두리를 남기지 않고, 닫혀서 한 칸 물러난 자리(추가 칸·우클릭 자리)를 다시 가리키지도 않는다 - 다시 하라는 것처럼 보인다.
+            // 경로의 첫 칸(그 일을 한 패널)으로 물러난다. 기다렸다가 끊긴 것으로 치면 다 한 일에 경고가 남는다.
             const GuideFocusPath& path = focus.GetPath();
-            if (path.count > 1 && focus.GetUnseenSeconds() > 0.0f)
+            if (path.count > 1 && (focus.GetUnseenSeconds() > 0.0f || focus.GetLevel() + 1 < path.count))
             {
                 GuideFocusPath rest;
                 rest.Push(path.targets[0], path.open[0]);

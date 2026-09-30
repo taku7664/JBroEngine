@@ -2433,6 +2433,11 @@ namespace
         Tick(editor, 3);
         Check(HasComponentOfType(*object, SpriteType()), "pressing the item in the hole adds that component");
         Check(editor.GetGuide().IsConfirming(), "and the step knows");
+        // 고르면 목록이 닫혀 기구는 추가 칸으로 한 칸 물러난다. 다 한 뒤에 그 칸을 다시 가리키면 한 번 더 하라는 것처럼 보인다 - 패널로 물러난다.
+        Tick(editor, 10);
+        Check(focus.GetPath().count == 1 && focus.GetPath().targets[0] == JBro::GuideFocusTargets::Panel("Inspector"),
+            "once done, the hole steps back to the inspector instead of pointing at the add box again");
+        Check(editor.GetGuide().IsConfirming(), "and still waits for OK");
     }
 
     // **가리킨 항목이 회색이면 말풍선이 까닭을 적을 수 있게 모델이 안다**(반례 ⑥) - 이미 붙은 컴포넌트 · 복사해 둔 것이 없는 붙여넣기.

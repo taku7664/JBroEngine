@@ -3646,7 +3646,11 @@ namespace JBro
             }
             if (m_guide.IsConfirming())
             {
-                balloon.note = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
+                // **해낸 뒤에는 말풍선이 완료로 바뀐다.** 단계의 제목과 본문("목록을 열고 … 누르세요")을 그대로 두면 아직 할 일이
+                // 남은 것처럼 읽힌다 - 실제로 헷갈렸다. 걸음 표시는 "완료", 제목은 가이드의 이름, 본문은 확인을 누르라는 말이다.
+                balloon.progress = Loc::TextOr(LocKeys::GuideProgressDone, "Done");
+                balloon.title = Loc::TextFor(guide.title.key, guide.title.string, guide.title.locale);
+                balloon.body = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
             }
             else if (m_guideFocus.IsCurrentDisabled())
             {

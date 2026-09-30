@@ -395,6 +395,7 @@ Entries:
   guide.next: 다음
   guide.done: 확인
   guide.confirm_note: 다 했습니다. 확인을 누르면 가이드를 마칩니다.
+  guide.progress_done: 완료
   guide.need_selected_object: 오브젝트를 먼저 선택하세요
   guide.need_target_object: 표시한 오브젝트를 먼저 선택하세요
   guide.target_disabled: 지금은 누를 수 없습니다
