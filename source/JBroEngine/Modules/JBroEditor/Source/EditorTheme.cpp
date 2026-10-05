@@ -212,6 +212,10 @@ namespace JBro::EditorTheme
         style.HoverStationaryDelay     = 0.20f;
         style.HoverDelayShort          = 0.25f;
         style.HoverDelayNormal         = 0.50f;
+        // `Widget::HoveredTooltip` 이 `ForTooltip` 으로 이 값을 쓴다. 마우스가 지나가기만 해서는 뜨지 않게
+        // 멈춘 뒤 `HoverDelayNormal` 만큼 기다린다.
+        style.HoverFlagsForTooltipMouse =
+            ImGuiHoveredFlags_Stationary | ImGuiHoveredFlags_DelayNormal | ImGuiHoveredFlags_AllowWhenDisabled;
     }
 
     namespace

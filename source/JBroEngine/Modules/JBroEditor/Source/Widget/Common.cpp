@@ -74,7 +74,9 @@ namespace JBro::Widget
         {
             return;
         }
-        if (ImGui::IsItemHovered(flags))
+        // 툴팁을 띄우는 길은 모두 여기를 지난다. 딜레이와 멈춤 판정은 `ForTooltip` 이
+        // 테마의 `HoverFlagsForTooltipMouse` 에서 가져온다.
+        if (ImGui::IsItemHovered(flags | ImGuiHoveredFlags_ForTooltip))
         {
             ImGui::SetTooltip("%s", text);
         }

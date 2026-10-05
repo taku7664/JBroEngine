@@ -292,10 +292,9 @@ namespace JBro::Widget
                 Internal::ReportLastItem(GuideFocusTarget{ m_targetName, m_targetKeys[at] }, false, pressed, enabled,
                     m_disabledTooltip);
             }
-            if (false == enabled && m_disabledTooltip != nullptr
-                && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+            if (false == enabled)
             {
-                ImGui::SetTooltip("%s", m_disabledTooltip);
+                HoveredTooltip(m_disabledTooltip, ImGuiHoveredFlags_AllowWhenDisabled);
             }
             if (selected)
             {
