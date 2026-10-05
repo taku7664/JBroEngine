@@ -53,9 +53,25 @@ namespace JBro::Internal
 
     namespace
     {
+        CompositeBlend ToCompositeBlend3D(LayerBlend blend)
+        {
+            switch (blend)
+            {
+            case LayerBlend::Additive:
+                return CompositeBlend::Additive;
+            case LayerBlend::Multiply:
+                return CompositeBlend::Multiply;
+            case LayerBlend::Screen:
+                return CompositeBlend::Screen;
+            case LayerBlend::Normal:
+            default:
+                return CompositeBlend::Normal;
+            }
+        }
+
         // 모아 둔 메시를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가 같은 목록을 쓴다.
         // `editorView` 면 에디터에서 감춘 오브젝트를 건너뛴다(D-163). 게임 뷰는 보지 않는다.
-        bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, bool editorView)
+        bool PushMeshes(const RenderWorld3D& world, Renderer& renderer, bool editorView, std::uint16_t layerOrder)
         {
             constexpr std::size_t BatchSize = 64;
             MeshSubmit batch[BatchSize];
@@ -68,7 +84,7 @@ namespace JBro::Internal
                 {
                     const MeshRenderItem& item = world.GetMesh(next);
                     ++next;
-                    if (editorView && item.owner != nullptr && item.owner->IsEditorHidden())
+                    if ((editorView && item.owner != nullptr && item.owner->IsEditorHidden()) || item.layerOrder != layerOrder)
                     {
                         continue;
                     }
@@ -95,10 +111,9 @@ namespace JBro::Internal
             return accepted;
         }
 
-        // 3D 텍스트의 글자를 이 뷰의 카메라로 놓고 뒤→앞으로 낸다(D-222). 빌보드는 오브젝트 회전 대신 카메라 회전을 쓴다 - 판의 +Z 가
-        // 카메라 쪽이고 가로가 카메라의 오른쪽이다. 같은 텍스트의 글자는 한 자리(오브젝트 위치)라 거리가 같으므로 낸 순서가 남는다.
-        bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, bool editorView, const Vector3& cameraPosition,
-            const Quaternion& cameraRotation)
+        // 3D 텍스트의 글자를 이 뷰의 카메라로 뒤→앞으로 늘어놓는다(D-222). 같은 텍스트의 글자는 한 자리(오브젝트 위치)라 거리가 같으므로
+        // 낸 순서가 남는다. 카메라마다 한 번이다 - 레이어마다 다시 정렬하지 않고 이 차례에서 그 레이어 것만 고른다(D-280).
+        void SortWorldTexts(const RenderWorld3D& world, bool editorView, const Vector3& cameraPosition)
         {
             Array<std::uint32_t>& order = world.GetTextOrderScratch();
             order.Clear();
@@ -127,7 +142,13 @@ namespace JBro::Internal
                 }
                 return left < right;
             });
+        }
 
+        // 정렬해 둔 글자 중 이 레이어의 것을 낸다. 빌보드는 오브젝트 회전 대신 카메라 회전을 쓴다 - 판의 +Z 가 카메라 쪽이고 가로가
+        // 카메라의 오른쪽이다.
+        bool PushWorldTexts(const RenderWorld3D& world, Renderer& renderer, const Quaternion& cameraRotation, std::uint16_t layerOrder)
+        {
+            const Array<std::uint32_t>& order = world.GetTextOrderScratch();
             constexpr std::size_t BatchSize = 64;
             WorldTextSubmit batch[BatchSize];
             bool accepted = world.GetDroppedTextCount() == 0;
@@ -139,6 +160,10 @@ namespace JBro::Internal
                 {
                     const WorldTextRenderItem& item = world.GetText(order[next]);
                     ++next;
+                    if (item.layerOrder != layerOrder)
+                    {
+                        continue;
+                    }
                     const Matrix4x4 object = MakeTransformMatrix3D(item.position, item.billboard ? cameraRotation : item.rotation, item.scale);
                     // 단위 쿼드(-0.5..0.5)를 글자 사각형으로: 가운데로 옮기고 폭·높이로 늘린다.
                     const Matrix4x4 glyph = MakeTransformMatrix3D(
@@ -260,6 +285,113 @@ namespace JBro::Internal
         }
     }
 
+    namespace
+    {
+        // **레이어마다 뷰 하나다**(D-280). 포토샵의 레이어처럼 레이어는 따로 그린 한 장이고 차례대로 쌓인다 - 렌더러가 뷰마다 깊이를
+        // 지우므로 뒤 레이어가 앞 레이어의 물체보다 멀어도 위에 보인다. 표준·불투명도 1 인 레이어는 타깃에 바로 그리고(텍스처 없음),
+        // 블렌드나 불투명도가 걸린 레이어만 그 뷰를 제 텍스처에 그려 얹는다(`CameraParams::composite`). 대상을 지우는 것은 첫 뷰다.
+        // 그릴 것이 없으면 뷰 하나로 지우기만 한다. 디버그 선은 맨 위 레이어의 뷰에 얹는다 - 그 뷰가 얹는 뷰면 따로 하나 더 연다.
+        bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, bool editorView,
+            const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
+            const RenderCamera3D& lineCamera, float viewportHeight)
+        {
+            Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
+            orders.Clear();
+            const auto collect = [&](GameObject* owner, std::uint16_t order) {
+                if (editorView && owner != nullptr && owner->IsEditorHidden())
+                {
+                    return;
+                }
+                for (std::size_t at = 0; at < orders.Size(); ++at)
+                {
+                    if (orders[at] == order)
+                    {
+                        return;
+                    }
+                }
+                if (orders.Size() < orders.Capacity())
+                {
+                    orders.Add(order);
+                }
+            };
+            for (std::size_t index = 0; index < world.GetMeshCount(); ++index)
+            {
+                collect(world.GetMesh(index).owner, world.GetMesh(index).layerOrder);
+            }
+            for (std::size_t index = 0; index < world.GetTextCount(); ++index)
+            {
+                collect(world.GetText(index).owner, world.GetText(index).layerOrder);
+            }
+            std::sort(orders.Data(), orders.Data() + orders.Size());
+            SortWorldTexts(world, editorView, cameraPosition);
+
+            const auto findBlend = [&](std::uint16_t order, LayerBlend& blend, float& opacity) {
+                for (std::size_t index = 0; index < world.GetMeshCount(); ++index)
+                {
+                    if (world.GetMesh(index).layerOrder == order)
+                    {
+                        blend = world.GetMesh(index).layerBlend;
+                        opacity = world.GetMesh(index).layerOpacity;
+                        return;
+                    }
+                }
+                for (std::size_t index = 0; index < world.GetTextCount(); ++index)
+                {
+                    if (world.GetText(index).layerOrder == order)
+                    {
+                        blend = world.GetText(index).layerBlend;
+                        opacity = world.GetText(index).layerOpacity;
+                        return;
+                    }
+                }
+            };
+
+            bool accepted = true;
+            bool linesDrawn = debugDraw == nullptr;
+            for (std::size_t at = 0; at < orders.Size(); ++at)
+            {
+                LayerBlend blend = LayerBlend::Normal;
+                float opacity = 1.0f;
+                findBlend(orders[at], blend, opacity);
+                CameraParams layerCamera = camera;
+                layerCamera.composite = ToCompositeBlend3D(blend);
+                layerCamera.compositeOpacity = opacity;
+                if (false == renderer.BeginView(layerCamera))
+                {
+                    return false;
+                }
+                accepted = PushMeshes(world, renderer, editorView, orders[at]) && accepted;
+                accepted = PushWorldTexts(world, renderer, cameraRotation, orders[at]) && accepted;
+                const bool plain = blend == LayerBlend::Normal && opacity >= 1.0f;
+                if (at + 1 == orders.Size() && plain && false == linesDrawn)
+                {
+                    PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
+                    linesDrawn = true;
+                }
+                if (false == renderer.EndView())
+                {
+                    return false;
+                }
+            }
+            if (orders.IsEmpty() || false == linesDrawn)
+            {
+                if (false == renderer.BeginView(camera))
+                {
+                    return false;
+                }
+                if (false == linesDrawn)
+                {
+                    PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
+                }
+                if (false == renderer.EndView())
+                {
+                    return false;
+                }
+            }
+            return accepted;
+        }
+    }
+
     RenderResult SubmitEditorView3D(
         const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view, const System::DebugDrawSystem* debugDraw)
     {
@@ -295,19 +427,9 @@ namespace JBro::Internal
         }
         parameters.target = view.target;
         parameters.targetExtent = view.extent;
-        if (false == renderer.BeginView(parameters))
-        {
-            return RenderResult::Failed;
-        }
-        const bool meshes = PushMeshes(world, renderer, true);
-        const bool texts = PushWorldTexts(world, renderer, true, editor.position, editor.rotation);
-        if (debugDraw != nullptr && view.debugDraw)
-        {
-            PushDebugLines3D(*debugDraw, renderer, editor, static_cast<float>(view.extent.height));
-        }
-        const bool accepted = meshes && texts;
-        const bool closed = renderer.EndView();
-        return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
+        const bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
+            view.debugDraw ? debugDraw : nullptr, editor, static_cast<float>(view.extent.height));
+        return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 
     RenderResult SubmitRenderWorld3D(const RenderWorld3D& world, Renderer& renderer, const System::DebugDrawSystem* debugDraw)
@@ -318,19 +440,13 @@ namespace JBro::Internal
             return RenderResult::NothingToSubmit;
         }
         CameraParams parameters;
-        if (false == BuildCamera3D(*camera, renderer.GetFrameExtent(), parameters)
-            || false == renderer.BeginView(parameters))
+        if (false == BuildCamera3D(*camera, renderer.GetFrameExtent(), parameters))
         {
             return RenderResult::Failed;
         }
-        const bool meshes = PushMeshes(world, renderer, false);
-        const bool texts = PushWorldTexts(world, renderer, false, camera->position, camera->rotation);
-        if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
-        {
-            PushDebugLines3D(*debugDraw, renderer, *camera, static_cast<float>(renderer.GetFrameExtent().height));
-        }
-        const bool accepted = meshes && texts;
-        const bool closed = renderer.EndView();
-        return (accepted && closed) ? RenderResult::Submitted : RenderResult::Failed;
+        const bool showLines = debugDraw != nullptr && debugDraw->IsGameViewVisible();
+        const bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation,
+            showLines ? debugDraw : nullptr, *camera, static_cast<float>(renderer.GetFrameExtent().height));
+        return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 }

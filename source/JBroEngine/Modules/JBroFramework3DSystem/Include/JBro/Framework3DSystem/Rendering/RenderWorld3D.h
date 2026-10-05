@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/AssetTypes/AssetTypes.h>
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/Color.h>
@@ -35,6 +36,10 @@ namespace JBro
         AssetHandle mesh;
         AssetHandle material;
         Color tint{1.0f, 1.0f, 1.0f, 1.0f};
+        // 레이어의 차례와 얹는 방식이다(D-280). 브리지가 레이어마다 뷰를 하나 열어 차례대로 그린다 - 포토샵의 레이어처럼 뒤 레이어가 늘 위다.
+        std::uint16_t layerOrder = 0;
+        LayerBlend layerBlend = LayerBlend::Normal;
+        float layerOpacity = 1.0f;
     };
 
     // 3D 텍스트의 글자 하나다(D-222). 사각형은 **오브젝트 로컬 XY 평면의 유닛**이고(왼쪽 위와 크기, y 위쪽), 월드 자리·회전·크기는 오브젝트의
@@ -57,6 +62,10 @@ namespace JBro
         bool sdf = false;
         std::uint16_t outlineEdge = 32768;
         std::uint8_t outlineColor[4] = {0, 0, 0, 0};
+        // 레이어의 차례와 얹는 방식이다(D-280). 브리지가 레이어마다 뷰를 하나 열어 차례대로 그린다 - 포토샵의 레이어처럼 뒤 레이어가 늘 위다.
+        std::uint16_t layerOrder = 0;
+        LayerBlend layerBlend = LayerBlend::Normal;
+        float layerOpacity = 1.0f;
     };
 
     // 2D 의 `RenderWorld2D` 와 같은 자리다. 시스템이 채우고 브리지가 렌더러에 넘긴다.
@@ -83,6 +92,8 @@ namespace JBro
         const WorldTextRenderItem& GetText(std::size_t index) const;
         // 뷰마다 뒤→앞으로 늘어놓는 번호 배열이다. 브리지가 쓴다 - 용량은 `ReserveTexts` 가 잡아 매 프레임 할당하지 않는다.
         Array<std::uint32_t>& GetTextOrderScratch() const;
+        // 이번 프레임에 그릴 것이 있는 레이어 차례를 모으는 배열이다(D-280). 아이템 수만큼 잡아 두어 매 프레임 할당하지 않는다.
+        Array<std::uint16_t>& GetLayerOrderScratch() const;
 
     private:
         RenderCamera3D m_camera;
@@ -92,5 +103,6 @@ namespace JBro
         Array<WorldTextRenderItem> m_texts;
         std::size_t m_droppedTextCount = 0;
         mutable Array<std::uint32_t> m_textOrder;
+        mutable Array<std::uint16_t> m_layerOrders;
     };
 }

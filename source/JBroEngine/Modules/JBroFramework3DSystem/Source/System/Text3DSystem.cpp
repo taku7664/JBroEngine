@@ -134,6 +134,9 @@ namespace JBro::System
             {
                 item.uvRect[channel] = quad.uvRect[channel];
             }
+            item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
+            item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
+            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
             item.tint = text.color;
             if (quad.hasTint)
             {

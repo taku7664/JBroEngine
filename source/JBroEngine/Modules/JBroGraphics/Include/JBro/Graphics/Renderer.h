@@ -18,7 +18,8 @@ namespace JBro
         PresentMode presentMode = PresentMode::VSync;
         std::uint8_t backBufferCount = 3;
         std::uint8_t maxFramesInFlight = 2;
-        std::uint32_t maxViews = 8;
+        // 3D 는 그릴 것이 있는 레이어마다 뷰 하나다(D-280). 에디터는 게임 뷰와 캔버스 뷰가 함께 쓴다.
+        std::uint32_t maxViews = 64;
         std::uint32_t maxSpriteSubmissions = 65536;
         std::uint32_t maxMeshSubmissions = 16384;
         // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-222).
@@ -61,6 +62,16 @@ namespace JBro
         std::uint32_t frameSlot,
         void* user);
 
+    // 레이어를 아래에 얹는 방식이다(D-279). `Renderer::BeginLayer` 와 `CameraParams::composite` 가 받는다. 캔버스의 `LayerBlend` 와 같은 넷이고,
+    // 렌더러는 캔버스를 모르므로 제 이름을 둔다(`SpriteFilter` 와 에셋의 `TextureFilter` 처럼).
+    enum class CompositeBlend : std::uint8_t
+    {
+        Normal,
+        Additive,
+        Multiply,
+        Screen
+    };
+
     struct CameraParams
     {
         Matrix4x4 view;
@@ -87,6 +98,13 @@ namespace JBro
         TextureHandle outlineScratch;
         float outlineColor[4] = {1.0f, 1.0f, 0.0f, 1.0f};
         std::uint32_t outlineWidth = 0;
+
+        // **이 뷰 전체를 제 텍스처에 그려 얹는다**(D-280, 3D 레이어). `Normal` 이고 1 이면 타깃에 바로 그린다. 텍스처는 투명하게 지우고,
+        // 다 그린 뒤 `BeginLayer` 의 묶음과 같은 `Layer*` 블렌드와 불투명도로 타깃에 얹는다. 3D 레이어는 레이어마다 뷰 하나다 - 메시·월드
+        // 텍스트는 깊이 패스 안에 있어 뷰 중간에 묶음을 끊을 수 없고, 깊이는 뷰마다 지우므로 뒤에 낸 레이어가 늘 위다(포토샵의 레이어).
+        // 이 뷰 안의 스프라이트 묶음은 보지 않는다.
+        CompositeBlend composite = CompositeBlend::Normal;
+        float compositeOpacity = 1.0f;
     };
 
     // 2D 스프라이트의 월드 변환이다. 열 벡터 규약의 2x3 아핀 여섯 값과 깊이 하나를 담는다(D-54).
@@ -113,16 +131,6 @@ namespace JBro
     {
         Sprite,
         SdfText
-    };
-
-    // 레이어를 아래에 얹는 방식이다(D-279). `Renderer::BeginLayer` 가 받는다. 캔버스의 `LayerBlend` 와 같은 넷이고,
-    // 렌더러는 캔버스를 모르므로 제 이름을 둔다(`SpriteFilter` 와 에셋의 `TextureFilter` 처럼).
-    enum class CompositeBlend : std::uint8_t
-    {
-        Normal,
-        Additive,
-        Multiply,
-        Screen
     };
 
     // 정렬과 레이어 합성은 프레임워크가 제출 전에 끝낸다.
