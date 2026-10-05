@@ -3652,6 +3652,12 @@ namespace JBro
                 balloon.title = Loc::TextFor(guide.title.key, guide.title.string, guide.title.locale);
                 balloon.body = Loc::TextOr(LocKeys::GuideConfirmNote, "Done. Press OK to finish the guide.");
             }
+            else if (balloon.nextLabel == nullptr && m_guide.WhyNextBlocked(*this) != nullptr)
+            {
+                // **다음 단추가 없는 단계도 막힌 까닭을 적는다**(D-273). 포인트가 없는 콜라이더처럼 지금은 할 수 없는 단계에서 구멍만
+                // 뚫고 기다리면, 사람은 왜 아무 일도 없는지 모른다.
+                balloon.note = m_guide.WhyNextBlocked(*this);
+            }
             else if (m_guideFocus.IsCurrentDisabled())
             {
                 // **가리킨 항목이 회색이면 까닭을 적는다**(반례 ⑥). 구멍만 뚫고 기다리면 사람은 왜 안 눌리는지 모른다.

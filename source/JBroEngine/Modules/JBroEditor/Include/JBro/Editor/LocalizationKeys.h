@@ -465,6 +465,11 @@ namespace JBro::LocKeys
     inline constexpr const char* GuideProgressDone = "guide.progress_done";
     inline constexpr const char* GuideNeedSelectedObject = "guide.need_selected_object";
     inline constexpr const char* GuideNeedTargetObject = "guide.need_target_object";
+    // 필드 이름과 기다리는 값을 받는다(`field.edit` 의 `Value`, D-273).
+    inline constexpr const char* GuideNeedFieldValue = "guide.need_field_value";
+    inline constexpr const char* GuideNeedPointCollider = "guide.need_point_collider";
+    // 포인트 번호를 받는다.
+    inline constexpr const char* GuideNeedPolygonPoint = "guide.need_polygon_point";
     inline constexpr const char* GuideTargetDisabled = "guide.target_disabled";
     inline constexpr const char* GuideTargetDisabledBecause = "guide.target_disabled_because";
     inline constexpr const char* GuideSkip = "guide.skip";

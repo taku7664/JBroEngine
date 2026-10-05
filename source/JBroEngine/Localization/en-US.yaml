@@ -398,6 +398,9 @@ Entries:
   guide.progress_done: Done
   guide.need_selected_object: Pick an object first
   guide.need_target_object: Select the highlighted object first
+  guide.need_field_value: "Set %s to %s first"
+  guide.need_point_collider: "The Collider2D's shape must be Polygon or Chain"
+  guide.need_polygon_point: "The collider has no point %u"
   guide.target_disabled: You can't press this right now
   guide.target_disabled_because: "You can't press this right now: %s"
   guide.skip: Skip

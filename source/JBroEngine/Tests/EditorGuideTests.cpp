@@ -2795,6 +2795,141 @@ namespace
         Check(editor.GetGuide().IsConfirming(), "grabbing the point ends a step that waits for its target");
     }
 
+    // **`Value` 를 적은 필드 단계는 그 값이 되기 전에는 다음이 막힌다**(D-273). 값은 리플렉션이 읽은 글자와 칸마다 견주고,
+    // 숫자 칸은 허용 오차로 본다. 그 필드가 담을 수 없는 값·없는 필드는 읽을 때 거절한다.
+    void TestAFieldStepWaitsForItsValue()
+    {
+        const char* rejectOnly[][2] = {
+            { "  - Do: object.select\n    Value: 1\n", "takes no Value" },
+            { "  - Do: field.edit\n    Value: 1\n", "Value needs Field" },
+            { "  - Do: field.edit\n    Field: position\n    Tolerance: 0.1\n", "Tolerance needs Value" },
+            { "  - Do: field.edit\n    Field: position\n    Value: 1\n    Tolerance: -1\n", "Tolerance must be" },
+            { "  - Do: field.edit\n    Field: position\n    Value: 1\n    Tolerance: wide\n", "Tolerance must be" },
+        };
+        for (const auto& entry : rejectOnly)
+        {
+            JBro::OwnerPtr<JBro::LoadedGuide> rejected;
+            JBro::String reason;
+            Check(false == ParseGuide(OneStepGuide(entry[0]).c_str(), rejected, reason) && Contains(reason, entry[1]), entry[1]);
+        }
+        JBro::YamlWriter writer;
+        JBro::EditorGuides::WriteCatalog(writer);
+        Check(Contains(writer.GetText(), "Value: optional, needs Field") && Contains(writer.GetText(), "Tolerance"),
+            "the catalog tells the agent about Value and Tolerance");
+
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideFieldValueProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the field value guide not verified" << std::endl;
+            return;
+        }
+        // 컴포넌트를 적으면 필드와 값을 그 타입으로 본다. 타입 표는 에디터가 뜬 뒤에 확실히 채워져 있다.
+        const char* rejectByType[][2] = {
+            { "  - Do: field.edit\n    Component: Collider2D\n    Field: nope\n", "no field 'nope'" },
+            { "  - Do: field.edit\n    Component: Collider2D\n    Field: shape\n    Value: Polygn\n", "cannot hold 'Polygn'" },
+            { "  - Do: field.edit\n    Component: Collider2D\n    Field: isTrigger\n    Value: maybe\n", "cannot hold 'maybe'" },
+            { "  - Do: field.edit\n    Component: Collider2D\n    Field: shape\n    Value:\n      - Polygon\n", "holds one value" },
+        };
+        for (const auto& entry : rejectByType)
+        {
+            JBro::OwnerPtr<JBro::LoadedGuide> rejected;
+            JBro::String reason;
+            Check(false == ParseGuide(OneStepGuide(entry[0]).c_str(), rejected, reason) && Contains(reason, entry[1]), entry[1]);
+        }
+
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        auto* collider = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
+        Check(collider != nullptr, "the collider must attach");
+        Tick(editor, 3);
+        JBro::String error;
+        const JBro::String shape = CanvasGuide("field.edit", *object, "    Component: Collider2D\n    Field: shape\n    Value: Polygon\n");
+        Check(editor.StartGuideFromText(shape.c_str(), shape.size(), error), error.c_str());
+        Tick(editor, 2);
+        const char* why = editor.GetGuide().WhyNextBlocked(editor);
+        Check(why != nullptr && std::strstr(why, "shape") != nullptr && std::strstr(why, "Polygon") != nullptr,
+            "a Box shape blocks Next and says which field wants which value");
+        collider->shape = JBro::Component::ColliderShape2D::Polygon;
+        Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "a Polygon shape lets Next through");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+
+        // 숫자 칸은 허용 오차 안이면 같다. `Vector2` 는 칸의 차례열로 적는다.
+        JBro::Component::Transform2D* transform = TransformOf(editor, *object);
+        const JBro::String position = CanvasGuide("field.edit", *object,
+            "    Component: Transform2D\n    Field: position\n    Value:\n      - 0.4\n      - 1\n");
+        Check(editor.StartGuideFromText(position.c_str(), position.size(), error), error.c_str());
+        Tick(editor, 2);
+        transform->position = { 0.4003f, 1.0f };
+        Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "0.4003 shows as 0.400, so it is 0.4");
+        transform->position = { 0.402f, 1.0f };
+        why = editor.GetGuide().WhyNextBlocked(editor);
+        Check(why != nullptr && std::strstr(why, "[0.4, 1]") != nullptr, "0.402 is not 0.4, and the value shows as one line");
+        transform->position = { 0.4f, 2.0f };
+        Check(editor.GetGuide().WhyNextBlocked(editor) != nullptr, "every number of the pair must match");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+
+        const JBro::String loose = CanvasGuide("field.edit", *object,
+            "    Component: Transform2D\n    Field: position\n    Value:\n      - 0.4\n      - 1\n    Tolerance: 0.01\n");
+        Check(editor.StartGuideFromText(loose.c_str(), loose.size(), error), error.c_str());
+        Tick(editor, 2);
+        transform->position = { 0.402f, 1.0f };
+        Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "a wider Tolerance takes 0.402 as 0.4");
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+
+        const JBro::String trigger = CanvasGuide("field.edit", *object, "    Component: Collider2D\n    Field: isTrigger\n    Value: true\n");
+        Check(editor.StartGuideFromText(trigger.c_str(), trigger.size(), error), error.c_str());
+        Tick(editor, 2);
+        Check(editor.GetGuide().WhyNextBlocked(editor) != nullptr, "isTrigger starts false");
+        collider->isTrigger = true;
+        Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "and true lets Next through");
+    }
+
+    // **포인트 단계는 포인트가 없으면 까닭을 말한다**(D-273). Box 면 모양을, 번호가 넘치면 그 번호를 적는다.
+    void TestAPointStepSaysWhyThereIsNoPoint()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuidePointReasonProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; the point reason not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        Tick(editor, 3);
+        JBro::String error;
+        const JBro::String text = CanvasGuide("collider.point_move", *object, "    Point: 3\n");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        Tick(editor, 2);
+        const char* why = editor.GetGuide().WhyNextBlocked(editor);
+        Check(why != nullptr && std::strstr(why, "Polygon") != nullptr, "no collider at all asks for a Polygon or Chain shape");
+
+        auto* collider = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
+        Check(collider != nullptr, "the collider must attach");
+        why = editor.GetGuide().WhyNextBlocked(editor);
+        Check(why != nullptr && std::strstr(why, "Polygon") != nullptr, "a Box collider asks for a Polygon or Chain shape");
+        // 다음 단추가 없는 단계라 까닭은 말풍선의 한 줄이다. 글자를 읽는 시험이 없어 높이로 본다(회색 항목의 시험과 같다).
+        Tick(editor, 20);
+        const ImGuiWindow* balloon = ImGui::FindWindowByName("##guide_focus_balloon");
+        Check(balloon != nullptr && balloon->WasActive, "the balloon must be up");
+        const float blockedHeight = balloon->Size.y;
+        collider->shape = JBro::Component::ColliderShape2D::Polygon;
+        Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "an empty polygon edits the box's four corners, so point 3 is there");
+        Tick(editor, 5);
+        Check(blockedHeight > balloon->Size.y + 4.0f, "the reason was a line of the balloon, and it goes once the point is there");
+        collider->SetEnabled(false);
+        Check(editor.GetGuide().WhyNextBlocked(editor) != nullptr, "the canvas view skips a disabled collider, and so does the step");
+        collider->SetEnabled(true);
+        editor.GetGuide().Stop(editor.GetGuideFocus());
+
+        const JBro::String beyond = CanvasGuide("collider.point_move", *object, "    Point: 4\n");
+        Check(editor.StartGuideFromText(beyond.c_str(), beyond.size(), error), error.c_str());
+        Tick(editor, 2);
+        why = editor.GetGuide().WhyNextBlocked(editor);
+        Check(why != nullptr && std::strstr(why, "4") != nullptr, "four corners have no point 4, and the reason names it");
+    }
+
     // **그릴 것이 없는 오브젝트는 캔버스 뷰에서 점이다** - 둥글게 뚫는다. 스프라이트가 있으면 그 사각형이다(클릭 고르기와 같은 상자).
     void TestAnEmptyObjectInTheCanvasViewIsARoundHole()
     {
@@ -2879,6 +3014,8 @@ int RunEditorGuideTests()
     TestARotateGuideWaitsForTheModeButtonThenTheRing();
     TestAPointGuideTurnsOnColliderEditingAndDragsThePoint();
     TestAnEmptyObjectInTheCanvasViewIsARoundHole();
+    TestAFieldStepWaitsForItsValue();
+    TestAPointStepSaysWhyThereIsNoPoint();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }

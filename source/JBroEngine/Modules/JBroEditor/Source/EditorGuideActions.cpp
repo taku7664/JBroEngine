@@ -5,13 +5,17 @@
 #include <JBro/Core/Log.h>
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Core/Yaml.h>
+#include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
+#include <JBro/Editor/Gizmo/PolygonEditModel.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/GameObject.h>
 
+#include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -123,6 +127,26 @@ namespace JBro
         };
 
         struct GuideActionInfo;
+
+        // 값 하나를 편 조각이다(`field.edit` 의 `Value`, D-273). 가이드에 적은 YAML 과 필드의 지금 값을 같은 모양으로 펴서
+        // 조각마다 견준다 - 글자째 견주면 `0.4` 와 `0.400` 이 다르고, `Vector2` 처럼 여러 칸인 값은 칸마다 봐야 한다.
+        struct ValuePiece
+        {
+            enum class Kind : std::uint8_t
+            {
+                Scalar,
+                Key,
+                OpenSequence,
+                OpenMap,
+                Close
+            };
+            Kind kind = Kind::Scalar;
+            String text;
+        };
+
+        // 숫자 칸의 기본 허용 오차다. 인스펙터가 실수를 소수 셋째 자리까지 보이므로(ImGui 기본 `%.3f`) 그 자리의 반이다 -
+        // 화면에 `0.400` 으로 보이면 `0.4` 로 친다.
+        constexpr double DefaultValueTolerance = 0.0005;
     }
 
     // 글자로 적힌 단계 하나의 판단이다. 가이드의 `GuideStep` 은 이것에 걸린 델리게이트를 부른다 - 단계마다 인자(어느 오브젝트,
@@ -147,6 +171,16 @@ namespace JBro
         ComponentTypeId componentType = 0;
         bool hasField = false;
         NameId fieldName = InvalidNameId;
+        // 필드 이름의 원문이다. 값을 읽을 길(`SetPropertyCommand::MakeFieldPath`)을 이 이름으로 짓는다.
+        String fieldText;
+        // `Value`(D-273): 이 값이 되기 전에는 다음이 막힌다. 가이드 문서는 읽고 나면 없으므로 펴서 든다.
+        bool hasValue = false;
+        Array<ValuePiece> value;
+        // 말풍선에 보일 값이다(`[1, 2]` 처럼 한 줄로).
+        String valueShown;
+        double tolerance = DefaultValueTolerance;
+        // 까닭에 값을 끼워 적는 자리다. `NextBlocked` 가 이것을 가리켜 돌려준다.
+        char reason[256] = {};
         // 폴리곤 포인트의 번호(반례 ⑦). 적지 않으면 첫 포인트다.
         std::uint32_t pointIndex = 0;
         bool routeFixed = false;
@@ -405,6 +439,205 @@ namespace JBro
             return editor.GetSelectedObject() != nullptr ? nullptr : NeedSelectedObject();
         }
 
+        // ── field.edit 의 Value(D-273) ───────────────────────────────
+        //
+        // **값의 생김새는 리플렉션이 안다.** 필드마다 맞추는 코드를 두지 않는다 - 필드의 지금 값을 실행 취소가 뜨는 길
+        // (`SetPropertyCommand::ReadValue`)으로 글자로 읽고, 가이드에 적은 YAML 과 같은 모양의 조각으로 펴서 견준다.
+        // enum 은 이름(`Polygon`), bool 은 `true`, `Vector2` 는 칸의 차례열이다.
+
+        void FlattenValue(const YamlDocument& document, std::uint32_t node, Array<ValuePiece>& out)
+        {
+            switch (document.GetKind(node))
+            {
+            case YamlKind::Scalar:
+                out.Add({ ValuePiece::Kind::Scalar, String(document.GetText(node)) });
+                return;
+            case YamlKind::Sequence:
+                out.Add({ ValuePiece::Kind::OpenSequence, String() });
+                for (std::size_t index = 0; index < document.GetCount(node); ++index)
+                {
+                    FlattenValue(document, document.GetElement(node, index), out);
+                }
+                break;
+            case YamlKind::Map:
+                out.Add({ ValuePiece::Kind::OpenMap, String() });
+                for (std::size_t index = 0; index < document.GetCount(node); ++index)
+                {
+                    out.Add({ ValuePiece::Kind::Key, String(document.GetKey(node, index)) });
+                    FlattenValue(document, document.GetValue(node, index), out);
+                }
+                break;
+            }
+            out.Add({ ValuePiece::Kind::Close, String() });
+        }
+
+        // 말풍선에 보일 한 줄이다. 차례열은 `[1, 2]`, 맵은 `{x: 1}`.
+        String ShowValue(const Array<ValuePiece>& pieces)
+        {
+            constexpr std::uint32_t MaxDepth = 16;
+            char closers[MaxDepth] = {};
+            std::uint32_t depth = 0;
+            bool comma = false;
+            String shown;
+            for (const ValuePiece& piece : pieces)
+            {
+                if (piece.kind == ValuePiece::Kind::Close)
+                {
+                    if (depth > 0)
+                    {
+                        --depth;
+                        if (depth < MaxDepth)
+                        {
+                            shown += closers[depth];
+                        }
+                    }
+                    comma = true;
+                    continue;
+                }
+                if (comma)
+                {
+                    shown += ", ";
+                }
+                switch (piece.kind)
+                {
+                case ValuePiece::Kind::Scalar:
+                    shown += piece.text;
+                    comma = true;
+                    break;
+                case ValuePiece::Kind::Key:
+                    shown += piece.text;
+                    shown += ": ";
+                    comma = false;
+                    break;
+                case ValuePiece::Kind::OpenSequence:
+                case ValuePiece::Kind::OpenMap:
+                    shown += piece.kind == ValuePiece::Kind::OpenSequence ? "[" : "{";
+                    if (depth < MaxDepth)
+                    {
+                        closers[depth] = piece.kind == ValuePiece::Kind::OpenSequence ? ']' : '}';
+                    }
+                    ++depth;
+                    comma = false;
+                    break;
+                case ValuePiece::Kind::Close:
+                    break;
+                }
+            }
+            return shown;
+        }
+
+        // 두 칸이 같은가. 둘 다 숫자로 끝까지 읽히면 허용 오차 안이면 같다 - 실수를 글자로 견주면 쓴 자리 수가 달라 어긋난다.
+        bool ScalarsMatch(const String& want, const String& have, double tolerance)
+        {
+            if (want == have)
+            {
+                return true;
+            }
+            char* wantEnd = nullptr;
+            char* haveEnd = nullptr;
+            const double wanted = std::strtod(want.c_str(), &wantEnd);
+            const double held = std::strtod(have.c_str(), &haveEnd);
+            const bool numbers = wantEnd != want.c_str() && *wantEnd == '\0' && haveEnd != have.c_str() && *haveEnd == '\0';
+            return numbers && std::fabs(wanted - held) <= tolerance;
+        }
+
+        bool PiecesMatch(const Array<ValuePiece>& want, const Array<ValuePiece>& have, double tolerance)
+        {
+            if (want.Size() != have.Size())
+            {
+                return false;
+            }
+            for (std::size_t index = 0; index < want.Size(); ++index)
+            {
+                if (want[index].kind != have[index].kind)
+                {
+                    return false;
+                }
+                if (want[index].kind == ValuePiece::Kind::Scalar && false == ScalarsMatch(want[index].text, have[index].text, tolerance))
+                {
+                    return false;
+                }
+                if (want[index].kind == ValuePiece::Kind::Key && want[index].text != have[index].text)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // 필드의 지금 값을 조각으로 편다. 잎사귀(코덱이 있는 값)는 글자 하나이고, 숫자 묶음·컨테이너는 `Value:` 아래의 YAML 이다.
+        bool ReadFieldPieces(ComponentBase& component, ComponentTypeId typeId, const SetPropertyCommand::Path& path, Array<ValuePiece>& out)
+        {
+            void* address = nullptr;
+            const TypeDescriptor* type = nullptr;
+            String text;
+            if (false == SetPropertyCommand::ResolveLeaf(component, typeId, path, address, type)
+                || false == SetPropertyCommand::ReadValue(component, typeId, path, text))
+            {
+                return false;
+            }
+            if (type->codec != nullptr)
+            {
+                out.Add({ ValuePiece::Kind::Scalar, std::move(text) });
+                return true;
+            }
+            YamlDocument document;
+            YamlError error;
+            if (false == document.Parse(text.c_str(), text.size(), error))
+            {
+                return false;
+            }
+            const std::uint32_t node = document.Find(document.GetRoot(), "Value");
+            if (node == YamlDocument::InvalidNode)
+            {
+                return false;
+            }
+            FlattenValue(document, node, out);
+            return true;
+        }
+
+        // 고른 오브젝트의 그 필드가 적힌 값인가. 오브젝트·컴포넌트·필드는 `BuildField` 가 가리킨 것과 같다.
+        bool FieldHoldsValue(GuideStepBinding& binding, EditorApplication& editor)
+        {
+            GameObject* object = editor.GetSelectedObject();
+            if (object == nullptr || object->GetComponents().Size() == 0)
+            {
+                return false;
+            }
+            const ComponentTypeId typeId = binding.hasComponent ? binding.componentType : object->GetComponents()[0].typeId;
+            ComponentBase* component = nullptr;
+            for (const auto& slot : object->GetComponents())
+            {
+                if (slot.typeId == typeId)
+                {
+                    component = slot.reference.TryGet();
+                    break;
+                }
+            }
+            SetPropertyCommand::Path path;
+            if (component == nullptr || false == SetPropertyCommand::MakeFieldPath(typeId, binding.fieldText.c_str(), path))
+            {
+                return false;
+            }
+            Array<ValuePiece> now;
+            return ReadFieldPieces(*component, typeId, path, now) && PiecesMatch(binding.value, now, binding.tolerance);
+        }
+
+        const char* BlockedField(GuideStepBinding& binding, EditorApplication& editor)
+        {
+            if (editor.GetSelectedObject() == nullptr)
+            {
+                return NeedSelectedObject();
+            }
+            if (false == binding.hasValue || FieldHoldsValue(binding, editor))
+            {
+                return nullptr;
+            }
+            std::snprintf(binding.reason, sizeof(binding.reason), Loc::TextOr(LocKeys::GuideNeedFieldValue, "Set %s to %s first"),
+                binding.fieldText.c_str(), binding.valueShown.c_str());
+            return binding.reason;
+        }
+
         // ── 캔버스 뷰의 도구(반례 ⑦) ─────────────────────────────────
         //
         // 손잡이와 포인트는 **고른 오브젝트** 위에 선다. 적힌 오브젝트가 있으면 그것 하나만 고른다(편집 메뉴와 같다) - 여럿을 고른 채면
@@ -448,6 +681,38 @@ namespace JBro
             return SelectForCanvasTool(binding, editor) && path.Push(GuideFocusTargets::Panel("CanvasView"))
                 && path.Push(GuideFocusTargets::ColliderEditButton(), GuideFocusOpen::User)
                 && path.Push(GuideFocusTargets::PolygonPoint(binding.pointIndex));
+        }
+
+        // **포인트가 없으면 그 까닭을 적는다**(D-273). 모양이 Box 인 채로 들어서면 `콜라이더 편집` 을 켜도 포인트가 그려지지 않아
+        // 경로가 끊기고, 사람은 왜 앞 단계로 돌아갔는지 모른다. 캔버스 뷰가 편집하는 것과 같은 콜라이더(켜진 것 가운데 포인트로
+        // 모양을 정하는 첫째, `FindPolygonTarget`)와 같은 포인트(비었으면 상자의 네 모서리, `SeedPoints`)를 본다.
+        const char* BlockedPoint(GuideStepBinding& binding, EditorApplication& editor)
+        {
+            GameObject* object = editor.GetSelectedObject();
+            Canvas* canvas = editor.GetCanvas();
+            if (object == nullptr || canvas == nullptr)
+            {
+                return NeedSelectedObject();
+            }
+            Array<Component::Collider2D*> colliders;
+            canvas->FindComponentsRaw<Component::Collider2D>(object, colliders);
+            for (Component::Collider2D* collider : colliders)
+            {
+                if (collider == nullptr || false == collider->IsEnabled() || false == PolygonEditModel::EditsPoints(*collider))
+                {
+                    continue;
+                }
+                Array<Vector2> points;
+                PolygonEditModel::SeedPoints(*collider, points);
+                if (binding.pointIndex < points.Size())
+                {
+                    return nullptr;
+                }
+                std::snprintf(binding.reason, sizeof(binding.reason), Loc::TextOr(LocKeys::GuideNeedPolygonPoint, "The collider has no point %u"),
+                    binding.pointIndex);
+                return binding.reason;
+            }
+            return Loc::TextOr(LocKeys::GuideNeedPointCollider, "The Collider2D's shape must be Polygon or Chain");
         }
 
         GuideActionInfo CanvasToolAction(const char* name, const char* summary, const char* command,
@@ -540,7 +805,7 @@ namespace JBro
                 [] {
                     GuideActionInfo info;
                     info.name = "field.edit";
-                    info.summary = "Change a field in the inspector. Without Component/Field, the first field of the first component. Ends with Next.";
+                    info.summary = "Change a field in the inspector. Without Component/Field, the first field of the first component. Ends with Next; with Value, Next waits until the field holds it.";
                     info.object = ObjectParam::Optional;
                     info.takesComponent = true;
                     info.takesField = true;
@@ -549,7 +814,7 @@ namespace JBro
                     info.end = GuideStepEnd::NextButton;
                     info.keyboard = true;
                     info.build = &BuildField;
-                    info.blocked = &BlockedNeedSelection;
+                    info.blocked = &BlockedField;
                     return info;
                 }(),
                 // ── 캔버스 뷰의 도구(반례 ⑦): 기즈모 손잡이와 폴리곤 포인트. 끝은 그 끌기가 남긴 커맨드다. ──
@@ -564,6 +829,7 @@ namespace JBro
                         "Turn on Edit Collider and drag a point of the object's polygon collider. Point is the point's index (default 0).",
                         "Set Property", &BuildPointMove);
                     info.takesPoint = true;
+                    info.blocked = &BlockedPoint;
                     return info;
                 }(),
             };
@@ -1010,14 +1276,98 @@ namespace JBro
             return true;
         }
 
+        // `Value`·`Tolerance`(D-273)와, 컴포넌트를 적었으면 그 필드가 정말 있는가다. 적은 값이 그 필드의 타입으로 읽히는지도
+        // 여기서 본다 - 못 읽히는 값을 들이면 다음이 영영 풀리지 않는다.
+        bool ReadValue(std::uint32_t node, const GuideActionInfo& action, GuideStepBinding& binding)
+        {
+            const std::uint32_t valueNode = document.Find(node, "Value");
+            String tolerance;
+            const bool hasTolerance = document.FindScalar(node, "Tolerance", tolerance);
+            if (valueNode != YamlDocument::InvalidNode)
+            {
+                if (false == action.takesField)
+                {
+                    return Fail(node, "'%s' takes no Value", action.name);
+                }
+                if (false == binding.hasField)
+                {
+                    return Fail(valueNode, "Value needs Field");
+                }
+                binding.hasValue = true;
+                FlattenValue(document, valueNode, binding.value);
+                binding.valueShown = ShowValue(binding.value);
+            }
+            if (hasTolerance)
+            {
+                if (false == binding.hasValue)
+                {
+                    return Fail(node, "Tolerance needs Value");
+                }
+                char* end = nullptr;
+                const double parsed = std::strtod(tolerance.c_str(), &end);
+                if (end == tolerance.c_str() || *end != '\0' || false == std::isfinite(parsed) || parsed < 0.0)
+                {
+                    return Fail(node, "Tolerance must be a number of zero or more, not '%s'", tolerance.c_str());
+                }
+                binding.tolerance = parsed;
+            }
+            if (false == binding.hasField || false == binding.hasComponent)
+            {
+                return true;
+            }
+            // 스크립트 컴포넌트는 가이드를 읽을 때 아직 실리지 않았을 수 있다. 그때는 들어설 때 길이 없는 것으로 안다.
+            const PropertyTable* table = PropertyRegistry::Lookup(binding.componentType);
+            if (table == nullptr)
+            {
+                return true;
+            }
+            const PropertyInfo* property = nullptr;
+            for (std::uint32_t index = 0; index < table->count && property == nullptr; ++index)
+            {
+                const PropertyInfo& candidate = table->properties[index];
+                if (candidate.name == binding.fieldName && candidate.type != nullptr && candidate.Address != nullptr)
+                {
+                    property = &candidate;
+                }
+            }
+            char reason[192] = {};
+            if (property == nullptr)
+            {
+                std::snprintf(reason, sizeof(reason), "the component has no field '%s'", binding.fieldText.c_str());
+                return Fail(node, "%s", reason);
+            }
+            const ValueCodec* codec = property->type->codec;
+            if (false == binding.hasValue || codec == nullptr)
+            {
+                return true;
+            }
+            if (binding.value.Size() != 1 || binding.value[0].kind != ValuePiece::Kind::Scalar)
+            {
+                std::snprintf(reason, sizeof(reason), "'%s' holds one value, not a list or a map", binding.fieldText.c_str());
+                return Fail(valueNode, "%s", reason);
+            }
+            // 읽어 볼 자리는 단순한 타입만 만든다 - `String` 같은 타입은 생성자 없이 쓰면 안 된다.
+            if (property->type->triviallyCopyable && property->type->size <= 64 && codec->FromText != nullptr)
+            {
+                alignas(std::max_align_t) unsigned char scratch[64] = {};
+                const String& text = binding.value[0].text;
+                if (false == codec->FromText(scratch, text.c_str(), text.size()))
+                {
+                    std::snprintf(reason, sizeof(reason), "'%s' cannot hold '%s'", binding.fieldText.c_str(), text.c_str());
+                    return Fail(valueNode, "%s", reason);
+                }
+            }
+            return true;
+        }
+
         bool ReadStep(std::uint32_t node, LoadedGuide& loaded, Array<String>& stepIds, Array<const GuideActionInfo*>& stepActions)
         {
             if (document.GetKind(node) != YamlKind::Map)
             {
                 return Fail(node, "a step must be a map");
             }
-            static const char* const keys[] = { "Id", "Do", "Object", "Parent", "Component", "Field", "Point", "Via", "Title", "Body",
-                "End", "Keyboard", "Skip", "Back", "Next", "RetreatTo" };
+            static const char* const keys[] = { "Id", "Do", "Object", "Parent", "Component", "Field", "Value", "Tolerance", "Point", "Via",
+                "Title", "Body", "End", "Keyboard", "Skip", "Back", "Next", "RetreatTo" };
             if (false == CheckKeys(node, keys, sizeof(keys) / sizeof(keys[0])))
             {
                 return false;
@@ -1074,6 +1424,11 @@ namespace JBro
                 }
                 binding->hasField = true;
                 binding->fieldName = MakeNameId(value.c_str());
+                binding->fieldText = value;
+            }
+            if (false == ReadValue(node, *action, *binding))
+            {
+                return false;
             }
             if (document.FindScalar(node, "Via", value) && value != "auto")
             {
@@ -1257,7 +1612,8 @@ namespace JBro
             writer.WriteString("Format", "an instance id, Selection for the object selected when the step begins, or $stepId for the object an earlier step left");
             writer.EndMap();
             writer.BeginMap("Step");
-            writer.WriteString("Keys", "Id Do Object Parent Component Field Via Title Body End Keyboard Skip Back Next RetreatTo");
+            writer.WriteString("Keys", "Id Do Object Parent Component Field Value Tolerance Point Via Title Body End Keyboard Skip Back Next RetreatTo");
+            writer.WriteString("Value", "the value Next waits for, written as the field is saved (enum name, true/false, a number, or a block list for Vector2); numbers match within Tolerance (default 0.0005, half the inspector's last digit)");
             writer.WriteString("End", "next (the Next button), target (pressing the last widget), done (the action's own check)");
             writer.WriteString("Via", "auto (default: the first route that can be drawn, others if it breaks) or one route name");
             writer.EndMap();
@@ -1281,6 +1637,7 @@ namespace JBro
                 if (action.takesField)
                 {
                     writer.WriteString("Field", "optional");
+                    writer.WriteString("Value", "optional, needs Field");
                 }
                 if (action.takesPoint)
                 {
