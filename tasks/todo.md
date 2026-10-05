@@ -72,10 +72,12 @@
     안 나오고 바꿀 수도 없다. 이 항목이 서면 표로 옮긴다. `Widget/FilterCombo.cpp` 의 Enter 는 칸 안의 편집 키라 단축키가 아니다(옮기지 않음).
   - 정할 것: 포커스 범위의 단위(패널 창 하나인지, 에디터 묶음인지), 중첩 창(팝업·도킹된 창)에서 포커스를 누구로 볼지, 기본 우선순위(포커스 > 전역이
     일반적 - VSCode·언리얼이 이렇다), 블로킹 기본값, 재생 중 게임 뷰 포커스(D-214 는 재생 제어만 통과시킨다)와의 관계.
-- `[진행 예정]` **3. 모든 툴팁 호버에 딜레이.** 지금 `Widget::HoveredTooltip`(`Widget/Common.cpp`)은 `ImGui::IsItemHovered(flags)` 뒤에
+- ~~`[진행 예정]` **3. 모든 툴팁 호버에 딜레이.** 지금 `Widget::HoveredTooltip`(`Widget/Common.cpp`)은 `ImGui::IsItemHovered(flags)` 뒤에
   곧바로 `SetTooltip` 이라 마우스가 지나가기만 해도 뜬다. 공용 위젯 한 곳에서 딜레이를 걸고(ImGui 의 `ImGuiHoveredFlags_DelayNormal`
   같은 플래그 또는 자체 값), `FieldLabel`·`IconButton`·`StatusBadge`·`ActionButton`·`FilterCombo::DisabledTooltip`·메뉴 항목의 잠긴 까닭
-  (D-181)까지 **툴팁을 띄우는 모든 길이 그 한 곳을 거치는지** 확인한다. 패널이 `ImGui::SetTooltip` 을 직접 부르는 자리가 없어야 한다.
+  (D-181)까지 **툴팁을 띄우는 모든 길이 그 한 곳을 거치는지** 확인한다. 패널이 `ImGui::SetTooltip` 을 직접 부르는 자리가 없어야 한다.~~
+  → 완료 2026-10-06 · D-281 · `Widget::HoveredTooltip`(`Widget/Common.cpp`)·`EditorTheme::ApplyLayout`, 테스트 `Tests/EditorWidgetTests.cpp`
+  (`TestATooltipWaitsForTheMouseToRest`).
 - ~~`[진행 예정]` **4. 로딩은 비동기 - 로딩 관리자가 스레드를 들고 로드 태스크를 등록받는다**(D-208). 툴마다 로딩 연출을 따로 만들지 않는다.~~
   → 완료 2026-09-27 · 044238d·e05f526·df69f52 · 에셋 `AssetSystem::PrepareDecode`·`DecodeAssetFile`·`AdoptDecoded`(`JBroAsset/Source/Asset.cpp`),
   로드 묶음 `SubmitAssetLoad`(`JBroHost/Source/AssetLoad.cpp`), 에디터 `LoadCanvasAsync`·`CompleteCanvasLoad`·`CancelCanvasLoad`(`EditorApplication.cpp`),
@@ -2924,6 +2926,19 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. 레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-281. 에디터 툴팁은 마우스가 멈추고 0.5 초 뒤에 뜬다. 툴팁을 띄우는 길은 `Widget::HoveredTooltip` 하나다.**
+  (2026-10-06, 사용자 지시: "에디터 호버툴팁 딜레이가 왜 없지? 분명 넣어달라한거 같은데" - 남은 일 3 번으로 적어 두고 손대지 않았었다.)
+  **왜 없었나(코드로 확인).** 테마가 `HoverDelayNormal` 같은 값은 정해 두었지만 그 값을 쓰는 플래그를 아무도 넘기지 않았다.
+  `HoveredTooltip` 은 `IsItemHovered(flags)` 뒤 곧바로 `SetTooltip` 이었고, 회색 항목의 까닭(`Widget::DisabledReason`·`FilterCombo` 의
+  잠긴 항목)은 공용 함수를 거치지 않고 `SetTooltip` 을 직접 불렀다.
+  **정한 것.** `HoveredTooltip` 이 늘 `ImGuiHoveredFlags_ForTooltip` 을 더하고, 테마가 `HoverFlagsForTooltipMouse` 를
+  `Stationary | DelayNormal | AllowWhenDisabled` 로 둔다 - 마우스가 0.2 초 멈추고 올려 둔 지 0.5 초가 지나야 뜬다. 값은 테마 한 곳에 있다.
+  회색 항목의 까닭 두 자리도 `HoveredTooltip` 을 거친다. 이제 `ImGui::SetTooltip` 을 부르는 자리는 `HoveredTooltip` 하나다.
+  툴팁이 막 떴던 자리에서 곧장 옆 항목으로 가면 ImGui 가 기다림을 이어 써 바로 뜬다(도구 막대를 훑는 경우) - 그대로 둔다.
+  **검증.** 위젯 시험이 보통 단추와 회색 단추에 마우스를 올려 0.3 초까지는 툴팁이 없고 그 뒤 뜨는지 본다. `ForTooltip` 을 빼는 변이와
+  `DisabledReason` 을 직접 `SetTooltip` 으로 되돌리는 변이가 각자 맞는 단언에서 잡혔다.
+  `[열림]` 실제 에디터에서 눈으로는 아직 안 봤다(사용자 에디터가 켜져 있어 실행 파일을 다시 링크하지 못했다).
 
 - **D-279. 레이어를 고를 수 있고, 레이어에 블렌드와 불투명도가 있다. 블렌드가 걸린 레이어는 제 텍스처에 그려 한 장으로 얹는다.**
   (2026-10-06, 사용자 지시: "기존엔진 비교해보면 레이어 선택이 되야하는데 왜 지금 엔진은 레이어 선택이 안되냐", "당연히 보여야지. 그래야 블렌딩도 설정하고.

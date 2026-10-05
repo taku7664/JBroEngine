@@ -169,10 +169,7 @@ namespace JBro::Widget
             return;
         }
         // 회색 항목은 기본 hover 판정에서 빠진다. 그 자리에 뜨게 하려면 이 플래그가 필요하다.
-        if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-        {
-            ImGui::SetTooltip("%s", reason);
-        }
+        HoveredTooltip(reason, ImGuiHoveredFlags_AllowWhenDisabled);
     }
 
     bool MenuToggle(const char* label, bool& checked, bool enabled)

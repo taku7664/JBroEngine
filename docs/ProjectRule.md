@@ -1024,6 +1024,8 @@
   **고를 수 있는 첫 항목**을 고른다.
   까닭은 `Widget::MenuItem` 의 `disabledReason` 으로 넘기고, 손짓이면 `EditorShortcuts::WhyBlocked` 가 댄다 -
   막는 조건과 그 까닭은 한 자리에 있어야 한 쪽만 고쳐지지 않는다. **막은 조건이 여럿이면 먼저 풀어야 하는 것**을 말한다.
+- **툴팁은 `Widget::HoveredTooltip` 으로만 띄운다.** 패널도 위젯도 `ImGui::SetTooltip` 을 직접 부르지 않는다 - 마우스가 멈춘 뒤 기다리는
+  시간(테마의 `HoverFlagsForTooltipMouse`)이 그 한 곳에서 걸린다. 회색 항목의 까닭도 같다. (MUST) (D-281)
 - 인스펙터는 `JBro.Uuid` 이고 이름이 `Id` 로 끝나는 필드를 에셋 칸으로 그린다(해석 패스와 같은 규칙, D-115). 이름 앞부분이
   에셋 타입 이름이면 그 타입만 보인다. 편집 뒤 해석은 커맨드 판번호가 움직였을 때 `BindCanvasAssets` 를 다시 부르는
   것으로 한다 - 커맨드 종류로 고르지 않는다. (MUST) (D-118)

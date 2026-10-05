@@ -1,4 +1,5 @@
-﻿#include <JBro/Editor/Localization.h>
+﻿#include <JBro/Editor/EditorTheme.h>
+#include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -1444,6 +1445,64 @@ namespace
         Check(faded.w > 0.24f && faded.w < 0.26f, "alpha must be replaced");
         Check(faded.x == error.x, "and the colour left alone");
     }
+
+    // **툴팁은 마우스가 멈춘 뒤 잠시 있다가 뜬다.** 지나가기만 해도 뜨면 패널 위를 움직일 때마다
+    // 말풍선이 따라다닌다. 회색 항목의 까닭도 같은 길을 지난다.
+    void TestATooltipWaitsForTheMouseToRest()
+    {
+        Stage stage;
+        JBro::EditorTheme::ApplyLayout();
+        ImGuiIO& io = ImGui::GetIO();
+
+        ImVec2 plainMin;
+        ImVec2 plainMax;
+        ImVec2 grayMin;
+        ImVec2 grayMax;
+        auto frame = [&]() {
+            stage.Begin();
+            ImGui::Button("plain", ImVec2(120.0f, 24.0f));
+            plainMin = ImGui::GetItemRectMin();
+            plainMax = ImGui::GetItemRectMax();
+            JBro::Widget::HoveredTooltip("plain tip");
+            ImGui::BeginDisabled();
+            ImGui::Button("gray", ImVec2(120.0f, 24.0f));
+            ImGui::EndDisabled();
+            grayMin = ImGui::GetItemRectMin();
+            grayMax = ImGui::GetItemRectMax();
+            JBro::Widget::DisabledReason(true, "gray reason");
+            stage.End();
+            ImGuiWindow* tooltip = ImGui::FindWindowByName("##Tooltip_00");
+            return tooltip != nullptr && tooltip->Active;
+        };
+        stage.Settle();
+        frame();
+
+        auto restOn = [&](const ImVec2& min, const ImVec2& max, const char* early, const char* late) {
+            // 툴팁이 막 떴던 자리에서 곧장 옆 항목으로 가면 ImGui 는 기다림을 이어 쓴다(도구 막대를 훑을 때
+            // 바로바로 뜨게). 그 몫이 지워지도록 1 초 비켜 있는다.
+            io.AddMousePosEvent(5.0f, 590.0f);
+            for (int step = 0; step < 60; ++step)
+            {
+                frame();
+            }
+            io.AddMousePosEvent((min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f);
+            // 0.3 초까지는 뜨지 않는다.
+            for (int step = 0; step < 18; ++step)
+            {
+                Check(false == frame(), early);
+            }
+            bool shown = false;
+            for (int step = 0; step < 30 && false == shown; ++step)
+            {
+                shown = frame();
+            }
+            Check(shown, late);
+        };
+        restOn(plainMin, plainMax, "a tooltip must not appear the moment the mouse arrives",
+            "a tooltip must appear once the mouse has rested on the item");
+        restOn(grayMin, grayMax, "the reason a gray item is locked must wait like any other tooltip",
+            "and appear once the mouse has rested on the gray item");
+    }
 }
 
 int RunEditorWidgetTests()
@@ -1469,6 +1528,7 @@ int RunEditorWidgetTests()
     TestTheNameListEditKeepsTheBufferAndTheListInStep();
     TestAWeightedButtonLooksDifferentFromAPlainOne();
     TestSeverityColoursDiffer();
+    TestATooltipWaitsForTheMouseToRest();
     std::cout << "Editor widget tests passed.\n";
     return 0;
 }
