@@ -174,7 +174,7 @@ namespace
         Check(Near(result.position.x, 0.0f) && Near(result.position.y, 0.3f), "and it moves along world +y");
     }
 
-    // **격자 스냅**(D-280). 가운데 손잡이는 두 성분을, 월드 축과 나란한 축 손잡이는 그 성분만 격자선에 붙인다.
+    // **격자 스냅**(D-282). 가운데 손잡이는 두 성분을, 월드 축과 나란한 축 손잡이는 그 성분만 격자선에 붙인다.
     // 돌아간 축은 격자선이 축 위에 없어 움직인 거리를 간격 단위로 끊는다. 이동이 아니거나 간격이 없으면 건드리지 않는다.
     void TestTranslationSnapsToTheGrid()
     {
@@ -226,7 +226,7 @@ namespace
         Check(untouched.position.x == before.position.x && untouched.position.y == before.position.y, "a rotation is not snapped");
     }
 
-    // **회전 스냅**(D-280). 끌기를 시작한 뒤 돈 만큼을 15 도 단위로 끊는다. 처음부터 돌아 있던 각은 그대로 남는다.
+    // **회전 스냅**(D-282). 끌기를 시작한 뒤 돈 만큼을 15 도 단위로 끊는다. 처음부터 돌아 있던 각은 그대로 남는다.
     void TestRotationSnapsInSteps()
     {
         const JBro::GizmoCamera camera = OrthoCamera();

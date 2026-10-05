@@ -11619,7 +11619,7 @@ namespace
         editor.Shutdown();
     }
 
-    // **격자 스냅**(D-280). 도구 막대의 단추를 켜면 옮기기 기즈모가 보이는 격자 칸에 붙고, 끌면서 Ctrl 을 누르면 그동안만 반대다.
+    // **격자 스냅**(D-282). 도구 막대의 단추를 켜면 옮기기 기즈모가 보이는 격자 칸에 붙고, 끌면서 Ctrl 을 누르면 그동안만 반대다.
     void TestTheGizmoSnapsToTheGrid()
     {
         JBro::EditorApplication editor;

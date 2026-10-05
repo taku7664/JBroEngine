@@ -2,6 +2,7 @@
 #include <JBro/D3D11RHI/D3D11RHI.h>
 #include <JBro/D3D12RHI/D3D12RHI.h>
 #include <JBro/VulkanRHI/VulkanRHI.h>
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Framework3D/Component/Camera3D.h>
 #include <JBro/Framework3D/Component/MeshRenderer3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
@@ -12,6 +13,7 @@
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <iostream>
@@ -454,8 +456,89 @@ namespace
     }
 }
 
+namespace
+{
+    // **3D 레이어는 포토샵의 레이어다**(D-280). 레이어마다 따로 그린 한 장이고 차례대로 쌓인다 - 위 레이어의 먼 초록 상자가 아래 레이어의
+    // 가까운 붉은 상자를 덮는다(한 깊이 버퍼였다면 붉은 것이 이긴다, `TestANearerCubeHidesAFartherOne`). 블렌드와 불투명도는 2D 와 같은 규칙으로
+    // 레이어 한 장에 걸린다. 기대값은 같은 장면을 한 레이어씩만 켜고 잰 두 색에서 낸다 - 조명이 어떻든 레이어 셈만 본다:
+    // 표준 50% 는 (위 + 아래) / 2, 더하기는 위 + 아래, 곱하기는 위 x 아래. 블렌드가 걸린 레이어는 둘째 프레임부터 얹힌다(텍스처가 그때 선다).
+    template <typename TModule>
+    void TestLayersStackAndBlendIn3D()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; 3D layers not verified" << std::endl;
+            return;
+        }
+        JBro::Framework3D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        Check(framework.Initialize(context), "the 3D framework must initialize with the renderer");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform3D>(eye)->position = {0.0f, 0.0f, 4.0f};
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera3D>(eye);
+        camera->primary = true;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        PlaceCube(canvas, "near", {0.0f, 0.0f, 1.0f}, {0.6f, 0.6f, 0.6f}, {1.0f, 0.0f, 0.0f, 1.0f});
+        JBro::Layer& top = canvas.CreateLayer("Top");
+        JBro::GameObject* farCube = PlaceCube(canvas, "far", {0.0f, 0.0f, -2.0f}, {3.0f, 3.0f, 3.0f}, {0.0f, 1.0f, 0.0f, 1.0f});
+        Check(canvas.SetObjectLayer(farCube, top.GetId()), "the far cube goes on the top layer");
+        JBro::Layer* base = canvas.FindLayer(canvas.GetDefaultLayer());
+
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        const auto center = [&]() {
+            stage.RenderOnce(framework, image, readback);
+            stage.RenderOnce(framework, image, readback);
+            return ReadPixel(image, readback.rowPitch, TargetWidth / 2, TargetHeight / 2);
+        };
+        const auto matches = [](const Pixel& a, float r, float g, float b) {
+            return Near(a.r, r, 0.03f) && Near(a.g, g, 0.03f) && Near(a.b, b, 0.03f);
+        };
+
+        const Pixel stacked = center();
+        Check(stage.renderer.GetLastFrameStats().viewCount == 2, "two layers are two views");
+        Check(stacked.g > 0.2f && stacked.r < 0.05f,
+            "the top layer's far green cube covers the bottom layer's near red one - layers stack, depth does not cross them");
+        Check(stage.renderer.GetLastFrameStats().compositedLayerCount == 0, "plain layers draw straight to the target");
+
+        top.SetVisible(false);
+        const Pixel below = center();
+        top.SetVisible(true);
+        base->SetVisible(false);
+        const Pixel above = center();
+        base->SetVisible(true);
+        Check(below.r > 0.2f && above.g > 0.2f, "each layer alone shows its own cube");
+        Check(stage.renderer.GetLastFrameStats().viewCount == 1, "a frame with one layer drawn is one view");
+
+        top.SetOpacity(0.5f);
+        Pixel mixed = center();
+        Check(stage.renderer.GetLastFrameStats().compositedLayerCount == 1, "the faded layer is composited");
+        Check(matches(mixed, (below.r + above.r) * 0.5f, (below.g + above.g) * 0.5f, (below.b + above.b) * 0.5f),
+            "a half-opacity layer lies over the one below at half strength");
+        top.SetOpacity(1.0f);
+        top.SetBlend(JBro::LayerBlend::Additive);
+        mixed = center();
+        Check(matches(mixed, std::min(1.0f, below.r + above.r), std::min(1.0f, below.g + above.g), std::min(1.0f, below.b + above.b)),
+            "an additive layer adds itself to the one below");
+        top.SetBlend(JBro::LayerBlend::Multiply);
+        mixed = center();
+        Check(matches(mixed, below.r * above.r, below.g * above.g, below.b * above.b), "a multiply layer multiplies the one below");
+        Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer must have stayed quiet");
+
+        framework.Shutdown();
+        stage.Close();
+    }
+}
+
 int RunMeshPixelTests()
 {
+    TestLayersStackAndBlendIn3D<JBro::D3D12RHIModule>();
+    TestLayersStackAndBlendIn3D<JBro::D3D11RHIModule>();
+    TestLayersStackAndBlendIn3D<JBro::VulkanRHIModule>();
     TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D12RHIModule>();
     TestANearerCubeHidesAFartherOne<JBro::D3D12RHIModule>();
     TestACubeIsDrawnWhereTheCameraLooks<JBro::D3D11RHIModule>();

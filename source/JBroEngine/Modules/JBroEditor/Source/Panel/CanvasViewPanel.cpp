@@ -597,7 +597,7 @@ namespace JBro
         }
         if (false == Is3D())
         {
-            // **격자 스냅**(D-280). 옮기기는 격자 칸에, 돌리기는 15 도씩. 기존 엔진에는 위치 스냅이 없었고 회전의 15 도 스냅만
+            // **격자 스냅**(D-282). 옮기기는 격자 칸에, 돌리기는 15 도씩. 기존 엔진에는 위치 스냅이 없었고 회전의 15 도 스냅만
             // Shift 로 있었다. 3D 에는 아직 없다 - 3D 의 격자는 바닥 평면 하나이고 간격이 거리에 따라 바뀌어 무엇에 붙일지가 다르다.
             ImGui::SameLine(0.0f, 6.0f);
             if (Widget::IconButton("##canvas_grid_snap", Icons::GridSnap)
@@ -2846,7 +2846,7 @@ namespace JBro
             subject.rotation = Quaternion{0.0f, 0.0f, 0.0f, 1.0f};
         }
         const GizmoSubject shown = m_gizmoState.dragging ? m_gizmoState.drag.start : subject;
-        // **격자 스냅**(D-280). 붙는 간격은 지금 보이는 격자의 칸이다 - 줌하면 칸이 바뀌고 붙는 자리도 따라 바뀐다.
+        // **격자 스냅**(D-282). 붙는 간격은 지금 보이는 격자의 칸이다 - 줌하면 칸이 바뀌고 붙는 자리도 따라 바뀐다.
         // 격자를 감춰도 같은 칸에 붙는다. Ctrl 은 끄는 동안만 반대로 한다(켜져 있으면 풀고, 꺼져 있으면 붙인다).
         // 같은 단추가 돌리기도 15 도씩 끊는다(사용자 결정) - 기존 엔진은 Shift 로 따로 켰다.
         const bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;

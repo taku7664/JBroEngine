@@ -1078,9 +1078,39 @@ namespace JBro
                 return false;
             }
 
+            // **뷰를 통째로 얹는 경우**(D-280, 3D 레이어). 그릴 곳이 타깃이 아니라 레이어 텍스처다. 텍스처가 아직 없는 크기면 그대로 그린다.
+            const bool wantsComposite = view.camera.composite != CompositeBlend::Normal || view.camera.compositeOpacity < 1.0f;
+            TextureHandle viewLayer;
+            if (wantsComposite)
+            {
+                viewLayer = FindLayerTarget(extent);
+                if (false == viewLayer.IsValid())
+                {
+                    ++m_currentStats.uncompositedLayerCount;
+                }
+            }
+            const bool composited = viewLayer.IsValid();
+            if (composited && false == alreadyCleared)
+            {
+                // 이 타깃의 첫 뷰다. 레이어 텍스처에 그리더라도 타깃은 지워야 지난 프레임이 비치지 않는다.
+                ColorAttachmentDesc clearOnly;
+                clearOnly.texture = target;
+                clearOnly.loadOperation = LoadOperation::Clear;
+                clearOnly.storeOperation = StoreOperation::Store;
+                clearOnly.clearColor = {
+                    view.camera.clearColor[0], view.camera.clearColor[1], view.camera.clearColor[2], view.camera.clearColor[3]};
+                RenderPassDesc clearPass;
+                clearPass.colorAttachments = {&clearOnly, 1};
+                if (false == m_frame.commands->BeginRenderPass(clearPass))
+                {
+                    return false;
+                }
+                m_frame.commands->EndRenderPass();
+            }
+
             ColorAttachmentDesc colorAttachment;
-            colorAttachment.texture = target;
-            colorAttachment.loadOperation = alreadyCleared
+            colorAttachment.texture = composited ? viewLayer : target;
+            colorAttachment.loadOperation = alreadyCleared && false == composited
                 ? LoadOperation::Load
                 : LoadOperation::Clear;
             colorAttachment.storeOperation = StoreOperation::Store;
@@ -1089,11 +1119,15 @@ namespace JBro
                 view.camera.clearColor[1],
                 view.camera.clearColor[2],
                 view.camera.clearColor[3]};
+            if (composited)
+            {
+                colorAttachment.clearColor = {0.0f, 0.0f, 0.0f, 0.0f};
+            }
 
             RenderPassDesc pass;
             pass.colorAttachments = {&colorAttachment, 1};
             // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-222). 스프라이트만 있는 2D 프레임은
-            // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이다.
+            // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이고, 3D 레이어는 레이어마다 뷰라 레이어마다 지운다(D-280).
             const bool withDepth = view.runCount != 0 || view.worldTextRunCount != 0;
             DepthStencilAttachmentDesc depthAttachment;
             if (withDepth)
@@ -1193,7 +1227,7 @@ namespace JBro
                 for (std::uint32_t runIndex = 0; runIndex < view.spriteRunCount; ++runIndex)
                 {
                     const SpriteRun& run = m_spriteRuns[view.spriteRunOffset + runIndex];
-                    const std::uint32_t group = withDepth ? NoLayerGroup : run.layerGroup;
+                    const std::uint32_t group = withDepth || composited ? NoLayerGroup : run.layerGroup;
                     if (group != activeGroup)
                     {
                         if (activeGroup != NoLayerGroup)
@@ -1263,9 +1297,9 @@ namespace JBro
                         return false;
                     }
                 }
-                if (withDepth)
+                if (withDepth || composited)
                 {
-                    // 3D 뷰의 묶음은 그대로 그렸다. 그렇다고 센다.
+                    // 3D 뷰와 통째로 얹는 뷰의 묶음은 그대로 그렸다. 그렇다고 센다.
                     for (std::uint32_t at = 0; at < view.layerGroupCount; ++at)
                     {
                         const LayerGroup& group = m_layerGroups[view.layerGroupOffset + at];
@@ -1346,6 +1380,18 @@ namespace JBro
             }
 
             m_frame.commands->EndRenderPass();
+
+            if (composited)
+            {
+                LayerGroup whole;
+                whole.blend = view.camera.composite;
+                whole.opacity = view.camera.compositeOpacity;
+                if (false == RecordLayerComposite(whole, viewLayer, target, viewport, scissor))
+                {
+                    return false;
+                }
+                m_frame.commands->EndRenderPass();
+            }
 
             if (view.camera.outlineMask.IsValid() && view.camera.outlineScratch.IsValid() && view.camera.outlineWidth != 0
                 && false == RecordOutline(view.camera, target, extent))
