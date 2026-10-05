@@ -66,6 +66,7 @@ namespace JBro
         // **이 오브젝트 안으로 들어간다**(D-254, 기존 `SetFocusContext`). 캔버스 뷰와 계층 창의 두 번 누르기가 같은 길이다.
         // 고르기는 부르는 쪽이 한다 - 캔버스 뷰는 자손까지, 계층 창은 그 줄 하나를 고른다.
         void StepInto(GameObject& object);
+        const Array<float>& GetGridLabelsX() const { return m_gridLabelsX; }
         // 지금 들어가 있는 오브젝트다. 뿌리면 nullptr 이다.
         GameObject* GetFocus() const;
 
@@ -221,6 +222,8 @@ namespace JBro
 
         // 마지막으로 그린 화면이다. 겹쳐 그리는 도구와 테스트가 같은 변환을 쓴다.
         ViewRect m_lastRect;
+        // 마지막으로 그린 격자에서 숫자를 붙인 X 선의 월드 값이다(D-275). 시험이 읽는다. 용량은 그대로 다시 쓴다.
+        Array<float> m_gridLabelsX;
         bool m_hasLastRect = false;
 
         // 폴리곤 콜라이더 편집.

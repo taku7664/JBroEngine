@@ -9230,6 +9230,64 @@ namespace
     // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글). 그림은 픽셀로
     // 그려 오는데 씬은 유닛으로 세므로, 스프라이트를 자리에 맞출 때 그 둘을 머리로 곱하고
     // 있어야 했다. 곱하는 값은 에셋 PPU 의 기본값(100)이다 - 프로젝트에는 PPU 가 없다(D-117).
+    // **격자 숫자는 화면을 옮겨도 같은 선에 붙는다**(D-275). 예전에는 화면 왼쪽의 첫 선부터 겹치면 건너뛰어, 조금만 옮겨도
+    // 숫자가 붙는 선이 바뀌었다(4 → 2 → 4). 칸보다 작게 여러 번 옮겨 보고, 겹치는 구간에서 숫자가 붙은 값이 같은지 본다.
+    void TestTheCanvasViewGridLabelsStayOnTheirLines()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 800;
+        config.windowHeight = 600;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; grid labels not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GridLabelProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        // 숫자가 촘촘해 건너뛰어야 하는 배율이다. 간격 0.5 의 칸이 화면에서 몇십 픽셀이라 숫자는 몇 칸마다 하나다.
+        const auto labelsAt = [&](float centerX) {
+            editor.SetCanvasViewCamera(centerX, 0.0f, 11.0f);
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must draw the grid");
+            }
+            JBro::Array<float> labels;
+            editor.GetCanvasViewGridLabelsX(labels);
+            return labels;
+        };
+        const JBro::Array<float> base = labelsAt(0.0f);
+        Check(base.Size() >= 3, "the grid must label several lines");
+        Check(base.Size() >= 2 && base[1] - base[0] > 0.0f, "and the labels go left to right");
+        const float spacing = base.Size() >= 2 ? base[1] - base[0] : 0.0f;
+        bool zeroLabelled = false;
+        for (std::size_t index = 0; index < base.Size(); ++index)
+        {
+            zeroLabelled = zeroLabelled || base[index] == 0.0f;
+        }
+        Check(zeroLabelled, "the origin always carries a number");
+
+        for (const float offset : {0.13f, 0.41f, 0.77f, 1.3f, -0.6f})
+        {
+            const JBro::Array<float> moved = labelsAt(offset);
+            // 겹치는 구간의 숫자는 모두 같은 간격의 배수다 - 첫 선이 어디서 보이든 같은 선에 붙는다.
+            for (std::size_t index = 0; index < moved.Size(); ++index)
+            {
+                const float ratio = moved[index] / spacing;
+                Check(std::fabs(ratio - std::round(ratio)) < 0.001f,
+                    "panning by part of a cell keeps the numbers on the same lines");
+            }
+            Check(moved.Size() >= 2 && std::fabs((moved[1] - moved[0]) - spacing) < 0.001f,
+                "and keeps the same gap between numbers");
+        }
+        editor.Shutdown();
+    }
+
     void TestTheCanvasViewRulerReadsInPixelsToo()
     {
         JBro::EditorApplication editor;
@@ -12459,6 +12517,7 @@ int RunEditorApplicationTests()
     TestTheCanvasViewEditsPolygonColliderPoints();
     TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
+    TestTheCanvasViewGridLabelsStayOnTheirLines();
     TestTheInspectorRenamesAndTogglesThroughCommands();
     TestTheCanvasItselfCanBeSelectedAndPainted();
     TestTheAssetBrowserSelectsManyFilesAtOnce();

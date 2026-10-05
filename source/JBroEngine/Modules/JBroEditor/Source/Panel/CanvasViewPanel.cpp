@@ -73,6 +73,29 @@ namespace JBro
         // 점만 한 오브젝트로 들어가도 이보다 당기지 않는다. 기존 엔진과 같은 값이다.
         constexpr float MinFocusSize = 0.5f;
 
+        // 숫자를 몇 칸마다 붙일지(D-275). 칸 사이가 `needed` 픽셀이 될 때까지 1·2·5·10·20·50 … 으로 늘린다.
+        // 배율에만 달렸다 - 화면이 어디를 보든 같은 값이다.
+        long long ChooseLabelStride(float pixelsPerStep, float needed)
+        {
+            if (false == (pixelsPerStep > 0.0f))
+            {
+                return 1;
+            }
+            long long stride = 1;
+            while (static_cast<float>(stride) * pixelsPerStep < needed && stride < (1ll << 40))
+            {
+                // 1 → 2 → 5 → 10 의 되풀이다. 맨 앞 자리만 보면 된다.
+                long long power = 1;
+                while (power * 10 <= stride)
+                {
+                    power *= 10;
+                }
+                const long long lead = stride / power;
+                stride = lead == 1 ? power * 2 : (lead == 2 ? power * 5 : power * 10);
+            }
+            return stride;
+        }
+
         // 이 배율에서 쓸 격자 간격(월드 단위). 1·2·5·10·20·50 … 으로 올라간다.
         float ChooseGridStep(float worldPerPixel)
         {
@@ -739,12 +762,20 @@ namespace JBro
         // 곱하는 값만 달라지고 자리를 잡는 셈은 그대로라, 두 모드가 따로 어긋날 자리가 없다.
         const float rulerScale = m_rulerInPixels ? DefaultPixelsPerUnit : 1.0f;
 
+        // **숫자를 붙일 선은 월드의 칸 번호로 고른다**(D-275). 예전에는 화면 왼쪽의 첫 선부터 앞 숫자와 겹치면 건너뛰어,
+        // 화면을 조금만 옮겨도 숫자가 붙는 선이 바뀌었다(4 → 2 → 4). 이제 배율로만 간격(1·2·5·10… 칸)을 정하고,
+        // 번호가 그 배수인 선에만 붙인다 - 0 은 늘 들어가고, 옮겨도 같은 선에 같은 숫자다.
+        const float pixelsPerStep = step / worldPerPixel;
+        // 숫자의 폭은 자리에 따라 달라 기준 글자로 잰다. 다섯 자리와 부호가 들어간다.
+        const float labelWidth = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, "-00000").x;
+        const long long strideX = ChooseLabelStride(pixelsPerStep, labelWidth + 24.0f);
+        const long long strideY = ChooseLabelStride(pixelsPerStep, labelSize * 2.2f);
+        m_gridLabelsX.Clear();
+
         // **선마다 번호로 센다**(D-162). `x += step` 으로 더해 가면 오차가 쌓여 0 이어야 할 선이
         // `-2.98e-08` 로 적혔다(실제 에디터에서 그랬다). 번호에 간격을 곱하면 0 은 정확히 0 이다.
         const long long firstX = static_cast<long long>(std::floor(minX / step));
         const long long lastX = static_cast<long long>(std::floor(maxX / step));
-        // 지난 숫자의 오른쪽 끝. 겹치면 건너뛴다 - 겹친 숫자는 둘 다 못 읽는다.
-        float lastLabelEnd = -1.0e9f;
         for (long long index = firstX; index <= lastX; ++index)
         {
             const float x = static_cast<float>(index) * step;
@@ -756,21 +787,18 @@ namespace JBro
             draw->AddLine(ImVec2(screenX, rect.top), ImVec2(screenX, rect.top + rect.height),
                 tenth ? strong : line);
 
-            char text[32] = {};
-            std::snprintf(text, sizeof(text), "%.4g", x * rulerScale);
-            const ImVec2 extent = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, text);
-            const float textLeft = screenX - extent.x * 0.5f;
-            // 넉넉히 띄운다. 닿을 듯 말 듯 붙은 숫자는 읽는 데 눈이 더 든다.
-            if (textLeft < lastLabelEnd + 24.0f)
+            if (index % strideX != 0)
             {
                 continue;
             }
-            lastLabelEnd = textLeft + extent.x;
-            draw->AddText(labelFont, labelSize, ImVec2(textLeft, labelBottom), labelColor, text);
+            char text[32] = {};
+            std::snprintf(text, sizeof(text), "%.4g", x * rulerScale);
+            const ImVec2 extent = labelFont->CalcTextSizeA(labelSize, FLT_MAX, 0.0f, text);
+            draw->AddText(labelFont, labelSize, ImVec2(screenX - extent.x * 0.5f, labelBottom), labelColor, text);
+            m_gridLabelsX.Add(x);
         }
         const long long firstY = static_cast<long long>(std::floor(minY / step));
         const long long lastY = static_cast<long long>(std::floor(maxY / step));
-        float lastLabelY = -1.0e9f;
         for (long long index = firstY; index <= lastY; ++index)
         {
             const float y = static_cast<float>(index) * step;
@@ -782,12 +810,10 @@ namespace JBro
                 tenth ? strong : line);
 
             // 아래쪽 X 숫자 줄과 겹치는 자리는 건너뛴다. 왼쪽 아래 구석에서 두 숫자가 포개져 읽히지 않았다.
-            if (std::fabs(screenY - lastLabelY) < labelSize * 2.2f
-                || screenY + labelSize * 0.5f > labelBottom - 2.0f)
+            if (index % strideY != 0 || screenY + labelSize * 0.5f > labelBottom - 2.0f)
             {
                 continue;
             }
-            lastLabelY = screenY;
             char text[32] = {};
             std::snprintf(text, sizeof(text), "%.4g", y * rulerScale);
             draw->AddText(labelFont, labelSize,

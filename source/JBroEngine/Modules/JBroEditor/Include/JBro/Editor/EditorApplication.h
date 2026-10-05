@@ -183,6 +183,10 @@ namespace JBro
         bool CanvasViewWorldToScreen(float worldX, float worldY, float& screenX, float& screenY);
         // 캔버스 뷰가 이 오브젝트 안으로 들어간다(D-254). 계층 창의 두 번 누르기가 부른다. 캔버스 뷰가 없으면 아무것도 하지 않는다.
         void StepCanvasViewInto(GameObject& object);
+        // 캔버스 뷰의 카메라를 곧바로 그 자리로 둔다(따라가지 않는다). 세션을 되살리는 길과 같다.
+        void SetCanvasViewCamera(float centerX, float centerY, float size);
+        // 캔버스 뷰가 마지막으로 그린 격자에서 숫자를 붙인 X 선의 월드 값이다(D-275).
+        void GetCanvasViewGridLabelsX(Array<float>& out);
         // 캔버스 뷰가 들어가 있는 오브젝트다. 뿌리거나 캔버스 뷰가 없으면 nullptr 이다.
         GameObject* GetCanvasViewFocus();
         // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지

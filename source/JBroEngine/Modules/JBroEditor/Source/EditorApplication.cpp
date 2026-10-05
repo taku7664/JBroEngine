@@ -500,6 +500,27 @@ namespace JBro
         }
     }
 
+    void EditorApplication::SetCanvasViewCamera(float centerX, float centerY, float size)
+    {
+        if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
+        {
+            view->SetCamera(centerX, centerY, size);
+        }
+    }
+
+    void EditorApplication::GetCanvasViewGridLabelsX(Array<float>& out)
+    {
+        out.Clear();
+        if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
+        {
+            const Array<float>& labels = view->GetGridLabelsX();
+            for (std::size_t index = 0; index < labels.Size(); ++index)
+            {
+                out.Add(labels[index]);
+            }
+        }
+    }
+
     GameObject* EditorApplication::GetCanvasViewFocus()
     {
         CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView"));
