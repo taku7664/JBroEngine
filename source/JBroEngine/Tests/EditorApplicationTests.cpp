@@ -12084,6 +12084,11 @@ namespace
                 ImGui::OpenPopup("##objectMenuProbe");
                 m_open = false;
             }
+            if (pinned)
+            {
+                // 보이지 않는 항목은 글자를 그리지 않는다. 글자를 받는 시험은 메뉴를 화면 끝이 아닌 정해진 자리에 연다.
+                ImGui::SetNextWindowPos(ImVec2(40.0f, 40.0f));
+            }
             if (ImGui::BeginPopup("##objectMenuProbe"))
             {
                 if (m_close)
@@ -12095,7 +12100,18 @@ namespace
                 // 캔버스 뷰처럼 누른 자리를 넘긴다. 훅까지 가는지 본다.
                 JBro::ObjectPlacement placement;
                 placement.hasPosition = true;
-                lastResult = JBro::EditorActions::DrawObjectMenu(*m_editor, *m_target, placement);
+                // 메뉴에 그려진 글자(항목 이름·조합키)를 ImGui 로그로 받아 둔다.
+                ImGui::LogToBuffer();
+                if (background)
+                {
+                    lastResult = JBro::EditorActions::DrawBackgroundMenu(*m_editor, placement);
+                }
+                else
+                {
+                    lastResult = JBro::EditorActions::DrawObjectMenu(*m_editor, *m_target, placement);
+                }
+                drawnText = ImGui::GetCurrentContext()->LogBuffer.c_str();
+                ImGui::LogFinish();
                 ImGui::EndPopup();
             }
         }
@@ -12111,6 +12127,10 @@ namespace
 
         int draws = 0;
         bool lastResult = true;
+        // 참이면 오브젝트 메뉴 대신 빈자리 메뉴를 그린다.
+        bool background = false;
+        bool pinned = false;
+        std::string drawnText;
 
     private:
         JBro::EditorApplication* m_editor = nullptr;
@@ -12245,6 +12265,98 @@ namespace
             "the hierarchy's object menu must carry the component line too");
 
         Check(editor.GetComponentMenus().Unregister(&owner) == 1, "the probe hook comes off");
+        editor.Shutdown();
+    }
+
+    // **우클릭 메뉴의 조합키 글자는 단축키 표를 따른다**(todo 8 번, D-228). 키를 바꾸면 편집 메뉴처럼 오브젝트 메뉴와
+    // 빈자리 메뉴의 글자도 바뀐다 - 글자를 박아 두면 바꾼 키가 메뉴에서만 옛 글자로 남는다.
+    void TestContextMenusShowRemappedShortcuts()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; context menu shortcut text not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ContextMenuKeysProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(probe) != nullptr, "the probe needs a transform");
+        auto panel = JBro::MakeOwnerPtr<ObjectMenuProbePanel>(probe);
+        ObjectMenuProbePanel* menuProbe = panel.Get();
+        menuProbe->pinned = true;
+        Check(editor.AddPanel(std::move(panel)), "the menu probe panel must be taken");
+        JBro::GameObject* one[] = {probe};
+        editor.SelectObjects({one, 1});
+        Check(editor.CopySelection(), "something must be on the clipboard so the paste rows are live");
+        // 처음 몇 프레임은 도킹 배치가 포커스를 옮기며 열린 팝업을 닫는다.
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        auto drawMenu = [&](bool background) {
+            menuProbe->background = background;
+            menuProbe->drawnText.clear();
+            menuProbe->Open();
+            // 첫 프레임의 팝업은 아직 크기가 없어 항목이 잘린다. 크기가 잡힌 뒤의 글자를 받는다.
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the probe menu must open");
+            }
+            Check(menuProbe->draws > 0 && false == menuProbe->drawnText.empty(), "the probe menu must be drawn");
+            const std::string text = menuProbe->drawnText;
+            menuProbe->Close();
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the probe menu must close");
+            }
+            return text;
+        };
+
+        std::string text = drawMenu(false);
+        Check(text.find("Ctrl+C") != std::string::npos && text.find("Ctrl+Shift+V") != std::string::npos
+                && text.find("Delete") != std::string::npos,
+            "with default keys the object menu shows the default combinations");
+
+        JBro::EditorShortcutManager& shortcuts = editor.GetShortcuts();
+        using JBro::EditorShortcut;
+        using JBro::EditorShortcuts::ActionId;
+        Check(shortcuts.SetBinding(ActionId(EditorShortcut::Copy), 0, JBro::EditorShortcutBinding{ImGuiKey_K, true})
+                && shortcuts.SetBinding(ActionId(EditorShortcut::Paste), 0, JBro::EditorShortcutBinding{ImGuiKey_J, true})
+                && shortcuts.SetBinding(ActionId(EditorShortcut::PasteAsChild), 0,
+                    JBro::EditorShortcutBinding{ImGuiKey_J, true, false, true})
+                && shortcuts.SetBinding(ActionId(EditorShortcut::DeleteSelection), 0, JBro::EditorShortcutBinding{ImGuiKey_F9}),
+            "the four shortcuts must be remappable");
+
+        text = drawMenu(false);
+        Check(text.find("Ctrl+K") != std::string::npos && text.find("Ctrl+C") == std::string::npos,
+            "the object menu's copy must show the new combination");
+        Check(text.find("Ctrl+J") != std::string::npos && text.find("Ctrl+V") == std::string::npos,
+            "the object menu's paste must show the new combination");
+        Check(text.find("Ctrl+Alt+J") != std::string::npos && text.find("Ctrl+Shift+V") == std::string::npos,
+            "the object menu's paste as child must show the new combination");
+        Check(text.find("F9") != std::string::npos, "the object menu's delete must show the new key");
+
+        text = drawMenu(true);
+        Check(text.find("Ctrl+J") != std::string::npos && text.find("Ctrl+V") == std::string::npos,
+            "the background menu's paste must show the new combination");
+
+        // 조합을 비우면 글자도 없다.
+        Check(shortcuts.SetBinding(ActionId(EditorShortcut::Copy), 0, JBro::EditorShortcutBinding{}),
+            "a combination must be clearable");
+        text = drawMenu(false);
+        Check(text.find("Ctrl+K") == std::string::npos, "a cleared combination shows no keys");
+
         editor.Shutdown();
     }
 
@@ -12890,6 +13002,7 @@ int RunEditorApplicationTests()
     TestRightClickingAnObjectInTheCanvasViewOpensItsMenu();
     TestAnUndrawableCameraKeepsTheEditorRunning();
     TestComponentHooksAreSubmenusPerInstance();
+    TestContextMenusShowRemappedShortcuts();
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
