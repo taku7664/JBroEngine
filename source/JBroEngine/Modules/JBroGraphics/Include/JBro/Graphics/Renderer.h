@@ -75,6 +75,16 @@ namespace JBro
         // 그 텍스처의 크기다. 뷰포트가 타깃 안에 있는지 재는 기준이고, 프레임 타깃과 달리
         // 렌더러가 알 길이 없다. `target` 을 줬는데 이것이 0 이면 그 뷰는 거절된다.
         Extent2D targetExtent;
+
+        // **이 뷰를 다 그린 뒤 마스크의 둘레를 덧그린다**(D-276, 에디터의 선택 외곽선, 기존 `COutlineRenderer2D`).
+        // `outlineMask` 는 이 뷰보다 **먼저 낸** 뷰가 그린 텍스처이고(선택된 스프라이트만 그린 것), `outlineScratch` 는
+        // 가로로 키운 마스크를 담을 자리다. 둘 다 이 뷰의 타깃과 같은 크기·백버퍼 포맷이고 `RenderTarget | Sampled` 다.
+        // 마스크를 `outlineWidth` 픽셀만큼 가로·세로로 키우고, 키운 곳이면서 마스크 밖인 픽셀만 `outlineColor` 로 칠한다 -
+        // 회전·텍스처 알파·틴트를 가리지 않고 그림의 실제 픽셀 바로 바깥이다. 셋 중 하나라도 비면 덧그리지 않는다.
+        TextureHandle outlineMask;
+        TextureHandle outlineScratch;
+        float outlineColor[4] = {1.0f, 1.0f, 0.0f, 1.0f};
+        std::uint32_t outlineWidth = 0;
     };
 
     // 2D 스프라이트의 월드 변환이다. 열 벡터 규약의 2x3 아핀 여섯 값과 깊이 하나를 담는다(D-54).
@@ -455,6 +465,10 @@ namespace JBro
         BufferHandle m_textInstanceBuffers[MaxFrameSlots];
         GraphicsPipelineHandle m_sdfTextPipeline;
         GraphicsPipelineHandle m_sdfTextOverDepthPipeline;
+        // 선택 외곽선의 두 패스다(D-276). 가로로 키우기(덮어쓰기)와 세로로 키워 둘레만 칠하기(알파 섞기).
+        GraphicsPipelineHandle m_outlineGrowPipeline;
+        GraphicsPipelineHandle m_outlineCompositePipeline;
+        bool RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent);
         GraphicsPipelineHandle m_spritePipeline;
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
         // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.

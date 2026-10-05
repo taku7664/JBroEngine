@@ -10388,6 +10388,115 @@ namespace
         return false;
     }
 
+    // **고른 오브젝트에는 바운드 사각형과 실제 외곽선이 둘 다 선다**(D-276, 기존 `COutlineRenderer2D`). 외곽선은 그려진 픽셀을 따라가므로
+    // 45 도 돌린 텍스처 없는 사각형(마름모)이면 노란 선이 마름모의 변 바로 바깥에 서고, 주황 사각형은 그것을 감싸는 축 정렬 사각형이다.
+    // 예전에는 모양을 못 구한 스프라이트에 축 정렬 사각형만 남았다 - 사용자가 돌린 흰 사각형에서 그것을 보였다.
+    void TestTheSelectionOutlineFollowsTheDrawnPixels()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 800;
+        config.windowHeight = 600;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the selection outline not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "SelectionOutlineProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* square = canvas->CreateObject("Square");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(square);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(square);
+        Check(transform != nullptr && sprite != nullptr, "the square needs a transform and a sprite");
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = JBro::Vector2{2.0f, 2.0f};
+        transform->SetRotation(JBro::Degree(45.0f));
+        editor.SetSelectedObject(square);
+        editor.SetCanvasViewCamera(0.0f, 0.0f, 3.0f);
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        float originX = 0.0f;
+        float originY = 0.0f;
+        float unitX = 0.0f;
+        float unitY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY)
+                && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
+            "the canvas view must map world to screen");
+        const float pixelsPerUnit = unitX - originX;
+        Check(pixelsPerUnit > 40.0f, "the square must be large on screen");
+
+        JBro::Renderer* renderer = editor.GetRenderer();
+        Check(renderer != nullptr, "the editor must have a renderer");
+        JBro::Array<std::byte> image;
+        JBro::TextureReadback readback;
+        ReadBackBufferInto(*renderer, 800, 600, image, readback);
+        SaveScreenshot(*renderer, 800, 600, "selection_outline");
+        // 바이트는 파랑·초록·빨강 순서다. 화면 위가 +y 가 아니라 아래가 +y 다.
+        const auto at = [&](float worldX, float worldY) {
+            const int x = static_cast<int>(originX + worldX * pixelsPerUnit);
+            const int y = static_cast<int>(originY - worldY * pixelsPerUnit);
+            const std::size_t offset = static_cast<std::size_t>(y) * readback.rowPitch + static_cast<std::size_t>(x) * 4;
+            return reinterpret_cast<const unsigned char*>(image.Data() + offset);
+        };
+        const auto yellow = [](const unsigned char* pixel) { return pixel[2] > 200 && pixel[1] > 200 && pixel[0] < 90; };
+        const auto orange = [](const unsigned char* pixel) {
+            return pixel[2] > 200 && pixel[1] > 120 && pixel[1] < 210 && pixel[0] < 130;
+        };
+        // 선은 1~2 픽셀이라 한 점만 집으면 반올림으로 빗나간다. 둘레 몇 픽셀 안에 그 색이 있는지 본다.
+        const auto nearby = [&](float worldX, float worldY, int reach, auto matches) {
+            const int cx = static_cast<int>(originX + worldX * pixelsPerUnit);
+            const int cy = static_cast<int>(originY - worldY * pixelsPerUnit);
+            for (int dy = -reach; dy <= reach; ++dy)
+            {
+                for (int dx = -reach; dx <= reach; ++dx)
+                {
+                    const std::size_t offset = static_cast<std::size_t>(cy + dy) * readback.rowPitch
+                        + static_cast<std::size_t>(cx + dx) * 4;
+                    if (matches(reinterpret_cast<const unsigned char*>(image.Data() + offset)))
+                    {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        };
+
+        // 마름모의 오른쪽 아래 변은 원점에서 대각선으로 1 유닛이다. 그 바로 바깥(1 픽셀 남짓)이 노란 선이다.
+        // 위쪽 두 대각선에는 로컬 축 기즈모의 화살표가 놓이므로 피한다.
+        const float diagonal = 0.70710678f;
+        const float justOutside = 1.0f + 1.2f / pixelsPerUnit;
+        Check(nearby(diagonal * justOutside, -diagonal * justOutside, 1, yellow),
+            "the outline hugs the rotated square just outside its edge");
+        // 변에서 안쪽은 흰 사각형 그대로이고, 변에서 멀리 떨어진 바깥(그러나 바운드 사각형 안)은 노랗지 않다.
+        const unsigned char* inside = at(diagonal * 0.6f, -diagonal * 0.6f);
+        Check(inside[0] > 200 && inside[1] > 200 && inside[2] > 200, "inside the square stays white");
+        const float farOutside = 1.0f + 12.0f / pixelsPerUnit;
+        Check(false == nearby(diagonal * farOutside, -diagonal * farOutside, 2, yellow),
+            "and the outline is a thin line, not the whole bounding box");
+        // 바운드 사각형도 선다. 마름모를 감싸는 축 정렬 사각형의 오른쪽 변은 x = √2 다 - 마름모의 꼭짓점이 닿는 높이(y = 0)는 피한다.
+        Check(nearby(1.41421356f, 0.7f, 2, orange), "the orange bounding box is still drawn around the selection");
+
+        // 고르지 않으면 외곽선이 없다.
+        editor.ClearSelection();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must draw without a selection");
+        }
+        ReadBackBufferInto(*renderer, 800, 600, image, readback);
+        Check(false == nearby(diagonal * justOutside, -diagonal * justOutside, 2, yellow), "an unselected square has no outline");
+
+        editor.Shutdown();
+    }
+
     // **계층 창에서 두 번 눌러도 캔버스 뷰가 그 안으로 들어간다**(D-254, 기존 `LayerTool` 의 `SetFocusContext`). 고르는 것은 그 줄 하나다.
     // 어느 층에 들어가 있었든 곧장 그리로 가고, 캔버스 뷰에서처럼 카메라가 그리로 간다.
     void TestDoubleClickingAHierarchyRowStepsTheCanvasViewInside()
@@ -12505,6 +12614,7 @@ int RunEditorApplicationTests()
     TestTheCanvasViewPicksTheRootUntilYouStepInside();
     TestSteppingInsideFramesTheObjectAndVeilsTheRest();
     TestDoubleClickingAHierarchyRowStepsTheCanvasViewInside();
+    TestTheSelectionOutlineFollowsTheDrawnPixels();
     TestCreatedObjectsCarryTheFrameworkTransform();
     TestPanelsGoThroughTheWidgetLayer();
     TestPickingFollowsTheSpriteAssetSize();

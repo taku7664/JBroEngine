@@ -795,6 +795,11 @@ namespace JBro
         // 캔버스 뷰가 그려지는 텍스처와 이번 프레임의 요청(D-130).
         TextureHandle m_canvasView;
         Extent2D m_canvasViewExtent;
+        // 선택 외곽선의 마스크와 그 키운 것을 담는 자리다(D-276). 캔버스 뷰 텍스처와 같이 만들고 같이 놓는다.
+        TextureHandle m_canvasViewOutlineMask;
+        TextureHandle m_canvasViewOutlineScratch;
+        // 편집 뷰 요청이 가리키는 선택 번호들이다. 요청은 다음 요청까지 이것을 가리킨다. 용량은 그대로 다시 쓴다.
+        Array<InstanceId> m_canvasViewSelection;
         EditorViewDesc m_canvasViewRequest;
         bool m_canvasViewRequested = false;
         // 이번 프레임에 요청된 크기의 텍스처를 마련한다. 이미 그 크기면 아무 일도 하지 않는다.

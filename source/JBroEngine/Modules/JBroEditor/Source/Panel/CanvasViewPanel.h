@@ -98,9 +98,6 @@ namespace JBro
         // 가로지르면 양 끝만으로는 그릴 수 없기 때문이다.
         void DrawGrid3D(const ViewRect& rect);
         void DrawSelectionOutlines(const ViewRect& rect);
-        // 고른 것이 스프라이트면 **그림의 실제 모양**을 두른다(D-149). 아직 재지 못했거나
-        // 스프라이트가 아니면 거짓이고, 부르는 쪽이 사각형으로 두른다.
-        bool DrawSpriteContour(const ViewRect& rect, GameObject& object, ImU32 color);
         // 콜라이더의 모양을 그린다(D-143). 물리는 눈에 보이지 않아서, 그려 주지 않으면
         // 충돌 칸이 스프라이트와 어긋난 것을 부딪혀 봐야만 안다.
         void DrawColliders(const ViewRect& rect);

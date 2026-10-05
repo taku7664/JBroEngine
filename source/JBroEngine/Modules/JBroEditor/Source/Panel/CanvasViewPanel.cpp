@@ -1649,96 +1649,10 @@ namespace JBro
             const ImU32 color = object == primary
                 ? IM_COL32(255, 168, 64, 255)
                 : IM_COL32(255, 168, 64, 140);
-            // **그림의 모양을 두를 수 있으면 그렇게 한다**(D-149). 사각형만 두르면 그림이
-            // 칸의 한 귀퉁이에만 있을 때 빈자리까지 테두리가 둘러쳐진다.
-            if (DrawSpriteContour(rect, *object, color))
-            {
-                continue;
-            }
+            // **바운드 사각형은 늘 그린다**(D-276). 그림의 실제 모양은 엔진이 노란 외곽선으로 따로 두른다(`EditorViewDesc::selection`) -
+            // 예전에는 모양을 구할 수 있으면 사각형 대신 그것만 그려, 텍스처 없는 스프라이트는 돌려도 축 정렬 사각형만 남았다.
             draw->AddRect(ImVec2(x0, y0), ImVec2(x1, y1), color, 0.0f, 0, 1.5f);
         }
-    }
-
-    bool CanvasViewPanel::DrawSpriteContour(
-        const ViewRect& rect, GameObject& object, ImU32 color)
-    {
-        Canvas* canvas = m_editor->GetCanvas();
-        const AssetSystem* assets = m_editor->GetAssetSystem();
-        if (canvas == nullptr || assets == nullptr)
-        {
-            return false;
-        }
-        Component::SpriteRenderer2D* sprite =
-            canvas->FindComponentRaw<Component::SpriteRenderer2D>(&object);
-        Component::Transform2D* transform =
-            canvas->FindComponentRaw<Component::Transform2D>(&object);
-        if (sprite == nullptr || transform == nullptr)
-        {
-            return false;
-        }
-        const SpriteData* data = assets->GetSprite(sprite->sprite);
-        if (data == nullptr || data->frames.IsEmpty() || data->options.pixelsPerUnit <= 0.0f)
-        {
-            return false;
-        }
-        const std::size_t frameIndex = sprite->frameIndex < data->frames.Size()
-            ? sprite->frameIndex
-            : data->frames.Size() - 1;
-        const SpriteFrame& frame = data->frames[frameIndex];
-        // 모양을 가진 쪽은 텍스처다. 스프라이트는 그 텍스처의 어느 칸인지를 안다.
-        const Array<EditorSpriteContours::Segment>* segments =
-            m_editor->GetSpriteContour(data->texture, frame);
-        if (segments == nullptr || segments->IsEmpty())
-        {
-            return false;
-        }
-
-        // 칸 안의 비율을 월드로 편다. 크기와 피벗은 `GetWorldBounds` 와 같은 셈이다 -
-        // 둘이 갈리면 두른 선과 집는 칸이 서로 다른 자리를 가리킨다.
-        float widthUnits = static_cast<float>(frame.width) / data->options.pixelsPerUnit;
-        float heightUnits = static_cast<float>(frame.height) / data->options.pixelsPerUnit;
-        float pivotX = frame.pivotX;
-        float pivotY = frame.pivotY;
-        if (sprite->sizeMode == Component::SpriteSizeMode::Custom)
-        {
-            widthUnits = sprite->size.x;
-            heightUnits = sprite->size.y;
-        }
-        if (sprite->pivotMode == Component::SpritePivotMode::Custom)
-        {
-            pivotX = sprite->pivot.x;
-            pivotY = sprite->pivot.y;
-        }
-        const Vector2 center = transform->worldValid ? transform->worldPosition : transform->position;
-        const Vector2 scale = transform->worldValid ? transform->worldScale : transform->scale;
-        const Radian angle = transform->worldValid ? transform->worldRotation : transform->GetRotationRadian();
-        const float cosine = std::cos(angle.Get());
-        const float sine = std::sin(angle.Get());
-        const float worldWidth = widthUnits * scale.x;
-        const float worldHeight = heightUnits * scale.y;
-
-        // 칸 좌표의 y 는 **아래로** 간다(그림의 왼쪽 위가 원점). 월드의 y 는 위로 가므로 뒤집는다.
-        const auto toScreen = [&](float u, float v, float& screenX, float& screenY) {
-            const float localX = (u - pivotX) * worldWidth;
-            const float localY = (pivotY - v) * worldHeight;
-            const float worldX = center.x + localX * cosine - localY * sine;
-            const float worldY = center.y + localX * sine + localY * cosine;
-            WorldToScreen(rect, worldX, worldY, screenX, screenY);
-        };
-
-        ImDrawList* draw = ImGui::GetWindowDrawList();
-        for (std::size_t index = 0; index < segments->Size(); ++index)
-        {
-            const EditorSpriteContours::Segment& segment = (*segments)[index];
-            float x0 = 0.0f;
-            float y0 = 0.0f;
-            float x1 = 0.0f;
-            float y1 = 0.0f;
-            toScreen(segment.x0, segment.y0, x0, y0);
-            toScreen(segment.x1, segment.y1, x1, y1);
-            draw->AddLine(ImVec2(x0, y0), ImVec2(x1, y1), color, 1.5f);
-        }
-        return true;
     }
 
     GameObject* CanvasViewPanel::PickAt(

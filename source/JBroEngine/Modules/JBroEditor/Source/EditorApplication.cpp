@@ -3201,13 +3201,21 @@ namespace JBro
         {
             return false;
         }
+        // 선택 외곽선의 두 자리도 같은 크기·포맷이다(D-276). 못 만들면 외곽선만 없고 캔버스 뷰는 그린다.
+        const TextureHandle mask = device->CreateTexture(desc);
+        const TextureHandle scratch = device->CreateTexture(desc);
         // **새것을 만든 뒤에 옛것을 놓는다.** 만들지 못했는데 먼저 놓으면 그 프레임에
         // 붙일 그림이 없어 캔버스 뷰가 깜빡인다. RHI 는 GPU 가 다 쓴 뒤에 실제로 지운다.
-        if (m_canvasView.IsValid())
+        for (TextureHandle* old : {&m_canvasView, &m_canvasViewOutlineMask, &m_canvasViewOutlineScratch})
         {
-            device->DestroyTexture(m_canvasView);
+            if (old->IsValid())
+            {
+                device->DestroyTexture(*old);
+            }
         }
         m_canvasView = created;
+        m_canvasViewOutlineMask = mask;
+        m_canvasViewOutlineScratch = scratch;
         m_canvasViewExtent = extent;
         return true;
     }
@@ -3220,11 +3228,19 @@ namespace JBro
             {
                 if (IRHIDevice* device = renderer->GetDevice())
                 {
-                    device->DestroyTexture(m_canvasView);
+                    for (TextureHandle* texture : {&m_canvasView, &m_canvasViewOutlineMask, &m_canvasViewOutlineScratch})
+                    {
+                        if (texture->IsValid())
+                        {
+                            device->DestroyTexture(*texture);
+                        }
+                    }
                 }
             }
         }
         m_canvasView = {};
+        m_canvasViewOutlineMask = {};
+        m_canvasViewOutlineScratch = {};
         m_canvasViewExtent = {};
         m_canvasViewRequested = false;
     }
@@ -3257,6 +3273,17 @@ namespace JBro
         m_canvasViewRequest.debugDraw = m_canvasViewDebugDraw;
         m_canvasViewRequest.screenSpace = screenSpace;
         m_canvasViewRequest.focusObject = focusObject;
+        // 고른 것의 번호를 실어 보낸다(D-276). 요청은 값으로 복사되므로 가리키는 배열은 이 멤버다.
+        m_canvasViewSelection.Clear();
+        const Array<GameObject*> selected = GetSelectedObjects();
+        for (std::size_t index = 0; index < selected.Size(); ++index)
+        {
+            m_canvasViewSelection.Add(selected[index]->GetInstanceId());
+        }
+        m_canvasViewRequest.selection = m_canvasViewSelection.Data();
+        m_canvasViewRequest.selectionCount = static_cast<std::uint32_t>(m_canvasViewSelection.Size());
+        m_canvasViewRequest.outlineMask = m_canvasViewOutlineMask;
+        m_canvasViewRequest.outlineScratch = m_canvasViewOutlineScratch;
         // **캔버스가 지우는 색을 쓴다**(D-186). 편집하는 배경이 게임에서 보일 배경과
         // 달라 보이면, 색을 고르는 일 자체를 화면에서 판단할 수 없다.
         if (const Canvas* canvas = GetCanvas())

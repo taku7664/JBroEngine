@@ -2,6 +2,9 @@
 
 #include "BuiltinMeshPS.generated.h"
 #include "BuiltinMeshVS.generated.h"
+#include "BuiltinOutlineCompositePS.generated.h"
+#include "BuiltinOutlineGrowPS.generated.h"
+#include "BuiltinOutlineVS.generated.h"
 #include "BuiltinSdfTextPS.generated.h"
 #include "BuiltinSdfTextVS.generated.h"
 #include "BuiltinSpritePS.generated.h"
@@ -16,6 +19,9 @@ namespace JBro::Sm5
     using BYTE = unsigned char;
 #include "BuiltinMeshPS_SM5.generated.h"
 #include "BuiltinMeshVS_SM5.generated.h"
+#include "BuiltinOutlineCompositePS_SM5.generated.h"
+#include "BuiltinOutlineGrowPS_SM5.generated.h"
+#include "BuiltinOutlineVS_SM5.generated.h"
 #include "BuiltinSdfTextPS_SM5.generated.h"
 #include "BuiltinSdfTextVS_SM5.generated.h"
 #include "BuiltinSpritePS_SM5.generated.h"
@@ -29,6 +35,9 @@ namespace JBro::Spv
 {
 #include "BuiltinMeshPS_SPV.generated.h"
 #include "BuiltinMeshVS_SPV.generated.h"
+#include "BuiltinOutlineCompositePS_SPV.generated.h"
+#include "BuiltinOutlineGrowPS_SPV.generated.h"
+#include "BuiltinOutlineVS_SPV.generated.h"
 #include "BuiltinSdfTextPS_SPV.generated.h"
 #include "BuiltinSdfTextVS_SPV.generated.h"
 #include "BuiltinSpritePS_SPV.generated.h"
@@ -1187,9 +1196,66 @@ namespace JBro
             }
 
             m_frame.commands->EndRenderPass();
+
+            if (view.camera.outlineMask.IsValid() && view.camera.outlineScratch.IsValid() && view.camera.outlineWidth != 0
+                && false == RecordOutline(view.camera, target, extent))
+            {
+                return false;
+            }
         }
 
         return true;
+    }
+
+    bool Renderer::RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent)
+    {
+        // 화면을 덮는 사각형 하나씩 두 번이다(D-276). 단위 쿼드를 두 배로 펴서 쓴다 - 정점 버퍼를 따로 두지 않는다.
+        struct OutlineConstants
+        {
+            float color[4];
+            float params[4];
+        };
+        OutlineConstants constants = {};
+        for (int channel = 0; channel < 4; ++channel)
+        {
+            constants.color[channel] = camera.outlineColor[channel];
+        }
+        constants.params[0] = static_cast<float>(camera.outlineWidth);
+        const JArrayView<std::byte> bytes = {reinterpret_cast<const std::byte*>(&constants), sizeof(constants)};
+        Viewport viewport;
+        viewport.width = static_cast<float>(extent.width);
+        viewport.height = static_cast<float>(extent.height);
+        const ScissorRect scissor = {0, 0, static_cast<std::int32_t>(extent.width), static_cast<std::int32_t>(extent.height)};
+
+        const auto pass = [&](TextureHandle output, LoadOperation load, GraphicsPipelineHandle pipeline,
+                              TextureHandle first, TextureHandle second) {
+            ColorAttachmentDesc color;
+            color.texture = output;
+            color.loadOperation = load;
+            color.storeOperation = StoreOperation::Store;
+            color.clearColor = {0.0f, 0.0f, 0.0f, 0.0f};
+            RenderPassDesc desc;
+            desc.colorAttachments = {&color, 1};
+            if (false == m_frame.commands->BeginRenderPass(desc))
+            {
+                return false;
+            }
+            m_frame.commands->SetViewport(viewport);
+            m_frame.commands->SetScissor(scissor);
+            const bool drawn = m_frame.commands->SetGraphicsPipeline(pipeline)
+                && m_frame.commands->SetGraphicsConstants(bytes)
+                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
+                && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+                && m_frame.commands->SetTexture(0, first)
+                && m_frame.commands->SetTexture(1, second)
+                && m_frame.commands->SetSampler(0, m_nearestSampler)
+                && m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, 0);
+            m_frame.commands->EndRenderPass();
+            return drawn;
+        };
+        // 둘째 패스는 마스크를 t1 로도 읽는다. 첫째 패스의 t1 자리에는 같은 마스크를 묶어 둔다 - 비워 둘 수 없다.
+        return pass(camera.outlineScratch, LoadOperation::Clear, m_outlineGrowPipeline, camera.outlineMask, camera.outlineMask)
+            && pass(target, LoadOperation::Load, m_outlineCompositePipeline, camera.outlineScratch, camera.outlineMask);
     }
 
     bool Renderer::CreateBuiltinSpriteResources()
@@ -1359,7 +1425,38 @@ namespace JBro
         m_sdfTextPipeline = m_device->CreateGraphicsPipeline(textDesc);
         textDesc.depthFormat = TextureFormat::D32Float;
         m_sdfTextOverDepthPipeline = m_device->CreateGraphicsPipeline(textDesc);
-        return m_sdfTextPipeline.IsValid() && m_sdfTextOverDepthPipeline.IsValid();
+        if (false == m_sdfTextPipeline.IsValid() || false == m_sdfTextOverDepthPipeline.IsValid())
+        {
+            return false;
+        }
+
+        // 선택 외곽선(D-276). 같은 단위 쿼드의 위치만 읽고, 픽셀 셰이더가 텍스처 둘을 `Load` 로 읽는다.
+        const VertexBufferLayoutDesc outlineLayouts[] = {
+            {sizeof(float) * 2, VertexStepMode::Vertex, {vertexAttributes, 1}}};
+        GraphicsPipelineDesc outlineDesc;
+        outlineDesc.vertexShader = PickShader(m_config.api, JBroBuiltinOutlineVS, sizeof(JBroBuiltinOutlineVS),
+            Sm5::JBroBuiltinOutlineVS_SM5, sizeof(Sm5::JBroBuiltinOutlineVS_SM5),
+            Spv::JBroBuiltinOutlineVS_SPV, sizeof(Spv::JBroBuiltinOutlineVS_SPV));
+        outlineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinOutlineGrowPS, sizeof(JBroBuiltinOutlineGrowPS),
+            Sm5::JBroBuiltinOutlineGrowPS_SM5, sizeof(Sm5::JBroBuiltinOutlineGrowPS_SM5),
+            Spv::JBroBuiltinOutlineGrowPS_SPV, sizeof(Spv::JBroBuiltinOutlineGrowPS_SPV));
+        outlineDesc.vertexBuffers = {outlineLayouts, 1};
+        outlineDesc.colorFormats = {colorFormats, 1};
+        outlineDesc.blend = BlendMode::Opaque;
+        outlineDesc.cull = CullMode::None;
+        outlineDesc.depthTest = false;
+        outlineDesc.depthWrite = false;
+        outlineDesc.pushConstantStages = ShaderStage::Pixel;
+        outlineDesc.pushConstantBytes = sizeof(float) * 8;
+        outlineDesc.sampledTextureCount = 2;
+        outlineDesc.samplerCount = 1;
+        m_outlineGrowPipeline = m_device->CreateGraphicsPipeline(outlineDesc);
+        outlineDesc.pixelShader = PickShader(m_config.api, JBroBuiltinOutlineCompositePS, sizeof(JBroBuiltinOutlineCompositePS),
+            Sm5::JBroBuiltinOutlineCompositePS_SM5, sizeof(Sm5::JBroBuiltinOutlineCompositePS_SM5),
+            Spv::JBroBuiltinOutlineCompositePS_SPV, sizeof(Spv::JBroBuiltinOutlineCompositePS_SPV));
+        outlineDesc.blend = BlendMode::Alpha;
+        m_outlineCompositePipeline = m_device->CreateGraphicsPipeline(outlineDesc);
+        return m_outlineGrowPipeline.IsValid() && m_outlineCompositePipeline.IsValid();
     }
 
     bool Renderer::CreateBuiltinMeshResources()
@@ -1704,7 +1801,8 @@ namespace JBro
             m_device->DestroyGraphicsPipeline(m_spriteOverDepthPipeline);
             m_spriteOverDepthPipeline = {};
         }
-        for (GraphicsPipelineHandle* pipeline : {&m_sdfTextPipeline, &m_sdfTextOverDepthPipeline})
+        for (GraphicsPipelineHandle* pipeline :
+            {&m_sdfTextPipeline, &m_sdfTextOverDepthPipeline, &m_outlineGrowPipeline, &m_outlineCompositePipeline})
         {
             if (pipeline->IsValid())
             {

@@ -115,7 +115,28 @@ namespace JBro::Internal
             bool anyScaleMode = true;
             // 있으면 이 오브젝트와 그 자손의 아이템만 넣는다(D-252). 캔버스 뷰가 흰 막 위에 들어간 오브젝트를 다시 그릴 때다.
             InstanceId focus = InvalidInstanceId;
+            // 있으면 이 오브젝트들의 아이템만 넣는다(D-276). 선택 외곽선의 마스크를 그릴 때다. 자손은 따로 고른 것만이다 -
+            // 캔버스 뷰의 고르기가 자손까지 담는다(D-253·D-254).
+            const InstanceId* selection = nullptr;
+            std::uint32_t selectionCount = 0;
         };
+
+        bool IsSelected(const GameObject* owner, const InstanceId* selection, std::uint32_t count)
+        {
+            if (owner == nullptr)
+            {
+                return false;
+            }
+            const InstanceId id = owner->GetInstanceId();
+            for (std::uint32_t index = 0; index < count; ++index)
+            {
+                if (selection[index] == id)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         bool IsInFocus(const GameObject* owner, InstanceId focus)
         {
@@ -153,6 +174,10 @@ namespace JBro::Internal
                         continue;
                     }
                     if (rule.focus != InvalidInstanceId && false == IsInFocus(item.owner, rule.focus))
+                    {
+                        continue;
+                    }
+                    if (rule.selection != nullptr && false == IsSelected(item.owner, rule.selection, rule.selectionCount))
                     {
                         continue;
                     }
@@ -247,16 +272,53 @@ namespace JBro::Internal
         {
             return RenderResult::Failed;
         }
+        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 안 된다.
+        SpriteFilterRule rule;
+        rule.screenSpace = view.screenSpace;
+        bool accepted = true;
+
+        // **선택 외곽선의 마스크를 먼저 그린다**(D-276, 기존 `COutlineRenderer2D::RenderMask`). 같은 카메라로 고른 것의 스프라이트만
+        // 투명하게 지운 마스크에 그린다 - 그려진 그대로라 회전·텍스처 알파·틴트가 다 들어간다. 본 뷰가 다 그린 뒤 렌더러가
+        // 이 마스크를 키워 둘레만 칠한다. 마스크가 본 뷰보다 먼저 나가야 그 둘레를 칠할 때 마스크가 차 있다.
+        const bool outline = view.selection != nullptr && view.selectionCount != 0
+            && view.outlineMask.IsValid() && view.outlineScratch.IsValid();
+        if (outline)
+        {
+            CameraParams mask = parameters;
+            mask.target = view.outlineMask;
+            mask.targetExtent = view.extent;
+            for (float& channel : mask.clearColor)
+            {
+                channel = 0.0f;
+            }
+            if (false == renderer.BeginView(mask))
+            {
+                return RenderResult::Failed;
+            }
+            SpriteFilterRule selected = rule;
+            selected.selection = view.selection;
+            selected.selectionCount = view.selectionCount;
+            accepted = PushSprites(world, renderer, true, selected);
+            if (false == renderer.EndView())
+            {
+                return RenderResult::Failed;
+            }
+        }
+
         parameters.target = view.target;
         parameters.targetExtent = view.extent;
+        if (outline)
+        {
+            constexpr std::uint32_t OutlinePixels = 2;
+            parameters.outlineMask = view.outlineMask;
+            parameters.outlineScratch = view.outlineScratch;
+            parameters.outlineWidth = OutlinePixels;
+        }
         if (false == renderer.BeginView(parameters))
         {
             return RenderResult::Failed;
         }
-        // 캔버스 뷰는 월드 보기면 월드 레이어만, UI 보기면 화면 레이어만 보인다(D-237) - 화면 좌표는 기준 픽셀이라 섞으면 안 된다.
-        SpriteFilterRule rule;
-        rule.screenSpace = view.screenSpace;
-        bool accepted = PushSprites(world, renderer, true, rule);
+        accepted = PushSprites(world, renderer, true, rule) && accepted;
         // **들어가 있으면 나머지를 흰 막으로 가린다**(D-252, 기존 캔버스 뷰의 포커스 오버레이). 장면을 다 그리고, 화면을 덮는
         // 반투명 흰 사각형을 얹고, 들어간 오브젝트와 그 자손만 그 위에 한 번 더 그린다 - 렌더러는 낸 순서대로 그린다.
         // 막은 텍스처 없는 스프라이트라 흰색이고 틴트의 알파가 짙기다. 뒤의 오브젝트에 가린 조각도 막 위로 올라와 다 보인다.

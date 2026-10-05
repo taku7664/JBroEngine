@@ -57,6 +57,13 @@ namespace JBro
         // 캔버스 뷰에서 **들어가 있는 오브젝트**다(D-157, D-252). 있으면 장면 위에 반투명 흰 막을 덮고 이 오브젝트와
         // 그 자손만 막 위에 다시 그린다 - 무엇을 고치는 중인지가 화면에서 보인다. 없으면 막이 없다. 2D 만 읽는다.
         InstanceId focusObject = InvalidInstanceId;
+        // **고른 오브젝트들이다**(D-276). 있으면 그 스프라이트만 `outlineMask` 에 한 번 더 그리고, 뷰 위에 그 실제 픽셀의
+        // 둘레를 노란 2 픽셀 선으로 덧그린다(기존 `COutlineRenderer2D`). 배열은 부르는 쪽이 이 프레임의 그리기가 끝날 때까지 든다.
+        // 두 텍스처는 `target` 과 같은 크기·포맷이고 `RenderTarget | Sampled` 다. 하나라도 비면 외곽선이 없다. 2D 만 읽는다.
+        const InstanceId* selection = nullptr;
+        std::uint32_t selectionCount = 0;
+        TextureHandle outlineMask;
+        TextureHandle outlineScratch;
 
         // ── 3D 만 쓰는 값 ────────────────────────────────────────────
         //
