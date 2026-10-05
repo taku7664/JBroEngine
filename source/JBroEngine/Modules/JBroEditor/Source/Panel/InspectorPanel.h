@@ -88,6 +88,9 @@ namespace JBro
             ComponentBase* component = nullptr;
             ComponentTypeId typeId = 0;
             SetPropertyCommand::Path path;
+            // 가이드 포커스에 필드 줄을 알리는가(D-273). 표식은 타입과 필드 이름뿐이라 같은 타입의 둘째 컴포넌트까지 알리면
+            // 같은 대상이 두 자리에 서고, 구멍이 두 줄 사이를 오가며 인스펙터를 끝없이 굴린다. 그 타입의 첫째만 알린다.
+            bool guideTarget = true;
         };
 
         // 값 하나를 그린다. 구조를 가진 타입이면 필드를 타고 내려간다.

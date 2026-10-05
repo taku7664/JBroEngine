@@ -250,7 +250,16 @@ namespace JBro
 
             // 이름이 아니라 슬롯으로 구분한다. 같은 타입을 두 개 붙일 수 있다.
             ImGui::PushID(static_cast<int>(index));
-            Widget::SetNextItemTarget(GuideFocusTargets::InspectorComponent(slot.typeId));
+            // 가이드의 표식은 그 타입의 첫째에만 단다(D-273, `Context::guideTarget`). 가이드가 견주는 값도 첫째다.
+            bool firstOfType = true;
+            for (std::size_t earlier = 0; earlier < index && firstOfType; ++earlier)
+            {
+                firstOfType = components[earlier].typeId != slot.typeId;
+            }
+            if (firstOfType)
+            {
+                Widget::SetNextItemTarget(GuideFocusTargets::InspectorComponent(slot.typeId));
+            }
             const bool opened = Widget::CollapsingSection(
                 typeName != nullptr
                     ? typeName
@@ -415,6 +424,7 @@ namespace JBro
                     context.owner = object;
                     context.component = component;
                     context.typeId = slot.typeId;
+                    context.guideTarget = firstOfType;
                     DrawFieldsInto(layout, *table, component, context);
                 }
             }
@@ -1669,7 +1679,7 @@ namespace JBro
                     // 속살만 고칠 수 있게 된다.
                     Widget::DisableScope locked(false == editable);
                     layout.FullRow([&]() {
-                        if (false == inElement && context.path.depth == 1 && context.component != nullptr)
+                        if (false == inElement && context.path.depth == 1 && context.component != nullptr && context.guideTarget)
                         {
                             Widget::SetNextItemTarget(GuideFocusTargets::InspectorField(context.typeId, property.name));
                         }
@@ -1702,7 +1712,7 @@ namespace JBro
                         property.edit, context);
                 });
             // 컴포넌트의 맨 위 필드 줄은 가이드 포커스가 가리킬 수 있다(D-251). 한 줄 전체가 대상이다.
-            if (false == inElement && context.path.depth == 1 && context.component != nullptr)
+            if (false == inElement && context.path.depth == 1 && context.component != nullptr && context.guideTarget)
             {
                 Widget::ReportGuideTarget(GuideFocusTargets::InspectorField(context.typeId, property.name),
                     layout.GetLastRowMin(), layout.GetLastRowMax(), false, ImGui::IsItemDeactivatedAfterEdit());

@@ -2885,6 +2885,49 @@ namespace
         Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "and true lets Next through");
     }
 
+    // **같은 타입의 컴포넌트가 둘이면 가이드는 첫째를 가리킨다**(D-273). 표식이 타입과 필드 이름뿐이라 둘째 콜라이더의 `shape` 줄도
+    // 같은 대상으로 알려, 구멍이 두 줄 사이를 오가며 인스펙터를 끝없이 굴렸다(사용자가 실제 에디터에서 겪었다 - 이미 콜라이더가 있는 오브젝트).
+    // 값을 견주는 것(`Value`)도 그 타입의 첫째다.
+    void TestTwoComponentsOfATypePointAtTheFirst()
+    {
+        JBro::EditorApplication editor;
+        HWND hwnd = nullptr;
+        if (false == OpenEditor(editor, "GuideTwoCollidersProbe", hwnd))
+        {
+            std::cout << "  [skip] no D3D12 device; two components of a type not verified" << std::endl;
+            return;
+        }
+        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(object != nullptr, "the object must be made");
+        auto* first = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
+        auto* second = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
+        Check(first != nullptr && second != nullptr && first != second, "two colliders must attach");
+        // 첫째를 폴리곤으로 두어 줄을 늘린다 - 둘째의 줄이 인스펙터 밖으로 밀려나야 굴리기가 드러난다.
+        first->shape = JBro::Component::ColliderShape2D::Polygon;
+        for (int point = 0; point < 40; ++point)
+        {
+            first->points.Add({ static_cast<float>(point), 0.0f });
+        }
+        Tick(editor, 3);
+        JBro::String error;
+        const JBro::String text = CanvasGuide("field.edit", *object, "    Component: Collider2D\n    Field: shape\n    Value: Polygon\n");
+        Check(editor.StartGuideFromText(text.c_str(), text.size(), error), error.c_str());
+        const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
+        Check(WaitUntilSettled(editor, 2), "the hole must settle on one shape row");
+        const Rect settled = focus.GetHoleRect();
+        for (int frame = 0; frame < 60; ++frame)
+        {
+            Tick(editor, 1);
+            Check(focus.GetLevel() == 2 && focus.IsHoleSettled(), "and stay there instead of going back and forth");
+        }
+        Check(std::fabs(focus.GetHoleRect().min.y - settled.min.y) < 1.0f, "the hole did not move");
+        // 첫째가 이미 Polygon 이다 - 견주는 것이 첫째라 다음이 풀려 있다. 둘째를 바꿔도 첫째가 아니면 막힌다.
+        Check(editor.GetGuide().WhyNextBlocked(editor) == nullptr, "the first collider is the one compared, and it is a Polygon");
+        first->shape = JBro::Component::ColliderShape2D::Box;
+        second->shape = JBro::Component::ColliderShape2D::Polygon;
+        Check(editor.GetGuide().WhyNextBlocked(editor) != nullptr, "the second collider is not the one pointed at");
+    }
+
     // **포인트 단계는 포인트가 없으면 까닭을 말한다**(D-273). Box 면 모양을, 번호가 넘치면 그 번호를 적는다.
     void TestAPointStepSaysWhyThereIsNoPoint()
     {
@@ -3016,6 +3059,7 @@ int RunEditorGuideTests()
     TestAnEmptyObjectInTheCanvasViewIsARoundHole();
     TestAFieldStepWaitsForItsValue();
     TestAPointStepSaysWhyThereIsNoPoint();
+    TestTwoComponentsOfATypePointAtTheFirst();
     std::cout << "Editor guide tests passed.\n";
     return 0;
 }
