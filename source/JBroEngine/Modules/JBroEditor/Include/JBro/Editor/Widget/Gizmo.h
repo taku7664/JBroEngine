@@ -27,8 +27,9 @@ namespace JBro::Widget
 
     // 게임 뷰 그림 위에 손잡이를 그리고 마우스로 끈다(D-109). `camera` 의 사각형이 그림이 붙은 자리다.
     // `interactive` 가 거짓이면 그리기만 한다(선택이 없거나 창이 가려졌을 때).
+    // `snapStep` 이 0 보다 크면 옮기기의 결과를 그 간격의 격자에 붙인다(D-280, `GizmoModel::SnapTranslation`). 손잡이도 붙은 자리에 그린다.
     GizmoOutput Gizmo(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
-        GizmoState& state, bool interactive);
+        GizmoState& state, bool interactive, float snapStep = 0.0f);
 
     // 그림 위에 그린 손잡이 하나를 ImGui 항목으로 올린다(폴리곤 버텍스 손잡이). 누가 가리켰는지·잡았는지는
     // 부르는 쪽이 제 모양으로 잰다 - 여기서는 그 결과를 창의 hover·active 로 알릴 뿐이다. 그래야 창 이동이나

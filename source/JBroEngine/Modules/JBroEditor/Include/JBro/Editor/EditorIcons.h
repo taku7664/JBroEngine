@@ -22,6 +22,7 @@ namespace JBro::Icons
     inline constexpr const char* SpaceLocal   = "\xF3\xB0\xB5\x89"; // F0D49 axis-arrow - 기즈모 로컬 축
     inline constexpr const char* SpaceWorld   = "\xF3\xB0\x87\xA7"; // F01E7 earth - 기즈모 월드 축
     inline constexpr const char* Grid         = "\xF3\xB0\x8B\x81"; // F02C1 grid - 격자
+    inline constexpr const char* GridSnap     = "\xF3\xB0\x8D\x87"; // F0347 magnet - 격자 스냅
     inline constexpr const char* Colliders    = "\xF3\xB0\x80\x81"; // F0001 vector-square - 콜라이더 보이기
     inline constexpr const char* Frame        = "\xF3\xB1\xA3\xB5"; // F18F5 fit-to-screen-outline - 선택에 맞추기
     inline constexpr const char* ViewWorld    = "\xF3\xB0\xA6\x82"; // F0982 map-outline - 월드 레이어 보기
@@ -68,7 +69,7 @@ namespace JBro::Icons
 
     // 위의 글리프 전부다. 시험이 이것을 돌며 모두 글꼴 안에 있는지 본다 - 글리프를 더하면 여기에도 더한다.
     inline constexpr const char* All[] = {
-        GripLines, Xmark, Eye, EyeSlash, Search, FolderOpen, Move, Rotate, Scale, SpaceLocal, SpaceWorld, Grid,
+        GripLines, Xmark, Eye, EyeSlash, Search, FolderOpen, Move, Rotate, Scale, SpaceLocal, SpaceWorld, Grid, GridSnap,
         Colliders, Frame, ViewWorld, ViewScreen, Language, Ruler, EditCollider, Success, Warning, Error, Info, Plus,
         Minus, Canvas, Layer, GameObject, Folder, FileImage, FileAudio, FileFont, File, ViewList, ViewGrid,
         Home, FolderPlus, Refresh, Delete, OpenExternal, Menu, ArrowUp, ArrowDown, Copy, Play, Stop, Pause, StepFrame,

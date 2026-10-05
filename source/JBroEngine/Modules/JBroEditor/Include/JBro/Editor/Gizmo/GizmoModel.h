@@ -137,6 +137,10 @@ namespace JBro
         // 시작 상태와 지금 마우스로 새 대상을 낸다. 광선이 축과 평행해 풀 수 없으면 거짓이고 결과는 시작값이다.
         static bool UpdateDrag(const GizmoDrag& drag, const GizmoCamera& camera, float mouseX, float mouseY,
             GizmoSubject& result);
+        // **옮기기의 결과를 격자에 붙인다**(D-280). `UpdateDrag` 가 낸 `result` 의 위치만 고친다 - 이동이 아니거나 `step` 이 0 이하면 그대로다.
+        // 가운데 손잡이는 위치의 각 성분을 `step` 의 배수로 붙인다(평면이면 z 는 두고). 축 손잡이는 축이 월드 축과 나란하면 그 성분만
+        // 격자선에 붙이고, 돌아간 축이면 격자선이 축 위에 없으므로 **움직인 거리**를 `step` 단위로 끊는다.
+        static void SnapTranslation(const GizmoDrag& drag, float step, GizmoSubject& result);
 
         // 4x4 역행렬. 특이 행렬이면 거짓이다. 테스트가 직접 쓴다.
         static bool Invert(const Matrix4x4& matrix, Matrix4x4& out);

@@ -48,6 +48,8 @@ Entries:
   canvas_view.grid: Grid
   canvas_view.frame: Frame
   canvas_view.grid_tooltip: show or hide the grid
+  canvas_view.grid_snap: Grid Snap
+  canvas_view.grid_snap_tooltip: moving snaps to the grid you see; hold Ctrl while dragging to do the opposite
   canvas_view.colliders: Colliders
   canvas_view.inside_format: "inside %s - double-click empty space to leave"
   canvas_view.selected_none: nothing chosen

@@ -187,6 +187,8 @@ namespace JBro
         void SetCanvasViewCamera(float centerX, float centerY, float size);
         // 캔버스 뷰가 마지막으로 그린 격자에서 숫자를 붙인 X 선의 월드 값이다(D-275).
         void GetCanvasViewGridLabelsX(Array<float>& out);
+        // 캔버스 뷰가 마지막으로 그린 화면의 격자 간격(월드 단위)이다. 격자 스냅이 붙는 칸이다(D-280). 그린 적이 없으면 0 이다.
+        float GetCanvasViewGridStep();
         // 캔버스 뷰가 들어가 있는 오브젝트다. 뿌리거나 캔버스 뷰가 없으면 nullptr 이다.
         GameObject* GetCanvasViewFocus();
         // 창 배치가 사는 파일이다(`<프로젝트파일>.layout.ini`). 프로젝트를 파일로 열지

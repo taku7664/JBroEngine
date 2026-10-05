@@ -11503,6 +11503,180 @@ namespace
         editor.Shutdown();
     }
 
+    // **격자 스냅**(D-280). 도구 막대의 단추를 켜면 옮기기 기즈모가 보이는 격자 칸에 붙고, 끌면서 Ctrl 을 누르면 그동안만 반대다.
+    void TestTheGizmoSnapsToTheGrid()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; grid snap not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "GridSnapProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* target = canvas->CreateObject("Snapper");
+        auto* transform = canvas->AttachComponent<JBro::Component::Transform2D>(target);
+        Check(transform != nullptr, "the object needs a transform");
+        // 격자 밖에서 출발한다 - 붙었는지가 값으로 드러난다. 둘째 끌기는 첫 끌기를 되돌려 이 자리에 놓이므로, 이 자리는 칸의 절반에
+        // 붙이면 다른 점이 나오는 곳이어야 한다(0.2 칸이면 0.4·0.2, 0.1 칸이면 0.3·0.3). 처음에 고른 0.37·0.21 은 두 칸이 같은 점을 내어
+        // 절반 칸에 붙이는 잘못을 놓쳤다.
+        transform->position = JBro::Vector2{0.33f, 0.27f};
+        editor.SetSelectedObject(target);
+        editor.SetCanvasViewCamera(0.0f, 0.0f, 3.0f);
+        for (int frame = 0; frame < 6; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const float step = editor.GetCanvasViewGridStep();
+        Check(step > 0.0f, "the canvas view must report its grid step");
+        const auto onGrid = [step](float value) {
+            const float steps = value / step;
+            return std::fabs(steps - std::round(steps)) < 1.0e-3f;
+        };
+        Check(false == onGrid(transform->position.x) && false == onGrid(transform->position.y), "the object starts off the grid");
+        float originX = 0.0f;
+        float originY = 0.0f;
+        float unitX = 0.0f;
+        float unitY = 0.0f;
+        Check(editor.CanvasViewWorldToScreen(0.0f, 0.0f, originX, originY) && editor.CanvasViewWorldToScreen(1.0f, 0.0f, unitX, unitY),
+            "the canvas view must map world to screen");
+        const float pixelsPerUnit = unitX - originX;
+        Check(pixelsPerUnit > 10.0f, "the canvas view must show the world large enough to drag in");
+        // 끌기는 마우스를 정수 픽셀로 옮기므로, 붙이지 않았다면 놓인 자리는 시작 + 픽셀 / 배율이다. 붙였으면 거기서 가장 가까운 격자점이다 -
+        // 아무 격자점이 아니다. 칸의 절반에 붙여도 "격자 위다" 는 우연히 맞을 수 있다.
+        const auto nearest = [step](float value) {
+            return std::round(value / step) * step;
+        };
+
+        // 기즈모의 가운데를 잡아 끈다. `ctrl` 이면 끄는 내내 Ctrl 을 누르고 있다.
+        const auto drag = [&](float grabWorldX, float grabWorldY, int dx, int dy, bool ctrl) {
+            float x = 0.0f;
+            float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(grabWorldX, grabWorldY, x, y), "the canvas view must map the grab point");
+            Spot from;
+            from.x = static_cast<int>(std::lround(x));
+            from.y = static_cast<int>(std::lround(y));
+            const auto tick = [&](const char* message) {
+                if (ctrl)
+                {
+                    ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, true);
+                }
+                Check(editor.Tick(Frame), message);
+            };
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(from.x, from.y));
+            tick("the editor must tick");
+            PostMessageW(hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(from.x, from.y));
+            tick("the editor must tick");
+            constexpr int Steps = 12;
+            for (int index = 1; index <= Steps; ++index)
+            {
+                PostMessageW(hwnd, WM_MOUSEMOVE, MK_LBUTTON, MAKELPARAM(from.x + dx * index / Steps, from.y + dy * index / Steps));
+                tick("the editor must tick mid-drag");
+            }
+            PostMessageW(hwnd, WM_LBUTTONUP, 0, MAKELPARAM(from.x + dx, from.y + dy));
+            tick("the editor must tick");
+            if (ctrl)
+            {
+                ImGui::GetIO().AddKeyEvent(ImGuiMod_Ctrl, false);
+            }
+            Check(editor.Tick(Frame), "the editor must tick after the drag");
+        };
+        // 끌 때마다 정말 움직였는지 본다. 손잡이를 놓치면 위치가 그대로라 "격자 위다" 가 거짓으로 맞는다.
+        // 방향은 번갈아 바꾼다 - 한쪽으로만 밀면 오브젝트가 화면 밖으로 나가 손잡이를 잡을 수 없다.
+        const auto moved = [&](float fromX, float fromY) {
+            return std::fabs(transform->position.x - fromX) > step * 0.5f || std::fabs(transform->position.y - fromY) > step * 0.5f;
+        };
+        float lastX = 0.0f;
+        float lastY = 0.0f;
+        const auto remember = [&]() {
+            lastX = transform->position.x;
+            lastY = transform->position.y;
+        };
+
+        // ── 켜지 않으면 붙지 않는다. ─────────────────────────────────────
+        remember();
+        drag(transform->position.x, transform->position.y, 83, -47, false);
+        Check(moved(lastX, lastY), "the first drag must catch the centre handle");
+        Check(false == onGrid(transform->position.x) && false == onGrid(transform->position.y), "without snap the drag lands anywhere");
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+
+        // ── 단추를 켜고 끈다: 두 성분이 격자 칸에 붙는다. ──────────────────
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+        Spot button;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_grid_snap"), button),
+            "the toolbar must offer grid snap");
+        ClickAt(editor, hwnd, button);
+        editor.SetSelectedObject(target);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after the toggle");
+        }
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            SaveScreenshot(*renderer, 1024, 768, "grid_snap");
+        }
+        remember();
+        drag(transform->position.x, transform->position.y, -83, 47, false);
+        Check(moved(lastX, lastY), "the snapped drag still moves the object");
+        Check(onGrid(transform->position.x) && onGrid(transform->position.y), "with snap on the centre handle lands on a grid point");
+        const float dropX = lastX - 83.0f / pixelsPerUnit;
+        const float dropY = lastY - 47.0f / pixelsPerUnit;
+        const auto nearestHalf = [step](float value) {
+            return std::round(value / (step * 0.5f)) * (step * 0.5f);
+        };
+        Check(std::fabs(nearest(dropX) - nearestHalf(dropX)) > step * 0.25f || std::fabs(nearest(dropY) - nearestHalf(dropY)) > step * 0.25f,
+            "the probe must let go where half a grid step would snap somewhere else");
+        Check(std::fabs(transform->position.x - nearest(dropX)) < step * 1.0e-3f && std::fabs(transform->position.y - nearest(dropY)) < step * 1.0e-3f,
+            "and it is the grid point nearest to where the drag let go, one visible grid step apart from the next");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "and a snapped drag is one undo like any other");
+
+        // ── Ctrl 을 누른 채 끌면 그동안만 풀린다. ──────────────────────────
+        remember();
+        drag(transform->position.x, transform->position.y, 83, -47, true);
+        Check(moved(lastX, lastY), "the Ctrl drag must catch the centre handle");
+        Check(false == onGrid(transform->position.x) || false == onGrid(transform->position.y),
+            "holding Ctrl lets a snapped drag land between grid lines");
+        remember();
+        drag(transform->position.x, transform->position.y, -83, 47, false);
+        Check(moved(lastX, lastY), "the drag after Ctrl must catch the centre handle");
+        Check(onGrid(transform->position.x) && onGrid(transform->position.y), "letting Ctrl go snaps again");
+
+        // ── 단추를 끄고 Ctrl 로 X 손잡이를 끈다: x 만 격자선에 붙고 y 는 그대로다. ──
+        Spot on;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_grid_snap"), on), "the snap button must still be there");
+        ClickAt(editor, hwnd, on);
+        editor.SetSelectedObject(target);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle after turning snap off");
+        }
+        remember();
+        drag(transform->position.x, transform->position.y, 83, -47, false);
+        Check(moved(lastX, lastY), "the drag with snap off must catch the centre handle");
+        const float offY = transform->position.y;
+        Check(false == onGrid(transform->position.x) && false == onGrid(offY), "turned off, the drag lands anywhere again");
+        // 가운데 손잡이를 피해 x 축 손잡이의 중간쯤(45 픽셀)을 잡는다.
+        remember();
+        drag(transform->position.x + 45.0f / pixelsPerUnit, transform->position.y, -83, 47, true);
+        Check(moved(lastX, lastY), "the x handle drag must catch the handle");
+        Check(onGrid(transform->position.x), "Ctrl with snap off snaps the x handle to a grid line");
+        Check(std::fabs(transform->position.y - offY) < 1.0e-4f, "and the x handle leaves y where it was");
+
+        editor.Shutdown();
+    }
+
     // ── 단축키 관리자(D-228) ──────────────────────────────────────────
 
     std::string ReadWholeText(const JBro::String& path)
@@ -12779,6 +12953,7 @@ int RunEditorApplicationTests()
     TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestTheGizmoCanWorkInWorldAxes();
+    TestTheGizmoSnapsToTheGrid();
     TestRemappedShortcutsAreSavedAndReadBack();
     TestGizmoKeysFollowTheCanvasViewFocus();
     TestTypingKeepsEditorShortcutsOutOfTheField();

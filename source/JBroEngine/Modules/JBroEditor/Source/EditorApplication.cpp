@@ -509,6 +509,15 @@ namespace JBro
         }
     }
 
+    float EditorApplication::GetCanvasViewGridStep()
+    {
+        if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
+        {
+            return view->GetLastGridStep();
+        }
+        return 0.0f;
+    }
+
     void EditorApplication::GetCanvasViewGridLabelsX(Array<float>& out)
     {
         out.Clear();

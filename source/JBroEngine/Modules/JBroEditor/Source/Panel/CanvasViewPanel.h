@@ -67,6 +67,8 @@ namespace JBro
         // 고르기는 부르는 쪽이 한다 - 캔버스 뷰는 자손까지, 계층 창은 그 줄 하나를 고른다.
         void StepInto(GameObject& object);
         const Array<float>& GetGridLabelsX() const { return m_gridLabelsX; }
+        // 마지막으로 그린 화면에서 격자 스냅이 붙는 간격이다(D-280). 그린 적이 없으면 0 이다.
+        float GetLastGridStep() const { return m_hasLastRect ? GridStep(m_lastRect) : 0.0f; }
         // 지금 들어가 있는 오브젝트다. 뿌리면 nullptr 이다.
         GameObject* GetFocus() const;
 
@@ -94,6 +96,8 @@ namespace JBro
         // 팬(가운데·오른쪽 끌기)과 줌(휠). 그림 위에 마우스가 있을 때만.
         void HandleCameraInput(const ViewRect& rect, bool hovered);
         void DrawGrid(const ViewRect& rect);
+        // 지금 배율에서 격자가 쓰는 간격(월드 단위)이다. 격자를 그리는 것과 격자 스냅이 같은 값을 쓴다(D-280).
+        float GridStep(const ViewRect& rect) const;
         // 3D 의 바닥 격자다(y=0 평면). 선을 토막 내어 투영한다 - 한 선이 카메라 평면을
         // 가로지르면 양 끝만으로는 그릴 수 없기 때문이다.
         void DrawGrid3D(const ViewRect& rect);
@@ -289,6 +293,8 @@ namespace JBro
         Widget::GizmoState m_gizmoState;
         GizmoEditing m_editing;
         bool m_showGrid = true;
+        // **격자 스냅**(D-280). 켜면 옮기기 기즈모가 보이는 격자의 칸에 붙는다. 끌면서 Ctrl 을 누르고 있으면 그동안만 반대다.
+        bool m_gridSnap = false;
         // 콜라이더를 보일지. 늘 그리면 그림을 다듬는 동안 녹색 선이 방해가 된다.
         bool m_showColliders = true;
         // **눈금을 픽셀로 읽을지**(D-184, 기존 `단위: Unit`/`단위: Pixel`). 거짓이면 월드 유닛이다.

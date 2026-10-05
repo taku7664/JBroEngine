@@ -586,6 +586,21 @@ namespace JBro
         }
         if (false == Is3D())
         {
+            // **격자 스냅**(D-280). 기존 엔진에는 없던 단추다(회전의 15 도 스냅만 Shift 로 있었다). 3D 에는 아직 없다 - 3D 의 격자는
+            // 바닥 평면 하나이고 간격이 거리에 따라 바뀌어 무엇에 붙일지가 다르다.
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::IconButton("##canvas_grid_snap", Icons::GridSnap)
+                    .Selected(m_gridSnap)
+                    .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewGridSnap, "Grid Snap"),
+                        Loc::TextOr(LocKeys::CanvasViewGridSnapTooltip,
+                            "moving snaps to the grid you see; hold Ctrl while dragging to do the opposite")))
+                    .Draw())
+            {
+                m_gridSnap = false == m_gridSnap;
+            }
+        }
+        if (false == Is3D())
+        {
             // 3D 에는 그릴 콜라이더가 없다. 누를 수 없는 단추를 두면 무엇이 되는 것인지 흐려진다.
             ImGui::SameLine(0.0f, 6.0f);
             if (Widget::IconButton("##canvas_colliders", Icons::Colliders)
@@ -737,6 +752,16 @@ namespace JBro
         m_goalY = anchorY + (m_goalY - anchorY) * applied;
     }
 
+    float CanvasViewPanel::GridStep(const ViewRect& rect) const
+    {
+        const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
+        if (false == (drawHeight > 0.0f))
+        {
+            return 0.0f;
+        }
+        return ChooseGridStep((m_orthographicSize * 2.0f) / drawHeight);
+    }
+
     void CanvasViewPanel::DrawGrid(const ViewRect& rect)
     {
         if (rect.width <= 0.0f || rect.height <= 0.0f)
@@ -745,7 +770,7 @@ namespace JBro
         }
         const float drawHeight = rect.drawHeight > 0.0f ? rect.drawHeight : rect.height;
         const float worldPerPixel = (m_orthographicSize * 2.0f) / drawHeight;
-        const float step = ChooseGridStep(worldPerPixel);
+        const float step = GridStep(rect);
         if (false == std::isfinite(step) || step <= 0.0f)
         {
             return;
@@ -2810,8 +2835,11 @@ namespace JBro
             subject.rotation = Quaternion{0.0f, 0.0f, 0.0f, 1.0f};
         }
         const GizmoSubject shown = m_gizmoState.dragging ? m_gizmoState.drag.start : subject;
+        // **격자 스냅**(D-280). 붙는 간격은 지금 보이는 격자의 칸이다 - 줌하면 칸이 바뀌고 붙는 자리도 따라 바뀐다.
+        // 격자를 감춰도 같은 칸에 붙는다. Ctrl 은 끄는 동안만 반대로 한다(켜져 있으면 풀고, 꺼져 있으면 붙인다).
+        const bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
         const Widget::GizmoOutput output =
-            Widget::Gizmo(m_gizmoMode, camera, shown, m_gizmoState, true);
+            Widget::Gizmo(m_gizmoMode, camera, shown, m_gizmoState, true, snapping ? GridStep(rect) : 0.0f);
         if (output.dragStarted)
         {
             if (false == m_editing.Begin(*m_editor, m_gizmoMode, shown))

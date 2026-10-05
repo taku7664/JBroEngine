@@ -153,7 +153,7 @@ namespace JBro::Widget
     }
 
     GizmoOutput Gizmo(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
-        GizmoState& state, bool interactive)
+        GizmoState& state, bool interactive, float snapStep)
     {
         GizmoOutput output;
         output.subject = subject;
@@ -171,7 +171,10 @@ namespace JBro::Widget
         if (state.dragging)
         {
             // 끌던 것이 끝났거나 이어진다. 놓는 프레임까지 마지막 마우스로 결과를 낸다.
-            GizmoModel::UpdateDrag(state.drag, camera, mouse.x, mouse.y, output.subject);
+            if (GizmoModel::UpdateDrag(state.drag, camera, mouse.x, mouse.y, output.subject))
+            {
+                GizmoModel::SnapTranslation(state.drag, snapStep, output.subject);
+            }
             output.axis = state.drag.axis;
             output.dragging = true;
             const ImGuiID id = window->GetID(AxisIdName(state.drag.axis));

@@ -48,6 +48,8 @@ Entries:
   canvas_view.grid: 격자
   canvas_view.frame: 맞춤
   canvas_view.grid_tooltip: 격자를 보이거나 감춥니다
+  canvas_view.grid_snap: 격자 스냅
+  canvas_view.grid_snap_tooltip: 옮길 때 보이는 격자 칸에 맞춥니다. 끌면서 Ctrl 을 누르고 있으면 그동안만 반대로 동작합니다
   canvas_view.colliders: 충돌
   canvas_view.inside_format: "%s 안에서 고르는 중 - 빈 곳을 두 번 누르면 나옵니다"
   canvas_view.selected_none: 선택 없음

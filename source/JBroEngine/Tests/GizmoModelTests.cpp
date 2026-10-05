@@ -174,6 +174,58 @@ namespace
         Check(Near(result.position.x, 0.0f) && Near(result.position.y, 0.3f), "and it moves along world +y");
     }
 
+    // **격자 스냅**(D-280). 가운데 손잡이는 두 성분을, 월드 축과 나란한 축 손잡이는 그 성분만 격자선에 붙인다.
+    // 돌아간 축은 격자선이 축 위에 없어 움직인 거리를 간격 단위로 끊는다. 이동이 아니거나 간격이 없으면 건드리지 않는다.
+    void TestTranslationSnapsToTheGrid()
+    {
+        const JBro::GizmoCamera camera = OrthoCamera();
+        constexpr float step = 0.25f;
+        JBro::GizmoDrag drag;
+        JBro::GizmoSubject result;
+
+        Check(JBro::GizmoModel::BeginDrag(JBro::GizmoMode::Translate, JBro::GizmoAxis::Free, camera, PlanarSubject(), 100.0f, 100.0f, drag)
+                && JBro::GizmoModel::UpdateDrag(drag, camera, 133.0f, 77.0f, result),
+            "a free drag must begin and update");
+        JBro::GizmoModel::SnapTranslation(drag, step, result);
+        Check(Near(result.position.x, 0.25f) && Near(result.position.y, 0.25f), "the centre handle lands on the nearest grid point");
+        Check(Near(result.position.z, 0.0f), "a planar subject keeps its z");
+
+        // 격자 밖에서 출발해 x 손잡이로 끈다. x 는 격자선에 붙고, 움직이지 않은 y 는 그대로다.
+        JBro::GizmoSubject offGrid = PlanarSubject();
+        offGrid.position = {0.07f, 0.13f, 0.0f};
+        Check(JBro::GizmoModel::BeginDrag(JBro::GizmoMode::Translate, JBro::GizmoAxis::X, camera, offGrid, 157.0f, 87.0f, drag)
+                && JBro::GizmoModel::UpdateDrag(drag, camera, 197.0f, 117.0f, result),
+            "an x drag from off the grid must begin and update");
+        Check(Near(result.position.x, 0.47f), "unsnapped, 40 pixels move x from 0.07 to 0.47");
+        JBro::GizmoModel::SnapTranslation(drag, step, result);
+        Check(Near(result.position.x, 0.5f), "snapped, x lands on the grid line at 0.5");
+        Check(Near(result.position.y, 0.13f), "and y, which the x handle does not move, stays off the grid");
+
+        // 30 도 돈 축: 83 픽셀(0.83) 지점을 잡아 33 픽셀 더 밀면 움직인 거리 0.33 이 0.25 로 끊긴다. 결과는 축 위에 남는다.
+        JBro::GizmoSubject turned = PlanarSubject();
+        turned.rotation = JBro::FromAxisAngle({0.0f, 0.0f, 1.0f}, Pi / 6.0f);
+        const float c = std::cos(Pi / 6.0f);
+        const float s = std::sin(Pi / 6.0f);
+        Check(JBro::GizmoModel::BeginDrag(JBro::GizmoMode::Translate, JBro::GizmoAxis::X, camera, turned,
+                  100.0f + 50.0f * c, 100.0f - 50.0f * s, drag)
+                && JBro::GizmoModel::UpdateDrag(drag, camera, 100.0f + 83.0f * c, 100.0f - 83.0f * s, result),
+            "a drag on a turned axis must begin and update");
+        JBro::GizmoModel::SnapTranslation(drag, step, result);
+        Check(Near(result.position.x, 0.25f * c) && Near(result.position.y, 0.25f * s),
+            "a turned axis moves in whole steps along itself instead of leaving the axis for a grid line");
+
+        // 회전 끌기와 간격 0 은 그대로다.
+        JBro::GizmoSubject untouched;
+        untouched.position = {0.33f, 0.21f, 0.0f};
+        JBro::GizmoSubject before = untouched;
+        JBro::GizmoModel::SnapTranslation(drag, 0.0f, untouched);
+        Check(untouched.position.x == before.position.x && untouched.position.y == before.position.y, "no step means no snap");
+        JBro::GizmoDrag rotating = drag;
+        rotating.mode = JBro::GizmoMode::Rotate;
+        JBro::GizmoModel::SnapTranslation(rotating, step, untouched);
+        Check(untouched.position.x == before.position.x && untouched.position.y == before.position.y, "a rotation is not snapped");
+    }
+
     void TestRotationTurnsRightHandedAboutTheAxis()
     {
         const JBro::GizmoCamera camera = OrthoCamera();
@@ -273,6 +325,7 @@ int RunGizmoModelTests()
     TestProjectionMapsTheWorldOntoTheRectangle();
     TestHandlesAreBuiltAndPickedInPixels();
     TestTranslationFollowsTheMouseAlongTheAxis();
+    TestTranslationSnapsToTheGrid();
     TestRotationTurnsRightHandedAboutTheAxis();
     TestScaleIsARatioAlongTheHandle();
     TestPerspectiveDragKeepsTheHandleUnderTheMouse();

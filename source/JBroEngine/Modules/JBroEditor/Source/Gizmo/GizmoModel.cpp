@@ -621,4 +621,46 @@ namespace JBro
         }
         return false;
     }
+
+    void GizmoModel::SnapTranslation(const GizmoDrag& drag, float step, GizmoSubject& result)
+    {
+        if (drag.mode != GizmoMode::Translate || false == std::isfinite(step) || false == (step > 0.0f))
+        {
+            return;
+        }
+        // 번호에 간격을 곱한다 - 격자의 선과 같은 셈이라(D-162) 0 은 정확히 0 이고 숫자가 붙은 선에 정확히 선다.
+        const auto snap = [step](float value) {
+            return std::round(value / step) * step;
+        };
+        if (drag.axis == GizmoAxis::Free)
+        {
+            result.position.x = snap(result.position.x);
+            result.position.y = snap(result.position.y);
+            if (false == drag.start.planar)
+            {
+                result.position.z = snap(result.position.z);
+            }
+            return;
+        }
+        // 축이 월드 축과 나란한가. 0.9999 는 0.8 도쯤이다 - 그보다 돌아간 축에서 한 성분만 붙이면 손잡이 축을 벗어난다.
+        constexpr float Aligned = 0.9999f;
+        const Vector3& axis = drag.axisDirection;
+        if (std::fabs(axis.x) >= Aligned)
+        {
+            result.position.x = snap(result.position.x);
+            return;
+        }
+        if (std::fabs(axis.y) >= Aligned)
+        {
+            result.position.y = snap(result.position.y);
+            return;
+        }
+        if (std::fabs(axis.z) >= Aligned)
+        {
+            result.position.z = snap(result.position.z);
+            return;
+        }
+        const float travel = Dot(Subtract(result.position, drag.start.position), axis);
+        result.position = Add(drag.start.position, Scale(axis, snap(travel)));
+    }
 }

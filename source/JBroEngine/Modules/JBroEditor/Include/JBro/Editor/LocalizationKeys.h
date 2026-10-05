@@ -33,6 +33,8 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewGrid = "canvas_view.grid";
     inline constexpr const char* CanvasViewFrame = "canvas_view.frame";
     inline constexpr const char* CanvasViewGridTooltip = "canvas_view.grid_tooltip";
+    inline constexpr const char* CanvasViewGridSnap = "canvas_view.grid_snap";
+    inline constexpr const char* CanvasViewGridSnapTooltip = "canvas_view.grid_snap_tooltip";
     inline constexpr const char* CanvasViewColliders = "canvas_view.colliders";
     inline constexpr const char* CanvasViewInsideFormat = "canvas_view.inside_format";
     inline constexpr const char* CanvasViewSelectedNone = "canvas_view.selected_none";
