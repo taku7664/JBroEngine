@@ -787,6 +787,22 @@ namespace
         Check(hierarchy != nullptr && hole.min.x >= hierarchy->Pos.x - 8.0f && hole.max.x <= hierarchy->Pos.x + hierarchy->Size.x + 8.0f,
             "the hole is on a row of the layers window");
         Check(hole.Height() < 40.0f, "one row, not the whole window");
+        // **경로에 없는 줄은 번호를 묻지 않는다**(D-251). 번호표에 없던 오브젝트를 줄줄이 그려도 표가 늘지 않는다 -
+        // 줄마다 물으면 표를 처음부터 훑어 계층이 오브젝트 수의 제곱으로 돌고, 처음 보는 줄마다 번호가 쌓인다.
+        {
+            JBro::Canvas* canvas = editor.GetCanvas();
+            Check(canvas != nullptr, "the canvas must be open");
+            const std::size_t before = editor.GetObjectIds().GetCount();
+            for (int index = 0; index < 40; ++index)
+            {
+                Check(canvas->CreateObject("Untracked") != nullptr, "an untracked object must be made");
+            }
+            Tick(editor, 10);
+            Check(editor.GetObjectIds().GetCount() == before,
+                "drawing rows off the path while the veil is up does not register them in the id table");
+            // 줄이 늘어 스크롤 막대가 서면 줄 폭이 바뀌어 구멍이 다시 움직인다. 자리 잡기를 기다린다.
+            Check(WaitUntilSettled(editor, 3), "and the walk still sits on the child's row");
+        }
         // 경로가 이 캔버스의 오브젝트 번호를 가리킨다. 프로젝트를 닫으면 꺼진다.
         editor.CloseProject();
         Check(false == editor.GetGuideFocus().IsActive(), "closing the project lowers the veil");

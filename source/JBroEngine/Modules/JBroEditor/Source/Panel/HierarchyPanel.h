@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorPanel.h>
 
 #include <JBro/Types/Array.h>
@@ -102,6 +103,20 @@ namespace JBro
         // 끌어다 놓으면 그대로는 화면에서 사라져, 옮겨진 것인지 사라진 것인지
         // 알 수 없다. 다음 프레임에 조상들을 펼치고 그 줄로 스크롤한 뒤 비운다.
         SafePtr<GameObject> m_reveal;
+
+        // **가이드 포커스의 경로에 든 오브젝트 줄**이다(D-251). 프레임 첫머리에 경로의 번호를 한 번 풀어 둔다 - 줄마다 번호표
+        // (`EditorObjectRegistry::Track`, 선형 탐색)를 물으면 가이드가 켜진 동안 계층이 오브젝트 수의 제곱으로 돌고, 처음 보는
+        // 줄마다 표에 새 번호가 쌓인다. 경로에 없는 줄은 알려도 모델이 버리므로 묻지 않는다.
+        struct GuideRow
+        {
+            const GameObject* object = nullptr;
+            std::uint64_t id = 0;
+        };
+        void CollectGuideRows();
+        // 경로에 든 줄이면 그 에디터 번호, 아니면 0.
+        std::uint64_t FindGuideRow(const GameObject& object) const;
+        GuideRow m_guideRows[GuideFocusPath::Capacity] = {};
+        std::uint32_t m_guideRowCount = 0;
         // 이름을 고치는 중인 레이어와 그 글자. 무효값이면 고치는 중이 아니다.
         LayerId m_renaming = InvalidLayerId;
         String m_renameText;

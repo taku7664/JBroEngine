@@ -150,6 +150,8 @@ namespace JBro
             return;
         }
 
+        CollectGuideRows();
+
         // 이번 프레임에 무엇을 끌고 있는가. 다른 위젯의 끌기(목록 재정렬 등)도
         // 꾸러미를 내므로 **타입까지 봐야** 한다.
         m_dragActive = Widget::IsDragging(Widget::DragKind::HierarchyObject);
@@ -746,6 +748,59 @@ namespace JBro
         }
     }
 
+    void HierarchyPanel::CollectGuideRows()
+    {
+        m_guideRowCount = 0;
+        const EditorGuideFocus* focus = Widget::GetGuideFocus();
+        if (focus == nullptr || false == focus->IsActive())
+        {
+            return;
+        }
+        const NameId rowName = GuideFocusTargets::HierarchyObject(0).name;
+        const NameId menuName = GuideFocusTargets::HierarchyObjectMenu(0).name;
+        const GuideFocusPath& path = focus->GetPath();
+        for (std::uint32_t index = 0; index < path.count; ++index)
+        {
+            const GuideFocusTarget& target = path.targets[index];
+            if (target.name != rowName && target.name != menuName)
+            {
+                continue;
+            }
+            const GameObject* object = m_editor->GetObjectIds().Resolve(target.key);
+            if (object == nullptr)
+            {
+                continue;
+            }
+            // 줄과 그 줄의 메뉴는 같은 오브젝트다. 한 번만 든다.
+            bool known = false;
+            for (std::uint32_t row = 0; row < m_guideRowCount; ++row)
+            {
+                if (m_guideRows[row].object == object)
+                {
+                    known = true;
+                    break;
+                }
+            }
+            if (false == known)
+            {
+                m_guideRows[m_guideRowCount] = GuideRow{ object, target.key };
+                ++m_guideRowCount;
+            }
+        }
+    }
+
+    std::uint64_t HierarchyPanel::FindGuideRow(const GameObject& object) const
+    {
+        for (std::uint32_t row = 0; row < m_guideRowCount; ++row)
+        {
+            if (m_guideRows[row].object == &object)
+            {
+                return m_guideRows[row].id;
+            }
+        }
+        return 0;
+    }
+
     bool HierarchyPanel::IsOnRevealPath(const GameObject& object) const
     {
         const GameObject* target = m_reveal.TryGet();
@@ -828,10 +883,9 @@ namespace JBro
         // 트리 위젯이 줄 자리를 돌려준다. 이름은 우리가 그 자리에 그린다 -
         // 나중에 눈 표시나 배지를 같은 줄에 얹을 자리가 이것이다.
         Widget::TreeDrawContext row;
-        // 가이드 포커스가 켜져 있을 때만 번호를 묻는다(D-251). 번호표는 선형 탐색이라 줄마다 묻기에는 무겁다.
-        const EditorGuideFocus* guideFocus = Widget::GetGuideFocus();
-        const bool guided = guideFocus != nullptr && guideFocus->IsActive();
-        const std::uint64_t guideId = guided ? m_editor->GetObjectIds().Track(&object) : 0;
+        // 가이드 포커스의 경로에 든 줄만 알린다(D-251). 번호는 프레임 첫머리에 풀어 둔 것이다(`CollectGuideRows`).
+        const std::uint64_t guideId = FindGuideRow(object);
+        const bool guided = guideId != 0;
         if (guided)
         {
             Widget::SetNextItemTarget(GuideFocusTargets::HierarchyObject(guideId));
