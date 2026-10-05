@@ -9,6 +9,7 @@
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
+#include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -32,14 +33,16 @@ namespace JBro::EditorActions
             return Loc::TextOr(LocKeys::BlockedNoProject, "no project is open");
         }
 
-        const char* NothingSelectedReason()
-        {
-            return Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected");
-        }
-
         const char* ClipboardEmptyReason()
         {
             return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
+        }
+
+        // **조합키 글자는 단축키 표에서 읽는다**(D-228). 메뉴에 박아 두면 사용자가 키를 바꿔도 메뉴만 옛 글자로 남는다.
+        // 조합을 비워 두었으면 빈 글자다.
+        EditorShortcutText ShortcutKeys(const EditorApplication& editor, EditorShortcut id)
+        {
+            return EditorShortcuts::Describe(editor, id);
         }
 
         // **컴포넌트마다 더한 항목을 인스턴스마다 하위 메뉴로 세운다**(D-220). 줄 이름은 번역하지 않는 타입
@@ -281,32 +284,40 @@ namespace JBro::EditorActions
 
     bool DrawCopyItem(EditorApplication& editor)
     {
+        // 편집 메뉴의 `복사` 와 같은 일이라 할 수 있는지·까닭·하기도 단축키 표의 것이다.
         Widget::SetNextItemTarget(GuideFocusTargets::Action("object.copy"));
-        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"), "Ctrl+C",
-                editor.GetSelectionCount() != 0, NothingSelectedReason()))
+        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"),
+                ShortcutKeys(editor, EditorShortcut::Copy).value,
+                EditorShortcuts::CanExecute(editor, EditorShortcut::Copy),
+                EditorShortcuts::WhyBlocked(editor, EditorShortcut::Copy)))
         {
             return false;
         }
-        return editor.CopySelection();
+        return EditorShortcuts::Execute(editor, EditorShortcut::Copy);
     }
 
     bool DrawPasteItem(EditorApplication& editor)
     {
+        // 편집 메뉴의 `붙여넣기` 와 같은 일이다(고른 것 밑에 붙는다).
         Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
-        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V",
-                editor.HasClipboard(), ClipboardEmptyReason()))
+        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"),
+                ShortcutKeys(editor, EditorShortcut::Paste).value,
+                EditorShortcuts::CanExecute(editor, EditorShortcut::Paste),
+                EditorShortcuts::WhyBlocked(editor, EditorShortcut::Paste)))
         {
             return false;
         }
-        return editor.PasteClipboard();
+        return EditorShortcuts::Execute(editor, EditorShortcut::Paste);
     }
 
     bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object)
     {
         Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste_as_child"));
         // **고른 것 안으로 붙인다**(D-166, 기존 `PasteObjectsAsChild`). 줄에서 연 메뉴이므로 그 줄이 곧 부모다.
+        // 그래서 할 수 있는지는 표의 것(고른 것이 있어야 함)이 아니라 이 줄의 것이다. 글자만 표에서 온다.
         if (false == Widget::MenuItem(
-                Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"), "Ctrl+Shift+V",
+                Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"),
+                ShortcutKeys(editor, EditorShortcut::PasteAsChild).value,
                 editor.HasClipboard(), ClipboardEmptyReason()))
         {
             return false;
@@ -319,8 +330,10 @@ namespace JBro::EditorActions
     {
         // 계층 줄과 캔버스 뷰가 함께 쓰는 한 벌이라 표식도 한 번이다(D-267). 가이드의 `object.delete` 가 가리킨다.
         // 이 파일의 다른 항목도 같다 - 항목 하나에 표식 하나, 행동 표(`EditorGuideActions.cpp`)에 줄 하나다(D-268).
+        // 지우는 것은 고른 것(레이어일 수도 있다)이 아니라 우클릭한 이 오브젝트라 할 수 있는지와 하기는 여기 것이다. 글자만 표에서 온다.
         Widget::SetNextItemTarget(GuideFocusTargets::Action("object.delete"));
-        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"), "Del",
+        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"),
+                ShortcutKeys(editor, EditorShortcut::DeleteSelection).value,
                 editor.GetCanvas() != nullptr, NoProjectReason()))
         {
             return false;
@@ -511,7 +524,8 @@ namespace JBro::EditorActions
         // 빈자리의 붙여넣기는 뿌리에 붙는다. 고른 것 밑이 아니다.
         // 행동 표가 빈자리 메뉴의 길을 가진다(D-268) - 표식이 없으면 그 길은 그려지지 않아 늘 편집 메뉴로 넘어갔다.
         Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"), "Ctrl+V",
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"),
+                ShortcutKeys(editor, EditorShortcut::Paste).value,
                 editor.HasClipboard(), ClipboardEmptyReason()))
         {
             editor.ClearSelection();
