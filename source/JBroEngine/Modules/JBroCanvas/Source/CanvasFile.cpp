@@ -177,6 +177,15 @@ namespace JBro
             {
                 writer.WriteString("ScaleMode", ScreenScaleModeName(layer->GetScaleMode()));
             }
+            // 블렌드와 불투명도도 기본값(Normal·1)이면 적지 않는다(D-279). 키 이름은 기존 엔진의 것이다.
+            if (layer->GetBlend() != LayerBlend::Normal)
+            {
+                writer.WriteString("Blend", LayerBlendName(layer->GetBlend()));
+            }
+            if (layer->GetOpacity() < 1.0f)
+            {
+                writer.WriteFloat("Opacity", layer->GetOpacity());
+            }
             writer.EndMap();
         }
         writer.EndSequence();
@@ -307,6 +316,14 @@ namespace JBro
             {
                 return Fail(error, "a layer names a screen scale mode this engine does not know");
             }
+            LayerBlend blend = LayerBlend::Normal;
+            String blendName;
+            if (document.FindScalar(entry, "Blend", blendName) && false == ParseLayerBlend(blendName.c_str(), blend))
+            {
+                return Fail(error, "a layer names a blend this engine does not know");
+            }
+            float opacity = 1.0f;
+            document.FindFloat(entry, "Opacity", opacity);
 
             // 캔버스는 기본 레이어를 하나 들고 시작한다. 첫 레이어는 그것을 쓴다 —
             // 그러지 않으면 파일을 읽을 때마다 쓰지 않는 레이어가 하나씩 남는다.
@@ -323,6 +340,8 @@ namespace JBro
             layer->SetVisible(visible);
             layer->SetSpace(space);
             layer->SetScaleMode(scaleMode);
+            layer->SetBlend(blend);
+            layer->SetOpacity(opacity);
             layerOf.TryAdd(static_cast<std::uint64_t>(fileId), layer->GetId());
         }
 

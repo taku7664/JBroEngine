@@ -4,26 +4,6 @@
 
 namespace JBro
 {
-    Layer2D::BlendMode Layer2D::GetBlendMode() const
-    {
-        return m_blendMode;
-    }
-
-    void Layer2D::SetBlendMode(BlendMode mode)
-    {
-        m_blendMode = mode;
-    }
-
-    float Layer2D::GetOpacity() const
-    {
-        return m_opacity;
-    }
-
-    void Layer2D::SetOpacity(float opacity)
-    {
-        m_opacity = std::clamp(opacity, 0.0f, 1.0f);
-    }
-
     float Layer2D::GetParallaxFactor() const
     {
         return m_parallaxFactor;

@@ -377,6 +377,17 @@ namespace JBro
                 SetScreenView(false == m_screenView);
             }
         }
+        // 레이어를 고른 것도 같다(D-279, 기존 `IsEditingScreenSpace`). 화면 레이어를 누르면 UI 보기, 월드 레이어면 월드 보기다.
+        if (const LayerId layerId = m_editor->GetSelectedLayer(); layerId != m_lastLayerSelection)
+        {
+            m_lastLayerSelection = layerId;
+            Canvas* canvas = m_editor->GetCanvas();
+            const Layer* layer = canvas != nullptr && layerId != InvalidLayerId ? canvas->FindLayer(layerId) : nullptr;
+            if (layer != nullptr && (layer->GetSpace() == LayerSpace::Screen) != m_screenView)
+            {
+                SetScreenView(false == m_screenView);
+            }
+        }
         DrawToolBar();
         // 그리기 전에 한 발 따라간다. 이번 프레임의 그림·고르기·기즈모가 모두 같은 카메라로 센다.
         FollowCameraGoal(ImGui::GetIO().DeltaTime);

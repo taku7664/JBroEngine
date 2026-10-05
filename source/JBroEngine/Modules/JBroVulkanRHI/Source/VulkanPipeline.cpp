@@ -308,11 +308,33 @@ namespace JBro::Internal
             VkPipelineColorBlendAttachmentState& target = blendTargets[at];
             target.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT
                 | VK_COLOR_COMPONENT_A_BIT;
-            if (desc.blend == BlendMode::Alpha)
+            if (desc.blend != BlendMode::Opaque)
             {
+                // 색의 두 계수만 방식마다 다르다(`BlendMode` 의 표, D3D 백엔드와 1:1). 알파는 모두 One·OneMinusSrcAlpha 다.
+                VkBlendFactor source = VK_BLEND_FACTOR_SRC_ALPHA;
+                VkBlendFactor destination = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                switch (desc.blend)
+                {
+                case BlendMode::LayerNormal:
+                    source = VK_BLEND_FACTOR_ONE;
+                    break;
+                case BlendMode::LayerAdditive:
+                    source = VK_BLEND_FACTOR_ONE;
+                    destination = VK_BLEND_FACTOR_ONE;
+                    break;
+                case BlendMode::LayerMultiply:
+                    source = VK_BLEND_FACTOR_DST_COLOR;
+                    break;
+                case BlendMode::LayerScreen:
+                    source = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+                    destination = VK_BLEND_FACTOR_ONE;
+                    break;
+                default:
+                    break;
+                }
                 target.blendEnable = VK_TRUE;
-                target.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-                target.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+                target.srcColorBlendFactor = source;
+                target.dstColorBlendFactor = destination;
                 target.colorBlendOp = VK_BLEND_OP_ADD;
                 target.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
                 target.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;

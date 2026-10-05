@@ -4,23 +4,10 @@
 
 namespace JBro
 {
+    // 블렌드와 불투명도는 여기 없다 - 캔버스의 `Layer` 가 든다(D-279). 렌더가 읽지 않던 둘째 자리였다.
     class Layer2D final
     {
     public:
-        enum class BlendMode : std::uint8_t
-        {
-            Normal,
-            Additive,
-            Multiply,
-            Screen
-        };
-
-        BlendMode GetBlendMode() const;
-        void SetBlendMode(BlendMode mode);
-
-        float GetOpacity() const;
-        void SetOpacity(float opacity);
-
         float GetParallaxFactor() const;
         void SetParallaxFactor(float factor);
 
@@ -28,8 +15,6 @@ namespace JBro
         void SetForceOwnTexture(bool enabled);
 
     private:
-        BlendMode m_blendMode      = BlendMode::Normal;
-        float     m_opacity        = 1.0f;
         float     m_parallaxFactor = 1.0f;
         bool      m_forceOwnTexture = false;
     };

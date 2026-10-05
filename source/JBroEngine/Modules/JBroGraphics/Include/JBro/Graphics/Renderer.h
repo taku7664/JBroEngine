@@ -23,6 +23,8 @@ namespace JBro
         std::uint32_t maxMeshSubmissions = 16384;
         // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-222).
         std::uint32_t maxWorldTextSubmissions = 16384;
+        // 한 프레임의 레이어 묶음(`BeginLayer`) 상한이다(D-279). 뷰마다 합성하는 레이어 수의 합이다.
+        std::uint32_t maxLayerGroups = 256;
         bool validation = false;
     };
 
@@ -113,6 +115,16 @@ namespace JBro
         SdfText
     };
 
+    // 레이어를 아래에 얹는 방식이다(D-279). `Renderer::BeginLayer` 가 받는다. 캔버스의 `LayerBlend` 와 같은 넷이고,
+    // 렌더러는 캔버스를 모르므로 제 이름을 둔다(`SpriteFilter` 와 에셋의 `TextureFilter` 처럼).
+    enum class CompositeBlend : std::uint8_t
+    {
+        Normal,
+        Additive,
+        Multiply,
+        Screen
+    };
+
     // 정렬과 레이어 합성은 프레임워크가 제출 전에 끝낸다.
     // 렌더러는 받은 순서대로 그린다(D-53). 텍스처가 같은 연속 구간이 드로우 하나다(D-113).
     struct SpriteSubmit
@@ -182,6 +194,13 @@ namespace JBro
         std::uint32_t droppedWorldTextCount = 0;
         // 유효하지 않은(빈 것이 아니라 죽은) 텍스처 핸들을 든 스프라이트다. 흰색으로 그리고 센다.
         std::uint32_t staleTextureSpriteCount = 0;
+        // 제 텍스처에 그려 얹은 레이어 묶음이다(D-279).
+        std::uint32_t compositedLayerCount = 0;
+        // 얹을 텍스처가 아직 없어 그대로 그린 묶음이다. 그 크기의 텍스처는 다음 프레임을 열 때 생긴다 - 디바이스는 프레임 안에서
+        // 자원을 만들지 않는다. 깊이가 달린 뷰(3D)의 묶음도 여기 든다.
+        std::uint32_t uncompositedLayerCount = 0;
+        // 묶음 상한(`RendererConfig::maxLayerGroups`)을 넘어 묶지 못한 것이다. 그 스프라이트는 그대로 그려진다.
+        std::uint32_t droppedLayerCount = 0;
     };
 
     class Renderer final
@@ -206,6 +225,13 @@ namespace JBro
         bool SubmitMeshes(JArrayView<MeshSubmit> items);
         bool SubmitWorldText(const WorldTextSubmit& item);
         bool SubmitWorldTexts(JArrayView<WorldTextSubmit> items);
+        // **레이어 하나를 제 텍스처에 그려 얹는다**(D-279, 기존 `Render2DPipeline` 의 레이어 경로). 이 뒤로 `EndLayer` 까지 낸
+        // 스프라이트는 투명하게 지운 텍스처에 보통 알파로 그려지고, 그 텍스처가 한 장으로 `blend` 와 `opacity` 로 뷰의 타깃에 얹힌다 -
+        // 레이어 안의 스프라이트끼리는 서로 비치지 않고 레이어 전체가 한 번에 옅어진다. 뷰 안에서만 열고, 겹쳐 열지 않는다.
+        // `Normal` 이고 불투명도 1 인 레이어는 열 필요가 없다(열어도 그림은 같고 텍스처만 든다). `EndView` 는 열린 것을 닫는다.
+        // 깊이가 달린 뷰(메시·월드 텍스트가 있는 3D 뷰)에서는 묶음을 보지 않고 그대로 그린다.
+        bool BeginLayer(CompositeBlend blend, float opacity);
+        bool EndLayer();
 
         // 메시 지오메트리를 GPU 에 올리고 `MeshSubmit::mesh` 에 넣을 핸들을 준다. 프레임 밖에서만
         // 부른다. 빈 배열·너무 큰 배열·프레임 안이면 빈 핸들이다.
@@ -292,7 +318,32 @@ namespace JBro
             std::uint32_t worldTextCount = 0;
             std::uint32_t worldTextRunOffset = 0;
             std::uint32_t worldTextRunCount = 0;
+            // 이 뷰의 레이어 묶음(`m_layerGroups`)이다. 스프라이트 번호 순이다.
+            std::uint32_t layerGroupOffset = 0;
+            std::uint32_t layerGroupCount = 0;
         };
+
+        static constexpr std::uint32_t NoLayerGroup = 0xFFFFFFFFu;
+
+        // `BeginLayer`·`EndLayer` 사이에 낸 스프라이트 번호 구간 [first, end) 과 얹는 방식이다.
+        struct LayerGroup
+        {
+            std::uint32_t firstSprite = 0;
+            std::uint32_t endSprite = 0;
+            CompositeBlend blend = CompositeBlend::Normal;
+            float opacity = 1.0f;
+        };
+
+        // 레이어를 그려 둘 텍스처다. 뷰의 타깃 크기마다 하나이고 백버퍼 포맷이다. 프레임 안에서는 만들 수 없으므로, 기록 중에
+        // 없는 크기를 만나면 바라는 크기로 적어 두고 다음 `BeginFrame` 이 프레임을 열기 전에 만든다. 오래 안 쓰면 놓는다.
+        struct LayerTarget
+        {
+            TextureHandle texture;
+            Extent2D extent;
+            std::uint32_t idleFrames = 0;
+        };
+        static constexpr std::size_t MaxLayerTargets = 4;
+        static constexpr std::uint32_t LayerTargetIdleFrames = 300;
 
         // 같은 텍스처와 샘플러로 그리는 스프라이트의 연속 구간이다(D-113). 순서는 제출 순서 그대로다 - 정렬은
         // 프레임워크의 일이고, 여기서는 이웃이 같으면 묶는 것만 한다.
@@ -304,6 +355,8 @@ namespace JBro
             std::uint32_t instanceCount = 0;
             // SDF 텍스트 구간이면 참이다. 인스턴스는 텍스트 버퍼의 같은 번호에 있다.
             bool sdf = false;
+            // 이 구간이 든 레이어 묶음(`m_layerGroups` 의 자리)이다. 묶음 경계에서 구간이 끊긴다.
+            std::uint32_t layerGroup = NoLayerGroup;
         };
 
         // 같은 메시를 그리는 인스턴스들의 연속 구간이다(D-110). 업로드가 뷰 안에서 메시별로 모아 놓으므로
@@ -469,6 +522,21 @@ namespace JBro
         GraphicsPipelineHandle m_outlineGrowPipeline;
         GraphicsPipelineHandle m_outlineCompositePipeline;
         bool RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent);
+        // 레이어 텍스처를 타깃에 얹는다(D-279). 타깃의 패스를 `Load` 로 열고 열린 채로 돌려준다 - 뒤의 구간이 이어 그린다.
+        bool RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Viewport& viewport,
+            const ScissorRect& scissor);
+        // 이 크기의 레이어 텍스처다. 없으면 바라는 크기로 적고 빈 핸들이다.
+        TextureHandle FindLayerTarget(const Extent2D& extent);
+        // 프레임을 열기 전에 바라던 크기의 텍스처를 만들고, 오래 안 쓴 것을 놓는다.
+        void PrepareLayerTargets();
+        void DestroyLayerTargets();
+        // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
+        GraphicsPipelineHandle m_layerCompositePipelines[4];
+        Array<LayerGroup> m_layerGroups;
+        std::uint32_t m_openLayerGroup = NoLayerGroup;
+        LayerTarget m_layerTargets[MaxLayerTargets];
+        Extent2D m_layerTargetWants[MaxLayerTargets];
+        std::size_t m_layerTargetWantCount = 0;
         GraphicsPipelineHandle m_spritePipeline;
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도
         // 쓰지도 않는다 - 파이프라인의 깊이 포맷은 패스의 첨부와 같아야 하기 때문에 둘이 필요하다.

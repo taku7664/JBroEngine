@@ -319,10 +319,23 @@ namespace JBro
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow
             | ImGuiTreeNodeFlags_SpanAvailWidth
             | ImGuiTreeNodeFlags_DefaultOpen;
+        if (m_editor->GetSelectedLayer() == layerId)
+        {
+            flags |= ImGuiTreeNodeFlags_Selected;
+        }
         Widget::TreeDrawContext row;
         Widget::SetNextItemTarget(GuideFocusTargets::HierarchyLayer(layerId));
         const bool opened = Widget::TreeBegin("##layer", flags, &row);
         Widget::TreeEnd();
+        // **레이어 줄을 누르면 그 레이어를 고른다**(D-279, 기존 `LayerTool` 의 `SelectLayer`). 인스펙터가 레이어의 값을 보이고,
+        // 새 오브젝트와 붙여넣기가 그 레이어로 간다. 오브젝트 줄과 같이 **뗄 때** 고른다 - 누르자마자 고르면 줄을 끌어 차례를
+        // 바꾸려는 손짓이 선택부터 바꾼다. 화살표로 접고 편 것은 고르는 것이 아니다.
+        if (ImGui::IsItemHovered() && false == ImGui::IsItemToggledOpen()
+            && ImGui::IsMouseReleased(ImGuiMouseButton_Left)
+            && false == Widget::MouseWasDragged(ImGuiMouseButton_Left))
+        {
+            m_editor->SetSelectedLayer(layerId);
+        }
 
         // 레이어 줄을 끌면 합성 차례가 바뀐다.
         if (Widget::BeginDragSource())

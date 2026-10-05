@@ -916,6 +916,44 @@ namespace
         Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer space is refused");
     }
 
+    // **레이어의 블렌드와 불투명도가 저장된다**(D-279). 키는 기존 엔진의 `Blend`·`Opacity` 이고, 기본값이면 적지 않는다 -
+    // 블렌드가 없던 옛 캔버스는 저장해도 그대로다.
+    void TestLayerBlendAndOpacityComeBack()
+    {
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::Layer& glow = canvas.CreateLayer("Glow");
+            glow.SetBlend(JBro::LayerBlend::Additive);
+            JBro::Layer& fog = canvas.CreateLayer("Fog");
+            fog.SetOpacity(0.25f);
+            text = Save(canvas);
+        }
+        Check(text.find("Blend: Additive") != JBro::String::npos && text.find("Opacity: 0.25") != JBro::String::npos,
+            "a blended layer writes its blend and a faded one its opacity");
+        Check(text.find("Blend: Normal") == JBro::String::npos && text.find("Opacity: 1") == JBro::String::npos,
+            "the defaults write nothing");
+
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, text);
+        Check(reopened.GetLayerCount() == 3, "all three layers come back");
+        const JBro::Layer* base = reopened.GetLayerAt(0);
+        const JBro::Layer* glow = reopened.GetLayerAt(1);
+        const JBro::Layer* fog = reopened.GetLayerAt(2);
+        Check(base->GetBlend() == JBro::LayerBlend::Normal && base->GetOpacity() == 1.0f, "the default layer stays plain");
+        Check(glow->GetBlend() == JBro::LayerBlend::Additive && glow->GetOpacity() == 1.0f, "the glow comes back additive");
+        Check(fog->GetBlend() == JBro::LayerBlend::Normal && fog->GetOpacity() == 0.25f, "the fog comes back at a quarter");
+        Check(Save(reopened) == text, "and saving it again writes the same bytes");
+
+        // 모르는 블렌드는 추측하지 않고 거절한다.
+        JBro::String broken = text;
+        const std::size_t at = broken.find("Blend: Additive");
+        broken.replace(at, 15, "Blend: Overlay");
+        JBro::Canvas refused(JBro::CreateDefaultAllocator());
+        JBro::CanvasFileError error;
+        Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer blend is refused");
+    }
+
     void TestTwoTypesCannotShareAName()
     {
         JBro::Component::RegisterBuiltinComponentTypes2D();
@@ -1201,6 +1239,7 @@ int RunCanvasFileTests()
     TestAComponentSwitchedOffStaysOff();
     TestLayersComeBackWithoutPilingUp();
     TestScreenLayersComeBack();
+    TestLayerBlendAndOpacityComeBack();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
     TestAPolygonColliderMakesTheRoundTrip();

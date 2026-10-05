@@ -63,6 +63,9 @@ namespace JBro
         // 되살릴 때 화면 레이어였는지도 같이 뜬다(D-237).
         LayerSpace m_space = LayerSpace::World;
         ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
+        // 블렌드와 불투명도도 같이 뜬다(D-279). 안 뜨면 되돌린 레이어가 보통 레이어로 돌아온다.
+        LayerBlend m_blend = LayerBlend::Normal;
+        float m_opacity = 1.0f;
         Array<EditorObjectId> m_objects;
         bool m_captured = false;
     };
@@ -140,6 +143,32 @@ namespace JBro
         ScreenScaleMode m_modeAfter = ScreenScaleMode::FixedHeight;
         Array<RootMove> m_after;
         Array<RootMove> m_before;
+        bool m_captured = false;
+    };
+
+    // **레이어의 블렌드와 불투명도를 바꾼다**(D-279). 인스펙터의 블렌드 칸과 불투명도 슬라이더가 낸다. 슬라이더를 끄는 동안
+    // 프레임마다 생기므로 같은 레이어면 합친다 - 끌기 하나가 되돌리기 하나다.
+    class SetLayerCompositeCommand final : public EditorCommand
+    {
+    public:
+        SetLayerCompositeCommand(Canvas& canvas, LayerId layer, LayerBlend blend, float opacity);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+        bool CanMerge(const EditorCommand& newer) const override;
+        bool TryMerge(const EditorCommand& newer) override;
+
+    private:
+        void Apply(LayerBlend blend, float opacity);
+
+        Canvas* m_canvas = nullptr;
+        LayerId m_layerId = InvalidLayerId;
+        LayerBlend m_blendBefore = LayerBlend::Normal;
+        LayerBlend m_blendAfter = LayerBlend::Normal;
+        float m_opacityBefore = 1.0f;
+        float m_opacityAfter = 1.0f;
         bool m_captured = false;
     };
 

@@ -4,6 +4,7 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/HierarchyCommands.h>
+#include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorApplication.h>
@@ -126,7 +127,8 @@ namespace JBro::EditorActions
         {
             return selected->GetLayerId();
         }
-        return InvalidLayerId;
+        // 레이어를 골랐으면 그 레이어다(D-279, 기존 `ResolveTargetLayer`). 고르는 것이 곧 "여기에 놓겠다" 는 뜻이다.
+        return editor.GetSelectedLayer();
     }
 
     GameObject* CreateObject(EditorApplication& editor, GameObject* parent,
@@ -197,6 +199,17 @@ namespace JBro::EditorActions
         if (canvas == nullptr)
         {
             return false;
+        }
+        // **레이어를 골랐으면 그 레이어를 지운다**(D-279, 기존 `DeleteSelectedLayer`). 그 안의 오브젝트도 함께 가고, 되돌리면 같이
+        // 돌아온다(`DeleteLayerCommand`). 마지막 한 장은 지우지 않는다 - 계층의 메뉴와 같은 규칙이다.
+        const LayerId layer = editor.GetSelectedLayer();
+        if (layer != InvalidLayerId)
+        {
+            if (canvas->GetLayerCount() <= 1)
+            {
+                return false;
+            }
+            return editor.GetCommands().Execute(MakeOwnerPtr<DeleteLayerCommand>(*canvas, editor.GetObjectIds(), layer));
         }
         // **맨 위 것들만**이다. 부모를 지우면 자식은 따라 사라진다.
         const Array<GameObject*> targets = editor.GetTopLevelSelectedObjects();

@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorShortcutManager.h>
@@ -266,6 +267,8 @@ namespace JBro
         float m_otherSize = 5.0f;
         // 고른 것이 바뀐 프레임에만 보기를 따라 바꾼다 - 손으로 바꾼 보기를 매 프레임 되돌리지 않는다.
         GameObject* m_lastSelection = nullptr;
+        // 지난 프레임에 고른 레이어다(D-279). 바뀌면 그 레이어의 공간으로 보기를 맞춘다.
+        LayerId m_lastLayerSelection = InvalidLayerId;
         // 이 오브젝트가 지금 보기의 공간에 있는가. 그리기·고르기·테두리가 같은 규칙이다.
         bool InViewSpace(const GameObject& object) const;
         void DrawReferenceRect(const ViewRect& rect);

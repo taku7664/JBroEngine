@@ -161,8 +161,8 @@
   `[완료]` **이름 칸**. 오브젝트의 이름을 고칠 길이 에디터에 하나도 없었다.
   `[완료]` **활성·사용 토글이 커맨드를 거친다.** 예전에는 값을 그대로 써 되돌릴 수 없었다.
   활성은 고른 것 전체에 간다.
-  `[열림]` **캔버스·레이어 인스펙터.** 우리 `Layer` 는 이름·순서·보임뿐이라 보여 줄 것이
-  계층 창과 겹친다. 기존의 합성 속성(공간·배율 방식·시차·자기 텍스처·안전 영역)은 엔진에 없다.
+  `[완료]` **캔버스·레이어 인스펙터.** 캔버스는 D-186, 레이어는 D-279 다 - 계층의 레이어 줄을 누르면 레이어를 고르고 인스펙터가
+  이름·표시·혼합 모드·불투명도·공간·맞춤 방식을 고친다. 기존의 합성 속성 중 시차·자기 텍스처·안전 영역은 아직 엔진에 없다.
   `[완료]` **콜라이더 모양**(D-143). 기존은 캔버스 뷰가 그렸고 우리도 그리로 넣었다.
   상자는 돌면 기울어지고, 트리거는 색이 다르며, 툴바의 토글로 감출 수 있다.
   `[열림]` **접촉점·강체 상태 표시.** 기존은 실행 중의 접촉점과 강체 값을 인스펙터에 적었다.
@@ -218,13 +218,13 @@
 | 캔버스 뷰의 오브젝트 우클릭 메뉴 | `EditorActions::DrawObjectMenu` (계층 줄과 같은 한 벌) | 완료 (D-170) |
 | `Main/GameView/GameViewTool` | `GameViewPanel` (보기만, 상태 글자) | 완료 (D-130) |
 | `Main/Guizmo/Guizmo2D`·`Guizmo3D`·`EditorGuizmoController` | `GizmoModel`·`GizmoEditing`·`Widget::Gizmo` (로컬·월드 포함) | 완료 (D-109·D-140·D-171) |
-| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기·컴포넌트 복사와 붙여넣기·캔버스 배경색) | 완료 (D-142·D-165·D-167·D-186), 레이어 인스펙터는 해당 없음(이름·보임이 전부이고 계층의 줄과 메뉴에 있다, D-183), 캔버스의 뷰포트 목록은 해당 없음(뷰포트가 없다) |
+| `Main/Inspector/InspectorTool` | `InspectorPanel` (이름·활성·필드·다중 편집·프레임 고르기·컴포넌트 복사와 붙여넣기·캔버스 배경색) | 완료 (D-142·D-165·D-167·D-186), 레이어 인스펙터(이름·표시·혼합 모드·불투명도·공간, D-279), 캔버스의 뷰포트 목록은 해당 없음(뷰포트가 없다) |
 | `Main/Importer/SpriteFramePick` | `EditorApplication::BeginSpriteFramePick` + 뷰어의 고르기 줄 | 완료 (D-165) |
 | `Main/Inspector/AssetInspectorPreview` | 인스펙터 미리보기 + 머리 네 줄·뷰어에서 열기 | 완료 (D-147·D-173) |
 | `Main/Inspector/EditorAudioPreview` | — | 해당 없음 (오디오 없음) |
 | `Main/Inspector/EffectEditorWidget`·`EffectEditorWindow` | — | 해당 없음 (이펙트 없음) |
 | `Main/Inspector/ButtonRectFit` | — | 해당 없음 (`Button2D` 없음) |
-| `Main/Layers/LayerTool` | `HierarchyPanel` (캔버스 줄·레이어 머리·순서·부모 해제·보임·오브젝트 눈·Shift 범위 선택) | 완료 (D-128·D-135·D-163·D-169), 이름 고치기가 한 커맨드인 것은 D-183, 맨 위의 캔버스 줄은 D-186 |
+| `Main/Layers/LayerTool` | `HierarchyPanel` (캔버스 줄·레이어 머리·순서·부모 해제·보임·오브젝트 눈·Shift 범위 선택·레이어 고르기) | 완료 (D-128·D-135·D-163·D-169), 이름 고치기가 한 커맨드인 것은 D-183, 맨 위의 캔버스 줄은 D-186, 레이어 줄로 레이어를 고르는 것은 D-279 |
 | `Engine/Editor/ImEditor` (창·팝업·미룬 일·뷰 타깃·캔버스 뷰 선택/숨김) | `EditorApplication` · `EditorPanel` · `EditorPopup` | 완료 (D-163 에서 공개 기능 하나씩 대조), 카메라 컬링 통계·GPU 미리보기는 열림 |
 | `Main/AssetBrowser/AssetBrowserTool`·`Utils`·`AssetHandler` | `AssetBrowserPanel` (두 칸·파일 다루기·다중 선택·아이콘·끌어 놓기·파일 클립보드) | 완료 (D-139·D-141·D-147·D-154·D-182), `.meta` 보이기는 해당 없음(레지스트리를 본다), 즐겨찾기는 기존도 빈 제목줄 |
 | `Main/EditorAssetPickDialog` | 에셋 칸의 검색 드롭다운 + 브라우저에서 열기 | 완료 (D-118·D-155) |

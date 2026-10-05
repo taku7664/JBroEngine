@@ -114,6 +114,8 @@ namespace JBro
         m_visible = found->IsVisible();
         m_space = found->GetSpace();
         m_scaleMode = found->GetScaleMode();
+        m_blend = found->GetBlend();
+        m_opacity = found->GetOpacity();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
         canvas.ForEachObject([this, layer](GameObject& object)
         {
@@ -151,6 +153,8 @@ namespace JBro
         restored.SetVisible(m_visible);
         restored.SetSpace(m_space);
         restored.SetScaleMode(m_scaleMode);
+        restored.SetBlend(m_blend);
+        restored.SetOpacity(m_opacity);
         m_layerId = restored.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
@@ -367,6 +371,84 @@ namespace JBro
     {
         Apply(true);
     }
+
+    // ── SetLayerCompositeCommand ─────────────────────────────────────────
+
+    SetLayerCompositeCommand::SetLayerCompositeCommand(Canvas& canvas, LayerId layer, LayerBlend blend, float opacity)
+        : m_canvas(&canvas)
+        , m_layerId(layer)
+        , m_blendAfter(blend)
+    {
+        const Layer* found = canvas.FindLayer(layer);
+        if (found == nullptr)
+        {
+            return;
+        }
+        m_blendBefore = found->GetBlend();
+        m_opacityBefore = found->GetOpacity();
+        // 레이어가 받는 값으로 자른 것을 든다. 그래야 "바뀐 것이 없다" 를 레이어와 같은 눈으로 잰다.
+        Layer probe(InvalidLayerId, "");
+        probe.SetOpacity(m_opacityBefore);
+        probe.SetOpacity(opacity);
+        m_opacityAfter = probe.GetOpacity();
+        m_captured = true;
+    }
+
+    const char* SetLayerCompositeCommand::GetName() const
+    {
+        return "Set Layer Blend";
+    }
+
+    bool SetLayerCompositeCommand::Execute()
+    {
+        if (false == m_captured || (m_blendBefore == m_blendAfter && m_opacityBefore == m_opacityAfter)
+            || m_canvas->FindLayer(m_layerId) == nullptr)
+        {
+            return false;
+        }
+        Apply(m_blendAfter, m_opacityAfter);
+        return true;
+    }
+
+    void SetLayerCompositeCommand::Undo()
+    {
+        Apply(m_blendBefore, m_opacityBefore);
+    }
+
+    void SetLayerCompositeCommand::Redo()
+    {
+        Apply(m_blendAfter, m_opacityAfter);
+    }
+
+    bool SetLayerCompositeCommand::CanMerge(const EditorCommand& newer) const
+    {
+        const auto* other = dynamic_cast<const SetLayerCompositeCommand*>(&newer);
+        return other != nullptr && other->m_canvas == m_canvas && other->m_layerId == m_layerId;
+    }
+
+    bool SetLayerCompositeCommand::TryMerge(const EditorCommand& newer)
+    {
+        if (false == CanMerge(newer))
+        {
+            return false;
+        }
+        // 도착값만 흡수한다. 처음 값은 끌기를 시작하기 전의 것이다.
+        const auto& other = static_cast<const SetLayerCompositeCommand&>(newer);
+        m_blendAfter = other.m_blendAfter;
+        m_opacityAfter = other.m_opacityAfter;
+        return true;
+    }
+
+    void SetLayerCompositeCommand::Apply(LayerBlend blend, float opacity)
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetBlend(blend);
+            layer->SetOpacity(opacity);
+        }
+    }
+
+    // ── SetLayerVisibleCommand ───────────────────────────────────────────
 
     SetLayerVisibleCommand::SetLayerVisibleCommand(Canvas& canvas, LayerId layer, bool visible)
         : m_canvas(&canvas)

@@ -1270,6 +1270,7 @@ namespace JBro
             m_selection.Clear();
             m_selected = {};
             m_canvasSelected = false;
+            m_selectedLayer = InvalidLayerId;
         }
         m_selectedAsset = id;
         ReloadSelectedAssetMeta();
@@ -1286,6 +1287,7 @@ namespace JBro
             m_selected = {};
             m_selectedAsset = AssetId{};
             ReloadSelectedAssetMeta();
+            m_selectedLayer = InvalidLayerId;
         }
         m_canvasSelected = selected;
     }
@@ -1293,6 +1295,32 @@ namespace JBro
     bool EditorApplication::IsCanvasSelected() const
     {
         return m_canvasSelected;
+    }
+
+    void EditorApplication::SetSelectedLayer(LayerId layer)
+    {
+        // 넷은 서로 배타다(D-186·D-279). 인스펙터는 하나만 보인다.
+        if (layer != InvalidLayerId)
+        {
+            m_selection.Clear();
+            m_selected = {};
+            m_selectedAsset = AssetId{};
+            ReloadSelectedAssetMeta();
+            m_canvasSelected = false;
+        }
+        m_selectedLayer = layer;
+    }
+
+    LayerId EditorApplication::GetSelectedLayer()
+    {
+        // **지운 레이어는 고른 것이 아니다.** 번호만 들고 있으므로, 캔버스에 그 번호가 없으면 무효값을 돌려준다 -
+        // 인스펙터가 죽은 레이어를 그리거나 새 오브젝트가 없는 레이어로 가지 않는다.
+        Canvas* canvas = GetCanvas();
+        if (m_selectedLayer == InvalidLayerId || canvas == nullptr || canvas->FindLayer(m_selectedLayer) == nullptr)
+        {
+            return InvalidLayerId;
+        }
+        return m_selectedLayer;
     }
 
     AssetId EditorApplication::GetSelectedAsset() const
@@ -1658,7 +1686,21 @@ namespace JBro
                 parentId = m_objectIds.Track(parent);
             }
         }
-        auto command = MakeOwnerPtr<PasteObjectsCommand>(*canvas, m_objectIds, m_clipboard, parentId);
+        // **레이어를 골랐으면 그 레이어에 붙인다**(D-279). 뿌리로 붙으므로 나무 전체가 그 레이어로 간다 - 자식만 다른 레이어에
+        // 남으면 부모와 다른 칸에 놓인다. 떠 둔 클립보드는 그대로 두고 이번 붙여넣기의 사본만 바꾼다.
+        Array<ObjectTreeSnapshot> trees = m_clipboard;
+        const LayerId layer = GetSelectedLayer();
+        if (layer != InvalidLayerId)
+        {
+            for (std::size_t tree = 0; tree < trees.Size(); ++tree)
+            {
+                for (std::size_t entry = 0; entry < trees[tree].objects.Size(); ++entry)
+                {
+                    trees[tree].objects[entry].layer = layer;
+                }
+            }
+        }
+        auto command = MakeOwnerPtr<PasteObjectsCommand>(*canvas, m_objectIds, trees, parentId);
         PasteObjectsCommand* raw = command.Get();
         if (false == m_commands.Execute(std::move(command)))
         {
@@ -2772,6 +2814,7 @@ namespace JBro
             m_selectedAsset = {};
             m_selectedAssetMetaLoaded = false;
             m_canvasSelected = false;
+            m_selectedLayer = InvalidLayerId;
         }
         m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
     }
@@ -2789,6 +2832,7 @@ namespace JBro
             m_selectedAsset = {};
             m_selectedAssetMetaLoaded = false;
             m_canvasSelected = false;
+            m_selectedLayer = InvalidLayerId;
         }
         for (std::size_t index = 0; index < objects.size; ++index)
         {
@@ -2809,6 +2853,8 @@ namespace JBro
             return;
         }
         m_selection.Add(object->SafeFromThis());
+        // 레이어를 고른 채 Ctrl 로 오브젝트를 더하면 레이어 선택은 빈다 - 인스펙터는 하나만 보인다(D-279).
+        m_selectedLayer = InvalidLayerId;
         if (m_selected.TryGet() == nullptr)
         {
             // 주된 것이 없거나 죽었다. 방금 더한 것이 그 자리를 받는다.
@@ -2866,6 +2912,7 @@ namespace JBro
         m_selectedAsset = {};
         m_selectedAssetMetaLoaded = false;
         m_canvasSelected = false;
+        m_selectedLayer = InvalidLayerId;
     }
 
     std::size_t EditorApplication::GetSelectionCount() const

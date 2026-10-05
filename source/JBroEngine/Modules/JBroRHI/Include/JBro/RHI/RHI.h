@@ -200,10 +200,20 @@ namespace JBro
         TriangleList
     };
 
+    // `Alpha` 는 곧은 알파(색 SrcAlpha·InvSrcAlpha)다. `Layer*` 넷은 **미리 곱한 색**을 얹는다(D-279) - 투명하게 지운 텍스처에
+    // `Alpha` 로 그린 레이어가 그렇다. 색에 알파를 또 곱하면 반투명한 가장자리가 어두워진다. 넷 모두 알파는 One·InvSrcAlpha 다.
+    //   LayerNormal   색 One·InvSrcAlpha       s + (1 - sa)·d
+    //   LayerAdditive 색 One·One               s + d
+    //   LayerMultiply 색 DestColor·InvSrcAlpha s·d + (1 - sa)·d
+    //   LayerScreen   색 InvDestColor·One      s·(1 - d) + d
     enum class BlendMode : std::uint8_t
     {
         Opaque,
-        Alpha
+        Alpha,
+        LayerNormal,
+        LayerAdditive,
+        LayerMultiply,
+        LayerScreen
     };
 
     enum class CullMode : std::uint8_t

@@ -63,8 +63,22 @@ namespace
         Check(object != nullptr && false == canvas.SetObjectLayer(object, backgroundIndex),
             "assigning a missing layer must fail without indexing outside the layer array");
 
-        static_assert(false == HasLayerOpacity<JBro::Layer>,
-            "runtime Layer must not expose Framework2D composition state");
+        // **블렌드와 불투명도는 캔버스의 `Layer` 가 든다**(D-279, D-237 의 공간과 같은 자리). 파일과 에디터의 커맨드가 그것을 보고,
+        // 같은 값이 `Layer2D` 에 또 있으면 어느 쪽이 그려지는지 갈린다 - 둘째 자리가 없어야 한다.
+        static_assert(HasLayerOpacity<JBro::Layer>, "the canvas layer carries its blend and opacity");
+        static_assert(false == HasLayerOpacity<JBro::Layer2D>, "and Layer2D must not hold a second copy of them");
+        JBro::Layer& faded = canvas.CreateLayer("Faded");
+        faded.SetOpacity(2.0f);
+        Check(faded.GetOpacity() == 1.0f && false == faded.NeedsComposite(), "opacity is clamped to one and needs no texture");
+        faded.SetOpacity(0.25f);
+        Check(faded.GetOpacity() == 0.25f && faded.NeedsComposite(), "a faded layer is drawn through its own texture");
+        faded.SetOpacity(1.0f);
+        faded.SetBlend(JBro::LayerBlend::Screen);
+        Check(faded.NeedsComposite(), "so is a layer with a blend other than normal");
+        JBro::LayerBlend parsed = JBro::LayerBlend::Normal;
+        Check(JBro::ParseLayerBlend("Multiply", parsed) && parsed == JBro::LayerBlend::Multiply
+                && false == JBro::ParseLayerBlend("Overlay", parsed) && parsed == JBro::LayerBlend::Multiply,
+            "blend names parse, and an unknown one leaves the value alone");
     }
 
     void TestFramework2DBootstraps()
@@ -82,11 +96,8 @@ namespace
         Check(foreground != nullptr, "Framework2D must create a runtime layer and its 2D state together");
         JBro::Layer2D* foregroundState = framework.GetLayer2D(foreground->GetId());
         Check(foregroundState != nullptr, "created Framework2D layer must expose its 2D state");
-        foregroundState->SetOpacity(0.5f);
-        foregroundState->SetBlendMode(JBro::Layer2D::BlendMode::Additive);
-        Check(foregroundState->GetOpacity() == 0.5f
-            && foregroundState->GetBlendMode() == JBro::Layer2D::BlendMode::Additive,
-            "Layer2D must retain Framework2D composition settings");
+        foregroundState->SetParallaxFactor(0.5f);
+        Check(foregroundState->GetParallaxFactor() == 0.5f, "Layer2D must retain Framework2D layer settings");
         const JBro::LayerId foregroundIndex = foreground->GetId();
         Check(framework.DestroyLayer(foregroundIndex),
             "Framework2D must destroy runtime layer and 2D state together");
