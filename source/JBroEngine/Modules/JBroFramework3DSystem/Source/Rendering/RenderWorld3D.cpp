@@ -9,6 +9,7 @@ namespace JBro
         try
         {
             m_meshes.Reserve(capacity);
+            m_layerOrders.Reserve(m_meshes.Capacity() + m_texts.Capacity());
         }
         catch (const std::bad_alloc&)
         {
@@ -23,6 +24,7 @@ namespace JBro
         {
             m_texts.Reserve(capacity);
             m_textOrder.Reserve(capacity);
+            m_layerOrders.Reserve(m_meshes.Capacity() + m_texts.Capacity());
         }
         catch (const std::bad_alloc&)
         {
@@ -69,6 +71,11 @@ namespace JBro
     Array<std::uint32_t>& RenderWorld3D::GetTextOrderScratch() const
     {
         return m_textOrder;
+    }
+
+    Array<std::uint16_t>& RenderWorld3D::GetLayerOrderScratch() const
+    {
+        return m_layerOrders;
     }
 
     void RenderWorld3D::SetCamera(const RenderCamera3D& camera)

@@ -65,6 +65,9 @@ namespace JBro::System
             item.mesh = renderer.mesh;
             item.material = renderer.material;
             item.tint = renderer.tint;
+            item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
+            item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
+            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
             m_renderWorld->SubmitMesh(item);
         });
     }
