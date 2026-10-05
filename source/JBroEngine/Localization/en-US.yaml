@@ -263,6 +263,18 @@ Entries:
   hierarchy.canvas_unsaved: Canvas (unsaved)
   inspector.canvas_properties: Canvas
   inspector.canvas_background: Background colour
+  inspector.layer_properties: Layer
+  inspector.layer_visible: Visible
+  inspector.layer_blend: Blend Mode
+  inspector.layer_blend_tooltip: the layer is drawn as one image and laid onto what is below it this way; its opacity applies to the whole layer once
+  inspector.layer_blend_normal: Normal
+  inspector.layer_blend_additive: Additive
+  inspector.layer_blend_multiply: Multiply
+  inspector.layer_blend_screen: Screen
+  inspector.layer_opacity: Opacity
+  inspector.layer_space: Space
+  inspector.layer_space_world: World
+  inspector.layer_space_screen: Screen
   hierarchy.layer_empty: this layer is empty
   hierarchy.layer_visible: show or hide this layer
   panel.project_settings: Project Settings

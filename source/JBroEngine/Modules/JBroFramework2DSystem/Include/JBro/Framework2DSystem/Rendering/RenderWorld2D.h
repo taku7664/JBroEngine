@@ -51,6 +51,9 @@ namespace JBro
         // 화면 레이어의 것이다(D-237). 참이면 좌표는 기준 해상도의 픽셀이고 월드 뷰 뒤의 화면 뷰에 그려진다.
         bool          screenSpace = false;
         ScreenScaleMode scaleMode = ScreenScaleMode::FixedHeight;
+        // 레이어를 얹는 방식이다(D-279). `Normal` 이 아니거나 불투명도가 1 보다 작으면 브리지가 그 레이어를 렌더러의 묶음으로 낸다.
+        LayerBlend    layerBlend = LayerBlend::Normal;
+        float         layerOpacity = 1.0f;
     };
 
     // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).

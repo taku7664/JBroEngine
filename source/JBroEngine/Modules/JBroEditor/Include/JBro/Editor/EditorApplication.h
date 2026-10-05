@@ -316,6 +316,11 @@ namespace JBro
         // 캔버스의 값(배경색)을 보여 준다. 오브젝트·에셋 선택과 배타다 - 인스펙터는 하나만 보인다.
         void SetCanvasSelected(bool selected);
         bool IsCanvasSelected() const;
+        // **레이어를 고른다**(D-279, 기존 `Editor::SelectLayer`). 고르면 인스펙터가 그 레이어의 값(이름·보임·블렌드·불투명도·공간)을
+        // 보여 주고, 새 오브젝트와 붙여넣기가 그 레이어로 간다. 오브젝트·에셋·캔버스 선택과 배타다. 포인터가 아니라 번호로 든다 -
+        // 레이어를 지웠다 되돌리면 새 번호가 서므로, 고른 레이어가 사라지면 `GetSelectedLayer` 는 무효값이다.
+        void SetSelectedLayer(LayerId layer);
+        LayerId GetSelectedLayer();
         AssetId GetSelectedAsset() const;
         // 고른 에셋의 메타(디스크에 있는 그대로)다. 고른 것이 없거나 메타를 읽지 못했으면 nullptr 다. 커맨드가 돌면
         // (판번호) 다시 읽으므로 편집·되돌리기 뒤에도 디스크와 같다.
@@ -785,6 +790,8 @@ namespace JBro
         AssetId m_selectedAsset;
         // 캔버스 자신을 골랐는가(D-186). 위의 둘과 배타다.
         bool    m_canvasSelected = false;
+        // 고른 레이어(D-279). 위의 셋과 배타다.
+        LayerId m_selectedLayer = InvalidLayerId;
         OwnerPtr<AssetMetaFile> m_selectedAssetMeta;
         bool m_selectedAssetMetaLoaded = false;
         void ReloadSelectedAssetMeta();

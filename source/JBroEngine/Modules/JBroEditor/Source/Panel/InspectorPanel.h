@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
 #include <JBro/Editor/ScalarRun.h>
@@ -167,6 +168,8 @@ namespace JBro
         void DrawAddComponent(GameObject& object);
         // 캔버스 자신을 골랐을 때의 화면이다(D-186).
         void DrawCanvas();
+        // 레이어를 골랐을 때의 화면이다(D-279).
+        void DrawLayer(LayerId layerId);
         void RemoveComponent(GameObject& object, ComponentBase& component);
         // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.
         void MoveComponent(GameObject& object, std::size_t from, std::size_t to);
@@ -208,6 +211,10 @@ namespace JBro
         const GameObject* m_namedObject = nullptr;
         // 지난 프레임에 이름 칸이 글자를 받고 있었는가. 그렇지 않으면 칸의 글자를 다시 든다.
         bool m_nameEditing = false;
+        // 레이어 이름 칸의 것이다(D-279). 오브젝트 이름 칸과 같은 규칙이다.
+        String m_layerName;
+        LayerId m_namedLayer = InvalidLayerId;
+        bool m_layerNameEditing = false;
 
         // ── 오디오 미리 듣기(D-197) ──
         // 보고 있는 오디오 에셋과 그 요약이다. 에셋이 바뀌거나 자료가 다시 읽히면(판번호) 다시 잰다 - 파형은 한 번만 푼다.

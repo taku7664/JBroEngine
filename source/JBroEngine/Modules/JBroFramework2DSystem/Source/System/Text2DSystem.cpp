@@ -148,6 +148,8 @@ namespace JBro::System
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.screenSpace = entry.screenSpace;
             item.scaleMode = layer != nullptr ? layer->GetScaleMode() : ScreenScaleMode::FixedHeight;
+            item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
+            item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
             // 글리프 쿼드의 왼쪽 위를 오브젝트 로컬에 두고(피벗 {0, 1}), 오브젝트 월드로 옮긴다.
             Matrix3x2 local;
             local.m31 = quad.left / ppu;

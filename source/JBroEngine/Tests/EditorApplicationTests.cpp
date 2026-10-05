@@ -10442,6 +10442,121 @@ namespace
         editor.Shutdown();
     }
 
+    // **레이어 줄을 누르면 그 레이어를 고르고, 인스펙터가 블렌드와 불투명도를 고친다**(D-279, 기존 `LayerTool`·
+    // `DrawSelectedLayerInspector`). 레이어를 고르는 길이 없어 혼합 모드를 둘 자리가 없었다. 고른 레이어는 새 오브젝트·붙여넣기·
+    // 지우기의 대상이고, 오브젝트·캔버스 선택과 배타다.
+    void TestALayerRowSelectsTheLayerForTheInspector()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; layer selection not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "LayerSelectProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        const JBro::LayerId glowId = canvas->CreateLayer("Glow").GetId();
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        // ── 줄을 누르면 고른다 ─────────────────────────────
+        editor.SetSelectedObject(probe);
+        ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
+        Check(hierarchy != nullptr, "the hierarchy must have a window");
+        Spot row;
+        Check(FindItemAnywhereInWindow(editor, hwnd, hierarchy,
+                  LabelId(PushedId(hierarchy->ID, static_cast<int>(glowId)), "##layer"), row),
+            "the glow layer must have a row");
+        ClickAt(editor, hwnd, row);
+        Check(editor.Tick(Frame), "the editor must settle on the layer row");
+        Check(editor.GetSelectedLayer() == glowId, "clicking the layer row must choose that layer");
+        Check(editor.GetSelectedObject() == nullptr, "and let go of the object - the inspector shows one thing");
+        editor.SetCanvasSelected(true);
+        Check(editor.GetSelectedLayer() == JBro::InvalidLayerId, "choosing the canvas lets go of the layer");
+        editor.SetSelectedLayer(glowId);
+        Check(false == editor.IsCanvasSelected(), "and choosing the layer again lets go of the canvas");
+
+        // ── 인스펙터의 불투명도 슬라이더 ───────────────────────
+        // 표는 창 바로 아래 `##layer` 다. 슬라이더를 값 칸의 가운데쯤에서 누르면 그 자리의 값이 된다 - 1 보다 작다.
+        Check(editor.Tick(Frame), "the inspector must draw the layer");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID table = LabelId(inspector->ID, "##layer");
+        Spot blend;
+        Check(FindInspectorItem(editor, hwnd, LabelId(table, "##layerBlend"), blend),
+            "the inspector must show the layer's blend mode");
+        Spot opacity;
+        Check(FindInspectorItem(editor, hwnd, LabelId(table, "##layerOpacity"), opacity),
+            "and its opacity");
+        const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
+        ClickAt(editor, hwnd, opacity);
+        Check(editor.Tick(Frame), "the editor must settle after the slider");
+        JBro::Layer* glow = canvas->FindLayer(glowId);
+        Check(glow->GetOpacity() > 0.05f && glow->GetOpacity() < 0.95f, "pressing the slider must fade the layer");
+        Check(editor.GetCommands().GetUndoCount() == undoBefore + 1, "as one command");
+        Check(editor.GetCommands().Undo() && glow->GetOpacity() == 1.0f, "and one undo brings it back");
+
+        // ── 커맨드: 끌기는 합치고, 블렌드도 같은 커맨드다 ─────────────
+        JBro::SetLayerCompositeCommand first(*canvas, glowId, JBro::LayerBlend::Normal, 0.6f);
+        Check(first.Execute(), "the first drag step runs");
+        const JBro::SetLayerCompositeCommand second(*canvas, glowId, JBro::LayerBlend::Normal, 0.3f);
+        Check(first.TryMerge(second) && first.Execute() && glow->GetOpacity() == 0.3f, "a drag lands on its last value");
+        first.Undo();
+        Check(glow->GetOpacity() == 1.0f, "and undo goes back to before the drag");
+        Check(false == JBro::SetLayerCompositeCommand(*canvas, glowId, JBro::LayerBlend::Normal, 1.0f).Execute(),
+            "a command that changes nothing is not recorded");
+        Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::SetLayerCompositeCommand>(
+                  *canvas, glowId, JBro::LayerBlend::Screen, 0.5f)),
+            "the blend and opacity go through a command");
+        Check(glow->GetBlend() == JBro::LayerBlend::Screen && glow->GetOpacity() == 0.5f, "both are applied");
+
+        // ── 새 오브젝트와 붙여넣기는 고른 레이어로 간다 ─────────────
+        JBro::GameObject* made = JBro::EditorActions::CreateObject(editor, nullptr);
+        Check(made != nullptr && made->GetLayerId() == glowId, "a new object goes on the chosen layer");
+        editor.SetSelectedObject(probe);
+        Check(editor.CopySelection(), "the probe copies");
+        editor.SetSelectedLayer(glowId);
+        Check(editor.PasteClipboard(), "the probe pastes");
+        JBro::GameObject* pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted != probe && pasted->GetLayerId() == glowId,
+            "a paste goes on the chosen layer, not the one it was copied from");
+
+        // ── 지우기는 고른 레이어를 지운다. 되돌리면 블렌드도 돌아온다 ─────────
+        editor.SetSelectedLayer(glowId);
+        const std::size_t layersBefore = canvas->GetLayerCount();
+        Check(JBro::EditorActions::DeleteSelection(editor), "deleting with a layer chosen deletes the layer");
+        Check(canvas->GetLayerCount() == layersBefore - 1 && canvas->FindLayer(glowId) == nullptr, "the layer is gone");
+        Check(editor.GetSelectedLayer() == JBro::InvalidLayerId, "and nothing is left chosen");
+        Check(editor.GetCommands().Undo(), "the delete undoes");
+        const JBro::Layer* restored = canvas->GetLayerAt(canvas->GetLayerCount() - 1);
+        Check(restored != nullptr && std::strcmp(restored->GetName(), "Glow") == 0
+                && restored->GetBlend() == JBro::LayerBlend::Screen && restored->GetOpacity() == 0.5f,
+            "the layer comes back with its blend and opacity");
+        // 마지막 한 장은 지우지 않는다.
+        while (canvas->GetLayerCount() > 1)
+        {
+            canvas->DestroyLayer(canvas->GetLayerAt(canvas->GetLayerCount() - 1)->GetId());
+        }
+        editor.SetSelectedLayer(canvas->GetDefaultLayer());
+        Check(false == JBro::EditorActions::DeleteSelection(editor) && canvas->GetLayerCount() == 1,
+            "the last layer is not deleted");
+
+        editor.Shutdown();
+    }
+
     // 계층의 줄 하나가 차지한 Id.
     //
     // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
@@ -12778,6 +12893,7 @@ int RunEditorApplicationTests()
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
+    TestALayerRowSelectsTheLayerForTheInspector();
     TestTheGizmoCanWorkInWorldAxes();
     TestRemappedShortcutsAreSavedAndReadBack();
     TestGizmoKeysFollowTheCanvasViewFocus();

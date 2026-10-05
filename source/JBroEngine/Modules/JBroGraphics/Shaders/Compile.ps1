@@ -47,7 +47,8 @@ $targets = @(
     @{ File = 'BuiltinWorldText.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinWorldTextPS'; Header = 'BuiltinWorldTextPS.generated.h' },
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinOutlineVS'; Header = 'BuiltinOutlineVS.generated.h' },
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineGrowPS'; Header = 'BuiltinOutlineGrowPS.generated.h' },
-    @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineCompositePS'; Header = 'BuiltinOutlineCompositePS.generated.h' }
+    @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineCompositePS'; Header = 'BuiltinOutlineCompositePS.generated.h' },
+    @{ File = 'BuiltinLayerComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerCompositePS'; Header = 'BuiltinLayerCompositePS.generated.h' }
 )
 
 $sm5Targets = @(
@@ -61,7 +62,8 @@ $sm5Targets = @(
     @{ File = 'BuiltinWorldText.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinWorldTextPS_SM5'; Header = 'BuiltinWorldTextPS_SM5.generated.h' },
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroBuiltinOutlineVS_SM5'; Header = 'BuiltinOutlineVS_SM5.generated.h' },
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinOutlineGrowPS_SM5'; Header = 'BuiltinOutlineGrowPS_SM5.generated.h' },
-    @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinOutlineCompositePS_SM5'; Header = 'BuiltinOutlineCompositePS_SM5.generated.h' }
+    @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinOutlineCompositePS_SM5'; Header = 'BuiltinOutlineCompositePS_SM5.generated.h' },
+    @{ File = 'BuiltinLayerComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinLayerCompositePS_SM5'; Header = 'BuiltinLayerCompositePS_SM5.generated.h' }
 )
 
 $spirvTargets = @(
@@ -75,7 +77,8 @@ $spirvTargets = @(
     @{ File = 'BuiltinWorldText.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinWorldTextPS_SPV'; Header = 'BuiltinWorldTextPS_SPV.generated.h' },
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinOutlineVS_SPV'; Header = 'BuiltinOutlineVS_SPV.generated.h' },
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineGrowPS_SPV'; Header = 'BuiltinOutlineGrowPS_SPV.generated.h' },
-    @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineCompositePS_SPV'; Header = 'BuiltinOutlineCompositePS_SPV.generated.h' }
+    @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineCompositePS_SPV'; Header = 'BuiltinOutlineCompositePS_SPV.generated.h' },
+    @{ File = 'BuiltinLayerComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerCompositePS_SPV'; Header = 'BuiltinLayerCompositePS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)

@@ -307,11 +307,33 @@ namespace JBro::Internal
         {
             D3D12_RENDER_TARGET_BLEND_DESC& target = pipelineDesc.BlendState.RenderTarget[index];
             target.RenderTargetWriteMask = D3D12_COLOR_WRITE_ENABLE_ALL;
-            if (desc.blend == BlendMode::Alpha)
+            if (desc.blend != BlendMode::Opaque)
             {
+                // 색의 두 계수만 방식마다 다르다(`BlendMode` 의 표). 알파는 모두 One·InvSrcAlpha 다.
+                D3D12_BLEND source = D3D12_BLEND_SRC_ALPHA;
+                D3D12_BLEND destination = D3D12_BLEND_INV_SRC_ALPHA;
+                switch (desc.blend)
+                {
+                case BlendMode::LayerNormal:
+                    source = D3D12_BLEND_ONE;
+                    break;
+                case BlendMode::LayerAdditive:
+                    source = D3D12_BLEND_ONE;
+                    destination = D3D12_BLEND_ONE;
+                    break;
+                case BlendMode::LayerMultiply:
+                    source = D3D12_BLEND_DEST_COLOR;
+                    break;
+                case BlendMode::LayerScreen:
+                    source = D3D12_BLEND_INV_DEST_COLOR;
+                    destination = D3D12_BLEND_ONE;
+                    break;
+                default:
+                    break;
+                }
                 target.BlendEnable = TRUE;
-                target.SrcBlend = D3D12_BLEND_SRC_ALPHA;
-                target.DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+                target.SrcBlend = source;
+                target.DestBlend = destination;
                 target.BlendOp = D3D12_BLEND_OP_ADD;
                 target.SrcBlendAlpha = D3D12_BLEND_ONE;
                 target.DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;

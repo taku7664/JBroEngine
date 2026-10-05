@@ -112,11 +112,33 @@ namespace JBro::Internal
 
         D3D11_BLEND_DESC blend = {};
         blend.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
-        if (desc.blend == BlendMode::Alpha)
+        if (desc.blend != BlendMode::Opaque)
         {
+            // 색의 두 계수만 방식마다 다르다(`BlendMode` 의 표). 알파는 모두 One·InvSrcAlpha 다.
+            D3D11_BLEND source = D3D11_BLEND_SRC_ALPHA;
+            D3D11_BLEND destination = D3D11_BLEND_INV_SRC_ALPHA;
+            switch (desc.blend)
+            {
+            case BlendMode::LayerNormal:
+                source = D3D11_BLEND_ONE;
+                break;
+            case BlendMode::LayerAdditive:
+                source = D3D11_BLEND_ONE;
+                destination = D3D11_BLEND_ONE;
+                break;
+            case BlendMode::LayerMultiply:
+                source = D3D11_BLEND_DEST_COLOR;
+                break;
+            case BlendMode::LayerScreen:
+                source = D3D11_BLEND_INV_DEST_COLOR;
+                destination = D3D11_BLEND_ONE;
+                break;
+            default:
+                break;
+            }
             blend.RenderTarget[0].BlendEnable = TRUE;
-            blend.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
-            blend.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+            blend.RenderTarget[0].SrcBlend = source;
+            blend.RenderTarget[0].DestBlend = destination;
             blend.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
             blend.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
             blend.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;

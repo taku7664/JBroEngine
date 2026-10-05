@@ -1115,6 +1115,88 @@ namespace
         project.Close();
     }
 
+    // **캔버스 레이어의 블렌드와 불투명도가 화면까지 간다**(D-279). 캔버스의 `Layer` → 렌더 추출의 아이템 → 브리지의 묶음 → 렌더러의
+    // 합성이다. 회색(0.5) 바탕에 더하기 레이어의 빨강은 (1, 0.7, 0.7), 화면 레이어에 곱하기 빨강은 (0.5, 0.1, 0.1) 이다. 레이어마다
+    // 묶음이 하나다 - 같은 블렌드의 두 레이어도 따로 얹힌다. 첫 프레임은 얹을 텍스처를 만드는 프레임이라 둘째부터 본다.
+    void TestLayerBlendReachesTheScreen()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; layer blends not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            ScreenSpaceFrame screen;
+            screen.referenceWidth = 64.0f;
+            screen.referenceHeight = 64.0f;
+            screen.targetWidth = 64.0f;
+            screen.targetHeight = 64.0f;
+            framework.SetScreenSpace(screen);
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject);
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {0.5f, 0.5f, 0.5f, 1.0f};
+            const auto redSquare = [&](const char* name, Layer& layer, float size) {
+                GameObject* object = canvas->CreateObject(name);
+                Check(canvas->SetObjectLayer(object, layer.GetId()), "the square goes on its layer");
+                auto* place = canvas->AttachComponent<Component::Transform2D>(object);
+                auto* sprite = canvas->AttachComponent<Component::SpriteRenderer2D>(object);
+                sprite->sizeMode = Component::SpriteSizeMode::Custom;
+                sprite->size = {size, size};
+                sprite->tint = {1.0f, 0.2f, 0.2f, 1.0f};
+                return place;
+            };
+            Layer& glow = canvas->CreateLayer("Glow");
+            glow.SetBlend(LayerBlend::Additive);
+            redSquare("glow", glow, 1.0f);
+            Layer& ui = canvas->CreateLayer("UI");
+            ui.SetSpace(LayerSpace::Screen);
+            ui.SetBlend(LayerBlend::Multiply);
+            Component::Transform2D* badge = redSquare("badge", ui, 8.0f);
+            badge->anchor = {1.0f, 1.0f};
+            badge->position = {-8.0f, -8.0f};
+            framework.BindCanvasAssets();
+
+            const auto near = [](float a, float b) { return std::fabs(a - b) < 0.02f; };
+            gpu.Paint(framework);
+            gpu.Paint(framework);
+            Check(gpu.renderer.GetLastFrameStats().compositedLayerCount == 2, "both blended layers are composited");
+            Check(near(gpu.Red(32, 32), 1.0f) && near(gpu.Green(32, 32), 0.7f) && near(gpu.Blue(32, 32), 0.7f),
+                "the additive layer adds its red to the grey world");
+            Check(near(gpu.Red(55, 7), 0.5f) && near(gpu.Green(55, 7), 0.1f),
+                "the multiply screen layer multiplies the grey under its badge");
+            Check(near(gpu.Red(4, 4), 0.5f) && near(gpu.Green(4, 4), 0.5f), "nothing else changes");
+
+            // 불투명도 0 이면 레이어가 사라진다. 블렌드를 표준으로 되돌리고 불투명도 1 이면 묶음 없이 그냥 빨강이다.
+            glow.SetOpacity(0.0f);
+            gpu.Paint(framework);
+            Check(near(gpu.Red(32, 32), 0.5f) && near(gpu.Green(32, 32), 0.5f), "a layer at zero opacity leaves nothing");
+            glow.SetOpacity(1.0f);
+            glow.SetBlend(LayerBlend::Normal);
+            gpu.Paint(framework);
+            Check(gpu.renderer.GetLastFrameStats().compositedLayerCount == 1, "a plain layer is not composited");
+            Check(near(gpu.Red(32, 32), 1.0f) && near(gpu.Green(32, 32), 0.2f), "and draws its red straight");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     // **패키지의 미리 뜬 아틀라스**(D-232, package-plan 4 단계). 게임 빌드가 미리 떠 싼 아틀라스를 게임의 라이브러리가 뜨지 않고 되살린다 -
     // 미리 뜬 칸 수와 첫 업로드가 느슨한 파일로 뜬 것과 같고, 그려진 글자도 픽셀까지 같다.
     void TestBakedAtlasesRestoreFromAPackage()
@@ -2360,6 +2442,7 @@ int RunTextRenderTests()
         TestText3DDrawsInTheWorld();
         TestScreenExtentsFollowTheirScaleMode();
         TestScreenLayersDrawOverTheWorld();
+        TestLayerBlendReachesTheScreen();
         TestLocalizedTextFollowsTheLocale();
     }
     catch (const std::exception&)

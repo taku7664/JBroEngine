@@ -263,6 +263,18 @@ Entries:
   hierarchy.canvas_unsaved: 캔버스 (저장 안 됨)
   inspector.canvas_properties: 캔버스
   inspector.canvas_background: 배경색
+  inspector.layer_properties: 레이어
+  inspector.layer_visible: 표시
+  inspector.layer_blend: 혼합 모드
+  inspector.layer_blend_tooltip: 레이어를 한 장으로 그린 뒤 아래 그림에 이 방식으로 얹습니다. 불투명도도 레이어 전체에 한 번 적용됩니다
+  inspector.layer_blend_normal: 표준
+  inspector.layer_blend_additive: 더하기
+  inspector.layer_blend_multiply: 곱하기
+  inspector.layer_blend_screen: 스크린
+  inspector.layer_opacity: 불투명도
+  inspector.layer_space: 공간
+  inspector.layer_space_world: 월드
+  inspector.layer_space_screen: 화면
   hierarchy.layer_empty: 이 레이어에 오브젝트가 없습니다
   hierarchy.layer_visible: 이 레이어를 보이거나 감춥니다
   panel.project_settings: 프로젝트 설정

@@ -824,8 +824,145 @@ namespace
     }
 }
 
+namespace
+{
+    // 화면을 네 칸(가로 16 픽셀씩)으로 나눈 한 칸을 덮는 스프라이트다. `half` 가 음수면 그 칸의 위 절반, 양수면 아래 절반이다.
+    JBro::SpriteSubmit ColumnSprite(int column, int half, float r, float g, float b, float a)
+    {
+        JBro::SpriteSubmit sprite;
+        sprite.world.linear[0] = 0.5f;
+        sprite.world.linear[3] = half == 0 ? 2.0f : 1.0f;
+        sprite.world.translation[0] = -0.75f + 0.5f * static_cast<float>(column);
+        sprite.world.translation[1] = half == 0 ? 0.0f : (half < 0 ? 0.5f : -0.5f);
+        sprite.tint[0] = r;
+        sprite.tint[1] = g;
+        sprite.tint[2] = b;
+        sprite.tint[3] = a;
+        return sprite;
+    }
+
+    // **레이어 블렌드는 레이어를 제 텍스처에 그렸다 한 장으로 얹는다**(D-279, 기존 `CompositeLayer`). 회색(0.5) 바탕 위에
+    // 칸마다 한 레이어다. 기대값은 미리 곱한 색의 `Layer*` 계수에서 나온다:
+    //   0 Normal 50% - 겹친 빨강 둘: 0.5·s + 0.5·d. 스프라이트마다 알파를 곱했다면 겹친 곳이 0.875 로 짙어진다.
+    //   1 Additive    - 위: 반투명 회색(0.4, 알파 0.5)은 d + 0.2 = 0.7. 합성에서 알파를 또 곱하면 0.6 이다. 아래: 빨강은 s + d.
+    //   2 Multiply    - s·d.
+    //   3 Screen      - s·(1 - d) + d.
+    // **첫 프레임은 얹을 텍스처가 없어 그대로 그린다**(디바이스는 프레임 안에서 텍스처를 만들지 않는다). 둘째 프레임부터 얹는다.
+    template <typename TModule>
+    void TestLayerBlendsCompositeTheWholeLayer()
+    {
+        JBro::WindowsPlatform platform;
+        TModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the layer blend test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no device for this API; layer blends not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro layer blend probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        Check(window.value != 0, "the probe window must open");
+
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.api = rhi.GetApi();
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 16;
+        config.presentMode = JBro::PresentMode::Immediate;
+        Check(renderer.Initialize(rhi, config), "the layer blend renderer must initialize");
+
+        JBro::CameraParams camera;
+        camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f}};
+        camera.clearColor[3] = 1.0f;
+        camera.viewport.width = 64.0f;
+        camera.viewport.height = 64.0f;
+
+        JBro::SpriteSubmit background;
+        background.world.linear[0] = 2.0f;
+        background.world.linear[3] = 2.0f;
+        for (int channel = 0; channel < 3; ++channel)
+        {
+            background.tint[channel] = 0.5f;
+        }
+
+        const auto frame = [&]() {
+            Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the layer blend frame must begin");
+            Check(renderer.BeginView(camera), "the layer blend view must open");
+            Check(renderer.SubmitSprite(background), "the background must submit");
+            Check(renderer.BeginLayer(JBro::CompositeBlend::Normal, 0.5f), "a faded layer must open");
+            Check(false == renderer.BeginLayer(JBro::CompositeBlend::Normal, 0.5f), "layers do not nest");
+            Check(renderer.SubmitSprite(ColumnSprite(0, 0, 1.0f, 0.2f, 0.2f, 1.0f))
+                    && renderer.SubmitSprite(ColumnSprite(0, 0, 1.0f, 0.2f, 0.2f, 1.0f)),
+                "two overlapping sprites go into the faded layer");
+            Check(renderer.EndLayer(), "the faded layer must close");
+            Check(renderer.BeginLayer(JBro::CompositeBlend::Additive, 1.0f), "an additive layer must open");
+            Check(renderer.SubmitSprite(ColumnSprite(1, -1, 0.4f, 0.4f, 0.4f, 0.5f))
+                    && renderer.SubmitSprite(ColumnSprite(1, 1, 1.0f, 0.2f, 0.2f, 1.0f)),
+                "the additive layer takes a soft and a solid sprite");
+            Check(renderer.EndLayer(), "the additive layer must close");
+            Check(renderer.BeginLayer(JBro::CompositeBlend::Multiply, 1.0f), "a multiply layer must open");
+            Check(renderer.SubmitSprite(ColumnSprite(2, 0, 1.0f, 0.2f, 0.2f, 1.0f)), "the multiply sprite must submit");
+            Check(renderer.EndLayer(), "the multiply layer must close");
+            // 닫지 않은 묶음은 `EndView` 가 닫는다.
+            Check(renderer.BeginLayer(JBro::CompositeBlend::Screen, 1.0f), "a screen layer must open");
+            Check(renderer.SubmitSprite(ColumnSprite(3, 0, 1.0f, 0.2f, 0.2f, 1.0f)), "the screen sprite must submit");
+            Check(renderer.EndView(), "the layer blend view must close");
+            Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the layer blend frame must present");
+        };
+
+        frame();
+        const JBro::RendererFrameStats first = renderer.GetLastFrameStats();
+        Check(first.compositedLayerCount == 0 && first.uncompositedLayerCount == 4,
+            "the first frame has no layer texture yet and draws the layers as they are");
+        frame();
+        const JBro::RendererFrameStats second = renderer.GetLastFrameStats();
+        Check(second.compositedLayerCount == 4 && second.uncompositedLayerCount == 0,
+            "from the second frame every layer is composited");
+
+        JBro::Array<std::byte> image;
+        image.Resize(64 * 64 * 4);
+        JBro::TextureReadback readback;
+        Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the renderer must read its own back buffer");
+        const auto expect = [&](std::uint32_t x, std::uint32_t y, float r, float g, float b, const char* message) {
+            const Pixel pixel = ReadPixel(image, readback.rowPitch, x, y);
+            if (false == (Near(pixel.r, r) && Near(pixel.g, g) && Near(pixel.b, b)))
+            {
+                std::cout << "  read " << pixel.r << ", " << pixel.g << ", " << pixel.b << " at " << x << ", " << y << '\n';
+            }
+            Check(Near(pixel.r, r) && Near(pixel.g, g) && Near(pixel.b, b), message);
+        };
+        expect(8, 32, 0.75f, 0.35f, 0.35f,
+            "a layer at half opacity fades as one image - its two overlapping sprites do not show through each other");
+        expect(24, 16, 0.7f, 0.7f, 0.7f,
+            "an additive layer adds its premultiplied colour - a half-transparent sprite is not darkened twice");
+        expect(24, 48, 1.0f, 0.7f, 0.7f, "an additive layer adds its colour to what is below");
+        expect(40, 32, 0.5f, 0.1f, 0.1f, "a multiply layer multiplies what is below");
+        expect(56, 32, 1.0f, 0.6f, 0.6f, "a screen layer screens what is below");
+
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
+}
+
 int RunSpritePixelTests()
 {
+    TestLayerBlendsCompositeTheWholeLayer<JBro::D3D12RHIModule>();
+    TestLayerBlendsCompositeTheWholeLayer<JBro::D3D11RHIModule>();
+    TestLayerBlendsCompositeTheWholeLayer<JBro::VulkanRHIModule>();
     TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D12RHIModule>();
     TestATexturedSpriteShowsItsTexelsAndCells<JBro::D3D11RHIModule>();
     TestATexturedSpriteShowsItsTexelsAndCells<JBro::VulkanRHIModule>();

@@ -40,8 +40,8 @@ namespace JBro
             const ObjectPlacement& placement = {});
 
         // **새로 놓는 것이 어느 레이어로 가는가의 한 가지 규칙**이다(D-168, 기존
-        // `ResolveTargetLayer`). 부모가 있으면 부모의 레이어, 없으면 고른 것의 레이어,
-        // 둘 다 없으면 `InvalidLayerId`(= 캔버스 기본 레이어)다. 메뉴와 단축키가 함께 쓴다 -
+        // `ResolveTargetLayer`). 부모가 있으면 부모의 레이어, 없으면 고른 것의 레이어, 레이어를 골랐으면
+        // 그 레이어(D-279), 셋 다 없으면 `InvalidLayerId`(= 캔버스 기본 레이어)다. 메뉴와 단축키가 함께 쓴다 -
         // 규칙이 갈리면 같은 손짓이 들어온 자리마다 다른 칸에 오브젝트를 만든다.
         LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent);
 

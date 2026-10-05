@@ -119,7 +119,25 @@ namespace JBro::Internal
             // 캔버스 뷰의 고르기가 자손까지 담는다(D-253·D-254).
             const InstanceId* selection = nullptr;
             std::uint32_t selectionCount = 0;
+            // 레이어의 블렌드와 불투명도를 렌더러의 묶음으로 낸다(D-279). 선택 외곽선의 마스크는 그린 그대로의 모양이어야 하므로 끈다.
+            bool composite = true;
         };
+
+        CompositeBlend ToCompositeBlend(LayerBlend blend)
+        {
+            switch (blend)
+            {
+            case LayerBlend::Additive:
+                return CompositeBlend::Additive;
+            case LayerBlend::Multiply:
+                return CompositeBlend::Multiply;
+            case LayerBlend::Screen:
+                return CompositeBlend::Screen;
+            case LayerBlend::Normal:
+            default:
+                return CompositeBlend::Normal;
+            }
+        }
 
         bool IsSelected(const GameObject* owner, const InstanceId* selection, std::uint32_t count)
         {
@@ -158,43 +176,68 @@ namespace JBro::Internal
             bool accepted = world.GetDroppedSpriteCount() == 0;
             std::size_t next = first;
             const std::size_t end = last < world.GetSpriteCount() ? last : world.GetSpriteCount();
-            while (next < end)
+            // **얹어야 하는 레이어는 렌더러의 묶음으로 낸다**(D-279). 정렬이 레이어 차례를 맨 위에 두므로 한 레이어의 아이템은 이어서 온다 -
+            // 레이어가 바뀌는 자리에서 모아 둔 것을 먼저 내고 묶음을 닫고 연다. 묶음을 열지 못하면(상한) 그 레이어는 그대로 그린다.
+            constexpr std::int32_t NoLayer = -1;
+            std::int32_t openLayer = NoLayer;
+            bool layerBegun = false;
+            std::size_t count = 0;
+            // 렌더러가 하나라도 거절하면 그 뒤는 내지 않는다(제출 상한). 앞에서 버린 아이템이 있었던 것은 결과만 바꾼다.
+            bool refused = false;
+            const auto flush = [&]() {
+                if (count != 0 && false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
+                {
+                    refused = true;
+                }
+                count = 0;
+            };
+            while (next < end && false == refused)
             {
-                std::size_t count = 0;
-                while (count < BatchSize && next < end)
+                const SpriteRenderItem& item = world.GetSprite(next);
+                ++next;
+                if (editorView && item.owner != nullptr && item.owner->IsEditorHidden())
                 {
-                    const SpriteRenderItem& item = world.GetSprite(next);
-                    ++next;
-                    if (editorView && item.owner != nullptr && item.owner->IsEditorHidden())
-                    {
-                        continue;
-                    }
-                    if (item.screenSpace != rule.screenSpace || (false == rule.anyScaleMode && item.scaleMode != rule.scaleMode))
-                    {
-                        continue;
-                    }
-                    if (rule.focus != InvalidInstanceId && false == IsInFocus(item.owner, rule.focus))
-                    {
-                        continue;
-                    }
-                    if (rule.selection != nullptr && false == IsSelected(item.owner, rule.selection, rule.selectionCount))
-                    {
-                        continue;
-                    }
-                    batch[count] = BuildSprite(item);
-                    ++count;
+                    continue;
                 }
-                if (count == 0)
+                if (item.screenSpace != rule.screenSpace || (false == rule.anyScaleMode && item.scaleMode != rule.scaleMode))
                 {
-                    break;
+                    continue;
                 }
-                if (false == renderer.SubmitSprites({batch, static_cast<std::uint32_t>(count)}))
+                if (rule.focus != InvalidInstanceId && false == IsInFocus(item.owner, rule.focus))
                 {
-                    accepted = false;
-                    break;
+                    continue;
+                }
+                if (rule.selection != nullptr && false == IsSelected(item.owner, rule.selection, rule.selectionCount))
+                {
+                    continue;
+                }
+                const bool needsComposite = rule.composite
+                    && (item.layerBlend != LayerBlend::Normal || item.layerOpacity < 1.0f);
+                const std::int32_t wanted = needsComposite ? static_cast<std::int32_t>(item.layerOrder) : NoLayer;
+                if (wanted != openLayer)
+                {
+                    flush();
+                    if (layerBegun)
+                    {
+                        renderer.EndLayer();
+                    }
+                    layerBegun = wanted != NoLayer
+                        && renderer.BeginLayer(ToCompositeBlend(item.layerBlend), item.layerOpacity);
+                    openLayer = wanted;
+                }
+                batch[count] = BuildSprite(item);
+                ++count;
+                if (count == BatchSize)
+                {
+                    flush();
                 }
             }
-            return accepted;
+            flush();
+            if (layerBegun)
+            {
+                renderer.EndLayer();
+            }
+            return accepted && false == refused;
         }
     }
 
@@ -298,6 +341,7 @@ namespace JBro::Internal
             SpriteFilterRule selected = rule;
             selected.selection = view.selection;
             selected.selectionCount = view.selectionCount;
+            selected.composite = false;
             accepted = PushSprites(world, renderer, true, selected);
             if (false == renderer.EndView())
             {

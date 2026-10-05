@@ -147,6 +147,19 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyCanvasUnsaved = "hierarchy.canvas_unsaved";
     inline constexpr const char* InspectorCanvasProperties = "inspector.canvas_properties";
     inline constexpr const char* InspectorCanvasBackground = "inspector.canvas_background";
+    // 레이어를 골랐을 때의 인스펙터(D-279). 이름 칸은 `HierarchyLayerName`, 맞춤 방식은 `HierarchyLayerScaleMode` 를 같이 쓴다.
+    inline constexpr const char* InspectorLayerProperties = "inspector.layer_properties";
+    inline constexpr const char* InspectorLayerVisible = "inspector.layer_visible";
+    inline constexpr const char* InspectorLayerBlend = "inspector.layer_blend";
+    inline constexpr const char* InspectorLayerBlendTooltip = "inspector.layer_blend_tooltip";
+    inline constexpr const char* InspectorLayerBlendNormal = "inspector.layer_blend_normal";
+    inline constexpr const char* InspectorLayerBlendAdditive = "inspector.layer_blend_additive";
+    inline constexpr const char* InspectorLayerBlendMultiply = "inspector.layer_blend_multiply";
+    inline constexpr const char* InspectorLayerBlendScreen = "inspector.layer_blend_screen";
+    inline constexpr const char* InspectorLayerOpacity = "inspector.layer_opacity";
+    inline constexpr const char* InspectorLayerSpace = "inspector.layer_space";
+    inline constexpr const char* InspectorLayerSpaceWorld = "inspector.layer_space_world";
+    inline constexpr const char* InspectorLayerSpaceScreen = "inspector.layer_space_screen";
     inline constexpr const char* HierarchyLayerEmpty = "hierarchy.layer_empty";
     inline constexpr const char* HierarchyLayerVisible = "hierarchy.layer_visible";
 

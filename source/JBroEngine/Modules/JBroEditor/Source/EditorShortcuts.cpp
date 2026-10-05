@@ -1,5 +1,6 @@
 ﻿#include <JBro/Editor/EditorShortcuts.h>
 
+#include <JBro/Canvas/Canvas.h>
 #include <JBro/Editor/EditorActions.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Localization.h>
@@ -132,6 +133,11 @@ namespace JBro::EditorShortcuts
             // 자식으로 붙이려면 들어갈 곳이 있어야 한다.
             return hasCanvas && editor.HasClipboard() && editor.GetSelectedObject() != nullptr;
         case EditorShortcut::DeleteSelection:
+            // 고른 레이어도 지울 대상이다(D-279). 마지막 한 장은 아니다.
+            if (mutableEditor.GetSelectedLayer() != InvalidLayerId)
+            {
+                return hasCanvas && mutableEditor.GetCanvas()->GetLayerCount() > 1;
+            }
             return editor.GetSelectionCount() != 0;
         case EditorShortcut::TogglePlay:
             return hasCanvas;
@@ -170,8 +176,13 @@ namespace JBro::EditorShortcuts
             return Loc::TextOr(LocKeys::BlockedNothingToUndo, "there is nothing to undo");
         case EditorShortcut::Redo:
             return Loc::TextOr(LocKeys::BlockedNothingToRedo, "there is nothing to redo");
-        case EditorShortcut::Copy:
         case EditorShortcut::DeleteSelection:
+            if (mutableEditor.GetSelectedLayer() != InvalidLayerId)
+            {
+                return Loc::TextOr(LocKeys::BlockedLastLayer, "a canvas needs at least one layer");
+            }
+            return Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected");
+        case EditorShortcut::Copy:
             return Loc::TextOr(LocKeys::InspectorNothingSelected, "nothing is selected");
         case EditorShortcut::Paste:
             return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");

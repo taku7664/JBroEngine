@@ -6,6 +6,7 @@
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/CanvasCommands.h>
+#include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/EditorIcons.h>
@@ -159,6 +160,13 @@ namespace JBro
             if (const AssetMetaFile* meta = m_editor->GetSelectedAssetMeta())
             {
                 DrawAsset(*meta);
+                return;
+            }
+            // 레이어를 골랐으면 그 레이어의 값이다(D-279).
+            const LayerId layer = m_editor->GetSelectedLayer();
+            if (layer != InvalidLayerId)
+            {
+                DrawLayer(layer);
                 return;
             }
             // 캔버스를 골랐으면 캔버스의 값이다(D-186).
@@ -483,6 +491,114 @@ namespace JBro
                         MakeOwnerPtr<SetCanvasBackgroundCommand>(*canvas, color));
                 }
             });
+    }
+
+    // **레이어의 값**이다(D-279, 기존 `DrawSelectedLayerInspector`). 이름·표시·혼합 모드·불투명도·공간을 한 자리에서 고친다 -
+    // 계층의 줄과 메뉴에도 이름·표시·공간이 있지만, 혼합 모드와 불투명도는 여기가 유일한 자리다. 모두 커맨드로 간다(§11.5).
+    void InspectorPanel::DrawLayer(LayerId layerId)
+    {
+        Canvas* canvas = m_editor->GetCanvas();
+        Layer* layer = canvas != nullptr ? canvas->FindLayer(layerId) : nullptr;
+        if (layer == nullptr)
+        {
+            return;
+        }
+        Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorLayerProperties, "Layer")).Draw();
+        Widget::FormLayout layout("##layer");
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::HierarchyLayerName, "Name")),
+            [&]() {
+                // 오브젝트 이름 칸과 같다: 치는 중이 아니면 늘 레이어의 이름을 들고, 편집이 끝날 때 커맨드 하나다(D-183).
+                if (m_namedLayer != layerId || false == m_layerNameEditing)
+                {
+                    m_namedLayer = layerId;
+                    m_layerName = layer->GetName();
+                }
+                const bool finished = Widget::TextField("##layerName", m_layerName).CommitOnFinish().Draw();
+                m_layerNameEditing = ImGui::IsItemActive();
+                if (finished && m_layerName != layer->GetName())
+                {
+                    m_editor->GetCommands().Execute(MakeOwnerPtr<RenameLayerCommand>(*canvas, layerId, m_layerName.c_str()));
+                }
+            });
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerVisible, "Visible")),
+            [&]() {
+                bool visible = layer->IsVisible();
+                if (Widget::Checkbox("##layerVisible", visible))
+                {
+                    m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerVisibleCommand>(*canvas, layerId, visible));
+                }
+            });
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerBlend, "Blend Mode"))
+                .Tooltip(Loc::TextOr(LocKeys::InspectorLayerBlendTooltip,
+                    "the layer is drawn as one image and laid onto what is below it this way")),
+            [&]() {
+                // 항목 차례는 `LayerBlend` 의 값 차례다.
+                const char* const blends[] = {
+                    Loc::TextOr(LocKeys::InspectorLayerBlendNormal, "Normal"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendAdditive, "Additive"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendMultiply, "Multiply"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendScreen, "Screen")};
+                int current = static_cast<int>(layer->GetBlend());
+                if (Widget::FilterCombo("##layerBlend", ArrayView<const char* const>(blends, 4), current).ShowFilter(false).Draw()
+                    && current >= 0 && current < 4)
+                {
+                    m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerCompositeCommand>(
+                        *canvas, layerId, static_cast<LayerBlend>(current), layer->GetOpacity()));
+                }
+            });
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerOpacity, "Opacity")),
+            [&]() {
+                // 끄는 동안 프레임마다 커맨드가 생기고 매니저가 합친다 - 끌기 하나가 되돌리기 하나다.
+                float opacity = layer->GetOpacity();
+                if (Widget::SliderFloat("##layerOpacity", opacity, 0.0f, 1.0f))
+                {
+                    m_editor->GetCommands().Execute(
+                        MakeOwnerPtr<SetLayerCompositeCommand>(*canvas, layerId, layer->GetBlend(), opacity));
+                }
+            });
+        layout.Row(
+            Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerSpace, "Space"))
+                .Tooltip(Loc::TextOr(LocKeys::HierarchyLayerScreenTooltip,
+                    "the objects on this layer stay fixed on the screen whatever the camera does, in reference-resolution pixels")),
+            [&]() {
+                const char* const spaces[] = {
+                    Loc::TextOr(LocKeys::InspectorLayerSpaceWorld, "World"),
+                    Loc::TextOr(LocKeys::InspectorLayerSpaceScreen, "Screen")};
+                int current = static_cast<int>(layer->GetSpace());
+                if (Widget::FilterCombo("##layerSpace", ArrayView<const char* const>(spaces, 2), current).ShowFilter(false).Draw()
+                    && current >= 0 && current < 2 && static_cast<LayerSpace>(current) != layer->GetSpace())
+                {
+                    // 루트의 자리까지 한 커맨드다(D-237) - 계층 메뉴의 "화면 레이어로 바꾸기" 와 같은 길이다.
+                    if (OwnerPtr<EditorCommand> command = m_editor->MakeLayerSpaceCommand(
+                            layerId, static_cast<LayerSpace>(current), layer->GetScaleMode()))
+                    {
+                        m_editor->GetCommands().Execute(std::move(command));
+                    }
+                }
+            });
+        if (layer->GetSpace() == LayerSpace::Screen)
+        {
+            layout.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::HierarchyLayerScaleMode, "Scale Mode")),
+                [&]() {
+                    // 값은 타입의 이름 그대로다 - 계층 메뉴와 같다.
+                    const char* const modes[] = {"FixedHeight", "FixedWidth", "Contain", "ConstantPixel"};
+                    int current = static_cast<int>(layer->GetScaleMode());
+                    if (Widget::FilterCombo("##layerScaleMode", ArrayView<const char* const>(modes, 4), current).ShowFilter(false).Draw()
+                        && current >= 0 && current < 4)
+                    {
+                        if (OwnerPtr<EditorCommand> command = m_editor->MakeLayerSpaceCommand(
+                                layerId, LayerSpace::Screen, static_cast<ScreenScaleMode>(current)))
+                        {
+                            m_editor->GetCommands().Execute(std::move(command));
+                        }
+                    }
+                });
+        }
     }
 
     // 붙일 수 있는 것은 레지스트리에 있는 것이다. 인스펙터는 여기서도 타입을
