@@ -67,6 +67,15 @@ imgui_demo.cpp
 
 `imgui_stdlib`(std::string 헬퍼)와 `imgui_impl_win32` 는 필요해질 때 가져온다.
 
+`imconfig.h` 는 ImGui 가 사용자 설정 자리로 둔 파일이라 켠 값만 적는다(각 줄에 `// JBro:` 주석). 올릴 때 다시 켠다.
+`IMGUI_DEFINE_MATH_OPERATORS`(위젯 계층의 `ImVec2` 연산)와 `IMGUI_USE_WCHAR32`(아이콘 글꼴이 U+F0000 위에 있다, D-277)다.
+`IMGUI_USE_WCHAR32` 가 꺼지면 `EditorTheme.cpp` 의 `static_assert` 가 빌드를 멈춘다.
+
+### MaterialDesignIcons — @mdi/font 7.4.47, Apache-2.0
+
+에디터의 아이콘 글꼴이다(D-277, 그 전은 Font Awesome Free Solid 였다 - D-96). 소스가 아니라 글꼴 파일 하나라 빌드 단위가 없고,
+`JBroEditorHost.vcxproj` 가 빌드 뒤 실행 파일 옆에 복사한다. 출처와 범위는 폴더의 README 에.
+
 ### stb — stb_image.h v2.30, 퍼블릭 도메인 / MIT
 
 `JBroAsset` 의 이미지 디코더다(D-111). `ImageDecoder.cpp` 한 곳에서만 구현을 켜고(`STB_IMAGE_IMPLEMENTATION`),

@@ -184,7 +184,7 @@ namespace JBro::Widget
             ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY;
         ImGui::BeginChild("##list_body", ImVec2(0.0f, 0.0f), childFlags);
 
-        // 왼쪽 손잡이와 오른쪽 삭제 표시. 기존 엔진과 같은 FontAwesome 글리프다(D-96).
+        // 왼쪽 손잡이와 오른쪽 삭제 표시. 아이콘 글꼴의 글리프다(D-96, D-277).
         // 글꼴이 없는 기계에서는 네모로 나온다. 폭은 고정이다.
         constexpr const char* RowHandleGlyph = Icons::GripLines;
         constexpr const char* RowRemoveGlyph = Icons::Xmark;
@@ -281,7 +281,16 @@ namespace JBro::Widget
             }
             ImGui::SetCursorPos(bodyStart);
             ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted(RowHandleGlyph);
+            {
+                // 자리는 글자 항목이 잡고, 그림은 잉크로 그 칸의 한가운데 그린다(D-277).
+                const ImU32 handleColor = ImGui::GetColorU32(ImGuiCol_Text);
+                {
+                    StyleScope hidden;
+                    hidden.PushColor(ImGuiCol_Text, ImVec4(0, 0, 0, 0));
+                    ImGui::TextUnformatted(RowHandleGlyph);
+                }
+                DrawGlyphCentered(RowHandleGlyph, ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), handleColor);
+            }
             ImGui::SameLine();
 
             if (showIndex)
@@ -320,7 +329,7 @@ namespace JBro::Widget
                 // 폭보다 좁은 줄(접힌 구조체 원소의 이름표)에서는 이름표에 붙고, 펼친 줄에서는
                 // 끝으로 가 줄마다 들쭉날쭉했다. 폭을 다 쓰는 줄은 전과 같은 자리다.
                 ImGui::SameLine(contentStartX + contentWidth + style.ItemSpacing.x);
-                if (TextButton(RowRemoveGlyph, ImVec2(0.0f, 0.0f), ImVec2(0.0f, -1.0f)))
+                if (TextButton(RowRemoveGlyph))
                 {
                     removeIndex = index;
                 }

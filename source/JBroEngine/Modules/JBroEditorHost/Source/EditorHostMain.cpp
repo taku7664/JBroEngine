@@ -265,7 +265,7 @@ int main(int argumentCount, char** arguments)
     const JBro::String localizationDirectory = JoinContentPath(options.contentRoot, "Localization");
     const JBro::String iconFontPath = JoinContentPath(
         options.contentRoot,
-        "ThirdParty/FontAwesome/FontAwesome7-Free-Solid-900.otf");
+        "ThirdParty/MaterialDesignIcons/materialdesignicons-webfont.ttf");
 
     JBro::EditorApplication editor;
     JBro::EditorApplicationConfig config;

@@ -3,6 +3,7 @@
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/TextField.h>
 
 #include <imgui.h>
@@ -46,7 +47,10 @@ namespace JBro::Widget
         }
         result.edited = field.Draw();
         ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
-        result.browse = ImGui::Button(Icons::FolderOpen, ImVec2(buttonWidth, buttonWidth));
+        // 이름 없이 버튼을 그리고 아이콘은 잉크로 한가운데 얹는다(D-277). ImGui 가 이름을 그리면 줄 상자로 맞춰 처진다.
+        result.browse = ImGui::Button("##browse", ImVec2(buttonWidth, buttonWidth));
+        DrawGlyphCentered(Icons::FolderOpen, ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
+            ImGui::GetColorU32(ImGuiCol_Text));
         HoveredTooltip(Loc::TextOr(LocKeys::CommonBrowse, "Browse"));
         ImGui::PopID();
         return result;

@@ -1226,11 +1226,93 @@ namespace
                 && b->weights.Size() == 4 && b->weights[0] == 10.0f,
             "and bring both back in order");
 
-        // **손잡이와 삭제 표시는 아이콘 글꼴의 글리프다**(D-96). 글꼴이 합쳐졌고 그 글리프가
+        // **손잡이와 삭제 표시는 아이콘 글꼴의 글리프다**(D-96, D-277). 글꼴이 합쳐졌고 그 글리프가
         // 글꼴 안에 있어야 한다 - 없으면 네모가 그려지는데, 화면을 보지 않으면 모른다.
+        // 코드 포인트는 `Icons` 의 UTF-8 을 ImGui 가 읽은 값으로 본다. 그래야 글꼴과 글자 읽기
+        // (U+F0000 위는 32 비트 `ImWchar` 라야 읽힌다)를 함께 본다.
         Check(JBro::EditorTheme::HasIconFont(), "the icon font must be merged into the UI font");
-        Check(ImGui::GetFont()->IsGlyphInFont(0xF7A4) && ImGui::GetFont()->IsGlyphInFont(0xF00D),
-            "and hold the grip and the x mark the list draws");
+        const char* const iconGlyphs[] = {JBro::Icons::GripLines, JBro::Icons::Xmark, JBro::Icons::Gear,
+            JBro::Icons::Eye, JBro::Icons::EyeSlash, JBro::Icons::Filter, JBro::Icons::Search,
+            JBro::Icons::FolderOpen};
+        for (const char* glyph : iconGlyphs)
+        {
+            unsigned int codePoint = 0;
+            ImTextCharFromUtf8(&codePoint, glyph, nullptr);
+            Check(codePoint >= JBro::Icons::RangeBegin && codePoint <= JBro::Icons::RangeEnd
+                    && ImGui::GetFont()->IsGlyphInFont(static_cast<ImWchar>(codePoint)),
+                "and hold every glyph the editor draws, the grip and the x mark of the list among them");
+        }
+
+        // **손잡이와 삭제 표시는 줄의 글자와 같은 높이에 선다**(D-277). 구운 글리프의 사각형으로 가운데를 잡으면
+        // 사각형이 잉크에 꼭 맞지 않아 손잡이가 숫자보다 2 픽셀 위에 섰고, 칸의 한가운데 두면 글자의 잉크가 줄 상자
+        // 가운데보다 1 픽셀 아래라 그만큼 떴다. 화면을 읽어, 값 칸의 숫자가 이루는 줄마다 같은 높이의 손잡이·삭제
+        // 표시의 밝은 픽셀 위아래를 재고 가운데가 반 픽셀 안인지 본다. 올려놓은 삭제 표시는 색이 바뀌어 재지 않는다.
+        if (JBro::Renderer* renderer = editor.GetRenderer())
+        {
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must draw the list before it is read");
+            }
+            ImGuiWindow* listBody = FindListBody();
+            Check(listBody != nullptr, "the list must still be drawn");
+            JBro::Array<std::byte> image;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*renderer, 1024, 768, image, readback);
+            // 손잡이의 두 선은 가늘어 한 줄이 반쯤 걸쳐 흐리다(밝기 90 남짓) - 문턱을 낮춰 둘 다 잡는다.
+            // 바탕은 30 아래라 섞이지 않는다.
+            const auto bright = [](const unsigned char* pixel)
+            {
+                return pixel[0] > 80 && pixel[1] > 80 && pixel[2] > 80;
+            };
+            const float left = listBody->Pos.x;
+            const float right = listBody->Pos.x + listBody->Size.x;
+            const float centerX = left + listBody->Size.x * 0.5f;
+            int measuredRows = 0;
+            int y = static_cast<int>(listBody->Pos.y);
+            const int bottom = static_cast<int>(listBody->Pos.y + listBody->Size.y);
+            while (y < bottom)
+            {
+                // 값 칸의 숫자가 있는 줄 하나를 찾는다.
+                const PixelBox digits = MeasurePixels(image, readback,
+                    ImRect(centerX - 20.0f, static_cast<float>(y), centerX + 20.0f, static_cast<float>(y + 1)), bright);
+                if (digits.IsEmpty())
+                {
+                    ++y;
+                    continue;
+                }
+                // 숫자의 가로획 사이에 빈 픽셀 줄이 한둘 낄 수 있다 - 세 줄까지 비어도 같은 줄로 본다.
+                int runEnd = y + 1;
+                for (int probe = y + 1; probe < bottom && probe <= runEnd + 3; ++probe)
+                {
+                    if (false == MeasurePixels(image, readback,
+                        ImRect(centerX - 20.0f, static_cast<float>(probe), centerX + 20.0f, static_cast<float>(probe + 1)),
+                        bright).IsEmpty())
+                    {
+                        runEnd = probe + 1;
+                    }
+                }
+                const float textMiddle = (y + runEnd - 1) * 0.5f;
+                const ImRect band(0.0f, static_cast<float>(y - 6), 0.0f, static_cast<float>(runEnd + 6));
+                const PixelBox grip = MeasurePixels(image, readback,
+                    ImRect(left, band.Min.y, left + 24.0f, band.Max.y), bright);
+                const PixelBox mark = MeasurePixels(image, readback,
+                    ImRect(right - 30.0f, band.Min.y, right, band.Max.y), bright);
+                if (false == grip.IsEmpty() && false == mark.IsEmpty())
+                {
+                    const float gripMiddle = (grip.minY + grip.maxY) * 0.5f;
+                    const float markMiddle = (mark.minY + mark.maxY) * 0.5f;
+                    std::printf("  [measure] list row digits y %d..%d, grip %d..%d, x mark %d..%d\n",
+                        y, runEnd - 1, grip.minY, grip.maxY, mark.minY, mark.maxY);
+                    Check(gripMiddle >= textMiddle - 0.5f && gripMiddle <= textMiddle + 0.5f,
+                        "the list's grip must sit level with the row's value");
+                    Check(markMiddle >= textMiddle - 0.5f && markMiddle <= textMiddle + 0.5f,
+                        "and so must its x mark");
+                    ++measuredRows;
+                }
+                y = runEnd + 1;
+            }
+            Check(measuredRows >= 2, "at least two list rows must be measured");
+        }
 
         if (JBro::Renderer* renderer = editor.GetRenderer())
         {
@@ -10619,6 +10701,33 @@ namespace
         // 줄의 오른쪽 끝은 창의 작업 영역 끝이고, 눈 칸은 그 앞의 줄 높이만한 정사각형이다. 그 한가운데를 누른다.
         eye.x = static_cast<int>(layers->WorkRect.Max.x - ImGui::GetFrameHeight() * 0.5f);
         eye.y = row.y + 2;
+
+        // **눈은 줄의 글자와 같은 높이에 선다**(D-277). 아이콘을 글자처럼 줄 상자로 가운데 잡으면 합친 아이콘
+        // 글꼴의 기준선 때문에 그림이 처졌다(사용자가 실제 에디터에서 지적했다, 3.5 픽셀). 화면을 읽어 밝은 픽셀의
+        // 위아래로 잰다 - 그리는 쪽의 셈으로 재면 같이 틀려도 지난다.
+        {
+            JBro::Array<std::byte> image;
+            JBro::TextureReadback readback;
+            ReadBackBufferInto(*renderer, 1024, 768, image, readback);
+            const float frameHeight = ImGui::GetFrameHeight();
+            const float rowTop = static_cast<float>(row.y);
+            const float eyeLeft = layers->WorkRect.Max.x - frameHeight;
+            const auto bright = [](const unsigned char* pixel)
+            {
+                return pixel[0] > 150 && pixel[1] > 150 && pixel[2] > 150;
+            };
+            const PixelBox text = MeasurePixels(image, readback,
+                ImRect(layers->WorkRect.Min.x, rowTop, eyeLeft - 2.0f, rowTop + frameHeight), bright);
+            const PixelBox icon = MeasurePixels(image, readback,
+                ImRect(eyeLeft, rowTop, layers->WorkRect.Max.x, rowTop + frameHeight), bright);
+            Check(false == text.IsEmpty() && false == icon.IsEmpty(), "the row must show its name and its eye");
+            const float textMiddle = (text.minY + text.maxY) * 0.5f;
+            const float iconMiddle = (icon.minY + icon.maxY) * 0.5f;
+            std::printf("  [measure] row name y %d..%d, eye y %d..%d\n", text.minY, text.maxY, icon.minY, icon.maxY);
+            Check(iconMiddle >= textMiddle - 0.5f && iconMiddle <= textMiddle + 0.5f,
+                "the row's eye must sit level with the row's name, not below it");
+        }
+
         const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
         ClickAt(editor, hwnd, eye);
         Check(red->IsEditorHidden(), "clicking the row's eye hides the object in the canvas view");

@@ -251,7 +251,7 @@
 | `ImItem/*` (20여 종) | `Widget/*` (+ `Basic.h`·`PathField.h`) · 패널 소스 검사 | 완료 (D-152·D-164), 한 줄 한 이름 목록(`ImNameListEdit`)은 D-189, 오디오 위젯·`ImReferenceField` 는 열림 |
 | `Localization/EditorReflectionLabels` | `JBro/Editor/EditorNames.h` 의 `DisplayTypeName`·`ComponentCategoryLabel` | 완료 (D-180), 필드 라벨은 해당 없음 (필드 이름으로 보인다, §11.2) |
 | `Localization/EditorLocalizationKeys` | `JBro/Editor/LocalizationKeys.h` + `Localization/{ko-KR,en-US}.yaml` | 완료 (D-184 에서 대조표에 채움), 키 수는 658 대 242 인데 차이는 거의 다 없는 기능(오디오·이펙트·빌드·폰트·프리팹·스크립트·머티리얼·애니메이션)의 것이다. 선언·번역·사용 셋이 어긋나지 않는 것은 D-195 가 검사로 붙잡는다 |
-| `Icons/FontAwesomeIcons` | `JBro/Editor/EditorIcons.h` | 완료 (D-184 에서 대조표에 채움), 기존이 **실제로 쓰는** 글리프는 넷(`X_MARK`·`EYE`·`EYE_SLASH`·`ELLIPSIS_VERTICAL`)이고 앞의 셋은 우리도 쓴다. 마지막 하나는 스크립트 스키마 위젯 전용이라 해당 없음 |
+| `Icons/FontAwesomeIcons` | `JBro/Editor/EditorIcons.h` | 완료 (D-184 에서 대조표에 채움), 기존이 **실제로 쓰는** 글리프는 넷(`X_MARK`·`EYE`·`EYE_SLASH`·`ELLIPSIS_VERTICAL`)이고 앞의 셋은 우리도 쓴다. 마지막 하나는 스크립트 스키마 위젯 전용이라 해당 없음. 글꼴은 D-277 에서 Material Design Icons 로 바꿨다(이름은 그대로) |
 | `Path/EditorPathUtils` | `JBro/Editor/EditorPaths.h` 의 `JoinPath`·`FolderOf`·`LeafOfPath` | 완료 (D-173), 그전까지는 패널마다 따로 있었다 |
 | `Script/ScriptSchema` | — | 해당 없음 (JBroScript 미구현) |
 

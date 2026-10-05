@@ -115,7 +115,7 @@ L0 에서는 아이콘 글꼴을 직접 읽어 메모리로 넘기는 방식으�
   `GetScriptModuleError()` 에 사유가 들어 있으며, 호스트가 `warning:` 한 줄을 낸다.
   런처는 이 줄을 그대로 보여 주면 된다. 에디터 화면에 띄우는 것은 L1 에서 한다.
 - **Q2. 엔진 설치 폴더의 모양을 무엇으로 정할 것인가.** **→ 닫혔다(2026-09-16).**
-  실행 파일 옆에 `Localization/` 과 `ThirdParty/FontAwesome/` 를 둔다. `JBroEditorHost.vcxproj`
+  실행 파일 옆에 `Localization/` 과 `ThirdParty/MaterialDesignIcons/`(아이콘 글꼴, D-277 전에는 `FontAwesome/`)를 둔다. `JBroEditorHost.vcxproj`
   가 빌드 뒤에 복사하므로 빌드 폴더가 곧 설치 폴더의 모양이다. 런처는 그 폴더를 등록하고
   작업 폴더로 준다.
 - **Q5. 엔진 설치가 자기 버전을 어떻게 말할 것인가.** **→ 닫혔다(D-101).**

@@ -146,12 +146,12 @@
   -->
   <ItemGroup>
     <JBroLocalizationFiles Include="$(JBroRoot)Localization\*.yaml" />
-    <JBroIconFontFiles Include="$(JBroThirdPartyDir)FontAwesome\*.otf" />
+    <JBroIconFontFiles Include="$(JBroThirdPartyDir)MaterialDesignIcons\*.ttf" />
   </ItemGroup>
   <Target Name="JBroCopyEditorContent" AfterTargets="Build"
           Inputs="@(JBroLocalizationFiles);@(JBroIconFontFiles)"
-          Outputs="@(JBroLocalizationFiles->'$(OutDir)Localization\%(Filename)%(Extension)');@(JBroIconFontFiles->'$(OutDir)ThirdParty\FontAwesome\%(Filename)%(Extension)')">
+          Outputs="@(JBroLocalizationFiles->'$(OutDir)Localization\%(Filename)%(Extension)');@(JBroIconFontFiles->'$(OutDir)ThirdParty\MaterialDesignIcons\%(Filename)%(Extension)')">
     <Copy SourceFiles="@(JBroLocalizationFiles)" DestinationFolder="$(OutDir)Localization" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(JBroIconFontFiles)" DestinationFolder="$(OutDir)ThirdParty\FontAwesome" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(JBroIconFontFiles)" DestinationFolder="$(OutDir)ThirdParty\MaterialDesignIcons" SkipUnchangedFiles="true" />
   </Target>
 </Project>

@@ -8,6 +8,10 @@
 #include <cstddef>
 #include <cstdio>
 
+// 아이콘 글리프가 U+F0000 위에 있다(D-277). 16 비트 `ImWchar` 면 범위가 잘리고 글자를 읽을 때
+// 모두 네모가 되는데 빌드는 지난다 - 그래서 여기서 막는다.
+static_assert(sizeof(ImWchar) == 4, "imconfig.h must define IMGUI_USE_WCHAR32 for the editor's icon font");
+
 namespace JBro::EditorTheme
 {
     void ApplyColors()
@@ -229,8 +233,8 @@ namespace JBro::EditorTheme
         return g_hasIconFont;
     }
 
-    // 아이콘 글꼴을 본문 글꼴에 합친다(D-96). `MergeMode` 라 같은 `ImFont` 안에서 U+F000..F8FF
-    // 만 이 파일에서 온다. 파일이 없으면 합치지 않고 아이콘 자리에 네모가 나온다 - 그래도
+    // 아이콘 글꼴을 본문 글꼴에 합친다(D-96, 글꼴은 D-277). `MergeMode` 라 같은 `ImFont` 안에서
+    // `Icons::RangeBegin..RangeEnd` 만 이 파일에서 온다. 파일이 없으면 합치지 않고 아이콘 자리에 네모가 나온다 - 그래도
     // 에디터는 뜬다. 기존 엔진 `ImEditor` 의 같은 자리를 옮겼다.
     void MergeIconFont()
     {
