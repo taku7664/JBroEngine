@@ -178,7 +178,7 @@ namespace JBro
             // 빈자리의 메뉴는 캔버스 뷰의 것과 **같은 한 벌**이다(D-132).
             bool changed = EditorActions::DrawBackgroundMenu(*m_editor);
             ImGui::Separator();
-            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyAddLayer, "Add Layer")))
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyAddLayer, "Add Layer"), nullptr, true, nullptr, Icons::Plus))
             {
                 m_editor->GetCommands().Execute(
                     MakeOwnerPtr<CreateLayerCommand>(*canvas, "Layer"));
@@ -216,6 +216,8 @@ namespace JBro
                     : EditorPaths::LeafOfPath(path);
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(canvasRow.ContentRect.Min);
+                // 줄의 종류는 앞의 아이콘이 말한다(D-278) - 캔버스·레이어·오브젝트가 이름만으로는 갈리지 않는다.
+                Widget::InlineIcon(Icons::Canvas);
                 Widget::Text(leaf);
                 ImGui::SetCursorScreenPos(cursor);
             }
@@ -336,16 +338,20 @@ namespace JBro
         {
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
             ImGui::SetCursorScreenPos(row.ContentRect.Min);
-            // 숨긴 레이어는 흐리게. 화면에 안 나오는 이유가 줄에서 보여야 한다.
+            // 숨긴 레이어는 흐리게. 화면에 안 나오는 이유가 줄에서 보여야 한다. 앞의 아이콘도 같이 흐리다.
+            // 화면 레이어는 아이콘이 화면이다(D-278) - 월드 레이어와 줄 머리에서 갈린다.
+            const char* layerIcon = layer.GetSpace() == LayerSpace::Screen ? Icons::ViewScreen : Icons::Layer;
             if (layer.IsVisible())
             {
+                Widget::InlineIcon(layerIcon);
                 Widget::Text(layer.GetName());
             }
             else
             {
+                Widget::InlineIcon(layerIcon, ImGui::GetColorU32(ImGuiCol_TextDisabled));
                 Widget::HintText(layer.GetName());
             }
-            // 화면 레이어는 이름 뒤에 표시한다 - 그 레이어의 오브젝트가 왜 캔버스 뷰의 월드 보기에 없는지가 줄에서 보인다(D-237).
+            // 화면 레이어는 이름 뒤에도 표시한다 - 그 레이어의 오브젝트가 왜 캔버스 뷰의 월드 보기에 없는지가 줄에서 보인다(D-237).
             if (layer.GetSpace() == LayerSpace::Screen)
             {
                 ImGui::SameLine();
@@ -520,7 +526,7 @@ namespace JBro
             }
         }
         ImGui::Separator();
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object"), nullptr, true, nullptr, Icons::Plus))
         {
             // 만든 것은 우클릭한 레이어에 놓는다. 기본 레이어로 가면 방금 연 칸에
             // 나타나지 않아 만들어지지 않은 것처럼 보인다.
@@ -537,7 +543,7 @@ namespace JBro
             const bool canDelete = canvas->GetLayerCount() > 1;
             if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer"),
                     nullptr, canDelete,
-                    Loc::TextOr(LocKeys::BlockedLastLayer, "a canvas needs at least one layer")))
+                    Loc::TextOr(LocKeys::BlockedLastLayer, "a canvas needs at least one layer"), Icons::Delete))
             {
                 m_editor->ClearSelection();
                 m_editor->SetSelectedObject(nullptr);
@@ -972,13 +978,15 @@ namespace JBro
         {
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
             ImGui::SetCursorScreenPos(row.ContentRect.Min);
-            // 꺼져 있는 오브젝트는 흐리게. 사용 여부는 화면에서 바로 보여야 한다.
+            // 꺼져 있는 오브젝트는 흐리게. 사용 여부는 화면에서 바로 보여야 한다. 앞의 아이콘도 같이 흐리다(D-278).
             if (object.IsActiveSelf())
             {
+                Widget::InlineIcon(Icons::GameObject);
                 Widget::Text(name);
             }
             else
             {
+                Widget::InlineIcon(Icons::GameObject, ImGui::GetColorU32(ImGuiCol_TextDisabled));
                 Widget::HintText(name);
             }
             ImGui::SetCursorScreenPos(cursor);

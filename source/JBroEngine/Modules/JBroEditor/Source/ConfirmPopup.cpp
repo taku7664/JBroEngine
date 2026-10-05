@@ -1,6 +1,8 @@
 ﻿#include <JBro/Editor/ConfirmPopup.h>
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/Widget/Button.h>
 
 #include <imgui.h>
 
@@ -48,7 +50,11 @@ namespace JBro
 
     void ConfirmPopup::OnDraw(EditorApplication& editor)
     {
+        // 글 앞에 묻는 아이콘(D-278). 글이 여러 줄이어도 아이콘 뒤에서 이어진다.
+        Widget::InlineIcon(Icons::Question);
+        ImGui::BeginGroup();
         Widget::WrappedText(m_message.c_str());
+        ImGui::EndGroup();
         ImGui::Spacing();
         for (int index = 0; index < 3; ++index)
         {

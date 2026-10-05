@@ -1,4 +1,6 @@
 ﻿#include <JBro/Editor/Widget/Gizmo.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
 
 #include <imgui_internal.h>
@@ -264,8 +266,9 @@ namespace JBro::Widget
     {
         const GizmoMode before = mode;
         const char* labels[3] = {translateLabel, rotateLabel, scaleLabel};
-        // 라벨 뒤에 붙는 안정된 꼬리다. Id 는 `라벨##꼬리` 에서 나오므로 번역이 바뀌어도 꼬리로 찾을 수 있다.
-        const char* suffixes[3] = {"##gizmo_translate", "##gizmo_rotate", "##gizmo_scale"};
+        const char* icons[3] = {Icons::Move, Icons::Rotate, Icons::Scale};
+        // 단추의 Id 다. 글자가 없으니 번역이 바뀌어도 같은 Id 다.
+        const char* ids[3] = {"##gizmo_translate", "##gizmo_rotate", "##gizmo_scale"};
         const GizmoMode modes[3] = {GizmoMode::Translate, GizmoMode::Rotate, GizmoMode::Scale};
         for (int index = 0; index < 3; ++index)
         {
@@ -274,14 +277,7 @@ namespace JBro::Widget
                 ImGui::SameLine();
             }
             const bool selected = mode == modes[index];
-            StyleScope style;
-            if (selected)
-            {
-                style.PushColor(ImGuiCol_Button, ImGui::GetStyleColorVec4(ImGuiCol_ButtonActive));
-            }
-            char label[128];
-            ImFormatString(label, sizeof(label), "%s%s", labels[index] != nullptr ? labels[index] : "", suffixes[index]);
-            const bool pressed = ImGui::Button(label);
+            const bool pressed = IconButton(ids[index], icons[index]).Selected(selected).Tooltip(labels[index]).Draw();
             // 가이드가 모드 단추를 가리킬 수 있다(반례 ⑦). 열림은 그 모드가 켜져 있는가다 - 켜져 있으면 다음 칸(손잡이)으로 간다.
             Internal::ReportLastItem(GuideFocusTargets::GizmoModeButton(static_cast<std::uint32_t>(modes[index])),
                 pressed || mode == modes[index], pressed);

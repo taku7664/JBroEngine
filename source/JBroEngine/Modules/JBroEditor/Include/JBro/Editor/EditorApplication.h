@@ -673,7 +673,7 @@ namespace JBro
         // 도구 창들이 붙는 안쪽 도크. 자기 메뉴 막대를 가진다.
         void DrawMainDock(float deltaTime);
         // 메뉴 항목 하나를 단축키 표의 값으로 그린다: 이름·조합키 글자·할 수 있는지.
-        bool DrawShortcutItem(EditorShortcut id, const char* label);
+        bool DrawShortcutItem(EditorShortcut id, const char* label, const char* icon = nullptr);
         bool BuildEditorUi(float deltaTime);
         // 큐의 맨 앞 팝업 하나를 그린다. 닫힌 것은 먼저 빼고, 닫히면 그 자리에서 뺀다.
         void DrawPopups();

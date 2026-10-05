@@ -3,10 +3,12 @@
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/Button.h>
 
 #include <imgui.h>
 
@@ -101,6 +103,8 @@ namespace JBro
         // 말하지 않으면 고장과 구분되지 않는다.
         const bool playing = m_editor->IsSimulationPlaying() && false == m_editor->IsSimulationPaused();
         const char* text = nullptr;
+        // 글자 앞의 아이콘이 상태를 먼저 말한다(D-278) - 재생·멈춤·경고가 글자를 읽기 전에 갈린다.
+        const char* icon = Icons::Warning;
         ImU32 color = IM_COL32(210, 216, 224, 255);
         if (m_editor->GetCanvas() == nullptr)
         {
@@ -112,20 +116,31 @@ namespace JBro
             // 텍스처가 있는지만 보면 카메라 없는 검은 화면을 "실행 중" 이라고 말한다 -
             // 기존 게임 뷰는 그 둘을 갈랐다.
             // 카메라가 있는데 값이 잘못되어 건너뛴 것이면 그렇게 말한다(D-239). "카메라 없음" 이라고 하면 붙어 있는 카메라를 찾아 헤맨다.
-            text = m_editor->GetUnusableGameCameraCount() > 0
+            const bool unusable = m_editor->GetUnusableGameCameraCount() > 0;
+            text = unusable
                 ? Loc::TextOr(LocKeys::GameViewCameraUnusable, "the Camera2D values cannot be drawn")
                 : Loc::TextOr(LocKeys::GameViewNoCamera, "there is no camera");
+            icon = unusable ? Icons::Warning : Icons::NoCamera;
         }
         else if (playing)
         {
             text = Loc::TextOr(LocKeys::GameViewPlaying, "Playing");
+            icon = Icons::Play;
             color = IM_COL32(100, 230, 120, 255);
         }
         else
         {
             text = Loc::TextOr(LocKeys::GameViewStopped, "Stopped");
+            icon = Icons::Stop;
         }
-        ImGui::GetWindowDrawList()->AddText(ImVec2(left + 12.0f, top + 10.0f), color, text);
+        const float lineHeight = ImGui::GetTextLineHeight();
+        const float gap = ImGui::GetStyle().ItemInnerSpacing.x;
+        const auto statusLine = [&](float y, const char* glyph, ImU32 tint, const char* message) {
+            const ImVec2 iconMin(left + 12.0f, y);
+            Widget::DrawGlyphCentered(glyph, iconMin, ImVec2(iconMin.x + lineHeight, iconMin.y + lineHeight), tint);
+            ImGui::GetWindowDrawList()->AddText(ImVec2(iconMin.x + lineHeight + gap, y), tint, message);
+        };
+        statusLine(top + 10.0f, icon, color, text);
 
         // **어느 카메라로 그리고 있는지 애매하면 말한다**(D-187, 기존 캔버스 인스펙터의
         // `camera_ambiguous` 경고). `primary` 를 켠 카메라가 없으면 첫 활성 카메라로
@@ -144,8 +159,7 @@ namespace JBro
             });
             if (false == anyPrimary && active > 1)
             {
-                ImGui::GetWindowDrawList()->AddText(ImVec2(left + 12.0f, top + 28.0f),
-                    IM_COL32(255, 200, 90, 255),
+                statusLine(top + 28.0f, Icons::Warning, IM_COL32(255, 200, 90, 255),
                     Loc::TextOr(LocKeys::GameViewCameraAmbiguous,
                         "no camera is primary, so the first active one is used"));
             }

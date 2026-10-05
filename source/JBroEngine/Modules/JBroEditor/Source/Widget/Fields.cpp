@@ -1,8 +1,11 @@
 ﻿#include <JBro/Editor/Widget/Fields.h>
 
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
+#include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Editor/Widget/TextField.h>
 
 #include <imgui_internal.h>
@@ -75,10 +78,23 @@ namespace JBro::Widget
             m_text.size() < sizeof(buffer) - 1 ? m_text.size() : sizeof(buffer) - 1;
         std::memcpy(buffer, m_text.c_str(), copied);
 
+        // **칸 안 왼쪽에 돋보기가 선다**(D-278). 글자가 그 뒤에서 시작하도록 칸의 가로 여백을 아이콘 폭만큼 늘린다.
+        const ImVec2 padding = ImGui::GetStyle().FramePadding;
+        const float iconSpace = ImGui::GetTextLineHeight();
         ImGui::SetNextItemWidth(fieldWidth);
-        if (ImGui::InputTextWithHint("##input",
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(padding.x + iconSpace, padding.y));
+        const bool edited = ImGui::InputTextWithHint("##input",
             m_hint != nullptr ? m_hint : Loc::TextOr(LocKeys::CommonSearch, "Search"),
-            buffer, sizeof(buffer), m_flags))
+            buffer, sizeof(buffer), m_flags);
+        ImGui::PopStyleVar();
+        {
+            const ImVec2 fieldMin = ImGui::GetItemRectMin();
+            const ImVec2 fieldMax = ImGui::GetItemRectMax();
+            const float iconLeft = fieldMin.x + padding.x * 0.5f;
+            DrawGlyphCentered(Icons::Search, ImVec2(iconLeft, fieldMin.y), ImVec2(iconLeft + iconSpace, fieldMax.y),
+                ImGui::GetColorU32(ImGuiCol_TextDisabled));
+        }
+        if (edited)
         {
             m_text = buffer;
             changed = true;
@@ -87,7 +103,7 @@ namespace JBro::Widget
         if (drawClear)
         {
             ImGui::SameLine();
-            if (IconButton("clear", "x")
+            if (IconButton("##clear", Icons::Xmark)
                 .Size(ImVec2(clearWidth, 0.0f))
                 .Tooltip(m_clearTooltip != nullptr
                     ? m_clearTooltip
@@ -136,8 +152,10 @@ namespace JBro::Widget
         const char* text = m_text != nullptr ? m_text : "";
         const ImGuiStyle& style = ImGui::GetStyle();
         const ImVec2 textSize = ImGui::CalcTextSize(text);
+        // 글자 앞에 단계 아이콘이 선다(D-278). 글줄 높이의 정사각형과 그 뒤 여백만큼 넓다.
+        const float iconWidth = textSize.y + style.ItemInnerSpacing.x;
         const ImVec2 size(
-            std::max(m_minWidth, textSize.x + style.FramePadding.x * 2.0f),
+            std::max(m_minWidth, iconWidth + textSize.x + style.FramePadding.x * 2.0f),
             textSize.y + style.FramePadding.y * 2.0f);
         const ImVec2 pos = ImGui::GetCursorScreenPos();
 
@@ -150,8 +168,11 @@ namespace JBro::Widget
             ImGui::GetColorU32(WithAlpha(base, 0.18f)), style.FrameRounding);
         drawList->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y),
             ImGui::GetColorU32(WithAlpha(base, 0.65f)), style.FrameRounding);
+        const ImVec2 iconMin(pos.x + style.FramePadding.x, pos.y + style.FramePadding.y);
+        DrawGlyphCentered(SeverityIcon(m_severity), iconMin, ImVec2(iconMin.x + textSize.y, iconMin.y + textSize.y),
+            ImGui::GetColorU32(base));
         drawList->AddText(
-            ImVec2(pos.x + style.FramePadding.x, pos.y + style.FramePadding.y),
+            ImVec2(iconMin.x + iconWidth, pos.y + style.FramePadding.y),
             ImGui::GetColorU32(base), text);
 
         HoveredTooltip(m_tooltip);
@@ -193,9 +214,15 @@ namespace JBro::Widget
         return *this;
     }
 
+    IconButton& IconButton::Caption(const char* text)
+    {
+        m_caption = text;
+        return *this;
+    }
+
     bool IconButton::Draw() const
     {
-        ImGui::PushID(m_id != nullptr ? m_id : "");
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
         StyleScope style;
         if (m_selected)
         {
@@ -205,14 +232,43 @@ namespace JBro::Widget
             style.PushColor(ImGuiCol_ButtonActive,
                 ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive));
         }
+        // 아이콘 칸은 줄 높이의 정사각형이다. 글자가 붙으면 그 뒤로 글자 폭과 여백만큼 늘린다.
+        const float square = ImGui::GetFrameHeight();
+        const bool hasCaption = m_caption != nullptr && *m_caption != '\0';
+        const float captionWidth = hasCaption
+            ? ImGui::CalcTextSize(m_caption).x + ImGui::GetStyle().FramePadding.x
+            : 0.0f;
+        ImVec2 size = m_size;
+        if (size.x <= 0.0f)
+        {
+            size.x = square + captionWidth;
+        }
+        if (size.y <= 0.0f)
+        {
+            size.y = square;
+        }
         bool clicked = false;
         {
             DisableScope disable(m_disabled);
-            clicked = ImGui::Button(m_icon != nullptr ? m_icon : "", m_size);
+            // 이름 없이 단추를 그리고 그 위에 아이콘을 얹는다. ImGui 가 이름을 그리면 줄 상자로 맞춰 처진다(D-277).
+            clicked = ImGui::Button(m_id != nullptr ? m_id : "##icon_button", size);
+            const ImVec2 min = ImGui::GetItemRectMin();
+            const ImVec2 max = ImGui::GetItemRectMax();
+            const ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
+            const float iconRight = hasCaption ? min.x + square : max.x;
+            if (m_icon != nullptr)
+            {
+                DrawGlyphCentered(m_icon, min, ImVec2(iconRight, max.y), color);
+            }
+            if (hasCaption)
+            {
+                const float textY = min.y + (max.y - min.y - ImGui::GetTextLineHeight()) * 0.5f;
+                ImGui::GetWindowDrawList()->AddText(ImVec2(iconRight, textY), color, m_caption);
+            }
         }
         style.Pop();
+        Internal::ReportLastItem(target, m_selected, clicked, false == m_disabled);
         HoveredTooltip(m_tooltip);
-        ImGui::PopID();
         // 잠긴 버튼은 눌리지 않는다. `BeginDisabled` 가 이미 막지만, 돌려주는
         // 값에서도 막아 두어야 부르는 쪽이 조건을 두 번 쓰지 않는다.
         return clicked && false == m_disabled;

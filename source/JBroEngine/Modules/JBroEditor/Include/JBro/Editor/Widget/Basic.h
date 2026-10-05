@@ -30,9 +30,9 @@ namespace JBro::Widget
     // ── 단추 ────────────────────────────────────────────────────────────────
     // 글자 단추다. 눌렸으면 참이다.
     bool Button(const char* label);
-    // 눌러서 켜고 끄는 글자 단추다(`콜라이더 편집`). 모양은 `Button` 과 같고, 눌리면 `on` 을 뒤집고 참이다.
-    // 가이드 포커스에는 **켜져 있는가를 열림으로** 알린다 - 가이드가 "켜고 나서 그 안의 것" 을 가리킬 수 있다(반례 ⑦).
-    bool ToggleButton(const char* label, bool& on);
+    // 앞에 아이콘이 붙은 글자 단추다(D-278). **Id 는 글자 단추와 같다**(이름 그대로) - 아이콘을 붙여도 시험·가이드가
+    // 찾던 Id 가 바뀌지 않는다. 아이콘은 잉크로 글자와 같은 높이에 놓는다. `icon` 이 널이면 `Button(label)` 이다.
+    bool Button(const char* label, const char* icon);
     // 고를 수 있는 한 줄(설정 창 왼쪽의 항목 목록 같은 것). 고른 줄은 칠해진다. 눌렸으면 참이다.
     bool SelectableRow(const char* label, bool selected);
     // **무게가 있는 단추**다(D-190, 기존 `ImActionButton`). 지우기처럼 되돌릴 수 없는 것은
@@ -54,8 +54,11 @@ namespace JBro::Widget
     //
     // `disabledReason` 을 주면 회색일 때 마우스를 올린 자리에 그 까닭이 뜬다(D-181,
     // 기존 엔진의 저장 항목이 그랬다). **회색으로만 두면 무엇을 해야 켜지는지 알 수 없다.**
+    //
+    // `icon` 을 주면 이름 앞의 아이콘 칸에 그린다(D-278). 한 메뉴에서 하나라도 아이콘이 있으면 ImGui 가 모든 항목에 그 칸을
+    // 두어 이름이 같은 자리에서 시작한다. 아이콘은 글자처럼 그리지 않고 잉크로 칸 한가운데 놓는다(`DrawGlyphCentered`).
     bool MenuItem(const char* label, const char* shortcut = nullptr, bool enabled = true,
-        const char* disabledReason = nullptr);
+        const char* disabledReason = nullptr, const char* icon = nullptr);
 
     // 방금 그린 항목이 회색일 때 그 까닭을 띄운다. 메뉴 항목이 아닌 것(단추·칸)도
     // 같은 수를 쓸 수 있도록 따로 낸다. `disabled` 가 거짓이거나 까닭이 없으면 아무 일도 없다.
@@ -92,8 +95,9 @@ namespace JBro::Widget
     bool FoldNode(const char* label, ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_None);
     // 트리 마디를 닫는다. `Tree`·`TreeBegin` 이 참을 돌려줬을 때만 부른다.
     void TreePop();
-    // 접는 머리다. 펼쳐져 있으면 참이다.
-    bool CollapsingSection(const char* title, bool defaultOpen = true);
+    // 접는 머리다. 펼쳐져 있으면 참이다. `allowOverlap` 이면 머리 위에 얹은 단추(컴포넌트 머리의 메뉴 단추)가
+    // 마우스를 받는다 - 아니면 머리가 늘 먼저 가져간다.
+    bool CollapsingSection(const char* title, bool defaultOpen = true, bool allowOverlap = false);
     // RHI 텍스처를 붙인다. `uvMin`·`uvMax` 로 텍스처의 일부(시트의 한 칸)만 보일 수 있다.
     void Image(TextureHandle texture, const ImVec2& size,
         const ImVec2& uvMin = ImVec2(0.0f, 0.0f), const ImVec2& uvMax = ImVec2(1.0f, 1.0f));

@@ -1,6 +1,8 @@
 ﻿#include "StatsPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/FormLayout.h>
 #include <JBro/Editor/Widget/Meter.h>
@@ -43,6 +45,8 @@ namespace JBro
                 [&] {
                     ImGui::PushID(static_cast<int>(index));
                     bool solo = audio.IsBusSolo(name);
+                    // 칸 앞의 헤드폰이 무엇을 켜는 칸인지 말한다(D-278).
+                    Widget::InlineIcon(Icons::Solo);
                     if (Widget::Checkbox("##solo", solo))
                     {
                         audio.SetBusSolo(name, solo);

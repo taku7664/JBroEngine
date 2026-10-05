@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorTheme.h>
 
 // 세로 구분선은 공개 헤더에 없다. 그리는 규칙은 ImGui 의 것을 그대로 쓴다.
@@ -37,19 +38,19 @@ namespace JBro::Widget
         }
     }
 
-    const char* SeverityPrefix(Severity severity)
+    const char* SeverityIcon(Severity severity)
     {
         switch (severity)
         {
         case Severity::Success:
-            return "[OK] ";
+            return Icons::Success;
         case Severity::Warning:
-            return "[!] ";
+            return Icons::Warning;
         case Severity::Error:
-            return "[X] ";
+            return Icons::Error;
         case Severity::Info:
         default:
-            return "[i] ";
+            return Icons::Info;
         }
     }
 

@@ -1,7 +1,9 @@
 ﻿#include "LogPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Common.h>
@@ -39,6 +41,24 @@ namespace JBro
             case LogLevel::Warning: return Loc::TextOr(LocKeys::LogWarning, "Warning");
             case LogLevel::Error: return Loc::TextOr(LocKeys::LogError, "Error");
             default: return "";
+            }
+        }
+
+        // 등급의 아이콘이다(D-278). 추적과 디버그는 벌레, 나머지는 알림과 같은 단계 아이콘이다.
+        const char* LevelIcon(LogLevel level)
+        {
+            switch (level)
+            {
+            case LogLevel::Trace:
+            case LogLevel::Debug:
+                return Icons::Debug;
+            case LogLevel::Warning:
+                return Icons::Warning;
+            case LogLevel::Error:
+                return Icons::Error;
+            case LogLevel::Info:
+            default:
+                return Icons::Info;
             }
         }
 
@@ -129,14 +149,18 @@ namespace JBro
 
     void LogPanel::DrawToolBar()
     {
-        if (Widget::Button(Loc::TextOr(LocKeys::LogClear, "Clear")))
+        if (Widget::IconButton("##log_clear", Icons::ClearLog)
+                .Caption(Loc::TextOr(LocKeys::LogClear, "Clear"))
+                .Draw())
         {
             Log::Clear();
         }
         ImGui::SameLine(0.0f, 6.0f);
         // 이름표는 칸 옆 글자다. 위젯에 넘기면 그 글자가 Id 가 되어 번역이 바뀔 때 상태가 풀린다.
+        // 글자 앞에 아이콘을 둔다(D-278).
         Widget::Checkbox("##follow", m_autoScroll);
         ImGui::SameLine(0.0f, 4.0f);
+        Widget::InlineIcon(Icons::AutoScroll);
         Widget::Text(Loc::TextOr(LocKeys::LogAutoScroll, "Follow"));
         Widget::ToolBarSeparator();
 
@@ -156,6 +180,7 @@ namespace JBro
             ImGui::SameLine(0.0f, 4.0f);
             Widget::StyleScope style;
             style.PushColor(ImGuiCol_Text, LevelColor(Levels[index]));
+            Widget::InlineIcon(LevelIcon(Levels[index]));
             Widget::Text(LevelLabel(Levels[index]));
         }
 
@@ -189,6 +214,8 @@ namespace JBro
             ImGui::PushID(static_cast<int>(entry->serial));
             Widget::StyleScope style;
             style.PushColor(ImGuiCol_Text, LevelColor(entry->level));
+            // 줄 앞의 등급 아이콘(D-278). 색만으로는 정보와 디버그가 잘 갈리지 않는다.
+            Widget::InlineIcon(LevelIcon(entry->level));
             if (entry->category[0] != '\0')
             {
                 Widget::TextF("[%s] %s", entry->category, entry->message);

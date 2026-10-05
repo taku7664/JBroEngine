@@ -1041,6 +1041,35 @@ namespace
         return false;
     }
 
+    // **캔버스 뷰 도구 막대의 단추를 찾는다**(D-278). 아이콘 단추는 줄 높이의 정사각형이라, 창 폭의 5% 간격으로 훑는
+    // `FindItemAnywhereInWindow` 는 사이로 빗나간다(로컬·월드 단추를 못 찾았다). 맨 앞의 이동 단추로 막대의 높이를 찾고
+    // 그 줄만 촘촘히 훑는다.
+    bool FindToolBarButton(JBro::EditorApplication& editor, HWND hwnd, ImGuiWindow* window, ImGuiID target, Spot& spot)
+    {
+        Check(window != nullptr, "the window this test looks in must exist");
+        Spot first;
+        const int firstX = static_cast<int>(window->Pos.x + ImGui::GetStyle().WindowPadding.x + ImGui::GetFrameHeight() * 0.5f);
+        if (false == FindItemInWindow(editor, hwnd, window, LabelId(window->ID, "##gizmo_translate"), firstX, first))
+        {
+            return false;
+        }
+        // 처음 닿은 y 는 단추의 윗변이다. 조금 내려 줄의 안쪽을 훑는다.
+        const int y = first.y + 4;
+        const int right = static_cast<int>(window->Pos.x + window->Size.x);
+        for (int x = static_cast<int>(window->Pos.x); x < right; x += 3)
+        {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(x, y));
+            Check(editor.Tick(Frame), "the editor must tick while looking");
+            if (ImGui::GetHoveredID() == target)
+            {
+                spot.x = x;
+                spot.y = y;
+                return true;
+            }
+        }
+        return false;
+    }
+
     // 손잡이에서 떨어뜨릴 자리까지 끈다. 가로로만 끄는 `DragFrom` 과 달리 두 축을 다 간다.
     // 끌어 놓기는 **놓는 순간 마우스가 목표 위에 있어야** 받으므로, 마지막 움직임 뒤에 한 번
     // 더 돌려 ImGui 가 목표를 본 뒤에 놓는다.
@@ -1231,10 +1260,7 @@ namespace
         // 코드 포인트는 `Icons` 의 UTF-8 을 ImGui 가 읽은 값으로 본다. 그래야 글꼴과 글자 읽기
         // (U+F0000 위는 32 비트 `ImWchar` 라야 읽힌다)를 함께 본다.
         Check(JBro::EditorTheme::HasIconFont(), "the icon font must be merged into the UI font");
-        const char* const iconGlyphs[] = {JBro::Icons::GripLines, JBro::Icons::Xmark, JBro::Icons::Gear,
-            JBro::Icons::Eye, JBro::Icons::EyeSlash, JBro::Icons::Filter, JBro::Icons::Search,
-            JBro::Icons::FolderOpen};
-        for (const char* glyph : iconGlyphs)
+        for (const char* glyph : JBro::Icons::All)
         {
             unsigned int codePoint = 0;
             ImTextCharFromUtf8(&codePoint, glyph, nullptr);
@@ -3764,9 +3790,9 @@ namespace
         }
         ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
         Check(inspector != nullptr, "the inspector must have a window");
-        // 단추의 글자가 곧 Id 다. 앞선 테스트가 한국어 표를 읽었을 수 있으므로 번역된 글자로 잰다.
-        const char* playLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorAudioPlay, "Play");
-        const char* stopLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorAudioStop, "Stop");
+        // 단추는 아이콘과 이름이고 Id 는 상태마다 다르다(D-278) - 번역과 무관하다.
+        const char* playLabel = "##audio_play";
+        const char* stopLabel = "##audio_stop";
         const ImGuiID playButton = LabelId(LabelId(inspector->ID, "##audioPreview"), playLabel);
         if (JBro::Renderer* shotRenderer = editor.GetRenderer())
         {
@@ -4219,7 +4245,7 @@ namespace
 
         // **그림이 있는 보기**(D-147). 아이콘 단추를 누르면 칸마다 작은 그림이 선다.
         {
-            const char* iconLabel = JBro::Loc::TextOr(JBro::LocKeys::AssetsIconView, "Icons");
+            const char* iconLabel = "##assets_view_icons";
             Spot iconButton;
             Check(FindItemAnywhereInWindow(editor, hwnd, assets,
                     LabelId(assets->ID, iconLabel), iconButton),
@@ -6351,9 +6377,9 @@ namespace
 
         // **바닥 격자가 실제로 화면에 닿는다**(D-140). 켠 프레임과 끈 프레임의 픽셀이
         // 달라야 한다 - 그리는 함수를 불렀는지가 아니라 그림이 바뀌었는지를 묻는다.
-        const char* gridLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewGrid, "Grid");
+        const char* gridLabel = "##canvas_grid";
         Spot gridButton;
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, gridLabel), gridButton),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, gridLabel), gridButton),
             "the grid button must be on the canvas view tool bar");
         JBro::Array<std::byte> withoutGrid;
         JBro::Array<std::byte> withGrid;
@@ -9083,10 +9109,9 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        const char* collidersLabel =
-            JBro::Loc::TextOr(JBro::LocKeys::CanvasViewColliders, "Colliders");
+        const char* collidersLabel = "##canvas_colliders";
         Spot toggle;
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, collidersLabel), toggle),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, collidersLabel), toggle),
             "the collider button must be on the canvas view tool bar");
 
         JBro::Renderer* renderer = editor.GetRenderer();
@@ -9238,9 +9263,9 @@ namespace
         Check(hoveredAt(onAxis) == LabelId(view->ID, "##gizmo_x"),
             "with editing off the gizmo's x handle is there, right of the middle");
 
-        const char* editLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditCollider, "Edit Collider");
+        const char* editLabel = "##canvas_edit_collider";
         Spot toggle;
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, editLabel), toggle),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, editLabel), toggle),
             "the edit collider button must be on the canvas view tool bar");
         ClickAt(editor, hwnd, toggle);
         Check(editor.Tick(Frame), "the editor must settle with editing on");
@@ -9396,12 +9421,13 @@ namespace
 
         ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
         Check(view != nullptr, "the canvas view must have a window");
-        const char* unitLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewUnitWorld, "Unit");
-        const char* pixelLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewUnitPixel, "Pixel");
+        // 단추는 아이콘과 지금 단위의 글자다(D-278). 상태마다 Id 가 다르다 - 글자 단추일 때와 같다.
+        const char* unitLabel = "##canvas_unit_world";
+        const char* pixelLabel = "##canvas_unit_pixel";
         Check(std::strcmp(unitLabel, pixelLabel) != 0,
             "the two readings must not share one label, or the button says nothing");
         Spot toggle;
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, unitLabel), toggle),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, unitLabel), toggle),
             "the unit button must be on the canvas view tool bar and start on world units");
 
         JBro::Renderer* renderer = editor.GetRenderer();
@@ -9438,9 +9464,9 @@ namespace
 
         // **단추가 지금 무엇으로 읽는지 말한다.** 누르고도 글자가 그대로면 어느 쪽인지 모른다.
         Spot after;
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, pixelLabel), after),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, pixelLabel), after),
             "and the button must now read as the pixel one");
-        Check(false == FindItemAnywhereInWindow(
+        Check(false == FindToolBarButton(
                   editor, hwnd, view, LabelId(view->ID, unitLabel), after),
             "the world-unit label must be gone while pixels are on");
         SaveScreenshot(*renderer, 640, 480, "ruler-pixels");
@@ -9448,7 +9474,7 @@ namespace
         // 다시 누르면 유닛으로 돌아온다. 한쪽으로만 가는 토글은 토글이 아니다.
         ClickAt(editor, hwnd, after);
         Check(editor.Tick(Frame), "the editor must settle back on world units");
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, unitLabel), toggle),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, unitLabel), toggle),
             "pressing it again must read as world units");
 
         editor.Shutdown();
@@ -11445,17 +11471,17 @@ namespace
 
         // ── 월드로 바꾼다. 툴바의 단추가 그 자리다. ───────────────────────────
         Spot button;
-        const char* localLabel = JBro::Loc::TextOr(JBro::LocKeys::GizmoSpaceLocal, "Local");
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, localLabel), button),
+        const char* localLabel = "##canvas_gizmo_local";
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, localLabel), button),
             "the toolbar must offer the local/world toggle");
         ClickAt(editor, hwnd, button);
         for (int frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle after the toggle");
         }
-        const char* worldLabel = JBro::Loc::TextOr(JBro::LocKeys::GizmoSpaceWorld, "World");
+        const char* worldLabel = "##canvas_gizmo_world";
         Spot worldButton;
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, worldLabel), worldButton),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, worldLabel), worldButton),
             "and the button must now say world");
 
         // ── 월드: 오른쪽 손잡이를 잡아 오른쪽으로 민다. ───────────────────────
@@ -11606,9 +11632,9 @@ namespace
         };
         const auto spaceLocked = [&]() {
             ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
-            const char* localLabel = JBro::Loc::TextOr(JBro::LocKeys::GizmoSpaceLocal, "Local");
+            const char* localLabel = "##canvas_gizmo_local";
             Spot button;
-            Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, localLabel), button),
+            Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, localLabel), button),
                 "the toolbar must offer the local/world toggle");
             // 잠긴 항목도 가리키면 hover id 는 서고, 잠겼는지는 따로 적힌다.
             return ImGui::GetCurrentContext()->HoveredIdIsDisabled;
@@ -12290,9 +12316,9 @@ namespace
         const Spot rightCorner = at(3.0f, -0.5f);
 
         // 도구 막대로 켜면 첫 폴리곤이다 - 메뉴가 없던 때의 모양 그대로다.
-        const char* editLabel = JBro::Loc::TextOr(JBro::LocKeys::CanvasViewEditCollider, "Edit Collider");
+        const char* editLabel = "##canvas_edit_collider";
         Spot toggle;
-        Check(FindItemAnywhereInWindow(editor, hwnd, view, LabelId(view->ID, editLabel), toggle),
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, editLabel), toggle),
             "the edit collider button must be on the canvas view tool bar");
         ClickAt(editor, hwnd, toggle);
         Check(hoveredAt(leftCorner) == vertex, "turned on from the tool bar, the first polygon is edited");

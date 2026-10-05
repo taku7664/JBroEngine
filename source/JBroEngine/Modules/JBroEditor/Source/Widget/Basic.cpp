@@ -2,6 +2,7 @@
 
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/EditorTheme.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
 
@@ -62,15 +63,33 @@ namespace JBro::Widget
         return pressed;
     }
 
-    bool ToggleButton(const char* label, bool& on)
+    bool Button(const char* label, const char* icon)
     {
-        const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        const bool pressed = ImGui::Button(label);
-        if (pressed)
+        if (icon == nullptr)
         {
-            on = false == on;
+            return Button(label);
         }
-        Internal::ReportLastItem(target, on, pressed);
+        const GuideFocusTarget target = Internal::TakeNextItemTarget();
+        const ImGuiStyle& style = ImGui::GetStyle();
+        const char* labelEnd = ImGui::FindRenderedTextEnd(label);
+        const ImVec2 textSize = ImGui::CalcTextSize(label, labelEnd);
+        const float lineHeight = ImGui::GetTextLineHeight();
+        const float iconWidth = lineHeight + style.ItemInnerSpacing.x;
+        bool pressed = false;
+        {
+            // 이름은 ImGui 가 그리지 않게 하고(Id 만 받는다) 아이콘과 이름을 직접 그린다.
+            StyleScope hidden;
+            hidden.PushColor(ImGuiCol_Text, ImVec4(0, 0, 0, 0));
+            pressed = ImGui::Button(label, ImVec2(iconWidth + textSize.x + style.FramePadding.x * 2.0f, 0.0f));
+        }
+        const ImVec2 min = ImGui::GetItemRectMin();
+        const ImVec2 max = ImGui::GetItemRectMax();
+        const ImU32 color = ImGui::GetColorU32(ImGuiCol_Text);
+        const float lineTop = min.y + (max.y - min.y - lineHeight) * 0.5f;
+        const ImVec2 iconMin(min.x + style.FramePadding.x, lineTop);
+        DrawGlyphCentered(icon, iconMin, ImVec2(iconMin.x + lineHeight, lineTop + lineHeight), color);
+        ImGui::GetWindowDrawList()->AddText(ImVec2(iconMin.x + iconWidth, lineTop), color, label, labelEnd);
+        Internal::ReportLastItem(target, false, pressed);
         return pressed;
     }
 
@@ -116,10 +135,28 @@ namespace JBro::Widget
     }
 
     bool MenuItem(const char* label, const char* shortcut, bool enabled,
-        const char* disabledReason)
+        const char* disabledReason, const char* icon)
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
-        const bool chosen = ImGui::MenuItem(label, shortcut, false, enabled);
+        bool chosen = false;
+        if (icon == nullptr)
+        {
+            chosen = ImGui::MenuItem(label, shortcut, false, enabled);
+        }
+        else
+        {
+            // ImGui 의 아이콘 칸에는 글자 폭 한 칸(U+3000, 전각 빈칸)만 넘겨 자리를 받고, 아이콘은 그 칸에 직접 그린다 -
+            // 아이콘을 넘기면 글자처럼 기준선에 앉아 처진다(D-277).
+            constexpr const char* IconSlot = "\xE3\x80\x80";
+            const ImVec2 rowMin = ImGui::GetCursorScreenPos();
+            chosen = ImGui::MenuItemEx(label, IconSlot, shortcut, false, enabled);
+            const ImGuiWindow* window = ImGui::GetCurrentWindow();
+            const float slotLeft = rowMin.x + window->DC.MenuColumns.OffsetIcon;
+            const float slotWidth = ImGui::CalcTextSize(IconSlot).x;
+            const float lineHeight = ImGui::GetTextLineHeight();
+            DrawGlyphCentered(icon, ImVec2(slotLeft, rowMin.y), ImVec2(slotLeft + slotWidth, rowMin.y + lineHeight),
+                ImGui::GetColorU32(enabled ? ImGuiCol_Text : ImGuiCol_TextDisabled));
+        }
         Internal::ReportLastItem(target, false, chosen, enabled, disabledReason);
         DisabledReason(false == enabled, disabledReason);
         return chosen;
@@ -237,7 +274,7 @@ namespace JBro::Widget
         ImGui::TreePop();
     }
 
-    bool CollapsingSection(const char* title, bool defaultOpen)
+    bool CollapsingSection(const char* title, bool defaultOpen, bool allowOverlap)
     {
         // **머리는 파랑이 아니다.** `ImGuiCol_Header` 는 고른 줄과 접기 머리가 함께 쓰는
         // 색인데, 파랑은 고른 것의 색이다 - 늘 서 있는 컴포넌트 머리가 그 색을 쓰면
@@ -248,8 +285,12 @@ namespace JBro::Widget
         scope.PushColor(ImGuiCol_HeaderActive, EditorTheme::Pressed);
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
         Internal::OpenIfGuided(target);
-        const bool open = ImGui::CollapsingHeader(title,
-            defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None);
+        ImGuiTreeNodeFlags flags = defaultOpen ? ImGuiTreeNodeFlags_DefaultOpen : ImGuiTreeNodeFlags_None;
+        if (allowOverlap)
+        {
+            flags |= ImGuiTreeNodeFlags_AllowOverlap;
+        }
+        const bool open = ImGui::CollapsingHeader(title, flags);
         Internal::ReportLastItem(target, open, ImGui::IsItemClicked());
         return open;
     }

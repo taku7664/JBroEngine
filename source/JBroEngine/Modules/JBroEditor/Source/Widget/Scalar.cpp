@@ -1,4 +1,6 @@
 ﻿#include <JBro/Editor/Widget/Scalar.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/Widget/Button.h>
 
 // IM_PI 와 ImVec2 연산을 쓴다.
 #include <imgui_internal.h>
@@ -39,9 +41,12 @@ namespace JBro::Widget
             return std::max(1.0f, full - (outButtonSize + outSpacing) * 2.0f);
         }
 
-        bool StepButton(const char* label, float size)
+        // 빼기·더하기 단추다. 글자 `-`/`+` 대신 아이콘을 잉크로 한가운데 놓는다(D-278).
+        bool StepButton(const char* id, const char* glyph, float size)
         {
-            return ImGui::Button(label, ImVec2(size, size));
+            const bool pressed = ImGui::Button(id, ImVec2(size, size));
+            DrawGlyphCentered(glyph, ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), ImGui::GetColorU32(ImGuiCol_Text));
+            return pressed;
         }
     }
 
@@ -111,13 +116,13 @@ namespace JBro::Widget
         if (m_stepButtons)
         {
             ImGui::SameLine(0.0f, spacing);
-            if (StepButton("-", buttonSize))
+            if (StepButton("##minus", Icons::Minus, buttonSize))
             {
                 value -= m_step;
                 changed = true;
             }
             ImGui::SameLine(0.0f, spacing);
-            if (StepButton("+", buttonSize))
+            if (StepButton("##plus", Icons::Plus, buttonSize))
             {
                 value += m_step;
                 changed = true;
@@ -204,13 +209,13 @@ namespace JBro::Widget
         if (m_stepButtons)
         {
             ImGui::SameLine(0.0f, spacing);
-            if (StepButton("-", buttonSize))
+            if (StepButton("##minus", Icons::Minus, buttonSize))
             {
                 value -= m_step;
                 changed = true;
             }
             ImGui::SameLine(0.0f, spacing);
-            if (StepButton("+", buttonSize))
+            if (StepButton("##plus", Icons::Plus, buttonSize))
             {
                 value += m_step;
                 changed = true;

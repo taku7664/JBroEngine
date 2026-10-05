@@ -1,6 +1,8 @@
 ﻿#include "ProjectSettingsPanel.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/EditorIcons.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/AssetField.h>
 #include <JBro/Editor/Widget/List.h>
@@ -357,7 +359,7 @@ namespace JBro
                             ImGui::SameLine();
                             {
                                 Widget::DisableScope first(index == 0);
-                                if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputMoveUp, "Move Up")))
+                                if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputMoveUp, "Move Up"), Icons::ArrowUp))
                                 {
                                     moveUp = index;
                                 }
@@ -383,7 +385,7 @@ namespace JBro
                 m_draft.inputLayers.RemoveAt(removeAt);
             }
         }
-        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddLayer, "Add Layer")))
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddLayer, "Add Layer"), Icons::Plus))
         {
             // 기본 순서를 쓰고 있었으면 그것을 먼저 옮겨 적는다. 새 레이어만 남기면 기본 레이어가 모두 맨 아래로 간다.
             if (m_draft.inputLayers.IsEmpty())
@@ -524,7 +526,7 @@ namespace JBro
                 {
                     action.bindings.RemoveAt(removeBinding);
                 }
-                if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddBinding, "Add Binding")))
+                if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddBinding, "Add Binding"), Icons::Plus))
                 {
                     ProjectInputBinding binding;
                     binding.code = static_cast<std::uint16_t>(Key::Space);
@@ -550,7 +552,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::ProjectSettingsInputTooMany,
                     "The engine uses up to 64 actions and 8 bindings per action. The rest stay only in the file")).Draw();
         }
-        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddAction, "Add Action")))
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsInputAddAction, "Add Action"), Icons::Plus))
         {
             String name;
             for (int suffix = 1;; ++suffix)
@@ -810,7 +812,7 @@ namespace JBro
                     Widget::HoveredTooltip(Loc::TextOr(LocKeys::ProjectSettingsAudioDeviceHelp,
                         "On a computer without this device the system default is used"));
                     ImGui::SameLine();
-                    if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsAudioRefreshDevices, "Refresh")))
+                    if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsAudioRefreshDevices, "Refresh"), Icons::Refresh))
                     {
                         m_audioDevicesListed = false;
                     }
@@ -1015,7 +1017,7 @@ namespace JBro
                 m_draft.audioBuses.RemoveAt(removeAt);
             }
         }
-        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsAudioAddBus, "Add Bus")))
+        if (Widget::Button(Loc::TextOr(LocKeys::ProjectSettingsAudioAddBus, "Add Bus"), Icons::Plus))
         {
             // 겹치지 않는 이름으로 시작한다. 바로 고쳐 쓰면 된다.
             String name;

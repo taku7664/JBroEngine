@@ -167,6 +167,8 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorPasteComponent = "inspector.paste_component";
     inline constexpr const char* InspectorPasteComponentValues = "inspector.paste_component_values";
     inline constexpr const char* InspectorRemoveComponent = "inspector.remove_component";
+    // 컴포넌트 머리의 메뉴 단추 툴팁(D-278).
+    inline constexpr const char* InspectorComponentMenu = "inspector.component_menu";
     inline constexpr const char* InspectorNoComponentTypes = "inspector.no_component_types";
     inline constexpr const char* InspectorUnregisteredType = "inspector.unregistered_type";
     inline constexpr const char* InspectorUnknownComponent = "inspector.unknown_component";

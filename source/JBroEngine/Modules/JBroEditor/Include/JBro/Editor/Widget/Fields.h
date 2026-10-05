@@ -76,9 +76,14 @@ namespace JBro::Widget
         float m_minWidth = 0.0f;
     };
 
-    // 글자 하나짜리 버튼이다. 고른 상태면 머리 색을 입는다.
+    // 아이콘 하나짜리 단추다(도구 막대의 단추). `JBro::Icons` 의 글리프를 넘긴다(D-96, D-278).
     //
-    // 아이콘 하나짜리 단추다. `JBro::Icons` 의 글리프를 넘긴다(D-96).
+    // - 크기를 주지 않으면 줄 높이의 정사각형이다. 글리프는 잉크로 한가운데 놓는다(`DrawGlyphCentered`, D-277).
+    // - **이름은 툴팁이 말한다.** 글자가 없는 단추라 툴팁이 곧 이름이다 - 비워 두지 않는다.
+    // - **켜고 끄는 단추는 `Selected` 로 지금 상태를 칠한다.** 아이콘만 있으면 글자가 바뀌는 것으로도 상태를 알 수 없다.
+    // - `Caption` 은 아이콘 뒤에 붙는 짧은 글자다. 아이콘 하나로 두 상태가 갈리지 않는 자리(단위 `유닛`/`픽셀`)에 쓴다.
+    // - `id` 는 ImGui 의 이름 그대로다(`##canvas_grid`). 번역이 바뀌어도 시험·가이드가 같은 Id 로 찾는다.
+    // - 가이드 포커스에는 켜져 있는가(`Selected`)를 열림으로 알린다.
     class IconButton
     {
     public:
@@ -88,6 +93,7 @@ namespace JBro::Widget
         IconButton& Size(ImVec2 size);
         IconButton& Selected(bool selected = true);
         IconButton& Disabled(bool disabled = true);
+        IconButton& Caption(const char* text);
 
         bool Draw() const;
         bool operator()() const;
@@ -96,6 +102,7 @@ namespace JBro::Widget
         const char* m_id = nullptr;
         const char* m_icon = nullptr;
         const char* m_tooltip = nullptr;
+        const char* m_caption = nullptr;
         ImVec2 m_size = ImVec2(0.0f, 0.0f);
         bool m_selected = false;
         bool m_disabled = false;

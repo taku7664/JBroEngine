@@ -397,6 +397,8 @@ namespace JBro::Widget
             }
             else
             {
+                // 앞에 + 아이콘을 둔다(D-278). 고르는 줄의 이름은 그대로라 Id 도 그대로다.
+                InlineIcon(Icons::Plus);
                 if (ImGui::Selectable(Loc::TextOr(LocKeys::ListAddElement, "Add element")))
                 {
                     addElement();

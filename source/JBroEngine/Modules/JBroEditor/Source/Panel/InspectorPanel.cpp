@@ -3,10 +3,12 @@
 #include "InspectorFieldExtras.h"
 
 #include <JBro/Editor/Widget/Basic.h>
+#include <JBro/Editor/Widget/Button.h>
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Editor/Command/CanvasCommands.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ListEdit.h>
 #include <JBro/Editor/ComponentMenuTable.h>
@@ -264,7 +266,12 @@ namespace JBro
                 typeName != nullptr
                     ? typeName
                     : Loc::TextOr(LocKeys::InspectorUnknownComponent,
-                        "(unknown component)"));
+                        "(unknown component)"),
+                true, true);
+            // 머리 오른쪽 끝의 메뉴 단추가 설 자리다. 단추는 메뉴를 다 그린 뒤에 얹는다 - 우클릭 메뉴는 **바로 앞 항목**
+            // (머리)에 붙으므로, 단추를 먼저 그리면 머리의 우클릭이 단추로 옮겨 간다.
+            const ImVec2 headerMin = ImGui::GetItemRectMin();
+            const ImVec2 headerMax = ImGui::GetItemRectMax();
             // **머리에 우클릭하면 뗄 수 있다.** 기존 엔진도 여기가 그 자리다.
             // 접힌 채로도 눌러야 하므로 머리를 그린 직후에 둔다.
             if (Widget::BeginContextMenu("##ComponentMenu"))
@@ -276,7 +283,7 @@ namespace JBro
                 {
                     ImGui::BeginDisabled();
                 }
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up")))
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentUp, "Move Up"), nullptr, true, nullptr, Icons::ArrowUp))
                 {
                     moveTo = index - 1;
                 }
@@ -289,7 +296,7 @@ namespace JBro
                 {
                     ImGui::BeginDisabled();
                 }
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down")))
+                if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorMoveComponentDown, "Move Down"), nullptr, true, nullptr, Icons::ArrowDown))
                 {
                     moveTo = index + 1;
                 }
@@ -309,7 +316,7 @@ namespace JBro
                 // **복사·붙여넣기**(D-167). 기존 엔진도 이 메뉴에 둘을 나란히 두었다.
                 // 복사는 값만 뜨므로 화면이 그대로고, 붙여넣기는 같은 타입을 하나 더 붙인다.
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorCopyComponent,
-                        "Copy Component")))
+                        "Copy Component"), nullptr, true, nullptr, Icons::Copy))
                 {
                     m_editor->CopyComponent(*component);
                 }
@@ -375,7 +382,7 @@ namespace JBro
                 }
                 ImGui::Separator();
                 if (Widget::MenuItem(Loc::TextOr(LocKeys::InspectorRemoveComponent,
-                        "Remove Component")))
+                        "Remove Component"), nullptr, true, nullptr, Icons::Delete))
                 {
                     RemoveComponent(*object, *component);
                     Widget::EndContextMenu();
@@ -385,6 +392,20 @@ namespace JBro
                     return;
                 }
                 Widget::EndContextMenu();
+            }
+            // **메뉴는 단추로도 연다**(D-278). 우클릭만 되면 메뉴가 있다는 것을 알 수 없다. 같은 메뉴를 다음 프레임에 연다.
+            {
+                const ImVec2 cursor = ImGui::GetCursorScreenPos();
+                const float side = headerMax.y - headerMin.y;
+                ImGui::SetCursorScreenPos(ImVec2(headerMax.x - side, headerMin.y));
+                if (Widget::IconButton("##component_menu", Icons::Menu)
+                        .Size(ImVec2(side, side))
+                        .Tooltip(Loc::TextOr(LocKeys::InspectorComponentMenu, "Component menu"))
+                        .Draw())
+                {
+                    Widget::OpenContextMenu("##ComponentMenu");
+                }
+                ImGui::SetCursorScreenPos(cursor);
             }
             if (opened)
             {
@@ -476,6 +497,8 @@ namespace JBro
         EditorActions::AddComponentList list;
         EditorActions::BuildAddComponentList(object, list);
         int chosen = -1;
+        // 고르기 칸 앞의 + 가 무엇을 하는 칸인지 말한다(D-278).
+        Widget::InlineIcon(Icons::Plus);
         Widget::SetNextItemTarget(GuideFocusTargets::InspectorAddComponent());
         const bool picked = Widget::FilterCombo("##AddComponent",
             ArrayView<const char* const>(list.names.Data(), list.names.Size()), chosen)
@@ -824,7 +847,9 @@ namespace JBro
             [&]() {
                 if (playingThis)
                 {
-                    if (Widget::Button(Loc::TextOr(LocKeys::InspectorAudioStop, "Stop")))
+                    if (Widget::IconButton("##audio_stop", Icons::Stop)
+                            .Caption(Loc::TextOr(LocKeys::InspectorAudioStop, "Stop"))
+                            .Draw())
                     {
                         audio->StopPreview();
                     }
@@ -832,7 +857,9 @@ namespace JBro
                     const int minutes = static_cast<int>(position / 60.0);
                     Widget::TextF("%d:%05.2f", minutes, position - minutes * 60.0);
                 }
-                else if (Widget::Button(Loc::TextOr(LocKeys::InspectorAudioPlay, "Play")))
+                else if (Widget::IconButton("##audio_play", Icons::Play)
+                             .Caption(Loc::TextOr(LocKeys::InspectorAudioPlay, "Play"))
+                             .Draw())
                 {
                     play(0.0);
                 }
@@ -1102,7 +1129,9 @@ namespace JBro
         }
         if (AssetTypeRules::IsImageType(meta.type))
         {
-            if (Widget::Button(Loc::TextOr(LocKeys::InspectorOpenInViewer, "Open in Viewer")))
+            if (Widget::IconButton("##open_in_viewer", Icons::OpenExternal)
+                    .Caption(Loc::TextOr(LocKeys::InspectorOpenInViewer, "Open in Viewer"))
+                    .Draw())
             {
                 m_editor->OpenSpriteViewer(meta.id);
             }

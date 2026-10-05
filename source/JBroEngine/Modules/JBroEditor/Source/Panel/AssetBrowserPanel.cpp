@@ -6,6 +6,7 @@
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Types/Uuid.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
@@ -35,6 +36,28 @@ namespace JBro
         // 여럿을 담은 꾸러미의 한도다. 넘으면 여럿을 담지 않고 끄는 것 하나만 담는다 -
         // 잘린 묶음을 놓으면 고른 것 중 일부만 움직이고, 어디까지 갔는지 화면에 없다.
         constexpr std::size_t MaxDragBundle = 8192;
+
+        // 에셋 종류의 아이콘이다(D-278). 그림이 없는 칸과 목록의 이름 앞에 선다 - 기존 엔진은 종류마다 PNG 를 두었다.
+        const char* AssetTypeIcon(AssetType type)
+        {
+            switch (type)
+            {
+            case AssetType::Texture:
+            case AssetType::Sprite:
+                return Icons::FileImage;
+            case AssetType::Audio:
+                return Icons::FileAudio;
+            case AssetType::Font:
+            case AssetType::FontFamily:
+                return Icons::FileFont;
+            case AssetType::Canvas:
+                return Icons::Canvas;
+            case AssetType::StringTable:
+                return Icons::Language;
+            default:
+                return Icons::File;
+            }
+        }
 
         // "art/enemies" 의 부모는 "art", "art" 의 부모는 "" 다.
         String ParentOf(const String& folder)
@@ -583,8 +606,10 @@ namespace JBro
         }
         else
         {
-            // **그림이 없는 것도 자리를 지킨다.** 빈 칸이 접히면 목록이 프레임마다 움직인다.
-            draw->AddRect(imageMin, imageMax, ImGui::GetColorU32(ImGuiCol_Border), 3.0f);
+            // **그림이 없는 것도 자리를 지킨다.** 빈 칸이 접히면 목록이 프레임마다 움직인다. 그 자리에 종류의 아이콘을
+            // 크게 둔다(D-278) - 빈 테두리만으로는 무엇인지 모른다.
+            Widget::DrawGlyphCentered(AssetTypeIcon(entry.record->type), imageMin, imageMax,
+                ImGui::GetColorU32(ImGuiCol_TextDisabled), (imageMax.y - imageMin.y) * 0.6f);
         }
         // 이름은 칸 안에서 잘린다. 줄바꿈으로 흘리면 칸마다 높이가 달라져 줄이 어긋난다.
         draw->PushClipRect(ImVec2(origin.x, origin.y + side - 2.0f),
@@ -624,6 +649,7 @@ namespace JBro
             ImGui::PushClipRect(origin,
                 ImVec2(origin.x + columns.type - 8.0f, row.ContentRect.Max.y), true);
             ImGui::SetCursorScreenPos(origin);
+            Widget::InlineIcon(AssetTypeIcon(entry.record->type));
             Widget::Text(entry.name);
             ImGui::PopClipRect();
             ImGui::SetCursorScreenPos(ImVec2(origin.x + columns.type, origin.y));
@@ -664,6 +690,7 @@ namespace JBro
             {
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(row.ContentRect.Min);
+                Widget::InlineIcon(opened ? Icons::FolderOpen : Icons::Folder);
                 Widget::Text(EditorPaths::LeafOfPath(child));
                 ImGui::SetCursorScreenPos(cursor);
             }
@@ -737,8 +764,9 @@ namespace JBro
             {
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(row.ContentRect.Min);
-                // 폴더임을 글자로 말한다. 아이콘 글꼴이 없어도 갈린다.
-                Widget::TextF("%s/", EditorPaths::LeafOfPath(child));
+                // 폴더임을 아이콘이 말한다(D-278). 예전에는 이름 뒤 `/` 로 말했다.
+                Widget::InlineIcon(Icons::Folder);
+                Widget::Text(EditorPaths::LeafOfPath(child));
                 ImGui::SetCursorScreenPos(cursor);
             }
             if (clicked)
@@ -821,7 +849,7 @@ namespace JBro
                 m_editor->RequestOpenCanvas(created.c_str());
             }
         }
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsNewFolder, "New Folder"), nullptr, true, nullptr, Icons::FolderPlus))
         {
             m_pending = m_openFolder;
             m_pendingIsFolder = true;
@@ -835,12 +863,12 @@ namespace JBro
         {
             PasteIntoFolder(m_openFolder);
         }
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer"), nullptr, true, nullptr, Icons::OpenExternal))
         {
             m_editor->RevealAsset(m_openFolder.c_str());
         }
         ImGui::Separator();
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsRescan, "Rescan")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsRescan, "Rescan"), nullptr, true, nullptr, Icons::Refresh))
         {
             // 감시가 서지 않은 자리(폴더가 없다가 생긴 경우)에서 사람이 새로 고치는 길이다.
             m_editor->RescanAssets();
@@ -902,7 +930,7 @@ namespace JBro
             }
         }
         ImGui::Separator();
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsDelete, "Delete")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsDelete, "Delete"), nullptr, true, nullptr, Icons::Delete))
         {
             m_pending = relativePath;
             m_pendingIsFolder = isFolder;
@@ -928,7 +956,7 @@ namespace JBro
             }
         }
         ImGui::Separator();
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer")))
+        if (Widget::MenuItem(Loc::TextOr(LocKeys::AssetsReveal, "Show in Explorer"), nullptr, true, nullptr, Icons::OpenExternal))
         {
             m_editor->RevealAsset(relativePath.c_str());
         }
@@ -1105,14 +1133,17 @@ namespace JBro
             .Width(200.0f)
             .Draw();
         ImGui::SameLine(0.0f, 8.0f);
-        if (Widget::Button(m_iconView
-                ? Loc::TextOr(LocKeys::AssetsListView, "List")
-                : Loc::TextOr(LocKeys::AssetsIconView, "Icons")))
+        // 단추는 누르면 갈 보기의 아이콘과 이름이다(D-278). 상태마다 Id 가 다르다 - 글자 단추일 때와 같다.
+        if (Widget::IconButton(m_iconView ? "##assets_view_list" : "##assets_view_icons",
+                m_iconView ? Icons::ViewList : Icons::ViewGrid)
+                .Caption(m_iconView
+                    ? Loc::TextOr(LocKeys::AssetsListView, "List")
+                    : Loc::TextOr(LocKeys::AssetsIconView, "Icons"))
+                .Tooltip(Loc::TextOr(LocKeys::AssetsViewTooltip, "switch between the list and the icons"))
+                .Draw())
         {
             m_iconView = false == m_iconView;
         }
-        Widget::HoveredTooltip(Loc::TextOr(LocKeys::AssetsViewTooltip,
-            "switch between the list and the icons"));
         ImGui::SameLine(0.0f, 8.0f);
         {
             // **정렬 기준**(D-196). 칸에는 지금 고른 것만 보이고, 무엇을 고르는 칸인지는
@@ -1186,6 +1217,7 @@ namespace JBro
             {
                 const ImVec2 cursor = ImGui::GetCursorScreenPos();
                 ImGui::SetCursorScreenPos(rootRow.ContentRect.Min);
+                Widget::InlineIcon(Icons::Home);
                 Widget::Text(Loc::TextOr(LocKeys::AssetsRoot, "Assets"));
                 ImGui::SetCursorScreenPos(cursor);
             }

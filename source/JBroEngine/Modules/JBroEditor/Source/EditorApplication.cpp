@@ -2,6 +2,7 @@
 #include <JBro/Core/Version.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorControlPort.h>
 #include <JBro/Network/Socket.h>
 #include <JBro/Editor/Command/AssetFileCommands.h>
@@ -3414,7 +3415,7 @@ namespace JBro
         m_panels.Clear();
     }
 
-    bool EditorApplication::DrawShortcutItem(EditorShortcut id, const char* label)
+    bool EditorApplication::DrawShortcutItem(EditorShortcut id, const char* label, const char* icon)
     {
         // **글자도 할 수 있는지도 단축키 표에서 온다**(D-132). 메뉴에 박아 두면
         // 키를 바꿨을 때 화면만 옛 글자로 남는다.
@@ -3422,7 +3423,7 @@ namespace JBro
         const EditorShortcutText keys = EditorShortcuts::Describe(*this, id);
         // 잠긴 까닭도 같은 표에서 온다(D-181). 회색으로만 두면 무엇을 해야 켜지는지 모른다.
         const bool chosen = Widget::MenuItem(label, keys.value, enabled,
-            EditorShortcuts::WhyBlocked(*this, id));
+            EditorShortcuts::WhyBlocked(*this, id), icon);
         if (chosen)
         {
             EditorShortcuts::Execute(*this, id);
@@ -3455,7 +3456,7 @@ namespace JBro
             }
             ImGui::Separator();
             DrawShortcutItem(EditorShortcut::SaveCanvas,
-                Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"));
+                Loc::TextOr(LocKeys::MenuSaveCanvas, "Save Canvas"), Icons::Save);
             {
                 // 파일로 연 프로젝트만 적을 자리가 있고, 돌고 있는 동안에는 적지 않는다.
                 const bool noFile = m_projectFilePath.empty();
@@ -3519,11 +3520,11 @@ namespace JBro
             const bool playing = IsSimulationPlaying();
             DrawShortcutItem(EditorShortcut::TogglePlay, playing
                 ? Loc::TextOr(LocKeys::MenuSimulationStop, "Stop")
-                : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"));
+                : Loc::TextOr(LocKeys::MenuSimulationPlay, "Play"), playing ? Icons::Stop : Icons::Play);
             DrawShortcutItem(EditorShortcut::TogglePause,
-                Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"));
+                Loc::TextOr(LocKeys::MenuSimulationPause, "Pause"), Icons::Pause);
             DrawShortcutItem(EditorShortcut::StepFrame,
-                Loc::TextOr(LocKeys::MenuSimulationStep, "Step One Frame"));
+                Loc::TextOr(LocKeys::MenuSimulationStep, "Step One Frame"), Icons::StepFrame);
             ImGui::Separator();
             bool gameDebugDraw = m_gameViewDebugDraw;
             if (Widget::MenuToggle(Loc::TextOr(LocKeys::MenuSimulationGameDebugDraw, "Debug Lines in Game View"), gameDebugDraw))

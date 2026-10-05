@@ -23,8 +23,8 @@ namespace JBro::Widget
 
     bool IsEmptyText(const char* text);
     ImVec4 SeverityColor(Severity severity);
-    // 아이콘 글꼴이 아직 없다. 글자로 대신한다 - 빈 자리보다 낫다.
-    const char* SeverityPrefix(Severity severity);
+    // 심각도의 아이콘이다(`check-circle`·`alert`·`close-circle`·`information`, D-278). 예전에는 `[!]` 같은 글자로 대신했다.
+    const char* SeverityIcon(Severity severity);
     ImVec4 WithAlpha(ImVec4 color, float alpha);
     ImVec4 ScaleColor(ImVec4 color, float scale);
     // 빈 글자면 아무것도 하지 않는다. 부르는 쪽이 분기하지 않아도 되게.

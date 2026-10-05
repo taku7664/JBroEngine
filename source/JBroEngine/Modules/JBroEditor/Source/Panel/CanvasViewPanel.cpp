@@ -10,6 +10,7 @@
 #include <JBro/Editor/EditorTheme.h>
 #include <JBro/Host/ProjectFile.h>
 #include <JBro/Editor/EditorApplication.h>
+#include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorUI.h>
 #include <JBro/Graphics/Renderer.h>
 #include <JBro/Editor/Localization.h>
@@ -17,6 +18,7 @@
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/DragDrop.h>
+#include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/FilterCombo.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
@@ -523,6 +525,9 @@ namespace JBro
             }
         }
         Widget::ToolBarSeparator();
+        // 콤보 앞의 아이콘이 무엇을 고르는 칸인지 말한다(D-278). 고르기 전에는 칸이 `언어` 라고 적지만, 고른 뒤에는 로케일 이름뿐이다.
+        Widget::Icon(Icons::Language);
+        ImGui::SameLine(0.0f, 2.0f);
         if (Widget::FilterCombo("##previewLocale", ArrayView<const char* const>(names, count), chosen)
                 .ShowFilter(false)
                 .EmptyText(Loc::TextOr(LocKeys::CanvasViewPreviewLocale, "Language"))
@@ -538,6 +543,16 @@ namespace JBro
 
     void CanvasViewPanel::DrawToolBar()
     {
+        // **도구 막대는 아이콘이다**(D-278). 이름은 툴팁의 첫 줄이고, 그 아래에 무엇을 하는지가 온다 - 글자가 빠졌으니
+        // 툴팁이 곧 이름이다. 켜고 끄는 단추(격자·충돌·콜라이더 편집)는 켜졌을 때 칠해진다. 둘 중 하나를 고르는 단추
+        // (로컬·월드, 월드·UI 보기, 단위)는 아이콘이 지금 상태다. Id 는 글자가 아니라 `##canvas_*` 라 번역이 바뀌어도 그대로다 -
+        // 둘 중 하나를 고르는 단추는 **상태마다 Id 가 다르다**. 글자 단추일 때 글자가 바뀌면 Id 가 바뀌던 것과 같아,
+        // 시험이 "눌렀더니 단추가 다른 상태를 말한다" 를 Id 로 본다.
+        char tooltip[512];
+        const auto nameAndHint = [&tooltip](const char* name, const char* hint) -> const char* {
+            std::snprintf(tooltip, sizeof(tooltip), "%s\n%s", name, hint);
+            return tooltip;
+        };
         Widget::GizmoModeBar(m_gizmoMode,
             Loc::TextOr(LocKeys::GizmoTranslate, "Move"),
             Loc::TextOr(LocKeys::GizmoRotate, "Rotate"),
@@ -546,85 +561,94 @@ namespace JBro
         // 눌러도 아무 일이 없으면 고장과 구분되지 않는다.
         ImGui::SameLine(0.0f, 6.0f);
         {
-            const bool scaling = m_gizmoMode == GizmoMode::Scale;
-            if (scaling)
-            {
-                ImGui::BeginDisabled();
-            }
             const bool world = m_gizmoSpace == GizmoSpace::World;
-            if (Widget::Button(world
-                    ? Loc::TextOr(LocKeys::GizmoSpaceWorld, "World")
-                    : Loc::TextOr(LocKeys::GizmoSpaceLocal, "Local")))
+            const char* name = world
+                ? Loc::TextOr(LocKeys::GizmoSpaceWorld, "World")
+                : Loc::TextOr(LocKeys::GizmoSpaceLocal, "Local");
+            if (Widget::IconButton(world ? "##canvas_gizmo_world" : "##canvas_gizmo_local", world ? Icons::SpaceWorld : Icons::SpaceLocal)
+                    .Disabled(m_gizmoMode == GizmoMode::Scale)
+                    .Tooltip(nameAndHint(name, Loc::TextOr(LocKeys::GizmoSpaceTooltip,
+                        "put the handles on the object's axes or on the world's; scaling always uses the object's")))
+                    .Draw())
             {
                 m_gizmoSpace = world ? GizmoSpace::Local : GizmoSpace::World;
             }
-            if (scaling)
-            {
-                ImGui::EndDisabled();
-            }
-            Widget::HoveredTooltip(Loc::TextOr(LocKeys::GizmoSpaceTooltip,
-                "put the handles on the object's axes or on the world's; scaling always uses the object's"));
         }
-        // 기즈모 모드와 보기 단추는 **다른 무리**다. 사이를 띄우고 줄을 그어 가른다 -
-        // 붙여 두면 `크기` 와 `격자` 가 한 낱말처럼 읽힌다.
+        // 기즈모 모드와 보기 단추는 **다른 무리**다. 사이를 띄우고 줄을 그어 가른다.
         Widget::ToolBarSeparator();
-        if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewGrid, "Grid")))
+        if (Widget::IconButton("##canvas_grid", Icons::Grid)
+                .Selected(m_showGrid)
+                .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewGrid, "Grid"),
+                    Loc::TextOr(LocKeys::CanvasViewGridTooltip, "show or hide the grid")))
+                .Draw())
         {
             m_showGrid = false == m_showGrid;
         }
-        Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewGridTooltip, "show or hide the grid"));
         if (false == Is3D())
         {
             // 3D 에는 그릴 콜라이더가 없다. 누를 수 없는 단추를 두면 무엇이 되는 것인지 흐려진다.
             ImGui::SameLine(0.0f, 6.0f);
-            if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewColliders, "Colliders")))
+            if (Widget::IconButton("##canvas_colliders", Icons::Colliders)
+                    .Selected(m_showColliders)
+                    .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewColliders, "Colliders"),
+                        Loc::TextOr(LocKeys::CanvasViewCollidersTooltip, "show or hide collider shapes")))
+                    .Draw())
             {
                 m_showColliders = false == m_showColliders;
             }
-            Widget::HoveredTooltip(
-                Loc::TextOr(LocKeys::CanvasViewCollidersTooltip, "show or hide collider shapes"));
         }
         ImGui::SameLine(0.0f, 6.0f);
-        if (Widget::Button(Loc::TextOr(LocKeys::CanvasViewFrame, "Frame")))
+        if (Widget::IconButton("##canvas_frame", Icons::Frame)
+                .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewFrame, "Frame"),
+                    Loc::TextOr(LocKeys::CanvasViewFrameTooltip, "fit the view to the selection")))
+                .Draw())
         {
             FrameSelection();
         }
-        Widget::HoveredTooltip(
-            Loc::TextOr(LocKeys::CanvasViewFrameTooltip, "fit the view to the selection"));
         if (false == Is3D())
         {
-            // **월드 / UI 보기**(D-237). 단추의 글이 지금 보기다 - 로컬·월드 단추와 같은 모양이다.
+            // **월드 / UI 보기**(D-237). 아이콘이 지금 보기다 - 로컬·월드 단추와 같은 모양이다.
             ImGui::SameLine(0.0f, 6.0f);
-            if (Widget::Button(m_screenView ? Loc::TextOr(LocKeys::CanvasViewSpaceUi, "UI") : Loc::TextOr(LocKeys::CanvasViewSpaceWorld, "World")))
+            const char* name = m_screenView
+                ? Loc::TextOr(LocKeys::CanvasViewSpaceUi, "UI")
+                : Loc::TextOr(LocKeys::CanvasViewSpaceWorld, "World");
+            if (Widget::IconButton(m_screenView ? "##canvas_view_screen" : "##canvas_view_world", m_screenView ? Icons::ViewScreen : Icons::ViewWorld)
+                    .Tooltip(nameAndHint(name, Loc::TextOr(LocKeys::CanvasViewSpaceTooltip,
+                        "edit the world layers or the screen (UI) layers")))
+                    .Draw())
             {
                 SetScreenView(false == m_screenView);
             }
-            Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewSpaceTooltip, "edit the world layers or the screen (UI) layers"));
         }
         DrawPreviewLocale();
         if (false == Is3D())
         {
             // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글).
             // 3D 에는 픽셀로 읽을 자가 없다 - 원근에서는 한 유닛이 거리마다 다른 픽셀이다.
+            // 자 아이콘 하나로는 두 단위가 갈리지 않아 뒤에 지금 단위를 글자로 붙인다.
             ImGui::SameLine(0.0f, 6.0f);
-            if (Widget::Button(m_rulerInPixels
-                    ? Loc::TextOr(LocKeys::CanvasViewUnitPixel, "Pixel")
-                    : Loc::TextOr(LocKeys::CanvasViewUnitWorld, "Unit")))
+            if (Widget::IconButton(m_rulerInPixels ? "##canvas_unit_pixel" : "##canvas_unit_world", Icons::Ruler)
+                    .Caption(m_rulerInPixels
+                        ? Loc::TextOr(LocKeys::CanvasViewUnitPixel, "Pixel")
+                        : Loc::TextOr(LocKeys::CanvasViewUnitWorld, "Unit"))
+                    .Tooltip(Loc::TextOr(LocKeys::CanvasViewUnitTooltip, "read the ruler in world units or in pixels"))
+                    .Draw())
             {
                 m_rulerInPixels = false == m_rulerInPixels;
             }
-            Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewUnitTooltip,
-                "read the ruler in world units or in pixels"));
             // 보기 단추가 아니라 **고치는 도구**다. 무리를 가르고 맨 끝에 둔다 - 앞의 단추들 자리를 밀지 않는다.
             Widget::ToolBarSeparator();
             Widget::SetNextItemTarget(GuideFocusTargets::ColliderEditButton());
-            if (Widget::ToggleButton(Loc::TextOr(LocKeys::CanvasViewEditCollider, "Edit Collider"), m_editCollider))
+            if (Widget::IconButton("##canvas_edit_collider", Icons::EditCollider)
+                    .Selected(m_editCollider)
+                    .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewEditCollider, "Edit Collider"),
+                        Loc::TextOr(LocKeys::CanvasViewEditColliderTooltip, "edit the selected object's polygon collider")))
+                    .Draw())
             {
+                m_editCollider = false == m_editCollider;
                 // 끄면 메뉴로 고른 콜라이더도 잊는다. 다시 켜면 첫 폴리곤부터다.
                 m_pointTarget = {};
             }
-            Widget::HoveredTooltip(Loc::TextOr(LocKeys::CanvasViewEditColliderTooltip,
-                "edit the selected object's polygon collider"));
         }
     }
 

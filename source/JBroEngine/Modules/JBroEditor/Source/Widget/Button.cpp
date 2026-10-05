@@ -126,18 +126,19 @@ namespace JBro::Widget
         }
     }
 
-    ImVec2 GlyphCenteredPosition(const char* glyph, const ImVec2& center)
+    ImVec2 GlyphCenteredPosition(const char* glyph, const ImVec2& center, float fontSize)
     {
         unsigned int codePoint = 0;
         ImTextCharFromUtf8(&codePoint, glyph, nullptr);
-        ImFontBaked* baked = ImGui::GetFontBaked();
+        const float size = fontSize > 0.0f ? fontSize : ImGui::GetFontSize();
+        ImFontBaked* baked = ImGui::GetFont()->GetFontBaked(size);
         const ImFontGlyph* found = baked->FindGlyph(static_cast<ImWchar>(codePoint));
         if (found == nullptr)
         {
             return center - ImGui::CalcTextSize(glyph) * 0.5f;
         }
         // 구운 크기와 그리는 크기가 다르면 글리프 좌표도 그만큼 늘어난다(`ImFont::RenderChar` 와 같다).
-        const float scale = ImGui::GetFontSize() / baked->Size;
+        const float scale = size / baked->Size;
         const ImVec2 inkCenter = InkCenter(*found) * scale;
         // **세로는 칸의 가운데가 아니라 같은 칸에 놓인 글자의 가운데에 맞춘다.** ImGui 는 글자를 줄 상자로 가운데
         // 잡는데, 글자의 잉크가 줄 상자 한가운데 있지는 않다(맑은 고딕 15 픽셀에서 1 픽셀 아래). 아이콘만 칸의
@@ -146,15 +147,42 @@ namespace JBro::Widget
         float textDrop = 0.0f;
         if (const ImFontGlyph* capital = baked->FindGlyphNoFallback('H'))
         {
-            textDrop = InkCenter(*capital).y * scale - ImGui::GetTextLineHeight() * 0.5f;
+            textDrop = InkCenter(*capital).y * scale - ImGui::GetTextLineHeight() * (size / ImGui::GetFontSize()) * 0.5f;
         }
         // 픽셀에 맞춘다. 반 픽셀에 걸치면 선이 번진다.
         return ImFloor(center + ImVec2(0.0f, textDrop) - inkCenter + ImVec2(0.5f, 0.5f));
     }
 
-    void DrawGlyphCentered(const char* glyph, const ImVec2& min, const ImVec2& max, ImU32 color)
+    void DrawGlyphCentered(const char* glyph, const ImVec2& min, const ImVec2& max, ImU32 color, float fontSize)
     {
-        const ImVec2 position = GlyphCenteredPosition(glyph, (min + max) * 0.5f);
-        ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), ImGui::GetFontSize(), position, color, glyph);
+        const float size = fontSize > 0.0f ? fontSize : ImGui::GetFontSize();
+        const ImVec2 position = GlyphCenteredPosition(glyph, (min + max) * 0.5f, size);
+        ImGui::GetWindowDrawList()->AddText(ImGui::GetFont(), size, position, color, glyph);
+    }
+
+    void InlineIcon(const char* glyph)
+    {
+        InlineIcon(glyph, ImGui::GetColorU32(ImGuiCol_Text));
+    }
+
+    void InlineIcon(const char* glyph, ImU32 color)
+    {
+        const float lineHeight = ImGui::GetTextLineHeight();
+        const ImVec2 cursor = ImGui::GetCursorScreenPos();
+        // 같은 줄의 글자가 내려앉는 만큼(켜기 칸·단추 뒤의 글자는 칸 여백만큼 내려간다) 아이콘도 내린다 - 아니면 칸 뒤의
+        // 아이콘만 글자보다 떠 보인다(로그 창의 등급 필터에서 그랬다).
+        const float textOffset = ImGui::GetCurrentWindow()->DC.CurrLineTextBaseOffset;
+        const ImVec2 min(cursor.x, cursor.y + textOffset);
+        ImGui::Dummy(ImVec2(lineHeight, lineHeight + textOffset));
+        DrawGlyphCentered(glyph, min, ImVec2(min.x + lineHeight, min.y + lineHeight), color);
+        ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
+    }
+
+    void Icon(const char* glyph)
+    {
+        const float square = ImGui::GetFrameHeight();
+        const ImVec2 min = ImGui::GetCursorScreenPos();
+        ImGui::Dummy(ImVec2(square, square));
+        DrawGlyphCentered(glyph, min, ImVec2(min.x + square, min.y + square), ImGui::GetColorU32(ImGuiCol_Text));
     }
 }

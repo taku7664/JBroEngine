@@ -38,10 +38,16 @@ namespace JBro::Widget
             return style.width - style.accentWidth - style.padding * 2.0f;
         }
 
-        // 제목은 닫기 표시와 횟수 자리를 비켜 줄을 바꾼다.
+        // 제목 앞의 단계 아이콘 자리다(D-278). 글줄 높이의 정사각형과 그 뒤 여백.
+        float TitleIconWidth()
+        {
+            return ImGui::GetTextLineHeight() + ImGui::GetStyle().ItemInnerSpacing.x;
+        }
+
+        // 제목은 앞의 아이콘과 오른쪽의 닫기 표시·횟수 자리를 비켜 줄을 바꾼다.
         float TitleWrapWidth(const NotificationStackStyle& style)
         {
-            return MessageWrapWidth(style) - TitleReserve();
+            return MessageWrapWidth(style) - TitleReserve() - TitleIconWidth();
         }
 
         float TitleHeight(const NotificationView& view, const NotificationStackStyle& style)
@@ -151,8 +157,17 @@ namespace JBro::Widget
                 }
 
                 const float left = style.accentWidth + style.padding;
+                // 제목 앞에 단계 아이콘을 단계 색으로 둔다(D-278). 색 막대만으로는 무슨 알림인지 한눈에 갈리지 않는다.
                 ImGui::SetCursorPos(ImVec2(left, style.padding));
-                ImGui::PushTextWrapPos(left + TitleWrapWidth(style));
+                {
+                    const ImVec2 iconMin = ImGui::GetCursorScreenPos();
+                    const float lineHeight = ImGui::GetTextLineHeight();
+                    DrawGlyphCentered(SeverityIcon(ToSeverity(view.level)), iconMin,
+                        ImVec2(iconMin.x + lineHeight, iconMin.y + lineHeight), ImGui::GetColorU32(accent));
+                }
+                const float titleLeft = left + TitleIconWidth();
+                ImGui::SetCursorPos(ImVec2(titleLeft, style.padding));
+                ImGui::PushTextWrapPos(titleLeft + TitleWrapWidth(style));
                 ImGui::TextColored(accent, "%s", view.title);
                 ImGui::PopTextWrapPos();
                 if (view.count > 1)

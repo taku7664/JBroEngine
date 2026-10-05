@@ -1,4 +1,5 @@
 ﻿#include <JBro/Editor/Widget/FieldLabel.h>
+#include <JBro/Editor/Widget/Button.h>
 
 namespace JBro::Widget
 {
@@ -138,14 +139,18 @@ namespace JBro::Widget
         }
         StyleScope style;
         style.PushColor(ImGuiCol_Text, SeverityColor(m_severity));
+        // 앞에 심각도 아이콘을 글줄 높이의 칸에 놓고(D-278), 글자는 그 뒤에 무리로 둔다 - 줄이 바뀌어도 아이콘 뒤에서 이어진다.
+        InlineIcon(SeverityIcon(m_severity));
+        ImGui::BeginGroup();
         if (m_wrapped)
         {
-            ImGui::TextWrapped("%s%s", SeverityPrefix(m_severity), m_text);
+            ImGui::TextWrapped("%s", m_text);
         }
         else
         {
-            ImGui::Text("%s%s", SeverityPrefix(m_severity), m_text);
+            ImGui::TextUnformatted(m_text);
         }
+        ImGui::EndGroup();
     }
 
     void ValidationMessage::operator()() const
