@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
+#include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/LocalizationTypes/ServiceContext.h>
 
 #include <JBro/Asset/Asset.h>
@@ -11788,6 +11789,29 @@ namespace
         Check(moved(lastX, lastY), "the x handle drag must catch the handle");
         Check(onGrid(transform->position.x), "Ctrl with snap off snaps the x handle to a grid line");
         Check(std::fabs(transform->position.y - offY) < 1.0e-4f, "and the x handle leaves y where it was");
+
+        // ── 같은 단추가 돌리기도 15 도씩 끊는다(사용자 결정). ─────────────────
+        Spot snapOn;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_grid_snap"), snapOn), "the snap button must be there to turn on");
+        ClickAt(editor, hwnd, snapOn);
+        Spot rotateButton;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##gizmo_rotate"), rotateButton), "the toolbar must offer the rotate gizmo");
+        ClickAt(editor, hwnd, rotateButton);
+        editor.SetSelectedObject(target);
+        for (int frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle in rotate mode");
+        }
+        // 고리의 오른쪽 끝을 잡아 40 도쯤(왼쪽 14, 위 39 픽셀) 돌린다.
+        const float ringWorld = JBro::GizmoModel::RingRadiusPixels / pixelsPerUnit;
+        const float startAngle = transform->GetRotation();
+        drag(transform->position.x + ringWorld, transform->position.y, -14, -39, false);
+        const float snappedTurn = transform->GetRotation() - startAngle;
+        Check(std::fabs(snappedTurn - 45.0f) < 0.01f, "with snap on, about 40 degrees on the ring turns exactly 45");
+        drag(transform->position.x + ringWorld, transform->position.y, -14, -39, true);
+        const float looseTurn = transform->GetRotation() - startAngle - snappedTurn;
+        Check(looseTurn > 30.0f && looseTurn < 50.0f && std::fabs(looseTurn - std::round(looseTurn / 15.0f) * 15.0f) > 1.0f,
+            "holding Ctrl turns by the mouse, not in 15 degree steps");
 
         editor.Shutdown();
     }

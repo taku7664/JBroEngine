@@ -153,7 +153,7 @@ namespace JBro::Widget
     }
 
     GizmoOutput Gizmo(GizmoMode mode, const GizmoCamera& camera, const GizmoSubject& subject,
-        GizmoState& state, bool interactive, float snapStep)
+        GizmoState& state, bool interactive, float snapStep, float snapRadians)
     {
         GizmoOutput output;
         output.subject = subject;
@@ -174,6 +174,7 @@ namespace JBro::Widget
             if (GizmoModel::UpdateDrag(state.drag, camera, mouse.x, mouse.y, output.subject))
             {
                 GizmoModel::SnapTranslation(state.drag, snapStep, output.subject);
+                GizmoModel::SnapRotation(state.drag, snapRadians, output.subject);
             }
             output.axis = state.drag.axis;
             output.dragging = true;

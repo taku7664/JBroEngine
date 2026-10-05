@@ -663,4 +663,20 @@ namespace JBro
         const float travel = Dot(Subtract(result.position, drag.start.position), axis);
         result.position = Add(drag.start.position, Scale(axis, snap(travel)));
     }
+
+    void GizmoModel::SnapRotation(const GizmoDrag& drag, float stepRadians, GizmoSubject& result)
+    {
+        if (drag.mode != GizmoMode::Rotate || false == std::isfinite(stepRadians) || false == (stepRadians > 0.0f))
+        {
+            return;
+        }
+        // `UpdateDrag` 는 시작 회전에 축 둘레의 회전 하나를 앞에 곱했다. 그 하나를 되찾는다 - (축 x sin(t/2), cos(t/2)) 이고,
+        // 끌기는 한 번에 반 바퀴까지라(`WrapAngle`) cos(t/2) 가 음이 아니어서 atan2 가 t 를 그대로 돌려준다.
+        const Quaternion delta = Multiply(result.rotation, Conjugate(drag.start.rotation));
+        const Vector3 axis = drag.axisDirection;
+        const float sine = delta.x * axis.x + delta.y * axis.y + delta.z * axis.z;
+        const float turned = 2.0f * std::atan2(sine, delta.w);
+        const float snapped = std::round(turned / stepRadians) * stepRadians;
+        result.rotation = Normalize(Multiply(FromAxisAngle(axis, snapped), drag.start.rotation));
+    }
 }

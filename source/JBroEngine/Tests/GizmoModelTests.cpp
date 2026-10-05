@@ -226,6 +226,49 @@ namespace
         Check(untouched.position.x == before.position.x && untouched.position.y == before.position.y, "a rotation is not snapped");
     }
 
+    // **회전 스냅**(D-280). 끌기를 시작한 뒤 돈 만큼을 15 도 단위로 끊는다. 처음부터 돌아 있던 각은 그대로 남는다.
+    void TestRotationSnapsInSteps()
+    {
+        const JBro::GizmoCamera camera = OrthoCamera();
+        const float ring = JBro::GizmoModel::RingRadiusPixels;
+        const float step = JBro::GizmoModel::RotationSnapRadians;
+        const auto turnedTo = [&](const JBro::GizmoSubject& subject, float degrees, JBro::GizmoSubject& result) {
+            JBro::GizmoDrag drag;
+            const float radians = degrees * Pi / 180.0f;
+            Check(JBro::GizmoModel::BeginDrag(JBro::GizmoMode::Rotate, JBro::GizmoAxis::Z, camera, subject, 100.0f + ring, 100.0f, drag)
+                    && JBro::GizmoModel::UpdateDrag(drag, camera, 100.0f + ring * std::cos(radians), 100.0f - ring * std::sin(radians), result),
+                "a ring drag must begin and update");
+            JBro::GizmoModel::SnapRotation(drag, step, result);
+            return drag;
+        };
+        const auto angleOf = [](const JBro::GizmoSubject& subject) {
+            return 2.0f * std::atan2(subject.rotation.z, subject.rotation.w) * 180.0f / Pi;
+        };
+
+        JBro::GizmoSubject result;
+        turnedTo(PlanarSubject(), 40.0f, result);
+        Check(Near(angleOf(result), 45.0f, 0.01f), "40 degrees of turning snaps to 45");
+        turnedTo(PlanarSubject(), -37.0f, result);
+        Check(Near(angleOf(result), -30.0f, 0.01f), "and -37 to -30");
+
+        JBro::GizmoSubject tilted = PlanarSubject();
+        tilted.rotation = JBro::FromAxisAngle({0.0f, 0.0f, 1.0f}, 7.0f * Pi / 180.0f);
+        turnedTo(tilted, 20.0f, result);
+        Check(Near(angleOf(result), 22.0f, 0.01f), "the turn is snapped, not the angle - 7 degrees turned by 20 lands on 22");
+
+        // 옮기기 끌기와 간격 0 은 그대로다.
+        const JBro::GizmoDrag rotating = turnedTo(PlanarSubject(), 40.0f, result);
+        JBro::GizmoSubject loose = result;
+        loose.rotation = JBro::FromAxisAngle({0.0f, 0.0f, 1.0f}, 0.3f);
+        JBro::GizmoSubject before = loose;
+        JBro::GizmoModel::SnapRotation(rotating, 0.0f, loose);
+        Check(loose.rotation.z == before.rotation.z && loose.rotation.w == before.rotation.w, "no step means no snap");
+        JBro::GizmoDrag moving = rotating;
+        moving.mode = JBro::GizmoMode::Translate;
+        JBro::GizmoModel::SnapRotation(moving, step, loose);
+        Check(loose.rotation.z == before.rotation.z && loose.rotation.w == before.rotation.w, "a move is not turned");
+    }
+
     void TestRotationTurnsRightHandedAboutTheAxis()
     {
         const JBro::GizmoCamera camera = OrthoCamera();
@@ -326,6 +369,7 @@ int RunGizmoModelTests()
     TestHandlesAreBuiltAndPickedInPixels();
     TestTranslationFollowsTheMouseAlongTheAxis();
     TestTranslationSnapsToTheGrid();
+    TestRotationSnapsInSteps();
     TestRotationTurnsRightHandedAboutTheAxis();
     TestScaleIsARatioAlongTheHandle();
     TestPerspectiveDragKeepsTheHandleUnderTheMouse();

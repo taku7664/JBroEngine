@@ -141,6 +141,11 @@ namespace JBro
         // 가운데 손잡이는 위치의 각 성분을 `step` 의 배수로 붙인다(평면이면 z 는 두고). 축 손잡이는 축이 월드 축과 나란하면 그 성분만
         // 격자선에 붙이고, 돌아간 축이면 격자선이 축 위에 없으므로 **움직인 거리**를 `step` 단위로 끊는다.
         static void SnapTranslation(const GizmoDrag& drag, float step, GizmoSubject& result);
+        // 회전 스냅의 간격이다(D-280). 기존 엔진의 `ROTATE_SNAP_RADIANS` 와 같은 15 도다.
+        static constexpr float RotationSnapRadians = 0.2617993878f;
+        // **돌리기의 결과를 `stepRadians` 단위로 끊는다**(D-280). 끊는 것은 끌기를 시작한 뒤 **돈 만큼**이다 - 7 도 돌아 있던 것은
+        // 22·37 도로 간다(기존 엔진도 돈 양을 끊었다). 회전이 아니거나 `stepRadians` 가 0 이하면 그대로다.
+        static void SnapRotation(const GizmoDrag& drag, float stepRadians, GizmoSubject& result);
 
         // 4x4 역행렬. 특이 행렬이면 거짓이다. 테스트가 직접 쓴다.
         static bool Invert(const Matrix4x4& matrix, Matrix4x4& out);
