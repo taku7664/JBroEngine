@@ -190,7 +190,7 @@ namespace
         T* Add(JBro::Int32 mark)
         {
             Object::GameObject* object = canvas.CreateObject("probe");
-            T* script = canvas.AttachComponent<T>(object);
+            T* script = canvas.AttachScript<T>(object);
             script->mark = mark;
             return script;
         }
@@ -279,7 +279,7 @@ namespace
         Rig rig;
         ModalProbe* modal = rig.Add<ModalProbe>(1);
         GameProbe* game = rig.Add<GameProbe>(2);
-        PollingProbe* poller = rig.canvas.AttachComponent<PollingProbe>(rig.canvas.CreateObject("poller"));
+        PollingProbe* poller = rig.canvas.AttachScript<PollingProbe>(rig.canvas.CreateObject("poller"));
         rig.Start();
 
         modal->block = true;
@@ -303,7 +303,7 @@ namespace
         Rig rig;
         UiProbe* ui = rig.Add<UiProbe>(1);
         GameProbe* game = rig.Add<GameProbe>(2);
-        PollingProbe* poller = rig.canvas.AttachComponent<PollingProbe>(rig.canvas.CreateObject("poller"));
+        PollingProbe* poller = rig.canvas.AttachScript<PollingProbe>(rig.canvas.CreateObject("poller"));
         rig.Start();
 
         ui->takeMouse = true;
@@ -435,8 +435,8 @@ namespace
         context.input = &input;
         Check(framework.Initialize(context), "the framework must initialize without a renderer");
         Canvas* canvas = framework.GetCanvas();
-        auto* modal = canvas->AttachComponent<ModalProbe>(canvas->CreateObject("modal"));
-        auto* poller = canvas->AttachComponent<PollingProbe>(canvas->CreateObject("poller"));
+        auto* modal = canvas->AttachScript<ModalProbe>(canvas->CreateObject("modal"));
+        auto* poller = canvas->AttachScript<PollingProbe>(canvas->CreateObject("poller"));
         modal->mark = 1;
         modal->block = true;
 
@@ -575,10 +575,10 @@ namespace
         Object::GameObject* under = makeButton("under", nullptr, {0.0f, 0.0f}, {30.0f, 30.0f});
         auto* playButton = canvas->FindComponentRaw<Component::Button2D>(play);
         auto* playSprite = canvas->FindComponentRaw<Component::SpriteRenderer2D>(play);
-        auto* probe = canvas->AttachComponent<ButtonProbe>(play);
-        auto* signProbe = canvas->AttachComponent<ButtonProbe>(sign);
-        auto* underProbe = canvas->AttachComponent<ButtonProbe>(under);
-        auto* poller = canvas->AttachComponent<PollingProbe>(canvas->CreateObject("poller"));
+        auto* probe = canvas->AttachScript<ButtonProbe>(play);
+        auto* signProbe = canvas->AttachScript<ButtonProbe>(sign);
+        auto* underProbe = canvas->AttachScript<ButtonProbe>(under);
+        auto* poller = canvas->AttachScript<PollingProbe>(canvas->CreateObject("poller"));
         const Service::Screen2DService& screen = GetFramework2DServices().Screen2D;
 
         const auto frameWith = [&](std::initializer_list<InputEvent> events) {

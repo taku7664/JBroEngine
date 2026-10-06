@@ -6,11 +6,145 @@
 
 namespace JBro
 {
+    void* AttachedRef::GetInstance() const
+    {
+        if (script != nullptr)
+        {
+            return script;
+        }
+        return component;
+    }
+
+    ComponentTypeId AttachedRef::GetTypeId() const
+    {
+        if (script != nullptr)
+        {
+            return script->GetTypeId();
+        }
+        return component != nullptr ? component->GetTypeId() : InvalidComponentTypeId;
+    }
+
+    Bool AttachedRef::IsEnabled() const
+    {
+        if (script != nullptr)
+        {
+            return script->IsEnabled();
+        }
+        return component != nullptr && component->IsEnabled();
+    }
+
+    void AttachedRef::SetEnabled(Bool enabled) const
+    {
+        if (script != nullptr)
+        {
+            script->SetEnabled(enabled);
+            return;
+        }
+        if (component != nullptr)
+        {
+            component->SetEnabled(enabled);
+        }
+    }
+
     Bool ComponentAddress::Equals(const ComponentAddress& other) const
     {
         return objectId == other.objectId
+            && kind == other.kind
             && typeId == other.typeId
             && ordinal == other.ordinal;
+    }
+
+    AttachedRef FindAttachedAt(Object::GameObject& object, AttachedKind kind, ComponentTypeId typeId,
+        UInt32 ordinal)
+    {
+        if (kind == AttachedKind::Component)
+        {
+            return FindComponentAt(object, typeId, ordinal);
+        }
+        UInt32 seen = 0;
+        for (const ScriptSlot& slot : object.GetScripts())
+        {
+            if (slot.typeId != typeId)
+            {
+                continue;
+            }
+            GameScriptBase* script = slot.reference.TryGet();
+            if (script == nullptr)
+            {
+                // 죽은 슬롯은 세지 않는다. 세면 그 뒤의 번호가 한 칸씩 밀린다.
+                continue;
+            }
+            if (seen == ordinal)
+            {
+                return script;
+            }
+            ++seen;
+        }
+        return {};
+    }
+
+    Bool FindAttachedOrdinal(const Object::GameObject& object, AttachedRef attached, UInt32& ordinal)
+    {
+        if (attached.script == nullptr)
+        {
+            return attached.component != nullptr && FindComponentOrdinal(object, *attached.component, ordinal);
+        }
+        const ComponentTypeId typeId = attached.script->GetTypeId();
+        UInt32 seen = 0;
+        for (const ScriptSlot& slot : object.GetScripts())
+        {
+            GameScriptBase* candidate = slot.reference.TryGet();
+            if (candidate == nullptr || slot.typeId != typeId)
+            {
+                continue;
+            }
+            if (candidate == attached.script)
+            {
+                ordinal = seen;
+                return true;
+            }
+            ++seen;
+        }
+        return false;
+    }
+
+    AttachedRef ResolveAttached(const EditorObjectRegistry& registry, const ComponentAddress& address)
+    {
+        Object::GameObject* object = registry.Resolve(address.objectId);
+        if (object == nullptr)
+        {
+            return {};
+        }
+        return FindAttachedAt(*object, address.kind, address.typeId, address.ordinal);
+    }
+
+    Bool MakeAttachedAddress(EditorObjectRegistry& registry, Object::GameObject& object, AttachedRef attached,
+        ComponentAddress& address)
+    {
+        UInt32 ordinal = 0;
+        if (false == FindAttachedOrdinal(object, attached, ordinal))
+        {
+            return false;
+        }
+        const EditorObjectId id = registry.Track(&object);
+        if (id == InvalidEditorObjectId)
+        {
+            return false;
+        }
+        address.objectId = id;
+        address.kind = attached.GetKind();
+        address.typeId = attached.GetTypeId();
+        address.ordinal = ordinal;
+        return true;
+    }
+
+    Bool FindAttachedIndex(const Object::GameObject& object, AttachedRef attached, std::size_t& index)
+    {
+        if (attached.script != nullptr)
+        {
+            return object.FindScriptIndex(attached.script, index);
+        }
+        return object.FindComponentIndex(attached.component, index);
     }
 
     ComponentBase* FindComponentAt(Object::GameObject& object, ComponentTypeId typeId,
@@ -65,7 +199,7 @@ namespace JBro
         const ComponentAddress& address)
     {
         Object::GameObject* object = registry.Resolve(address.objectId);
-        if (object == nullptr)
+        if (object == nullptr || address.kind != AttachedKind::Component)
         {
             return nullptr;
         }
@@ -86,6 +220,7 @@ namespace JBro
             return false;
         }
         address.objectId = id;
+        address.kind = AttachedKind::Component;
         address.typeId = component.GetTypeId();
         address.ordinal = ordinal;
         return true;

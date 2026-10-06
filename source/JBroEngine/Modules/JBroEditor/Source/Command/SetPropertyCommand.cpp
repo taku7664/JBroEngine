@@ -80,7 +80,7 @@ namespace JBro
     }
 
     Bool SetPropertyCommand::ResolveLeaf(
-        ComponentBase& component,
+        void* instance,
         ComponentTypeId typeId,
         const Path& path,
         void*& address,
@@ -92,7 +92,11 @@ namespace JBro
             return false;
         }
 
-        void* owner = &component;
+        void* owner = instance;
+        if (owner == nullptr)
+        {
+            return false;
+        }
         const TypeDescriptor* found = nullptr;
         for (UInt32 step = 0; step < path.depth; ++step)
         {
@@ -127,14 +131,14 @@ namespace JBro
     }
 
     Bool SetPropertyCommand::ApplyValue(
-        ComponentBase& component,
+        void* instance,
         ComponentTypeId typeId,
         const Path& path,
         const String& text)
     {
         void* address = nullptr;
         const TypeDescriptor* type = nullptr;
-        if (false == ResolveLeaf(component, typeId, path, address, type))
+        if (false == ResolveLeaf(instance, typeId, path, address, type))
         {
             return false;
         }
@@ -241,14 +245,14 @@ namespace JBro
     }
 
     Bool SetPropertyCommand::ReadValue(
-        ComponentBase& component,
+        void* instance,
         ComponentTypeId typeId,
         const Path& path,
         String& text)
     {
         void* address = nullptr;
         const TypeDescriptor* type = nullptr;
-        if (false == ResolveLeaf(component, typeId, path, address, type))
+        if (false == ResolveLeaf(instance, typeId, path, address, type))
         {
             return false;
         }
@@ -263,12 +267,12 @@ namespace JBro
 
     Bool SetPropertyCommand::WriteValue(const String& value)
     {
-        ComponentBase* component = ResolveComponent(*m_registry, m_address);
-        if (component == nullptr)
+        const AttachedRef attached = ResolveAttached(*m_registry, m_address);
+        if (false == attached.IsValid())
         {
-            // 컴포넌트가 사라졌다. 되돌릴 곳이 없는 것은 실패지 사고가 아니다.
+            // 컴포넌트나 스크립트가 사라졌다. 되돌릴 곳이 없는 것은 실패지 사고가 아니다.
             return false;
         }
-        return ApplyValue(*component, m_address.typeId, m_path, value);
+        return ApplyValue(attached.GetInstance(), m_address.typeId, m_path, value);
     }
 }

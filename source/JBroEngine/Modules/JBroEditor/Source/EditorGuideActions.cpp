@@ -575,8 +575,8 @@ namespace JBro
             void* address = nullptr;
             const TypeDescriptor* type = nullptr;
             String text;
-            if (false == SetPropertyCommand::ResolveLeaf(component, typeId, path, address, type)
-                || false == SetPropertyCommand::ReadValue(component, typeId, path, text))
+            if (false == SetPropertyCommand::ResolveLeaf(&component, typeId, path, address, type)
+                || false == SetPropertyCommand::ReadValue(&component, typeId, path, text))
             {
                 return false;
             }

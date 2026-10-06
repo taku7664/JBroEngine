@@ -222,6 +222,11 @@ namespace JBro::LocKeys
     inline constexpr const char* ProjectSettingsTags = "project_settings.tags";
     inline constexpr const char* InspectorEnabled = "inspector.enabled";
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
+    inline constexpr const char* InspectorAddScript = "inspector.add_script";
+    inline constexpr const char* InspectorNoScriptTypes = "inspector.no_script_types";
+    inline constexpr const char* InspectorCopyScript = "inspector.copy_script";
+    inline constexpr const char* InspectorPasteScript = "inspector.paste_script";
+    inline constexpr const char* InspectorRemoveScript = "inspector.remove_script";
     inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";
     inline constexpr const char* InspectorMoveComponentDown = "inspector.move_down";
     // 컴포넌트 메뉴의 맨 위·맨 아래로(D-298).
@@ -241,7 +246,7 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorNoComponentTypes = "inspector.no_component_types";
     inline constexpr const char* InspectorUnregisteredType = "inspector.unregistered_type";
     inline constexpr const char* InspectorUnknownComponent = "inspector.unknown_component";
-    inline constexpr const char* InspectorUnresolvedComponent = "inspector.unresolved_component";
+    inline constexpr const char* InspectorUnresolvedScript = "inspector.unresolved_script";
     inline constexpr const char* InspectorUndrawableType = "inspector.undrawable_type";
     inline constexpr const char* InspectorTooDeep = "inspector.too_deep";
     inline constexpr const char* InspectorTooLong = "inspector.too_long";

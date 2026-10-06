@@ -34,7 +34,6 @@ namespace JBro::System
     {
         (void)canvas;
         m_collected.Clear();
-        m_scriptKeys.Clear();
         m_roots.Clear();
         m_walkStack.Clear();
 
@@ -51,43 +50,20 @@ namespace JBro::System
         return m_rebuildCount;
     }
 
-    Bool ScriptSystem::IsScript(const ComponentBase* component) const
-    {
-        if (component == nullptr || m_scriptKeys.IsEmpty())
-        {
-            return false;
-        }
-        std::size_t low = 0;
-        std::size_t high = m_scriptKeys.Size();
-        while (low < high)
-        {
-            const std::size_t middle = low + (high - low) / 2;
-            if (m_scriptKeys[middle] < component)
-            {
-                low = middle + 1;
-            }
-            else
-            {
-                high = middle;
-            }
-        }
-        return low < m_scriptKeys.Size() && m_scriptKeys[low] == component;
-    }
-
     void ScriptSystem::AppendScripts(Object::GameObject& object)
     {
-        // **오브젝트 안의 차례는 컴포넌트 배열 자리 그대로다**(D-45). 여기서 다시
-        // 정렬하면 떼었다 되돌린 컴포넌트가 제 자리를 잃는다.
-        for (const ComponentSlot& slot : object.GetComponents())
+        // **오브젝트 안의 차례는 스크립트 목록 그대로다**(D-45, D-302). 여기서 다시
+        // 정렬하면 떼었다 되돌린 스크립트가 제 자리를 잃는다.
+        for (const ScriptSlot& slot : object.GetScripts())
         {
-            ComponentBase* component = slot.reference.TryGet();
-            if (false == IsScript(component))
+            GameScriptBase* script = slot.reference.TryGet();
+            if (script == nullptr)
             {
                 continue;
             }
             ScriptEntry entry;
-            entry.script     = static_cast<GameScriptBase*>(component);
-            entry.instanceId = component->GetInstanceId();
+            entry.script     = script;
+            entry.instanceId = script->GetInstanceId();
             entry.started    = m_started.Contains(entry.instanceId);
             m_ordered.Add(entry);
         }
@@ -114,7 +90,6 @@ namespace JBro::System
         // 정상 프레임의 힙 할당이 된다(§9). 여기서 멈추는 것이 구 엔진과도 같다.
         if (m_collected.IsEmpty())
         {
-            m_scriptKeys.Clear();
             m_ordered.Clear();
             m_started.Clear();
             m_inputChain.Clear();
@@ -135,16 +110,6 @@ namespace JBro::System
             }
             return true;
         });
-
-        m_scriptKeys.Clear();
-        for (GameScriptBase* script : m_collected)
-        {
-            if (script != nullptr)
-            {
-                m_scriptKeys.Add(static_cast<const ComponentBase*>(script));
-            }
-        }
-        std::sort(m_scriptKeys.begin(), m_scriptKeys.end());
 
         // 루트를 (레이어 합성 순서, 생성 순서) 로 줄 세운다. 구 엔진과 같은 키다.
         m_roots.Clear();
@@ -333,7 +298,7 @@ namespace JBro::System
             if (entry.ordered != SystemHandlerSlot)
             {
                 const ScriptEntry& script = m_ordered[entry.ordered];
-                if (false == script.started || false == script.script->IsActiveComponent())
+                if (false == script.started || false == script.script->IsActiveScript())
                 {
                     continue;
                 }
@@ -366,7 +331,7 @@ namespace JBro::System
         // 이름들보다 넓어진다. 목록에는 살아 있는 것이 전부 들어 있고 도는 것만 고른다.
         for (ScriptEntry& entry : m_ordered)
         {
-            if (entry.started || false == entry.script->IsActiveComponent())
+            if (entry.started || false == entry.script->IsActiveScript())
             {
                 continue;
             }
@@ -378,7 +343,7 @@ namespace JBro::System
 
         for (const ScriptEntry& entry : m_ordered)
         {
-            if (false == entry.script->IsActiveComponent())
+            if (false == entry.script->IsActiveScript())
             {
                 continue;
             }
@@ -396,7 +361,7 @@ namespace JBro::System
         Canvas::IterationGuard guard(canvas);
         for (const ScriptEntry& entry : m_ordered)
         {
-            if (entry.started && entry.script->IsActiveComponent())
+            if (entry.started && entry.script->IsActiveScript())
             {
                 entry.script->OnFixedUpdate();
             }
@@ -421,7 +386,6 @@ namespace JBro::System
         // 큐에 남아 있고, 여기서 비우지 않으면 아무도 비우지 않는다.
         canvas.FlushPendingDestroy();
         m_collected.Clear();
-        m_scriptKeys.Clear();
         m_roots.Clear();
         m_walkStack.Clear();
 

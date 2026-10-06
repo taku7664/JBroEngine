@@ -19,7 +19,7 @@ namespace JBro
         Bool CaptureValues(
             const PropertyTable& table,
             void* owner,
-            ComponentBase& component,
+            void* instance,
             ComponentTypeId typeId,
             SetPropertyCommand::Path& path,
             Array<ComponentValue>& out)
@@ -51,14 +51,14 @@ namespace JBro
                 Bool captured = true;
                 if (property.type->fields != nullptr)
                 {
-                    captured = CaptureValues(*property.type->fields, address, component,
+                    captured = CaptureValues(*property.type->fields, address, instance,
                         typeId, path, out);
                 }
                 else
                 {
                     ComponentValue value;
                     value.path = path;
-                    captured = SetPropertyCommand::ReadValue(component, typeId, path, value.text);
+                    captured = SetPropertyCommand::ReadValue(instance, typeId, path, value.text);
                     if (captured)
                     {
                         out.Add(std::move(value));
@@ -74,34 +74,50 @@ namespace JBro
         }
     }
 
-    Bool CaptureComponent(ComponentBase& component, ComponentSnapshot& out)
+    Bool CaptureAttached(AttachedRef attached, ComponentSnapshot& out)
     {
-        const ComponentTypeId typeId = component.GetTypeId();
+        if (false == attached.IsValid())
+        {
+            return false;
+        }
+        const ComponentTypeId typeId = attached.GetTypeId();
         const PropertyTable* table = PropertyRegistry::Lookup(typeId);
         if (table == nullptr)
         {
             return false;
         }
+        out.kind = attached.GetKind();
         out.typeId = typeId;
-        out.enabled = component.IsEnabled();
+        out.enabled = attached.IsEnabled();
         out.values.Clear();
         SetPropertyCommand::Path path;
-        return CaptureValues(*table, &component, component, typeId, path, out.values);
+        return CaptureValues(*table, attached.GetInstance(), attached.GetInstance(), typeId, path, out.values);
     }
 
-    Bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot)
+    Bool CaptureComponent(ComponentBase& component, ComponentSnapshot& out)
     {
-        if (component.GetTypeId() != snapshot.typeId)
+        return CaptureAttached(&component, out);
+    }
+
+    Bool ApplyAttached(AttachedRef attached, const ComponentSnapshot& snapshot)
+    {
+        if (false == attached.IsValid() || attached.GetKind() != snapshot.kind
+            || attached.GetTypeId() != snapshot.typeId)
         {
             // 다른 타입에 값을 쏟으면 길이 우연히 맞는 자리마다 엉뚱한 값이 들어간다.
             return false;
         }
-        component.SetEnabled(snapshot.enabled);
+        attached.SetEnabled(snapshot.enabled);
         for (std::size_t index = 0; index < snapshot.values.Size(); ++index)
         {
-            SetPropertyCommand::ApplyValue(component, snapshot.typeId,
+            SetPropertyCommand::ApplyValue(attached.GetInstance(), snapshot.typeId,
                 snapshot.values[index].path, snapshot.values[index].text);
         }
         return true;
+    }
+
+    Bool ApplyComponent(ComponentBase& component, const ComponentSnapshot& snapshot)
+    {
+        return ApplyAttached(&component, snapshot);
     }
 }

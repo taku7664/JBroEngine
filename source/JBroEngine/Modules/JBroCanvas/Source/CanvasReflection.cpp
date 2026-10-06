@@ -6,7 +6,7 @@
 
 namespace JBro
 {
-    void ForEachReflectedComponent(Canvas& canvas, ReflectedComponentVisitor visitor, void* user)
+    void ForEachReflectedInstance(Canvas& canvas, ReflectedInstanceVisitor visitor, void* user)
     {
         if (visitor == nullptr)
         {
@@ -22,7 +22,17 @@ namespace JBro
                 {
                     continue;
                 }
-                visitor(*table, *component, user);
+                visitor(*table, component, user);
+            }
+            for (const ScriptSlot& slot : object.GetScripts())
+            {
+                GameScriptBase* script = slot.reference.TryGet();
+                const PropertyTable* table = PropertyRegistry::Lookup(slot.typeId);
+                if (script == nullptr || table == nullptr)
+                {
+                    continue;
+                }
+                visitor(*table, script, user);
             }
         });
     }

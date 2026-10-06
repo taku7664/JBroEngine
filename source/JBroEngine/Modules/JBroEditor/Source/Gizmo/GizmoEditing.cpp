@@ -116,7 +116,7 @@ namespace JBro
             constexpr ComponentTypeId typeId = MakeStableTypeId(Component::Transform3D::StaticTypeName());
             if (false == MakeComponentAddress(editor.GetObjectIds(), object, *transform, target.address)
                 || false == SetPropertyCommand::MakeFieldPath(typeId, field, target.path)
-                || false == SetPropertyCommand::ReadValue(*transform, typeId, target.path, target.before))
+                || false == SetPropertyCommand::ReadValue(transform, typeId, target.path, target.before))
             {
                 return false;
             }
@@ -132,7 +132,7 @@ namespace JBro
             constexpr ComponentTypeId typeId = MakeStableTypeId(Component::Transform2D::StaticTypeName());
             if (false == MakeComponentAddress(editor.GetObjectIds(), object, *transform, target.address)
                 || false == SetPropertyCommand::MakeFieldPath(typeId, field, target.path)
-                || false == SetPropertyCommand::ReadValue(*transform, typeId, target.path, target.before))
+                || false == SetPropertyCommand::ReadValue(transform, typeId, target.path, target.before))
             {
                 return false;
             }
@@ -262,10 +262,10 @@ namespace JBro
                 continue;
             }
             String after;
-            const Bool read = SetPropertyCommand::ReadValue(*component, target.address.typeId, target.path, after);
+            const Bool read = SetPropertyCommand::ReadValue(component, target.address.typeId, target.path, after);
             // 위젯이 쓴 값을 도로 되돌려 놓는다. 쓰는 것은 커맨드의 몫이다 - 그래야 되돌리기가 무엇을
             // 되돌리는지 하나로 남는다.
-            SetPropertyCommand::ApplyValue(*component, target.address.typeId, target.path, target.before);
+            SetPropertyCommand::ApplyValue(component, target.address.typeId, target.path, target.before);
             if (false == read || after == target.before)
             {
                 continue;
@@ -290,7 +290,7 @@ namespace JBro
             const Target& target = m_targets[index];
             if (ComponentBase* component = ResolveComponent(editor.GetObjectIds(), target.address))
             {
-                SetPropertyCommand::ApplyValue(*component, target.address.typeId, target.path, target.before);
+                SetPropertyCommand::ApplyValue(component, target.address.typeId, target.path, target.before);
             }
         }
         m_targets.Clear();

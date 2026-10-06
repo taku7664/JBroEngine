@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <JBro/Canvas/Layer.h>
+#include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Core/Core.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/NameTable.h>
@@ -52,7 +53,7 @@ namespace JBro
         // 규칙이 갈리면 같은 손짓이 들어온 자리마다 다른 칸에 오브젝트를 만든다.
         LayerId ResolveTargetLayer(EditorApplication& editor, Object::GameObject* parent);
 
-        // 컴포넌트 하나를 붙인다(D-180). 붙일 수 없는 타입이면 아무 일도 하지 않고 거짓이다.
+        // 컴포넌트나 스크립트 하나를 붙인다(D-180, D-302). 붙일 수 없는 타입이면 아무 일도 하지 않고 거짓이다.
         Bool AddComponent(EditorApplication& editor, Object::GameObject& object, NameId typeName);
         // 부모를 떼어 뿌리 맨 뒤로 올린다. 이미 뿌리면 거짓이다.
         Bool Unparent(EditorApplication& editor, Object::GameObject& object);
@@ -79,16 +80,23 @@ namespace JBro
             // 거짓이면 이미 붙어 있어 더 붙일 수 없다.
             Array<Bool>        addable;
         };
+        // 빌트인 컴포넌트만 담는다. 스크립트는 따로다(D-302).
         void BuildAddComponentList(const Object::GameObject& object, AddComponentList& out);
+        // **붙일 수 있는 스크립트 목록**이다(D-302). 스크립트 DLL 이 등록한 것을 이름 순으로 담는다. 갈래는 없고 모두 붙일 수 있다.
+        void BuildAddScriptList(const Object::GameObject& object, AddComponentList& out);
 
         // 이미 열려 있는 메뉴 안에 `컴포넌트 추가` 하위 메뉴를 그린다(D-180, 기존
         // `DrawAddComponentMenu`). 붙였으면 참이다.
         Bool DrawAddComponentMenu(EditorApplication& editor, Object::GameObject& object);
+        // 이미 열려 있는 메뉴 안에 `스크립트 추가` 하위 메뉴를 그린다(D-302). 붙였으면 참이다.
+        Bool DrawAddScriptMenu(EditorApplication& editor, Object::GameObject& object);
         // **컴포넌트 하나의 메뉴 항목 한 벌**이다(D-298). 인스펙터의 컴포넌트 머리 메뉴와 오브젝트 메뉴의 컴포넌트 하위 메뉴가 같은 것을
         // 그린다 - 사용 켜기·끄기, 맨 위로·위로·아래로·맨 아래로, 복사·붙여넣기·값 붙여넣기, 그 타입에 더한 항목(D-220), 제거.
+        // 스크립트도 같은 한 벌이다(`kind`, D-302) - 자리 옮기기는 제 목록 안이고, 타입에 더한 항목은 컴포넌트만 갖는다.
         // 이미 열린 메뉴 안에서 부른다. **슬롯 배열을 바꿨으면 거짓이다** - 부르는 쪽은 그 프레임에 슬롯을 더 읽지 않는다.
         Bool DrawComponentMenuItems(EditorApplication& editor, Object::GameObject& object, std::size_t slot,
-            const ObjectPlacement& placement = {});
+            const ObjectPlacement& placement = {}, AttachedKind kind = AttachedKind::Component);
+
 
         // 오브젝트 하나를 두고 여는 메뉴 한 벌이다(D-170). 계층의 줄과 캔버스 뷰에서
         // 오브젝트를 우클릭한 자리가 같은 것을 쓴다 - 기존 엔진도 두 화면의 메뉴가 같다.

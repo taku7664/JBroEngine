@@ -149,7 +149,7 @@ namespace
 
         ContactProbe* Probe(JBro::Object::GameObject* object)
         {
-            return canvas.AttachComponent<ContactProbe>(object);
+            return canvas.AttachScript<ContactProbe>(object);
         }
 
         void Run(JBro::Float seconds)

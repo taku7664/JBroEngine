@@ -1593,8 +1593,8 @@ namespace JBro
         Component::Collider2D* collider = static_cast<Component::Collider2D*>(component);
         collider->points = after;
         String text;
-        const Bool read = SetPropertyCommand::ReadValue(*component, address.typeId, path, text);
-        SetPropertyCommand::ApplyValue(*component, address.typeId, path, before);
+        const Bool read = SetPropertyCommand::ReadValue(component, address.typeId, path, text);
+        SetPropertyCommand::ApplyValue(component, address.typeId, path, before);
         if (false == read || text == before)
         {
             return;
@@ -1616,7 +1616,7 @@ namespace JBro
                 SetPropertyCommand::Path path;
                 if (SetPropertyCommand::MakeFieldPath(m_dragAddress.typeId, "points", path))
                 {
-                    SetPropertyCommand::ApplyValue(*component, m_dragAddress.typeId, path, m_dragBefore);
+                    SetPropertyCommand::ApplyValue(component, m_dragAddress.typeId, path, m_dragBefore);
                 }
             }
             m_vertexDragging = false;
@@ -1679,7 +1679,7 @@ namespace JBro
             {
                 SetPropertyCommand::Path path;
                 if (SetPropertyCommand::MakeFieldPath(target.address.typeId, "points", path)
-                    && SetPropertyCommand::ReadValue(collider, target.address.typeId, path, m_dragBefore))
+                    && SetPropertyCommand::ReadValue(&collider, target.address.typeId, path, m_dragBefore))
                 {
                     m_dragPoints = m_outlineScratch;
                     m_dragVertex = m_polygonHover.index;
@@ -1699,7 +1699,7 @@ namespace JBro
                 SetPropertyCommand::Path path;
                 String before;
                 if (SetPropertyCommand::MakeFieldPath(target.address.typeId, "points", path)
-                    && SetPropertyCommand::ReadValue(collider, target.address.typeId, path, before))
+                    && SetPropertyCommand::ReadValue(&collider, target.address.typeId, path, before))
                 {
                     Array<Vector2> after = m_outlineScratch;
                     PolygonEditModel::InsertOnEdge(after, m_polygonHover.index,
@@ -1841,8 +1841,8 @@ namespace JBro
             return;
         }
         String text;
-        const Bool read = SetPropertyCommand::ReadValue(*component, address.typeId, path, text);
-        SetPropertyCommand::ApplyValue(*component, address.typeId, path, before);
+        const Bool read = SetPropertyCommand::ReadValue(component, address.typeId, path, text);
+        SetPropertyCommand::ApplyValue(component, address.typeId, path, before);
         if (false == read || text == before)
         {
             return;
@@ -1864,7 +1864,7 @@ namespace JBro
                 SetPropertyCommand::Path path;
                 if (SetPropertyCommand::MakeFieldPath(m_lightDragAddress.typeId, LightGizmoModel::FieldName(m_lightDragHandle), path))
                 {
-                    SetPropertyCommand::ApplyValue(*component, m_lightDragAddress.typeId, path, m_lightDragBefore);
+                    SetPropertyCommand::ApplyValue(component, m_lightDragAddress.typeId, path, m_lightDragBefore);
                 }
             }
             Widget::OverlayHandle(LightGizmoModel::HandleId(m_lightDragHandle), false, false, false);
@@ -1961,7 +1961,7 @@ namespace JBro
             Widget::OverlayHandle(LightGizmoModel::HandleId(m_lightHover), true, pressed, pressed);
             SetPropertyCommand::Path path;
             if (pressed && SetPropertyCommand::MakeFieldPath(target.address.typeId, LightGizmoModel::FieldName(m_lightHover), path)
-                && SetPropertyCommand::ReadValue(light, target.address.typeId, path, m_lightDragBefore))
+                && SetPropertyCommand::ReadValue(&light, target.address.typeId, path, m_lightDragBefore))
             {
                 m_lightDragHandle = m_lightHover;
                 m_lightDragAddress = target.address;
@@ -2065,7 +2065,7 @@ namespace JBro
                 SetPropertyCommand::Path path;
                 String before;
                 if (SetPropertyCommand::MakeFieldPath(m_menuAddress.typeId, "points", path)
-                    && SetPropertyCommand::ReadValue(*collider, m_menuAddress.typeId, path, before))
+                    && SetPropertyCommand::ReadValue(collider, m_menuAddress.typeId, path, before))
                 {
                     Array<Vector2> after = m_outlineScratch;
                     if (PolygonEditModel::RemoveVertex(after, m_menuVertex, minimum))

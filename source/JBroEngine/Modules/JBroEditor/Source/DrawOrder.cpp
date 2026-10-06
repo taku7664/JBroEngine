@@ -266,7 +266,7 @@ namespace JBro::EditorActions
             String before;
             if (false == MakeComponentAddress(registry, *entry.owner, *entry.component, address)
                 || false == SetPropertyCommand::MakeFieldPath(entry.typeId, "drawSequence", path)
-                || false == SetPropertyCommand::ReadValue(*entry.component, entry.typeId, path, before))
+                || false == SetPropertyCommand::ReadValue(entry.component, entry.typeId, path, before))
             {
                 return false;
             }

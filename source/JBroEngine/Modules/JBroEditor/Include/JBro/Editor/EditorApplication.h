@@ -604,17 +604,23 @@ namespace JBro
         // 갔는지 보이지 않는다. **다만 하나만 붙는 타입은 거절한다**(D-180) - 기존 엔진은
         // 붙여넣기만 다중성 판정을 지나치지 않아 Transform 이 둘씩 붙었고, 그렇게 되면
         // 조회가 먼저 붙은 쪽만 돌려주어 나중 것은 보이지도 지워지지도 않는다.
-        Bool CopyComponent(ComponentBase& component);
+        // 컴포넌트와 스크립트가 같은 길이다(D-302). 떠 둔 것이 어느 목록인지 기억해 같은 목록에 붙인다.
+        Bool CopyComponent(AttachedRef attached);
         Bool PasteComponent(Object::GameObject& object);
         // 그 오브젝트에 떠 둔 컴포넌트를 붙일 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
         Bool CanPasteComponent(const Object::GameObject& object) const;
         // 이미 붙어 있는 컴포넌트에 값만 덮는다. 떠 둔 것이 그 타입이 아니면 거짓이다.
-        Bool PasteComponentValues(Object::GameObject& object, ComponentBase& component);
+        Bool PasteComponentValues(Object::GameObject& object, AttachedRef attached);
         // 그 컴포넌트에 값을 덮을 수 있는가. 메뉴가 회색으로 그릴지 정하는 값이다.
-        Bool CanPasteComponentValues(const ComponentBase& component) const;
+        Bool CanPasteComponentValues(AttachedRef attached) const;
         Bool HasComponentClipboard() const
         {
             return m_hasComponentClipboard;
+        }
+        // 클립보드에 뜬 것이 컴포넌트인가 스크립트인가(D-302). 비어 있으면 뜻이 없다.
+        AttachedKind GetComponentClipboardKind() const
+        {
+            return m_componentClipboard.kind;
         }
         // 클립보드에 든 컴포넌트의 타입 이름이다. 없으면 nullptr 이다. 메뉴가 무엇이 붙을지
         // 말하는 데 쓴다.
