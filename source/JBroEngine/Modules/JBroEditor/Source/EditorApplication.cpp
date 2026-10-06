@@ -9,6 +9,7 @@
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/EditorShortcuts.h>
@@ -279,6 +280,8 @@ namespace JBro
             }
         }
 
+        // 패널 종류 표를 채운다(D-284). 프로세스에 한 번이다.
+        RegisterBuiltinEditorPanelTypes();
         // 단축키: 전역 아홉을 올리고 사용자가 바꿔 둔 것을 덮는다(D-228). 패널의 것은 패널이 만들어질 때 올라온다.
         EditorShortcuts::RegisterBuiltins(*m_shortcuts);
         if (config.preferencesPath != nullptr && config.preferencesPath[0] != '\0')
@@ -2685,25 +2688,19 @@ namespace JBro
         m_simulationPlaying = false;
         m_simulationPaused = false;
 
-        // 기본 패널이다. 더 얹는 것은 이 위에 `AddPanel` 로 붙인다.
-        // **첫 번째가 가운데를 갖는다 - 편집 화면이 거기여야 한다.** 게임 뷰도 같은 칸에
-        // 탭으로 들어가지만, 처음 보이는 것은 만드는 화면이다(D-130).
+        // **기본 패널은 패널 종류 표에서 선다**(D-284). UI 와 함께 서는 종류를 표의 차례로 만든다 - 첫 번째가 가운데를
+        // 갖는다(D-130). 표는 에디터가 켜질 때 채웠다.
         try
         {
-            if (false == AddPanel(MakeOwnerPtr<CanvasViewPanel>())
-                || false == AddPanel(MakeOwnerPtr<GameViewPanel>())
-                || false == AddPanel(MakeOwnerPtr<HierarchyPanel>())
-                || false == AddPanel(MakeOwnerPtr<InspectorPanel>())
-                || false == AddPanel(MakeOwnerPtr<AssetBrowserPanel>())
-                || false == AddPanel(MakeOwnerPtr<StatsPanel>())
-                || false == AddPanel(MakeOwnerPtr<LogPanel>())
-                || false == AddPanel(MakeOwnerPtr<ProjectSettingsPanel>())
-                || false == AddPanel(MakeOwnerPtr<ProfilerPanel>())
-                || false == AddPanel(MakeOwnerPtr<ShortcutPanel>())
-                || false == AddPanel(MakeOwnerPtr<EditorSettingsPanel>()))
+            const EditorPanelRegistry& types = EditorPanelRegistry::Get();
+            for (std::uint32_t index = 0; index < types.GetCount(); ++index)
             {
-                ReleaseEditorUi();
-                return false;
+                const EditorPanelTypeInfo& type = types.GetAt(index);
+                if (type.createWithUi && CreatePanel(type.name) == nullptr)
+                {
+                    ReleaseEditorUi();
+                    return false;
+                }
             }
         }
         catch (const std::bad_alloc&)
@@ -2742,51 +2739,188 @@ namespace JBro
                 ? panel.GetDisplayTitle() : "";
             label += "###";
             label += panel.GetTitle() != nullptr ? panel.GetTitle() : "";
+            // **비고유 패널은 뒤에 UUID 를 붙인다**(D-284). 같은 종류가 여럿 서므로 종류 이름만으로는 한 창이 된다.
+            if (panel.GetKind() == EditorPanelKind::Instance)
+            {
+                char id[Uuid::TextCapacity] = {};
+                panel.GetId().ToText(id, sizeof(id));
+                label += "/";
+                label += id;
+            }
             return label;
+        }
+
+        bool SameName(const char* left, const char* right)
+        {
+            return left != nullptr && right != nullptr && std::strcmp(left, right) == 0;
         }
     }
 
-    bool EditorApplication::AddPanel(OwnerPtr<EditorPanel> panel)
+    EditorPanel* EditorApplication::AddPanel(OwnerPtr<EditorPanel> panel)
     {
         if (false == m_initialized || panel.Get() == nullptr)
         {
-            return false;
+            return nullptr;
         }
         const char* title = panel->GetTitle();
-        if (title == nullptr || *title == '\0' || FindPanel(title) != nullptr)
+        if (title == nullptr || *title == '\0')
         {
-            return false;
+            return nullptr;
         }
+        const EditorPanelTypeInfo* type = EditorPanelRegistry::Get().Find(title);
+        if (type != nullptr && type->kind != panel->GetKind())
+        {
+            return nullptr;
+        }
+        // **고유 패널은 종류마다 하나다**(D-284). 있던 것을 앞으로 가져온다 - 새 것은 `OnCreate` 도 부르지 않고 버린다.
+        if (panel->GetKind() == EditorPanelKind::Unique)
+        {
+            if (EditorPanel* existing = FindPanel(title))
+            {
+                existing->RequestFocus();
+                return existing;
+            }
+            panel->m_id = Uuid::FromName(title);
+        }
+        else
+        {
+            panel->m_id = Uuid::Generate();
+        }
+        panel->m_dockArea = type != nullptr ? type->dockArea : MainDockArea;
         if (false == panel->OnCreate(*this))
         {
-            return false;
+            return nullptr;
         }
+        EditorPanel* added = panel.Get();
         try
         {
             m_panels.Add(std::move(panel));
         }
         catch (const std::bad_alloc&)
         {
-            return false;
+            return nullptr;
         }
-        return true;
+        return added;
     }
 
-    EditorPanel* EditorApplication::FindPanel(const char* title)
+    EditorPanel* EditorApplication::CreatePanel(const char* typeName)
     {
-        if (title == nullptr)
+        const EditorPanelTypeInfo* type = EditorPanelRegistry::Get().Find(typeName);
+        if (false == m_initialized || type == nullptr)
+        {
+            return nullptr;
+        }
+        if (type->kind == EditorPanelKind::Unique)
+        {
+            if (EditorPanel* existing = FindPanel(type->name))
+            {
+                existing->RequestFocus();
+                return existing;
+            }
+        }
+        OwnerPtr<EditorPanel> panel = type->Create();
+        if (panel.Get() == nullptr || false == SameName(panel->GetTitle(), type->name))
+        {
+            // 만든 패널이 표의 이름을 말하지 않으면 종류 표와 창이 갈린다. 들이지 않는다.
+            return nullptr;
+        }
+        return AddPanel(std::move(panel));
+    }
+
+    void EditorApplication::ClosePanel(EditorPanel& panel)
+    {
+        panel.SetOpen(false);
+        if (panel.GetKind() == EditorPanelKind::Unique)
+        {
+            return;
+        }
+        if (m_drawingPanels)
+        {
+            for (EditorPanel* closing : m_closingPanels)
+            {
+                if (closing == &panel)
+                {
+                    return;
+                }
+            }
+            m_closingPanels.Add(&panel);
+            return;
+        }
+        DestroyPanel(panel);
+    }
+
+    void EditorApplication::DestroyPanel(EditorPanel& panel)
+    {
+        for (std::size_t index = 0; index < m_panels.Size(); ++index)
+        {
+            if (m_panels[index].Get() == &panel)
+            {
+                panel.OnDestroy();
+                m_panels.RemoveAt(index);
+                return;
+            }
+        }
+    }
+
+    void EditorApplication::DestroyClosingPanels()
+    {
+        for (EditorPanel* panel : m_closingPanels)
+        {
+            DestroyPanel(*panel);
+        }
+        m_closingPanels.Clear();
+    }
+
+    EditorPanel* EditorApplication::FindPanel(const char* typeName)
+    {
+        if (typeName == nullptr)
         {
             return nullptr;
         }
         for (std::size_t index = 0; index < m_panels.Size(); ++index)
         {
             EditorPanel* panel = m_panels[index].Get();
-            if (panel != nullptr && std::strcmp(panel->GetTitle(), title) == 0)
+            if (panel != nullptr && SameName(panel->GetTitle(), typeName))
             {
                 return panel;
             }
         }
         return nullptr;
+    }
+
+    EditorPanel* EditorApplication::FindPanel(const Uuid& id)
+    {
+        if (id.IsNull())
+        {
+            return nullptr;
+        }
+        for (std::size_t index = 0; index < m_panels.Size(); ++index)
+        {
+            EditorPanel* panel = m_panels[index].Get();
+            if (panel != nullptr && panel->GetId() == id)
+            {
+                return panel;
+            }
+        }
+        return nullptr;
+    }
+
+    std::uint32_t EditorApplication::FindPanels(const char* typeName, Array<EditorPanel*>& out)
+    {
+        out.Clear();
+        if (typeName == nullptr)
+        {
+            return 0;
+        }
+        for (std::size_t index = 0; index < m_panels.Size(); ++index)
+        {
+            EditorPanel* panel = m_panels[index].Get();
+            if (panel != nullptr && SameName(panel->GetTitle(), typeName))
+            {
+                out.Add(panel);
+            }
+        }
+        return static_cast<std::uint32_t>(out.Size());
     }
 
     std::size_t EditorApplication::GetPanelCount() const
@@ -3469,6 +3603,7 @@ namespace JBro
             }
         }
         m_panels.Clear();
+        m_closingPanels.Clear();
     }
 
     bool EditorApplication::DrawShortcutItem(EditorShortcut id, const char* label, const char* icon)
@@ -3651,7 +3786,8 @@ namespace JBro
                 for (std::size_t index = 0; index < m_panels.Size(); ++index)
                 {
                     EditorPanel* panel = m_panels[index].Get();
-                    if (panel == nullptr)
+                    // 비고유 패널은 켜고 끄는 항목이 없다(D-284) - 닫으면 사라지는 창이다.
+                    if (panel == nullptr || panel->GetKind() != EditorPanelKind::Unique)
                     {
                         continue;
                     }
@@ -4050,6 +4186,8 @@ namespace JBro
         }
         ImGui::End();
 
+        // 그리는 동안 닫힌 비고유 패널은 끝난 뒤에 파기한다(D-284).
+        m_drawingPanels = true;
         for (std::size_t index = 0; index < m_panels.Size(); ++index)
         {
             EditorPanel* panel = m_panels[index].Get();
@@ -4062,6 +4200,7 @@ namespace JBro
             panel->OnUpdate(deltaTime);
             // 그리지 않으면 포커스도 없다. 열린 창은 아래에서 다시 적는다.
             panel->SetFocused(false);
+            panel->SetVisible(false);
             // **가이드 포커스가 가리키는 패널은 연다**(D-251). 닫혀 있으면 그 안의 대상이 그려지지 않는다. 가려진 탭은
             // 머묾이 끝난 뒤 앞으로 꺼낸다 - 매 프레임 꺼내면 그 안에서 연 콤보가 포커스를 잃고 닫힌다.
             const GuideFocusTarget panelTarget = GuideFocusTargets::Panel(panel->GetTitle());
@@ -4079,9 +4218,14 @@ namespace JBro
                 continue;
             }
             bool panelOpen = true;
-            const ImGuiWindowFlags flags = panel->HasMenuBar()
+            ImGuiWindowFlags flags = panel->HasMenuBar()
                 ? ImGuiWindowFlags_MenuBar
                 : ImGuiWindowFlags_None;
+            // **비고유 패널은 자리를 남기지 않는다**(D-284). 열 때마다 새 UUID 라 남기면 설정 파일에 다시 오지 않을 창이 쌓인다.
+            if (panel->GetKind() == EditorPanelKind::Instance)
+            {
+                flags |= ImGuiWindowFlags_NoSavedSettings;
+            }
             const String label = PanelWindowLabel(*panel);
             // 닫기 단추를 원하지 않는 패널에는 불리언을 넘기지 않는다. ImGui 는
             // 그것으로 단추를 그릴지 정한다.
@@ -4100,6 +4244,7 @@ namespace JBro
             }
             if (shown)
             {
+                panel->SetVisible(true);
                 panel->SetFocused(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
                 if (panel->HasMenuBar() && Widget::BeginMenuBar())
                 {
@@ -4109,8 +4254,14 @@ namespace JBro
                 panel->OnDraw();
             }
             ImGui::End();
-            panel->SetOpen(panelOpen);
+            if (false == panelOpen)
+            {
+                // 고유 패널은 숨고 비고유 패널은 파기된다 - 파기는 이 루프가 끝난 뒤다.
+                ClosePanel(*panel);
+            }
         }
+        m_drawingPanels = false;
+        DestroyClosingPanels();
     }
 
     bool EditorApplication::BuildEditorUi(float deltaTime)

@@ -27,9 +27,12 @@ namespace JBro
     // **레이어도 여기 있다**(D-135). 엔진에는 레이어가 있고 `.jcanvas` 도 레이어를 적는데
     // 에디터에는 레이어를 다루는 길이 하나도 없었다. 기존 엔진이 계층 창에 두었으므로 같은 자리다.
     // 위가 앞이다 - 포토샵과 같은 쪽이고, 캔버스가 든 차례(0 = 맨 뒤)의 역순으로 그린다.
-    class HierarchyPanel final : public EditorPanel
+    class HierarchyPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "Hierarchy";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

@@ -70,7 +70,7 @@ namespace JBro
 
     const char* AssetBrowserPanel::GetTitle() const
     {
-        return "Assets";
+        return TypeName;
     }
 
     const char* AssetBrowserPanel::GetDisplayTitle() const

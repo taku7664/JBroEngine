@@ -16,7 +16,7 @@ namespace JBro
 {
     const char* ShortcutPanel::GetTitle() const
     {
-        return "Shortcuts";
+        return TypeName;
     }
 
     const char* ShortcutPanel::GetDisplayTitle() const

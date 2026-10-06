@@ -10,9 +10,12 @@ namespace JBro
     // 옛 글자로 남는다 - 그러면 없느니만 못하다.
     //
     // 처음에는 닫혀 있다. 찾아 열어 보는 창이지 늘 보는 창이 아니다.
-    class ShortcutPanel final : public EditorPanel
+    class ShortcutPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "Shortcuts";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

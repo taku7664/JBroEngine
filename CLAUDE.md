@@ -125,6 +125,9 @@
   닫힌 패널·트리를 부모부터 한 칸씩 연다. 기구 `EditorGuideFocus`·`Widget::GuideFocus` 와 내용 `Guide`·`GuideStep`·`EditorGuide` 로 나눈다.
   **열두 단계가 섰다** - 입력 문·표식·막과 애니메이션·부모부터 열기·가이드 둘(`도움말` → `가이드`)·글자로 적는 가이드(D-267: 단계는 `Do: object.delete`
   같은 행동이고 길은 에디터의 행동 표가 안다, 에디터 안의 에이전트가 `StartGuideFromText` 로 넘긴다)·한 줄짜리 행동(D-268: 길은 메뉴가 짓고 끝은 커맨드가 알린다)·단계 사이 참조(D-269: `$단계Id`)·제어 포트(D-270: 루프백 `3663` 으로 밖의 도구가 `guide.start`)·목록의 항목과 회색 항목(D-271: `Component` 를 적으면 목록의 그 항목까지, 회색이면 말풍선이 까닭을 적는다)·캔버스 뷰의 도구와 점(D-272: 기즈모 손잡이·폴리곤 포인트, 점은 둥근 구멍)·필드의 값(D-273: `field.edit` 의 `Value` 가 되기 전에는 다음이 막히고, 숫자는 허용 오차로 본다. 할 수 없는 단계는 까닭을 적는다). 기존 엔진에 없던 기능이라는 확인과 지금 에디터의 입력·위젯 경로가 §1, 설계가 §2, 단계가 §3, `[열림]` 이 §4 에 있다
+- [tasks/editor-reflection-plan.md](./tasks/editor-reflection-plan.md) — 에디터 리플렉션(D-284). 전역 패널 종류 표(`EditorPanelRegistry`)와 행동 표가
+  시작할 때 모든 패널·행동을 든다. 패널은 고유(`UniquePanel`)·비고유(`InstancePanel`)로 나뉘고 반드시 도크에 속한다. 엔진의 필드 리플렉션과 나누고
+  참조만 한다. 1 단계(패널 종류 표)가 섰고, 2~4 단계(행동 표·가이드·스프라이트 뷰어 도크)가 §3 에 있다
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
   편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).

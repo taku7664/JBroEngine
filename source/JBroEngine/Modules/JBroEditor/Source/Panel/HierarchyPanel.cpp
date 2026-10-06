@@ -96,7 +96,7 @@ namespace JBro
 
     const char* HierarchyPanel::GetTitle() const
     {
-        return "Hierarchy";
+        return TypeName;
     }
 
     const char* HierarchyPanel::GetDisplayTitle() const

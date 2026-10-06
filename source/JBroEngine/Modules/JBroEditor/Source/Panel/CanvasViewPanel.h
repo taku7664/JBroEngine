@@ -34,9 +34,12 @@ namespace JBro
     //
     // 그림은 엔진이 그린다. 이 패널은 크기와 카메라를 요청하고 그 텍스처를 붙인 뒤,
     // 그 위에 ImGui 로 겹쳐 그린다.
-    class CanvasViewPanel final : public EditorPanel
+    class CanvasViewPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "CanvasView";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

@@ -62,7 +62,7 @@ namespace JBro
     const char* StatsPanel::GetTitle() const
     {
         // 안정된 이름이다. 번역하지 않는다 - 창의 정체가 여기 달려 있다.
-        return "Stats";
+        return TypeName;
     }
 
     const char* StatsPanel::GetDisplayTitle() const

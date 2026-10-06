@@ -131,7 +131,7 @@ namespace JBro
     const char* CanvasViewPanel::GetTitle() const
     {
         // 안정된 이름이다. 번역하지 않는다 - 창의 정체와 도킹 자리가 여기 달려 있다.
-        return "CanvasView";
+        return TypeName;
     }
 
     const char* CanvasViewPanel::GetDisplayTitle() const

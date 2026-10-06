@@ -14,9 +14,12 @@ namespace JBro
     // 표시하고 까닭을 툴팁으로 말한다.
     //
     // 처음에는 닫혀 있다. 설정 메뉴에서 연다.
-    class EditorSettingsPanel final : public EditorPanel
+    class EditorSettingsPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "EditorSettings";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

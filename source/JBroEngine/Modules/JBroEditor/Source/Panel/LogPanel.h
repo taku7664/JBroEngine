@@ -10,9 +10,12 @@ namespace JBro
     //
     // 창으로 띄운 에디터에는 콘솔이 없다. 그래서 에셋을 못 읽었다거나 감시가 서지 않았다는
     // 말이 그대로 사라졌고, 사용자는 "왜 안 되는지" 를 화면 어디에서도 볼 수 없었다.
-    class LogPanel final : public EditorPanel
+    class LogPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "Log";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

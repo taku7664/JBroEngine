@@ -15,9 +15,12 @@ namespace JBro
     //
     // **패널이 둘 이상이라는 것을 실제로 시험하는 자리이기도 하다.** 하나뿐이면
     // 레지스트리도 도킹도 도는지 알 수 없다.
-    class StatsPanel final : public EditorPanel
+    class StatsPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "Stats";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

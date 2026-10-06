@@ -32,13 +32,16 @@ namespace JBro
     //
     // **줄은 라벨 칸과 값 칸으로 나뉜다**(ProjectRule §11.3). 위젯에는 `"##이름"` 만
     // 넘긴다 - 보이는 이름은 왼쪽 칸이 그린다.
-    class InspectorPanel final : public EditorPanel
+    class InspectorPanel final : public UniquePanel
     {
     public:
         // 고른 에셋의 임포트 옵션 칸들이다(D-155). **스프라이트 뷰어도 이것을 그린다** - 기존의
         // `SpriteImportOptionsEditor` 처럼 두 창이 같은 값을 같은 길로 고친다. 각자 그리면
         // 한쪽의 편집이 다른 쪽에서 조용히 사라진다. 쓰는 길은 고른 에셋의 메타 하나다.
         void DrawAssetOptions(const AssetMetaFile& meta);
+
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "Inspector";
 
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;

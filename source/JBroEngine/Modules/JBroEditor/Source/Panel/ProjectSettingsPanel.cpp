@@ -43,7 +43,7 @@ namespace JBro
 
     const char* ProjectSettingsPanel::GetTitle() const
     {
-        return "ProjectSettings";
+        return TypeName;
     }
 
     const char* ProjectSettingsPanel::GetDisplayTitle() const

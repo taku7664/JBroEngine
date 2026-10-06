@@ -38,7 +38,7 @@ namespace JBro
     const char* EditorSettingsPanel::GetTitle() const
     {
         // 안정된 이름이다. 번역하지 않는다.
-        return "EditorSettings";
+        return TypeName;
     }
 
     const char* EditorSettingsPanel::GetDisplayTitle() const

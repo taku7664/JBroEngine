@@ -18,9 +18,12 @@ namespace JBro
     // 시퀀스도 그 자리에 남는다.
     //
     // 처음에는 닫혀 있다. 설정 창은 찾아 여는 창이다.
-    class ProjectSettingsPanel final : public EditorPanel
+    class ProjectSettingsPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "ProjectSettings";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

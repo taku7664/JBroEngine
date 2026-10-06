@@ -10,9 +10,12 @@ namespace JBro
     // 통계 창은 프레임 시간 하나만 말한다. 느려졌을 때 **어디가** 느린지는 그 숫자로 알 수 없다.
     //
     // **켜야 잰다.** 재는 것 자체가 프레임에 얹히는 일이라, 창을 닫아 두면 끈다.
-    class ProfilerPanel final : public EditorPanel
+    class ProfilerPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "Profiler";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

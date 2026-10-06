@@ -1,12 +1,24 @@
 ﻿#pragma once
 
 #include <JBro/Core/Core.h>
+#include <JBro/Types/Uuid.h>
 
 namespace JBro
 {
     class EditorApplication;
 
-    // 패널이 처음 뜰 때 어디에 붙고 싶은지다. **자리를 아는 것은 패널 자신이고,
+    // **패널은 고유이거나 비고유다**(D-284). 고유 패널은 종류마다 하나이고 다시 만들면 있던 것이 앞으로 온다 -
+    // 계층·인스펙터 같은 도구 창이다. 비고유 패널은 만들 때마다 새로 서고 닫으면 사라진다 - 그림마다 여는 뷰어 같은 것이다.
+    enum class EditorPanelKind : std::uint8_t
+    {
+        Unique,
+        Instance
+    };
+
+    // 메인 도크의 이름이다. 도구 창이 붙는 안쪽 도크(D-134)이고, 따로 말하지 않은 패널은 여기 소속이다.
+    inline constexpr const char* MainDockArea = "Main";
+
+    // 패널이 처음 뜰 때 소속 도크 안의 어디에 붙고 싶은지다. **자리를 아는 것은 패널 자신이고,
     // 프레임워크는 패널이 무엇인지 몰라도 된다** - 에디터가 "Inspector 는 오른쪽"
     // 같은 목록을 들고 있으면 패널을 더할 때마다 프레임워크를 고쳐야 한다.
     //
@@ -25,19 +37,38 @@ namespace JBro
     // 두었는데, 그 위에 올린 패널 열세 개가 실제로 override 하는 것은 다섯이었다 —
     // 포커스·렌더·클립의 Enter/Stay/Exit 삼종 세트는 아홉 개가 한 번도 쓰이지 않았다.
     // 필요해지면 그때 넣는다. 안 쓰는 훅을 나중에 지우는 것보다 넣는 것이 쉽다.
+    //
+    // 직접 상속하지 않는다. `UniquePanel` 이나 `InstancePanel` 을 상속한다.
     class EditorPanel
     {
     public:
-        EditorPanel() = default;
         virtual ~EditorPanel() = default;
         EditorPanel(const EditorPanel&) = delete;
         EditorPanel& operator=(const EditorPanel&) = delete;
 
-        // 패널의 **안정된 이름**이다. ImGui 가 창을 식별하는 값이고, 레지스트리가
-        // 중복을 거르는 값이며, `FindPanel` 이 찾는 값이다.
+        EditorPanelKind GetKind() const
+        {
+            return m_kind;
+        }
+        // 에디터가 들일 때 매긴다. 고유 패널은 종류 이름에서 정해지는 값이라 언제나 같고, 비고유 패널은 들일 때마다 새 값이다.
+        // 들이기 전에는 빈 값이다.
+        const Uuid& GetId() const
+        {
+            return m_id;
+        }
+
+        // 패널의 **종류 이름**이다. 패널 종류 표(`EditorPanelRegistry`)의 이름이고, `FindPanel`·`FindPanels` 가 찾는 값이며,
+        // 단축키 범위다. 고유 패널에게는 ImGui 가 창을 식별하는 값이기도 하다(비고유 패널은 뒤에 UUID 가 붙는다).
         // **살아 있는 동안 바뀌지 않아야 한다** - 바뀌면 ImGui 가 다른 창으로 보고
         // 도킹 자리와 크기를 잃는다. 그러므로 **번역하지 않는다.**
         virtual const char* GetTitle() const = 0;
+
+        // **소속 도크**다(D-284). 모든 패널은 도크 하나에 붙는다 - 뿌리 도크에는 도크만 붙고 패널은 붙지 못한다.
+        // 패널이 말하지 않는다. 에디터가 들일 때 패널 종류 표에서 정해 적는다(표에 없는 종류는 메인 도크다).
+        const char* GetDockArea() const
+        {
+            return m_dockArea;
+        }
 
         // 탭에 **보이는** 이름이다. 이쪽은 번역한다(ProjectRule §11.2).
         //
@@ -125,10 +156,51 @@ namespace JBro
         {
             m_focused = focused;
         }
+        // 지난 프레임에 내용이 그려졌는가 - 닫혀 있거나 다른 탭 뒤에 가려졌으면 거짓이다. 에디터가 창을 열 때마다 적는다.
+        bool IsVisible() const
+        {
+            return m_visible;
+        }
+        void SetVisible(bool visible)
+        {
+            m_visible = visible;
+        }
+
+    protected:
+        explicit EditorPanel(EditorPanelKind kind)
+            : m_kind(kind)
+        {
+        }
 
     private:
+        friend class EditorApplication;
+
+        EditorPanelKind m_kind;
+        Uuid m_id;
+        const char* m_dockArea = MainDockArea;
         bool m_open = true;
         bool m_focusRequested = false;
         bool m_focused = false;
+        bool m_visible = false;
+    };
+
+    // **종류마다 하나인 패널**이다(D-284). 다시 만들면 있던 것이 앞으로 오고, 닫으면 숨는다.
+    class UniquePanel : public EditorPanel
+    {
+    protected:
+        UniquePanel()
+            : EditorPanel(EditorPanelKind::Unique)
+        {
+        }
+    };
+
+    // **만들 때마다 새로 서는 패널**이다(D-284). 닫으면 사라지고, 다음 실행에 되살리지 않는다.
+    class InstancePanel : public EditorPanel
+    {
+    protected:
+        InstancePanel()
+            : EditorPanel(EditorPanelKind::Instance)
+        {
+        }
     };
 }

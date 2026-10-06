@@ -398,7 +398,16 @@ namespace JBro
         // 패널을 들인다. 에디터가 소유하고, UI 를 끌 때 함께 내보낸다.
         // 같은 제목의 패널은 받지 않는다 - ImGui 가 제목으로 창을 식별하므로
         // 둘이 한 창을 나눠 쓰게 된다.
-        bool AddPanel(OwnerPtr<EditorPanel> panel);
+        //
+        // **고유 패널은 종류마다 하나다**(D-284). 같은 종류가 이미 있으면 새 것은 들이지 않고 있던 것을 앞으로 가져와 그것을
+        // 돌려준다. 비고유 패널은 언제나 새로 들인다. 표에 오른 종류면 소속 도크를 표에서 받고, 고유인지가 표와 다르면 거절한다.
+        // 들인 패널(또는 있던 패널)을 돌려주고, 들이지 못했으면 nullptr 이다.
+        // 도구 창은 `CreatePanel` 로 만든다 - 이것은 표를 거치지 않는 시험용 패널이 쓰는 입구다.
+        EditorPanel* AddPanel(OwnerPtr<EditorPanel> panel);
+        // **패널 종류 표에서 만든다**(D-284). 고유 패널이 이미 있으면 그것을 앞으로 가져오고 끝이다. 모르는 종류면 nullptr 이다.
+        EditorPanel* CreatePanel(const char* typeName);
+        // 패널을 닫는다. 고유 패널은 숨고(다시 열면 그대로), 비고유 패널은 파기된다 - 그리는 중이면 이번 프레임이 끝날 때.
+        void ClosePanel(EditorPanel& panel);
 
         // 모달 팝업 큐다(기존 엔진 `ImPopupDesc`). 한 번에 하나만 뜨고, 앞 것이 닫히면 다음
         // 프레임에 다음 것이 뜬다. 같은 Id 가 살아 있으면 그 핸들을 돌려주고 새로 만들지 않는다.
@@ -434,8 +443,11 @@ namespace JBro
         // 컴포넌트 타입마다 우클릭 메뉴에 더할 항목의 표다(D-220). 오브젝트 메뉴와 인스펙터 머리 메뉴가 함께 묻는다.
         ComponentMenuTable& GetComponentMenus();
         const ComponentMenuTable& GetComponentMenus() const;
-        // 제목으로 찾는다. 없으면 nullptr 이다.
-        EditorPanel* FindPanel(const char* title);
+        // **찾기는 고유·비고유가 같은 API 다**(D-284). 종류로 찾으면 그 종류의 맨 앞(먼저 들인 것)이고, 없으면 nullptr 이다.
+        EditorPanel* FindPanel(const char* typeName);
+        EditorPanel* FindPanel(const Uuid& id);
+        // 그 종류의 패널을 들인 차례로 `out` 에 채우고 수를 돌려준다. 고유 패널이면 0 이나 1 이다.
+        std::uint32_t FindPanels(const char* typeName, Array<EditorPanel*>& out);
         std::size_t GetPanelCount() const;
 
         // 게임 화면이 그려지는 텍스처다. UI 가 꺼져 있으면 비어 있다.
@@ -734,6 +746,12 @@ namespace JBro
         void LoadPreferences();
         void SavePreferences();
         Array<OwnerPtr<EditorPanel>> m_panels;
+        // 패널을 그리는 중인가. 그 사이 닫힌 비고유 패널은 `m_closingPanels` 에 두었다가 그리기가 끝나면 파기한다 -
+        // 도는 중에 빼면 뒤의 패널이 한 칸씩 밀려 건너뛴다.
+        bool m_drawingPanels = false;
+        Array<EditorPanel*> m_closingPanels;
+        void DestroyPanel(EditorPanel& panel);
+        void DestroyClosingPanels();
         // 앞이 뜨는 것이고 뒤는 기다린다. 닫힌 것은 그리기 전에 뺀다.
         Array<OwnerPtr<EditorPopup>> m_popups;
         PopupHandle m_nextPopupHandle = 1;

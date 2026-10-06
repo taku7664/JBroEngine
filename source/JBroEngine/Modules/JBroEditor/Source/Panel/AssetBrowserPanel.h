@@ -25,9 +25,12 @@ namespace JBro
     // **파일은 여러 개를 고를 수 있다**(D-141). 옮기고 지우는 일은 하나씩 하는 일이 아니다.
     // Ctrl 은 하나를 더하고 빼며, Shift 는 닻에서 누른 줄까지를 고른다. 폴더는 하나씩만
     // 고른다 - 폴더와 파일을 섞어 고르면 "이 폴더와 그 안의 것" 이 무엇을 뜻하는지 흐려진다.
-    class AssetBrowserPanel final : public EditorPanel
+    class AssetBrowserPanel final : public UniquePanel
     {
     public:
+        // 패널 종류 이름이다(D-284). 종류 표와 `GetTitle` 이 같은 글자를 쓴다.
+        static constexpr const char* TypeName = "Assets";
+
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;

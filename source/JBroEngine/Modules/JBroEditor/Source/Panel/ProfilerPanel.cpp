@@ -24,7 +24,7 @@ namespace JBro
 
     const char* ProfilerPanel::GetTitle() const
     {
-        return "Profiler";
+        return TypeName;
     }
 
     const char* ProfilerPanel::GetDisplayTitle() const

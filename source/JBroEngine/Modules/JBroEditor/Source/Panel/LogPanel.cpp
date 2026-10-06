@@ -101,7 +101,7 @@ namespace JBro
 
     const char* LogPanel::GetTitle() const
     {
-        return "Log";
+        return TypeName;
     }
 
     const char* LogPanel::GetDisplayTitle() const

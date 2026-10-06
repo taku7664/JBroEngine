@@ -26,6 +26,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/EditorTheme.h>
@@ -477,7 +478,7 @@ namespace
 
     // 프레임워크가 패널을 어떻게 다루는지 **세기만 하는** 패널이다. 그리지 않는다 -
     // 무엇이 그려졌는지가 아니라 어떤 훅이 언제 불렸는지를 보는 자리다.
-    class CountingPanel final : public JBro::EditorPanel
+    class CountingPanel final : public JBro::UniquePanel
     {
     public:
         explicit CountingPanel(const char* title, bool createSucceeds = true)
@@ -572,20 +573,20 @@ namespace
         Check(editor.FindPanel("Nothing Like This") == nullptr,
             "and a title nobody has finds nothing");
 
-        // 제목이 겹치면 거절한다.
-        Check(false == editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("Inspector")),
-            "a title another panel already uses must be refused");
+        // **고유 패널은 종류마다 하나다**(D-284). 같은 제목을 다시 들이면 새 것은 버리고 있던 것을 앞으로 가져온다.
+        Check(editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("Inspector")) == editor.FindPanel("Inspector"),
+            "a unique title another panel already uses must bring that panel forward");
         Check(editor.GetPanelCount() == builtin, "and must not be added anyway");
 
         // 빈 제목도, 없는 패널도 거절한다.
-        Check(false == editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("")),
+        Check(nullptr == editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("")),
             "a panel with no title has no window to live in");
-        Check(false == editor.AddPanel({}), "and nothing at all is not a panel");
+        Check(nullptr == editor.AddPanel({}), "and nothing at all is not a panel");
         Check(editor.GetPanelCount() == builtin, "neither may land in the list");
 
         // **`OnCreate` 가 실패하면 들이지 않는다.**
         const int asked = CountingPanel::createCalls;
-        Check(false == editor.AddPanel(
+        Check(nullptr == editor.AddPanel(
                 JBro::MakeOwnerPtr<CountingPanel>("Never Ready", false)),
             "a panel that cannot start must be refused");
         Check(CountingPanel::createCalls == asked + 1, "it was asked");
@@ -662,6 +663,157 @@ namespace
         Check(editor.Tick(Delta), "the editor must tick");
         Check(panel->draws == drawsWhenClosed + 1, "opening it again must draw it");
 
+        editor.Shutdown();
+    }
+
+    // 만들 때마다 새로 서는 시험용 패널이다(D-284). 그리는 중에 스스로 닫을 수 있다.
+    class InstanceProbePanel final : public JBro::InstancePanel
+    {
+    public:
+        static constexpr const char* TypeName = "InstanceProbe";
+
+        const char* GetTitle() const override
+        {
+            return TypeName;
+        }
+        bool OnCreate(JBro::EditorApplication& editor) override
+        {
+            m_editor = &editor;
+            return true;
+        }
+        void OnDestroy() override
+        {
+            ++destroyCalls;
+        }
+        void OnDraw() override
+        {
+            ++draws;
+            if (closeWhileDrawing)
+            {
+                closeWhileDrawing = false;
+                // 닫은 뒤에도 이 프레임 동안은 목록에 남아 있어야 한다 - 그리는 중에 빼면 지금 도는 패널이 사라진다.
+                const JBro::Uuid id = GetId();
+                JBro::EditorApplication* editor = m_editor;
+                editor->ClosePanel(*this);
+                stillListedAfterClose = editor->FindPanel(id) != nullptr;
+            }
+        }
+
+        static int destroyCalls;
+        static bool stillListedAfterClose;
+        int draws = 0;
+        bool closeWhileDrawing = false;
+
+    private:
+        JBro::EditorApplication* m_editor = nullptr;
+    };
+    int InstanceProbePanel::destroyCalls = 0;
+    bool InstanceProbePanel::stillListedAfterClose = false;
+
+    // **고유 패널과 비고유 패널**(D-284). 고유 패널은 다시 만들면 있던 것이 앞으로 오고 닫으면 숨는다. 비고유 패널은
+    // 만들 때마다 새로 서고 닫으면 파기된다 - 그리는 중에 닫혀도 그 프레임이 끝난 뒤에. 찾기는 둘이 같은 API 다.
+    void TestUniqueAndInstancePanels()
+    {
+        // 표는 프로세스에 하나라 시험이 다시 돌아도 한 번만 오른다.
+        JBro::RegisterEditorPanelType<InstanceProbePanel>(false);
+        const JBro::EditorPanelRegistry& types = JBro::EditorPanelRegistry::Get();
+        Check(types.FindDockArea(JBro::MainDockArea) != nullptr, "the main dock is in the table from the start");
+        const JBro::EditorPanelTypeInfo* probeType = types.Find("InstanceProbe");
+        Check(probeType != nullptr && probeType->kind == JBro::EditorPanelKind::Instance,
+            "a panel type registers with the kind its base class says");
+        JBro::EditorPanelTypeInfo stray = *probeType;
+        stray.name = "NowhereProbe";
+        stray.dockArea = "NoSuchDock";
+        Check(false == JBro::EditorPanelRegistry::Get().Register(stray), "a type naming an unknown dock is refused");
+        Check(false == JBro::EditorPanelRegistry::Get().Register(*probeType), "and a name already in the table");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = WindowWidth;
+        config.windowHeight = WindowHeight;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; unique and instance panels not verified" << std::endl;
+            return;
+        }
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        constexpr float Delta = 1.0f / 60.0f;
+        const char* const builtins[] = {
+            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+            "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
+        for (const char* name : builtins)
+        {
+            const JBro::EditorPanelTypeInfo* type = types.Find(name);
+            Check(type != nullptr && type->kind == JBro::EditorPanelKind::Unique && type->createWithUi,
+                "every built-in panel is a unique type the UI creates");
+        }
+        JBro::Array<JBro::EditorPanel*> found;
+        Check(editor.FindPanels("InstanceProbe", found) == 0, "an instance type the UI does not create has no panel yet");
+
+        // 고유: 다시 만들면 같은 패널이 앞으로 온다. UUID 는 종류 이름에서 정해진다.
+        JBro::EditorPanel* inspector = editor.FindPanel("Inspector");
+        Check(inspector != nullptr && inspector->GetKind() == JBro::EditorPanelKind::Unique, "the inspector is a unique panel");
+        Check(inspector->GetId() == JBro::Uuid::FromName("Inspector"), "a unique panel's id comes from its type name");
+        Check(editor.FindPanel(inspector->GetId()) == inspector, "and finds it by that id");
+        const std::size_t before = editor.GetPanelCount();
+        Check(editor.CreatePanel("Inspector") == inspector, "creating a unique panel again returns the one already there");
+        Check(editor.GetPanelCount() == before, "without adding a second");
+        Check(inspector->TakeFocusRequest(), "and asks for it to come forward");
+        editor.ClosePanel(*inspector);
+        Check(editor.FindPanel("Inspector") == inspector && false == inspector->IsOpen(), "closing a unique panel only hides it");
+        inspector->SetOpen(true);
+        Check(editor.CreatePanel("NoSuchPanel") == nullptr, "an unknown type creates nothing");
+        Check(editor.AddPanel(JBro::MakeOwnerPtr<CountingPanel>("InstanceProbe")) == nullptr,
+            "a panel whose kind disagrees with its type in the table is refused");
+
+        // 비고유: 만들 때마다 새로 선다. UUID 가 다르고, 종류로 찾으면 목록이다.
+        auto* first = static_cast<InstanceProbePanel*>(editor.CreatePanel("InstanceProbe"));
+        auto* second = static_cast<InstanceProbePanel*>(editor.CreatePanel("InstanceProbe"));
+        Check(first != nullptr && second != nullptr && first != second, "creating an instance panel twice makes two");
+        Check(first->GetKind() == JBro::EditorPanelKind::Instance, "of the instance kind");
+        Check(false == first->GetId().IsNull() && first->GetId() != second->GetId(), "each with its own id");
+        Check(std::strcmp(first->GetDockArea(), JBro::MainDockArea) == 0, "and the dock its type names");
+        Check(editor.FindPanels("InstanceProbe", found) == 2 && found[0] == first && found[1] == second,
+            "finding by type lists them in the order they arrived");
+        Check(editor.FindPanel("InstanceProbe") == first, "and finding one gives the first");
+        Check(editor.FindPanel(second->GetId()) == second, "finding by id gives that one");
+        Check(editor.FindPanels("Inspector", found) == 1 && found[0] == inspector, "a unique type lists its one panel");
+
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Delta), "the editor must tick with two instance panels");
+        }
+        // 둘은 다른 창이다. 이름 뒤에 UUID 가 붙는다.
+        for (const InstanceProbePanel* panel : {first, second})
+        {
+            char id[JBro::Uuid::TextCapacity] = {};
+            panel->GetId().ToText(id, sizeof(id));
+            std::string label = "###InstanceProbe/";
+            label += id;
+            Check(ImGui::FindWindowByName(label.c_str()) != nullptr, "each instance panel gets a window of its own");
+        }
+
+        // 그리는 중에 닫힌 비고유 패널은 그 프레임이 끝난 뒤에 파기된다.
+        const int destroyedBefore = InstanceProbePanel::destroyCalls;
+        const JBro::Uuid secondId = second->GetId();
+        second->RequestFocus();
+        Check(editor.Tick(Delta), "the editor must tick");
+        second->closeWhileDrawing = true;
+        for (int frame = 0; frame < 3 && editor.FindPanel(secondId) != nullptr; ++frame)
+        {
+            Check(editor.Tick(Delta), "the editor must tick while the panel closes itself");
+        }
+        Check(InstanceProbePanel::stillListedAfterClose, "an instance panel closed while drawing stays listed until the frame ends");
+        Check(editor.FindPanel(secondId) == nullptr, "an instance panel closed while drawing is gone after the frame");
+        Check(InstanceProbePanel::destroyCalls == destroyedBefore + 1, "and was told it is going");
+        // 그리는 중이 아니면 곧바로 파기된다.
+        const JBro::Uuid firstId = first->GetId();
+        editor.ClosePanel(*first);
+        Check(editor.FindPanel(firstId) == nullptr && InstanceProbePanel::destroyCalls == destroyedBefore + 2,
+            "an instance panel closed outside drawing is gone at once");
+        Check(editor.FindPanels("InstanceProbe", found) == 0, "and the type has no panel left");
+        Check(editor.Tick(Delta), "the editor must tick after both are gone");
         editor.Shutdown();
     }
 
@@ -4395,7 +4547,7 @@ namespace
     // 프레임마다 **처음 보는 글자**를 그리는 패널이다. ImGui 1.92 는 글리프를
     // 필요할 때 아틀라스에 굽고 백엔드에 "이 텍스처를 고쳐 올려라" 라고 말하므로,
     // 이 패널이 도는 동안에는 프레임마다 텍스처 업로드가 일어난다.
-    class NewGlyphEveryFrame final : public JBro::EditorPanel
+    class NewGlyphEveryFrame final : public JBro::UniquePanel
     {
     public:
         const char* GetTitle() const override
@@ -12139,7 +12291,7 @@ namespace
     }
 
     // 타자를 받는 칸 하나짜리 패널. 처음 그릴 때 그 칸에 키보드 포커스를 준다.
-    class TypingProbePanel final : public JBro::EditorPanel
+    class TypingProbePanel final : public JBro::UniquePanel
     {
     public:
         const char* GetTitle() const override
@@ -12258,7 +12410,7 @@ namespace
     }
 
     // 오브젝트 메뉴를 팝업으로 열어 두고 결과를 받는 패널이다. 우클릭 자리를 찾지 않고 메뉴만 잰다.
-    class ObjectMenuProbePanel final : public JBro::EditorPanel
+    class ObjectMenuProbePanel final : public JBro::UniquePanel
     {
     public:
         explicit ObjectMenuProbePanel(JBro::GameObject* target)
@@ -13123,6 +13275,7 @@ int RunEditorApplicationTests()
     TestTheMenuBarSpeaksTheLoadedLocale();
     TestTheEditorForwardsInputToItsUi();
     TestThePanelRegistryRefusesWhatItCannotHold();
+    TestUniqueAndInstancePanels();
     TestAClosedPanelKeepsUpdatingButStopsDrawing();
     TestClickingTheCloseButtonClosesThePanel();
     TestTheDeviceSurvivesFontAtlasUpdates();
