@@ -151,6 +151,10 @@ Entries:
   blocked.pick_an_image: pick an image asset first
   blocked.last_layer: a canvas needs at least one layer
   blocked.no_parent: the object has no parent
+  blocked.panel_not_open: the window this works in is not open
+  command_palette.title: Command Palette
+  command_palette.search_hint: Search by name or key
+  command_palette.no_match: No commands match
   component_category.Transform: Transform
   component_category.Rendering: Rendering
   component_category.Physics: Physics

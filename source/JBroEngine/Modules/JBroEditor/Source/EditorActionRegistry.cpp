@@ -1,6 +1,7 @@
 ﻿#include <JBro/Editor/EditorActionRegistry.h>
 
 #include <JBro/Canvas/Canvas.h>
+#include <JBro/Editor/CommandPalette.h>
 #include <JBro/Editor/ComponentMenuTable.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorIcons.h>
@@ -549,6 +550,7 @@ namespace JBro
         }
         // 패널 종류의 행동은 그 패널이 올린다.
         CanvasViewPanel::RegisterActions();
+        CommandPalette::RegisterAction();
     }
 
     namespace EditorActionUi
@@ -596,6 +598,11 @@ namespace JBro
             }
             EditorActionContext resolved = context;
             ResolvePanel(action, resolved);
+            // 그 종류의 패널이 없어 못 하는 것은 행동마다 따로 말하지 않는다 - 판정이 그 자리에서 거절했다.
+            if (action.panelType != nullptr && resolved.panel == nullptr)
+            {
+                return Loc::TextOr(LocKeys::BlockedPanelNotOpen, "the window this works in is not open");
+            }
             return action.WhyBlocked != nullptr && resolved.editor != nullptr ? action.WhyBlocked(resolved) : nullptr;
         }
 

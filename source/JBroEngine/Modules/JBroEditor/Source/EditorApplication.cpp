@@ -9,6 +9,7 @@
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/CommandPalette.h>
 #include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/EditorPaths.h>
@@ -3867,6 +3868,13 @@ namespace JBro
         // **도움말**(D-251). 가이드와 단축키 안내가 여기 있다 - 처음 온 사람이 무엇을 할 수 있는지 찾는 자리다.
         if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuHelp, "Help")))
         {
+            // 명령 팔레트(D-285). 무엇을 할 수 있는지 찾는 사람이 여는 메뉴라 여기 둔다.
+            {
+                EditorActionContext context;
+                context.editor = this;
+                EditorActionUi::DrawItem(CommandPalettePopup::PopupId, context);
+            }
+            ImGui::Separator();
             if (Widget::BeginMenu(Loc::TextOr(LocKeys::MenuHelpGuides, "Guides")))
             {
                 const bool hasCanvas = GetCanvas() != nullptr;
