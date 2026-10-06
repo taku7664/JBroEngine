@@ -412,6 +412,7 @@ namespace JBro
                 ImGui::SetCursorScreenPos(ImVec2(headerMax.x - side, headerMin.y));
                 if (Widget::IconButton("##component_menu", Icons::Menu)
                         .Size(ImVec2(side, side))
+                        .Flat()
                         .Tooltip(Loc::TextOr(LocKeys::InspectorComponentMenu, "Component menu"))
                         .Draw())
                 {

@@ -10728,7 +10728,7 @@ namespace
 
     // **레이어 이름은 편집이 끝날 때 한 번만 커맨드가 된다**(D-183). 기존 엔진이
     // 주석으로 경고한 자리다 - 글자마다 커맨드를 내면 이름 석 자를 고친 것을 되돌리는 데
-    // 실행 취소가 세 번 든다. 인스펙터의 오브젝트 이름 칸은 이미 그렇게 하고 있었다.
+    // 실행 취소가 세 번 든다. 이름은 오브젝트처럼 인스펙터에서만 고친다 - 레이어 우클릭 메뉴에는 이름 칸이 없다.
     void TestRenamingALayerIsOneCommandNotOnePerLetter()
     {
         JBro::EditorApplication editor;
@@ -10766,10 +10766,21 @@ namespace
         RightClickAt(editor, hwnd, row);
         ImGuiWindow* menu = FindContextMenuWindow();
         Check(menu != nullptr, "right-clicking the layer must open its menu");
-
+        Spot menuField;
+        Check(false == FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "##layerName"), menuField),
+            "the layer menu must not carry a name field - names are edited in the inspector, as for objects");
+        // 메뉴 밖을 누르면 메뉴가 닫힌다(창에 포커스가 없어 Esc 는 닿지 않는다). 그 다음 누름이 줄을 고른다.
+        ClickAt(editor, hwnd, row);
+        Check(editor.Tick(Frame), "the menu must close");
+        ClickAt(editor, hwnd, row);
+        Check(editor.Tick(Frame), "the editor must settle on the layer row");
+        Check(editor.GetSelectedLayer() == layerId, "clicking the layer row must choose it for the inspector");
+        Check(editor.Tick(Frame), "the inspector must draw the layer");
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
         Spot field;
-        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "##layerName"), field),
-            "the menu must carry the name field");
+        Check(FindInspectorItem(editor, hwnd, LabelId(LabelId(inspector->ID, "##layer"), "##layerName"), field),
+            "the inspector must carry the layer's name field");
         const std::size_t undoBefore = editor.GetCommands().GetUndoCount();
         ClickAt(editor, hwnd, field);
         Check(editor.Tick(Frame), "the field must take focus");

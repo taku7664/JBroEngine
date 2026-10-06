@@ -88,6 +88,8 @@ namespace JBro::Widget
     // - `Caption` 은 아이콘 뒤에 붙는 짧은 글자다. 아이콘 하나로 두 상태가 갈리지 않는 자리(단위 `유닛`/`픽셀`)에 쓴다.
     // - `id` 는 ImGui 의 이름 그대로다(`##canvas_grid`). 번역이 바뀌어도 시험·가이드가 같은 Id 로 찾는다.
     // - 가이드 포커스에는 켜져 있는가(`Selected`)를 열림으로 알린다.
+    // - `Flat` 은 쉬는 동안 바탕을 칠하지 않는다. 다른 바탕(컴포넌트 머리) 위에 얹힌 단추가 네모 경계로 튀지 않는다.
+    //   마우스를 올리거나 누르면 평소처럼 칠한다.
     class IconButton
     {
     public:
@@ -98,6 +100,7 @@ namespace JBro::Widget
         IconButton& Selected(Bool selected = true);
         IconButton& Disabled(Bool disabled = true);
         IconButton& Caption(const char* text);
+        IconButton& Flat(Bool flat = true);
 
         Bool Draw() const;
         Bool operator()() const;
@@ -110,6 +113,7 @@ namespace JBro::Widget
         ImVec2 m_size = ImVec2(0.0f, 0.0f);
         Bool m_selected = false;
         Bool m_disabled = false;
+        Bool m_flat = false;
     };
 
     // 켜기 칸. 인스펙터의 bool 잎사귀와 컴포넌트 `사용` 칸이 이것이다(§11.1).

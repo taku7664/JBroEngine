@@ -125,9 +125,6 @@ namespace JBro
         UInt64 FindGuideRow(const GameObject& object) const;
         GuideRow m_guideRows[GuideFocusPath::Capacity] = {};
         UInt32 m_guideRowCount = 0;
-        // 이름을 고치는 중인 레이어와 그 글자. 무효값이면 고치는 중이 아니다.
-        LayerId m_renaming = InvalidLayerId;
-        String m_renameText;
 
         // **Shift 는 범위다**(D-169, 기존 `LayerTool` 의 선택 기준점). 이번 프레임에 그린 줄을
         // 차례대로 들고 있다가, Shift 로 찍은 줄과 기준 줄 사이를 통째로 고른다.

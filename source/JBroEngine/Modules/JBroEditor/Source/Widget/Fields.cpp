@@ -225,6 +225,12 @@ namespace JBro::Widget
         return *this;
     }
 
+    IconButton& IconButton::Flat(Bool flat)
+    {
+        m_flat = flat;
+        return *this;
+    }
+
     Bool IconButton::Draw() const
     {
         const GuideFocusTarget target = Internal::TakeNextItemTarget();
@@ -236,6 +242,10 @@ namespace JBro::Widget
                 ImGui::GetStyleColorVec4(ImGuiCol_HeaderHovered));
             style.PushColor(ImGuiCol_ButtonActive,
                 ImGui::GetStyleColorVec4(ImGuiCol_HeaderActive));
+        }
+        else if (m_flat)
+        {
+            style.PushColor(ImGuiCol_Button, ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
         }
         // 아이콘 칸은 줄 높이의 정사각형이다. 글자가 붙으면 그 뒤로 글자 폭과 여백만큼 늘린다.
         const Float square = ImGui::GetFrameHeight();
