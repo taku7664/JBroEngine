@@ -4,6 +4,7 @@
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
+#include <JBro/Editor/Gizmo/LightGizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Physics2D/Geometry.h>
@@ -152,6 +153,19 @@ namespace JBro
             Array<Physics2D::ConvexPolygon> pieces;
         };
         const PieceCache& PiecesFor(const Component::Collider2D& collider, Vector2 scale);
+        // **2D 라이트 기즈모**(D-291 5 단계). 고른 오브젝트의 `Point`·`Spot` 라이트에 반지름 원과 원뿔을 그리고, 손잡이를 끌어 반지름과 각을 고친다.
+        // 콜라이더를 고치는 동안과 UI 보기에는 없다(라이트는 월드 레이어에만 있다).
+        struct LightTarget
+        {
+            GameObject*             object = nullptr;
+            Component::Light2D*     light = nullptr;
+            ComponentAddress        address;
+            LightGizmoModel::Pose   pose;
+        };
+        Bool FindLightTarget(LightTarget& target);
+        void DrawLightEditor(const ViewRect& rect);
+        // 손잡이 하나가 고친 필드를 커맨드 하나로 올린다. 끄는 동안 바로 쓴 값을 뜨고, 끌기 전 값(`before`)으로 되돌린 뒤 커맨드가 쓴다.
+        void CommitLightField(const ComponentAddress& address, LightGizmoModel::Handle handle, const String& before);
         void DrawGizmo(const ViewRect& rect);
         // 화면과 월드를 잇는 카메라를 만든다. 2D 는 우리가 아는 직교 행렬로, 3D 는
         // **렌더러가 이번 프레임에 실제로 쓴 편집 카메라**로 만든다(D-140) - 여기서 같은
@@ -248,6 +262,14 @@ namespace JBro
         Array<Vector2> m_dragPoints;
         ComponentAddress m_menuAddress;
         UInt32 m_menuVertex = 0;
+        // 라이트 기즈모. 끄는 동안은 그 필드에 바로 쓰고(미리 보기), 놓을 때 되돌린 뒤 커맨드로 쓴다.
+        LightGizmoModel::Handle m_lightHover = LightGizmoModel::Handle::None;
+        LightGizmoModel::Handle m_lightDragHandle = LightGizmoModel::Handle::None;
+        Bool m_lightDragging = false;
+        ComponentAddress m_lightDragAddress;
+        String m_lightDragBefore;
+        Float m_lightDragStart = 0.0f;
+        Vector2 m_lightGrabWorld;
         // 프레임마다 다시 쓰는 칸들. 용량이 남아 두 번째 프레임부터는 할당하지 않는다.
         Array<Component::Collider2D*> m_colliderScratch;
         Array<Component::DistanceJoint2D*> m_distanceJointScratch;
@@ -294,6 +316,8 @@ namespace JBro
         Bool m_gridSnap = false;
         // 콜라이더를 보일지. 늘 그리면 그림을 다듬는 동안 녹색 선이 방해가 된다.
         Bool m_showColliders = true;
+        // 캔버스 뷰를 게임과 같은 빛으로 그릴지(D-291 5 단계). 끄면 빛을 받는 레이어도 원래 색이라 어두운 장면에서 배치하기 쉽다.
+        Bool m_showLighting = true;
         // **눈금을 픽셀로 읽을지**(D-184, 기존 `단위: Unit`/`단위: Pixel`). 거짓이면 월드 유닛이다.
         // 그림은 픽셀로 그려 오는데 씬은 유닛으로 세므로, 스프라이트를 자리에 맞출 때
         // 그 둘을 머리로 곱하고 있어야 했다.

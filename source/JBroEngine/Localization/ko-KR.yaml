@@ -58,6 +58,8 @@ Entries:
   canvas_view.camera_format: "카메라 (%.2f, %.2f) 크기 %.2f"
   canvas_view.camera_3d_format: "카메라 좌우 %.0f° 위아래 %.0f° 거리 %.1f"
   canvas_view.colliders_tooltip: 콜라이더 모양을 보이거나 감춥니다
+  canvas_view.lighting: 라이팅
+  canvas_view.lighting_tooltip: 2D 라이트로 비춰 보거나, 빛 없이 원래 색으로 봅니다
   canvas_view.edit_collider: 콜라이더 편집
   canvas_view.edit_collider_tooltip: 고른 오브젝트의 폴리곤 콜라이더를 고칩니다. 포인트를 끌어 옮기고, 변을 누르면 포인트가 생기고, 포인트를 우클릭하면 지울 수 있습니다
   canvas_view.point_delete: 포인트 삭제

@@ -38,6 +38,7 @@
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
+#include <JBro/Framework2D/Component/Light2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Text2D.h>
@@ -9754,6 +9755,124 @@ namespace
         editor.Shutdown();
     }
 
+    // **캔버스 뷰의 라이트 기즈모와 라이팅 단추**(D-291 5 단계). 고른 라이트의 반지름·각 손잡이를 끌면 그 필드가 바뀌고 되돌리기 하나가 남는다.
+    // 점 라이트의 반지름 손잡이는 축에서 시계로 45 도라 옮기기 기즈모의 x 손잡이를 가리지 않는다. 손잡이를 끌어도 고른 것은 그대로다.
+    // 도구 막대의 라이팅 단추는 캔버스 뷰가 라이트로 그릴지를 바꾼다.
+    void TestTheCanvasViewDragsLightHandles()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; light handles not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "LightGizmoProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* lamp = canvas->CreateObject("Lamp");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(lamp) != nullptr, "the lamp needs a transform");
+        auto* light = canvas->AttachComponent<JBro::Component::Light2D>(lamp);
+        Check(light != nullptr, "and a light");
+        light->type = JBro::Component::Light2DType::Point;
+        light->innerRadius = 1.0f;
+        light->outerRadius = 3.0f;
+        editor.SetSelectedObject(lamp);
+
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* view = ImGui::FindWindowByName("CanvasView");
+        Check(view != nullptr, "the canvas view must have a window");
+
+        const auto at = [&](JBro::Float worldX, JBro::Float worldY) {
+            JBro::Float x = 0.0f;
+            JBro::Float y = 0.0f;
+            Check(editor.CanvasViewWorldToScreen(worldX, worldY, x, y), "the canvas view must have drawn a frame");
+            Spot spot;
+            spot.x = static_cast<JBro::Int32>(std::lround(x));
+            spot.y = static_cast<JBro::Int32>(std::lround(y));
+            return spot;
+        };
+        const auto hoveredAt = [&](const Spot& spot) {
+            PostMessageW(hwnd, WM_MOUSEMOVE, 0, MAKELPARAM(spot.x, spot.y));
+            Check(editor.Tick(Frame), "the editor must tick while hovering");
+            Check(editor.Tick(Frame), "and once more for the hover to settle");
+            return ImGui::GetHoveredID();
+        };
+        const Spot middle = at(0.0f, 0.0f);
+        Check(at(1.0f, 0.0f).x - middle.x > 20, "a unit must span enough pixels to tell the handles apart");
+
+        // 점 라이트: 반지름 손잡이는 (cos -45, sin -45) 방향이다.
+        constexpr JBro::Float Diagonal = 0.70710678f;
+        Check(hoveredAt(at(3.0f * Diagonal, -3.0f * Diagonal)) == LabelId(view->ID, "##light_outer_radius"),
+            "a point light's outer radius has a handle on its circle");
+        Check(hoveredAt(at(1.0f * Diagonal, -1.0f * Diagonal)) == LabelId(view->ID, "##light_inner_radius"),
+            "and its inner radius on the inner circle");
+        Spot onAxis = middle;
+        onAxis.x += 35;
+        Check(hoveredAt(onAxis) == LabelId(view->ID, "##gizmo_x"), "the move gizmo's x handle stays free beside them");
+
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        DragTo(editor, hwnd, at(3.0f * Diagonal, -3.0f * Diagonal), at(4.0f * Diagonal, -4.0f * Diagonal));
+        Check(std::fabs(light->outerRadius - 4.0f) < 0.1f, "dragging the outer handle out by a unit makes the radius 4");
+        Check(light->innerRadius == 1.0f, "and leaves the inner radius alone");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "one drag is one undo step");
+        Check(editor.GetSelectedObject() == lamp, "grabbing a light handle does not change the selection");
+        Check(editor.GetCommands().Undo() && light->outerRadius == 3.0f, "undo puts the radius back");
+        // 끌지 않고 손잡이를 눌렀다 놓기만 하면 아무것도 바뀌지 않는다. 손잡이 밑은 빈 곳이지만 빈 곳 누르기(고른 것 비우기)가 아니다.
+        // 끌기를 시작한 자리와 같은 곳이라 곧바로 누르면 두 번 누르기(들어가기·나오기)가 된다 - 그 시간이 지나기를 기다린다.
+        for (JBro::Int32 frame = 0; frame < 30; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must let the double-click time pass");
+        }
+        ClickAt(editor, hwnd, at(3.0f * Diagonal, -3.0f * Diagonal));
+        Check(editor.GetSelectedObject() == lamp, "clicking a light handle over empty space keeps the selection");
+        Check(light->outerRadius == 3.0f && editor.GetCommands().GetUndoCount() == undo, "and changes nothing");
+
+        // 스포트: 바깥 각 손잡이는 축의 왼쪽(반시계) 반각, 안쪽 각 손잡이는 오른쪽 반각에 바깥 반지름만큼 떨어져 있다.
+        light->type = JBro::Component::Light2DType::Spot;
+        light->outerAngle = 60.0f;
+        light->innerAngle = 30.0f;
+        Check(editor.Tick(Frame), "the editor must see the spot");
+        const auto onCircle = [&](JBro::Float degrees) {
+            const JBro::Float radians = degrees * 0.017453292f;
+            return at(3.0f * std::cos(radians.Get()), 3.0f * std::sin(radians.Get()));
+        };
+        Check(hoveredAt(onCircle(30.0f)) == LabelId(view->ID, "##light_outer_angle"), "a spot's outer angle has a handle at its edge");
+        Check(hoveredAt(onCircle(-15.0f)) == LabelId(view->ID, "##light_inner_angle"), "and its inner angle on the other side");
+        DragTo(editor, hwnd, onCircle(30.0f), onCircle(45.0f));
+        Check(std::fabs(light->outerAngle.Get() - 90.0f) < 2.0f, "pulling the outer angle handle to 45 degrees opens the cone to 90");
+        DragTo(editor, hwnd, onCircle(-15.0f), onCircle(-30.0f));
+        Check(std::fabs(light->innerAngle.Get() - 60.0f) < 2.0f, "pulling the inner angle handle to -30 degrees makes the inner cone 60");
+        Check(editor.GetCommands().GetUndoCount() == undo + 2, "each drag is its own undo step");
+        Check(editor.GetSelectedObject() == lamp, "and the lamp is still chosen");
+        SaveScreenshot(*editor.GetRenderer(), 1280, 720, "light_gizmo");
+
+        // 라이팅 단추.
+        Spot toggle;
+        Check(FindToolBarButton(editor, hwnd, view, LabelId(view->ID, "##canvas_lighting"), toggle),
+            "the lighting button must be on the canvas view tool bar");
+        Check(editor.IsCanvasViewLit(), "the canvas view starts lit");
+        ClickAt(editor, hwnd, toggle);
+        Check(editor.Tick(Frame), "the editor must ask for the next canvas view");
+        Check(false == editor.IsCanvasViewLit(), "the button turns the canvas view's lighting off");
+        ClickAt(editor, hwnd, toggle);
+        Check(editor.Tick(Frame), "the editor must ask for the next canvas view");
+        Check(editor.IsCanvasViewLit(), "and on again");
+        editor.Shutdown();
+    }
+
     // **눈금을 픽셀로도 읽는다**(D-184, 기존 `단위: Unit`/`단위: Pixel` 토글). 그림은 픽셀로
     // 그려 오는데 씬은 유닛으로 세므로, 스프라이트를 자리에 맞출 때 그 둘을 머리로 곱하고
     // 있어야 했다. 곱하는 값은 에셋 PPU 의 기본값(100)이다 - 프로젝트에는 PPU 가 없다(D-117).
@@ -14187,6 +14306,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheStatsPanelShowsWhatTheCanvasHolds();
     TestTheCanvasViewDrawsColliderShapes();
     TestTheCanvasViewEditsPolygonColliderPoints();
+    TestTheCanvasViewDragsLightHandles();
     TestTheCanvasViewDrawsCapsuleColliders();
     TestTheCanvasViewRulerReadsInPixelsToo();
     TestTheCanvasViewGridLabelsStayOnTheirLines();

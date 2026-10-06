@@ -57,6 +57,8 @@ namespace JBro
         Bool screenSpace = false;
         // 스크립트의 디버그 선을 이 뷰에 그릴지다(D-243). 캔버스 뷰는 기본으로 그린다.
         Bool debugDraw = true;
+        // 2D 라이트로 그릴지다(D-291). 거짓이면 빛을 받는 레이어도 원래 색이다. UI 보기는 늘 빛이 없다.
+        Bool lighting = true;
         // 캔버스 뷰에서 **들어가 있는 오브젝트**다(D-157, D-252). 있으면 장면 위에 반투명 흰 막을 덮고 이 오브젝트와
         // 그 자손만 막 위에 다시 그린다 - 무엇을 고치는 중인지가 화면에서 보인다. 없으면 막이 없다. 2D 만 읽는다.
         InstanceId focusObject = InvalidInstanceId;

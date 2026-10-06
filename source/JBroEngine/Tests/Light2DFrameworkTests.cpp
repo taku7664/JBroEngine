@@ -263,6 +263,12 @@ namespace
         stage.RenderEditor(framework, view);
         stage.Expect(-2.0f, 0.0f, 0.9f, 0.5f, 0.3f, "the canvas view is lit by the same light");
         stage.Expect(3.0f, 3.0f, 1.0f, 1.0f, 1.0f, "and leaves the unlit layer alone");
+        // 캔버스 뷰의 라이팅 단추를 끄면(5 단계) 빛을 받는 레이어도 원래 색이다 - 라이트 가까이도, 환경광만 닿던 곳도 흰색이다.
+        view.lighting = false;
+        stage.RenderEditor(framework, view);
+        stage.Expect(-2.0f, 0.0f, 1.0f, 1.0f, 1.0f, "with lighting off the canvas view shows the lit layer in its own colour");
+        stage.Expect(0.0f, -3.5f, 1.0f, 1.0f, 1.0f, "even where only the ambient light reached");
+        view.lighting = true;
 
         // 패럴랙스 0.5 인 레이어의 라이트는 카메라가 2 만큼 가면 1 만큼 따라간다 - 그 레이어의 스프라이트와 같은 자리다.
         JBro::Layer& far = canvas.CreateLayer("Far");

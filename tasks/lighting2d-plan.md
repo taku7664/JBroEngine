@@ -73,7 +73,10 @@
    → 완료 2026-10-06(D-291 의 "4 단계"). `shadowSoftness` 는 빛을 그 반지름(월드)의 원판으로 본다. `BuiltinShadow2D.hlsl` 이 변의 끝을 원판에 닿는 선으로 밀어 사각형을
    반그림자까지 넓히고, 픽셀마다 변이 가리는 원판의 몫을 각도로 셈한다. 마스크는 RGBA16F 다. 시험 `TestSoftShadowsWidenWithDistance`·프레임워크 시험의 번진 가장자리.
    뮤테이션 5/5.
-5. 에디터: 반지름·각도 기즈모(끌어서 고침), 캔버스 뷰의 라이팅 켜고 끄기, 실제 에디터 확인.
+5. ~~에디터: 반지름·각도 기즈모(끌어서 고침), 캔버스 뷰의 라이팅 켜고 끄기, 실제 에디터 확인.~~ → 완료 2026-10-06(D-291 의 "5 단계").
+   `LightGizmoModel`(화면을 모르는 셈)·`CanvasViewPanel::DrawLightEditor`, 도구 막대의 라이팅 단추(`##canvas_lighting`, `EditorViewDesc::lighting`).
+   시험 `LightGizmoModelTests.cpp`·`TestTheCanvasViewDragsLightHandles`·프레임워크 시험의 라이팅 끈 캔버스 뷰. 실제 에디터(`JBroEditorHost`)에서 그림자가 진 장면을 열어
+   손잡이 끌기와 단추를 확인했다.
 
 ## 4. `[열림]`
 

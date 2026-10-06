@@ -458,7 +458,7 @@ namespace JBro
             // 들어가 있으면 그 오브젝트만 흰 막 위에 남는다(D-252).
             const GameObject* focus = GetFocus();
             m_editor->RequestCanvasView(wanted, m_centerX, m_centerY, m_orthographicSize, m_screenView,
-                focus != nullptr ? focus->GetInstanceId() : InvalidInstanceId);
+                focus != nullptr ? focus->GetInstanceId() : InvalidInstanceId, m_showLighting);
         }
 
         const ImVec2 origin = ImGui::GetCursorScreenPos();
@@ -530,6 +530,7 @@ namespace JBro
                 DrawJoints(rect);
             }
             DrawPolygonEditor(rect);
+            DrawLightEditor(rect);
             DrawSelectionOutlines(rect);
             DrawOverlay(rect);
         }
@@ -666,6 +667,16 @@ namespace JBro
                     .Draw())
             {
                 m_showColliders = false == m_showColliders;
+            }
+            // **라이팅**(D-291 5 단계). 켜져 있으면 캔버스 뷰도 게임과 같은 빛으로 그린다. 끄면 빛을 받는 레이어도 원래 색이다.
+            ImGui::SameLine(0.0f, 6.0f);
+            if (Widget::IconButton("##canvas_lighting", Icons::Lighting)
+                    .Selected(m_showLighting)
+                    .Tooltip(nameAndHint(Loc::TextOr(LocKeys::CanvasViewLighting, "Lighting"),
+                        Loc::TextOr(LocKeys::CanvasViewLightingTooltip, "draw the canvas view with the scene's 2D lights, or in the sprites' own colours")))
+                    .Draw())
+            {
+                m_showLighting = false == m_showLighting;
             }
         }
         ImGui::SameLine(0.0f, 6.0f);
@@ -1664,6 +1675,266 @@ namespace JBro
         }
     }
 
+    Bool CanvasViewPanel::FindLightTarget(LightTarget& target)
+    {
+        target = {};
+        Canvas* canvas = m_editor->GetCanvas();
+        GameObject* object = m_editor->GetSelectedObject();
+        if (m_screenView || canvas == nullptr || object == nullptr || object->IsEditorHidden())
+        {
+            return false;
+        }
+        // 콜라이더를 고치는 동안은 그 손잡이만 둔다.
+        PolygonTarget polygon;
+        if (FindPolygonTarget(polygon))
+        {
+            return false;
+        }
+        const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(object);
+        Component::Light2D* light = canvas->FindComponentRaw<Component::Light2D>(object);
+        if (transform == nullptr || false == transform->worldValid || light == nullptr || false == light->IsEnabled()
+            || false == LightGizmoModel::HasHandles(*light)
+            || false == MakeComponentAddress(m_editor->GetObjectIds(), *object, *light, target.address))
+        {
+            return false;
+        }
+        target.object = object;
+        target.light = light;
+        target.pose = LightGizmoModel::PoseFromWorld(transform->world);
+        return true;
+    }
+
+    namespace
+    {
+        // 끄는 동안 손잡이의 필드에 바로 쓴다.
+        void WriteLightHandle(Component::Light2D& light, LightGizmoModel::Handle handle, Float value)
+        {
+            switch (handle)
+            {
+            case LightGizmoModel::Handle::InnerRadius:
+                light.innerRadius = value;
+                break;
+            case LightGizmoModel::Handle::OuterRadius:
+                light.outerRadius = value;
+                break;
+            case LightGizmoModel::Handle::InnerAngle:
+                light.innerAngle = Degree(value);
+                break;
+            case LightGizmoModel::Handle::OuterAngle:
+                light.outerAngle = Degree(value);
+                break;
+            case LightGizmoModel::Handle::None:
+                break;
+            }
+        }
+
+        Float ReadLightHandle(const Component::Light2D& light, LightGizmoModel::Handle handle)
+        {
+            switch (handle)
+            {
+            case LightGizmoModel::Handle::InnerRadius:
+                return light.innerRadius;
+            case LightGizmoModel::Handle::OuterRadius:
+                return light.outerRadius;
+            case LightGizmoModel::Handle::InnerAngle:
+                return Float(light.innerAngle.Get());
+            case LightGizmoModel::Handle::OuterAngle:
+                return Float(light.outerAngle.Get());
+            case LightGizmoModel::Handle::None:
+                break;
+            }
+            return 0.0f;
+        }
+    }
+
+    void CanvasViewPanel::CommitLightField(const ComponentAddress& address, LightGizmoModel::Handle handle, const String& before)
+    {
+        ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), address);
+        SetPropertyCommand::Path path;
+        if (component == nullptr || false == SetPropertyCommand::MakeFieldPath(address.typeId, LightGizmoModel::FieldName(handle), path))
+        {
+            return;
+        }
+        String text;
+        const Bool read = SetPropertyCommand::ReadValue(*component, address.typeId, path, text);
+        SetPropertyCommand::ApplyValue(*component, address.typeId, path, before);
+        if (false == read || text == before)
+        {
+            return;
+        }
+        m_editor->GetCommands().Execute(
+            MakeOwnerPtr<SetPropertyCommand>(m_editor->GetObjectIds(), address, path, before, text));
+    }
+
+    void CanvasViewPanel::DrawLightEditor(const ViewRect& rect)
+    {
+        using LightGizmoModel::Handle;
+        LightTarget target;
+        const Bool hasTarget = FindLightTarget(target);
+        if (m_lightDragging && (false == hasTarget || false == target.address.Equals(m_lightDragAddress)))
+        {
+            // 끌던 라이트가 사라졌거나 다른 것을 골랐다. 남은 것이 있으면 끌기 전 값으로 되돌린다.
+            if (ComponentBase* component = ResolveComponent(m_editor->GetObjectIds(), m_lightDragAddress))
+            {
+                SetPropertyCommand::Path path;
+                if (SetPropertyCommand::MakeFieldPath(m_lightDragAddress.typeId, LightGizmoModel::FieldName(m_lightDragHandle), path))
+                {
+                    SetPropertyCommand::ApplyValue(*component, m_lightDragAddress.typeId, path, m_lightDragBefore);
+                }
+            }
+            Widget::OverlayHandle(LightGizmoModel::HandleId(m_lightDragHandle), false, false, false);
+            m_lightDragging = false;
+        }
+        m_lightHover = Handle::None;
+        if (false == hasTarget)
+        {
+            return;
+        }
+        Component::Light2D& light = *target.light;
+        const LightGizmoModel::Pose& pose = target.pose;
+        const ImGuiIO& io = ImGui::GetIO();
+        Vector2 mouseWorld;
+        ScreenToWorld(rect, io.MousePos.x, io.MousePos.y, mouseWorld.x, mouseWorld.y);
+
+        if (m_lightDragging)
+        {
+            const Bool angle = m_lightDragHandle == Handle::InnerAngle || m_lightDragHandle == Handle::OuterAngle;
+            const Float value = angle
+                ? Float(LightGizmoModel::AngleAt(pose, mouseWorld, Degree(m_lightDragStart)).Get())
+                : LightGizmoModel::DragRadius(m_lightDragStart, LightGizmoModel::RadiusDirection(light, pose), m_lightGrabWorld, mouseWorld);
+            WriteLightHandle(light, m_lightDragHandle, value);
+            const char* id = LightGizmoModel::HandleId(m_lightDragHandle);
+            if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                Widget::OverlayHandle(id, true, true, false);
+            }
+            else
+            {
+                Widget::OverlayHandle(id, false, false, false);
+                m_lightDragging = false;
+                CommitLightField(m_lightDragAddress, m_lightDragHandle, m_lightDragBefore);
+            }
+        }
+
+        // 화면 자리. 1 유닛이 몇 픽셀인지와 축의 화면 각도 함께 잰다(화면은 y 가 아래라 각이 뒤집힌다).
+        Vector2 center;
+        WorldToScreen(rect, pose.center.x, pose.center.y, center.x, center.y);
+        Vector2 unitX;
+        WorldToScreen(rect, pose.center.x + 1.0f, pose.center.y, unitX.x, unitX.y);
+        const Float pixelsPerUnit = std::fabs(unitX.x - center.x);
+        Vector2 axisEnd;
+        WorldToScreen(rect, pose.center.x + pose.axis.x, pose.center.y + pose.axis.y, axisEnd.x, axisEnd.y);
+        const Float axisAngle = std::atan2((axisEnd.y - center.y).Get(), (axisEnd.x - center.x).Get());
+        const Vector2 radiusDirection = LightGizmoModel::RadiusDirection(light, pose);
+        Vector2 radiusEnd;
+        WorldToScreen(rect, pose.center.x + radiusDirection.x, pose.center.y + radiusDirection.y, radiusEnd.x, radiusEnd.y);
+        const Float radiusLength = std::sqrt((radiusEnd.x - center.x) * (radiusEnd.x - center.x) + (radiusEnd.y - center.y) * (radiusEnd.y - center.y));
+        const Vector2 radiusScreen = radiusLength > 0.0f
+            ? Vector2{ (radiusEnd.x - center.x) / radiusLength, (radiusEnd.y - center.y) / radiusLength }
+            : Vector2{ 1.0f, 0.0f };
+
+        constexpr Handle Handles[] = { Handle::OuterRadius, Handle::InnerRadius, Handle::OuterAngle, Handle::InnerAngle };
+        constexpr std::size_t HandleCount = sizeof(Handles) / sizeof(Handles[0]);
+        Vector2 screen[HandleCount];
+        Bool present[HandleCount] = {};
+        for (std::size_t index = 0; index < HandleCount; ++index)
+        {
+            present[index] = LightGizmoModel::HasHandle(light, Handles[index]);
+            const Vector2 world = LightGizmoModel::HandlePosition(light, pose, Handles[index]);
+            WorldToScreen(rect, world.x, world.y, screen[index].x, screen[index].y);
+            const Bool radius = Handles[index] == Handle::InnerRadius || Handles[index] == Handle::OuterRadius;
+            const Float dx = screen[index].x - center.x;
+            const Float dy = screen[index].y - center.y;
+            if (radius && dx * dx + dy * dy < LightGizmoModel::MinHandleDistance * LightGizmoModel::MinHandleDistance)
+            {
+                // 가운데에 너무 가까우면 반지름 방향으로 조금 밀어 그린다. 끌기는 잡은 자리에서 간 만큼이라 튀지 않는다.
+                screen[index] = { center.x + radiusScreen.x * LightGizmoModel::MinHandleDistance,
+                    center.y + radiusScreen.y * LightGizmoModel::MinHandleDistance };
+            }
+        }
+
+        if (false == m_lightDragging && false == m_gizmoState.dragging && false == m_editing.IsActive()
+            && PointerInView(rect) && false == ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        {
+            Float best = LightGizmoModel::HandlePickRadius * LightGizmoModel::HandlePickRadius;
+            for (std::size_t index = 0; index < HandleCount; ++index)
+            {
+                const Float dx = io.MousePos.x - screen[index].x;
+                const Float dy = io.MousePos.y - screen[index].y;
+                const Float distance = dx * dx + dy * dy;
+                if (present[index] && distance <= best)
+                {
+                    best = distance;
+                    m_lightHover = Handles[index];
+                }
+            }
+        }
+        if (m_lightHover != Handle::None)
+        {
+            const Bool pressed = ImGui::IsMouseClicked(ImGuiMouseButton_Left);
+            Widget::OverlayHandle(LightGizmoModel::HandleId(m_lightHover), true, pressed, pressed);
+            SetPropertyCommand::Path path;
+            if (pressed && SetPropertyCommand::MakeFieldPath(target.address.typeId, LightGizmoModel::FieldName(m_lightHover), path)
+                && SetPropertyCommand::ReadValue(light, target.address.typeId, path, m_lightDragBefore))
+            {
+                m_lightDragHandle = m_lightHover;
+                m_lightDragAddress = target.address;
+                m_lightDragStart = ReadLightHandle(light, m_lightHover);
+                m_lightGrabWorld = mouseWorld;
+                m_lightDragging = true;
+            }
+        }
+
+        // 그리기: 바깥 반지름은 진하게, 안쪽은 옅게. 스포트는 원뿔 안의 호와 경계선이다. 손잡이는 점이고 가리킨 것·끄는 것은 희다.
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        const ImU32 strong = IM_COL32(255, 214, 90, 230);
+        const ImU32 faint = IM_COL32(255, 214, 90, 120);
+        const ImU32 hotColor = IM_COL32(255, 255, 255, 255);
+        const ImU32 shadow = IM_COL32(0, 0, 0, 120);
+        const ImVec2 middle(center.x, center.y);
+        const Float outerPixels = light.outerRadius * pixelsPerUnit;
+        const Float innerPixels = light.innerRadius * pixelsPerUnit;
+        if (light.type == Component::Light2DType::Point)
+        {
+            draw->AddCircle(middle, outerPixels, strong, 64, 1.5f);
+            if (innerPixels > 0.5f)
+            {
+                draw->AddCircle(middle, innerPixels, faint, 64, 1.0f);
+            }
+        }
+        else
+        {
+            constexpr Float DegreesToRadians = 0.017453292519943295f;
+            const Float outerHalf = Float(std::fmin(light.outerAngle.Get(), 360.0f) * 0.5f) * DegreesToRadians;
+            const Float innerHalf = Float(std::fmin(light.innerAngle.Get(), 360.0f) * 0.5f) * DegreesToRadians;
+            draw->PathArcTo(middle, outerPixels, axisAngle - outerHalf, axisAngle + outerHalf, 48);
+            draw->PathStroke(strong, ImDrawFlags_None, 1.5f);
+            if (innerPixels > 0.5f)
+            {
+                draw->PathArcTo(middle, innerPixels, axisAngle - outerHalf, axisAngle + outerHalf, 48);
+                draw->PathStroke(faint, ImDrawFlags_None, 1.0f);
+            }
+            for (const Float side : { Float(-1.0f), Float(1.0f) })
+            {
+                const Float outerAt = axisAngle + side * outerHalf;
+                const Float innerAt = axisAngle + side * innerHalf;
+                draw->AddLine(middle, ImVec2(center.x + std::cos(outerAt.Get()) * outerPixels, center.y + std::sin(outerAt.Get()) * outerPixels), strong, 1.5f);
+                draw->AddLine(middle, ImVec2(center.x + std::cos(innerAt.Get()) * outerPixels, center.y + std::sin(innerAt.Get()) * outerPixels), faint, 1.0f);
+            }
+        }
+        constexpr Float HandleRadius = 4.0f;
+        for (std::size_t index = 0; index < HandleCount; ++index)
+        {
+            if (false == present[index])
+            {
+                continue;
+            }
+            const Bool hot = (m_lightDragging && Handles[index] == m_lightDragHandle) || Handles[index] == m_lightHover;
+            draw->AddCircleFilled(ImVec2(screen[index].x + 1.0f, screen[index].y + 1.0f), HandleRadius, shadow);
+            draw->AddCircleFilled(ImVec2(screen[index].x, screen[index].y), HandleRadius, hot ? hotColor : strong);
+        }
+    }
+
     Bool CanvasViewPanel::DrawVertexMenu(const ViewRect& rect)
     {
         // 버텍스 위에서 우클릭하면 그 버텍스의 메뉴다. 캔버스의 오브젝트 메뉴 대신 연다.
@@ -1921,6 +2192,11 @@ namespace JBro
             m_vertexPressed = m_vertexPressed && ImGui::IsMouseDown(ImGuiMouseButton_Left);
             return;
         }
+        // 라이트 손잡이 위에서 누르고 놓은 것도 고르기가 아니다. 끌었으면 아래의 끌기 검사가 막는다.
+        if (m_lightHover != LightGizmoModel::Handle::None)
+        {
+            return;
+        }
         // 버텍스 손잡이나 변 위에서 누른 것은 고르기가 아니다 - 누른 순간 이미 끌기나 버텍스 더하기가 되었다.
         if (m_polygonHover.kind != PolygonEditModel::HitKind::None)
         {
@@ -2093,7 +2369,8 @@ namespace JBro
     {
         // 기즈모를 잡고 있으면 상자를 시작하지 않는다. 손잡이를 끄는 것이 곧 상자가 되면
         // 옮길 때마다 선택이 통째로 바뀐다.
-        if (m_gizmoState.dragging || m_editing.IsActive() || m_panning || m_vertexDragging || m_vertexPressed)
+        if (m_gizmoState.dragging || m_editing.IsActive() || m_panning || m_vertexDragging || m_vertexPressed
+            || m_lightDragging || m_lightHover != LightGizmoModel::Handle::None)
         {
             m_boxSelecting = false;
             return;
@@ -2895,7 +3172,9 @@ namespace JBro
         // 격자를 감춰도 같은 칸에 붙는다. Ctrl 은 끄는 동안만 반대로 한다(켜져 있으면 풀고, 꺼져 있으면 붙인다).
         // 같은 단추가 돌리기도 15 도씩 끊는다(사용자 결정) - 기존 엔진은 Shift 로 따로 켰다.
         const Bool snapping = false == Is3D() && m_gridSnap != ImGui::GetIO().KeyCtrl;
-        const Widget::GizmoOutput output = Widget::Gizmo(m_gizmoMode, camera, shown, m_gizmoState, true,
+        // 라이트 손잡이를 가리키거나 끄는 동안은 기즈모가 마우스를 받지 않는다 - 안쪽 반지름 손잡이는 가운데 가까이 있다.
+        const Bool lightHandleHot = m_lightDragging || m_lightHover != LightGizmoModel::Handle::None;
+        const Widget::GizmoOutput output = Widget::Gizmo(m_gizmoMode, camera, shown, m_gizmoState, false == lightHandleHot,
             snapping ? GridStep(rect) : Float(0.0f), snapping ? GizmoModel::RotationSnapRadians : Float(0.0f));
         if (output.dragStarted)
         {

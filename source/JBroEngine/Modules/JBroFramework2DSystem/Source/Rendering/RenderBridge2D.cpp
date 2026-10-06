@@ -489,7 +489,8 @@ namespace JBro::Internal
             return RenderResult::Failed;
         }
         // 캔버스 뷰도 게임과 같은 빛으로 보인다(D-291). 월드 보기만이다 - 화면 레이어는 빛을 받지 않는다. 패럴랙스는 걸지 않는다(배치하는 자리다).
-        if (false == view.screenSpace)
+        // 캔버스 뷰의 라이팅 단추를 끄면 라이트를 내지 않아 빛을 받는 레이어도 원래 색이다.
+        if (false == view.screenSpace && view.lighting)
         {
             PushLights(world, renderer, nullptr);
             PushShadowEdges(world, renderer, nullptr);

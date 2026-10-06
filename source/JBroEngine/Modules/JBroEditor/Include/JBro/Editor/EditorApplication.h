@@ -520,13 +520,16 @@ namespace JBro
         UInt64 GetRandomSeed() const;
 
         // `focusObject` 는 캔버스 뷰가 들어가 있는 오브젝트다(D-252). 있으면 나머지가 흰 막에 가려진다.
+        // `lighting` 이 거짓이면 2D 라이트 없이 그린다(D-291) - 캔버스 뷰의 라이팅 단추다.
         Bool RequestCanvasView(const Extent2D& extent, Float centerX, Float centerY, Float orthographicSize,
-            Bool screenSpace = false, InstanceId focusObject = InvalidInstanceId);
+            Bool screenSpace = false, InstanceId focusObject = InvalidInstanceId, Bool lighting = true);
         // 게임이 쓰는 화면 기준이다(D-237): 프로젝트의 기준 해상도와 게임 뷰의 크기. 캔버스 뷰의 UI 보기가 기준 사각형을 그린다.
         // 게임 카메라가 `PixelPerfect` 면 그 레터박스 사각형도 걸려 있다(D-239) - 게임이 쓰는 것과 같은 함수로 건다.
         ScreenSpaceFrame GetGameScreenSpace() const;
         // 캔버스 뷰가 마지막으로 UI 보기를 청했는가(D-237). 시험과 상태 표시가 읽는다.
         Bool IsCanvasViewScreenSpace() const { return m_canvasViewRequest.screenSpace; }
+        // 캔버스 뷰가 마지막으로 2D 라이트로 그리기를 청했는가(D-291). 시험이 읽는다.
+        Bool IsCanvasViewLit() const { return m_canvasViewRequest.lighting; }
         // **레이어의 공간·맞춤 방식을 바꾸는 커맨드를 만든다**(D-237). 월드↔화면을 오가면 그 레이어 루트의 자리를 지난 프레임의 게임 카메라로
         // 옮겨, 게임 화면에서 보이던 자리가 남는다. 카메라가 없으면 자리는 그대로다. 캔버스나 레이어가 없으면 null 이다.
         OwnerPtr<EditorCommand> MakeLayerSpaceCommand(LayerId layer, LayerSpace space, ScreenScaleMode scaleMode);

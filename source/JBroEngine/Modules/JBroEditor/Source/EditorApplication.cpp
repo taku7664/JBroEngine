@@ -3778,7 +3778,7 @@ namespace JBro
     }
 
     Bool EditorApplication::RequestCanvasView(const Extent2D& extent, Float centerX, Float centerY, Float orthographicSize,
-        Bool screenSpace, InstanceId focusObject)
+        Bool screenSpace, InstanceId focusObject, Bool lighting)
     {
         if (false == m_uiEnabled || extent.width == 0 || extent.height == 0
             || false == std::isfinite(centerX) || false == std::isfinite(centerY)
@@ -3805,6 +3805,7 @@ namespace JBro
         m_canvasViewRequest.debugDraw = m_canvasViewDebugDraw;
         m_canvasViewRequest.screenSpace = screenSpace;
         m_canvasViewRequest.focusObject = focusObject;
+        m_canvasViewRequest.lighting = lighting;
         // 고른 것의 번호를 실어 보낸다(D-276). 요청은 값으로 복사되므로 가리키는 배열은 이 멤버다.
         m_canvasViewSelection.Clear();
         const Array<GameObject*> selected = GetSelectedObjects();
