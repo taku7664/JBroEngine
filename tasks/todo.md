@@ -71,7 +71,7 @@
   - 지금 흩어진 자리(2026-09-26 확인): 표 밖에서 키를 직접 읽는 곳이 있다 - `Widget/Gizmo.cpp` 의 W/E/R(`ImGui::IsKeyPressed`)은 표에 없어 도움말에도
     안 나오고 바꿀 수도 없다. 이 항목이 서면 표로 옮긴다. `Widget/FilterCombo.cpp` 의 Enter 는 칸 안의 편집 키라 단축키가 아니다(옮기지 않음).
   - 정할 것: 포커스 범위의 단위(패널 창 하나인지, 에디터 묶음인지), 중첩 창(팝업·도킹된 창)에서 포커스를 누구로 볼지, 기본 우선순위(포커스 > 전역이
-    일반적 - VSCode·언리얼이 이렇다), 블로킹 기본값, 재생 중 게임 뷰 포커스(D-214 는 재생 제어만 통과시킨다)와의 관계.
+    일반적 - VSCode·언리얼이 이렇다), 블로킹 기본값, 재생 중 시뮬레이션 뷰 포커스(D-214 는 재생 제어만 통과시킨다)와의 관계.
 - ~~`[진행 예정]` **3. 모든 툴팁 호버에 딜레이.** 지금 `Widget::HoveredTooltip`(`Widget/Common.cpp`)은 `ImGui::IsItemHovered(flags)` 뒤에
   곧바로 `SetTooltip` 이라 마우스가 지나가기만 해도 뜬다. 공용 위젯 한 곳에서 딜레이를 걸고(ImGui 의 `ImGuiHoveredFlags_DelayNormal`
   같은 플래그 또는 자체 값), `FieldLabel`·`IconButton`·`StatusBadge`·`ActionButton`·`FilterCombo::DisabledTooltip`·메뉴 항목의 잠긴 까닭
@@ -276,7 +276,7 @@
   재생 실측, D-206), 10 단계(EQ·디스토션·코러스·피치 시프트·컴프레서·출력 리미터, D-210), 11 단계(클립의 동시 수·쿨다운·들리지 않는
   시작 거르기·임포트의 레이트 맞추기와 모노, D-231), 12 단계(가상 보이스, D-235)가 섰고, 전체 점검(D-240)에서 찾은 결함을 고쳤다.
   남은 것은 계획서 §5 의 `[열림]` 이다.
-- `[진행]` **입력**(D-214, [input-plan.md](./input-plan.md)). 1~6 단계(프레임 상태·폴링 서비스와 호스트·레이어 체인과 블로킹·에디터 게임 뷰·액션·게임패드)가
+- `[진행]` **입력**(D-214, [input-plan.md](./input-plan.md)). 1~6 단계(프레임 상태·폴링 서비스와 호스트·레이어 체인과 블로킹·에디터 시뮬레이션 뷰·액션·게임패드)가
   main 에 합쳤다. 7 의 터치와 액션 세트·선입력 도구·런타임 리바인딩(D-218)도 섰다. 남은 것은 실기기 실측과 계획서 §4 의 7 의 `[열림]` 이다.
 - `[완료]` **세이브 저장소**(D-218 (4), [save-plan.md](./save-plan.md)). 스크립트의 `SaveService`, 호스트의 `SaveStorage`. 남은 것(웹·Android 뿌리,
   슬롯 목록, 비동기 쓰기)은 계획서 §4 의 `[열림]` 이다.
@@ -318,7 +318,7 @@
 
 **화면이 뜬다.** `Modules/JBroEditorHost` 가 실행 파일이다 — 인자로 프레임 수를 주면 그만큼
 돌고 끝난다(사람 없이 띄워 캡처하는 용도). 1280x720 창에 패널 넷이 도킹되어 나오고,
-창 크기를 바꾸면 따라가며 게임 뷰는 비율을 지킨다.
+창 크기를 바꾸면 따라가며 시뮬레이션 뷰는 비율을 지킨다.
 
 ```
 EditorApplication::Tick
@@ -326,7 +326,7 @@ EditorApplication::Tick
   │                    (텍스처·정점 버퍼 업로드가 RHI 프레임 밖이어야 한다)
   └ engine->Tick
       └ Renderer::EndFrame
-          ├ RecordViews   게임 → 게임 뷰 텍스처(FrameTarget)
+          ├ RecordViews   게임 → 시뮬레이션 뷰 텍스처(FrameTarget)
           └ overlay       EditorUI::Draw(commands, frameSlot) → 백버퍼
 ```
 
@@ -335,7 +335,7 @@ EditorApplication::Tick
 - **ImGui 백엔드**가 JBroRHI 위에 있다(`imgui_impl_dx12` 를 쓰지 않는다, D-60).
   정점·인덱스 버퍼는 프레임 슬롯마다 나뉜다(D-66).
 - **입력**은 플랫폼이 이벤트로 모으고(D-62) 에디터가 ImGui 로 넘긴다.
-- **게임 뷰**는 렌더 타깃 하나 차이다(D-63). 카메라는 창이 아니라 `GetFrameExtent()` 를 본다.
+- **시뮬레이션 뷰**는 렌더 타깃 하나 차이다(D-63). 카메라는 창이 아니라 `GetFrameExtent()` 를 본다.
 - **패널 넷**: Game / Hierarchy / Inspector / Stats. 레지스트리에 등록하고 스스로 자리를
   말한다(D-70).
 - **인스펙터**는 컴포넌트 타입을 하나도 모른다. 리플렉션(D-56)을 타고 내려가 잎사귀에서
@@ -389,7 +389,7 @@ EditorApplication::Tick
   남은 것은 인스펙터의 `ImGui::` 직접 호출(§11.1)이다.
 - `Vector2`·`Color` 필드 편집이 커맨드를 거치지 않던 결함을 고쳤다(D-89) - 한 줄 숫자 묶음은 이제
   `SetPropertyCommand` 의 잎사귀다.
-- 게임 뷰 **매 프레임 opt-in** 이 들어갔다(2026-09-15, D-63 끝). 패널이 그려지지 않은 프레임에는
+- 시뮬레이션 뷰 **매 프레임 opt-in** 이 들어갔다(2026-09-15, D-63 끝). 패널이 그려지지 않은 프레임에는
   뷰를 기록하지 않고 텍스처는 그대로 둔다.
 - **팝업 큐**가 섰다(D-92). 핸들·같은 Id 중복 방지·한 번에 하나만 뜨는 모달이고, 콜백은 패널처럼
   가상 함수다. 저장 실패는 `MessagePopup` 으로 알린다.
@@ -2937,6 +2937,20 @@ EditorApplication::Tick
   `ImEditor` 의 나머지 공개 기능 대조: 창 만들기·찾기(패널), 미룬 일(`Perform*` 요청), 팝업(같은 API), 캔버스·게임 뷰 타깃,
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
+
+- **D-295. 게임 뷰는 시뮬레이션 뷰다 - 화면 글자·로컬라이징 키·패널 종류 이름·클래스·함수·멤버를 모두 바꾼다.**
+  (2026-10-06, 사용자 지시: "게임뷰가 아니라 시뮬레이션 뷰임. 이름 다 바꿔. 클래스명도". Updates: D-63·D-130·D-131·D-178·D-214·D-243 의 이름 - 내용은 그대로다.)
+  **바뀐 이름.** 패널 `GameViewPanel` → `SimulationViewPanel`(파일도), 패널 종류 이름 `Game` → `Simulation`(`FindPanel`·창 이름), `GameView` 가 든 모든 식별자
+  (`EngineInstance::SetGameViewTarget`·`Renderer` 의 게임 뷰 타깃·`DebugDrawSystem::SetGameViewVisible`·`EditorApplication::GetGameViewTexture`·`ReportGameView`·`SetGameViewDebugDraw`·
+  멤버 `m_gameView*`·시험 이름)이 `SimulationView` 로, 로컬라이징 키 `panel.game` → `panel.simulation`, `game_view.*` → `simulation_view.*`,
+  `menu.simulation_game_debug_draw` → `menu.simulation_view_debug_draw`. 보이는 글자는 `시뮬레이션 뷰` / `Simulation`(탭), `Simulation View`(문장 안)다.
+  `SetGameDebugDrawVisible` 처럼 **게임 자체**를 뜻하는 `Game` 은 그대로 둔다. 기존 엔진의 이름(`CGameViewTool`·`Main/GameView/`·`GameView->Focus()`)은 그쪽 이름이라 그대로다.
+  문서는 `ProjectRule.md`·`CLAUDE.md`·도면·계획서·이 파일의 남은 일 절을 바꿨고, **Decisions 의 옛 항목은 적힌 그대로 둔다**(그때의 이름이다).
+  **옛 창 배치.** `.layout.ini` 는 창을 `[Window][Game]` 으로, 도크 칸이 고른 탭을 그 이름의 해시(`Selected=0x…`)로 적는다. 그대로 읽으면 시뮬레이션 뷰가 적힌 자리를 못 찾아
+  떠 있는 창으로 나오므로, `RestoreEditorLayout` 이 파일을 읽어 두 곳을 새 이름으로 바꾼 뒤 `LoadIniSettingsFromMemory` 로 넘긴다.
+  **시험.** `TestTheEditorSessionSurvivesReopening` 이 저장된 배치의 `[Window][Simulation]` 을 `[Window][Game]` 으로 되돌려 둔 뒤 다시 열어도 시뮬레이션 뷰가 도크에 붙는지 본다.
+  바꾸기를 빼는 변이를 잡았다. 패널 이름을 쓰는 시험 여덟(패널 표·포커스·입력·재생·숨김 오브젝트·카메라 없음)이 새 이름으로 통과한다.
+  `[열림]` GitHub 위키의 "게임 뷰" 글자는 로컬 사본이 없어 아직 못 바꿨다.
 
 - **D-294. 인스펙터의 컴포넌트 머리를 끌어 놓아 순서를 바꾼다 - 메뉴의 위로·아래로와 같은 `MoveComponentCommand` 하나다.**
   (2026-10-06, 사용자 지시: "컴포넌트도 드래그해서 순서 바꿀 수 있게 해야함". Updates: 없음 - 순서가 스크립트 실행 순서라는 D-45 는 그대로다.)

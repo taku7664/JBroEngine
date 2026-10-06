@@ -1,6 +1,6 @@
 ﻿Locale: ko-KR
 Entries:
-  panel.game: 게임 뷰
+  panel.simulation: 시뮬레이션 뷰
   panel.canvas_view: 캔버스 뷰
   panel.hierarchy: 레이어
   panel.inspector: 인스펙터
@@ -22,7 +22,7 @@ Entries:
   menu.simulation_stop: 정지
   menu.simulation_pause: 일시정지
   menu.simulation_step: 한 프레임 진행
-  menu.simulation_game_debug_draw: 게임 뷰에 디버그 선 표시
+  menu.simulation_view_debug_draw: 시뮬레이션 뷰에 디버그 선 표시
   menu.simulation_canvas_debug_draw: 캔버스 뷰에 디버그 선 표시
   menu.save_canvas: 캔버스 저장
   menu.save_project: 프로젝트 저장
@@ -75,12 +75,12 @@ Entries:
   canvas_view.unit_world: 유닛
   canvas_view.unit_pixel: 픽셀
   canvas_view.unit_tooltip: 눈금을 월드 유닛으로 읽을지 픽셀로 읽을지 바꿉니다. 픽셀은 에셋 PPU 기본값(100) 기준입니다
-  game_view.playing: 실행 중
-  game_view.stopped: 정지됨
-  game_view.no_canvas: 열린 캔버스가 없습니다
-  game_view.no_camera: 카메라가 없습니다
-  game_view.camera_unusable: Camera2D 값이 잘못되어 그릴 수 없습니다
-  game_view.camera_ambiguous: primary 카메라가 없어 첫 번째 활성 카메라로 그립니다
+  simulation_view.playing: 실행 중
+  simulation_view.stopped: 정지됨
+  simulation_view.no_canvas: 열린 캔버스가 없습니다
+  simulation_view.no_camera: 카메라가 없습니다
+  simulation_view.camera_unusable: Camera2D 값이 잘못되어 그릴 수 없습니다
+  simulation_view.camera_ambiguous: primary 카메라가 없어 첫 번째 활성 카메라로 그립니다
   hierarchy.no_project: 열린 프로젝트가 없습니다
   hierarchy.create_object: 오브젝트 추가
   hierarchy.create_child: 자식 오브젝트 추가

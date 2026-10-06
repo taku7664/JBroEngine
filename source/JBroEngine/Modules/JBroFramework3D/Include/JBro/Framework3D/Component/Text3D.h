@@ -14,7 +14,7 @@
 namespace JBro::Component
 {
     // 글자 판이 어디를 보나(D-222). Transform 은 오브젝트의 회전을 따르는 판(간판·벽의 글씨), Billboard 는 늘 카메라를 보는 판(이름표)이다.
-    // Billboard 는 오브젝트의 위치와 크기만 쓰고 회전은 뷰마다 카메라의 것으로 바꾼다 - 게임 뷰와 편집 뷰가 각자 제 카메라를 본다.
+    // Billboard 는 오브젝트의 위치와 크기만 쓰고 회전은 뷰마다 카메라의 것으로 바꾼다 - 시뮬레이션 뷰와 편집 뷰가 각자 제 카메라를 본다.
     enum class TextFacing3D : std::uint8_t { Transform, Billboard };
 }
 

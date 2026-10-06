@@ -63,7 +63,7 @@ namespace
         Check(JBro::ComputePixelPerfectArea(Frame(320.0f, 180.0f, 1001.0f, 701.0f), area, scale)
                 && Close(area.x, 20.0f) && Close(area.y, 80.0f),
             "the corner lands on a whole pixel when the leftover is odd");
-        // 대상이 기준보다 작으면 들어가는 만큼 줄인다(에디터의 작은 게임 뷰).
+        // 대상이 기준보다 작으면 들어가는 만큼 줄인다(에디터의 작은 시뮬레이션 뷰).
         Check(JBro::ComputePixelPerfectArea(Frame(320.0f, 180.0f, 200.0f, 100.0f), area, scale)
                 && Close(scale, 100.0f / 180.0f) && Close(area.height, 100.0f) && area.width <= 200.0f
                 && Close(area.y, 0.0f) && Close(area.x, std::floor((200.0f - area.width) * 0.5f)),
@@ -222,7 +222,7 @@ namespace
         Check(JBro::System::Camera2DSystem::SelectCamera(canvas, chosen, &unusable) && chosen.owner == spare
                 && Close(chosen.orthographicSize, 3.0f),
             "a primary camera that cannot draw is passed over for the next one");
-        Check(unusable == 1, "and counted, so the game view can say why");
+        Check(unusable == 1, "and counted, so the simulation view can say why");
 
         spareCamera->SetEnabled(false);
         unusable = 0;

@@ -116,11 +116,11 @@
 
 - ~~`[진행 중]` (D-239 로 결정, 브랜치 `pixelperfect`) **`Camera2D.projection = PixelPerfect` 이면 에디터가 첫 프레임에 꺼진다**~~
   → 완료 2026-09-27 · bf6df09·eba21da · `Framework2DSystem/Rendering/CameraView2D`·`Camera2DSystem::SelectCamera`·`RenderBridge2D`·`Canvas/ScreenSpace`,
-  에디터 `GameViewPanel`·`InspectorFieldExtras`. 그릴 수 없는 카메라는 건너뛰고 `PixelPerfect` 는 정수 배율 레터박스로 그린다. 실측·검증·열림은 D-239 끝의 "구현" 절.
+  에디터 `SimulationViewPanel`·`InspectorFieldExtras`. 그릴 수 없는 카메라는 건너뛰고 `PixelPerfect` 는 정수 배율 레터박스로 그린다. 실측·검증·열림은 D-239 끝의 "구현" 절.
   아래는 착수 전의 분석이다.(2026-09-27 실측, 사용자 보고 "픽셀 퍼펙트로 배치하니 팅긴다").
   - 사슬: `RenderBridge2D.cpp` `BuildCamera` 가 `Orthographic` 이 아니면 거짓("PixelPerfect's reference resolution/scaling contract awaits user definition")
     → `SubmitRenderWorld2D` 가 `Failed` → `EngineInstance::TickFrame` 이 `InvalidState` 로 거짓 → `Tick` 이 `ReleaseResources` → `EditorApplication::Tick` 거짓 →
-    `EditorHostMain` 루프가 끝난다. 게임 뷰는 편집 중에도 게임 카메라로 매 프레임 그리므로 **재생하지 않아도** 인스펙터에서 값을 바꾸는 순간 꺼진다.
+    `EditorHostMain` 루프가 끝난다. 시뮬레이션 뷰는 편집 중에도 게임 카메라로 매 프레임 그리므로 **재생하지 않아도** 인스펙터에서 값을 바꾸는 순간 꺼진다.
     사용자에게는 아무 말도 남지 않는다(콘솔의 `last frame: invalid state` 한 줄뿐). `physics-plan` 의 "확인 중 에디터가 한 번 꺼진 것" 도 이것이다.
   - 실측: 카메라 하나만 있는 캔버스로 `JBroEditorHost --frames 120` 을 두 번 띄웠다. `Orthographic` 은 120 프레임·`ready`, `PixelPerfect` 는 **0 프레임·`invalid state`**.
     두 파일의 차이는 `projection` 한 줄이다. **투영만의 문제가 아니다**: 같은 방법으로 `orthographicSize: 0` 과 `nearPlane: 200`(`farPlane` 100 보다 큼)도
@@ -132,9 +132,9 @@
     스프라이트 크기와 화면 공간(UI) 투영에만 쓰였고(`Render2DPipeline.cpp` `ScreenSpaceReference`), 카메라를 픽셀 격자에 맞추는 코드는 없다.
     따를 계약이 없으므로 새로 정해야 한다(사용자 결정).
   - 정할 것: (1) 당장의 안전장치 - 카메라 값이 그릴 수 없는 것(구현 안 된 투영, 크기 0 이하, `nearPlane ≥ farPlane`)이면 에디터를 끄지 말고 그 카메라를 쓰지 못하는
-    것으로 칠지(월드를 그리지 않고 게임 뷰가 까닭을 보이며 경고를 한 번 남긴다), 그리고 인스펙터가 그런 값을 애초에 막을지.
+    것으로 칠지(월드를 그리지 않고 시뮬레이션 뷰가 까닭을 보이며 경고를 한 번 남긴다), 그리고 인스펙터가 그런 값을 애초에 막을지.
     (2) PixelPerfect 계약 - 기준 해상도(`.jproject` `ResolutionWidth/Height`)와 PPU(`.jproject` `PixelsPerUnit`, 스프라이트마다 다를 수 있다)로 `orthographicSize` 를 정할지,
-    정수 배율과 남는 영역(레터박스·잘라내기), 카메라 위치를 화면 픽셀에 맞추는 스냅, 에디터 게임 뷰와 캔버스 뷰가 그것을 따를지.
+    정수 배율과 남는 영역(레터박스·잘라내기), 카메라 위치를 화면 픽셀에 맞추는 스냅, 에디터 시뮬레이션 뷰와 캔버스 뷰가 그것을 따를지.
 
 ## 캔버스 뷰
 

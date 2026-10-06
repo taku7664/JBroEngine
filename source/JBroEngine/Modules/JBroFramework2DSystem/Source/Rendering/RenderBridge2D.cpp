@@ -107,10 +107,10 @@ namespace JBro::Internal
 
     namespace
     {
-        // 모아 둔 스프라이트를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가
+        // 모아 둔 스프라이트를 이미 열린 뷰에 밀어 넣는다. 시뮬레이션 뷰와 캔버스 뷰가
         // 같은 목록을 쓰므로 이 부분만 따로 뗀다.
         //
-        // `editorView` 면 **에디터에서 감춘 오브젝트를 건너뛴다**(D-163, 기존 `EditorHidden`). 게임 뷰는 보지 않는다 -
+        // `editorView` 면 **에디터에서 감춘 오브젝트를 건너뛴다**(D-163, 기존 `EditorHidden`). 시뮬레이션 뷰는 보지 않는다 -
         // 감추는 것은 편집을 위한 것이지 게임의 모습이 아니다.
         // 어느 아이템을 그 뷰에 넣는가. 월드 뷰는 월드 레이어만, 화면 뷰는 그 맞춤 방식의 화면 레이어만이다(D-237).
         struct SpriteFilterRule
@@ -519,7 +519,7 @@ namespace JBro::Internal
             }
             const Bool accepted = PushSprites(world, renderer, false, rule);
             // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
-            if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
+            if (debugDraw != nullptr && debugDraw->IsSimulationViewVisible())
             {
                 PushDebugLines2D(*debugDraw, renderer,
                     2.0f * camera->orthographicSize / static_cast<JBro::Float>(renderer.GetFrameExtent().height));

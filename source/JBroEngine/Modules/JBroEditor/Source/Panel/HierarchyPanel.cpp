@@ -1038,7 +1038,7 @@ namespace JBro
                 Widget::HintText(name);
             }
             ImGui::SetCursorScreenPos(cursor);
-            // **캔버스 뷰에서만 감추는 눈이다**(D-163, 기존 레이어 창의 `EditorHidden`). 게임 뷰와 게임에는 그대로 나온다.
+            // **캔버스 뷰에서만 감추는 눈이다**(D-163, 기존 레이어 창의 `EditorHidden`). 시뮬레이션 뷰와 게임에는 그대로 나온다.
             const Bool shown = false == object.IsEditorHidden();
             if (Widget::RowEyeToggle(row, "##eye", shown,
                     Loc::TextOr(LocKeys::HierarchyObjectHidden, "hide or show in the canvas view")))

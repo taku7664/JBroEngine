@@ -1,4 +1,4 @@
-﻿#include "GameViewPanel.h"
+﻿#include "SimulationViewPanel.h"
 
 #include <JBro/Canvas/Canvas.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
@@ -16,32 +16,32 @@
 
 namespace JBro
 {
-    const char* GameViewPanel::GetTitle() const
+    const char* SimulationViewPanel::GetTitle() const
     {
         // 안정된 이름이다. 번역하지 않는다 - 창의 정체가 여기 달려 있다.
         return TypeName;
     }
 
-    const char* GameViewPanel::GetDisplayTitle() const
+    const char* SimulationViewPanel::GetDisplayTitle() const
     {
-        return Loc::TextOr(LocKeys::PanelGame, "Game");
+        return Loc::TextOr(LocKeys::PanelSimulation, "Simulation");
     }
 
-    Bool GameViewPanel::OnCreate(EditorApplication& editor)
+    Bool SimulationViewPanel::OnCreate(EditorApplication& editor)
     {
         m_editor = &editor;
         return true;
     }
 
-    void GameViewPanel::OnDraw()
+    void SimulationViewPanel::OnDraw()
     {
         if (m_editor == nullptr)
         {
             return;
         }
 
-        const TextureHandle gameView = m_editor->GetGameViewTexture();
-        const Extent2D extent = m_editor->GetGameViewExtent();
+        const TextureHandle simulationView = m_editor->GetSimulationViewTexture();
+        const Extent2D extent = m_editor->GetSimulationViewExtent();
         const ImVec2 panel = ImGui::GetContentRegionAvail();
         if (panel.x <= 0.0f || panel.y <= 0.0f)
         {
@@ -54,7 +54,7 @@ namespace JBro
         draw->AddRectFilled(origin, ImVec2(origin.x + panel.x, origin.y + panel.y),
             ImGui::GetColorU32(EditorTheme::ViewportBackground));
 
-        const Bool hasImage = gameView.IsValid() && extent.width != 0 && extent.height != 0;
+        const Bool hasImage = simulationView.IsValid() && extent.width != 0 && extent.height != 0;
         Float imageLeft = 0.0f;
         Float imageTop = 0.0f;
         Float imageWidth = 0.0f;
@@ -83,25 +83,25 @@ namespace JBro
             imageWidth = size.x;
             imageHeight = size.y;
             draw->AddImage(
-                static_cast<ImTextureID>(EditorUI::ToTextureId(gameView)),
+                static_cast<ImTextureID>(EditorUI::ToTextureId(simulationView)),
                 imageMin, ImVec2(imageMin.x + size.x, imageMin.y + size.y));
         }
 
         // 자리를 차지해 두어야 스크롤과 다음 줄이 어긋나지 않는다. **입력은 받지 않는다** -
-        // 게임 뷰에서는 고르지도 끌지도 않는다(D-131).
+        // 시뮬레이션 뷰에서는 고르지도 끌지도 않는다(D-131).
         ImGui::Dummy(panel);
         // 이 프레임에 게임 화면을 붙였다. 붙이지 않은 프레임(닫힘·다른 탭에 가림)에는
         // 게임을 그리지 않는다(D-63).
-        m_editor->RequestGameView();
+        m_editor->RequestSimulationView();
         // 게임 입력(D-214). 포커스가 여기 있으면 다음 프레임부터 게임이 키를 받고, 마우스는 이 그림 사각형 기준의 게임 픽셀이다.
-        m_editor->ReportGameView(IsFocused(), imageLeft, imageTop, imageWidth, imageHeight);
+        m_editor->ReportSimulationView(IsFocused(), imageLeft, imageTop, imageWidth, imageHeight);
 
         DrawStatusOverlay(origin.x, origin.y, hasImage);
     }
 
-    void GameViewPanel::DrawStatusOverlay(Float left, Float top, Bool hasImage) const
+    void SimulationViewPanel::DrawStatusOverlay(Float left, Float top, Bool hasImage) const
     {
-        // 기존 엔진의 게임 뷰와 같은 자리, 같은 내용이다. 그림이 안 나올 때 **왜 안 나오는지**를
+        // 기존 엔진의 시뮬레이션 뷰와 같은 자리, 같은 내용이다. 그림이 안 나올 때 **왜 안 나오는지**를
         // 말하지 않으면 고장과 구분되지 않는다.
         const Bool playing = m_editor->IsSimulationPlaying() && false == m_editor->IsSimulationPaused();
         const char* text = nullptr;
@@ -110,29 +110,29 @@ namespace JBro
         ImU32 color = IM_COL32(210, 216, 224, 255);
         if (m_editor->GetCanvas() == nullptr)
         {
-            text = Loc::TextOr(LocKeys::GameViewNoCanvas, "no canvas is open");
+            text = Loc::TextOr(LocKeys::SimulationViewNoCanvas, "no canvas is open");
         }
         else if (false == hasImage || false == m_editor->DidGameSubmitLastFrame())
         {
             // **그림 자리가 있어도 게임이 낸 것이 없으면 카메라가 없는 것이다**(D-178).
             // 텍스처가 있는지만 보면 카메라 없는 검은 화면을 "실행 중" 이라고 말한다 -
-            // 기존 게임 뷰는 그 둘을 갈랐다.
+            // 기존 시뮬레이션 뷰는 그 둘을 갈랐다.
             // 카메라가 있는데 값이 잘못되어 건너뛴 것이면 그렇게 말한다(D-239). "카메라 없음" 이라고 하면 붙어 있는 카메라를 찾아 헤맨다.
             const Bool unusable = m_editor->GetUnusableGameCameraCount() > 0;
             text = unusable
-                ? Loc::TextOr(LocKeys::GameViewCameraUnusable, "the Camera2D values cannot be drawn")
-                : Loc::TextOr(LocKeys::GameViewNoCamera, "there is no camera");
+                ? Loc::TextOr(LocKeys::SimulationViewCameraUnusable, "the Camera2D values cannot be drawn")
+                : Loc::TextOr(LocKeys::SimulationViewNoCamera, "there is no camera");
             icon = unusable ? Icons::Warning : Icons::NoCamera;
         }
         else if (playing)
         {
-            text = Loc::TextOr(LocKeys::GameViewPlaying, "Playing");
+            text = Loc::TextOr(LocKeys::SimulationViewPlaying, "Playing");
             icon = Icons::Play;
             color = IM_COL32(100, 230, 120, 255);
         }
         else
         {
-            text = Loc::TextOr(LocKeys::GameViewStopped, "Stopped");
+            text = Loc::TextOr(LocKeys::SimulationViewStopped, "Stopped");
             icon = Icons::Stop;
         }
         const Float lineHeight = ImGui::GetTextLineHeight();
@@ -162,7 +162,7 @@ namespace JBro
             if (false == anyPrimary && active > 1)
             {
                 statusLine(top + 28.0f, Icons::Warning, IM_COL32(255, 200, 90, 255),
-                    Loc::TextOr(LocKeys::GameViewCameraAmbiguous,
+                    Loc::TextOr(LocKeys::SimulationViewCameraAmbiguous,
                         "no camera is primary, so the first active one is used"));
             }
         }

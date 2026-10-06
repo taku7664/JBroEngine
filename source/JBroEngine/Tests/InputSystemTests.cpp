@@ -208,7 +208,7 @@ namespace
         Check(input.GetFrame().keyboard.GetTextLength() == 0, "text lasts one frame");
     }
 
-    // 게임 스크립트가 보는 마우스는 게임 화면 픽셀이다. 에디터의 게임 뷰처럼 창의 일부에 그려질 때는
+    // 게임 스크립트가 보는 마우스는 게임 화면 픽셀이다. 에디터의 시뮬레이션 뷰처럼 창의 일부에 그려질 때는
     // 그 사각형을 벗겨야 월드를 집을 수 있다(기존 엔진 `bc0bb4df`).
     void TestTheMouseIsMappedToTheGameSurface()
     {

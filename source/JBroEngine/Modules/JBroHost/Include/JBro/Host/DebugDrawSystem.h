@@ -20,7 +20,7 @@ namespace JBro::System
     //   - **수명이 셋이다.** 0 초짜리는 한 프레임, 0 보다 크면 게임 시간으로 줄고(멈춘 동안은 남는다), 고정 스텝에서 그린 0 초짜리는
     //     다음 고정 스텝까지 남는다(기존은 고정 스텝이 없는 프레임에 깜빡였다). 게임이 멈춘 프레임에는 한 프레임짜리도 지우지 않는다 -
     //     멈춘 화면에서 마지막 선을 봐야 한다.
-    //   - **게임 화면에도 나온다.** 게임 뷰에서 보일지는 `SetGameViewVisible` 이고(게임 실행은 프로젝트의 `DebugModeEnabled`),
+    //   - **게임 화면에도 나온다.** 시뮬레이션 뷰에서 보일지는 `SetSimulationViewVisible` 이고(게임 실행은 프로젝트의 `DebugModeEnabled`),
     //     캔버스 뷰는 에디터가 뷰마다 정한다.
     // 메인 스레드 전용이다.
     class DebugDrawSystem final : public IDebugDrawSystem
@@ -46,9 +46,9 @@ namespace JBro::System
         UInt32 GetDroppedCount() const;
         UInt32 GetRejectedCount() const;
 
-        // 게임 뷰(게임 실행의 백버퍼, 에디터의 게임 뷰)에 그릴지다. 저장은 늘 한다 - 끄고 켜도 선이 사라지지 않는다.
-        void SetGameViewVisible(Bool visible);
-        Bool IsGameViewVisible() const;
+        // 시뮬레이션 뷰(게임 실행의 백버퍼, 에디터의 시뮬레이션 뷰)에 그릴지다. 저장은 늘 한다 - 끄고 켜도 선이 사라지지 않는다.
+        void SetSimulationViewVisible(Bool visible);
+        Bool IsSimulationViewVisible() const;
 
     private:
         struct Entry
@@ -62,6 +62,6 @@ namespace JBro::System
         UInt32 m_capacity = 0;
         UInt32 m_dropped = 0;
         UInt32 m_rejected = 0;
-        Bool m_gameViewVisible = false;
+        Bool m_simulationViewVisible = false;
     };
 }

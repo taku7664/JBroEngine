@@ -96,7 +96,7 @@
   보이스·버스는 핸들로만 나가고 믹서 API 는 메인 스레드 전용이며 재생 중에는 원자 값만 쓴다. 소스는 차원 무관 `AudioSource`(새 Tier S 모듈), 리스너는
   `AudioListener2D`/`3D`. 기존 엔진 오디오의 구조와 겪은 문제가 §1, 설계가 §2, 단계와 완료 조건·실측이 §3, `[열림]` 이 §5 에 있다
 - [tasks/input-plan.md](./tasks/input-plan.md) — 게임 입력 계획(D-214·D-218). 1~6 단계와 7 의 터치·액션 세트(이벤트를 접은 프레임 상태·`InputService` 폴링과 호스트 배선·
-  `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 게임 뷰 포커스 게이트·액션과 설정 화면·게임패드·터치)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
+  `InputHandler<"UI", 10>` 레이어 체인의 `Block`/`Consume`·에디터 시뮬레이션 뷰 포커스 게이트·액션과 설정 화면·게임패드·터치)가 섰다. 계약은 `ProjectRule.md` §7.1. 기존 엔진 입력(`GetAsyncKeyState` 폴링·
   전부 아니면 없음인 막기·`GetDeviceContext()` 뒷문)의 구조와 아팠던 것 P1~P8 이 §1, 설계가 §3, 단계와 남은 것(실기기 실측과 `[열림]`)이 §4 에 있다
 - [tasks/time-plan.md](./tasks/time-plan.md) — 시간·난수·디버그 드로(D-242·D-243). 스크립트 훅은 델타를 인자로 받지 않고 `GetServiceContext().Time` 에서 읽는다.
   호스트의 `TimeSystem` 이 델타 상한·타임스케일·멈춤·한 프레임 진행·고정 스텝을 한 자리에 들고, 난수는 PCG32 `RandomStream`, 디버그 선은 고정 용량 저장소를

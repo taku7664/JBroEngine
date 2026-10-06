@@ -76,7 +76,7 @@ namespace JBro
         Bool ReserveSprites(std::size_t capacity);
         void BeginFrame();
         void SetCamera(const RenderCamera2D& camera);
-        // 켜져 있지만 값이 잘못되어 건너뛴 카메라 수다(D-239). 게임 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
+        // 켜져 있지만 값이 잘못되어 건너뛴 카메라 수다(D-239). 시뮬레이션 뷰가 "카메라 없음" 과 가려 까닭을 말한다.
         void SetUnusableCameraCount(UInt32 count);
         UInt32 GetUnusableCameraCount() const;
         // 화면 레이어의 기준이다(D-237). 프레임을 넘어 남는다 - 프레임워크가 바뀔 때 넣는다.

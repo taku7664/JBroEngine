@@ -70,7 +70,7 @@ namespace
         {
             ++beginRenderPassCount;
             // 뷰가 어디로 갔는지는 첨부 텍스처에만 남는다. 카운터만 세면
-            // 백버퍼로 가든 게임 뷰 텍스처로 가든 같은 숫자다.
+            // 백버퍼로 가든 시뮬레이션 뷰 텍스처로 가든 같은 숫자다.
             if (desc.colorAttachments.data != nullptr && desc.colorAttachments.size != 0)
             {
                 lastColorAttachment = desc.colorAttachments.data[0].texture;
@@ -1369,13 +1369,13 @@ namespace
             "with no target the view must go to the back buffer");
 
         // ② 타깃을 주면 그 텍스처로 간다. 같은 렌더 경로이고 목적지만 다르다.
-        const JBro::TextureHandle gameView = module.device.CreateTexture({});
+        const JBro::TextureHandle simulationView = module.device.CreateTexture({});
         JBro::FrameTarget target;
-        target.texture = gameView;
+        target.texture = simulationView;
         target.extent = {320, 240};
-        Check(engine.SetGameViewTarget(target), "the host must take a game view target");
+        Check(engine.SetSimulationViewTarget(target), "the host must take a simulation view target");
         Check(engine.Tick(0.016f), "the aimed frame must tick");
-        Check(module.device.commands.lastColorAttachment == gameView,
+        Check(module.device.commands.lastColorAttachment == simulationView,
             "the view must go to the texture the editor asked for");
 
         // ③ 게임이 낼 것이 없는 프레임. 오버레이가 없으면 버린다.
@@ -1398,17 +1398,17 @@ namespace
         Check(engine.Tick(0.016f), "the frame with an overlay must tick");
         Check(probe.calls == 1, "the overlay must be asked to draw");
         Check(probe.backBuffer == JBro::TextureHandle{2, 1},
-            "and be handed the back buffer, not the game view texture");
+            "and be handed the back buffer, not the simulation view texture");
         Check(module.device.endFrameCount == presents + 1
                 && module.device.abortFrameCount == aborts,
             "and the frame must be presented rather than thrown away");
 
-        // ⑤ **뷰 기록을 끈 타깃이다.** 게임 뷰 패널이 보이지 않는 프레임이 이것이다(D-63).
+        // ⑤ **뷰 기록을 끈 타깃이다.** 시뮬레이션 뷰 패널이 보이지 않는 프레임이 이것이다(D-63).
         // 제출은 받되 렌더 패스를 열지 않고, 텍스처는 그대로 둔다.
         framework.submitView = true;
         framework.renderResult = JBro::RenderResult::Submitted;
         target.recordViews = false;
-        Check(engine.SetGameViewTarget(target), "the host must take a target that skips views");
+        Check(engine.SetSimulationViewTarget(target), "the host must take a target that skips views");
         const JBro::UInt32 passes = module.device.commands.beginRenderPassCount;
         presents = module.device.endFrameCount;
         Check(engine.Tick(0.016f), "the frame that skips its views must tick");
@@ -1420,10 +1420,10 @@ namespace
         Check(module.device.endFrameCount == presents + 1,
             "while the frame itself is still presented for the overlay");
         target.recordViews = true;
-        Check(engine.SetGameViewTarget(target), "the host must take the target back");
+        Check(engine.SetSimulationViewTarget(target), "the host must take the target back");
         Check(engine.Tick(0.016f), "the next frame must tick");
         Check(module.device.commands.beginRenderPassCount > passes
-                && module.device.commands.lastColorAttachment == gameView,
+                && module.device.commands.lastColorAttachment == simulationView,
             "and record its views to the texture again");
 
         Check(renderer->SetFrameOverlay(nullptr, nullptr), "the overlay must detach");

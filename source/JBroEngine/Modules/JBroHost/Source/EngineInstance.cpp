@@ -296,7 +296,7 @@ namespace JBro
         // 게임 실행은 프로젝트의 디버그 모드가 게임 화면의 디버그 선을 켠다(D-243). 이 키는 전에는 읽기만 하고 쓰는 곳이 없었다.
         if (m_gameDebugDrawFromProject && m_debugDraw.Get() != nullptr)
         {
-            m_debugDraw->SetGameViewVisible(m_project.debugModeEnabled);
+            m_debugDraw->SetSimulationViewVisible(m_project.debugModeEnabled);
         }
         // 게임의 시간은 여기서 처음이고 씨앗도 여기서 걸린다(D-242). 에디터는 재생을 누를 때 한 번 더 건다.
         RestartGameTime();
@@ -870,17 +870,17 @@ namespace JBro
         {
             const ProfileScope scope("Update");
             {
-                // 화면 기준(D-237): 프로젝트의 기준 해상도와 이번 프레임에 게임이 그려지는 크기(에디터는 게임 뷰 텍스처, 게임은 창).
+                // 화면 기준(D-237): 프로젝트의 기준 해상도와 이번 프레임에 게임이 그려지는 크기(에디터는 시뮬레이션 뷰 텍스처, 게임은 창).
                 ScreenSpaceFrame screen;
                 screen.referenceWidth = static_cast<JBro::Float>(m_project.resolutionWidth);
                 screen.referenceHeight = static_cast<JBro::Float>(m_project.resolutionHeight);
-                const Extent2D target = m_gameViewTarget.texture.IsValid() ? m_gameViewTarget.extent
+                const Extent2D target = m_simulationViewTarget.texture.IsValid() ? m_simulationViewTarget.extent
                     : m_renderer ? m_renderer->GetSurfaceExtent() : Extent2D{};
                 screen.targetWidth = static_cast<JBro::Float>(target.width);
                 screen.targetHeight = static_cast<JBro::Float>(target.height);
-                // 가려지는 띠다(D-249). **게임이 창에 바로 그릴 때만 뜻이 있다** - 에디터의 게임 뷰는
+                // 가려지는 띠다(D-249). **게임이 창에 바로 그릴 때만 뜻이 있다** - 에디터의 시뮬레이션 뷰는
                 // 텍스처라 화면 가장자리가 아니고, 기기를 돌리면 값이 바뀌므로 프레임마다 다시 받는다.
-                if (false == m_gameViewTarget.texture.IsValid())
+                if (false == m_simulationViewTarget.texture.IsValid())
                 {
                     WindowState windowState;
                     if (m_platform->GetWindowState(m_mainWindow, windowState))
@@ -948,7 +948,7 @@ namespace JBro
         // 썸네일 요청은 한 프레임짜리다. 이 프레임을 건너뛰어도 남지 않게 먼저 꺼낸다 - 남은 요청이 그 사이에 놓인 텍스처를 가리킬 수 있다.
         const std::size_t thumbnails = m_layerThumbnailCount;
         m_layerThumbnailCount = 0;
-        const auto beginStatus = m_renderer->BeginFrame(m_gameViewTarget);
+        const auto beginStatus = m_renderer->BeginFrame(m_simulationViewTarget);
         m_lastFrameStatus = beginStatus;
         if (beginStatus == FrameStatus::Skipped)
         {
@@ -965,7 +965,7 @@ namespace JBro
             const ProfileScope scope("Submit");
             renderResult = m_framework->Render();
         }
-        // **게임이 이번 프레임에 낼 것이 있었는가**(D-178). 게임 뷰가 "카메라 없음" 과
+        // **게임이 이번 프레임에 낼 것이 있었는가**(D-178). 시뮬레이션 뷰가 "카메라 없음" 과
         // "빈 화면" 을 가리는 데 쓴다 - 검은 화면만 보여 주면 둘을 구분할 길이 없다.
         // 편집 화면의 제출은 여기에 들어가지 않는다. 그것은 게임 카메라가 아니다.
         m_gameSubmittedLastFrame = renderResult == RenderResult::Submitted;
@@ -1030,13 +1030,13 @@ namespace JBro
         return endStatus == FrameStatus::Ready || endStatus == FrameStatus::Skipped;
     }
 
-    Bool EngineInstance::SetGameViewTarget(const FrameTarget& target)
+    Bool EngineInstance::SetSimulationViewTarget(const FrameTarget& target)
     {
         if (m_state == State::Ticking)
         {
             return false;
         }
-        m_gameViewTarget = target;
+        m_simulationViewTarget = target;
         return true;
     }
 
@@ -1463,13 +1463,13 @@ namespace JBro
     {
         if (m_debugDraw.Get() != nullptr)
         {
-            m_debugDraw->SetGameViewVisible(visible);
+            m_debugDraw->SetSimulationViewVisible(visible);
         }
     }
 
     Bool EngineInstance::IsGameDebugDrawVisible() const
     {
-        return m_debugDraw.Get() != nullptr && m_debugDraw->IsGameViewVisible();
+        return m_debugDraw.Get() != nullptr && m_debugDraw->IsSimulationViewVisible();
     }
 
     void EngineInstance::RequestExit()

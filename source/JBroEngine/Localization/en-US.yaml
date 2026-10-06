@@ -1,6 +1,6 @@
 ﻿Locale: en-US
 Entries:
-  panel.game: Game
+  panel.simulation: Simulation
   panel.canvas_view: Canvas
   panel.hierarchy: Layers
   panel.inspector: Inspector
@@ -22,7 +22,7 @@ Entries:
   menu.simulation_stop: Stop
   menu.simulation_pause: Pause
   menu.simulation_step: Step One Frame
-  menu.simulation_game_debug_draw: Debug Lines in Game View
+  menu.simulation_view_debug_draw: Debug Lines in Simulation View
   menu.simulation_canvas_debug_draw: Debug Lines in Canvas View
   menu.save_canvas: Save Canvas
   menu.save_project: Save Project
@@ -75,12 +75,12 @@ Entries:
   canvas_view.unit_world: "Unit"
   canvas_view.unit_pixel: "Pixel"
   canvas_view.unit_tooltip: read the ruler in world units or in pixels, against the default asset PPU of 100
-  game_view.playing: Playing
-  game_view.stopped: Stopped
-  game_view.no_canvas: no canvas is open
-  game_view.no_camera: there is no camera
-  game_view.camera_unusable: the Camera2D values cannot be drawn
-  game_view.camera_ambiguous: no camera is primary, so the first active one is used
+  simulation_view.playing: Playing
+  simulation_view.stopped: Stopped
+  simulation_view.no_canvas: no canvas is open
+  simulation_view.no_camera: there is no camera
+  simulation_view.camera_unusable: the Camera2D values cannot be drawn
+  simulation_view.camera_ambiguous: no camera is primary, so the first active one is used
   hierarchy.no_project: no project is open
   hierarchy.create_object: Create Object
   hierarchy.create_child: Create Child
@@ -295,7 +295,7 @@ Entries:
   assets.save_layer_failed: the layer could not be saved as an asset
   layer_asset.load_failed: the layer asset could not be read
   inspector.layer_parallax: Parallax Factor
-  inspector.layer_parallax_tooltip: how far this layer moves when the camera moves; 1 moves with the camera, 0.5 is a half-speed background and 0 stays fixed in the world. Seen in the game view only, not in the canvas view
+  inspector.layer_parallax_tooltip: how far this layer moves when the camera moves; 1 moves with the camera, 0.5 is a half-speed background and 0 stays fixed in the world. Seen in the simulation view only, not in the canvas view
   inspector.layer_space: Space
   inspector.layer_space_world: World
   inspector.layer_space_screen: Screen

@@ -195,7 +195,7 @@ namespace
         renderTargetOnly = device->CreateTexture(renderTargetDesc);
         Check(renderTargetOnly.IsValid(), "a render target must still be creatable");
 
-        // 그려 놓고 같은 프레임에 읽는 텍스처다. 에디터의 게임 뷰가 이 모양이다.
+        // 그려 놓고 같은 프레임에 읽는 텍스처다. 에디터의 시뮬레이션 뷰가 이 모양이다.
         // **포맷이 파이프라인의 것과 같아야 한다** - 루트 시그니처와 마찬가지로
         // 렌더 타깃 포맷도 파이프라인을 만들 때 굳는다.
         JBro::TextureDesc offscreenDesc;

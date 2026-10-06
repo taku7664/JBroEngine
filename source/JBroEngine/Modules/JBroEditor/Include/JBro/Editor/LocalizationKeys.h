@@ -10,7 +10,7 @@
 namespace JBro::LocKeys
 {
     // ── 패널 제목 ────────────────────────────────────────────────────────
-    inline constexpr const char* PanelGame = "panel.game";
+    inline constexpr const char* PanelSimulation = "panel.simulation";
     inline constexpr const char* PanelCanvasView = "panel.canvas_view";
     inline constexpr const char* PanelHierarchy = "panel.hierarchy";
     inline constexpr const char* PanelInspector = "panel.inspector";
@@ -21,7 +21,7 @@ namespace JBro::LocKeys
     inline constexpr const char* PanelProfiler = "panel.profiler";
     inline constexpr const char* PanelAssets = "panel.assets";
 
-    // ── 게임 뷰의 기즈모 (D-109) ─────────────────────────────────────────
+    // ── 시뮬레이션 뷰의 기즈모 (D-109) ─────────────────────────────────────────
     inline constexpr const char* GizmoTranslate = "gizmo.translate";
     inline constexpr const char* GizmoRotate = "gizmo.rotate";
     inline constexpr const char* GizmoScale = "gizmo.scale";
@@ -63,14 +63,14 @@ namespace JBro::LocKeys
     inline constexpr const char* CanvasViewUnitPixel = "canvas_view.unit_pixel";
     inline constexpr const char* CanvasViewUnitTooltip = "canvas_view.unit_tooltip";
 
-    // ── 게임 뷰의 상태 표시 (D-131) ──────────────────────────────────────
-    inline constexpr const char* GameViewPlaying = "game_view.playing";
-    inline constexpr const char* GameViewStopped = "game_view.stopped";
-    inline constexpr const char* GameViewNoCanvas = "game_view.no_canvas";
-    inline constexpr const char* GameViewNoCamera = "game_view.no_camera";
-    inline constexpr const char* GameViewCameraUnusable = "game_view.camera_unusable";
+    // ── 시뮬레이션 뷰의 상태 표시 (D-131) ──────────────────────────────────────
+    inline constexpr const char* SimulationViewPlaying = "simulation_view.playing";
+    inline constexpr const char* SimulationViewStopped = "simulation_view.stopped";
+    inline constexpr const char* SimulationViewNoCanvas = "simulation_view.no_canvas";
+    inline constexpr const char* SimulationViewNoCamera = "simulation_view.no_camera";
+    inline constexpr const char* SimulationViewCameraUnusable = "simulation_view.camera_unusable";
     // `primary` 가 없어 첫 활성 카메라로 그리는데 그런 카메라가 여럿일 때(D-187).
-    inline constexpr const char* GameViewCameraAmbiguous = "game_view.camera_ambiguous";
+    inline constexpr const char* SimulationViewCameraAmbiguous = "simulation_view.camera_ambiguous";
 
     // ── 메뉴 ─────────────────────────────────────────────────────────────
     inline constexpr const char* MenuFile = "menu.file";
@@ -81,7 +81,7 @@ namespace JBro::LocKeys
     inline constexpr const char* MenuSimulationStop = "menu.simulation_stop";
     inline constexpr const char* MenuSimulationPause = "menu.simulation_pause";
     inline constexpr const char* MenuSimulationStep = "menu.simulation_step";
-    inline constexpr const char* MenuSimulationGameDebugDraw = "menu.simulation_game_debug_draw";
+    inline constexpr const char* MenuSimulationViewDebugDraw = "menu.simulation_view_debug_draw";
     inline constexpr const char* MenuSimulationCanvasDebugDraw = "menu.simulation_canvas_debug_draw";
     inline constexpr const char* MenuOpenProject = "menu.open_project";
     inline constexpr const char* MenuWindowEditor = "menu.window_editor";

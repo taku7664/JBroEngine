@@ -105,7 +105,7 @@ namespace JBro
         LayerId  GetDefaultLayer() const;
 
         // **이 캔버스를 지우는 색**이다(D-186, 기존 `inspector.canvas.background_color`).
-        // 캔버스 뷰와 게임 뷰가 이 색으로 지우고, `.jcanvas` 에 `BackgroundColor` 로 적힌다.
+        // 캔버스 뷰와 시뮬레이션 뷰가 이 색으로 지우고, `.jcanvas` 에 `BackgroundColor` 로 적힌다.
         //
         // 렌더러가 아니라 **캔버스가 든다.** 배경은 그 씬이 어떻게 보여야 하는가의 일부라,
         // 밤 장면과 낮 장면이 같은 파일을 열 때마다 서로 다른 색을 요구한다. 렌더러에 두면

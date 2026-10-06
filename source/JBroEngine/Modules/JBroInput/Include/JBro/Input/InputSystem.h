@@ -30,7 +30,7 @@ namespace JBro::System
         InputSystem& operator=(const InputSystem&) = delete;
 
         // 이번 프레임을 연다. 지난 프레임의 눌림·뗌 수, 글자, 이동, 휠을 비우고 이벤트를 순서대로 접는다.
-        // 입력을 받지 않는 프레임(에디터에서 게임 뷰가 포커스를 갖지 않을 때)도 빈 목록으로 불러야 한다 -
+        // 입력을 받지 않는 프레임(에디터에서 시뮬레이션 뷰가 포커스를 갖지 않을 때)도 빈 목록으로 불러야 한다 -
         // 그러지 않으면 지난 프레임의 `IsPressed` 가 남는다. 남은 입력(폴링이 보는 것)도 여기서 이번 프레임 전체로 돌아간다.
         void BeginFrame(JArrayView<InputEvent> events, const InputSurfaceMapping& mapping = {});
 
@@ -84,7 +84,7 @@ namespace JBro::System
         // 플랫폼에서 읽어 접고 진동을 적용한다. 빈 자리는 `GamepadRecheckFrames` 프레임마다만 묻는다 - 빈 자리를 묻는 것이
         // 비싸다. 창이 포커스를 잃었으면 읽지 않고 `ReleaseGamepads` 한다.
         void PollGamepads(IPlatform& platform, Float deltaTime);
-        // 게임이 게임패드를 받지 않는다(포커스 잃음, 에디터의 게임 뷰 밖, 내려감): 눌린 것을 떼고 축을 0 으로, 모터를 멈춘다.
+        // 게임이 게임패드를 받지 않는다(포커스 잃음, 에디터의 시뮬레이션 뷰 밖, 내려감): 눌린 것을 떼고 축을 0 으로, 모터를 멈춘다.
         void ReleaseGamepads(IPlatform& platform);
         // 이번 프레임에 모터에 건 값이다(시험이 본다).
         Float GetAppliedVibration(UInt32 slot, Bool high) const;

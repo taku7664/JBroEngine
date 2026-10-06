@@ -22,8 +22,8 @@ namespace
 {
     // 게임 화면의 해상도다. **에디터 창 크기와 무관하다** - 창을 끌어도 게임이 보는
     // 화면은 그대로여야 하고, 패널에는 비율을 지켜 맞춰 붙인다.
-    constexpr JBro::UInt32 GameViewWidth = 640;
-    constexpr JBro::UInt32 GameViewHeight = 360;
+    constexpr JBro::UInt32 SimulationViewWidth = 640;
+    constexpr JBro::UInt32 SimulationViewHeight = 360;
 
     // 종료 코드다. 런처가 이 값으로 무엇이 틀어졌는지 구분한다(D-97).
     // 사람이 읽을 사유는 표준 출력으로도 같이 나간다.
@@ -339,7 +339,7 @@ int main(int argumentCount, char** arguments)
         }
     }
 
-    if (false == editor.EnableEditorUi({GameViewWidth, GameViewHeight}))
+    if (false == editor.EnableEditorUi({SimulationViewWidth, SimulationViewHeight}))
     {
         std::printf("the editor UI could not start\n");
         editor.Shutdown();

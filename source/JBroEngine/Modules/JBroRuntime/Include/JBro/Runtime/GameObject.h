@@ -37,7 +37,7 @@ namespace JBro
     };
 
     // 오브젝트 플래그의 비트다(D-163). 캔버스 파일에 `Flags` 로 적힌다.
-    // `EditorHidden` 은 **에디터의 캔버스 뷰에서만** 감춘다(기존 엔진 `ObjectFlag_EditorHidden`) - 게임 뷰와 게임 실행은
+    // `EditorHidden` 은 **에디터의 캔버스 뷰에서만** 감춘다(기존 엔진 `ObjectFlag_EditorHidden`) - 시뮬레이션 뷰와 게임 실행은
     // 보지 않고, 게임으로 묶을 때(패킹) 파일에서 뺀다.
     inline constexpr UInt32 ObjectFlagEditorHidden = 1u << 0;
     // 패킹할 때 지우는 비트들이다. 에디터에서만 뜻이 있다.

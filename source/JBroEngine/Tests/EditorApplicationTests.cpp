@@ -570,7 +570,7 @@ namespace
         // **이름으로 센다.** 숫자만 재면 패널을 더할 때마다 이 줄을 고치게 되고,
         // 정작 무엇이 빠졌는지는 말해 주지 않는다.
         const char* const expected[] = {
-            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
             "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
         for (const char* title : expected)
         {
@@ -748,7 +748,7 @@ namespace
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
         constexpr JBro::Float Delta = 1.0f / 60.0f;
         const char* const builtins[] = {
-            "CanvasView", "Game", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
+            "CanvasView", "Simulation", "Hierarchy", "Inspector", "Assets", "Stats", "Log",
             "ProjectSettings", "Profiler", "Shortcuts", "EditorSettings"};
         for (const char* name : builtins)
         {
@@ -3191,11 +3191,11 @@ namespace
         editor.Shutdown();
     }
 
-    // **게임 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
+    // **시뮬레이션 뷰는 패널이 보이는 프레임에만 그린다**(D-63). 닫힌 패널 뒤에서 매 프레임 게임을
     // 텍스처에 그릴 이유가 없다. 다시 열면 그 프레임부터 이어진다 - 텍스처는 파기하지 않는다.
-    // **게임 뷰는 카메라가 없는 것과 빈 화면을 가른다**(D-178, 기존 `GameViewNoCamera`).
+    // **시뮬레이션 뷰는 카메라가 없는 것과 빈 화면을 가른다**(D-178, 기존 `SimulationViewNoCamera`).
     // 예전에는 텍스처가 있는지만 보아서, 카메라 없는 검은 화면을 "실행 중" 이라고 말했다.
-    void TestTheGameViewKnowsWhenNoCameraDrew()
+    void TestTheSimulationViewKnowsWhenNoCameraDrew()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -3204,11 +3204,11 @@ namespace
         config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
-            std::cout << "  [skip] no D3D12 device; the game view status not verified" << std::endl;
+            std::cout << "  [skip] no D3D12 device; the simulation view status not verified" << std::endl;
             return;
         }
         JBro::ProjectDescriptor project;
-        constexpr char name[] = "GameViewStatusProbe";
+        constexpr char name[] = "SimulationViewStatusProbe";
         project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
@@ -3254,7 +3254,7 @@ namespace
         editor.Shutdown();
     }
 
-    void TestTheGameViewIsRenderedOnlyWhileItsPanelShows()
+    void TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -3263,11 +3263,11 @@ namespace
         config.windowHeight = WindowHeight;
         if (false == editor.Initialize(config))
         {
-            std::cout << "  [skip] no D3D12 device; game view opt-in not verified" << std::endl;
+            std::cout << "  [skip] no D3D12 device; simulation view opt-in not verified" << std::endl;
             return;
         }
         JBro::ProjectDescriptor project;
-        constexpr char name[] = "GameViewOptInProbe";
+        constexpr char name[] = "SimulationViewOptInProbe";
         project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
         Check(editor.OpenProject(project), "the probe project must open");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
@@ -3278,7 +3278,7 @@ namespace
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eye);
         Check(camera != nullptr, "the probe camera must attach");
         camera->primary = true;
-        // 이 테스트가 재는 것은 **게임 뷰**의 opt-in 이다. 편집 화면은 자기 텍스처에
+        // 이 테스트가 재는 것은 **시뮬레이션 뷰**의 opt-in 이다. 편집 화면은 자기 텍스처에
         // 따로 그려 뷰를 하나 더 내므로(D-130), 세는 것이 섞이지 않게 닫아 둔다.
         if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
         {
@@ -3297,10 +3297,10 @@ namespace
         Check(renderer != nullptr, "the editor must expose its renderer");
         JBro::RendererFrameStats stats = renderer->GetLastFrameStats();
         Check(stats.viewCount == 1 && stats.skippedViewCount == 0,
-            "with the game view panel showing, the camera's view must be recorded");
+            "with the simulation view panel showing, the camera's view must be recorded");
 
-        JBro::EditorPanel* panel = editor.FindPanel("Game");
-        Check(panel != nullptr, "the game view panel must be registered");
+        JBro::EditorPanel* panel = editor.FindPanel("Simulation");
+        Check(panel != nullptr, "the simulation view panel must be registered");
         panel->SetOpen(false);
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
@@ -3309,7 +3309,7 @@ namespace
         stats = renderer->GetLastFrameStats();
         Check(stats.skippedViewCount == 1,
             "with the panel closed the view must be submitted but not recorded");
-        Check(editor.GetGameViewTexture().IsValid(),
+        Check(editor.GetSimulationViewTexture().IsValid(),
             "and the texture must be kept so the picture can continue later");
 
         panel->SetOpen(true);
@@ -3685,10 +3685,10 @@ namespace
     }
 
 
-    // **게임 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-214, 기존 `SetViewportActive`).
-    // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 게임 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
+    // **시뮬레이션 뷰가 포커스를 가진 재생 중에만 게임이 키를 받는다**(D-214, 기존 `SetViewportActive`).
+    // 인스펙터에 글자를 치는 동안 캐릭터가 걸으면 안 되고, 시뮬레이션 뷰를 떠나면 누르고 있던 키가 떼어져야 한다.
     // 게임이 키를 받는 동안 에디터 단축키는 재생 제어만 돈다 - 게임의 Delete 가 선택한 오브젝트를 지우면 안 된다.
-    void TestOnlyTheFocusedGameViewGivesTheGameItsKeys()
+    void TestOnlyTheFocusedSimulationViewGivesTheGameItsKeys()
     {
         JBro::EditorApplication editor;
         JBro::EditorApplicationConfig config;
@@ -3712,9 +3712,9 @@ namespace
         JBro::Canvas* canvas = editor.GetCanvas();
         JBro::GameObject* subject = canvas->CreateObject("Subject");
         editor.SetSelectedObject(subject);
-        JBro::EditorPanel* game = editor.FindPanel("Game");
+        JBro::EditorPanel* game = editor.FindPanel("Simulation");
         JBro::EditorPanel* inspector = editor.FindPanel("Inspector");
-        Check(game != nullptr && inspector != nullptr, "the game view and the inspector are default panels");
+        Check(game != nullptr && inspector != nullptr, "the simulation view and the inspector are default panels");
 
         const auto keyboard = []() -> const JBro::KeyboardState&
         {
@@ -3726,7 +3726,7 @@ namespace
             PostMessageW(hwnd, message, key, up);
         };
 
-        // 재생 전에는 게임 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
+        // 재생 전에는 시뮬레이션 뷰에 포커스가 있어도 게임이 받지 않는다(스크립트가 돌지 않는다).
         // 첫 프레임들은 도크 배치를 잡으며 포커스를 덮는다. 자리가 잡힌 뒤에 포커스를 요청한다.
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
@@ -3735,9 +3735,9 @@ namespace
         game->RequestFocus();
         for (JBro::Int32 frame = 0; frame < 3; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must settle on the game view");
+            Check(editor.Tick(Frame), "the editor must settle on the simulation view");
         }
-        Check(game->IsFocused(), "the stopped game view must hold the focus too, or the next check proves nothing");
+        Check(game->IsFocused(), "the stopped simulation view must hold the focus too, or the next check proves nothing");
         post(WM_KEYDOWN, 'W');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
         Check(false == editor.IsGameReceivingInput(), "a stopped game receives nothing");
@@ -3751,10 +3751,10 @@ namespace
         {
             Check(editor.Tick(Frame), "the playing editor must settle");
         }
-        Check(game->IsFocused(), "the game view must hold the focus it asked for");
+        Check(game->IsFocused(), "the simulation view must hold the focus it asked for");
         post(WM_KEYDOWN, 'W');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
-        Check(editor.IsGameReceivingInput(), "a playing game with the game view focused receives input");
+        Check(editor.IsGameReceivingInput(), "a playing game with the simulation view focused receives input");
         Check(keyboard().IsDown(JBro::Key::W), "and it sees the key being held");
 
         // 게임이 받는 동안 Delete 는 게임의 것이다.
@@ -3772,7 +3772,7 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must tick after moving the focus");
         }
-        Check(false == editor.IsGameReceivingInput(), "leaving the game view stops the game input");
+        Check(false == editor.IsGameReceivingInput(), "leaving the simulation view stops the game input");
         Check(false == keyboard().IsDown(JBro::Key::W), "and the held key is released for the game");
         post(WM_KEYDOWN, 'A');
         Check(editor.Tick(Frame) && editor.Tick(Frame), "the editor must tick");
@@ -5097,7 +5097,7 @@ namespace
         // 기본 패널이 다 있어야 한다. 하나라도 안 붙으면 화면에서 빈 칸이 된다.
         // 어느 것이 있어야 하는지는 `TestThePanelRegistryRefusesWhatItCannotHold` 가 이름으로 잰다.
         Check(editor.GetPanelCount() == 11, "the default panels must be registered");
-        Check(editor.FindPanel("Game") != nullptr, "the game view must be one of them");
+        Check(editor.FindPanel("Simulation") != nullptr, "the simulation view must be one of them");
         Check(editor.FindPanel("Hierarchy") != nullptr, "and the hierarchy");
         Check(editor.FindPanel("Inspector") != nullptr, "and the inspector");
         Check(editor.FindPanel("Stats") != nullptr, "and the stats");
@@ -5319,8 +5319,8 @@ namespace
             "a closed window must stop the editor");
         Check(false == editor.IsEditorUiEnabled(),
             "and the UI must have let go of a device that is already gone");
-        Check(false == editor.GetGameViewTexture().IsValid(),
-            "including its game view texture");
+        Check(false == editor.GetSimulationViewTexture().IsValid(),
+            "including its simulation view texture");
         // 두 번 놓아도 안전해야 한다.
         editor.Shutdown();
     }
@@ -5553,7 +5553,7 @@ namespace
     // **에디터 화면이 실제로 나오는가.** 게임은 텍스처로 가고 백버퍼에는 UI 만 남는다 -
     // 그 프레임은 "게임이 낼 것이 없는" 프레임이기도 해서, 배선이 하나라도 어긋나면
     // 화면이 통째로 검게 남는다. 픽셀을 되읽지 않으면 알 수 없다(D-63).
-    // 세 백엔드에서 돈다(D-107·D-108). 에디터 UI 의 폰트 아틀라스·게임 뷰 텍스처·시저가 백엔드마다
+    // 세 백엔드에서 돈다(D-107·D-108). 에디터 UI 의 폰트 아틀라스·시뮬레이션 뷰 텍스처·시저가 백엔드마다
     // 다른 길을 타므로, 화면이 나오는지는 백엔드마다 봐야 한다.
     void TestTheEditorPaintsItsOwnScreen(JBro::GraphicsApi api)
     {
@@ -5577,14 +5577,14 @@ namespace
         Check(editor.OpenProject(project), "the probe project must open");
 
         Check(false == editor.IsEditorUiEnabled(), "the UI starts off");
-        Check(false == editor.EnableEditorUi({0, 0}), "a game view with no size is refused");
+        Check(false == editor.EnableEditorUi({0, 0}), "a simulation view with no size is refused");
 
-        // 게임 뷰는 창과 다른 크기다. 비율이 다르면 패널 안에서 레터박스가 된다.
+        // 시뮬레이션 뷰는 창과 다른 크기다. 비율이 다르면 패널 안에서 레터박스가 된다.
         constexpr JBro::UInt32 GameWidth = 64;
         constexpr JBro::UInt32 GameHeight = 48;
         Check(editor.EnableEditorUi({GameWidth, GameHeight}), "the editor UI must turn on");
         Check(editor.IsEditorUiEnabled(), "and say so");
-        Check(editor.GetGameViewTexture().IsValid(), "with a game view to draw into");
+        Check(editor.GetSimulationViewTexture().IsValid(), "with a simulation view to draw into");
         Check(false == editor.EnableEditorUi({GameWidth, GameHeight}),
             "turning it on twice must be refused");
 
@@ -5603,9 +5603,9 @@ namespace
         // 텍스처를 거쳐 패널까지 온 것이다.
         camera->clearColor = {0.0f, 0.85f, 0.35f, 1.0f};
 
-        // **가운데 칸은 캔버스 뷰와 게임 뷰가 탭으로 나눠 쓴다**(D-130). 처음 보이는 것은
+        // **가운데 칸은 캔버스 뷰와 시뮬레이션 뷰가 탭으로 나눠 쓴다**(D-130). 처음 보이는 것은
         // 편집 화면이므로, 게임 화면이 텍스처를 거쳐 패널까지 오는지 보려면 이쪽을 닫아
-        // 게임 뷰를 앞으로 내놓는다.
+        // 시뮬레이션 뷰를 앞으로 내놓는다.
         if (JBro::EditorPanel* canvasView = editor.FindPanel("CanvasView"))
         {
             canvasView->SetOpen(false);
@@ -5680,7 +5680,7 @@ namespace
             "the editor panel must cover the window");
         // 패널 제목이 글자로 나온다. 폰트 아틀라스가 안 올라가면 여기서 걸린다.
         Check(bright > 50, "and its text must be on screen");
-        // 게임 뷰는 4:3 이고 패널은 그보다 넓으므로 좌우가 남는다. 그래도 화면의
+        // 시뮬레이션 뷰는 4:3 이고 패널은 그보다 넓으므로 좌우가 남는다. 그래도 화면의
         // 상당 부분이 게임 화면이어야 한다.
         Check(gamePixels > (WindowWidth * WindowHeight) / 4,
             "the game must reach the panel through its texture");
@@ -5692,7 +5692,7 @@ namespace
         const JBro::Float shown = boxWidth / boxHeight;
         const JBro::Float wanted =
             static_cast<JBro::Float>(GameWidth) / static_cast<JBro::Float>(GameHeight);
-        std::cout << "  the game view is " << boxWidth << "x" << boxHeight
+        std::cout << "  the simulation view is " << boxWidth << "x" << boxHeight
             << " (ratio " << shown << ", wanted " << wanted << ")" << std::endl;
         Check(shown > wanted - 0.08f && shown < wanted + 0.08f,
             "and keep its own shape rather than take the panel's");
@@ -5700,8 +5700,8 @@ namespace
         // 꺼지면 게임이 다시 백버퍼로 간다. 남은 GPU 리소스도 함께 놓는다.
         editor.DisableEditorUi();
         Check(false == editor.IsEditorUiEnabled(), "the UI must turn off");
-        Check(false == editor.GetGameViewTexture().IsValid(),
-            "and give its game view texture back");
+        Check(false == editor.GetSimulationViewTexture().IsValid(),
+            "and give its simulation view texture back");
         Check(editor.Tick(1.0f / 60.0f), "the editor must keep ticking without its UI");
 
         editor.Shutdown();
@@ -6047,7 +6047,7 @@ namespace
         {
             Check(editor.Tick(Frame), "the editor must settle before the gizmo appears");
         }
-        // **기즈모는 캔버스 뷰에 있다**(D-130·D-131). 게임 뷰는 시뮬레이션 화면이라
+        // **기즈모는 캔버스 뷰에 있다**(D-130·D-131). 시뮬레이션 뷰는 시뮬레이션 화면이라
         // 손잡이도 피킹도 없다 - 기존 엔진의 `CGameViewTool` 과 같다.
         ImGuiWindow* game = ImGui::FindWindowByName("CanvasView");
         Check(game != nullptr, "the canvas view window must exist");
@@ -6293,7 +6293,7 @@ namespace
     }
 
     // **멈춘 게임을 한 프레임씩 본다**(D-242, 기존 엔진에 없던 것). 한 프레임 진행은 멈춘 동안만 되고, 떨어지는 상자를 고정 스텝
-    // 한 번만큼만 움직인다. 디버그 선의 두 토글(게임 뷰·캔버스 뷰)은 처음에 켜져 있고 게임 뷰의 것은 엔진에 닿는다(D-243).
+    // 한 번만큼만 움직인다. 디버그 선의 두 토글(시뮬레이션 뷰·캔버스 뷰)은 처음에 켜져 있고 시뮬레이션 뷰의 것은 엔진에 닿는다(D-243).
     void TestSteppingAPausedGameAndTheDebugLineToggles()
     {
         JBro::EditorApplication editor;
@@ -6351,10 +6351,10 @@ namespace
         Check(editor.Tick(Frame) && transform->position.y == steppedTo, "and the frame after it is paused again");
         Check(editor.IsSimulationPaused(), "stepping does not resume the game");
 
-        Check(editor.IsGameViewDebugDrawVisible() && editor.IsCanvasViewDebugDrawVisible(), "both debug line toggles start on");
-        Check(editor.GetDebugDraw() != nullptr && editor.GetDebugDraw()->IsGameViewVisible(), "and the game view's reaches the engine");
-        editor.SetGameViewDebugDraw(false);
-        Check(false == editor.GetDebugDraw()->IsGameViewVisible(), "turning it off hides the lines in the game view");
+        Check(editor.IsSimulationViewDebugDrawVisible() && editor.IsCanvasViewDebugDrawVisible(), "both debug line toggles start on");
+        Check(editor.GetDebugDraw() != nullptr && editor.GetDebugDraw()->IsSimulationViewVisible(), "and the simulation view's reaches the engine");
+        editor.SetSimulationViewDebugDraw(false);
+        Check(false == editor.GetDebugDraw()->IsSimulationViewVisible(), "turning it off hides the lines in the simulation view");
         editor.SetCanvasViewDebugDraw(false);
         Check(false == editor.IsCanvasViewDebugDrawVisible(), "the canvas view keeps its own toggle");
 
@@ -6390,21 +6390,21 @@ namespace
         transform->position = JBro::Vector2{3.0f, 4.0f};
         Check(editor.Tick(Frame), "the editor must tick before play");
 
-        // **게임 뷰를 뒤로 보내 두고 재생한다**(D-178, 기존도 재생에서 앞으로 가져왔다).
+        // **시뮬레이션 뷰를 뒤로 보내 두고 재생한다**(D-178, 기존도 재생에서 앞으로 가져왔다).
         // 캔버스 뷰와 탭으로 겹쳐 있으면 재생을 눌러도 화면이 그대로라 아무 일도 없는 것처럼 보인다.
-        JBro::EditorPanel* gameView = editor.FindPanel("Game");
-        Check(gameView != nullptr, "the game view must exist");
-        gameView->SetOpen(false);
-        Check(editor.Tick(Frame), "the editor must tick with the game view closed");
+        JBro::EditorPanel* simulationView = editor.FindPanel("Simulation");
+        Check(simulationView != nullptr, "the simulation view must exist");
+        simulationView->SetOpen(false);
+        Check(editor.Tick(Frame), "the editor must tick with the simulation view closed");
 
         Check(editor.StartSimulation(), "play must start");
         Check(editor.IsSimulationPlaying(), "and say so");
-        Check(gameView->IsOpen(), "starting play must bring the game view back");
+        Check(simulationView->IsOpen(), "starting play must bring the simulation view back");
         for (JBro::Int32 frame = 0; frame < 2; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must tick after play started");
         }
-        if (ImGuiWindow* window = ImGui::FindWindowByName("Game"))
+        if (ImGuiWindow* window = ImGui::FindWindowByName("Simulation"))
         {
             Check(window->Active, "and that window must be the one in front of its tabs");
         }
@@ -6565,10 +6565,10 @@ namespace
             "and the editor must know which dimension it is in");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
 
-        // 게임 뷰는 닫아 둔다. 그래야 남는 뷰가 편집 화면의 것 하나뿐이다.
-        if (JBro::EditorPanel* gameView = editor.FindPanel("Game"))
+        // 시뮬레이션 뷰는 닫아 둔다. 그래야 남는 뷰가 편집 화면의 것 하나뿐이다.
+        if (JBro::EditorPanel* simulationView = editor.FindPanel("Simulation"))
         {
-            gameView->SetOpen(false);
+            simulationView->SetOpen(false);
         }
         for (JBro::Int32 frame = 0; frame < 4; ++frame)
         {
@@ -9405,6 +9405,15 @@ namespace
                 TempPath("JBroSessionProbe\\Session.jproject.layout.ini");
             Check(std::filesystem::exists(std::filesystem::path(layoutPath.c_str())),
                 "the window layout is written beside the project file");
+            // **옛 배치의 게임 뷰를 시뮬레이션 뷰로 읽는다**(D-295). 시뮬레이션 뷰가 `Game` 으로 적혀 있던 때의 파일로 되돌려 둔다.
+            std::ifstream layoutIn(std::filesystem::path(layoutPath.c_str()), std::ios::binary);
+            std::string layout((std::istreambuf_iterator<char>(layoutIn)), std::istreambuf_iterator<char>());
+            layoutIn.close();
+            const std::size_t at = layout.find("[Window][Simulation]");
+            Check(at != std::string::npos, "the layout names the simulation view by its kind");
+            layout.replace(at, std::strlen("[Window][Simulation]"), "[Window][Game]");
+            std::ofstream layoutOut(std::filesystem::path(layoutPath.c_str()), std::ios::binary | std::ios::trunc);
+            layoutOut << layout;
         }
 
         {
@@ -9442,6 +9451,9 @@ namespace
                 "the inspector must be docked again");
             Check(std::fabs(inspector->DockNode->Size.x - savedInspectorWidth) < 2.0f,
                 "and the dock keeps the width it was left at");
+            ImGuiWindow* simulation = ImGui::FindWindowByName("Simulation");
+            Check(simulation != nullptr && simulation->DockId != 0,
+                "a layout written when the view was called Game still docks the simulation view");
 
             editor.Shutdown();
         }
@@ -11432,7 +11444,7 @@ namespace
     }
 
     // **레이어 창의 오브젝트 줄 눈 표시는 캔버스 뷰에서만 감춘다**(D-163, 기존 `EditorHidden`). 감춘 것은 캔버스 뷰에
-    // 그려지지도 집히지도 않고, 게임 뷰에는 그대로 나온다. 눈은 커맨드라 되돌릴 수 있다.
+    // 그려지지도 집히지도 않고, 시뮬레이션 뷰에는 그대로 나온다. 눈은 커맨드라 되돌릴 수 있다.
     void TestEditorHiddenObjectsLeaveOnlyTheCanvasView()
     {
         JBro::EditorApplication editor;
@@ -11551,7 +11563,7 @@ namespace
             Check(red != nullptr && red->IsEditorHidden(), "still hidden after the undo");
         }
 
-        // **게임 뷰는 감춘 것을 그대로 그린다.** 감추는 것은 편집을 위한 것이다.
+        // **시뮬레이션 뷰는 감춘 것을 그대로 그린다.** 감추는 것은 편집을 위한 것이다.
         JBro::GameObject* eyeObject = canvas->CreateObject("Camera");
         canvas->AttachComponent<JBro::Component::Transform2D>(eyeObject);
         auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(eyeObject);
@@ -11564,10 +11576,10 @@ namespace
         }
         for (JBro::Int32 frame = 0; frame < 6; ++frame)
         {
-            Check(editor.Tick(Frame), "the editor must show the game view");
+            Check(editor.Tick(Frame), "the editor must show the simulation view");
         }
         Check(red->IsEditorHidden(), "the object is still hidden in the editor");
-        Check(CountRedPixelsIn(*renderer, "Game") > 0, "yet the game view draws it");
+        Check(CountRedPixelsIn(*renderer, "Simulation") > 0, "yet the simulation view draws it");
 
         editor.Shutdown();
     }
@@ -13868,7 +13880,7 @@ namespace
     }
 
     // **그릴 수 없는 카메라가 있어도 에디터는 돈다**(D-239). 그 전에는 크기 0 인 카메라 하나로 첫 프레임에 꺼졌다(실제 에디터 실측).
-    // 게임 뷰는 까닭을 말할 수 있어야 하고, `PixelPerfect` 면 게임 화면 기준에 레터박스가 걸린다.
+    // 시뮬레이션 뷰는 까닭을 말할 수 있어야 하고, `PixelPerfect` 면 게임 화면 기준에 레터박스가 걸린다.
     void TestAnUndrawableCameraKeepsTheEditorRunning()
     {
         JBro::EditorApplication editor;
@@ -13902,7 +13914,7 @@ namespace
             Check(editor.Tick(Frame), "a camera that cannot draw must not stop the editor");
         }
         Check(editor.GetUnusableGameCameraCount() == 1 && editor.GetGameCamera2D() == nullptr,
-            "the game view knows a camera was skipped, so it can say why instead of 'no camera'");
+            "the simulation view knows a camera was skipped, so it can say why instead of 'no camera'");
         Check(false == editor.DidGameSubmitLastFrame(), "and the game drew nothing with it");
 
         camera->nearPlane = 50.0f;
@@ -13936,7 +13948,7 @@ namespace
                 && screen.areaX >= 0.0f && screen.areaY >= 0.0f
                 && screen.areaX + screen.areaWidth <= screen.targetWidth + 0.001f
                 && screen.areaY + screen.areaHeight <= screen.targetHeight + 0.001f,
-            "the game screen frame carries the letterbox rectangle, inside the game view");
+            "the game screen frame carries the letterbox rectangle, inside the simulation view");
         const JBro::Float aspect = screen.areaWidth / screen.areaHeight;
         const JBro::Float reference = screen.referenceWidth / screen.referenceHeight;
         Check(std::fabs(aspect - reference) < 0.02f, "the rectangle keeps the reference resolution's shape");
@@ -14158,8 +14170,8 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheInspectorEditsPolygonColliderPoints();
     TestAPairElementDragsAsADeltaOnEveryChosenList();
     TestAVectorFieldEditsThroughACommand();
-    TestTheGameViewKnowsWhenNoCameraDrew();
-    TestTheGameViewIsRenderedOnlyWhileItsPanelShows();
+    TestTheSimulationViewKnowsWhenNoCameraDrew();
+    TestTheSimulationViewIsRenderedOnlyWhileItsPanelShows();
     TestDraggingTheGizmoMovesTheSelectionUnderOneUndo();
     TestPopupsOpenOneAtATimeAndCloseByHandle();
     TestSavingAsksForAPathOnceAndReportsFailure();
@@ -14174,7 +14186,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestDraggingAStructElementReordersEveryChosenList();
     TestFlagCountAndToneElementsEditByMouseOnEveryChosenList();
     TestTypingTheSameValueLeavesNothingToUndo();
-    TestOnlyTheFocusedGameViewGivesTheGameItsKeys();
+    TestOnlyTheFocusedSimulationViewGivesTheGameItsKeys();
     TestTheAssetFieldPicksARegisteredSprite();
     TestTheInspectorPreviewsAudioAndPicksABus();
     TestTheAudioSettingsAndMetersDraw();

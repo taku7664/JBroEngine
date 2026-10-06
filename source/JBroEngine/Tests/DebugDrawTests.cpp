@@ -461,12 +461,12 @@ namespace
             frameTarget.texture = target;
             frameTarget.extent = {TargetWidth, TargetHeight};
             Check(renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
-            Check(framework.Render() == JBro::RenderResult::Submitted, "the game view must submit");
+            Check(framework.Render() == JBro::RenderResult::Submitted, "the simulation view must submit");
             Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must finish");
             Read();
         }
 
-        // 편집 카메라로 타깃에 그린다(게임 뷰는 백버퍼로 간다).
+        // 편집 카메라로 타깃에 그린다(시뮬레이션 뷰는 백버퍼로 간다).
         void RenderEditor(JBro::IFramework& framework, const JBro::EditorViewDesc& view)
         {
             Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
@@ -533,7 +533,7 @@ namespace
         JBro::Testing::AttachClock(context);
         JBro::System::DebugDrawSystem store;
         store.Initialize(256, &JBro::Testing::SharedClock());
-        store.SetGameViewVisible(true);
+        store.SetSimulationViewVisible(true);
         const BoundStore bound(store);
         context.renderer = &stage.renderer;
         context.debugDraw = &store;
@@ -559,17 +559,17 @@ namespace
         stage.RenderGame(framework);
         const auto red = [](const Pixel& pixel) { return IsRed(pixel); };
         const JBro::UInt32 gameRows = stage.CountRows(TargetWidth / 2, red);
-        std::cout << "  a 3 px 2D line covers " << gameRows << " rows in the game view" << std::endl;
-        Check(gameRows >= 2 && gameRows <= 4, "a 3 px line must cover about three rows of the game view");
+        std::cout << "  a 3 px 2D line covers " << gameRows << " rows in the simulation view" << std::endl;
+        Check(gameRows >= 2 && gameRows <= 4, "a 3 px line must cover about three rows of the simulation view");
         Check(IsRed(ReadPixel(stage.image, stage.readback.rowPitch, TargetWidth / 2, TargetHeight / 2 - 4)),
             "at y = 0.5, four pixels above the middle");
         Check(false == IsRed(ReadPixel(stage.image, stage.readback.rowPitch, 10, TargetHeight / 2 - 4)),
             "and ending at x = -3, 24 pixels from the middle");
 
-        store.SetGameViewVisible(false);
+        store.SetSimulationViewVisible(false);
         drawFrame();
         stage.RenderGame(framework);
-        Check(stage.CountRows(TargetWidth / 2, red) == 0, "a hidden game view draws no debug lines");
+        Check(stage.CountRows(TargetWidth / 2, red) == 0, "a hidden simulation view draws no debug lines");
 
         JBro::EditorViewDesc view;
         view.target = stage.target;
@@ -608,7 +608,7 @@ namespace
         JBro::Testing::AttachClock(context);
         JBro::System::DebugDrawSystem store;
         store.Initialize(256, &JBro::Testing::SharedClock());
-        store.SetGameViewVisible(true);
+        store.SetSimulationViewVisible(true);
         const BoundStore bound(store);
         context.renderer = &stage.renderer;
         context.debugDraw = &store;
