@@ -54,6 +54,8 @@ namespace JBro::Component
         JBRO_FIELD(Float, letterSpacing) = 0.0f;
         JBRO_FIELD(Color, color) = { 1.0f, 1.0f, 1.0f, 1.0f };
         JBRO_FIELD(Int32, renderOrder) = 0;
+        // 같은 레이어·같은 `renderOrder` 끼리의 그리는 차례다(D-296). `SpriteRenderer2D::drawSequence` 와 같다.
+        JBRO_FIELD(Int32, drawSequence, Hidden()) = 0;
         JBRO_FIELD(Bool, visible) = true;
         // 외곽선이다(폰트가 `Sdf` 일 때만, 4 단계). 폭은 **글자 픽셀**이라 카메라를 빼도 글자와 외곽선의 비가 같다. 폰트의 퍼짐보다
         // 굵게 주면 퍼짐까지로 자른다 - 넘으면 글자마다 네모가 칠해지던 기존 엔진의 결함(text-plan §1.2 의 7 번)을 막는다.

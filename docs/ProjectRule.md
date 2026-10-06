@@ -53,7 +53,8 @@
   재질의 자료 모델은 `{ Shader 에셋, 파라미터 블록, 텍스처 슬롯 }` 이고 빌트인 셰이더도 Shader 에셋이다. (D-111)
 - 정상 렌더 프레임 경로는 일반 힙 할당, 문자열 생성·비교, `WaitIdle` 호출을 하지 않아야 한다. (MUST)
 - 2D 스프라이트 정렬은 아이템이 아니라 `(키, 인덱스)` 를 옮긴다. 키는 레이어 순서가 최상위이고,
-  그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `sourceId` 로, 그것도 같으면 제출 번호로 안정화한다(한 텍스트의 글자들, D-215). (MUST)
+  그 아래에 부호를 옮긴 `renderOrder` 가 온다. 같은 키일 때만 아이템의 `drawSequence`(같은 레이어·같은 `renderOrder` 끼리의 저작한 차례, D-296)로,
+  그다음 `sourceId` 로, 그것도 같으면 제출 번호로 안정화한다(한 텍스트의 글자들, D-215). (MUST)
   그리는 순서는 `GetSprite(drawIndex)` 로, 제출된 순서는 `GetSubmittedSprites()` 로 읽는다.
 - 2D 스프라이트 패킷(`SpriteSubmit`)과 GPU 인스턴스의 변환은 `Matrix4x4`가 아니라 **아핀 6개 + 깊이 1개**를
   담는 `SpriteTransform2D { float linear[4]; float translation[2]; float depth; }`(28B)로 전달한다. (MUST)
@@ -742,7 +743,7 @@
   `Array`·`Table`의 할당기 정책은 인스턴스를 가질 수 있어야 하며 기본 `HeapAllocator`는 빈 타입으로 유지한다. (MUST) (D-52)
 - `Ref<T>::Get()`은 캐시 슬롯이 살아 있고 세대만 다르면 확정 사망으로 단락하며 해시 조회로 떨어지지 않는다.
   `Table<InstanceId, …>`는 항등 해시를 쓴다. (MUST) (D-54)
-- 렌더 정렬은 `(uint64 key, uint32 index)` 배열을 정렬하고 아이템은 제자리에 둔다. 키는 `(layerOrder, renderOrder, sourceId)` 패킹이다. (MUST) (D-46, D-54)
+- 렌더 정렬은 `(uint64 key, uint32 index)` 배열을 정렬하고 아이템은 제자리에 둔다. 키는 `(layerOrder, renderOrder)` 패킹이고, 키가 같으면 `drawSequence` → `sourceId` → 제출 번호로 견준다. (MUST) (D-46, D-54, D-296)
 - 컴포넌트 저장소의 요소 주소 안정성처럼 상위 코드가 기대는 성질은 계약으로 문서화하고 테스트로 고정한다. (MUST)
 - 캔버스의 에셋 해석(`xxxId` → `xxx`)은 `IFramework::BindCanvasAssets` 가 한다. 호스트·에디터는 캔버스를 읽은 뒤 그것을
   부르고 캔버스를 직접 걷지 않는다. 게임 호스트의 인자는 `--project`·`--canvas` 이고 모르는 인자는 오류다. (MUST) (D-115)

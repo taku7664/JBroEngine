@@ -47,6 +47,8 @@ namespace JBro
         Vector2          pivot;
         Vector2          size;
         Int32  renderOrder = 0;
+        // 같은 레이어·같은 `renderOrder` 끼리의 차례다(D-296). 키에 넣지 않고 키가 같을 때 견준다 - 키의 예약 16 비트로는 스크립트가 준 값이 넘친다.
+        Int32  drawSequence = 0;
         // 텍스처 알파를 거리장으로 읽는 SDF 글자다(4 단계). 참이면 외곽선 색과 외곽선이 끝나는 거리값을 쓴다. 렌더러 패킷과 같은 정규화
         // 정수다(`SpriteSubmit`) - 아이템을 정렬 뒤 옮기는 비용을 스프라이트에 물리지 않는다.
         Bool          sdfText = false;

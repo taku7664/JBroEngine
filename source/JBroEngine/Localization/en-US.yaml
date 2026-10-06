@@ -152,6 +152,9 @@ Entries:
   blocked.last_layer: a canvas needs at least one layer
   blocked.no_parent: the object has no parent
   blocked.panel_not_open: the window this works in is not open
+  blocked.no_drawing: there is no SpriteRenderer2D or Text2D to order
+  blocked.already_front: it is already drawn in front
+  blocked.already_back: it is already drawn at the back
   command_palette.title: Command Palette
   command_palette.search_hint: Search by name or key
   command_palette.no_match: No commands match
@@ -409,6 +412,11 @@ Entries:
   inspector.camera_ppu_unused: Used only by PixelPerfect.
   inspector.sprite_ppu_mismatch: "This sprite's pixelsPerUnit differs from the PixelPerfect camera, so its pixels do not line up."
   hierarchy.paste_as_child: Paste As Child
+  hierarchy.draw_order: Order
+  hierarchy.bring_forward: Bring Forward
+  hierarchy.bring_to_front: Bring to Front
+  hierarchy.send_backward: Send Backward
+  hierarchy.send_to_back: Send to Back
   panel.editor_settings: Editor Settings
   menu.settings_editor: Editor Settings
   editor_settings.shortcuts: Shortcuts

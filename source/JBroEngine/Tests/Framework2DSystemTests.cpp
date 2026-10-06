@@ -635,6 +635,26 @@ namespace
                 "sprites with an identical key must order by sourceId");
         }
 
+        // **같은 키면 `drawSequence` 가 sourceId 보다 먼저다**(D-296). 에디터의 "앞으로 가져오기" 가 쓰는 값이다 -
+        // 나중에 만든 것(큰 sourceId)이라도 차례가 작으면 아래에 그린다.
+        renderWorld.BeginFrame();
+        const JBro::InstanceId sequencedIds[] = {10, 20, 30};
+        const JBro::Int32 sequences[] = {0, -2, -1};
+        for (std::size_t index = 0; index < 3; ++index)
+        {
+            JBro::SpriteRenderItem item;
+            item.owner = first;
+            item.sourceId = sequencedIds[index];
+            item.layerOrder = 3;
+            item.renderOrder = 7;
+            item.drawSequence = sequences[index];
+            Check(renderWorld.SubmitSprite(item), "draw sequence probe must submit");
+        }
+        renderWorld.EndFrame();
+        Check(renderWorld.GetSprite(0).sourceId == 20 && renderWorld.GetSprite(1).sourceId == 30
+                && renderWorld.GetSprite(2).sourceId == 10,
+            "within one key the draw sequence orders the sprites before their ids do");
+
         renderWorld.BeginFrame();
         Check(renderWorld.GetCamera() == nullptr, "new render frame must clear its camera");
         Check(renderWorld.GetSpriteCount() == 0, "new render frame must clear sprite count");

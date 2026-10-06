@@ -111,7 +111,13 @@ namespace JBro
             {
                 return left.key < right.key;
             }
-            // 키가 같을 때만 아이템을 만진다. 생성 시각 순인 sourceId 로 안정화한다.
+            // 키가 같을 때만 아이템을 만진다. 먼저 저작한 차례(`drawSequence`, D-296), 그다음 생성 시각 순인 sourceId 로 안정화한다.
+            const Int32 leftSequence = items[left.index].drawSequence;
+            const Int32 rightSequence = items[right.index].drawSequence;
+            if (leftSequence != rightSequence)
+            {
+                return leftSequence < rightSequence;
+            }
             const InstanceId leftSource = items[left.index].sourceId;
             const InstanceId rightSource = items[right.index].sourceId;
             if (leftSource != rightSource)

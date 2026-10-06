@@ -1831,6 +1831,11 @@ namespace JBro
             {
                 continue;
             }
+            // 숨긴 필드는 줄을 두지 않는다(D-296). 저장은 되고 다른 손짓이 고친다.
+            if (property.edit != nullptr && false == property.edit->visible)
+            {
+                continue;
+            }
             const char* label = property.edit != nullptr
                     && property.edit->displayName != nullptr
                 ? property.edit->displayName

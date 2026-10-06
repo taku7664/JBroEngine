@@ -329,6 +329,7 @@ namespace JBro::System
         Bool topScreen = false;
         LayerOrder topLayer = 0;
         Int32 topOrder = 0;
+        Int32 topSequence = 0;
         GameObject* hoveredBefore = nullptr;
         GameObject* pressedBefore = nullptr;
         m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
@@ -358,9 +359,11 @@ namespace JBro::System
             const Bool screen = IsScreenLayer(*layer);
             const auto* sprite = m_canvas->FindComponentRaw<Component::SpriteRenderer2D>(owner);
             const Int32 order = sprite != nullptr ? sprite->renderOrder : Int32(0);
+            const Int32 sequence = sprite != nullptr ? sprite->drawSequence : Int32(0);
             const Bool above = top == nullptr || (screen != topScreen ? screen
                 : layer->GetOrder() != topLayer ? Bool(layer->GetOrder() > topLayer)
-                : Bool(order >= topOrder));
+                : order != topOrder ? Bool(order > topOrder)
+                : Bool(sequence >= topSequence));
             if (above)
             {
                 top = owner;
@@ -368,6 +371,7 @@ namespace JBro::System
                 topScreen = screen;
                 topLayer = layer->GetOrder();
                 topOrder = order;
+                topSequence = sequence;
             }
         });
 

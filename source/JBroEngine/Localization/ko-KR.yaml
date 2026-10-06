@@ -152,6 +152,9 @@ Entries:
   blocked.last_layer: 캔버스에는 레이어가 하나 이상 있어야 합니다
   blocked.no_parent: 부모가 없는 오브젝트입니다
   blocked.panel_not_open: 이 기능을 쓰는 창이 열려 있지 않습니다
+  blocked.no_drawing: 순서를 바꿀 SpriteRenderer2D·Text2D 가 없습니다
+  blocked.already_front: 이미 맨 앞에 있습니다
+  blocked.already_back: 이미 맨 뒤에 있습니다
   command_palette.title: 명령 팔레트
   command_palette.search_hint: 이름이나 키로 검색
   command_palette.no_match: 찾는 명령이 없습니다
@@ -409,6 +412,11 @@ Entries:
   inspector.camera_ppu_unused: PixelPerfect 에서만 씁니다.
   inspector.sprite_ppu_mismatch: "이 스프라이트의 pixelsPerUnit 이 PixelPerfect 카메라와 달라 픽셀이 맞지 않습니다."
   hierarchy.paste_as_child: 자식으로 붙여넣기
+  hierarchy.draw_order: 순서
+  hierarchy.bring_forward: 앞으로 가져오기
+  hierarchy.bring_to_front: 맨 앞으로 가져오기
+  hierarchy.send_backward: 뒤로 보내기
+  hierarchy.send_to_back: 맨 뒤로 보내기
   panel.editor_settings: 에디터 설정
   menu.settings_editor: 에디터 설정
   editor_settings.shortcuts: 단축키

@@ -13701,6 +13701,124 @@ namespace
         return nullptr;
     }
 
+    // **같은 레이어·같은 renderOrder 끼리의 그리는 차례를 메뉴로 옮긴다**(D-296). 차례는 숨은 필드 `drawSequence` 이고,
+    // 한 번 옮기면 그 묶음 전체에 맨 위 0 부터 아래로 -1 씩 다시 매긴다. 한 손짓은 커맨드 하나다.
+    void TestBringingAnObjectForwardReordersItsDrawing()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1280;
+        config.windowHeight = 720;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; draw order not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "DrawOrderProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Component::SpriteRenderer2D* sprites[4] = {};
+        JBro::GameObject* objects[4] = {};
+        const char* const names[] = {"A", "B", "C", "Other"};
+        for (JBro::Int32 index = 0; index < 4; ++index)
+        {
+            objects[index] = canvas->CreateObject(names[index]);
+            Check(canvas->AttachComponent<JBro::Component::Transform2D>(objects[index]) != nullptr, "the probe needs a transform");
+            sprites[index] = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(objects[index]);
+            Check(sprites[index] != nullptr, "and a sprite");
+        }
+        // 다른 renderOrder 는 다른 묶음이다.
+        sprites[3]->renderOrder = 5;
+        JBro::GameObject* plain = canvas->CreateObject("Plain");
+        using JBro::EditorActions::DrawOrderMove;
+        const auto sequences = [&](JBro::Int32 sa, JBro::Int32 sb, JBro::Int32 sc) {
+            return sprites[0]->drawSequence == sa && sprites[1]->drawSequence == sb && sprites[2]->drawSequence == sc;
+        };
+
+        // ── 끝에서는 막힌다. 그리는 것이 없으면 막힌다 ─────────────
+        // 차례가 모두 0 이면 만든 차례다 - C 가 맨 위, A 가 맨 아래다.
+        Check(JBro::EditorActions::WhyNoDrawOrder(editor, *objects[2], DrawOrderMove::Forward) != nullptr
+                && JBro::EditorActions::WhyNoDrawOrder(editor, *objects[2], DrawOrderMove::ToFront) != nullptr,
+            "the last made is already in front");
+        Check(JBro::EditorActions::WhyNoDrawOrder(editor, *objects[0], DrawOrderMove::Backward) != nullptr,
+            "the first made is already at the back");
+        Check(JBro::EditorActions::WhyNoDrawOrder(editor, *plain, DrawOrderMove::Forward) != nullptr,
+            "an object with nothing drawn has no order to change");
+
+        // ── 앞으로 한 칸: 바로 위의 하나만 넘는다 ─────────────
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        Check(JBro::EditorActions::MoveDrawOrder(editor, *objects[0], DrawOrderMove::Forward), "A moves forward");
+        Check(sequences(-1, -2, 0), "A passes B but not C, and the group is numbered from 0 at the top");
+        Check(sprites[3]->drawSequence == 0, "a sprite with another render order is not in the group");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "the whole renumbering is one undo");
+        Check(editor.GetCommands().Undo() && sequences(0, 0, 0), "and one undo brings every number back");
+        Check(editor.GetCommands().Redo() && sequences(-1, -2, 0), "redo puts it forward again");
+
+        // ── 맨 뒤로 ─────────────
+        Check(JBro::EditorActions::MoveDrawOrder(editor, *objects[2], DrawOrderMove::ToBack), "C goes to the back");
+        Check(sequences(0, -1, -2), "C is under B, which is under A");
+
+        // ── 메뉴: 계층 줄의 `순서` 하위 메뉴에서 `맨 앞으로 가져오기` ─────────────
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        const char* orderLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyDrawOrder, "Order");
+        const char* frontLabel = JBro::Loc::TextOr(JBro::LocKeys::HierarchyBringToFront, "Bring to Front");
+        Spot row;
+        Check(FindHierarchyRow(editor, hwnd, objects[1], row), "B must have a row");
+        RightClickAt(editor, hwnd, row);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "right-clicking the row must open the object menu");
+        Spot line;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, orderLabel), line),
+            "the object menu must carry the order submenu");
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        ImGuiWindow* submenu = FindSubmenuWindow();
+        Check(submenu != nullptr, "hovering the line must open the order submenu");
+        Spot item;
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, frontLabel), item),
+            "the submenu must offer to bring it to the front");
+        ClickAt(editor, hwnd, item);
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the menu must close");
+        }
+        Check(sequences(-1, 0, -2), "B comes to the front of the group, the others keep their order under it");
+
+        // ── 숨은 필드: 인스펙터에 줄이 없고 파일에는 적힌다 ─────────────
+        const JBro::PropertyTable& table = JBro::GetPropertyTable<JBro::Component::SpriteRenderer2D>();
+        const JBro::PropertyInfo* field = FindProperty(table, "drawSequence");
+        Check(field != nullptr && field->edit != nullptr && false == field->edit->visible && field->serialize,
+            "the draw sequence is saved but not shown");
+        editor.SetSelectedObject(objects[0]);
+        for (JBro::Int32 frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the inspector must settle on A");
+        }
+        Spot cell;
+        Check(FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(table, "renderOrder"), "##value"), cell),
+            "the render order row is in the inspector");
+        Check(false == FindInspectorItem(editor, hwnd, InspectorFieldId(1, FieldIndexOf(table, "drawSequence"), "##value"), cell),
+            "the draw sequence row is not");
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(*canvas, text, error) && text.Contains("drawSequence: -1"),
+            "the canvas file keeps the order");
+
+        editor.Shutdown();
+    }
+
     // **콜라이더 우클릭 메뉴의 "포인트 편집" 은 누른 그 콜라이더를 고친다**(D-220 의 첫 사용처). 도구 막대로 켜면
     // 여전히 첫 폴리곤이다. 폴리곤이 아니면 항목이 회색이다.
     void TestEditPointsFromTheMenuEditsThatCollider()
@@ -14240,6 +14358,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestTheCommandPaletteFindsAndRunsActions();
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();
+    TestBringingAnObjectForwardReordersItsDrawing();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestALayerRowSelectsTheLayerForTheInspector();
     TestLayerAssetsSaveAndLoadInTheEditor();

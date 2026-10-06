@@ -82,6 +82,7 @@ namespace JBro::System
             item.pivot = (resolved && sprite.pivotMode == Component::SpritePivotMode::FromSprite)
                 ? Vector2{ frame.pivotX, frame.pivotY } : sprite.pivot;
             item.renderOrder = sprite.renderOrder;
+            item.drawSequence = sprite.drawSequence;
             if (sprite.flip == Component::SpriteFlip::Horizontal || sprite.flip == Component::SpriteFlip::Both)
             {
                 item.size.x = -item.size.x;

@@ -119,6 +119,7 @@ namespace JBro
         Float       rangeMax    = 0.0f;
         Bool        editable    = true;
         Bool        serialize   = true;
+        Bool        visible     = true;
 
         // 편집 메타데이터가 하나라도 있는지. 없으면 PropertyInfo::edit 를 nullptr 로 두어
         // 게임 빌드가 이 필드의 표시 이름·툴팁을 통째로 건너뛴다.
@@ -128,12 +129,13 @@ namespace JBro
                 || tooltip     != nullptr
                 || category    != nullptr
                 || hasRange
-                || editable == false;
+                || editable == false
+                || visible == false;
         }
     };
 
     // 오른쪽이 이긴다. 같은 어트리뷰트를 두 번 쓰면 나중 것이 남는다.
-    // editable 과 serialize 는 끄는 쪽만 있으므로 둘 중 하나라도 껐으면 꺼진다.
+    // editable·serialize·visible 은 끄는 쪽만 있으므로 둘 중 하나라도 껐으면 꺼진다.
     constexpr FieldAttributes operator|(const FieldAttributes& left, const FieldAttributes& right)
     {
         FieldAttributes merged;
@@ -145,6 +147,7 @@ namespace JBro
         merged.rangeMax    = right.hasRange ? right.rangeMax : left.rangeMax;
         merged.editable    = left.editable  && right.editable;
         merged.serialize   = left.serialize && right.serialize;
+        merged.visible     = left.visible   && right.visible;
         return merged;
     }
 
@@ -196,6 +199,14 @@ namespace JBro
         {
             FieldAttributes attributes;
             attributes.serialize = false;
+            return attributes;
+        }
+
+        // 저장은 하되 인스펙터에 줄을 두지 않는다. 다른 손짓(메뉴)이 고치는 값이다(D-296, `drawSequence`).
+        constexpr FieldAttributes Hidden()
+        {
+            FieldAttributes attributes;
+            attributes.visible = false;
             return attributes;
         }
     }

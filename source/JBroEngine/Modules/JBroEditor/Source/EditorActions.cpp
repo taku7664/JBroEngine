@@ -384,6 +384,15 @@ namespace JBro::EditorActions
         {
             return false;
         }
+        // **그리는 차례**(D-296). 넷을 한 하위 메뉴에 모은다 - 포토샵의 `정돈`, 파워포인트의 `맨 앞으로 가져오기` 하위 메뉴와 같은 자리다.
+        if (Widget::BeginMenu(Loc::TextOr(LocKeys::HierarchyDrawOrder, "Order")))
+        {
+            for (const char* name : { "object.bring_forward", "object.bring_to_front", "object.send_backward", "object.send_to_back" })
+            {
+                DrawRemoving(name, context);
+            }
+            Widget::EndMenu();
+        }
         // 여럿을 고른 채로는 세우지 않는다(D-220) - 어느 오브젝트의 컴포넌트에 대한 항목인지 흐려진다.
         if (editor.GetSelectionCount() == 1 && false == DrawComponentSubmenus(editor, object, placement))
         {

@@ -2938,6 +2938,24 @@ EditorApplication::Tick
   캔버스 뷰 선택·들어가기 표시는 있다. ~~레이어 썸네일은 레이어가 자기 텍스처를 갖지 않아 해당 없음(D-142)~~ → D-288(그 레이어만 따로 그린다), 카메라 컬링
   통계와 GPU 프로파일러 미리보기는 렌더러에 그 수치가 없어 열림이다.
 
+- **D-296. 같은 레이어·같은 `renderOrder` 끼리의 그리는 차례는 숨은 필드 `drawSequence` 이고, 오브젝트 메뉴의 `순서` 가 앞으로·맨 앞으로·뒤로·맨 뒤로 옮긴다.**
+  (2026-10-06, 사용자 지시: "같은 Z오더끼리의 스프라이트 간 앞으로 보내기, 맨 앞으로 보내기 등이 있어야함". 저장 자리는 사용자가 골랐다 - 계층 창 차례를 따르는 안 대신
+  "숨은 순번 필드를 새로 둠". Updates: D-46·D-54(정렬 키가 같을 때 견주는 차례에 `drawSequence` 가 `sourceId` 앞에 선다), ProjectRule §1·§9 의 정렬 조항.)
+  **필드.** `SpriteRenderer2D`·`Text2D` 에 `JBRO_FIELD(Int32, drawSequence, Hidden()) = 0` 이 있다. 저장되고(캔버스 파일에 `drawSequence: -1`) 스크립트에서 읽고 쓸 수 있으며
+  인스펙터에는 줄이 없다. 큰 것이 위다. 정렬 키의 예약 16 비트에 넣지 않고 키가 같을 때 견준다 - 스크립트가 주는 값은 16 비트를 넘는다.
+  **리플렉션.** `Attribute::Hidden()` 을 새로 두었다 - `FieldAttributes::visible`·`PropertyEditInfo::visible` 이 거짓이면 인스펙터가 그 줄을 건너뛴다. 저장(`serialize`)과는 따로다.
+  **차례를 옮기는 규칙**(`EditorActions::MoveDrawOrder`, `Source/DrawOrder.cpp`). 오브젝트의 묶음은 첫 `SpriteRenderer2D`(없으면 첫 `Text2D`)의 레이어와 `renderOrder` 다.
+  같은 레이어에서 그 `renderOrder` 로 그리는 스프라이트·텍스트를 렌더러가 견주는 차례(`drawSequence`, 그다음 컴포넌트 번호)로 세우고, 그 오브젝트의 것들을 한 덩어리로 옮긴다 -
+  앞으로는 바로 위의 남의 것 하나를 넘고, 맨 앞은 묶음의 맨 위다. 옮긴 뒤 **묶음 전체를 맨 위 0, 아래로 -1 씩** 다시 매기고, 바뀐 것만 `SetPropertyCommand` 로 써서
+  `CompoundCommand` 하나로 낸다(되돌리기 한 번). 맨 위가 0 이라 새로 만든 것(0)은 맨 위와 겨뤄 번호가 커서 그 위에 선다 - "나중에 만든 것이 위" 가 순서를 바꾼 뒤에도 그대로다.
+  이미 끝이면 회색이고 까닭(`이미 맨 앞에 있습니다`)을, 그리는 컴포넌트가 없으면 `순서를 바꿀 SpriteRenderer2D·Text2D 가 없습니다` 를 말한다. 여럿을 골랐어도 우클릭한 것(단축키면 주된 선택) 하나만 옮긴다.
+  **행동과 메뉴.** 행동 넷 `object.bring_forward`·`object.bring_to_front`·`object.send_backward`·`object.send_to_back` 이 오브젝트 메뉴의 `순서` 하위 메뉴(복사·붙여넣기 묶음 뒤)에 선다.
+  기본 조합은 포토샵·파워포인트와 같은 Ctrl+] · Ctrl+Shift+] · Ctrl+[ · Ctrl+Shift+[ 다. 버튼 판정(`Button2DSystem`)도 `renderOrder` 다음에 `drawSequence` 를 본다 - 그린 것과 눌리는 것이 같다.
+  캔버스 뷰의 집기는 원래 넓이가 작은 것이 이기는 규칙이라 차례를 보지 않는다(그대로).
+  **시험.** `TestRenderWorldCollection` 에 같은 키에서 `drawSequence` 가 `sourceId` 보다 먼저인 경우를, `TestBringingAnObjectForwardReordersItsDrawing` 에 끝에서 막힘·그리는 것 없음·
+  앞으로 한 칸(바로 위 하나만 넘음, 다른 `renderOrder` 는 그대로)·되돌리기 한 번·맨 뒤로·계층 줄 우클릭 `순서` → `맨 앞으로 가져오기`·인스펙터에 줄 없음·캔버스 파일에 적힘을 넣었다.
+  변이 셋(정렬이 차례를 무시·앞으로 한 칸을 두 칸으로·인스펙터 숨김 빼기)을 잡았다.
+
 - **D-295. 게임 뷰는 시뮬레이션 뷰다 - 화면 글자·로컬라이징 키·패널 종류 이름·클래스·함수·멤버를 모두 바꾼다.**
   (2026-10-06, 사용자 지시: "게임뷰가 아니라 시뮬레이션 뷰임. 이름 다 바꿔. 클래스명도". Updates: D-63·D-130·D-131·D-178·D-214·D-243 의 이름 - 내용은 그대로다.)
   **바뀐 이름.** 패널 `GameViewPanel` → `SimulationViewPanel`(파일도), 패널 종류 이름 `Game` → `Simulation`(`FindPanel`·창 이름), `GameView` 가 든 모든 식별자

@@ -134,6 +134,12 @@ namespace JBro::LocKeys
     inline constexpr const char* HierarchyCopy = "hierarchy.copy";
     inline constexpr const char* HierarchyPaste = "hierarchy.paste";
     inline constexpr const char* HierarchyPasteAsChild = "hierarchy.paste_as_child";
+    // 오브젝트 메뉴의 `순서` 하위 메뉴(D-296). 같은 레이어·같은 renderOrder 끼리의 그리는 차례다.
+    inline constexpr const char* HierarchyDrawOrder = "hierarchy.draw_order";
+    inline constexpr const char* HierarchyBringForward = "hierarchy.bring_forward";
+    inline constexpr const char* HierarchyBringToFront = "hierarchy.bring_to_front";
+    inline constexpr const char* HierarchySendBackward = "hierarchy.send_backward";
+    inline constexpr const char* HierarchySendToBack = "hierarchy.send_to_back";
     inline constexpr const char* HierarchyUnparent = "hierarchy.unparent";
     inline constexpr const char* HierarchyUnnamed = "hierarchy.unnamed";
     inline constexpr const char* HierarchySearch = "hierarchy.search";
@@ -259,6 +265,9 @@ namespace JBro::LocKeys
     inline constexpr const char* BlockedLastLayer = "blocked.last_layer";
     inline constexpr const char* BlockedNoParent = "blocked.no_parent";
     inline constexpr const char* BlockedPanelNotOpen = "blocked.panel_not_open";
+    inline constexpr const char* BlockedNoDrawing = "blocked.no_drawing";
+    inline constexpr const char* BlockedAlreadyFront = "blocked.already_front";
+    inline constexpr const char* BlockedAlreadyBack = "blocked.already_back";
     inline constexpr const char* CommandPaletteTitle = "command_palette.title";
     inline constexpr const char* CommandPaletteSearchHint = "command_palette.search_hint";
     inline constexpr const char* CommandPaletteNoMatch = "command_palette.no_match";
