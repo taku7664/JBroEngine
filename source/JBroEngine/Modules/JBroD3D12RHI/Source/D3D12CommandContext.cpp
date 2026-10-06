@@ -279,6 +279,48 @@ namespace JBro::Internal
         return true;
     }
 
+    bool D3D12CommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
+    {
+        D3D12RenderTargetBinding from;
+        D3D12RenderTargetBinding to;
+        if (m_device == nullptr || m_commandList == nullptr || m_renderPassActive
+            || false == m_device->ResolveRenderTarget(source, from) || false == m_device->ResolveRenderTarget(destination, to)
+            || from.resource == to.resource || from.format != to.format)
+        {
+            return false;
+        }
+        const D3D12_RESOURCE_DESC fromDesc = from.resource->GetDesc();
+        const D3D12_RESOURCE_DESC toDesc = to.resource->GetDesc();
+        if (fromDesc.Width != toDesc.Width || fromDesc.Height != toDesc.Height)
+        {
+            return false;
+        }
+        D3D12_RESOURCE_BARRIER barriers[2] = {};
+        std::uint32_t barrierCount = 0;
+        const auto transition = [&](D3D12RenderTargetBinding& binding, D3D12_RESOURCE_STATES state) {
+            if (*binding.state == state)
+            {
+                return;
+            }
+            D3D12_RESOURCE_BARRIER& barrier = barriers[barrierCount++];
+            barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+            barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+            barrier.Transition.pResource = binding.resource;
+            barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+            barrier.Transition.StateBefore = *binding.state;
+            barrier.Transition.StateAfter = state;
+            *binding.state = state;
+        };
+        transition(from, D3D12_RESOURCE_STATE_COPY_SOURCE);
+        transition(to, D3D12_RESOURCE_STATE_COPY_DEST);
+        if (barrierCount != 0)
+        {
+            m_commandList->ResourceBarrier(barrierCount, barriers);
+        }
+        m_commandList->CopyResource(to.resource, from.resource);
+        return true;
+    }
+
     void D3D12CommandContext::EndRenderPass()
     {
         if (false == m_renderPassActive)

@@ -30,13 +30,25 @@ namespace JBro
 
     // 레이어를 아래에 얹는 방식이다(D-279, 기존 `ELayerBlendMode`). `Normal` 이 아니거나 불투명도가 1 보다 작으면 그 레이어는 제 텍스처에
     // 먼저 그려진 뒤 한 장으로 얹힌다 - 레이어 안의 스프라이트끼리는 보통 알파로 겹치고, 블렌드와 불투명도는 레이어 전체에 한 번 걸린다.
+    // 앞의 넷은 하드웨어 블렌드로 얹고, `Subtract` 부터는 아래 그림을 복사해 셰이더가 포토샵의 식으로 섞는다(D-283). 값의 차례는 파일과
+    // 렌더러의 `CompositeBlend` 가 함께 쓰므로 뒤에만 더한다.
     enum class LayerBlend : std::uint8_t
     {
         Normal,
         Additive,
         Multiply,
         Screen,
+        Subtract,
+        Lighten,
+        Darken,
+        Overlay,
+        SoftLight,
+        HardLight,
+        ColorDodge,
+        ColorBurn,
+        Difference,
     };
+    inline constexpr std::uint32_t LayerBlendCount = 13;
 
     // 파일과 인스펙터의 이름이다. 모르는 이름은 거짓이고 결과를 건드리지 않는다.
     const char* LayerBlendName(LayerBlend blend);

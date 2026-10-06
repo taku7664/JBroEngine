@@ -273,6 +273,15 @@ Entries:
   inspector.layer_blend_additive: Additive
   inspector.layer_blend_multiply: Multiply
   inspector.layer_blend_screen: Screen
+  inspector.layer_blend_subtract: Subtract
+  inspector.layer_blend_lighten: Lighten
+  inspector.layer_blend_darken: Darken
+  inspector.layer_blend_overlay: Overlay
+  inspector.layer_blend_soft_light: Soft Light
+  inspector.layer_blend_hard_light: Hard Light
+  inspector.layer_blend_color_dodge: Color Dodge
+  inspector.layer_blend_color_burn: Color Burn
+  inspector.layer_blend_difference: Difference
   inspector.layer_opacity: Opacity
   inspector.layer_space: Space
   inspector.layer_space_world: World

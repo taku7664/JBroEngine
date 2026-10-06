@@ -77,7 +77,7 @@ namespace
         Check(faded.NeedsComposite(), "so is a layer with a blend other than normal");
         JBro::LayerBlend parsed = JBro::LayerBlend::Normal;
         Check(JBro::ParseLayerBlend("Multiply", parsed) && parsed == JBro::LayerBlend::Multiply
-                && false == JBro::ParseLayerBlend("Overlay", parsed) && parsed == JBro::LayerBlend::Multiply,
+                && false == JBro::ParseLayerBlend("Plasma", parsed) && parsed == JBro::LayerBlend::Multiply,
             "blend names parse, and an unknown one leaves the value alone");
     }
 

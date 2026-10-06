@@ -148,6 +148,42 @@ namespace JBro::Internal
         return true;
     }
 
+    bool VulkanCommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
+    {
+        VulkanDevice::AttachmentView from;
+        VulkanDevice::AttachmentView to;
+        if (m_device == nullptr || m_commands == VK_NULL_HANDLE || m_renderPassActive
+            || false == m_device->ResolveAttachment(source, from) || false == m_device->ResolveAttachment(destination, to)
+            || from.aspect != VK_IMAGE_ASPECT_COLOR_BIT || to.aspect != VK_IMAGE_ASPECT_COLOR_BIT || from.image == to.image
+            || from.extent.width != to.extent.width || from.extent.height != to.extent.height)
+        {
+            return false;
+        }
+        VulkanDevice::TransitionImage(m_commands, from.image, VK_IMAGE_ASPECT_COLOR_BIT, *from.layout,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        *from.layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        // 대상은 통째로 덮으므로 앞의 내용을 지킬 필요가 없다.
+        VulkanDevice::TransitionImage(m_commands, to.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        *to.layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        VkImageCopy region = {};
+        region.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.srcSubresource.layerCount = 1;
+        region.dstSubresource = region.srcSubresource;
+        region.extent = {from.extent.width, from.extent.height, 1};
+        vk.vkCmdCopyImage(m_commands, from.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, to.image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+        // **셰이더가 읽을 사본이면 읽을 레이아웃으로 돌려 둔다.** 렌더 패스 안에서는 레이아웃을 바꿀 수 없어, 그대로 두면 다음 패스의
+        // `SetTexture` 가 거절한다(D3D12·D3D11 은 묶을 때 맞춘다).
+        if (to.sampled)
+        {
+            VulkanDevice::TransitionImage(m_commands, to.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+            *to.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        }
+        return true;
+    }
+
     void VulkanCommandContext::EndRenderPass()
     {
         if (false == m_renderPassActive || m_commands == VK_NULL_HANDLE)

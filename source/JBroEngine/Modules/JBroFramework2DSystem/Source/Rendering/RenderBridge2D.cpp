@@ -123,20 +123,16 @@ namespace JBro::Internal
             bool composite = true;
         };
 
+        // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
+        static_assert(LayerBlendCount == CompositeBlendCount, "the canvas and the renderer list the same blends");
+        static_assert(static_cast<std::uint32_t>(LayerBlend::Screen) == static_cast<std::uint32_t>(CompositeBlend::Screen)
+                && static_cast<std::uint32_t>(LayerBlend::Difference) == static_cast<std::uint32_t>(CompositeBlend::Difference),
+            "in the same order");
+
         CompositeBlend ToCompositeBlend(LayerBlend blend)
         {
-            switch (blend)
-            {
-            case LayerBlend::Additive:
-                return CompositeBlend::Additive;
-            case LayerBlend::Multiply:
-                return CompositeBlend::Multiply;
-            case LayerBlend::Screen:
-                return CompositeBlend::Screen;
-            case LayerBlend::Normal:
-            default:
-                return CompositeBlend::Normal;
-            }
+            const std::uint32_t value = static_cast<std::uint32_t>(blend);
+            return value < CompositeBlendCount ? static_cast<CompositeBlend>(value) : CompositeBlend::Normal;
         }
 
         bool IsSelected(const GameObject* owner, const InstanceId* selection, std::uint32_t count)

@@ -53,20 +53,16 @@ namespace JBro::Internal
 
     namespace
     {
+        // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
+        static_assert(LayerBlendCount == CompositeBlendCount, "the canvas and the renderer list the same blends");
+        static_assert(static_cast<std::uint32_t>(LayerBlend::Screen) == static_cast<std::uint32_t>(CompositeBlend::Screen)
+                && static_cast<std::uint32_t>(LayerBlend::Difference) == static_cast<std::uint32_t>(CompositeBlend::Difference),
+            "in the same order");
+
         CompositeBlend ToCompositeBlend3D(LayerBlend blend)
         {
-            switch (blend)
-            {
-            case LayerBlend::Additive:
-                return CompositeBlend::Additive;
-            case LayerBlend::Multiply:
-                return CompositeBlend::Multiply;
-            case LayerBlend::Screen:
-                return CompositeBlend::Screen;
-            case LayerBlend::Normal:
-            default:
-                return CompositeBlend::Normal;
-            }
+            const std::uint32_t value = static_cast<std::uint32_t>(blend);
+            return value < CompositeBlendCount ? static_cast<CompositeBlend>(value) : CompositeBlend::Normal;
         }
 
         // 모아 둔 메시를 이미 열린 뷰에 밀어 넣는다. 게임 뷰와 캔버스 뷰가 같은 목록을 쓴다.

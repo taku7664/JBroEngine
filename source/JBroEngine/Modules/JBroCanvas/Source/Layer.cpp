@@ -109,6 +109,24 @@ namespace JBro
             return "Multiply";
         case LayerBlend::Screen:
             return "Screen";
+        case LayerBlend::Subtract:
+            return "Subtract";
+        case LayerBlend::Lighten:
+            return "Lighten";
+        case LayerBlend::Darken:
+            return "Darken";
+        case LayerBlend::Overlay:
+            return "Overlay";
+        case LayerBlend::SoftLight:
+            return "SoftLight";
+        case LayerBlend::HardLight:
+            return "HardLight";
+        case LayerBlend::ColorDodge:
+            return "ColorDodge";
+        case LayerBlend::ColorBurn:
+            return "ColorBurn";
+        case LayerBlend::Difference:
+            return "Difference";
         case LayerBlend::Normal:
         default:
             return "Normal";
@@ -121,9 +139,9 @@ namespace JBro
         {
             return false;
         }
-        const LayerBlend blends[] = {LayerBlend::Normal, LayerBlend::Additive, LayerBlend::Multiply, LayerBlend::Screen};
-        for (const LayerBlend candidate : blends)
+        for (std::uint32_t at = 0; at < LayerBlendCount; ++at)
         {
+            const LayerBlend candidate = static_cast<LayerBlend>(at);
             if (std::strcmp(name, LayerBlendName(candidate)) == 0)
             {
                 blend = candidate;

@@ -49,6 +49,7 @@ namespace JBro::Internal
             std::uint32_t firstIndex,
             std::int32_t baseVertex,
             std::uint32_t firstInstance) override;
+        bool CopyTexture(TextureHandle source, TextureHandle destination) override;
 
         bool IsRenderPassActive() const
         {

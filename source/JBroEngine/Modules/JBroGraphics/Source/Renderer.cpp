@@ -1,5 +1,6 @@
 ﻿#include <JBro/Graphics/Renderer.h>
 
+#include "BuiltinLayerBackdropPS.generated.h"
 #include "BuiltinLayerCompositePS.generated.h"
 #include "BuiltinMeshPS.generated.h"
 #include "BuiltinMeshVS.generated.h"
@@ -18,6 +19,7 @@
 namespace JBro::Sm5
 {
     using BYTE = unsigned char;
+#include "BuiltinLayerBackdropPS_SM5.generated.h"
 #include "BuiltinLayerCompositePS_SM5.generated.h"
 #include "BuiltinMeshPS_SM5.generated.h"
 #include "BuiltinMeshVS_SM5.generated.h"
@@ -35,6 +37,7 @@ namespace JBro::Sm5
 // Vulkan 은 SPIR-V 를 읽는다(D-108). Vulkan SDK 의 dxc 가 같은 HLSL 을 `-spirv` 로 구운 것이다.
 namespace JBro::Spv
 {
+#include "BuiltinLayerBackdropPS_SPV.generated.h"
 #include "BuiltinLayerCompositePS_SPV.generated.h"
 #include "BuiltinMeshPS_SPV.generated.h"
 #include "BuiltinMeshVS_SPV.generated.h"
@@ -1084,6 +1087,11 @@ namespace JBro
             if (wantsComposite)
             {
                 viewLayer = FindLayerTarget(extent);
+                // 아래 그림을 읽는 블렌드면 사본 자리도 같은 프레임에 바란다 - 그래야 둘째 프레임부터 제 식으로 얹힌다(D-283).
+                if (static_cast<std::uint32_t>(view.camera.composite) >= FirstBackdropBlend)
+                {
+                    FindLayerTarget(extent, LayerTargetRole::Backdrop);
+                }
                 if (false == viewLayer.IsValid())
                 {
                     ++m_currentStats.uncompositedLayerCount;
@@ -1233,7 +1241,7 @@ namespace JBro
                         if (activeGroup != NoLayerGroup)
                         {
                             m_frame.commands->EndRenderPass();
-                            if (false == RecordLayerComposite(m_layerGroups[activeGroup], layerTexture, target, viewport, scissor))
+                            if (false == RecordLayerComposite(m_layerGroups[activeGroup], layerTexture, target, extent, viewport, scissor))
                             {
                                 return false;
                             }
@@ -1243,6 +1251,10 @@ namespace JBro
                         if (group != NoLayerGroup && group != plainGroup)
                         {
                             layerTexture = FindLayerTarget(extent);
+                            if (static_cast<std::uint32_t>(m_layerGroups[group].blend) >= FirstBackdropBlend)
+                            {
+                                FindLayerTarget(extent, LayerTargetRole::Backdrop);
+                            }
                             if (layerTexture.IsValid())
                             {
                                 m_frame.commands->EndRenderPass();
@@ -1292,7 +1304,7 @@ namespace JBro
                 if (activeGroup != NoLayerGroup)
                 {
                     m_frame.commands->EndRenderPass();
-                    if (false == RecordLayerComposite(m_layerGroups[activeGroup], layerTexture, target, viewport, scissor))
+                    if (false == RecordLayerComposite(m_layerGroups[activeGroup], layerTexture, target, extent, viewport, scissor))
                     {
                         return false;
                     }
@@ -1386,7 +1398,7 @@ namespace JBro
                 LayerGroup whole;
                 whole.blend = view.camera.composite;
                 whole.opacity = view.camera.compositeOpacity;
-                if (false == RecordLayerComposite(whole, viewLayer, target, viewport, scissor))
+                if (false == RecordLayerComposite(whole, viewLayer, target, extent, viewport, scissor))
                 {
                     return false;
                 }
@@ -1454,11 +1466,30 @@ namespace JBro
             && pass(target, LoadOperation::Load, m_outlineCompositePipeline, camera.outlineScratch, camera.outlineMask);
     }
 
-    bool Renderer::RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Viewport& viewport,
-        const ScissorRect& scissor)
+    bool Renderer::RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
+        const Viewport& viewport, const ScissorRect& scissor)
     {
         // 화면을 덮는 사각형 하나다. 레이어 텍스처는 미리 곱한 색이라 `Layer*` 블렌드로 얹고, 불투명도는 색과 알파에 함께 곱한다.
-        const float constants[4] = {group.opacity, 0.0f, 0.0f, 0.0f};
+        // 아래 그림을 읽는 블렌드는 타깃을 복사해 두고, 셰이더가 둘을 섞어 그 자리를 덮어쓴다(D-283).
+        const std::uint32_t blend = static_cast<std::uint32_t>(group.blend);
+        GraphicsPipelineHandle pipeline = m_layerCompositePipelines[blend < FirstBackdropBlend ? blend : 0];
+        TextureHandle backdrop;
+        if (blend >= FirstBackdropBlend && blend < CompositeBlendCount)
+        {
+            backdrop = FindLayerTarget(extent, LayerTargetRole::Backdrop);
+            if (backdrop.IsValid() && m_frame.commands->CopyTexture(target, backdrop))
+            {
+                pipeline = m_layerBackdropPipeline;
+            }
+            else
+            {
+                // 복사할 자리가 다음 프레임에 선다. 이 프레임은 표준으로 얹는다.
+                backdrop = {};
+                ++m_currentStats.uncompositedLayerCount;
+            }
+        }
+        const float constants[4] = {
+            group.opacity, backdrop.IsValid() ? static_cast<float>(blend - FirstBackdropBlend) : 0.0f, 0.0f, 0.0f};
         ColorAttachmentDesc color;
         color.texture = target;
         color.loadOperation = LoadOperation::Load;
@@ -1471,13 +1502,13 @@ namespace JBro
         }
         m_frame.commands->SetViewport(viewport);
         m_frame.commands->SetScissor(scissor);
-        const GraphicsPipelineHandle pipeline = m_layerCompositePipelines[static_cast<std::size_t>(group.blend) & 3u];
         if (false == m_frame.commands->SetGraphicsPipeline(pipeline)
             || false == m_frame.commands->SetGraphicsConstants(
                 {reinterpret_cast<const std::byte*>(constants), sizeof(constants)})
             || false == m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, sizeof(float) * 2, 0)
             || false == m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
             || false == m_frame.commands->SetTexture(0, layer)
+            || (backdrop.IsValid() && false == m_frame.commands->SetTexture(1, backdrop))
             || false == m_frame.commands->SetSampler(0, m_nearestSampler)
             || false == m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, 0))
         {
@@ -1487,11 +1518,11 @@ namespace JBro
         return true;
     }
 
-    TextureHandle Renderer::FindLayerTarget(const Extent2D& extent)
+    TextureHandle Renderer::FindLayerTarget(const Extent2D& extent, LayerTargetRole role)
     {
         for (LayerTarget& slot : m_layerTargets)
         {
-            if (slot.texture.IsValid() && slot.extent.width == extent.width && slot.extent.height == extent.height)
+            if (slot.texture.IsValid() && slot.role == role && slot.extent.width == extent.width && slot.extent.height == extent.height)
             {
                 slot.idleFrames = 0;
                 return slot.texture;
@@ -1499,14 +1530,15 @@ namespace JBro
         }
         for (std::size_t at = 0; at < m_layerTargetWantCount; ++at)
         {
-            if (m_layerTargetWants[at].width == extent.width && m_layerTargetWants[at].height == extent.height)
+            const LayerTargetWant& want = m_layerTargetWants[at];
+            if (want.role == role && want.extent.width == extent.width && want.extent.height == extent.height)
             {
                 return {};
             }
         }
         if (m_layerTargetWantCount < MaxLayerTargets)
         {
-            m_layerTargetWants[m_layerTargetWantCount++] = extent;
+            m_layerTargetWants[m_layerTargetWantCount++] = {extent, role};
         }
         return {};
     }
@@ -1553,11 +1585,12 @@ namespace JBro
                 *chosen = {};
             }
             TextureDesc desc;
-            desc.extent = m_layerTargetWants[want];
+            desc.extent = m_layerTargetWants[want].extent;
             desc.format = m_config.backBufferFormat;
-            desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
+            desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
             chosen->texture = m_device->CreateTexture(desc);
             chosen->extent = chosen->texture.IsValid() ? desc.extent : Extent2D{};
+            chosen->role = m_layerTargetWants[want].role;
             chosen->idleFrames = 0;
         }
         m_layerTargetWantCount = 0;
@@ -1802,7 +1835,15 @@ namespace JBro
                 return false;
             }
         }
-        return true;
+        // 아래 그림을 읽는 블렌드(D-283). 레이어(t0)와 아래 그림의 사본(t1)을 읽어 섞은 색으로 덮어쓴다.
+        GraphicsPipelineDesc backdropDesc = compositeDesc;
+        backdropDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLayerBackdropPS, sizeof(JBroBuiltinLayerBackdropPS),
+            Sm5::JBroBuiltinLayerBackdropPS_SM5, sizeof(Sm5::JBroBuiltinLayerBackdropPS_SM5),
+            Spv::JBroBuiltinLayerBackdropPS_SPV, sizeof(Spv::JBroBuiltinLayerBackdropPS_SPV));
+        backdropDesc.sampledTextureCount = 2;
+        backdropDesc.blend = BlendMode::Opaque;
+        m_layerBackdropPipeline = m_device->CreateGraphicsPipeline(backdropDesc);
+        return m_layerBackdropPipeline.IsValid();
     }
 
     bool Renderer::CreateBuiltinMeshResources()
@@ -2163,6 +2204,11 @@ namespace JBro
                 m_device->DestroyGraphicsPipeline(pipeline);
                 pipeline = {};
             }
+        }
+        if (m_layerBackdropPipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_layerBackdropPipeline);
+            m_layerBackdropPipeline = {};
         }
         for (BufferHandle& buffer : m_textInstanceBuffers)
         {

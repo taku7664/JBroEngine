@@ -927,6 +927,8 @@ namespace
             glow.SetBlend(JBro::LayerBlend::Additive);
             JBro::Layer& fog = canvas.CreateLayer("Fog");
             fog.SetOpacity(0.25f);
+            // 아래 그림을 읽는 블렌드도 이름으로 적힌다(D-283).
+            canvas.CreateLayer("Tint").SetBlend(JBro::LayerBlend::ColorDodge);
             text = Save(canvas);
         }
         Check(text.find("Blend: Additive") != JBro::String::npos && text.find("Opacity: 0.25") != JBro::String::npos,
@@ -936,7 +938,9 @@ namespace
 
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, text);
-        Check(reopened.GetLayerCount() == 3, "all three layers come back");
+        Check(reopened.GetLayerCount() == 4, "all four layers come back");
+        Check(text.find("Blend: ColorDodge") != JBro::String::npos && reopened.GetLayerAt(3)->GetBlend() == JBro::LayerBlend::ColorDodge,
+            "a backdrop blend is written by name and comes back");
         const JBro::Layer* base = reopened.GetLayerAt(0);
         const JBro::Layer* glow = reopened.GetLayerAt(1);
         const JBro::Layer* fog = reopened.GetLayerAt(2);
@@ -948,7 +952,7 @@ namespace
         // 모르는 블렌드는 추측하지 않고 거절한다.
         JBro::String broken = text;
         const std::size_t at = broken.find("Blend: Additive");
-        broken.replace(at, 15, "Blend: Overlay");
+        broken.replace(at, 15, "Blend: Plasma");
         JBro::Canvas refused(JBro::CreateDefaultAllocator());
         JBro::CanvasFileError error;
         Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer blend is refused");

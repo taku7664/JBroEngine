@@ -273,6 +273,15 @@ Entries:
   inspector.layer_blend_additive: 더하기
   inspector.layer_blend_multiply: 곱하기
   inspector.layer_blend_screen: 스크린
+  inspector.layer_blend_subtract: 빼기
+  inspector.layer_blend_lighten: 밝게 하기
+  inspector.layer_blend_darken: 어둡게 하기
+  inspector.layer_blend_overlay: 오버레이
+  inspector.layer_blend_soft_light: 소프트 라이트
+  inspector.layer_blend_hard_light: 하드 라이트
+  inspector.layer_blend_color_dodge: 색상 닷지
+  inspector.layer_blend_color_burn: 색상 번
+  inspector.layer_blend_difference: 차이
   inspector.layer_opacity: 불투명도
   inspector.layer_space: 공간
   inspector.layer_space_world: 월드

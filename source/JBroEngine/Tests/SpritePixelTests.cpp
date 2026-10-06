@@ -5,6 +5,7 @@
 #include <JBro/Platform/WindowsPlatform.h>
 #include <JBro/Types/Array.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <iostream>
@@ -958,8 +959,157 @@ namespace
     }
 }
 
+namespace
+{
+    // 시험이 따로 세운 기대값의 식이다(W3C 합성 명세의 분리형 블렌드, 포토샵과 같다). 셰이더의 식을 옮겨 적지 않는다 - 같은 실수가 두 번 맞는다.
+    float ReferenceChannel(JBro::CompositeBlend mode, float b, float s)
+    {
+        const auto screen = [](float x, float y) { return x + y - x * y; };
+        const auto hardLight = [&](float back, float source) {
+            return source <= 0.5f ? back * 2.0f * source : screen(back, 2.0f * source - 1.0f);
+        };
+        switch (mode)
+        {
+        case JBro::CompositeBlend::Subtract:
+            return std::max(b - s, 0.0f);
+        case JBro::CompositeBlend::Lighten:
+            return std::max(b, s);
+        case JBro::CompositeBlend::Darken:
+            return std::min(b, s);
+        case JBro::CompositeBlend::Overlay:
+            return hardLight(s, b);
+        case JBro::CompositeBlend::SoftLight:
+        {
+            if (s <= 0.5f)
+            {
+                return b - (1.0f - 2.0f * s) * b * (1.0f - b);
+            }
+            const float d = b <= 0.25f ? ((16.0f * b - 12.0f) * b + 4.0f) * b : std::sqrt(b);
+            return b + (2.0f * s - 1.0f) * (d - b);
+        }
+        case JBro::CompositeBlend::HardLight:
+            return hardLight(b, s);
+        case JBro::CompositeBlend::ColorDodge:
+            return b <= 0.0f ? 0.0f : (s >= 1.0f ? 1.0f : std::min(1.0f, b / (1.0f - s)));
+        case JBro::CompositeBlend::ColorBurn:
+            return b >= 1.0f ? 1.0f : (s <= 0.0f ? 0.0f : 1.0f - std::min(1.0f, (1.0f - b) / s));
+        case JBro::CompositeBlend::Difference:
+        default:
+            return std::fabs(b - s);
+        }
+    }
+
+    // **아래 그림을 읽는 블렌드 아홉**(D-283). 바탕(0.6, 0.3, 0.8) 위에, 왼쪽 절반만 덮는 반투명(0.75) 스프라이트 한 장의 레이어를 불투명도 0.8 로
+    // 얹는다. 덮인 곳은 (1 - a)·아래 + a·B(아래, 위) 이고(a = 0.75 x 0.8), 레이어가 빈 오른쪽은 아래 그림 그대로다 - 셰이더가 그 자리도 덮어쓰므로
+    // 사본이 틀리면 거기서 드러난다. 채널마다 식의 다른 갈래를 타도록 위 색의 채널을 0.5 의 양쪽에 둔다. 첫 프레임은 사본을 둘 자리가 없어 표준으로
+    // 얹고, 둘째부터 그 식이다.
+    template <typename TModule>
+    void TestBackdropBlendsFollowTheirFormulas()
+    {
+        JBro::WindowsPlatform platform;
+        TModule rhi;
+        JBro::JMemoryContext memory;
+        Check(platform.Initialize(memory), "platform must initialize for the backdrop blend test");
+        if (false == rhi.Initialize(memory))
+        {
+            std::cout << "  [skip] no device for this API; backdrop blends not verified" << std::endl;
+            platform.Shutdown();
+            return;
+        }
+        JBro::WindowDesc windowDesc;
+        constexpr char title[] = "JBro backdrop blend probe";
+        windowDesc.title = {title, sizeof(title) - 1};
+        windowDesc.width = 64;
+        windowDesc.height = 64;
+        windowDesc.visible = false;
+        const JBro::WindowHandle window = platform.OpenPlatformWindow(windowDesc);
+        Check(window.value != 0, "the probe window must open");
+        JBro::Renderer renderer;
+        JBro::RendererConfig config;
+        config.api = rhi.GetApi();
+        config.surface = platform.CreateSurface(window);
+        config.surfaceExtent = {64, 64};
+        config.maxSpriteSubmissions = 8;
+        config.presentMode = JBro::PresentMode::Immediate;
+        Check(renderer.Initialize(rhi, config), "the backdrop blend renderer must initialize");
+
+        JBro::CameraParams camera;
+        camera.projection = {{1.0f, 0.0f, 0.0f, 0.0f,
+            0.0f, 1.0f, 0.0f, 0.0f,
+            0.0f, 0.0f, 1.0f, 0.0f,
+            0.0f, 0.0f, 0.0f, 1.0f}};
+        camera.clearColor[3] = 1.0f;
+        camera.viewport.width = 64.0f;
+        camera.viewport.height = 64.0f;
+        const float back[3] = {0.6f, 0.3f, 0.8f};
+        const float top[3] = {0.2f, 0.7f, 0.5f};
+        constexpr float topAlpha = 0.75f;
+        constexpr float opacity = 0.8f;
+        JBro::SpriteSubmit background;
+        background.world.linear[0] = 2.0f;
+        background.world.linear[3] = 2.0f;
+        JBro::SpriteSubmit layerSprite;
+        layerSprite.world.linear[0] = 1.0f;
+        layerSprite.world.linear[3] = 2.0f;
+        layerSprite.world.translation[0] = -0.5f;
+        for (int channel = 0; channel < 3; ++channel)
+        {
+            background.tint[channel] = back[channel];
+            layerSprite.tint[channel] = top[channel];
+        }
+        layerSprite.tint[3] = topAlpha;
+
+        JBro::Array<std::byte> image;
+        image.Resize(64 * 64 * 4);
+        JBro::TextureReadback readback;
+        for (std::uint32_t mode = JBro::FirstBackdropBlend; mode < JBro::CompositeBlendCount; ++mode)
+        {
+            const JBro::CompositeBlend blend = static_cast<JBro::CompositeBlend>(mode);
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(renderer.BeginFrame() == JBro::FrameStatus::Ready, "the backdrop frame must begin");
+                Check(renderer.BeginView(camera), "the backdrop view must open");
+                Check(renderer.SubmitSprite(background), "the background must submit");
+                Check(renderer.BeginLayer(blend, opacity), "the blended layer must open");
+                Check(renderer.SubmitSprite(layerSprite), "the layer sprite must submit");
+                Check(renderer.EndLayer() && renderer.EndView(), "the layer and view must close");
+                Check(renderer.EndFrame() == JBro::FrameStatus::Ready, "the backdrop frame must present");
+            }
+            const JBro::RendererFrameStats stats = renderer.GetLastFrameStats();
+            Check(stats.compositedLayerCount == 1 && stats.uncompositedLayerCount == 0,
+                "from the second frame the layer is laid on with its own formula");
+            Check(renderer.ReadBackBuffer(image.Data(), image.Size(), readback), "the renderer must read its own back buffer");
+            const Pixel covered = ReadPixel(image, readback.rowPitch, 16, 32);
+            const Pixel empty = ReadPixel(image, readback.rowPitch, 48, 32);
+            const float a = topAlpha * opacity;
+            const float got[3] = {covered.r, covered.g, covered.b};
+            const float left[3] = {empty.r, empty.g, empty.b};
+            for (int channel = 0; channel < 3; ++channel)
+            {
+                const float expected = (1.0f - a) * back[channel] + a * ReferenceChannel(blend, back[channel], top[channel]);
+                if (false == Near(got[channel], expected) || false == Near(left[channel], back[channel]))
+                {
+                    std::cout << "  mode " << mode << " channel " << channel << ": read " << got[channel] << " wanted " << expected
+                              << ", empty half " << left[channel] << '\n';
+                }
+                Check(Near(got[channel], expected), "a backdrop blend mixes the layer and what is below with its formula");
+                Check(Near(left[channel], back[channel]), "and leaves what is below untouched where the layer is empty");
+            }
+        }
+
+        renderer.Shutdown();
+        rhi.Shutdown();
+        platform.ClosePlatformWindow(window);
+        platform.PumpEvents();
+        platform.Shutdown();
+    }
+}
+
 int RunSpritePixelTests()
 {
+    TestBackdropBlendsFollowTheirFormulas<JBro::D3D12RHIModule>();
+    TestBackdropBlendsFollowTheirFormulas<JBro::D3D11RHIModule>();
+    TestBackdropBlendsFollowTheirFormulas<JBro::VulkanRHIModule>();
     TestLayerBlendsCompositeTheWholeLayer<JBro::D3D12RHIModule>();
     TestLayerBlendsCompositeTheWholeLayer<JBro::D3D11RHIModule>();
     TestLayerBlendsCompositeTheWholeLayer<JBro::VulkanRHIModule>();

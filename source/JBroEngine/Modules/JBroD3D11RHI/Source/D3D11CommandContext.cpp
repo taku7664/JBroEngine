@@ -99,6 +99,38 @@ namespace JBro::Internal
         return true;
     }
 
+    bool D3D11CommandContext::CopyTexture(TextureHandle source, TextureHandle destination)
+    {
+        ID3D11RenderTargetView* fromView = nullptr;
+        ID3D11RenderTargetView* toView = nullptr;
+        if (m_device == nullptr || m_context == nullptr || m_renderPassActive
+            || false == m_device->ResolveRenderTargetView(source, fromView) || false == m_device->ResolveRenderTargetView(destination, toView))
+        {
+            return false;
+        }
+        ComPtr<ID3D11Resource> from;
+        ComPtr<ID3D11Resource> to;
+        fromView->GetResource(&from);
+        toView->GetResource(&to);
+        ComPtr<ID3D11Texture2D> fromTexture;
+        ComPtr<ID3D11Texture2D> toTexture;
+        if (from == nullptr || to == nullptr || from.Get() == to.Get()
+            || FAILED(from.As(&fromTexture)) || FAILED(to.As(&toTexture)))
+        {
+            return false;
+        }
+        D3D11_TEXTURE2D_DESC fromDesc = {};
+        D3D11_TEXTURE2D_DESC toDesc = {};
+        fromTexture->GetDesc(&fromDesc);
+        toTexture->GetDesc(&toDesc);
+        if (fromDesc.Width != toDesc.Width || fromDesc.Height != toDesc.Height || fromDesc.Format != toDesc.Format)
+        {
+            return false;
+        }
+        m_context->CopyResource(to.Get(), from.Get());
+        return true;
+    }
+
     void D3D11CommandContext::EndRenderPass()
     {
         if (false == m_renderPassActive || m_context == nullptr)

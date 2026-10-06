@@ -158,6 +158,15 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorLayerBlendAdditive = "inspector.layer_blend_additive";
     inline constexpr const char* InspectorLayerBlendMultiply = "inspector.layer_blend_multiply";
     inline constexpr const char* InspectorLayerBlendScreen = "inspector.layer_blend_screen";
+    inline constexpr const char* InspectorLayerBlendSubtract = "inspector.layer_blend_subtract";
+    inline constexpr const char* InspectorLayerBlendLighten = "inspector.layer_blend_lighten";
+    inline constexpr const char* InspectorLayerBlendDarken = "inspector.layer_blend_darken";
+    inline constexpr const char* InspectorLayerBlendOverlay = "inspector.layer_blend_overlay";
+    inline constexpr const char* InspectorLayerBlendSoftLight = "inspector.layer_blend_soft_light";
+    inline constexpr const char* InspectorLayerBlendHardLight = "inspector.layer_blend_hard_light";
+    inline constexpr const char* InspectorLayerBlendColorDodge = "inspector.layer_blend_color_dodge";
+    inline constexpr const char* InspectorLayerBlendColorBurn = "inspector.layer_blend_color_burn";
+    inline constexpr const char* InspectorLayerBlendDifference = "inspector.layer_blend_difference";
     inline constexpr const char* InspectorLayerOpacity = "inspector.layer_opacity";
     inline constexpr const char* InspectorLayerSpace = "inspector.layer_space";
     inline constexpr const char* InspectorLayerSpaceWorld = "inspector.layer_space_world";

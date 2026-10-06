@@ -404,6 +404,11 @@ namespace JBro
             std::uint32_t firstIndex,
             std::int32_t baseVertex,
             std::uint32_t firstInstance) = 0;
+        // **렌더 타깃 하나를 다른 렌더 타깃으로 통째로 복사한다**(D-283). 레이어 합성이 아래 그림을 읽는 블렌드(오버레이 등)에서 쓴다.
+        // 둘은 같은 크기·같은 포맷이어야 하고 패스 밖에서만 부른다. 원본은 백버퍼여도 되고, 대상은 `RenderTarget` 으로 만든 텍스처다.
+        // 상태(배리어·레이아웃)는 백엔드가 맞춘다 - `Sampled` 로 만든 대상은 다음 패스에서 곧바로 읽을 수 있다. 조건이 맞지 않으면 거짓이고
+        // 아무것도 기록하지 않는다.
+        virtual bool CopyTexture(TextureHandle source, TextureHandle destination) = 0;
     };
 
     struct FrameContext

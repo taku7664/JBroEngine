@@ -122,6 +122,14 @@ namespace
 
         // 이 가짜는 텍스처를 쓰지 않는다. 받아 두기만 하고 무엇도 그리지 않는다 —
         // 스프라이트 경로는 아직 텍스처를 묶지 않으므로 세어 둘 값도 없다.
+        bool CopyTexture(JBro::TextureHandle, JBro::TextureHandle) override
+        {
+            ++copyCount;
+            return true;
+        }
+
+        std::uint32_t copyCount = 0;
+
         bool SetTexture(std::uint32_t, JBro::TextureHandle) override
         {
             return true;
@@ -1228,9 +1236,9 @@ namespace
         Check(module.device.waitIdleCount == 1, "shutdown must wait for outstanding GPU work");
         Check(module.device.destroySwapchainCount == 1, "shutdown must destroy the swapchain");
         Check(module.destroyDeviceCount == 1, "shutdown must destroy the device");
-        Check(module.device.destroyPipelineCount == 12,
-            "shutdown must destroy the built-in sprite, sdf text (each with its over-depth twin), mesh, world text, the two outline "
-            "and the four layer composite pipelines");
+        Check(module.device.destroyPipelineCount == 13,
+            "shutdown must destroy the built-in sprite, sdf text (each with its over-depth twin), mesh, world text, the two outline, "
+            "the four layer composite and the backdrop blend pipelines");
     }
     struct HostOverlayProbe
     {

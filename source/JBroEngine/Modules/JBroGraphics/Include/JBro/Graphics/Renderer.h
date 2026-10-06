@@ -64,13 +64,27 @@ namespace JBro
 
     // 레이어를 아래에 얹는 방식이다(D-279). `Renderer::BeginLayer` 와 `CameraParams::composite` 가 받는다. 캔버스의 `LayerBlend` 와 같은 넷이고,
     // 렌더러는 캔버스를 모르므로 제 이름을 둔다(`SpriteFilter` 와 에셋의 `TextureFilter` 처럼).
+    // 앞의 넷(`Screen` 까지)은 하드웨어 블렌드 계수로 얹고, 뒤의 아홉은 대상의 아래 그림을 복사해 셰이더가 섞는다(D-283) - 레이어마다
+    // 대상 크기의 복사가 한 번 든다.
     enum class CompositeBlend : std::uint8_t
     {
         Normal,
         Additive,
         Multiply,
-        Screen
+        Screen,
+        Subtract,
+        Lighten,
+        Darken,
+        Overlay,
+        SoftLight,
+        HardLight,
+        ColorDodge,
+        ColorBurn,
+        Difference,
     };
+    inline constexpr std::uint32_t CompositeBlendCount = 13;
+    // 이 차례부터는 아래 그림을 읽는다.
+    inline constexpr std::uint32_t FirstBackdropBlend = 4;
 
     struct CameraParams
     {
@@ -344,13 +358,25 @@ namespace JBro
 
         // 레이어를 그려 둘 텍스처다. 뷰의 타깃 크기마다 하나이고 백버퍼 포맷이다. 프레임 안에서는 만들 수 없으므로, 기록 중에
         // 없는 크기를 만나면 바라는 크기로 적어 두고 다음 `BeginFrame` 이 프레임을 열기 전에 만든다. 오래 안 쓰면 놓는다.
+        // 쓰임은 둘이다: 레이어를 그리는 자리와, 아래 그림을 읽는 블렌드가 대상을 복사해 두는 자리(D-283). 같은 크기라도 따로 든다.
+        enum class LayerTargetRole : std::uint8_t
+        {
+            Layer,
+            Backdrop
+        };
         struct LayerTarget
         {
             TextureHandle texture;
             Extent2D extent;
+            LayerTargetRole role = LayerTargetRole::Layer;
             std::uint32_t idleFrames = 0;
         };
-        static constexpr std::size_t MaxLayerTargets = 4;
+        struct LayerTargetWant
+        {
+            Extent2D extent;
+            LayerTargetRole role = LayerTargetRole::Layer;
+        };
+        static constexpr std::size_t MaxLayerTargets = 8;
         static constexpr std::uint32_t LayerTargetIdleFrames = 300;
 
         // 같은 텍스처와 샘플러로 그리는 스프라이트의 연속 구간이다(D-113). 순서는 제출 순서 그대로다 - 정렬은
@@ -531,19 +557,22 @@ namespace JBro
         GraphicsPipelineHandle m_outlineCompositePipeline;
         bool RecordOutline(const CameraParams& camera, TextureHandle target, const Extent2D& extent);
         // 레이어 텍스처를 타깃에 얹는다(D-279). 타깃의 패스를 `Load` 로 열고 열린 채로 돌려준다 - 뒤의 구간이 이어 그린다.
-        bool RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Viewport& viewport,
-            const ScissorRect& scissor);
-        // 이 크기의 레이어 텍스처다. 없으면 바라는 크기로 적고 빈 핸들이다.
-        TextureHandle FindLayerTarget(const Extent2D& extent);
+        // 아래 그림을 읽는 블렌드(D-283)는 먼저 타깃을 복사해 둔다 - 부를 때 패스가 닫혀 있어야 한다. 복사할 자리가 아직 없으면 표준으로 얹는다.
+        bool RecordLayerComposite(const LayerGroup& group, TextureHandle layer, TextureHandle target, const Extent2D& extent,
+            const Viewport& viewport, const ScissorRect& scissor);
+        // 이 크기·쓰임의 텍스처다. 없으면 바라는 것으로 적고 빈 핸들이다.
+        TextureHandle FindLayerTarget(const Extent2D& extent, LayerTargetRole role = LayerTargetRole::Layer);
         // 프레임을 열기 전에 바라던 크기의 텍스처를 만들고, 오래 안 쓴 것을 놓는다.
         void PrepareLayerTargets();
         void DestroyLayerTargets();
         // `Normal`·`Additive`·`Multiply`·`Screen` 차례다.
         GraphicsPipelineHandle m_layerCompositePipelines[4];
+        // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
+        GraphicsPipelineHandle m_layerBackdropPipeline;
         Array<LayerGroup> m_layerGroups;
         std::uint32_t m_openLayerGroup = NoLayerGroup;
         LayerTarget m_layerTargets[MaxLayerTargets];
-        Extent2D m_layerTargetWants[MaxLayerTargets];
+        LayerTargetWant m_layerTargetWants[MaxLayerTargets];
         std::size_t m_layerTargetWantCount = 0;
         GraphicsPipelineHandle m_spritePipeline;
         // 깊이가 달린 패스(메시가 있는 뷰) 위에 스프라이트를 얹을 때 쓰는 쌍둥이다. 포맷만 같고 깊이는 보지도

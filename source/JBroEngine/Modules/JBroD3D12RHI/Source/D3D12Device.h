@@ -94,6 +94,7 @@ namespace JBro::Internal
             std::uint32_t firstIndex,
             std::int32_t baseVertex,
             std::uint32_t firstInstance) override;
+        bool CopyTexture(TextureHandle source, TextureHandle destination) override;
 
     private:
         D3D12Device* m_device = nullptr;

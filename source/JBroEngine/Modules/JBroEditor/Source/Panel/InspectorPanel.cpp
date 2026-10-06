@@ -540,10 +540,21 @@ namespace JBro
                     Loc::TextOr(LocKeys::InspectorLayerBlendNormal, "Normal"),
                     Loc::TextOr(LocKeys::InspectorLayerBlendAdditive, "Additive"),
                     Loc::TextOr(LocKeys::InspectorLayerBlendMultiply, "Multiply"),
-                    Loc::TextOr(LocKeys::InspectorLayerBlendScreen, "Screen")};
+                    Loc::TextOr(LocKeys::InspectorLayerBlendScreen, "Screen"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendSubtract, "Subtract"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendLighten, "Lighten"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendDarken, "Darken"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendOverlay, "Overlay"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendSoftLight, "Soft Light"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendHardLight, "Hard Light"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendColorDodge, "Color Dodge"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendColorBurn, "Color Burn"),
+                    Loc::TextOr(LocKeys::InspectorLayerBlendDifference, "Difference")};
+                static_assert(sizeof(blends) / sizeof(blends[0]) == LayerBlendCount, "one item per blend");
                 int current = static_cast<int>(layer->GetBlend());
-                if (Widget::FilterCombo("##layerBlend", ArrayView<const char* const>(blends, 4), current).ShowFilter(false).Draw()
-                    && current >= 0 && current < 4)
+                constexpr int count = static_cast<int>(LayerBlendCount);
+                if (Widget::FilterCombo("##layerBlend", ArrayView<const char* const>(blends, LayerBlendCount), current).Draw()
+                    && current >= 0 && current < count)
                 {
                     m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerCompositeCommand>(
                         *canvas, layerId, static_cast<LayerBlend>(current), layer->GetOpacity()));
