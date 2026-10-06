@@ -68,7 +68,7 @@ namespace JBro
         LayerBlend m_blend = LayerBlend::Normal;
         float m_opacity = 1.0f;
         float m_parallax = 1.0f;
-        // 원본 에셋 표시도 같이 뜬다(D-286) - 기존 엔진은 레이어 삭제를 되돌리면 이것을 잃었다.
+        // 원본 에셋 표시도 같이 뜬다(D-287) - 기존 엔진은 레이어 삭제를 되돌리면 이것을 잃었다.
         Uuid m_sourceAsset;
         Array<EditorObjectId> m_objects;
         bool m_captured = false;
@@ -176,7 +176,7 @@ namespace JBro
         bool m_captured = false;
     };
 
-    // **레이어의 패럴랙스 계수를 바꾼다**(D-285). 인스펙터의 끄는 칸이 낸다 - 같은 레이어끼리 합쳐 끌기 하나가 되돌리기 하나다.
+    // **레이어의 패럴랙스 계수를 바꾼다**(D-286). 인스펙터의 끄는 칸이 낸다 - 같은 레이어끼리 합쳐 끌기 하나가 되돌리기 하나다.
     class SetLayerParallaxCommand final : public EditorCommand
     {
     public:
@@ -197,7 +197,7 @@ namespace JBro
         bool m_captured = false;
     };
 
-    // **레이어의 원본 에셋 표시를 바꾼다**(D-286). 레이어를 에셋으로 저장하면 그 레이어가 그 파일에서 온 것으로 표시된다 - 되돌리면 표시만 빠지고
+    // **레이어의 원본 에셋 표시를 바꾼다**(D-287). 레이어를 에셋으로 저장하면 그 레이어가 그 파일에서 온 것으로 표시된다 - 되돌리면 표시만 빠지고
     // 파일은 남는다(파일 일은 에셋 브라우저의 것이다).
     class SetLayerSourceAssetCommand final : public EditorCommand
     {
@@ -217,7 +217,7 @@ namespace JBro
         bool m_captured = false;
     };
 
-    // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣는다**(D-286, 기존 `CAddLayerFromAssetCommand`). 파일의 글자는 만들 때 떠 둔다 - 파일이 그 사이에
+    // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣는다**(D-287, 기존 `CAddLayerFromAssetCommand`). 파일의 글자는 만들 때 떠 둔다 - 파일이 그 사이에
     // 바뀌어도 이 커맨드는 같은 것을 넣는다. 처음 실행이 오브젝트를 만든 뒤 그 나무들을 떠 두고, 되돌리면 나무째 지우고 레이어를 뺀다. 다시 하기는
     // 떠 둔 나무를 **같은 번호로** 되살린다 - 뒤의 커맨드가 그 오브젝트를 번호로 가리켜도 이어진다. 레이어는 새 번호로 선다(`DeleteLayerCommand` 와 같다).
     class AddLayerFromAssetCommand final : public EditorCommand

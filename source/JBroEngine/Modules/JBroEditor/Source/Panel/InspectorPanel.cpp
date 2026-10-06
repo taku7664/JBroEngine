@@ -505,7 +505,7 @@ namespace JBro
         }
         Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorLayerProperties, "Layer")).Draw();
         Widget::FormLayout layout("##layer");
-        // **원본 에셋은 읽기 전용이다**(D-286, 기존과 같다). 여기서 갈아 끼우는 것은 레이어와 오브젝트를 통째로 바꾸는 일이라 칸 하나로 할 일이 아니다 -
+        // **원본 에셋은 읽기 전용이다**(D-287, 기존과 같다). 여기서 갈아 끼우는 것은 레이어와 오브젝트를 통째로 바꾸는 일이라 칸 하나로 할 일이 아니다 -
         // 다른 레이어 에셋은 계층에 끌어 넣는다. 단추는 에셋 브라우저에서 그 파일을 보인다.
         if (false == layer->GetSourceAsset().IsNull())
         {
@@ -594,7 +594,7 @@ namespace JBro
                         MakeOwnerPtr<SetLayerCompositeCommand>(*canvas, layerId, layer->GetBlend(), opacity));
                 }
             });
-        // 패럴랙스는 월드 레이어에만 뜻이 있다(D-285). 끄는 동안 커맨드가 합쳐진다.
+        // 패럴랙스는 월드 레이어에만 뜻이 있다(D-286). 끄는 동안 커맨드가 합쳐진다.
         if (layer->GetSpace() == LayerSpace::World)
         {
             layout.Row(

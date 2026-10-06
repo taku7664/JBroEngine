@@ -3210,7 +3210,7 @@ namespace
         {
             canvasView->SetOpen(false);
         }
-        // 계층 창의 레이어 썸네일도 레이어마다 뷰를 낸다(D-287).
+        // 계층 창의 레이어 썸네일도 레이어마다 뷰를 낸다(D-288).
         if (JBro::EditorPanel* hierarchy = editor.FindPanel("Hierarchy"))
         {
             hierarchy->SetOpen(false);
@@ -10773,7 +10773,7 @@ namespace
         editor.Shutdown();
     }
 
-    // **레이어 에셋을 에디터에서 저장하고 넣는다**(D-286). 저장은 레이어 이름의 `.jlayer` 를 쓰고 Layer 로 등록하며 그 레이어를 원본으로 표시한다(되돌리면
+    // **레이어 에셋을 에디터에서 저장하고 넣는다**(D-287). 저장은 레이어 이름의 `.jlayer` 를 쓰고 Layer 로 등록하며 그 레이어를 원본으로 표시한다(되돌리면
     // 표시만 빠진다). 넣기는 맨 위에 새 레이어로 오브젝트째 들어오고 그 레이어를 고른다. 되돌리면 레이어와 오브젝트가 함께 빠지고, 다시 하면 같은 에디터
     // 번호로 돌아온다. 레이어 삭제를 되돌리면 원본 표시도 돌아온다.
     void TestLayerAssetsSaveAndLoadInTheEditor()
@@ -10854,7 +10854,7 @@ namespace
         editor.Shutdown();
     }
 
-    // **계층 창이 레이어마다 썸네일을 그린다**(D-287). 창이 그리는 동안 레이어마다 텍스처가 서고 프로젝트 해상도의 가로세로비로 그려진다 -
+    // **계층 창이 레이어마다 썸네일을 그린다**(D-288). 창이 그리는 동안 레이어마다 텍스처가 서고 프로젝트 해상도의 가로세로비로 그려진다 -
     // 레이어의 초록 사각형이 썸네일 가운데에 있다. 지운 레이어의 칸은 놓이고, 창을 닫고 한참 지나면 모두 놓인다.
     void TestTheHierarchyDrawsLayerThumbnails()
     {
@@ -11603,7 +11603,7 @@ namespace
         Check(nullptr == editor.MakeLayerSpaceCommand(JBro::InvalidLayerId, JBro::LayerSpace::Screen, JBro::ScreenScaleMode::FixedHeight).Get(),
             "a layer that is not there makes no command");
 
-        // **패럴랙스 레이어도 그려진 자리를 지킨다**(D-285). 카메라가 x 2 에 있으면 계수 0.5 레이어의 월드 1 은 1 + 2 x 0.5 = 2, 곧 화면 가운데에
+        // **패럴랙스 레이어도 그려진 자리를 지킨다**(D-286). 카메라가 x 2 에 있으면 계수 0.5 레이어의 월드 1 은 1 + 2 x 0.5 = 2, 곧 화면 가운데에
         // 그려진다 - 화면 레이어로 바꾸면 x 0 이다(기존 엔진은 계수 1 로 옮겨 x 108 로 튀었다). 월드로 되돌리면 1 이다.
         canvas->FindComponentRaw<JBro::Component::Transform2D>(eye)->position = {2.0f, 0.0f};
         JBro::Layer& farLayer = canvas->CreateLayer("Far");

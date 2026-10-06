@@ -40,7 +40,7 @@ namespace JBro
         std::uint16_t layerOrder = 0;
         LayerBlend layerBlend = LayerBlend::Normal;
         float layerOpacity = 1.0f;
-        // 패럴랙스 계수다(D-285). 게임 화면에서 그 레이어 뷰의 카메라 위치가 이 배가 된다.
+        // 패럴랙스 계수다(D-286). 게임 화면에서 그 레이어 뷰의 카메라 위치가 이 배가 된다.
         float layerParallax = 1.0f;
     };
 
@@ -68,7 +68,7 @@ namespace JBro
         std::uint16_t layerOrder = 0;
         LayerBlend layerBlend = LayerBlend::Normal;
         float layerOpacity = 1.0f;
-        // 패럴랙스 계수다(D-285). 게임 화면에서 그 레이어 뷰의 카메라 위치가 이 배가 된다.
+        // 패럴랙스 계수다(D-286). 게임 화면에서 그 레이어 뷰의 카메라 위치가 이 배가 된다.
         float layerParallax = 1.0f;
     };
 

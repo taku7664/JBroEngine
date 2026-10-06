@@ -153,7 +153,7 @@ namespace JBro
                 Loc::TextOr(LocKeys::HierarchyNoProject, "no project is open"));
             return;
         }
-        // **레이어 썸네일은 이 창이 그리는 프레임에만 바란다**(D-287). 높이는 글자 두 줄이다(기존과 같다).
+        // **레이어 썸네일은 이 창이 그리는 프레임에만 바란다**(D-288). 높이는 글자 두 줄이다(기존과 같다).
         m_editor->RequestLayerThumbnails(static_cast<std::uint32_t>(ImGui::GetTextLineHeight() * 2.0f));
 
         CollectGuideRows();
@@ -253,7 +253,7 @@ namespace JBro
         // `ImGui::Dummy` 는 넘긴 크기를 **그대로** 쓴다 - `-FLT_MIN` 을 폭으로 넘기면
         // 사각형이 뒤집혀 받는 자리가 아예 생기지 않는다. 실제로 그랬고, 그래서
         // 부모 해제가 되지 않았다. 남은 높이가 0 일 수도 있으므로 한 줄은 보장한다.
-        // **레이어 에셋을 빈자리에 놓으면 맨 위에 새 레이어로 들어온다**(D-286, 기존 `LayerTool` 의 레이어 에셋 드롭). 에셋을 끄는 동안에도 받는 자리를 편다.
+        // **레이어 에셋을 빈자리에 놓으면 맨 위에 새 레이어로 들어온다**(D-287, 기존 `LayerTool` 의 레이어 에셋 드롭). 에셋을 끄는 동안에도 받는 자리를 편다.
         const bool assetDrag = Widget::IsDragging(Widget::DragKind::Asset);
         if (m_dragActive || assetDrag)
         {
@@ -349,7 +349,7 @@ namespace JBro
         }
         Widget::TreeDrawContext row;
         Widget::SetNextItemTarget(GuideFocusTargets::HierarchyLayer(layerId));
-        // 줄은 썸네일 높이(글자 두 줄)다(D-287, 기존 `ImLayerHeader`).
+        // 줄은 썸네일 높이(글자 두 줄)다(D-288, 기존 `ImLayerHeader`).
         const float thumbnailHeight = std::floor(ImGui::GetTextLineHeight() * 2.0f);
         const bool opened = Widget::TreeBegin("##layer", flags, &row, thumbnailHeight);
         Widget::TreeEnd();
@@ -602,7 +602,7 @@ namespace JBro
         ImGui::Separator();
         {
             // **마지막 하나는 지우지 못한다.** 캔버스가 레이어 없이 설 수 없다.
-            // **에셋으로 저장**(D-286). 레이어 줄을 에셋 브라우저에 끌어 놓는 것과 같다 - 에셋 폴더의 맨 위에 레이어 이름으로 쓴다.
+            // **에셋으로 저장**(D-287). 레이어 줄을 에셋 브라우저에 끌어 놓는 것과 같다 - 에셋 폴더의 맨 위에 레이어 이름으로 쓴다.
             if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchySaveLayerAsset, "Save as Asset"), nullptr,
                     false == m_editor->GetAssetRoot().empty(), Loc::TextOr(LocKeys::BlockedNoProject, "no project is open"), Icons::Save))
             {

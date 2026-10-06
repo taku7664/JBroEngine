@@ -121,7 +121,7 @@
 - [tasks/ui-plan.md](./tasks/ui-plan.md) — 화면 공간 UI(D-237). UI 트리 대신 캔버스 레이어의 `Space = Screen`·맞춤 방식과 `Transform2D.anchor`, 좌표는 기준 해상도의 픽셀.
   세 단계(그리기·에디터의 월드/UI 보기·입력의 `Button2D` 와 `Screen2DService`)가 섰다.
   기존 엔진 UI 의 구조와 아팠던 것 U1~U4(첫 프레임 앵커 0·분할 화면 어긋남·버튼의 직접 폴링)가 §1, 설계가 §2, 단계(그리기·에디터·입력)가 §3, 실측이 §5 에 있다
-- [tasks/layer-plan.md](./tasks/layer-plan.md) — 캔버스 레이어의 남은 기능. 기존 엔진 `CGameLayer` 의 필드별 상태(패럴랙스 D-285·레이어 에셋·썸네일 이식,
+- [tasks/layer-plan.md](./tasks/layer-plan.md) — 캔버스 레이어의 남은 기능. 기존 엔진 `CGameLayer` 의 필드별 상태(패럴랙스 D-286·레이어 에셋·썸네일 이식,
   안전 영역은 뺐고 `KeepOnCanvasChange`·런타임 레이어 불러오기는 런타임 캔버스 전환이 없어 막혔다)와 포토샵식 다음 후보(그룹·클리핑 마스크·잠금·솔로·색 조정)
 - [tasks/guide-focus-plan.md](./tasks/guide-focus-plan.md) — 에디터 가이드 포커스(D-251). 반투명 막에 대상 위젯만 뚫고 그 위젯만 입력을 받게 하며,
   닫힌 패널·트리를 부모부터 한 칸씩 연다. 기구 `EditorGuideFocus`·`Widget::GuideFocus` 와 내용 `Guide`·`GuideStep`·`EditorGuide` 로 나눈다.

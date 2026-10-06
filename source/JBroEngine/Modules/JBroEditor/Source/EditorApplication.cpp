@@ -2482,7 +2482,7 @@ namespace JBro
         {
             const float cameraHalfHeight = cameraView.halfHeight;
             const float cameraHalfWidth = cameraView.halfWidth;
-            // **패럴랙스 레이어는 그려진 자리를 지킨다**(D-285). 게임 화면은 그 레이어를 이만큼 옮겨 그리므로 월드 → 화면은 더하고, 화면 → 월드는 뺀다
+            // **패럴랙스 레이어는 그려진 자리를 지킨다**(D-286). 게임 화면은 그 레이어를 이만큼 옮겨 그리므로 월드 → 화면은 더하고, 화면 → 월드는 뺀다
             // (월드로 돌아간 레이어도 같은 계수를 든다). 기존 엔진은 계수 1 의 카메라로 옮겨 오브젝트가 튀었다.
             float parallaxX = 0.0f;
             float parallaxY = 0.0f;
@@ -5118,7 +5118,7 @@ namespace JBro
             m_engine->RequestEditorView(m_canvasViewRequest);
         }
         m_canvasViewRequested = false;
-        // 레이어 썸네일도 같은 규칙이다(D-287) - 이 프레임에 계층 창이 바랐을 때만 그린다.
+        // 레이어 썸네일도 같은 규칙이다(D-288) - 이 프레임에 계층 창이 바랐을 때만 그린다.
         FlushLayerThumbnails();
         // 커맨드가 돌았으면 에셋 해석을 다시 한다(D-115·D-116). UI 가 닫힌 뒤라 이 프레임의
         // 편집이 전부 들어 있고, 엔진 프레임 전이라 다음 그림부터 새 핸들이 보인다.

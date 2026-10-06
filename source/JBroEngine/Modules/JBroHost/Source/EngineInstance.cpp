@@ -988,7 +988,7 @@ namespace JBro
                 }
             }
         }
-        // **레이어 썸네일은 편집 화면 뒤다**(D-287). 같은 프레임에 모아 둔 그릴 것을 쓴다. 실패해도 프레임을 버리지 않는다 - 그 칸이 지난 그림으로 남을 뿐이다.
+        // **레이어 썸네일은 편집 화면 뒤다**(D-288). 같은 프레임에 모아 둔 그릴 것을 쓴다. 실패해도 프레임을 버리지 않는다 - 그 칸이 지난 그림으로 남을 뿐이다.
         if (m_framework != nullptr && renderResult != RenderResult::Failed)
         {
             for (std::size_t index = 0; index < thumbnails; ++index)

@@ -144,7 +144,7 @@ namespace JBro
         // 다시 건다 - 그 패널이 그려지지 않는 프레임에는 걸리지 않고, 그리지도 않는다
         // (게임 뷰와 같은 규칙이다, D-63). 프레임 밖에서만 부른다.
         bool RequestEditorView(const EditorViewDesc& view);
-        // **이번 프레임에 레이어 썸네일을 그린다**(D-287). 편집 화면 뒤에 그리고, 요청은 한 프레임짜리다. 한 프레임에 `MaxLayerThumbnails` 장까지
+        // **이번 프레임에 레이어 썸네일을 그린다**(D-288). 편집 화면 뒤에 그리고, 요청은 한 프레임짜리다. 한 프레임에 `MaxLayerThumbnails` 장까지
         // 받는다 - 에디터가 돌아가며 건다. 썸네일이 실패해도 프레임은 실패하지 않는다(게임 화면이 아니다). 프레임 밖에서만 부른다.
         static constexpr std::size_t MaxLayerThumbnails = 4;
         bool RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail);

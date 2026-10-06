@@ -223,7 +223,7 @@ namespace JBro
         std::uint32_t uncompositedLayerCount = 0;
         // 묶음 상한(`RendererConfig::maxLayerGroups`)을 넘어 묶지 못한 것이다. 그 스프라이트는 그대로 그려진다.
         std::uint32_t droppedLayerCount = 0;
-        // 깊이 텍스처가 아직 없어 메시·월드 텍스트를 빼고 그린 뷰다(D-287). 처음 보는 크기의 뷰(편집 화면·레이어 썸네일)이고, 그 크기의 깊이는
+        // 깊이 텍스처가 아직 없어 메시·월드 텍스트를 빼고 그린 뷰다(D-288). 처음 보는 크기의 뷰(편집 화면·레이어 썸네일)이고, 그 크기의 깊이는
         // 다음 프레임을 열 때 생긴다.
         std::uint32_t viewsWithoutDepthCount = 0;
     };
@@ -494,7 +494,7 @@ namespace JBro
             bool occupied = false;
         };
 
-        // 깊이 텍스처 하나. **크기마다 하나**다 - 한 프레임에 크기가 다른 뷰(게임 뷰·편집 화면·레이어 썸네일, D-287)가 섞여도 서로 밀어내지 않는다.
+        // 깊이 텍스처 하나. **크기마다 하나**다 - 한 프레임에 크기가 다른 뷰(게임 뷰·편집 화면·레이어 썸네일, D-288)가 섞여도 서로 밀어내지 않는다.
         // 오래 안 쓴 것은 놓는다.
         struct DepthTarget
         {

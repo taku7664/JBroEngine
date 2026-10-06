@@ -100,7 +100,7 @@ namespace JBro
         SafePtr<GameObject> m_layerDropObject;
         LayerId m_layerDropTarget = InvalidLayerId;
         LayerId m_layerMoveId = InvalidLayerId;
-        // 빈자리에 놓인 레이어 에셋이다(D-286). 다 그린 뒤 넣는다.
+        // 빈자리에 놓인 레이어 에셋이다(D-287). 다 그린 뒤 넣는다.
         AssetId m_layerAssetDrop;
         std::size_t m_layerMoveTo = 0;
         bool m_hasLayerMove = false;

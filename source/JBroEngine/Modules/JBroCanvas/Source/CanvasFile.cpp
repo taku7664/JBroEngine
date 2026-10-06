@@ -101,9 +101,9 @@ namespace JBro
             }
         }
 
-        // **레이어 노드는 캔버스 파일과 레이어 에셋이 같은 함수로 쓰고 읽는다**(D-286). 둘이 갈리면 같은 레이어가 저장한 곳에 따라 다르게 읽힌다
+        // **레이어 노드는 캔버스 파일과 레이어 에셋이 같은 함수로 쓰고 읽는다**(D-287). 둘이 갈리면 같은 레이어가 저장한 곳에 따라 다르게 읽힌다
         // (기존 엔진 `LayerSerializer.h` 의 경고). `inCanvas` 면 캔버스 안 번호(`Id`)와 원본 에셋(`SourceAsset`)도 적는다 - 레이어 에셋은 제 자신을
-        // 가리키지 않는다. 기본값인 값은 적지 않는다(D-237·D-279·D-285).
+        // 가리키지 않는다. 기본값인 값은 적지 않는다(D-237·D-279·D-286).
         void WriteLayerNode(YamlWriter& writer, const Layer& layer, bool inCanvas)
         {
             if (inCanvas)
@@ -570,7 +570,7 @@ namespace JBro
     }
 
     // -----------------------------------------------------------------------
-    // 레이어 에셋(`.jlayer`, D-286)
+    // 레이어 에셋(`.jlayer`, D-287)
     // -----------------------------------------------------------------------
 
     bool WriteLayerText(Canvas& canvas, LayerId layerId, String& text, CanvasFileError& error)

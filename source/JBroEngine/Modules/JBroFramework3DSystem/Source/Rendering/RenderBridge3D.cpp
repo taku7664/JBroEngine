@@ -287,7 +287,7 @@ namespace JBro::Internal
         // 지우므로 뒤 레이어가 앞 레이어의 물체보다 멀어도 위에 보인다. 표준·불투명도 1 인 레이어는 타깃에 바로 그리고(텍스처 없음),
         // 블렌드나 불투명도가 걸린 레이어만 그 뷰를 제 텍스처에 그려 얹는다(`CameraParams::composite`). 대상을 지우는 것은 첫 뷰다.
         // 그릴 것이 없으면 뷰 하나로 지우기만 한다. 디버그 선은 맨 위 레이어의 뷰에 얹는다 - 그 뷰가 얹는 뷰면 따로 하나 더 연다.
-        // `onlyLayer` 가 0 이상이면 그 레이어 차례 하나만 블렌드 없이 그린다(썸네일, D-287).
+        // `onlyLayer` 가 0 이상이면 그 레이어 차례 하나만 블렌드 없이 그린다(썸네일, D-288).
         bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
             const RenderCamera3D& lineCamera, float viewportHeight, std::int32_t onlyLayer = -1)
@@ -356,7 +356,7 @@ namespace JBro::Internal
                 CameraParams layerCamera = camera;
                 layerCamera.composite = onlyLayer >= 0 ? CompositeBlend::Normal : ToCompositeBlend3D(blend);
                 layerCamera.compositeOpacity = onlyLayer >= 0 ? 1.0f : opacity;
-                // **패럴랙스는 그 레이어 뷰의 카메라 위치만 계수배다**(D-285, 기존 `ApplyLayerSpace`). 회전과 투영은 그대로다. 게임 화면만이다 -
+                // **패럴랙스는 그 레이어 뷰의 카메라 위치만 계수배다**(D-286, 기존 `ApplyLayerSpace`). 회전과 투영은 그대로다. 게임 화면만이다 -
                 // 캔버스 뷰는 배치하는 자리라 걸지 않는다.
                 if (false == editorView && parallax != 1.0f)
                 {

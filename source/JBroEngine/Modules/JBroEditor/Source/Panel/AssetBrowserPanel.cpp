@@ -282,7 +282,7 @@ namespace JBro
         Widget::EndDropTarget();
     }
 
-    // **계층의 레이어 줄을 놓으면 그 폴더에 레이어 에셋으로 저장한다**(D-286, 기존 `SaveLayerAsAssetInFolder`). 받는 자리 안에서 부른다.
+    // **계층의 레이어 줄을 놓으면 그 폴더에 레이어 에셋으로 저장한다**(D-287, 기존 `SaveLayerAsAssetInFolder`). 받는 자리 안에서 부른다.
     void AssetBrowserPanel::AcceptLayerDrop(const String& folder)
     {
         LayerId layer = InvalidLayerId;

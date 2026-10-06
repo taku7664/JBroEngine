@@ -1195,7 +1195,7 @@ namespace JBro
             pass.colorAttachments = {&colorAttachment, 1};
             // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-222). 스프라이트만 있는 2D 프레임은
             // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이고, 3D 레이어는 레이어마다 뷰라 레이어마다 지운다(D-280).
-            // **처음 보는 크기의 뷰는 그 프레임에 메시·월드 텍스트 없이 그린다**(D-287) - 깊이 텍스처는 다음 프레임 전에 선다.
+            // **처음 보는 크기의 뷰는 그 프레임에 메시·월드 텍스트 없이 그린다**(D-288) - 깊이 텍스처는 다음 프레임 전에 선다.
             // 프레임을 버리지 않는다. 프레임 타깃의 깊이는 `BeginFrame` 이 이미 만들었으므로 게임 화면은 늘 깊이가 있다.
             DepthStencilAttachmentDesc depthAttachment;
             if (view.runCount != 0 || view.worldTextRunCount != 0)

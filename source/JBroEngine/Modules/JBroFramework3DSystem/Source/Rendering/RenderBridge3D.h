@@ -25,7 +25,7 @@ namespace JBro
         // 게임 카메라가 없어도 그린다 - 캔버스 뷰는 카메라가 없는 캔버스도 보여야 한다.
         RenderResult SubmitEditorView3D(
             const RenderWorld3D& world, Renderer& renderer, const EditorViewDesc& view, const System::DebugDrawSystem* debugDraw);
-        // 레이어 하나만 게임 카메라로 썸네일 텍스처에 낸다(D-287). 블렌드·불투명도는 무시한다.
+        // 레이어 하나만 게임 카메라로 썸네일 텍스처에 낸다(D-288). 블렌드·불투명도는 무시한다.
         RenderResult SubmitLayerThumbnail3D(const RenderWorld3D& world, Renderer& renderer, const LayerThumbnailDesc& thumbnail, std::uint16_t layerOrder);
     }
 }

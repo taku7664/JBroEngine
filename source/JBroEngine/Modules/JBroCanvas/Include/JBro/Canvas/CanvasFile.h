@@ -57,7 +57,7 @@ namespace JBro
     // 필드를 지운 것은 그 씬이 들고 있던 값을 버린다는 뜻이라 사람이 알아야 한다.
     bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error);
 
-    // **레이어 에셋**(`.jlayer`, D-286, 기존 `LayerSerializer`). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적는다:
+    // **레이어 에셋**(`.jlayer`, D-287, 기존 `LayerSerializer`). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적는다:
     // `Version`·`Layer`(캔버스 파일의 `Layers` 항목과 같은 함수로 쓴 노드, 캔버스 안 번호와 원본 에셋은 빠진다)·`Objects`(부모는 파일 안 번호).
     // 레이어 밖의 오브젝트를 가리키는 참조 필드는 비어 있는 것으로 적힌다. 파일은 여기서 열지 않는다(D-112).
     bool WriteLayerText(Canvas& canvas, LayerId layer, String& text, CanvasFileError& error);

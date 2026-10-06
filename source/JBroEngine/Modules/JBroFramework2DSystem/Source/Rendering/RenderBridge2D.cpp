@@ -57,7 +57,7 @@ namespace JBro::Internal
             return true;
         }
 
-        // `offsetX`·`offsetY` 는 월드에서 옮길 양이다(패럴랙스, D-285). 오브젝트 변환 뒤에 더한다 - 레이어 전체가 같이 움직인다.
+        // `offsetX`·`offsetY` 는 월드에서 옮길 양이다(패럴랙스, D-286). 오브젝트 변환 뒤에 더한다 - 레이어 전체가 같이 움직인다.
         SpriteSubmit BuildSprite(const SpriteRenderItem& source, float offsetX = 0.0f, float offsetY = 0.0f)
         {
             // Built-in geometry is a centered unit quad. Apply pivot/size before the object transform.
@@ -122,9 +122,9 @@ namespace JBro::Internal
             std::uint32_t selectionCount = 0;
             // 레이어의 블렌드와 불투명도를 렌더러의 묶음으로 낸다(D-279). 선택 외곽선의 마스크는 그린 그대로의 모양이어야 하므로 끈다.
             bool composite = true;
-            // 있으면 월드 레이어의 패럴랙스를 이 뷰(월드 → 뷰)로 건다(D-285). 게임 화면만 준다 - 캔버스 뷰는 패럴랙스 없이 배치하는 자리다.
+            // 있으면 월드 레이어의 패럴랙스를 이 뷰(월드 → 뷰)로 건다(D-286). 게임 화면만 준다 - 캔버스 뷰는 패럴랙스 없이 배치하는 자리다.
             const Matrix3x2* parallaxView = nullptr;
-            // 0 이상이면 이 레이어 차례의 아이템만 넣는다(썸네일, D-287).
+            // 0 이상이면 이 레이어 차례의 아이템만 넣는다(썸네일, D-288).
             std::int32_t layerOrder = -1;
         };
 
@@ -506,7 +506,7 @@ namespace JBro::Internal
             {
                 return RenderResult::Failed;
             }
-            // 패럴랙스는 그리는 카메라와 같은 뷰로 건다(D-285). 그 뷰를 못 재면(그릴 수 없는 카메라) 위에서 이미 실패했다.
+            // 패럴랙스는 그리는 카메라와 같은 뷰로 건다(D-286). 그 뷰를 못 재면(그릴 수 없는 카메라) 위에서 이미 실패했다.
             CameraView2D cameraView;
             SpriteFilterRule rule;
             if (ComputeCameraView2D(*camera, frame, cameraView))

@@ -137,7 +137,7 @@ namespace JBro::System
         {
             return false;
         }
-        // **패럴랙스 레이어는 그려진 만큼 옮겨진 자리에서 누른다**(D-285). 그리기와 같은 함수로 잰 양을 빼서 오브젝트의 월드로 돌린다.
+        // **패럴랙스 레이어는 그려진 만큼 옮겨진 자리에서 누른다**(D-286). 그리기와 같은 함수로 잰 양을 빼서 오브젝트의 월드로 돌린다.
         float offsetX = 0.0f;
         float offsetY = 0.0f;
         if (layer.GetParallax() != 1.0f && ComputeParallaxOffset2D(view.view, layer.GetParallax(), offsetX, offsetY))

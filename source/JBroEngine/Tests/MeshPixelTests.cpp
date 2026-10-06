@@ -528,7 +528,7 @@ namespace
         mixed = center();
         Check(matches(mixed, below.r * above.r, below.g * above.g, below.b * above.b), "a multiply layer multiplies the one below");
 
-        // **레이어 썸네일**(D-287): 그 레이어만, 블렌드(지금 Multiply)·불투명도 없이 불투명한 썸네일 바탕에. 크기는 대상의 절반이다.
+        // **레이어 썸네일**(D-288): 그 레이어만, 블렌드(지금 Multiply)·불투명도 없이 불투명한 썸네일 바탕에. 크기는 대상의 절반이다.
         // 두 번 그린다 - 썸네일이 합성한다면 합성 대상이 선 둘째 프레임에서 드러난다.
         top.SetOpacity(0.5f);
         JBro::TextureDesc thumbnailDesc;

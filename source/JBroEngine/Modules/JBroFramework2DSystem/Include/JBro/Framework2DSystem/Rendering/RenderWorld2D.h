@@ -54,7 +54,7 @@ namespace JBro
         // 레이어를 얹는 방식이다(D-279). `Normal` 이 아니거나 불투명도가 1 보다 작으면 브리지가 그 레이어를 렌더러의 묶음으로 낸다.
         LayerBlend    layerBlend = LayerBlend::Normal;
         float         layerOpacity = 1.0f;
-        // 레이어의 패럴랙스 계수다(D-285). 게임 화면을 그릴 때 브리지가 이 아이템을 `카메라 위치 x (1 - 계수)` 만큼 옮긴다.
+        // 레이어의 패럴랙스 계수다(D-286). 게임 화면을 그릴 때 브리지가 이 아이템을 `카메라 위치 x (1 - 계수)` 만큼 옮긴다.
         float         layerParallax = 1.0f;
     };
 

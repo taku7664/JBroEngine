@@ -950,7 +950,7 @@ namespace
         Check(fog->GetBlend() == JBro::LayerBlend::Normal && fog->GetOpacity() == 0.25f, "the fog comes back at a quarter");
         Check(text.find("Parallax: 0.5") != JBro::String::npos && text.find("Parallax: 1") == JBro::String::npos
                 && fog->GetParallax() == 0.5f && base->GetParallax() == 1.0f,
-            "a parallax layer writes its factor and the default writes nothing (D-285)");
+            "a parallax layer writes its factor and the default writes nothing (D-286)");
         Check(Save(reopened) == text, "and saving it again writes the same bytes");
 
         // 모르는 블렌드는 추측하지 않고 거절한다.
@@ -962,7 +962,7 @@ namespace
         Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer blend is refused");
     }
 
-    // **레이어 에셋**(D-286, 기존 `LayerSerializer`). 레이어 하나와 그 오브젝트를 적고, 다른 캔버스의 맨 위에 새 레이어로 읽어 넣는다. 레이어 노드는
+    // **레이어 에셋**(D-287, 기존 `LayerSerializer`). 레이어 하나와 그 오브젝트를 적고, 다른 캔버스의 맨 위에 새 레이어로 읽어 넣는다. 레이어 노드는
     // 캔버스 파일과 같은 함수로 쓰여 블렌드·패럴랙스가 같이 가고, 레이어 안의 참조는 새 오브젝트끼리 이어지며, 레이어 밖을 가리키던 참조는 비어 온다.
     // 같은 파일을 두 번 넣으면 서로 다른 두 벌이다. 읽다 실패하면 캔버스는 그대로다. 캔버스 파일은 원본 에셋을 적고 되읽는다.
     void TestLayerAssetsCarryALayerAndItsObjects()
