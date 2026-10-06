@@ -15,6 +15,21 @@ namespace JBro::Widget
 {
     namespace
     {
+        // **가리키는 칸이 창 안에 다 들어와 있는가.** 조금이라도 보이면 된다고 보면, 목록 끝에 반쯤 걸친 칸을 굴리지 않아 구멍이 창 밖에 걸린다 -
+        // 컴포넌트 목록이 두 칸 길어지자 가이드 시험이 그렇게 실패했다(D-291). 창보다 큰 칸은 다 들어올 수 없으니 보이기만 하면 된다(매 프레임 굴리지 않는다).
+        Bool IsWhollyInWindow(const ImVec2& min, const ImVec2& max)
+        {
+            const ImRect clip = ImGui::GetCurrentWindow()->InnerClipRect;
+            if (max.y - min.y > clip.Max.y - clip.Min.y)
+            {
+                return ImGui::IsRectVisible(min, max);
+            }
+            return min.y >= clip.Min.y && max.y <= clip.Max.y;
+        }
+    }
+
+    namespace
+    {
         EditorGuideFocus* g_focus = nullptr;
         GuideFocusTarget g_nextTarget;
 
@@ -230,9 +245,9 @@ namespace JBro::Widget
                 return;
             }
             const Bool visible = ImGui::IsItemVisible();
-            if (false == visible && g_focus->ShouldScrollTo(target))
+            if (false == IsWhollyInWindow(ImGui::GetItemRectMin(), ImGui::GetItemRectMax()) && g_focus->ShouldScrollTo(target))
             {
-                // 지금 칸이 스크롤 밖이다. 이 줄이 가운데 오게 굴린다 - 다음 프레임에 보인다.
+                // 지금 칸이 스크롤 밖이거나 반쯤 걸쳤다. 이 줄이 가운데 오게 굴린다 - 다음 프레임에 다 보인다.
                 ImGui::SetScrollHereY(0.5f);
             }
             g_focus->Report(target, ToRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax()), opened, visible, activated,
@@ -248,7 +263,7 @@ namespace JBro::Widget
             return;
         }
         const Bool visible = ImGui::IsRectVisible(min, max);
-        if (false == visible && g_focus->ShouldScrollTo(target))
+        if (false == IsWhollyInWindow(min, max) && g_focus->ShouldScrollTo(target))
         {
             ImGui::SetScrollFromPosY(ImGui::GetCurrentWindow(), min.y - ImGui::GetWindowPos().y, 0.5f);
         }

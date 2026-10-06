@@ -1,4 +1,6 @@
-﻿#include <JBro/Editor/EditorTheme.h>
+﻿#include <JBro/Editor/Widget/GuideFocus.h>
+#include <JBro/Editor/EditorGuideFocus.h>
+#include <JBro/Editor/EditorTheme.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/AssetField.h>
@@ -1639,8 +1641,50 @@ namespace
     }
 }
 
+
+namespace
+{
+    // **가이드는 목록 끝에 반쯤 걸친 칸도 다 보이게 굴린다**(D-291). 높이 100 의 목록 칸 아래 경계에 걸친 단추를 가이드가 가리키면, 몇 프레임 뒤
+    // 그 단추가 칸 안에 다 들어와 있어야 한다. 전에는 조금이라도 보이면 굴리지 않아 구멍이 칸 밖에 걸렸다(컴포넌트 목록이 두 칸 길어지자 가이드 시험이 실패했다).
+    void TestTheGuideScrollsAHalfHiddenTargetIntoView()
+    {
+        Stage stage;
+        const JBro::GuideFocusTarget target = JBro::GuideFocusTargets::Action("probe.half_hidden");
+        JBro::EditorGuideFocus focus;
+        JBro::GuideFocusPath path;
+        Check(path.Push(target), "the path takes the button");
+        Check(focus.Begin(path), "the guide begins on the button");
+        JBro::Widget::SetGuideFocus(&focus);
+        ImVec2 itemMin;
+        ImVec2 itemMax;
+        ImRect listClip;
+        const auto frame = [&]() {
+            stage.Begin();
+            ImGui::BeginChild("##list", ImVec2(0.0f, 100.0f), ImGuiChildFlags_Borders);
+            ImGui::Dummy(ImVec2(10.0f, 80.0f));
+            JBro::Widget::SetNextItemTarget(target);
+            JBro::Widget::Button("half hidden");
+            itemMin = ImGui::GetItemRectMin();
+            itemMax = ImGui::GetItemRectMax();
+            ImGui::Dummy(ImVec2(10.0f, 300.0f));
+            listClip = ImGui::GetCurrentWindow()->InnerClipRect;
+            ImGui::EndChild();
+            stage.End();
+        };
+        frame();
+        Check(itemMin.y < listClip.Max.y && itemMax.y > listClip.Max.y, "the button starts half hidden at the bottom of the list");
+        for (JBro::Int32 at = 0; at < 3; ++at)
+        {
+            frame();
+        }
+        JBro::Widget::SetGuideFocus(nullptr);
+        Check(itemMin.y >= listClip.Min.y && itemMax.y <= listClip.Max.y, "the guide scrolls it wholly into the list");
+    }
+}
+
 JBro::Int32 RunEditorWidgetTests()
 {
+    TestTheGuideScrollsAHalfHiddenTargetIntoView();
     TestScopesUnwindThemselves();
     TestTheFormLayoutOpensAndClosesCleanly();
     TestTheListAsksItsCallbacksForEverything();
