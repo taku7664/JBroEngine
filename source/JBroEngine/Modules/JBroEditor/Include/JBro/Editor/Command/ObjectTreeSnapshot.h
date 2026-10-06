@@ -28,6 +28,8 @@ namespace JBro
     {
         EditorObjectId id = InvalidEditorObjectId;
         String name;
+        // 태그다(D-297). 비어 있으면 태그가 없다.
+        String tag;
         Bool active = true;
         // 오브젝트 플래그다(D-163). 없으면 지웠다 되돌린 감춘 오브젝트가 보이는 채로 돌아온다.
         UInt32 flags = 0;

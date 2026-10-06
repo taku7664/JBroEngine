@@ -179,6 +179,8 @@ namespace JBro
         // 레이어를 골랐을 때의 화면이다(D-279).
         void DrawLayer(LayerId layerId);
         void RemoveComponent(GameObject& object, ComponentBase& component);
+        // 머리의 태그 칸(D-297). 프로젝트 태그 목록에서 고르고, 맨 끝 항목이 새 태그를 더한다.
+        void DrawTagField(GameObject& object);
         // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.
         void MoveComponent(GameObject& object, std::size_t from, std::size_t to);
         // 머리(`headerMin`~`headerMax`)를 끌기 출처와 받는 자리로 만든다(D-294). 이번 프레임에 순서를 옮겼으면 참이다.
@@ -224,6 +226,8 @@ namespace JBro
         Bool m_nameEditing = false;
         // 레이어 이름 칸의 것이다(D-279). 오브젝트 이름 칸과 같은 규칙이다.
         String m_layerName;
+        // `태그 추가...` 팝업에서 치는 중인 글자(D-297).
+        String m_newTag;
         LayerId m_namedLayer = InvalidLayerId;
         Bool m_layerNameEditing = false;
 

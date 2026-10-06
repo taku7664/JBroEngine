@@ -38,6 +38,7 @@
 #include <JBro/AudioTypes/AudioBusName.h>
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Host/ProjectFile.h>
+#include <JBro/Core/Log.h>
 #include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Asset/AssetTypeRules.h>
 #include <JBro/Editor/EditorPaths.h>
@@ -256,6 +257,11 @@ namespace JBro
                                 m_editor->GetObjectIds().Track(object), m_name.c_str()));
                     }
                 });
+            // **태그는 프로젝트 목록에서 고른다**(D-297). 글자 칸이면 오타가 그대로 다른 태그가 된다. 목록 끝의 `태그 추가...` 가
+            // 그 자리에서 새 태그를 목록에 더하고 바로 단다 - 프로젝트 설정까지 가지 않는다.
+            header.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorTag, "Tag")),
+                [&]() { DrawTagField(*object); });
         }
         ImGui::Separator();
 
@@ -750,6 +756,88 @@ namespace JBro
         }
         Widget::EndDropTarget();
         return moved;
+    }
+
+    void InspectorPanel::DrawTagField(GameObject& object)
+    {
+        // 고른 것이 모두 바뀐다(활성 칸과 같다, D-142).
+        const auto selectedIds = [&]() {
+            Array<EditorObjectId> ids;
+            const Array<GameObject*> chosen = m_editor->GetSelectedObjects();
+            for (std::size_t index = 0; index < chosen.Size(); ++index)
+            {
+                if (chosen[index] != nullptr)
+                {
+                    ids.Add(m_editor->GetObjectIds().Track(chosen[index]));
+                }
+            }
+            if (ids.IsEmpty())
+            {
+                ids.Add(m_editor->GetObjectIds().Track(&object));
+            }
+            return ids;
+        };
+        // 항목: `태그 없음`, 프로젝트의 태그들, (목록에 없는 지금 태그), `태그 추가...`.
+        const Array<String>& tags = m_editor->GetProjectFile().tags;
+        const char* current = object.GetTagId() != InvalidNameId ? object.GetTag() : nullptr;
+        Array<const char*> items;
+        items.Add(Loc::TextOr(LocKeys::InspectorTagNone, "Untagged"));
+        Int32 chosen = 0;
+        for (const String& tag : tags)
+        {
+            if (current != nullptr && tag == current)
+            {
+                chosen = static_cast<JBro::Int32>(items.Size());
+            }
+            items.Add(tag.c_str());
+        }
+        // 목록에서 지운 태그를 단 오브젝트도 제 태그를 보인다. 고르면 그 태그가 그대로 남는다.
+        if (current != nullptr && chosen == 0)
+        {
+            chosen = static_cast<JBro::Int32>(items.Size());
+            items.Add(current);
+        }
+        const Int32 addIndex = static_cast<JBro::Int32>(items.Size());
+        items.Add(Loc::TextOr(LocKeys::InspectorTagAdd, "Add Tag..."));
+        const Int32 before = chosen;
+        if (Widget::FilterCombo("##tag", ArrayView<const char* const>(items.Data(), items.Size()), chosen).Draw() && chosen != before)
+        {
+            if (chosen == addIndex)
+            {
+                m_newTag.clear();
+                Widget::OpenContextMenu("##addTag");
+            }
+            else
+            {
+                const char* tag = chosen == 0 ? "" : items[static_cast<std::size_t>(chosen.Get())];
+                m_editor->GetCommands().Execute(MakeOwnerPtr<SetObjectTagCommand>(m_editor->GetObjectIds(), selectedIds(), tag));
+            }
+        }
+        if (Widget::BeginOpenedContextMenu("##addTag"))
+        {
+            const Bool entered = Widget::TextField("##newTag", m_newTag)
+                .Hint(Loc::TextOr(LocKeys::InspectorTagNameHint, "new tag name"))
+                .CommitOnEnter()
+                .Width(180.0f)
+                .Draw();
+            const Bool clicked = Widget::Button(Loc::TextOr(LocKeys::InspectorTagAddConfirm, "Add"));
+            if ((entered || clicked) && false == m_newTag.empty())
+            {
+                ProjectFileError error;
+                if (m_editor->AddProjectTag(m_newTag.c_str(), error))
+                {
+                    m_editor->GetCommands().Execute(
+                        MakeOwnerPtr<SetObjectTagCommand>(m_editor->GetObjectIds(), selectedIds(), m_newTag.c_str()));
+                }
+                else
+                {
+                    Log::Write(LogLevel::Warning, "editor", "the tag could not be added: %s", error.message.c_str());
+                }
+                m_newTag.clear();
+                Widget::CloseContextMenu();
+            }
+            Widget::EndContextMenu();
+        }
     }
 
     void InspectorPanel::MoveComponent(GameObject& object, std::size_t from, std::size_t to)

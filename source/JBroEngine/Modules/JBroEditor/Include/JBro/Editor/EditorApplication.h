@@ -166,6 +166,9 @@ namespace JBro
         // 프로젝트 설정을 파일에 쓴다(D-137). **원문을 타고 가며 아는 키만 고친다** -
         // 주석도 모르는 키도 그 자리에 남는다. 성공하면 에디터가 든 값도 그것으로 바뀐다.
         Bool SaveProjectSettings(const ProjectFile& settings, ProjectFileError& error);
+        // 프로젝트 태그 목록(`Tags`, D-297)에 하나를 더한다. 이미 있으면 그대로 참이다. 파일로 연 프로젝트면 파일에 쓰고,
+        // 파일 없이 연 프로젝트면 에디터가 든 값만 바꾼다. 빈 글자는 거절한다.
+        Bool AddProjectTag(const char* tag, ProjectFileError& error);
         // 물리 스레드의 추천 워커 수(D-223). 빌드 캔버스의 콜라이더를 센다. 2D 프로젝트가 아니면 0 이다.
         UInt32 RecommendPhysicsWorkers();
 

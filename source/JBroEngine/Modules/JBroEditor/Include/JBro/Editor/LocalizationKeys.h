@@ -192,6 +192,13 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorNothingSelected = "inspector.nothing_selected";
     inline constexpr const char* InspectorActive = "inspector.active";
     inline constexpr const char* InspectorName = "inspector.name";
+    // 인스펙터 머리의 태그 칸(D-297). 목록은 프로젝트의 `Tags` 이고 맨 끝 항목이 새 태그를 더한다.
+    inline constexpr const char* InspectorTag = "inspector.tag";
+    inline constexpr const char* InspectorTagNone = "inspector.tag_none";
+    inline constexpr const char* InspectorTagAdd = "inspector.tag_add";
+    inline constexpr const char* InspectorTagAddConfirm = "inspector.tag_add_confirm";
+    inline constexpr const char* InspectorTagNameHint = "inspector.tag_name_hint";
+    inline constexpr const char* ProjectSettingsTags = "project_settings.tags";
     inline constexpr const char* InspectorEnabled = "inspector.enabled";
     inline constexpr const char* InspectorAddComponent = "inspector.add_component";
     inline constexpr const char* InspectorMoveComponentUp = "inspector.move_up";

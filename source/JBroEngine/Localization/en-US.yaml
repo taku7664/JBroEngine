@@ -93,6 +93,12 @@ Entries:
   inspector.nothing_selected: nothing is selected
   inspector.active: Active
   inspector.name: Name
+  inspector.tag: Tag
+  inspector.tag_none: Untagged
+  inspector.tag_add: Add Tag...
+  inspector.tag_add_confirm: Add
+  inspector.tag_name_hint: new tag name
+  project_settings.tags: Tags
   inspector.enabled: Enabled
   inspector.add_component: Add Component
   inspector.move_up: Move Up

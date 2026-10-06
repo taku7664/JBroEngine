@@ -13701,6 +13701,103 @@ namespace
         return nullptr;
     }
 
+    // **태그는 인스펙터에서 프로젝트 목록으로 고르고, 목록 끝에서 새로 더한다**(D-297). 다는 것은 커맨드라 되돌릴 수 있고,
+    // 목록에 더한 것은 프로젝트 설정이라 되돌리기와 따로 남는다. 복사·붙여넣기가 태그를 지킨다.
+    void TestTaggingAnObjectFromTheInspector()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; tags not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "TagProbe";
+        project.name = {name, static_cast<JBro::UInt32>(sizeof(name) - 1)};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* hero = canvas->CreateObject("Hero");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(hero) != nullptr, "the probe needs a transform");
+        editor.SetSelectedObject(hero);
+        for (JBro::Int32 frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        ImGuiWindow* inspector = ImGui::FindWindowByName("Inspector");
+        Check(inspector != nullptr, "the inspector must have a window");
+        const ImGuiID combo = LabelId(LabelId(inspector->ID, "##object"), "##tag");
+        const char* addLabel = JBro::Loc::TextOr(JBro::LocKeys::InspectorTagAdd, "Add Tag...");
+        const auto pick = [&](JBro::Int32 index, const char* label) {
+            Spot field;
+            Check(FindItemAnywhereInWindow(editor, hwnd, inspector, combo, field), "the tag field must be in the inspector header");
+            ClickAt(editor, hwnd, field);
+            ImGuiWindow* popup = ImGui::FindWindowByName("##Combo_00");
+            Check(popup != nullptr && popup->Active, "clicking the tag field must open its list");
+            Spot item;
+            Check(FindItemAnywhereInWindow(editor, hwnd, popup, LabelId(PushedId(popup->ID, index), label), item),
+                "the list must carry the item");
+            ClickAt(editor, hwnd, item);
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the list must close");
+            }
+        };
+
+        // ── 목록 끝의 `태그 추가...` 로 새 태그를 만들어 단다 ─────────────
+        // 프로젝트에 태그가 없으니 목록은 `태그 없음`, `태그 추가...` 둘이다.
+        const std::size_t undo = editor.GetCommands().GetUndoCount();
+        pick(1, addLabel);
+        ImGuiWindow* menu = FindContextMenuWindow();
+        Check(menu != nullptr, "choosing Add Tag must open the name box");
+        Spot box;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "##newTag"), box), "the name box must be there");
+        ClickAt(editor, hwnd, box);
+        Check(editor.Tick(Frame), "the box must take focus");
+        for (const char* at = "Enemy"; *at != '\0'; ++at)
+        {
+            PostMessageW(hwnd, WM_CHAR, static_cast<WPARAM>(*at), 0);
+            Check(editor.Tick(Frame), "the editor must tick while typing");
+        }
+        PostMessageW(hwnd, WM_KEYDOWN, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        PostMessageW(hwnd, WM_KEYUP, VK_RETURN, 0);
+        Check(editor.Tick(Frame), "the editor must tick");
+        const JBro::Array<JBro::String>& tags = editor.GetProjectFile().tags;
+        Check(tags.Size() == 1 && tags[0] == "Enemy", "the new tag joins the project list");
+        Check(hero->CompareTag("Enemy"), "and the object wears it");
+        Check(editor.GetCommands().GetUndoCount() == undo + 1, "tagging is one undo");
+        Check(editor.GetCommands().Undo() && hero->GetTagId() == JBro::InvalidNameId, "undo takes the tag off");
+        Check(editor.GetProjectFile().tags.Size() == 1, "but the project keeps the tag in its list");
+
+        // ── 이제 목록에서 고른다 ─────────────
+        for (JBro::Int32 frame = 0; frame < 2; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+        pick(1, "Enemy");
+        Check(hero->CompareTag("Enemy"), "picking the tag from the list puts it on");
+        pick(0, JBro::Loc::TextOr(JBro::LocKeys::InspectorTagNone, "Untagged"));
+        Check(hero->GetTagId() == JBro::InvalidNameId, "picking Untagged takes it off");
+        Check(editor.GetCommands().Undo() && hero->CompareTag("Enemy"), "and undo puts it back");
+
+        // ── 복사·붙여넣기와 파일 ─────────────
+        Check(editor.CopySelection() && editor.PasteClipboard(), "the hero copies and pastes");
+        JBro::GameObject* pasted = editor.GetSelectedObject();
+        Check(pasted != nullptr && pasted != hero && pasted->CompareTag("Enemy"), "a pasted copy keeps the tag");
+        JBro::String text;
+        JBro::CanvasFileError error;
+        Check(JBro::WriteCanvasText(*canvas, text, error) && text.Contains("Tag: Enemy"), "the canvas file keeps the tag");
+
+        editor.Shutdown();
+    }
+
     // **같은 레이어·같은 renderOrder 끼리의 그리는 차례를 메뉴로 옮긴다**(D-296). 차례는 숨은 필드 `drawSequence` 이고,
     // 한 번 옮기면 그 묶음 전체에 맨 위 0 부터 아래로 -1 씩 다시 매긴다. 한 손짓은 커맨드 하나다.
     void TestBringingAnObjectForwardReordersItsDrawing()
@@ -14359,6 +14456,7 @@ JBro::Int32 RunEditorApplicationTests()
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();
     TestBringingAnObjectForwardReordersItsDrawing();
+    TestTaggingAnObjectFromTheInspector();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestALayerRowSelectsTheLayerForTheInspector();
     TestLayerAssetsSaveAndLoadInTheEditor();

@@ -134,6 +134,29 @@ namespace JBro
         const char* GetName() const override;
     };
 
+    // 오브젝트의 태그를 바꾼다(D-297). 고른 것이 모두 같은 태그가 되고, 되돌리면 각자 제 태그로 간다.
+    // 빈 글자는 태그를 뗀다. 모두 이미 그 태그면 실행하지 않는다(되돌리기 더미에 빈 칸이 쌓이지 않는다).
+    class SetObjectTagCommand final : public EditorCommand
+    {
+    public:
+        SetObjectTagCommand(EditorObjectRegistry& registry, const Array<EditorObjectId>& objects, const char* tag);
+
+        const char* GetName() const override;
+        EditorObjectId GetSubject() const override
+        {
+            return m_objects.IsEmpty() ? InvalidEditorObjectId : m_objects[0];
+        }
+        Bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        EditorObjectRegistry* m_registry = nullptr;
+        Array<EditorObjectId> m_objects;
+        Array<String> m_before;
+        String m_after;
+    };
+
     // 오브젝트를 **캔버스 뷰에서만** 감추거나 보인다(D-163, 기존 레이어 창의 눈 표시). 캔버스 파일에 남는다.
     class SetObjectEditorHiddenCommand final : public ObjectToggleCommand
     {

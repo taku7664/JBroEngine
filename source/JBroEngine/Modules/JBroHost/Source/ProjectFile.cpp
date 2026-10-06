@@ -825,6 +825,11 @@ namespace JBro
                     parsed.locales.Clear();
                     currentSequence = &parsed.locales;
                 }
+                else if (indent == 0 && key == "Tags")
+                {
+                    parsed.tags.Clear();
+                    currentSequence = &parsed.tags;
+                }
                 else if (indent == 0 && key == "PhysicsLayers")
                 {
                     parsed.physicsLayers.Clear();
@@ -957,6 +962,11 @@ namespace JBro
             else if (key == "Locales")
             {
                 parsed.locales.Clear();
+                recognized = value == "[]";
+            }
+            else if (key == "Tags")
+            {
+                parsed.tags.Clear();
                 recognized = value == "[]";
             }
             else if (key == "PhysicsLayers")
@@ -1659,6 +1669,7 @@ namespace JBro
         Bool sawInputLayers = false;
         Bool sawInputActions = false;
         Bool sawLocales = false;
+        Bool sawTags = false;
         Bool sawPhysicsLayers = false;
         Bool sawLayerPairs = false;
         // `Build:` 블록이 끝나는 자리. 없던 키를 그 끝에 더한다.
@@ -1745,6 +1756,18 @@ namespace JBro
                 {
                     AppendNameSequence(result, "Locales", project.locales, true);
                     sawLocales = true;
+                }
+                skippingSequence = false == hasValue;
+                replaced = true;
+            }
+            else if (pair && indent == 0 && key == "Tags")
+            {
+                // 로케일과 같다(D-297).
+                dropped = sawTags;
+                if (false == dropped)
+                {
+                    AppendNameSequence(result, "Tags", project.tags, true);
+                    sawTags = true;
                 }
                 skippingSequence = false == hasValue;
                 replaced = true;
@@ -1940,6 +1963,11 @@ namespace JBro
         if (false == sawLocales && HasNamedEntry(project.locales))
         {
             AppendNameSequence(result, "Locales", project.locales, true);
+        }
+        // 태그 목록도 같다(D-297).
+        if (false == sawTags && HasNamedEntry(project.tags))
+        {
+            AppendNameSequence(result, "Tags", project.tags, true);
         }
         // 물리 레이어도 같다(D-233): 적힌 적 없고 비어 있으면 적지 않는다.
         if (false == sawPhysicsLayers && NamedLayerCount(project) > 0)

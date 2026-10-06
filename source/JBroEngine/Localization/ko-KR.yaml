@@ -93,6 +93,12 @@ Entries:
   inspector.nothing_selected: 선택한 오브젝트가 없습니다
   inspector.active: 활성
   inspector.name: 이름
+  inspector.tag: 태그
+  inspector.tag_none: 태그 없음
+  inspector.tag_add: 태그 추가...
+  inspector.tag_add_confirm: 추가
+  inspector.tag_name_hint: 새 태그 이름
+  project_settings.tags: 태그
   inspector.enabled: 사용
   inspector.add_component: 컴포넌트 추가
   inspector.move_up: 위로 이동

@@ -27,6 +27,8 @@ namespace JBro
         entry.id = registry.Track(&object);
         const char* name = object.GetName();
         entry.name = name != nullptr ? name : "";
+        const char* tag = object.GetTagId() != InvalidNameId ? object.GetTag() : nullptr;
+        entry.tag = tag != nullptr ? tag : "";
         entry.active = object.IsActiveSelf();
         entry.flags = object.GetFlags();
         entry.layer = object.GetLayerId();
@@ -94,6 +96,7 @@ namespace JBro
             }
             object->SetActive(entry.active);
             object->SetFlags(entry.flags);
+            object->SetTag(entry.tag.c_str());
             // **떠 둔 레이어로 보낸다**(D-168). 그 레이어가 그 사이에 사라졌으면 캔버스가
             // 새로 만든 것에 준 레이어(기본 레이어)로 둔다 - 없는 번호를 들고 있으면
             // 그 오브젝트는 어느 칸에도 나오지 않는다.

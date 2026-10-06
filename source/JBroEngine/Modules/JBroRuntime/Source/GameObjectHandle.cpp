@@ -61,6 +61,40 @@ namespace JBro
         return object->IsActiveInHierarchy();
     }
 
+    const char* GameObjectHandle::GetTag() const
+    {
+        GameObject* object = Resolve();
+        if (object == nullptr)
+        {
+            ReportInvalidAccess("GetTag", m_instanceId);
+            return "";
+        }
+        const char* tag = object->GetTag();
+        return tag != nullptr ? tag : "";
+    }
+
+    void GameObjectHandle::SetTag(const char* tag)
+    {
+        GameObject* object = Resolve();
+        if (object == nullptr)
+        {
+            ReportInvalidAccess("SetTag", m_instanceId);
+            return;
+        }
+        object->SetTag(tag);
+    }
+
+    Bool GameObjectHandle::CompareTag(const char* tag) const
+    {
+        GameObject* object = Resolve();
+        if (object == nullptr)
+        {
+            ReportInvalidAccess("CompareTag", m_instanceId);
+            return false;
+        }
+        return object->CompareTag(tag);
+    }
+
     InstanceId GameObjectHandle::GetInstanceId() const
     {
         return m_instanceId;

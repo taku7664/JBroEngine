@@ -88,6 +88,14 @@ namespace JBro
         void          SetName(const char* name);
         NameId        GetNameId() const;
         void          SetNameId(NameId name);
+        // 태그(D-297). 프로젝트의 태그 목록(`.jproject` 의 `Tags`)에서 고른 하나이고, 비어 있으면 태그가 없다. 이름처럼 정수로 산다.
+        // 목록에 없는 글자도 받는다 - 목록은 에디터가 고르는 칸이고, 목록에서 지운 태그를 단 오브젝트가 깨지면 안 된다.
+        const char*   GetTag() const;
+        void          SetTag(const char* tag);
+        NameId        GetTagId() const;
+        void          SetTagId(NameId tag);
+        // 글자를 정수로 바꿔 견준다. 문자열을 견주지 않는다.
+        Bool          CompareTag(const char* tag) const;
         UInt32 GetFlags() const;
         void          SetFlags(UInt32 flags);
         Bool IsEditorHidden() const
@@ -162,6 +170,7 @@ namespace JBro
         Bool                          m_active = true;
         Bool                          m_activeInHierarchy = true;
         NameId                        m_name = InvalidNameId;
+        NameId                        m_tag = InvalidNameId;
     };
 
     template<typename T>

@@ -692,6 +692,39 @@ namespace
             "set locales are appended and the empty fallback is not");
     }
 
+    // **오브젝트 태그 목록**(D-297). 로케일 목록과 같은 모양이다 - 순서대로 읽고, 다시 쓰면 한 번만 적히며, 없던 파일에는 이름이 있을 때만 붙는다.
+    void TestTheTagList()
+    {
+        const char* text =
+            "EngineVersion: 1.0.0\n"
+            "Framework: 2D\n"
+            "Tags:\n"
+            "  - Player\n"
+            "  - Enemy\n"
+            "SomeFutureKey: keep me\n";
+        JBro::ProjectFile project;
+        JBro::ProjectFileError error;
+        Check(JBro::ParseProjectFile(text, std::strlen(text), project, error), "the tag list parses");
+        Check(project.tags.Size() == 2 && project.tags[0] == "Player" && project.tags[1] == "Enemy", "the tags are read in their order");
+        project.tags.Add("Pickup");
+        JBro::String written;
+        Check(JBro::WriteProjectFileText(project, text, std::strlen(text), written, error), "the tags rewrite");
+        Check(written.find("Tags:") == written.rfind("Tags:") && written.find("SomeFutureKey: keep me") != JBro::String::npos,
+            "the list is written once and the next key stays");
+        JBro::ProjectFile reread;
+        Check(JBro::ParseProjectFile(written.c_str(), written.size(), reread, error) && reread.tags.Size() == 3 && reread.tags[2] == "Pickup",
+            "the new tag comes back");
+
+        const char* bare = "EngineVersion: 1.0.0\nFramework: 2D\n";
+        JBro::ProjectFile none;
+        Check(JBro::ParseProjectFile(bare, std::strlen(bare), none, error), "the bare file parses");
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error) && written.find("Tags") == JBro::String::npos,
+            "a project with no tags grows no tag key");
+        none.tags.Add("Enemy");
+        Check(JBro::WriteProjectFileText(none, bare, std::strlen(bare), written, error) && written.find("Tags:\n  - Enemy\n") != JBro::String::npos,
+            "a tag is appended to a file that had none");
+    }
+
     // **비운 값은 빈 채로 돌아온다**(D-232). `Key: ` 는 블록 머리로 읽혀 기본값이 되살았다 - 설정 창에서 스크립트 경로를 비워도 저장 뒤
     // 개발 경로(`x64/Debug/GameScript.dll`)가 돌아왔다. 원문에 비어 있던 줄은 그대로 둔다.
     void TestAnEmptiedValueStaysEmpty()
@@ -968,6 +1001,7 @@ JBro::Int32 RunProjectFileTests()
     TestRewritingTheIgnorePatterns();
     TestTheProjectFontList();
     TestTheLocaleSettings();
+    TestTheTagList();
     TestAnEmptiedValueStaysEmpty();
     TestSavingTwiceDoesNotGrowTheFile();
     TestSavingCollapsesKeysThatWereWrittenTwice();

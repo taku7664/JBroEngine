@@ -215,6 +215,11 @@ namespace JBro
 
                 writer.BeginMap(nullptr);
                 writer.WriteString("Name", object->GetName());
+                // 태그는 있을 때만 적는다(D-297). 없으면 태그가 없는 것으로 읽는다.
+                if (object->GetTagId() != InvalidNameId)
+                {
+                    writer.WriteString("Tag", object->GetTag());
+                }
                 writer.WriteBool("Active", object->IsActiveSelf());
                 // 플래그는 있을 때만 적는다 - 대부분의 오브젝트는 0 이고, 없으면 0 으로 읽는다.
                 const UInt32 flags = mode == CanvasWriteMode::Package
@@ -283,6 +288,11 @@ namespace JBro
                     return Fail(error, "an object in this file could not be created");
                 }
                 created.Add(object);
+                String tag;
+                if (document.FindScalar(entry, "Tag", tag))
+                {
+                    object->SetTag(tag.c_str());
+                }
                 Int64 flags = 0;
                 if (document.FindInt(entry, "Flags", flags))
                 {

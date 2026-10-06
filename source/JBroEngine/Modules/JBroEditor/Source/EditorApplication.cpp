@@ -1303,6 +1303,31 @@ namespace JBro
         return true;
     }
 
+    Bool EditorApplication::AddProjectTag(const char* tag, ProjectFileError& error)
+    {
+        error = ProjectFileError{};
+        if (tag == nullptr || tag[0] == '\0')
+        {
+            error.message = "a tag needs a name";
+            return false;
+        }
+        ProjectFile settings = GetProjectFile();
+        for (const String& existing : settings.tags)
+        {
+            if (existing == tag)
+            {
+                return true;
+            }
+        }
+        settings.tags.Add(String(tag));
+        if (m_projectFilePath.empty())
+        {
+            m_engine->SetProjectFile(settings);
+            return true;
+        }
+        return SaveProjectSettings(settings, error);
+    }
+
     UInt32 EditorApplication::RecommendPhysicsWorkers()
     {
         if (m_frameworkKind != FrameworkKind::Framework2D || m_framework.Get() == nullptr || m_projectFilePath.empty())

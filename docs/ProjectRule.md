@@ -952,6 +952,8 @@
 - `String`은 `std::string`의 래퍼로 확정한다. 다시 구현하지 않는다. (MUST) (D-51)
 - `String`은 POD Context·패킷·`Ref`·핸들·**컴포넌트 공개 필드**에 두지 않는다. (MUST)
   이름·태그는 인턴된 정수(`NameId = MakeStableTypeId(text)`)로 두고 원문은 에디터·직렬화 계층이 보관한다.
+- 오브젝트의 이름(`GameObject::GetName`)과 태그(`GetTag`)는 다른 값이다. 태그는 오브젝트마다 하나이고 빈 글자는 태그 없음이다.
+  고르는 목록은 `.jproject` 의 `Tags` 이고, 목록에 없는 태그도 오브젝트에서 지우지 않는다. (MUST) (D-297)
 - 그 자리에 글자를 두어야 하면 `JBro::Fixed::String<N>`(`JBro/Types/FixedString.h`)을 쓴다. (SHOULD) (D-260)
   힙 문자열과 **이름이 같고 네임스페이스만 다른 별개의 타입**이다 - 저쪽은 힙에 담고 길이에 끝이 없으며 POD 가 아니고,
   이쪽은 몸통 안에 담고 용량이 정해져 있으며 trivially copyable 이다. 정규화해서 부르면 섞이지 않고,
