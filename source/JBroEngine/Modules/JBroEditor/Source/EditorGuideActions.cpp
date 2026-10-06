@@ -191,7 +191,7 @@ namespace JBro
         GuideRoute fixedRoute = GuideRoute::Hierarchy;
 
         // 단계에 들어설 때 찾은 오브젝트와 그 에디터 번호다. 번호를 따로 든다 - 지우는 일을 판정할 때 오브젝트는 이미 없다.
-        SafePtr<GameObject> object;
+        SafePtr<Object::GameObject> object;
         UInt64 objectEditorId = 0;
         UInt32 routeIndex = 0;
 
@@ -251,7 +251,7 @@ namespace JBro
 
         // ── 판단의 조각 ──────────────────────────────────────────────
 
-        UInt64 TrackedId(EditorApplication& editor, GameObject* object)
+        UInt64 TrackedId(EditorApplication& editor, Object::GameObject* object)
         {
             return object != nullptr ? editor.GetObjectIds().Track(object) : InvalidEditorObjectId;
         }
@@ -266,7 +266,7 @@ namespace JBro
             return editor.GetFrameworkKind() != FrameworkKind::Framework3D;
         }
 
-        Bool HasComponent(const GameObject& object, ComponentTypeId typeId)
+        Bool HasComponent(const Object::GameObject& object, ComponentTypeId typeId)
         {
             for (const auto& slot : object.GetComponents())
             {
@@ -286,7 +286,7 @@ namespace JBro
         // ── 메뉴의 길 ─────────────────────────────────────────────
 
         // 메뉴를 여는 데까지의 경로다. 끝의 항목은 부르는 쪽이 붙인다.
-        Bool BuildMenuEntry(const MenuRoute& entry, EditorApplication& editor, GameObject* target, GuideFocusPath& path)
+        Bool BuildMenuEntry(const MenuRoute& entry, EditorApplication& editor, Object::GameObject* target, GuideFocusPath& path)
         {
             switch (entry.menu)
             {
@@ -340,7 +340,7 @@ namespace JBro
 
         Bool BuildSelect(GuideStepBinding& binding, EditorApplication& editor, GuideRoute route, GuideFocusPath& path)
         {
-            GameObject* target = binding.object.TryGet();
+            Object::GameObject* target = binding.object.TryGet();
             if (route == GuideRoute::Hierarchy)
             {
                 if (target != nullptr)
@@ -371,18 +371,18 @@ namespace JBro
             {
                 return false;
             }
-            GameObject* target = binding.object.TryGet();
+            Object::GameObject* target = binding.object.TryGet();
             return target == nullptr || editor.GetSelectedObject() == target;
         }
 
         const char* BlockedSelect(GuideStepBinding& binding, EditorApplication& editor)
         {
-            GameObject* selected = editor.GetSelectedObject();
+            Object::GameObject* selected = editor.GetSelectedObject();
             if (selected == nullptr)
             {
                 return NeedSelectedObject();
             }
-            GameObject* target = binding.object.TryGet();
+            Object::GameObject* target = binding.object.TryGet();
             if (binding.objectRef != GuideStepBinding::ObjectRef::None && selected != target)
             {
                 return Loc::TextOr(LocKeys::GuideNeedTargetObject, "select the highlighted object first");
@@ -396,11 +396,11 @@ namespace JBro
         // 3D 면 `Transform3D` 의 것이라 두 프레임워크에서 같은 가이드가 돈다.
         Bool BuildField(GuideStepBinding& binding, EditorApplication& editor, GuideRoute, GuideFocusPath& path)
         {
-            if (GameObject* target = binding.object.TryGet())
+            if (Object::GameObject* target = binding.object.TryGet())
             {
                 editor.SetSelectedObject(target);
             }
-            const GameObject* object = editor.GetSelectedObject();
+            const Object::GameObject* object = editor.GetSelectedObject();
             if (object == nullptr || object->GetComponents().Size() == 0)
             {
                 return false;
@@ -603,7 +603,7 @@ namespace JBro
         // 고른 오브젝트의 그 필드가 적힌 값인가. 오브젝트·컴포넌트·필드는 `BuildField` 가 가리킨 것과 같다.
         Bool FieldHoldsValue(GuideStepBinding& binding, EditorApplication& editor)
         {
-            GameObject* object = editor.GetSelectedObject();
+            Object::GameObject* object = editor.GetSelectedObject();
             if (object == nullptr || object->GetComponents().Size() == 0)
             {
                 return false;
@@ -648,7 +648,7 @@ namespace JBro
         // 기즈모가 함께 옮긴다. 3D 의 캔버스 뷰는 아직 가리키지 않는다(손잡이의 자리를 알리는 것은 2D 뷰다).
         Bool SelectForCanvasTool(GuideStepBinding& binding, EditorApplication& editor)
         {
-            if (GameObject* target = binding.object.TryGet())
+            if (Object::GameObject* target = binding.object.TryGet())
             {
                 editor.SetSelectedObject(target);
             }
@@ -692,7 +692,7 @@ namespace JBro
         // 모양을 정하는 첫째, `FindPolygonTarget`)와 같은 포인트(비었으면 상자의 네 모서리, `SeedPoints`)를 본다.
         const char* BlockedPoint(GuideStepBinding& binding, EditorApplication& editor)
         {
-            GameObject* object = editor.GetSelectedObject();
+            Object::GameObject* object = editor.GetSelectedObject();
             Canvas* canvas = editor.GetCanvas();
             if (object == nullptr || canvas == nullptr)
             {
@@ -961,7 +961,7 @@ namespace JBro
     {
         object = {};
         objectEditorId = 0;
-        GameObject* found = nullptr;
+        Object::GameObject* found = nullptr;
         if (objectRef == ObjectRef::Selection)
         {
             found = editor.GetSelectedObject();
@@ -975,7 +975,7 @@ namespace JBro
         {
             if (Canvas* canvas = editor.GetCanvas())
             {
-                canvas->ForEachObject([&](GameObject& candidate) {
+                canvas->ForEachObject([&](Object::GameObject& candidate) {
                     if (found == nullptr && candidate.GetInstanceId() == objectId)
                     {
                         found = &candidate;
@@ -1002,7 +1002,7 @@ namespace JBro
         {
             return false;
         }
-        GameObject* target = object.TryGet();
+        Object::GameObject* target = object.TryGet();
         if (entry == nullptr)
         {
             if (false == action->build(*this, editor, route, path) || path.IsEmpty())
@@ -1124,15 +1124,15 @@ namespace JBro
             case Subject::ChildOf:
                 if (targetId != 0)
                 {
-                    GameObject* made = editor.GetObjectIds().Resolve(ran.subject);
-                    GameObject* parent = made != nullptr ? made->GetParent() : nullptr;
+                    Object::GameObject* made = editor.GetObjectIds().Resolve(ran.subject);
+                    Object::GameObject* parent = made != nullptr ? made->GetParent() : nullptr;
                     matches = parent != nullptr && TrackedId(editor, parent) == targetId;
                 }
                 break;
             }
             if (matches && action->takesComponent && hasComponent)
             {
-                GameObject* subject = editor.GetObjectIds().Resolve(ran.subject);
+                Object::GameObject* subject = editor.GetObjectIds().Resolve(ran.subject);
                 matches = subject != nullptr && HasComponent(*subject, componentType);
             }
             if (matches)

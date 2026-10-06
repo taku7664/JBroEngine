@@ -12,7 +12,10 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 }
 
 namespace JBro::System
@@ -44,10 +47,10 @@ namespace JBro::System
             UInt32 layerMask) const override;
         void RaycastAll(Vector2 origin, Vector2 direction, Float distance, Array<RaycastHit2D>& hits,
             UInt32 layerMask) const override;
-        void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
+        void OverlapBox(const Rect& area, Array<Handle::GameObject>& results,
             UInt32 layerMask) const override;
-        GameObjectHandle OverlapPoint(Vector2 point, UInt32 layerMask) const override;
-        void OverlapCircle(Vector2 center, Float radius, Array<GameObjectHandle>& results,
+        Handle::GameObject OverlapPoint(Vector2 point, UInt32 layerMask) const override;
+        void OverlapCircle(Vector2 center, Float radius, Array<Handle::GameObject>& results,
             UInt32 layerMask) const override;
         Bool CircleCast(Vector2 origin, Float radius, Vector2 direction, Float distance, RaycastHit2D& hit,
             UInt32 layerMask) const override;

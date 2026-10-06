@@ -15,7 +15,10 @@ namespace JBro
     class ComponentMenuTable;
     class EditorApplication;
     class EditorPanel;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 행동이 나오는 메뉴다(D-284). 여럿을 겹쳐 적는다.
     namespace EditorActionMenu
@@ -39,7 +42,7 @@ namespace JBro
         // 행동이 패널 종류의 것이면 그 종류의 패널이다 - 단축키면 포커스를 가진 것, 메뉴면 그 종류의 맨 앞. 없으면 널이다.
         EditorPanel* panel = nullptr;
         // 오브젝트 메뉴에서 우클릭한 오브젝트다. 널이면 지금 고른 것이 대상이다(편집 메뉴·단축키).
-        GameObject* object = nullptr;
+        Object::GameObject* object = nullptr;
         // 컴포넌트 메뉴의 그 인스턴스다. 그리는 동안만 유효하다 - 대상은 주소로 가리킨다.
         ComponentAddress component;
         ComponentBase* componentPointer = nullptr;

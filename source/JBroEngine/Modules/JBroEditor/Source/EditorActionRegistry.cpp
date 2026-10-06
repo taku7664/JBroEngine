@@ -54,7 +54,7 @@ namespace JBro
         }
 
         // 오브젝트 메뉴면 우클릭한 것, 아니면 고른 것이다.
-        GameObject* Target(const EditorActionContext& context)
+        Object::GameObject* Target(const EditorActionContext& context)
         {
             return context.object != nullptr ? context.object : context.editor->GetSelectedObject();
         }
@@ -111,7 +111,7 @@ namespace JBro
         Bool DoCreate(EditorActionContext& context)
         {
             // 오브젝트 메뉴에서는 그 오브젝트의 자식이고(`자식 오브젝트 추가`), 다른 자리에서는 뿌리다.
-            GameObject* parent = context.menu == EditorActionMenu::Object ? context.object : nullptr;
+            Object::GameObject* parent = context.menu == EditorActionMenu::Object ? context.object : nullptr;
             return EditorActions::CreateObject(*context.editor, parent, context.placement) != nullptr;
         }
 
@@ -119,12 +119,12 @@ namespace JBro
         // 뿌리 오브젝트에는 영영 켜지지 않는다.
         Bool ShowUnparent(const EditorActionContext& context)
         {
-            const GameObject* target = Target(context);
+            const Object::GameObject* target = Target(context);
             return context.menu != EditorActionMenu::Object || (target != nullptr && target->GetParent() != nullptr);
         }
         Bool CanUnparent(const EditorActionContext& context)
         {
-            const GameObject* target = Target(context);
+            const Object::GameObject* target = Target(context);
             return target != nullptr && target->GetParent() != nullptr;
         }
         const char* WhyNoUnparent(const EditorActionContext& context)
@@ -216,19 +216,19 @@ namespace JBro
         template <EditorActions::DrawOrderMove Move>
         Bool CanDrawOrder(const EditorActionContext& context)
         {
-            GameObject* target = Target(context);
+            Object::GameObject* target = Target(context);
             return target != nullptr && EditorActions::WhyNoDrawOrder(*context.editor, *target, Move) == nullptr;
         }
         template <EditorActions::DrawOrderMove Move>
         const char* WhyNoDrawOrder(const EditorActionContext& context)
         {
-            GameObject* target = Target(context);
+            Object::GameObject* target = Target(context);
             return target == nullptr ? NothingSelected() : EditorActions::WhyNoDrawOrder(*context.editor, *target, Move);
         }
         template <EditorActions::DrawOrderMove Move>
         Bool DoDrawOrder(EditorActionContext& context)
         {
-            GameObject* target = Target(context);
+            Object::GameObject* target = Target(context);
             return target != nullptr && EditorActions::MoveDrawOrder(*context.editor, *target, Move);
         }
 
@@ -539,8 +539,8 @@ namespace JBro
             actions.Register(info);
         }
         {
-            EditorActionInfo info = Action("object.create", LocKeys::HierarchyCreateObject, "Create Object", LocKeys::PanelHierarchy,
-                Object | Background, &CanCreate, &WhyNoCreate, &DoCreate);
+            EditorActionInfo info = Action("object.create", LocKeys::HierarchyCreateObject, "Create EditorActionMenu::Object", LocKeys::PanelHierarchy,
+                EditorActionMenu::Object | Background, &CanCreate, &WhyNoCreate, &DoCreate);
             info.objectMenuLabelKey = LocKeys::HierarchyCreateChild;
             info.objectMenuFallbackLabel = "Create Child";
             info.mayRemoveObject = true;
@@ -548,21 +548,21 @@ namespace JBro
         }
         {
             EditorActionInfo info = Action("object.unparent", LocKeys::HierarchyUnparent, "Unparent", LocKeys::PanelHierarchy,
-                Object, &CanUnparent, &WhyNoUnparent, &DoUnparent);
+                EditorActionMenu::Object, &CanUnparent, &WhyNoUnparent, &DoUnparent);
             info.IsShown = &ShowUnparent;
             // 부모가 바뀌면 지금 도는 자식 배열이 그 자리에서 달라진다.
             info.mayRemoveObject = true;
             actions.Register(info);
         }
         {
-            EditorActionInfo info = Action("object.copy", LocKeys::HierarchyCopy, "Copy", LocKeys::MenuEdit, Edit | Object,
+            EditorActionInfo info = Action("object.copy", LocKeys::HierarchyCopy, "Copy", LocKeys::MenuEdit, Edit | EditorActionMenu::Object,
                 &CanCopy, &WhyNoCopy, &DoCopy);
             info.primary = Bind(ImGuiKey_C, true);
             actions.Register(info);
         }
         {
             EditorActionInfo info = Action("object.paste", LocKeys::HierarchyPaste, "Paste", LocKeys::MenuEdit,
-                Edit | Object | Background, &CanPaste, &WhyNoPaste, &DoPaste);
+                Edit | EditorActionMenu::Object | Background, &CanPaste, &WhyNoPaste, &DoPaste);
             info.primary = Bind(ImGuiKey_V, true);
             info.mayRemoveObject = true;
             actions.Register(info);
@@ -570,13 +570,13 @@ namespace JBro
         {
             // Shift 를 정확히 견주므로 Ctrl+Shift+V 가 위의 Ctrl+V 를 오발동시키지 않는다(기존과 같다).
             EditorActionInfo info = Action("object.paste_as_child", LocKeys::HierarchyPasteAsChild, "Paste As Child", LocKeys::MenuEdit,
-                Edit | Object, &CanPasteAsChild, &WhyNoPasteAsChild, &DoPasteAsChild);
+                Edit | EditorActionMenu::Object, &CanPasteAsChild, &WhyNoPasteAsChild, &DoPasteAsChild);
             info.primary = Bind(ImGuiKey_V, true, true);
             info.mayRemoveObject = true;
             actions.Register(info);
         }
         {
-            EditorActionInfo info = Action("object.delete", LocKeys::HierarchyDelete, "Delete", LocKeys::MenuEdit, Edit | Object,
+            EditorActionInfo info = Action("object.delete", LocKeys::HierarchyDelete, "Delete", LocKeys::MenuEdit, Edit | EditorActionMenu::Object,
                 &CanDelete, &WhyNoDelete, &DoDelete);
             info.primary = Bind(ImGuiKey_Delete);
             info.mayRemoveObject = true;
@@ -628,7 +628,7 @@ namespace JBro
                     execute = &DoDrawOrder<DrawOrderMove::ToBack>;
                     break;
                 }
-                EditorActionInfo info = Action(order.name, order.labelKey, order.fallback, LocKeys::MenuEdit, Object, can, why, execute);
+                EditorActionInfo info = Action(order.name, order.labelKey, order.fallback, LocKeys::MenuEdit, EditorActionMenu::Object, can, why, execute);
                 info.primary = Bind(order.key, true, order.shift);
                 actions.Register(info);
             }

@@ -21,7 +21,7 @@ namespace JBro::System
         // 월드 위치다. 변환이 없거나 꺼져 있으면 거짓이다.
         Bool WorldPositionOf(Canvas& canvas, const ComponentBase& component, Float out[3])
         {
-            GameObject* owner = Internal::CanvasAccess::GetOwner(component);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(component);
             const auto* transform = canvas.FindComponentRaw<Component::Transform2D>(owner);
             if (transform == nullptr || false == transform->IsActiveComponent() || false == transform->worldValid)
             {

@@ -197,7 +197,7 @@ namespace
     // 볼 것이 있어야 화면이 떴는지 알 수 있다. 색이 서로 다른 사각형 몇 개를 놓는다.
     void PopulateProbeScene(JBro::Canvas& canvas)
     {
-        JBro::GameObject* eye = canvas.CreateObject("Camera");
+        JBro::Object::GameObject* eye = canvas.CreateObject("Camera");
         canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
         camera->primary = true;
@@ -224,7 +224,7 @@ namespace
 
         for (const Block& block : blocks)
         {
-            JBro::GameObject* object = canvas.CreateObject(block.name);
+            JBro::Object::GameObject* object = canvas.CreateObject(block.name);
             auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
             transform->position = {block.x, block.y};
 
@@ -238,7 +238,7 @@ namespace
     // 띄우자마자 빈 칸이면 붙었는지 아닌지 알 수 없다.
     void SelectProbeObject(JBro::EditorApplication& editor, JBro::Canvas& canvas)
     {
-        canvas.ForEachObject([&editor](JBro::GameObject& object) {
+        canvas.ForEachObject([&editor](JBro::Object::GameObject& object) {
             if (editor.GetSelectedObject() == nullptr
                 && std::strncmp(object.GetName(), "빨강", 6) == 0)
             {

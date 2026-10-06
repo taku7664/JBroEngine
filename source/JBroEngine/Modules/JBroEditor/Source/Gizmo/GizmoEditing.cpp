@@ -47,11 +47,11 @@ namespace JBro
         }
 
         // 부모의 월드 회전·스케일. 부모가 없거나 트랜스폼이 없으면 항등이다.
-        void ParentFrame(Canvas& canvas, GameObject& object, Bool planar, Quaternion& rotation, Vector3& scale)
+        void ParentFrame(Canvas& canvas, Object::GameObject& object, Bool planar, Quaternion& rotation, Vector3& scale)
         {
             rotation = {};
             scale = {1.0f, 1.0f, 1.0f};
-            GameObject* parent = object.GetParent();
+            Object::GameObject* parent = object.GetParent();
             if (parent == nullptr)
             {
                 return;
@@ -73,7 +73,7 @@ namespace JBro
         }
     }
 
-    Bool GizmoEditing::ReadSubject(EditorApplication& editor, GameObject& object, GizmoSubject& subject)
+    Bool GizmoEditing::ReadSubject(EditorApplication& editor, Object::GameObject& object, GizmoSubject& subject)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -103,7 +103,7 @@ namespace JBro
         return false;
     }
 
-    Bool GizmoEditing::CollectTarget(EditorApplication& editor, GameObject& object, Target& target) const
+    Bool GizmoEditing::CollectTarget(EditorApplication& editor, Object::GameObject& object, Target& target) const
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -151,7 +151,7 @@ namespace JBro
         m_targets.Clear();
         m_mode = mode;
         m_primaryStart = primaryStart;
-        const Array<GameObject*> roots = editor.GetTopLevelSelectedObjects();
+        const Array<Object::GameObject*> roots = editor.GetTopLevelSelectedObjects();
         for (std::size_t index = 0; index < roots.Size(); ++index)
         {
             if (roots[index] == nullptr)

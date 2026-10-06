@@ -181,16 +181,16 @@ namespace JBro::System
         return NormalizedToScreenPixel(m_screen, vx / view.halfWidth, vy / view.halfHeight, pixelX, pixelY);
     }
 
-    Bool Button2DSystem::ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const
+    Bool Button2DSystem::ScreenToLayer(Vector2 pixel, Handle::GameObject object, Vector2& point) const
     {
-        const GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
+        const Object::GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
         const Layer* layer = found != nullptr ? found->GetLayer() : nullptr;
         return layer != nullptr && PixelToLayer(*layer, pixel.x, pixel.y, point);
     }
 
-    Bool Button2DSystem::LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const
+    Bool Button2DSystem::LayerToScreen(Vector2 point, Handle::GameObject object, Vector2& pixel) const
     {
-        const GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
+        const Object::GameObject* found = Internal::GameObjectHandleAccess::Resolve(object);
         const Layer* layer = found != nullptr ? found->GetLayer() : nullptr;
         return layer != nullptr && LayerToPixel(*layer, point, pixel.x, pixel.y);
     }
@@ -230,7 +230,7 @@ namespace JBro::System
         return pointer;
     }
 
-    Bool Button2DSystem::HitTest(const Component::Button2D& button, GameObject& owner, const Layer& layer, const Pointer& pointer) const
+    Bool Button2DSystem::HitTest(const Component::Button2D& button, Object::GameObject& owner, const Layer& layer, const Pointer& pointer) const
     {
         const auto* transform = m_canvas->FindComponentRaw<Component::Transform2D>(&owner);
         if (transform == nullptr || false == transform->worldValid)
@@ -271,7 +271,7 @@ namespace JBro::System
         m_scriptRevision = revision;
     }
 
-    void Button2DSystem::CallHook(GameObject* object, Hook hook)
+    void Button2DSystem::CallHook(Object::GameObject* object, Hook hook)
     {
         if (object == nullptr || false == object->IsActiveInHierarchy())
         {
@@ -324,18 +324,18 @@ namespace JBro::System
         const Pointer pointer = ReadPointer(input);
 
         // 1. 포인터 아래의 가장 위 버튼, 그리고 지난 프레임의 호버·누름 오브젝트를 찾는다. 이번 프레임의 `clicked` 는 여기서 지운다.
-        GameObject* top = nullptr;
+        Object::GameObject* top = nullptr;
         Component::Button2D* topButton = nullptr;
         Bool topScreen = false;
         LayerOrder topLayer = 0;
         Int32 topOrder = 0;
         Int32 topSequence = 0;
-        GameObject* hoveredBefore = nullptr;
-        GameObject* pressedBefore = nullptr;
+        Object::GameObject* hoveredBefore = nullptr;
+        Object::GameObject* pressedBefore = nullptr;
         m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
         {
             button.clicked = false;
-            GameObject* owner = Internal::CanvasAccess::GetOwner(button);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(button);
             if (owner == nullptr)
             {
                 return;
@@ -384,7 +384,7 @@ namespace JBro::System
         m_hovered = top != nullptr ? top->GetInstanceId() : InvalidInstanceId;
 
         // 3. 누르기와 떼기. 누른 버튼은 포인터가 벗어나도 뗄 때까지 쥔다 - 떼는 자리가 그 버튼 위여야 누름이다.
-        GameObject* pressed = pressedBefore;
+        Object::GameObject* pressed = pressedBefore;
         if (pointer.pressed && topButton != nullptr && topButton->interactable)
         {
             pressed = top;
@@ -392,7 +392,7 @@ namespace JBro::System
         }
         if (pressed != nullptr && (pointer.released || false == pointer.present || false == pointer.down))
         {
-            GameObject* released = pressed;
+            Object::GameObject* released = pressed;
             pressed = nullptr;
             CallHook(released, Hook::Up);
             if (pointer.released && released == top && topButton != nullptr && topButton->interactable)
@@ -406,7 +406,7 @@ namespace JBro::System
         // 4. 상태 필드와 색. 훅이 버튼을 지웠을 수 있으니 다시 돈다.
         m_canvas->ForEach<Component::Button2D>([&](Component::Button2D& button)
         {
-            GameObject* owner = Internal::CanvasAccess::GetOwner(button);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(button);
             const InstanceId id = owner != nullptr ? owner->GetInstanceId() : InvalidInstanceId;
             button.hovered = id != InvalidInstanceId && id == m_hovered;
             button.pressed = id != InvalidInstanceId && id == m_pressed;

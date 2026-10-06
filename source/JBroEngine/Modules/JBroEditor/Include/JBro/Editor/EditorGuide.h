@@ -14,7 +14,10 @@
 namespace JBro
 {
     class EditorApplication;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
     class YamlWriter;
 
     // 가이드(D-251, `tasks/guide-focus-plan.md` §2.6)다. 단계마다 가이드 포커스로 한 자리를 가리키고,
@@ -198,7 +201,7 @@ namespace JBro
 
         // 계층에서 오브젝트까지 가는 경로(레이어 창 → 레이어 줄 → 조상 줄들 → 그 줄)를 `path` 뒤에 붙인다.
         // 조상이 경로 용량을 넘으면 거짓이다.
-        Bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path);
+        Bool AppendObjectPath(EditorApplication& editor, Object::GameObject& object, GuideFocusPath& path);
 
         // **글자로 적힌 가이드를 읽는다**(D-267). 형식은 `tasks/guide-focus-plan.md` §2.8.1 다. 모르는 행동·길·키를 만나면
         // 추측하지 않고 줄 번호와 함께 `error` 에 적고 거짓이다(`out` 은 손대지 않는다).

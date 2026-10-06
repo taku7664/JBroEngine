@@ -21,7 +21,10 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
     namespace Component
     {
         class Text2D;
@@ -75,12 +78,12 @@ namespace JBro
 
         // **이 오브젝트 안으로 들어간다**(D-254, 기존 `SetFocusContext`). 캔버스 뷰와 계층 창의 두 번 누르기가 같은 길이다.
         // 고르기는 부르는 쪽이 한다 - 캔버스 뷰는 자손까지, 계층 창은 그 줄 하나를 고른다.
-        void StepInto(GameObject& object);
+        void StepInto(Object::GameObject& object);
         const Array<Float>& GetGridLabelsX() const { return m_gridLabelsX; }
         // 마지막으로 그린 화면에서 격자 스냅이 붙는 간격이다(D-282). 그린 적이 없으면 0 이다.
         Float GetLastGridStep() const { return m_hasLastRect ? GridStep(m_lastRect) : Float(0.0f); }
         // 지금 들어가 있는 오브젝트다. 뿌리면 nullptr 이다.
-        GameObject* GetFocus() const;
+        Object::GameObject* GetFocus() const;
 
     private:
         // 그림이 붙은 화면 사각형과 그때의 카메라다. 겹쳐 그리는 것들이 전부 이것을 쓴다.
@@ -132,7 +135,7 @@ namespace JBro
         };
         struct PolygonTarget
         {
-            GameObject*            object = nullptr;
+            Object::GameObject*            object = nullptr;
             Component::Collider2D* collider = nullptr;
             ComponentAddress       address;
             PolygonPose            pose;
@@ -157,7 +160,7 @@ namespace JBro
         // 콜라이더를 고치는 동안과 UI 보기에는 없다(라이트는 월드 레이어에만 있다).
         struct LightTarget
         {
-            GameObject*             object = nullptr;
+            Object::GameObject*             object = nullptr;
             Component::Light2D*     light = nullptr;
             ComponentAddress        address;
             LightGizmoModel::Pose   pose;
@@ -182,7 +185,7 @@ namespace JBro
         // (기존 엔진 `CCanvasViewTool` 의 드래그 박스 선택). 상자를 그리는 것도 여기다.
         void HandleBoxSelect(const ViewRect& rect, Bool hovered);
         // 이 오브젝트와 그 자손을 모두 선택에 더한다(D-253).
-        void AddTreeToSelection(GameObject& object);
+        void AddTreeToSelection(Object::GameObject& object);
         void DrawContextMenu(const ViewRect& rect);
         // 가이드가 캔버스 뷰의 오브젝트를 가리키고 있으면 그 오브젝트가 화면에 비친 사각형을 알린다(D-267). 열림은 그 오브젝트의
         // 우클릭 메뉴가 떠 있는가다. 지금 칸인데 화면 밖이면 카메라를 그리로 옮긴다.
@@ -204,12 +207,12 @@ namespace JBro
         // 그리는 카메라가 가려는 카메라를 따라간다(D-252, 기존 `CAMERA_SMOOTH_SPEED`). 3D 는 곧바로 맞춘다.
         void FollowCameraGoal(Float deltaSeconds);
         // 이 오브젝트와 그 자손이 차지하는 사각형을 늘려 담는다. 트랜스폼이 하나도 없으면 `any` 가 그대로다.
-        void IncludeTreeBounds(const GameObject& object,
+        void IncludeTreeBounds(const Object::GameObject& object,
             Float& minX, Float& minY, Float& maxX, Float& maxY, Bool& any) const;
         // 두 번 눌러 들어가거나 나온 오브젝트로 카메라가 줌해 간다(D-252, 기존 `FocusOnEntity`).
-        void FocusCameraOn(const GameObject& object);
+        void FocusCameraOn(const Object::GameObject& object);
         // 이 화면 점에 걸리는 오브젝트. 없으면 nullptr 이다. 앞에 그려지는 것이 먼저 잡힌다.
-        GameObject* PickAt(const ViewRect& rect, Float screenX, Float screenY) const;
+        Object::GameObject* PickAt(const ViewRect& rect, Float screenX, Float screenY) const;
 
         // ── 들어가 고르기(D-157, 기존 `CCanvasViewEditContext`) ──────────────────
         //
@@ -222,24 +225,24 @@ namespace JBro
         // 마우스가 이 뷰의 그림 위에 있는가(D-179). 기즈모 손잡이에 가려도 참이다.
         Bool PointerInView(const ViewRect& rect) const;
         // 한 층 나온다(D-254). 나온 오브젝트를 돌려준다. 뿌리면 아무것도 하지 않고 nullptr 이다.
-        GameObject* StepOut();
+        Object::GameObject* StepOut();
         // **나올 때 돌아갈 자리를 한 번만 적는다**(D-257, D-254 를 고친다). 들어가기 직전에 지금 층의 카메라를 적고, 그 층으로 나올 때 그리로
         // 돌아가며 버린다 - 뿌리로 나오면 들어가기 전의 뿌리 자리, A 로 나오면 A 안에서 더 들어가기 전의 자리다. 들어갈 때는 늘 오브젝트에 맞춘다.
         void RememberCamera();
         // 적힌 자리로 가고 지운다. 없거나 보기가 다르면 거짓이다(그래도 지운다).
         Bool TakeCamera(UInt64 context);
         // 누른 오브젝트를 고른다(D-254, 기존 `CollectSubtree`). 들어가 있는 오브젝트 자신이면 그것 하나, 아니면 자손까지다.
-        void SelectPicked(GameObject& picked);
-        void RemoveTreeFromSelection(GameObject& object);
+        void SelectPicked(Object::GameObject& picked);
+        void RemoveTreeFromSelection(Object::GameObject& object);
         // 걸린 오브젝트를 **지금 층의 오브젝트**로 올린다. 뿌리에서는 맨 위 조상, 들어가 있으면
         // 그 오브젝트의 직계 자식(또는 그 오브젝트 자신). 들어간 오브젝트 밖이면 nullptr 이다.
-        GameObject* MapToLevel(GameObject* hit) const;
+        Object::GameObject* MapToLevel(Object::GameObject* hit) const;
         // 화면 왼쪽 위의 상태 글자(D-172, 기존 캔버스 뷰의 오버레이): 고른 것, 편집 카메라,
         // 그리고 들어가 있으면 그 사실과 나오는 법.
         void DrawOverlay(const ViewRect& rect);
         // 오브젝트가 화면에서 차지하는 사각형(회전은 무시한 외접 사각형)을 월드로 낸다. 클릭 고르기와 가이드 포커스가 함께 쓴다.
         // `drewNothing` 을 주면 그릴 것이 없어 원점 둘레의 작은 상자로 낸 것인지 알린다(가이드는 그 자리를 둥글게 뚫는다).
-        Bool GetWorldBounds(const GameObject& object,
+        Bool GetWorldBounds(const Object::GameObject& object,
             Float& minX, Float& minY, Float& maxX, Float& maxY, Bool* drewNothing = nullptr) const;
 
         EditorApplication* m_editor = nullptr;
@@ -296,13 +299,13 @@ namespace JBro
         Float m_otherCenterY = 0.0f;
         Float m_otherSize = 5.0f;
         // 고른 것이 바뀐 프레임에만 보기를 따라 바꾼다 - 손으로 바꾼 보기를 매 프레임 되돌리지 않는다.
-        GameObject* m_lastSelection = nullptr;
+        Object::GameObject* m_lastSelection = nullptr;
         // 지난 프레임에 고른 레이어다(D-279). 바뀌면 그 레이어의 공간으로 보기를 맞춘다.
         LayerId m_lastLayerSelection = InvalidLayerId;
         // 이 오브젝트가 지금 보기의 공간에 있는가. 그리기·고르기·테두리가 같은 규칙이다.
-        Bool InViewSpace(const GameObject& object) const;
+        Bool InViewSpace(const Object::GameObject& object) const;
         // 라이트·카메라 표시(D-298). 표시할 오브젝트면 글리프·색·월드 자리를 주고 참이다.
-        Bool FindMarker(const GameObject& object, const char*& glyph, UInt32& color, Vector2& world) const;
+        Bool FindMarker(const Object::GameObject& object, const char*& glyph, UInt32& color, Vector2& world) const;
         void DrawObjectMarkers(const ViewRect& rect);
         void DrawReferenceRect(const ViewRect& rect);
         // 3D 의 궤도 카메라(D-136). 바라보는 점의 높이와, 그 점에서의 거리와 각이다.
@@ -351,7 +354,7 @@ namespace JBro
         Bool m_panMoved = false;
         // 지금 떠 있는 우클릭 메뉴가 어느 오브젝트의 것인가. 빈 곳의 메뉴거나 메뉴가 없으면 빈다 - 가이드가 "이 오브젝트를
         // 우클릭했다" 를 이것으로 안다(D-267).
-        SafePtr<GameObject> m_contextObject;
+        SafePtr<Object::GameObject> m_contextObject;
         // 지금 떠 있는 우클릭 메뉴가 빈 곳의 것인가(D-268).
         Bool m_contextBackground = false;
         // 상자 선택 중인가와 그 시작 자리(화면 좌표). 끌기가 임계값을 넘어야 시작한다 -

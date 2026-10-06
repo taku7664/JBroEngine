@@ -10,7 +10,10 @@
 namespace JBro
 {
     class EditorApplication;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 기즈모의 끌기를 트랜스폼 편집으로 옮긴다(D-109). 인스펙터의 드래그와 같은 길이다(§11.3):
     // 끄는 동안은 위젯처럼 값을 직접 쓰고, 놓으면 편집 전 값으로 되돌린 뒤 `SetPropertyCommand` 묶음
@@ -22,7 +25,7 @@ namespace JBro
     {
     public:
         // 주된 선택의 월드 트랜스폼을 기즈모 대상으로 읽는다. 트랜스폼이 없으면 거짓이다.
-        static Bool ReadSubject(EditorApplication& editor, GameObject& object, GizmoSubject& subject);
+        static Bool ReadSubject(EditorApplication& editor, Object::GameObject& object, GizmoSubject& subject);
 
         // 끌기 시작: 대상들의 편집 전 값을 뜬다. 뜬 것이 하나도 없으면 거짓이고 끌기는 시작하지 않는다.
         Bool Begin(EditorApplication& editor, GizmoMode mode, const GizmoSubject& primaryStart);
@@ -54,7 +57,7 @@ namespace JBro
             Bool planar = false;
         };
 
-        Bool CollectTarget(EditorApplication& editor, GameObject& object, Target& target) const;
+        Bool CollectTarget(EditorApplication& editor, Object::GameObject& object, Target& target) const;
         void Write(EditorApplication& editor, const Target& target, const GizmoSubject& primaryNow) const;
 
         Array<Target> m_targets;

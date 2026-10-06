@@ -12,7 +12,7 @@ namespace JBro::Internal
     namespace
     {
         // 회전은 라디안으로 모은다 - 저장도 계산도 그 단위다(D-248).
-        Bool CalculateWorldMatrix(Canvas& canvas, GameObject* object, Matrix3x2& matrix, Vector2& scale, Radian& rotation)
+        Bool CalculateWorldMatrix(Canvas& canvas, Object::GameObject* object, Matrix3x2& matrix, Vector2& scale, Radian& rotation)
         {
             Component::Transform2D* local = canvas.FindComponentRaw<Component::Transform2D>(object);
             if (local == nullptr || false == local->IsActiveComponent())
@@ -21,7 +21,7 @@ namespace JBro::Internal
             }
 
             const Matrix3x2 localMatrix = MakeTransformMatrix2D(local->position, local->GetRotationRadian(), local->scale);
-            GameObject* parent = object->GetParent();
+            Object::GameObject* parent = object->GetParent();
             Component::Transform2D* parentLocal = canvas.FindComponentRaw<Component::Transform2D>(parent);
             if (parentLocal == nullptr)
             {
@@ -46,7 +46,7 @@ namespace JBro::Internal
         }
     }
 
-    Bool CalculateObjectPose(Canvas& canvas, GameObject* object, ObjectPose& result)
+    Bool CalculateObjectPose(Canvas& canvas, Object::GameObject* object, ObjectPose& result)
     {
         if (object == nullptr
             || false == CalculateWorldMatrix(canvas, object, result.matrix, result.scale, result.angle))
@@ -60,7 +60,7 @@ namespace JBro::Internal
         return true;
     }
 
-    Component::BodyType2D GetBodyType(Canvas& canvas, GameObject* object)
+    Component::BodyType2D GetBodyType(Canvas& canvas, Object::GameObject* object)
     {
         Component::Rigidbody2D* body = canvas.FindComponentRaw<Component::Rigidbody2D>(object);
         if (body == nullptr || false == body->IsActiveComponent())

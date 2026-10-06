@@ -7,7 +7,10 @@
 namespace JBro
 {
     class Canvas;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 }
 
 namespace JBro::Internal
@@ -27,7 +30,7 @@ namespace JBro::Internal
     };
 
     // 활성 `Transform2D` 가 없으면 false 다. 부모에 Transform 이 꺼져 있으면 그 아래도 자세가 없다(ProjectRule §6).
-    Bool CalculateObjectPose(Canvas& canvas, GameObject* object, ObjectPose& result);
+    Bool CalculateObjectPose(Canvas& canvas, Object::GameObject* object, ObjectPose& result);
 
-    Component::BodyType2D GetBodyType(Canvas& canvas, GameObject* object);
+    Component::BodyType2D GetBodyType(Canvas& canvas, Object::GameObject* object);
 }

@@ -405,14 +405,14 @@ namespace JBro
         constexpr Float MarkerPickRadius = MarkerSize * 0.55f;
     }
 
-    Bool CanvasViewPanel::FindMarker(const GameObject& object, const char*& glyph, UInt32& color, Vector2& world) const
+    Bool CanvasViewPanel::FindMarker(const Object::GameObject& object, const char*& glyph, UInt32& color, Vector2& world) const
     {
         Canvas* canvas = m_editor->GetCanvas();
         if (canvas == nullptr || object.IsEditorHidden() || false == InViewSpace(object))
         {
             return false;
         }
-        GameObject& mutableObject = const_cast<GameObject&>(object);
+        Object::GameObject& mutableObject = const_cast<Object::GameObject&>(object);
         const Component::Transform2D* transform = canvas->FindComponentRaw<Component::Transform2D>(&mutableObject);
         if (transform == nullptr)
         {
@@ -449,7 +449,7 @@ namespace JBro
             return;
         }
         ImDrawList* draw = ImGui::GetWindowDrawList();
-        canvas->ForEachObject([&](GameObject& object)
+        canvas->ForEachObject([&](Object::GameObject& object)
         {
             const char* glyph = nullptr;
             UInt32 color = 0;
@@ -470,7 +470,7 @@ namespace JBro
         });
     }
 
-    Bool CanvasViewPanel::InViewSpace(const GameObject& object) const
+    Bool CanvasViewPanel::InViewSpace(const Object::GameObject& object) const
     {
         const Layer* layer = object.GetLayer();
         const Bool screen = layer != nullptr && layer->GetSpace() == LayerSpace::Screen;
@@ -502,7 +502,7 @@ namespace JBro
             return;
         }
         // 고른 것이 바뀌면 그 레이어의 공간으로 보기를 맞춘다(D-237). 계층에서 화면 레이어의 오브젝트를 누르면 UI 보기로 간다.
-        if (GameObject* selected = m_editor->GetSelectedObject(); selected != m_lastSelection)
+        if (Object::GameObject* selected = m_editor->GetSelectedObject(); selected != m_lastSelection)
         {
             m_lastSelection = selected;
             if (selected != nullptr && false == InViewSpace(*selected))
@@ -544,7 +544,7 @@ namespace JBro
         else
         {
             // 들어가 있으면 그 오브젝트만 흰 막 위에 남는다(D-252).
-            const GameObject* focus = GetFocus();
+            const Object::GameObject* focus = GetFocus();
             m_editor->RequestCanvasView(wanted, m_centerX, m_centerY, m_orthographicSize, m_screenView,
                 focus != nullptr ? focus->GetInstanceId() : InvalidInstanceId, m_showLighting);
         }
@@ -1025,7 +1025,7 @@ namespace JBro
         draw->AddLine(ImVec2(originX, rect.top), ImVec2(originX, rect.top + rect.height), axisY, 1.5f);
     }
 
-    Bool CanvasViewPanel::GetWorldBounds(const GameObject& object,
+    Bool CanvasViewPanel::GetWorldBounds(const Object::GameObject& object,
         Float& minX, Float& minY, Float& maxX, Float& maxY, Bool* drewNothing) const
     {
         Canvas* canvas = m_editor->GetCanvas();
@@ -1033,7 +1033,7 @@ namespace JBro
         {
             return false;
         }
-        GameObject& mutableObject = const_cast<GameObject&>(object);
+        Object::GameObject& mutableObject = const_cast<Object::GameObject&>(object);
         Component::Transform2D* transform =
             canvas->FindComponentRaw<Component::Transform2D>(&mutableObject);
         if (transform == nullptr)
@@ -1175,7 +1175,7 @@ namespace JBro
         // 상대가 없으면 상대 앵커는 월드의 점이다. 자동 설정은 재생이 처음 이을 때 적으므로 그 전에는 적힌 값대로 보인다.
         ImDrawList* draw = ImGui::GetWindowDrawList();
         const ImU32 color = IM_COL32(255, 140, 220, 210);
-        const auto poseOf = [&](GameObject* object, PolygonPose& pose) {
+        const auto poseOf = [&](Object::GameObject* object, PolygonPose& pose) {
             Component::Transform2D* transform =
                 object != nullptr ? canvas->FindComponentRaw<Component::Transform2D>(object) : nullptr;
             if (transform == nullptr)
@@ -1189,7 +1189,7 @@ namespace JBro
             pose.sine = std::sin(angle.Get());
             return true;
         };
-        const auto connectedPoint = [&](const GameObjectHandle& connected, Vector2 anchor) {
+        const auto connectedPoint = [&](const Handle::GameObject& connected, Vector2 anchor) {
             PolygonPose other;
             if (poseOf(Internal::GameObjectHandleAccess::Resolve(connected), other))
             {
@@ -1199,7 +1199,7 @@ namespace JBro
             WorldToScreen(rect, anchor.x, anchor.y, screen.x, screen.y);
             return screen;
         };
-        canvas->ForEachObject([&](GameObject& object) {
+        canvas->ForEachObject([&](Object::GameObject& object) {
             if (object.IsEditorHidden())
             {
                 return;
@@ -1263,9 +1263,9 @@ namespace JBro
         // 오목한 폴리곤을 물리가 나눈 볼록 조각. 고른 것만 옅게 그린다 - 조각 사이 이음매가 어디인지 보인다.
         const ImU32 pieceColor = IM_COL32(80, 180, 255, 80);
         // 들어가 있으면 그 안의 콜라이더만 그린다(D-252). 흰 막에 가린 오브젝트의 선이 막 위에 떠 있으면 무엇이 가려졌는지 흐려진다.
-        const GameObject* focus = GetFocus();
+        const Object::GameObject* focus = GetFocus();
 
-        canvas->ForEachObject([&](GameObject& object)
+        canvas->ForEachObject([&](Object::GameObject& object)
         {
             // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-237).
             if (object.IsEditorHidden() || false == InViewSpace(object))
@@ -1274,7 +1274,7 @@ namespace JBro
             }
             if (focus != nullptr)
             {
-                const GameObject* at = &object;
+                const Object::GameObject* at = &object;
                 while (at != nullptr && at != focus)
                 {
                     at = at->GetParent();
@@ -1524,7 +1524,7 @@ namespace JBro
     {
         target = {};
         Canvas* canvas = m_editor->GetCanvas();
-        GameObject* object = m_editor->GetSelectedObject();
+        Object::GameObject* object = m_editor->GetSelectedObject();
         if (false == m_editCollider || canvas == nullptr || object == nullptr || object->IsEditorHidden())
         {
             return false;
@@ -1760,7 +1760,7 @@ namespace JBro
     {
         target = {};
         Canvas* canvas = m_editor->GetCanvas();
-        GameObject* object = m_editor->GetSelectedObject();
+        Object::GameObject* object = m_editor->GetSelectedObject();
         if (m_screenView || canvas == nullptr || object == nullptr || object->IsEditorHidden())
         {
             return false;
@@ -2082,16 +2082,16 @@ namespace JBro
 
     void CanvasViewPanel::DrawSelectionOutlines(const ViewRect& rect)
     {
-        const Array<GameObject*> selected = m_editor->GetSelectedObjects();
+        const Array<Object::GameObject*> selected = m_editor->GetSelectedObjects();
         if (selected.Size() == 0)
         {
             return;
         }
         ImDrawList* draw = ImGui::GetWindowDrawList();
-        GameObject* primary = m_editor->GetSelectedObject();
+        Object::GameObject* primary = m_editor->GetSelectedObject();
         for (std::size_t index = 0; index < selected.Size(); ++index)
         {
-            GameObject* object = selected[index];
+            Object::GameObject* object = selected[index];
             Float minX = 0.0f;
             Float minY = 0.0f;
             Float maxX = 0.0f;
@@ -2117,7 +2117,7 @@ namespace JBro
         }
     }
 
-    GameObject* CanvasViewPanel::PickAt(
+    Object::GameObject* CanvasViewPanel::PickAt(
         const ViewRect& rect, Float screenX, Float screenY) const
     {
         Canvas* canvas = m_editor->GetCanvas();
@@ -2130,9 +2130,9 @@ namespace JBro
         ScreenToWorld(rect, screenX, screenY, worldX, worldY);
 
         // **작은 것이 이긴다.** 큰 배경 위에 놓인 작은 오브젝트를 집을 수 있어야 한다.
-        GameObject* best = nullptr;
+        Object::GameObject* best = nullptr;
         Float bestArea = 0.0f;
-        canvas->ForEachObject([&](GameObject& object)
+        canvas->ForEachObject([&](Object::GameObject& object)
         {
             // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-237).
             if (object.IsEditorHidden() || false == InViewSpace(object))
@@ -2159,7 +2159,7 @@ namespace JBro
             }
         });
         // **라이트·카메라 표시를 누르면 그것이다**(D-298). 넓이가 없는 표시라 어느 몸통보다 작은 것으로 본다.
-        canvas->ForEachObject([&](GameObject& object)
+        canvas->ForEachObject([&](Object::GameObject& object)
         {
             const char* glyph = nullptr;
             UInt32 color = 0;
@@ -2201,22 +2201,22 @@ namespace JBro
             && ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
     }
 
-    GameObject* CanvasViewPanel::GetFocus() const
+    Object::GameObject* CanvasViewPanel::GetFocus() const
     {
         return m_focus != 0 ? m_editor->GetObjectIds().Resolve(m_focus) : nullptr;
     }
 
-    GameObject* CanvasViewPanel::MapToLevel(GameObject* hit) const
+    Object::GameObject* CanvasViewPanel::MapToLevel(Object::GameObject* hit) const
     {
-        GameObject* focus = GetFocus();
-        for (GameObject* at = hit; at != nullptr; at = at->GetParent())
+        Object::GameObject* focus = GetFocus();
+        for (Object::GameObject* at = hit; at != nullptr; at = at->GetParent())
         {
             if (focus != nullptr && at == focus)
             {
                 // 들어간 오브젝트 자신의 몸을 눌렀다. 자식이 아니어도 그것은 고를 수 있어야 한다.
                 return focus;
             }
-            GameObject* parent = at->GetParent();
+            Object::GameObject* parent = at->GetParent();
             if (focus == nullptr ? parent == nullptr : parent == focus)
             {
                 return at;
@@ -2269,7 +2269,7 @@ namespace JBro
         line(text, IM_COL32(150, 158, 170, 255));
 
         // 들어가 있으면 그 사실과 나오는 법을 적는다. 모르면 왜 부모가 안 잡히는지 알 수 없다.
-        if (GameObject* focus = GetFocus())
+        if (Object::GameObject* focus = GetFocus())
         {
             const char* name = focus->GetName();
             std::snprintf(text, sizeof(text),
@@ -2322,7 +2322,7 @@ namespace JBro
             return;
         }
         const ImGuiIO& io = ImGui::GetIO();
-        GameObject* picked = MapToLevel(PickAt(rect, io.MousePos.x, io.MousePos.y));
+        Object::GameObject* picked = MapToLevel(PickAt(rect, io.MousePos.x, io.MousePos.y));
         if (m_doubleClick)
         {
             m_doubleClick = false;
@@ -2334,7 +2334,7 @@ namespace JBro
                 StepInto(*picked);
                 SelectPicked(*picked);
             }
-            else if (GameObject* exited = StepOut())
+            else if (Object::GameObject* exited = StepOut())
             {
                 // 빈 곳을 두 번 누르면 **한 층 나온다.** 나온 오브젝트를 골라 두어 어디서 나왔는지 보인다.
                 SelectPicked(*exited);
@@ -2381,7 +2381,7 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::SelectPicked(GameObject& picked)
+    void CanvasViewPanel::SelectPicked(Object::GameObject& picked)
     {
         // 누른 것이 주된 선택이다 - 인스펙터가 그것을 먼저 보인다. 자손은 그 뒤에 붙는다.
         m_editor->SetSelectedObject(&picked);
@@ -2391,19 +2391,19 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::RemoveTreeFromSelection(GameObject& object)
+    void CanvasViewPanel::RemoveTreeFromSelection(Object::GameObject& object)
     {
         m_editor->RemoveFromSelection(&object);
-        for (const SafePtr<GameObject>& child : object.GetChildren())
+        for (const SafePtr<Object::GameObject>& child : object.GetChildren())
         {
-            if (GameObject* at = child.TryGet())
+            if (Object::GameObject* at = child.TryGet())
             {
                 RemoveTreeFromSelection(*at);
             }
         }
     }
 
-    void CanvasViewPanel::StepInto(GameObject& object)
+    void CanvasViewPanel::StepInto(Object::GameObject& object)
     {
         const UInt64 id = m_editor->GetObjectIds().Track(&object);
         if (id == m_focus)
@@ -2420,14 +2420,14 @@ namespace JBro
         FocusCameraOn(object);
     }
 
-    GameObject* CanvasViewPanel::StepOut()
+    Object::GameObject* CanvasViewPanel::StepOut()
     {
-        GameObject* focus = GetFocus();
+        Object::GameObject* focus = GetFocus();
         if (focus == nullptr)
         {
             return nullptr;
         }
-        GameObject* parent = focus->GetParent();
+        Object::GameObject* parent = focus->GetParent();
         m_focus = parent != nullptr ? m_editor->GetObjectIds().Track(parent) : InvalidEditorObjectId;
         // 그 층에서 들어가기 직전에 보던 자리로 돌아간다. 적힌 것은 한 번 쓰고 버린다(D-257).
         // 적힌 것이 없으면(계층 창에서 곧장 깊이 들어왔다) 나온 오브젝트를 비춘다.
@@ -2540,8 +2540,8 @@ namespace JBro
         ScreenToWorld(rect, left, bottom, worldLeft, worldBottom);
         ScreenToWorld(rect, right, top, worldRight, worldTop);
 
-        Array<GameObject*> hit;
-        canvas->ForEachObject([&](GameObject& object)
+        Array<Object::GameObject*> hit;
+        canvas->ForEachObject([&](Object::GameObject& object)
         {
             // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-237).
             if (object.IsEditorHidden() || false == InViewSpace(object))
@@ -2562,7 +2562,7 @@ namespace JBro
                 return;
             }
             // 지금 층의 오브젝트로 올린다(D-157). 한 부모의 조각 여럿이 걸려도 부모는 한 번만 든다.
-            GameObject* level = MapToLevel(&object);
+            Object::GameObject* level = MapToLevel(&object);
             if (level == nullptr)
             {
                 return;
@@ -2585,7 +2585,7 @@ namespace JBro
         // **걸린 오브젝트의 자손도 함께 고른다**(D-253, 기존 `CollectSubtree`). 부모만 고르면 인스펙터에서 자식의 값을 함께 고칠 수 없다.
         // 들어가 있는 오브젝트 자신이 걸렸으면 그것 하나다 - 그 안의 조각을 고르려고 들어간 것이다. 옮기기·지우기·복사는
         // 맨 위 선택만 다루므로(`GetTopLevelSelectedObjects`) 자식이 두 번 옮겨지지 않는다.
-        const GameObject* focus = GetFocus();
+        const Object::GameObject* focus = GetFocus();
         for (std::size_t index = 0; index < hit.Size(); ++index)
         {
             if (hit[index] == focus)
@@ -2599,12 +2599,12 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::AddTreeToSelection(GameObject& object)
+    void CanvasViewPanel::AddTreeToSelection(Object::GameObject& object)
     {
         m_editor->AddToSelection(&object);
-        for (const SafePtr<GameObject>& child : object.GetChildren())
+        for (const SafePtr<Object::GameObject>& child : object.GetChildren())
         {
-            if (GameObject* at = child.TryGet())
+            if (Object::GameObject* at = child.TryGet())
             {
                 AddTreeToSelection(*at);
             }
@@ -2660,7 +2660,7 @@ namespace JBro
         // **누른 자리에 오브젝트가 있으면 그것의 메뉴다**(D-170, 기존 캔버스 뷰도 같다).
         // 빈 곳이면 빈자리 메뉴다. 둘 다 계층과 **같은 한 벌**이다(D-132) -
         // 두 화면의 메뉴가 갈라지지 않는다.
-        GameObject* under = Is3D()
+        Object::GameObject* under = Is3D()
             ? nullptr
             : MapToLevel(PickAt(rect, opened.x, opened.y));
         if (under != nullptr)
@@ -2688,7 +2688,7 @@ namespace JBro
         Float maxX = 0.0f;
         Float maxY = 0.0f;
         Bool any = false;
-        auto include = [&](const GameObject& object)
+        auto include = [&](const Object::GameObject& object)
         {
             Float x0 = 0.0f;
             Float y0 = 0.0f;
@@ -2713,12 +2713,12 @@ namespace JBro
             maxY = (std::max)(maxY, y1);
         };
 
-        const Array<GameObject*> selected = m_editor->GetSelectedObjects();
+        const Array<Object::GameObject*> selected = m_editor->GetSelectedObjects();
         if (selected.Size() != 0)
         {
             for (std::size_t index = 0; index < selected.Size(); ++index)
             {
-                if (const GameObject* object = selected[index])
+                if (const Object::GameObject* object = selected[index])
                 {
                     include(*object);
                 }
@@ -2727,7 +2727,7 @@ namespace JBro
         else
         {
             // 고른 것이 없으면 캔버스 전체를 담는다. 길을 잃었을 때 돌아오는 단추다.
-            canvas->ForEachObject([&](GameObject& object) { include(object); });
+            canvas->ForEachObject([&](Object::GameObject& object) { include(object); });
         }
         if (false == any)
         {
@@ -2773,7 +2773,7 @@ namespace JBro
             if ((target.name == handleKind || target.name == pointKind) && focus->ShouldScrollTo(target))
             {
                 // 손잡이와 포인트는 고른 오브젝트 위에 선다. 그 오브젝트가 화면 밖이면 카메라를 그리로 옮긴다 - 그래야 그려진다.
-                GameObject* selected = m_editor->GetSelectedObject();
+                Object::GameObject* selected = m_editor->GetSelectedObject();
                 Float minX = 0.0f;
                 Float minY = 0.0f;
                 Float maxX = 0.0f;
@@ -2797,7 +2797,7 @@ namespace JBro
             {
                 continue;
             }
-            GameObject* object = m_editor->GetObjectIds().Resolve(target.key);
+            Object::GameObject* object = m_editor->GetObjectIds().Resolve(target.key);
             if (object == nullptr)
             {
                 continue;
@@ -2848,7 +2848,7 @@ namespace JBro
         }
     }
 
-    void CanvasViewPanel::IncludeTreeBounds(const GameObject& object,
+    void CanvasViewPanel::IncludeTreeBounds(const Object::GameObject& object,
         Float& minX, Float& minY, Float& maxX, Float& maxY, Bool& any) const
     {
         if (object.IsEditorHidden())
@@ -2867,16 +2867,16 @@ namespace JBro
             maxY = any ? (std::max)(maxY, y1) : y1;
             any = true;
         }
-        for (const SafePtr<GameObject>& child : object.GetChildren())
+        for (const SafePtr<Object::GameObject>& child : object.GetChildren())
         {
-            if (const GameObject* at = child.TryGet())
+            if (const Object::GameObject* at = child.TryGet())
             {
                 IncludeTreeBounds(*at, minX, minY, maxX, maxY, any);
             }
         }
     }
 
-    void CanvasViewPanel::FocusCameraOn(const GameObject& object)
+    void CanvasViewPanel::FocusCameraOn(const Object::GameObject& object)
     {
         // **자손까지 담는다.** 그림 없는 묶음 오브젝트로 들어가면 제 몸은 점이라, 제 몸만 재면 화면이 빈 곳으로 당겨진다.
         // 기존 엔진은 오브젝트 자신의 스프라이트만 재서 그렇게 되었다.
@@ -3051,7 +3051,7 @@ namespace JBro
     void CanvasViewPanel::DrawSelectionMarkers3D(const ViewRect& rect)
     {
         Canvas* canvas = m_editor->GetCanvas();
-        const Array<GameObject*> selected = m_editor->GetSelectedObjects();
+        const Array<Object::GameObject*> selected = m_editor->GetSelectedObjects();
         if (canvas == nullptr || selected.Size() == 0)
         {
             return;
@@ -3065,10 +3065,10 @@ namespace JBro
         // 상자를 두르지 못한다 - 짐작한 크기로 두르면 맞지 않는 테두리가 되고,
         // 맞지 않는 테두리는 없는 것보다 나쁘다.
         ImDrawList* draw = ImGui::GetWindowDrawList();
-        GameObject* primary = m_editor->GetSelectedObject();
+        Object::GameObject* primary = m_editor->GetSelectedObject();
         for (std::size_t index = 0; index < selected.Size(); ++index)
         {
-            GameObject* object = selected[index];
+            Object::GameObject* object = selected[index];
             if (object == nullptr)
             {
                 continue;
@@ -3118,7 +3118,7 @@ namespace JBro
         // "눌러서 고르기" 가 실제로 하는 일에 가장 가깝고, 짐작한 상자보다 덜 틀린다.
         const ImGuiIO& io = ImGui::GetIO();
         constexpr Float PickRadius = 18.0f;
-        GameObject* best = nullptr;
+        Object::GameObject* best = nullptr;
         Float bestDistance = PickRadius * PickRadius;
         // **3D 텍스트는 글자 블록으로 고른다**(D-222). 크기를 아는 유일한 3D 그림이다 - 블록의 네 모서리를 화면으로 투영한 사각형 안을 누르면
         // 그 텍스트다(자리 투영보다 먼저 이긴다). 빌보드의 모서리는 편집 카메라의 오른쪽·위 축으로 편다(그린 것과 같은 카메라).
@@ -3132,7 +3132,7 @@ namespace JBro
             cameraRight = Vector3{drawn.view.values[0], drawn.view.values[1], drawn.view.values[2]};
             cameraUp = Vector3{drawn.view.values[4], drawn.view.values[5], drawn.view.values[6]};
         }
-        const auto insideText = [&](GameObject& object, const Component::Transform3D& transform) -> Bool {
+        const auto insideText = [&](Object::GameObject& object, const Component::Transform3D& transform) -> Bool {
             if (texts == nullptr)
             {
                 return false;
@@ -3165,7 +3165,7 @@ namespace JBro
             return io.MousePos.x >= screenMinX && io.MousePos.x <= screenMaxX && io.MousePos.y >= screenMinY
                 && io.MousePos.y <= screenMaxY;
         };
-        canvas->ForEachObject([&](GameObject& object)
+        canvas->ForEachObject([&](Object::GameObject& object)
         {
             // 캔버스 뷰에서 감춘 오브젝트는 그리지도 집지도 않는다(D-163, 기존 `EditorHidden`). 다른 공간의 것도 그렇다(D-237).
             if (object.IsEditorHidden() || false == InViewSpace(object))
@@ -3248,7 +3248,7 @@ namespace JBro
             return;
         }
         const ImVec2 press = ImGui::GetIO().MouseClickedPos[0];
-        GameObject* pressed = MapToLevel(PickAt(rect, press.x, press.y));
+        Object::GameObject* pressed = MapToLevel(PickAt(rect, press.x, press.y));
         if (pressed == nullptr)
         {
             m_bodyPressArmed = false;
@@ -3274,7 +3274,7 @@ namespace JBro
             return;
         }
         ArmBodyDrag(rect);
-        GameObject* selected = m_editor->GetSelectedObject();
+        Object::GameObject* selected = m_editor->GetSelectedObject();
         GizmoSubject subject;
         const Bool hasSubject = selected != nullptr
             && GizmoEditing::ReadSubject(*m_editor, *selected, subject);

@@ -298,7 +298,7 @@ namespace JBro::Internal
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
-            const auto collect = [&](GameObject* owner, std::uint16_t order) {
+            const auto collect = [&](Object::GameObject* owner, std::uint16_t order) {
                 if ((editorView && owner != nullptr && owner->IsEditorHidden()) || (onlyLayer >= 0 && order != static_cast<std::uint16_t>(onlyLayer)))
                 {
                     return;

@@ -23,10 +23,10 @@ namespace JBro::Service
 
         // Replaces results with unique object handles. Reserve before repeated queries.
         // An unavailable system clears results without releasing the caller's capacity.
-        void OverlapBox(const Rect& area, Array<GameObjectHandle>& results,
+        void OverlapBox(const Rect& area, Array<Handle::GameObject>& results,
             UInt32 layerMask = AllPhysicsLayers) const;
-        GameObjectHandle OverlapPoint(Vector2 point, UInt32 layerMask = AllPhysicsLayers) const;
-        void OverlapCircle(Vector2 center, Float radius, Array<GameObjectHandle>& results,
+        Handle::GameObject OverlapPoint(Vector2 point, UInt32 layerMask = AllPhysicsLayers) const;
+        void OverlapCircle(Vector2 center, Float radius, Array<Handle::GameObject>& results,
             UInt32 layerMask = AllPhysicsLayers) const;
 
         Bool CircleCast(Vector2 origin, Float radius, Vector2 direction, Float distance, RaycastHit2D& hit,

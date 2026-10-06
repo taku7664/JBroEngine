@@ -597,7 +597,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the add component guide not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr && editor.GetSelectedObject() == object, "the new object must be made and picked");
         Check(object->GetComponents().Size() == 1, "a new object starts with its transform only, or the last step proves nothing");
         Tick(editor, 3);
@@ -776,8 +776,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; the hierarchy path not verified" << std::endl;
             return;
         }
-        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* child = JBro::EditorActions::CreateObject(editor, parent);
+        JBro::Object::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* child = JBro::EditorActions::CreateObject(editor, parent);
         Check(parent != nullptr && child != nullptr && child->GetParent() == parent, "a parent and its child must be made");
         Tick(editor, 3);
 
@@ -852,7 +852,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; retreating steps not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         Tick(editor, 3);
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
@@ -880,7 +880,7 @@ namespace
         Check(editor.GetGuide().IsRunning() && editor.GetGuide().GetStepIndex() == 0, "deleting it goes back to picking too");
 
         // 마지막 단계(컴포넌트 추가)에서 선택을 비워도 돌아간다.
-        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(other != nullptr, "another object must be made and picked");
         Tick(editor, 2);
         Check(editor.GetGuide().GetStepIndex() == 1, "the new pick passes the first step");
@@ -1003,7 +1003,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; going back not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made and picked");
         Tick(editor, 3);
         Check(editor.StartGuide("guide.add_component"), "the guide must start");
@@ -1038,7 +1038,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; step memos not verified" << std::endl;
             return;
         }
-        JBro::GameObject* first = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* first = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(first != nullptr && editor.GetSelectedObject() == first, "the first object must be made and picked");
         // 컴포넌트를 하나 더 붙여 둔다 - "둘 이상" 으로 물으면 마지막 단계가 아무것도 안 해도 끝난다.
         JBro::EditorActions::AddComponentList list;
@@ -1076,7 +1076,7 @@ namespace
         editor.GetGuide().Update(editor, editor.GetGuideFocus(), JBro::GuideFocusAction::Next);
         Check(editor.GetGuide().GetStepIndex() == 0, "so pressing it does not skip picking");
         // 새 오브젝트를 추가하면 그것이 선택된다 - 선택이 바뀌었으니 넘어간다.
-        JBro::GameObject* added = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* added = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(added != nullptr && editor.GetSelectedObject() == added, "the added object is picked");
         Tick(editor, 2);
         Check(editor.GetGuide().GetStepIndex() == 1, "a newly picked object passes the selection step");
@@ -1370,7 +1370,7 @@ namespace
     }
 
     // 우클릭 메뉴를 연 뒤 구멍이 그 안의 삭제로 옮겨 가고, 누르면 지워지고, 확인을 기다린다.
-    void FinishDeleteThroughTheMenu(JBro::EditorApplication& editor, HWND hwnd, JBro::GameObject* object, JBro::UInt32 menuLevel)
+    void FinishDeleteThroughTheMenu(JBro::EditorApplication& editor, HWND hwnd, JBro::Object::GameObject* object, JBro::UInt32 menuLevel)
     {
         const JBro::EditorGuideFocus& focus = editor.GetGuideFocus();
         Check(WaitUntilSettled(editor, menuLevel), "the hole must reach the object");
@@ -1395,7 +1395,7 @@ namespace
         Check(firstItemY < focus.GetHoleRect().min.y, "the first item is above Delete, or the next check proves nothing");
         Check(false == focus.IsAllowed({ menuX, firstItemY }), "the other items of the object's menu are covered");
 
-        const JBro::SafePtr<JBro::GameObject> watch = object->SafeFromThis();
+        const JBro::SafePtr<JBro::Object::GameObject> watch = object->SafeFromThis();
         HoleCenter(focus, x, y);
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 3);
@@ -1421,8 +1421,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; the delete guide by the layers window not verified" << std::endl;
             return;
         }
-        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* child = JBro::EditorActions::CreateObject(editor, parent);
+        JBro::Object::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* child = JBro::EditorActions::CreateObject(editor, parent);
         Check(child != nullptr && child->GetParent() == parent, "a parent and its child must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -1448,7 +1448,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the delete guide by the canvas view not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "an object must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -1479,7 +1479,7 @@ namespace
         distant.hasPosition = true;
         distant.position[0] = 400.0f;
         distant.position[1] = -300.0f;
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr, distant);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr, distant);
         Check(object != nullptr, "an object must be made far away");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -1507,7 +1507,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; route fallback not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "an object must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -1554,8 +1554,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; the delete guide by the edit menu not verified" << std::endl;
             return;
         }
-        JBro::GameObject* keep = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* keep = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(keep != nullptr && object != nullptr, "two objects must be made");
         editor.SetSelectedObject(object);
         editor.AddToSelection(keep);
@@ -1580,7 +1580,7 @@ namespace
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 2);
         Check(WaitUntilSettled(editor, 1), "opening the menu moves the hole onto Delete");
-        const JBro::SafePtr<JBro::GameObject> watch = object->SafeFromThis();
+        const JBro::SafePtr<JBro::Object::GameObject> watch = object->SafeFromThis();
         HoleCenter(focus, x, y);
         ClickAt(editor, hwnd, x, y);
         Tick(editor, 3);
@@ -1599,8 +1599,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; selecting a given object not verified" << std::endl;
             return;
         }
-        JBro::GameObject* wanted = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* wanted = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(wanted != nullptr && other != nullptr, "two objects must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -1733,14 +1733,14 @@ namespace
                 && path.targets[2] == JBro::GuideFocusTargets::Action("object.create"),
             "the layers window, its empty spot the user right-clicks, and Create Object");
         std::size_t before = 0;
-        editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++before; });
+        editor.GetCanvas()->ForEachObject([&](JBro::Object::GameObject&) { ++before; });
         // 창의 아래쪽 빈 곳을 우클릭한다.
         const ImGuiWindow* hierarchy = ImGui::FindWindowByName("Hierarchy");
         Check(hierarchy != nullptr, "the layers window must be there");
         RightClickMenuAndPress(editor, hwnd, 1, static_cast<JBro::Int32>(hierarchy->Pos.x + hierarchy->Size.x * 0.5f),
             static_cast<JBro::Int32>(hierarchy->Pos.y + hierarchy->Size.y - 30.0f));
         std::size_t after = 0;
-        editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++after; });
+        editor.GetCanvas()->ForEachObject([&](JBro::Object::GameObject&) { ++after; });
         Check(after == before + 1, "pressing Create Object in the hole makes one object");
         Check(editor.GetGuide().IsConfirming(), "and the step knows - the Create Object command ran");
     }
@@ -1755,7 +1755,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the create child guide not verified" << std::endl;
             return;
         }
-        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(parent != nullptr, "a parent must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -1789,9 +1789,9 @@ namespace
             std::cout << "  [skip] no D3D12 device; the unparent guide not verified" << std::endl;
             return;
         }
-        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* wanted = JBro::EditorActions::CreateObject(editor, parent);
-        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, parent);
+        JBro::Object::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* wanted = JBro::EditorActions::CreateObject(editor, parent);
+        JBro::Object::GameObject* other = JBro::EditorActions::CreateObject(editor, parent);
         Check(wanted != nullptr && other != nullptr && parent->GetChildren().Size() == 2, "a parent with two children");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -1826,8 +1826,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; command matching not verified" << std::endl;
             return;
         }
-        JBro::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* wanted = JBro::EditorActions::CreateObject(editor, parent);
+        JBro::Object::GameObject* parent = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* wanted = JBro::EditorActions::CreateObject(editor, parent);
         Check(wanted != nullptr, "a parent and a child must be made");
         JBro::EditorActions::AddComponentList list;
         JBro::EditorActions::BuildAddComponentList(*wanted, list);
@@ -1870,7 +1870,7 @@ namespace
         editor.GetGuide().Stop(editor.GetGuideFocus());
 
         // 컴포넌트 추가 단계: 정해 둔 타입이 아닌 것을 붙여서는 끝나지 않는다.
-        JBro::GameObject* target = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* target = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(target != nullptr, "a fresh object for the component step");
         Tick(editor, 2);
         std::snprintf(extra, sizeof(extra), "    Object: %llu\n    Component: %s\n",
@@ -1887,8 +1887,8 @@ namespace
         editor.GetGuide().Stop(editor.GetGuideFocus());
 
         // 자식으로 붙여넣기 단계: 다른 부모에 붙인 것은 끝이 아니다.
-        JBro::GameObject* home = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* elsewhere = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* home = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* elsewhere = JBro::EditorActions::CreateObject(editor, nullptr);
         editor.SetSelectedObject(target);
         Check(editor.CopySelection(), "an object is copied");
         Tick(editor, 2);
@@ -1927,7 +1927,7 @@ namespace
         RightClickMenuAndPress(editor, hwnd, 1, static_cast<JBro::Int32>(view->Pos.x + view->Size.x - 60.0f),
             static_cast<JBro::Int32>(view->Pos.y + view->Size.y - 60.0f));
         std::size_t count = 0;
-        editor.GetCanvas()->ForEachObject([&](JBro::GameObject&) { ++count; });
+        editor.GetCanvas()->ForEachObject([&](JBro::Object::GameObject&) { ++count; });
         Check(count == 1, "pressing Create Object in the canvas view makes one object");
         Check(editor.GetGuide().IsConfirming(), "and finishes the step");
     }
@@ -2013,7 +2013,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; step references not verified" << std::endl;
             return;
         }
-        JBro::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* other = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(other != nullptr, "another object must be there");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 2);
@@ -2027,7 +2027,7 @@ namespace
         Tick(editor, 2);
         JBro::EditorGuide& run = editor.GetGuide();
         Check(run.GetStepIndex() == 1, "making the object moves on");
-        JBro::GameObject* made = editor.GetObjectIds().Resolve(run.GetResult(0));
+        JBro::Object::GameObject* made = editor.GetObjectIds().Resolve(run.GetResult(0));
         Check(made != nullptr && made != other, "the first step left the object it made");
         Check(editor.GetSelectedObject() == made, "the second step picks the object it got, to show it in the inspector");
         // 사용자가 다른 것을 골라 거기에 붙여도 끝나지 않는다.
@@ -2059,8 +2059,8 @@ namespace
             std::cout << "  [skip] no D3D12 device; lost references not verified" << std::endl;
             return;
         }
-        JBro::GameObject* a = JBro::EditorActions::CreateObject(editor, nullptr);
-        JBro::GameObject* b = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* a = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* b = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(a != nullptr && b != nullptr, "two objects must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 2);
@@ -2079,7 +2079,7 @@ namespace
         Check(run.IsRunning() && run.GetStepIndex() == 0, "entering a step whose object is gone goes back to the step that left it");
 
         // 새 오브젝트를 만들어(곧 선택된다) 고르고, b 로 옮겨 두 단계를 지나 세 번째에 들어선다. 이번에는 도중에 지운다.
-        JBro::GameObject* c = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* c = JBro::EditorActions::CreateObject(editor, nullptr);
         Tick(editor, 2);
         editor.SetSelectedObject(b);
         Tick(editor, 2);
@@ -2091,7 +2091,7 @@ namespace
 
         // 결과는 가이드마다 새로 잡는다. 앞 가이드가 남긴 것이 다음 가이드의 같은 자리로 새어 들면 없는 단계의 결과를 받는다.
         // 앞 가이드가 **살아 있는** 오브젝트를 남긴 채로 멈춘다 - 지운 것이 남아 있으면 새어 들어도 빈 결과와 같아 보인다.
-        JBro::GameObject* d = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* d = JBro::EditorActions::CreateObject(editor, nullptr);
         Tick(editor, 2);
         Check(d != nullptr && run.GetStepIndex() == 1 && run.GetResult(0) == editor.GetObjectIds().Track(d),
             "the pick step left a live object before the guide stops");
@@ -2380,7 +2380,7 @@ namespace
         return JBro::MakeStableTypeId("Component::SpriteRenderer2D");
     }
 
-    JBro::Bool HasComponentOfType(const JBro::GameObject& object, JBro::ComponentTypeId typeId)
+    JBro::Bool HasComponentOfType(const JBro::Object::GameObject& object, JBro::ComponentTypeId typeId)
     {
         for (const auto& slot : object.GetComponents())
         {
@@ -2422,7 +2422,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; list items not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr && editor.GetSelectedObject() == object, "the object must be made and picked");
         Tick(editor, 3);
         const JBro::String text = AddSpriteGuide("");
@@ -2473,7 +2473,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; grey items not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         editor.SetSelectedObject(object);
         Tick(editor, 3);
@@ -2538,7 +2538,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the component submenu not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -2630,14 +2630,14 @@ namespace
         Tick(editor, 3);
     }
 
-    JBro::String CanvasGuide(const char* action, const JBro::GameObject& object, const char* extra)
+    JBro::String CanvasGuide(const char* action, const JBro::Object::GameObject& object, const char* extra)
     {
         char body[192] = {};
         std::snprintf(body, sizeof(body), "    Object: %llu\n%s", static_cast<unsigned long long>(object.GetInstanceId()), extra);
         return ActionGuide(action, body);
     }
 
-    JBro::Component::Transform2D* TransformOf(JBro::EditorApplication& editor, JBro::GameObject& object)
+    JBro::Component::Transform2D* TransformOf(JBro::EditorApplication& editor, JBro::Object::GameObject& object)
     {
         return editor.GetCanvas()->FindComponentRaw<JBro::Component::Transform2D>(&object);
     }
@@ -2652,7 +2652,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the move guide not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);
@@ -2699,7 +2699,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the rotate guide not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         Tick(editor, 3);
         const JBro::String text = CanvasGuide("object.rotate", *object, "");
@@ -2760,7 +2760,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the point guide not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         auto* collider = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
         Check(collider != nullptr, "the collider must attach");
@@ -2842,7 +2842,7 @@ namespace
             Check(false == ParseGuide(OneStepGuide(entry[0]).c_str(), rejected, reason) && Contains(reason, entry[1]), entry[1]);
         }
 
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         auto* collider = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
         Check(collider != nullptr, "the collider must attach");
@@ -2901,7 +2901,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; two components of a type not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         auto* first = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
         auto* second = editor.GetCanvas()->AttachComponent<JBro::Component::Collider2D>(object);
@@ -2942,7 +2942,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the point reason not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         Tick(editor, 3);
         JBro::String error;
@@ -2987,7 +2987,7 @@ namespace
             std::cout << "  [skip] no D3D12 device; the empty object hole not verified" << std::endl;
             return;
         }
-        JBro::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
+        JBro::Object::GameObject* object = JBro::EditorActions::CreateObject(editor, nullptr);
         Check(object != nullptr, "the object must be made");
         editor.SetSelectedObject(nullptr);
         Tick(editor, 3);

@@ -16,11 +16,14 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     struct RenderCamera2D
     {
-        GameObject* owner            = nullptr;
+        Object::GameObject* owner            = nullptr;
         Matrix3x2   view;
         Float       orthographicSize = 10.0f;
         Float       pixelsPerUnit = 100.0f;
@@ -32,7 +35,7 @@ namespace JBro
 
     struct SpriteRenderItem
     {
-        GameObject*   owner = nullptr;
+        Object::GameObject*   owner = nullptr;
         InstanceId    sourceId = InvalidInstanceId;
         // 레이어 합성 순서. 정렬 키의 최상위다(D-46).
         std::uint16_t layerOrder = 0;
@@ -70,7 +73,7 @@ namespace JBro
     // 2D 라이트 하나다(D-291). 위치·방향은 월드다. 브리지가 렌더러의 `Light2DSubmit` 으로 옮긴다.
     struct Light2DRenderItem
     {
-        GameObject* owner = nullptr;
+        Object::GameObject* owner = nullptr;
         Component::Light2DType type = Component::Light2DType::Point;
         Vector2 position;
         // 오브젝트의 +x 다(길이 1). `Spot` 만 본다.

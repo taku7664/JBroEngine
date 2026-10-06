@@ -93,7 +93,7 @@ namespace JBro::System
             {
                 return;
             }
-            GameObject* owner = Internal::CanvasAccess::GetOwner(camera);
+            Object::GameObject* owner = Internal::CanvasAccess::GetOwner(camera);
             const auto* world = canvas.FindComponentRaw<Component::Transform2D>(owner);
             if (world == nullptr || false == world->IsActiveComponent() || false == world->worldValid)
             {

@@ -235,7 +235,7 @@ namespace
         JBro::Component::RegisterBuiltinComponentProperties2D();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
 
-        JBro::GameObject* object = canvas.CreateObject("Player");
+        JBro::Object::GameObject* object = canvas.CreateObject("Player");
         Check(object != nullptr, "the object must be created");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the transform must attach");
@@ -325,7 +325,7 @@ namespace
         JBro::Component::RegisterBuiltinComponentProperties2D();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
 
-        JBro::GameObject* object = canvas.CreateObject("Thing");
+        JBro::Object::GameObject* object = canvas.CreateObject("Thing");
         auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
         transform->worldValid = true;
         transform->worldPosition = { 9.0f, 9.0f };
@@ -378,9 +378,9 @@ namespace
 
         // 일부러 자식을 먼저 만든다. 풀 순서로 적으면 자식이 앞에 오고
         // ParentIndex 가 자기 뒤를 가리키게 된다.
-        JBro::GameObject* child = canvas.CreateObject("Child");
-        JBro::GameObject* parent = canvas.CreateObject("Parent");
-        JBro::GameObject* grandchild = canvas.CreateObject("Grandchild");
+        JBro::Object::GameObject* child = canvas.CreateObject("Child");
+        JBro::Object::GameObject* parent = canvas.CreateObject("Parent");
+        JBro::Object::GameObject* grandchild = canvas.CreateObject("Grandchild");
         child->SetParent(parent);
         grandchild->SetParent(child);
 
@@ -415,7 +415,7 @@ namespace
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Everything");
+        JBro::Object::GameObject* object = canvas.CreateObject("Everything");
         canvas.AttachComponent<JBro::Component::Transform2D>(object);
         canvas.AttachComponent<JBro::Component::Camera2D>(object);
         canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
@@ -489,7 +489,7 @@ namespace
     {
         JBro::RegisterBuiltinProperties<Registered>();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Fixture");
+        JBro::Object::GameObject* object = canvas.CreateObject("Fixture");
         auto* component = canvas.AttachComponent<Registered>(object);
         component->partly.kept = 1.25f;
         component->partly.dropped = 9.0f;
@@ -516,7 +516,7 @@ namespace
     {
         JBro::RegisterBuiltinProperties<Registered>();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Fixture");
+        JBro::Object::GameObject* object = canvas.CreateObject("Fixture");
         canvas.AttachComponent<Registered>(object);
 
         JBro::YamlDocument document;
@@ -537,7 +537,7 @@ namespace
     void TestAnUnregisteredComponentStopsTheSave()
     {
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* object = canvas.CreateObject("Fixture");
+        JBro::Object::GameObject* object = canvas.CreateObject("Fixture");
         canvas.AttachComponent<Unregistered>(object);
 
         // 조용히 빠뜨리면 씬이 컴포넌트 하나를 잃은 채로 저장되고 아무도 모른다.
@@ -588,7 +588,7 @@ namespace
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* hidden = canvas.CreateObject("Hidden");
+        JBro::Object::GameObject* hidden = canvas.CreateObject("Hidden");
         canvas.CreateObject("Shown");
         hidden->SetEditorHidden(true);
         Check(hidden->IsEditorHidden() && (hidden->GetFlags() & JBro::ObjectFlagEditorHidden) != 0,
@@ -599,7 +599,7 @@ namespace
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, saved);
         JBro::Int32 hiddenCount = 0;
-        reopened.ForEachObject([&](JBro::GameObject& object)
+        reopened.ForEachObject([&](JBro::Object::GameObject& object)
         {
             if (object.IsEditorHidden())
             {
@@ -644,7 +644,7 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("Holder");
+            JBro::Object::GameObject* object = canvas.CreateObject("Holder");
             auto* listed = canvas.AttachComponent<Listed>(object);
             Check(listed != nullptr, "the listed component must attach");
             listed->colors.Add(JBro::Color{1.0f, 0.5f, 0.25f, 1.0f});
@@ -656,8 +656,8 @@ namespace
 
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         LoadOrFail(canvas, text);
-        JBro::GameObject* object = nullptr;
-        canvas.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        canvas.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         Check(object != nullptr, "the holder must come back");
         auto* listed = object->GetComponent<Listed>().Get();
         Check(listed != nullptr, "with its listed component");
@@ -678,7 +678,7 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("Player");
+            JBro::Object::GameObject* object = canvas.CreateObject("Player");
             auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
             transform->position = { 1.5f, -2.25f };
             transform->SetRotationRadian(JBro::Radian(0.75f));
@@ -705,8 +705,8 @@ namespace
 
         Check(reopened.GetObjectCount() == 1, "the object must come back");
 
-        JBro::GameObject* object = nullptr;
-        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         Check(object != nullptr, "the object must be reachable");
         Check(std::strcmp(object->GetName(), "Player") == 0, "its name must come back");
 
@@ -755,10 +755,10 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* parent = canvas.CreateObject("Parent");
-            JBro::GameObject* child = canvas.CreateObject("Child");
-            JBro::GameObject* grandchild = canvas.CreateObject("Grandchild");
-            JBro::GameObject* loner = canvas.CreateObject("Loner");
+            JBro::Object::GameObject* parent = canvas.CreateObject("Parent");
+            JBro::Object::GameObject* child = canvas.CreateObject("Child");
+            JBro::Object::GameObject* grandchild = canvas.CreateObject("Grandchild");
+            JBro::Object::GameObject* loner = canvas.CreateObject("Loner");
             child->SetParent(parent);
             grandchild->SetParent(child);
             loner->SetActive(false);
@@ -769,11 +769,11 @@ namespace
         LoadOrFail(reopened, text);
         Check(reopened.GetObjectCount() == 4, "every object must come back");
 
-        JBro::GameObject* parent = nullptr;
-        JBro::GameObject* child = nullptr;
-        JBro::GameObject* grandchild = nullptr;
-        JBro::GameObject* loner = nullptr;
-        reopened.ForEachObject([&](JBro::GameObject& found)
+        JBro::Object::GameObject* parent = nullptr;
+        JBro::Object::GameObject* child = nullptr;
+        JBro::Object::GameObject* grandchild = nullptr;
+        JBro::Object::GameObject* loner = nullptr;
+        reopened.ForEachObject([&](JBro::Object::GameObject& found)
         {
             const char* tag = found.GetName();
             if (std::strcmp(tag, "Parent") == 0) { parent = &found; }
@@ -803,7 +803,7 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("Sleeping");
+            JBro::Object::GameObject* object = canvas.CreateObject("Sleeping");
             canvas.AttachComponent<JBro::Component::Transform2D>(object);
             object->SetActive(false);
             text = Save(canvas);
@@ -812,8 +812,8 @@ namespace
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, text);
 
-        JBro::GameObject* object = nullptr;
-        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
         Check(transform != nullptr, "the component must come back");
         Check(transform->IsEnabled(),
@@ -832,7 +832,7 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("Thing");
+            JBro::Object::GameObject* object = canvas.CreateObject("Thing");
             auto* transform = canvas.AttachComponent<JBro::Component::Transform2D>(object);
             transform->SetEnabled(false);
             text = Save(canvas);
@@ -840,8 +840,8 @@ namespace
 
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, text);
-        JBro::GameObject* object = nullptr;
-        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         auto* transform = reopened.FindComponentRaw<JBro::Component::Transform2D>(object);
         Check(false == transform->IsEnabled(),
             "a component switched off by hand must come back off");
@@ -857,7 +857,7 @@ namespace
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
             JBro::Layer& background = canvas.CreateLayer("Background");
             background.SetVisible(false);
-            JBro::GameObject* object = canvas.CreateObject("OnBackground");
+            JBro::Object::GameObject* object = canvas.CreateObject("OnBackground");
             canvas.SetObjectLayer(object, background.GetId());
             text = Save(canvas);
         }
@@ -869,8 +869,8 @@ namespace
         // 하나씩 쌓인다.
         Check(reopened.GetLayerCount() == 2, "the layers must not pile up on top of the default one");
 
-        JBro::GameObject* object = nullptr;
-        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         JBro::Layer* layer = object->GetLayer();
         Check(layer != nullptr, "the object must sit on a layer");
         Check(std::strcmp(layer->GetName(), "Background") == 0,
@@ -890,7 +890,7 @@ namespace
             JBro::Layer& ui = canvas.CreateLayer("UI");
             ui.SetSpace(JBro::LayerSpace::Screen);
             ui.SetScaleMode(JBro::ScreenScaleMode::Contain);
-            JBro::GameObject* object = canvas.CreateObject("Badge");
+            JBro::Object::GameObject* object = canvas.CreateObject("Badge");
             canvas.SetObjectLayer(object, ui.GetId());
             canvas.AttachComponent<JBro::Component::Transform2D>(object)->anchor = {1.0f, 0.25f};
             text = Save(canvas);
@@ -902,8 +902,8 @@ namespace
 
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, text);
-        JBro::GameObject* object = nullptr;
-        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         JBro::Layer* layer = object->GetLayer();
         Check(layer != nullptr && layer->GetSpace() == JBro::LayerSpace::Screen && layer->GetScaleMode() == JBro::ScreenScaleMode::Contain,
             "the screen layer comes back with its scale mode");
@@ -981,14 +981,14 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* outside = canvas.CreateObject("Outside");
+            JBro::Object::GameObject* outside = canvas.CreateObject("Outside");
             canvas.AttachComponent<JBro::Component::Transform2D>(outside);
             JBro::Layer& props = canvas.CreateLayer("Props");
             props.SetBlend(JBro::LayerBlend::Screen);
             props.SetParallax(0.5f);
             props.SetLit(false);
-            JBro::GameObject* crate = canvas.CreateObject("Crate");
-            JBro::GameObject* lid = canvas.CreateObject("Lid");
+            JBro::Object::GameObject* crate = canvas.CreateObject("Crate");
+            JBro::Object::GameObject* lid = canvas.CreateObject("Lid");
             canvas.SetObjectLayer(crate, props.GetId());
             lid->SetParent(crate);
             canvas.SetObjectLayer(crate, props.GetId());
@@ -1015,9 +1015,9 @@ namespace
         Check(std::strcmp(landed->GetName(), "Props") == 0 && landed->GetBlend() == JBro::LayerBlend::Screen && landed->GetParallax() == 0.5f
                 && landed->GetSourceAsset().IsNull(),
             "with the layer's own values and no source until the caller links one");
-        JBro::GameObject* crate = nullptr;
-        JBro::GameObject* lid = nullptr;
-        target.ForEachObject([&](JBro::GameObject& object) {
+        JBro::Object::GameObject* crate = nullptr;
+        JBro::Object::GameObject* lid = nullptr;
+        target.ForEachObject([&](JBro::Object::GameObject& object) {
             if (std::strcmp(object.GetName(), "Crate") == 0)
             {
                 crate = &object;
@@ -1140,8 +1140,8 @@ namespace
                 "        IsEnabled: true\n"
                 "        rotation: 2\n");
             LoadOrFail(canvas, text);
-            JBro::GameObject* object = nullptr;
-            canvas.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+            JBro::Object::GameObject* object = nullptr;
+            canvas.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
             auto* transform = canvas.FindComponentRaw<JBro::Component::Transform2D>(object);
             Check(transform->GetRotationRadian() == 2.0f, "what the file did say must be read");
             Check(transform->scale.x == 1.0f && transform->scale.y == 1.0f,
@@ -1248,7 +1248,7 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("Scripted");
+            JBro::Object::GameObject* object = canvas.CreateObject("Scripted");
             canvas.AttachComponent<JBro::Component::Transform2D>(object);
             canvas.AttachComponent<JBro::Component::Camera2D>(object);
             text = Save(canvas);
@@ -1277,8 +1277,8 @@ namespace
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
         LoadOrFail(canvas, text);
         Check(canvas.GetUnresolvedComponentCount() == 2, "both unknown components are kept");
-        JBro::GameObject* object = nullptr;
-        canvas.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        canvas.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         Check(object != nullptr && object->GetComponents().Size() == 2, "the known components still attach");
 
         const JBro::String again = Save(canvas);
@@ -1308,7 +1308,7 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("Cup");
+            JBro::Object::GameObject* object = canvas.CreateObject("Cup");
             canvas.AttachComponent<JBro::Component::Transform2D>(object);
             auto* collider = canvas.AttachComponent<JBro::Component::Collider2D>(object);
             collider->shape = JBro::Component::ColliderShape2D::Polygon;
@@ -1343,7 +1343,7 @@ namespace
         JBro::String text;
         {
             JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-            JBro::GameObject* object = canvas.CreateObject("Prop");
+            JBro::Object::GameObject* object = canvas.CreateObject("Prop");
             auto* transform = canvas.AttachComponent<JBro::Component::Transform3D>(object);
             transform->position = { 1.0f, -2.5f, 0.25f };
             transform->rotation = { 0.1f, 0.2f, 0.3f, 0.9f };
@@ -1366,8 +1366,8 @@ namespace
         JBro::Canvas reopened(JBro::CreateDefaultAllocator());
         LoadOrFail(reopened, text);
 
-        JBro::GameObject* object = nullptr;
-        reopened.ForEachObject([&object](JBro::GameObject& found) { object = &found; });
+        JBro::Object::GameObject* object = nullptr;
+        reopened.ForEachObject([&object](JBro::Object::GameObject& found) { object = &found; });
         Check(object != nullptr, "the object must come back");
 
         auto* transform = reopened.FindComponentRaw<JBro::Component::Transform3D>(object);
@@ -1411,8 +1411,8 @@ namespace
     {
         JBro::Component::RegisterBuiltinComponentProperties2D();
         JBro::Canvas canvas(JBro::CreateDefaultAllocator());
-        JBro::GameObject* enemy = canvas.CreateObject("Goblin");
-        JBro::GameObject* plain = canvas.CreateObject("Rock");
+        JBro::Object::GameObject* enemy = canvas.CreateObject("Goblin");
+        JBro::Object::GameObject* plain = canvas.CreateObject("Rock");
         Check(enemy != nullptr && plain != nullptr, "the objects must be created");
         enemy->SetTag("Enemy");
         Check(enemy->CompareTag("Enemy") && false == enemy->CompareTag("Player") && std::strcmp(enemy->GetTag(), "Enemy") == 0,
@@ -1429,7 +1429,7 @@ namespace
         JBro::CanvasFileError error;
         Check(Load(reopened, text, error), "the canvas must read back");
         JBro::Bool found = false;
-        reopened.ForEachObject([&](JBro::GameObject& object)
+        reopened.ForEachObject([&](JBro::Object::GameObject& object)
         {
             if (std::strcmp(object.GetName(), "Goblin") == 0)
             {

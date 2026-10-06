@@ -41,3 +41,5 @@
 #include <JBro/Types/Math2D.h>
 
 using namespace JBro;
+// 스크립트가 보는 참조는 엔진 타입과 이름이 같은 핸들이다(D-302). `GameObject` 는 `JBro::Handle::GameObject` 로 풀린다.
+using namespace JBro::Handle;

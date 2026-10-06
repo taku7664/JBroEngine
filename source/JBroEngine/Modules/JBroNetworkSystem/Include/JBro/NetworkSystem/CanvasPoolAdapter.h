@@ -48,7 +48,7 @@ namespace JBro
 
         Bool Apply(InstanceId object, const std::uint8_t* from, const std::uint8_t* to, Float alpha) override
         {
-            GameObject* owner = Resolve(object);
+            Object::GameObject* owner = Resolve(object);
             if (nullptr == owner)
             {
                 return false;
@@ -77,7 +77,7 @@ namespace JBro
 
         void Detach(InstanceId object) override
         {
-            GameObject* owner = Resolve(object);
+            Object::GameObject* owner = Resolve(object);
             if (nullptr == owner)
             {
                 return;
@@ -90,7 +90,7 @@ namespace JBro
         }
 
     private:
-        static GameObject* Resolve(InstanceId object)
+        static Object::GameObject* Resolve(InstanceId object)
         {
             if (InvalidInstanceId == object)
             {
@@ -98,7 +98,7 @@ namespace JBro
             }
             const Internal::ResolvedInstance resolved =
                 Internal::ResolveInstanceById(object, InvalidInstanceId, RefCategory::Object);
-            return static_cast<GameObject*>(resolved.Pointer);
+            return static_cast<Object::GameObject*>(resolved.Pointer);
         }
 
         Canvas& m_canvas;

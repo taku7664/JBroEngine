@@ -529,7 +529,7 @@ namespace JBro
         return view != nullptr && view->ProjectWorldToScreen(worldX, worldY, screenX, screenY);
     }
 
-    void EditorApplication::StepCanvasViewInto(GameObject& object)
+    void EditorApplication::StepCanvasViewInto(Object::GameObject& object)
     {
         if (CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView")))
         {
@@ -567,7 +567,7 @@ namespace JBro
         }
     }
 
-    GameObject* EditorApplication::GetCanvasViewFocus()
+    Object::GameObject* EditorApplication::GetCanvasViewFocus()
     {
         CanvasViewPanel* view = static_cast<CanvasViewPanel*>(FindPanel("CanvasView"));
         return view != nullptr ? view->GetFocus() : nullptr;
@@ -1847,7 +1847,7 @@ namespace JBro
 
     Bool EditorApplication::CopySelection()
     {
-        const Array<GameObject*> roots = GetTopLevelSelectedObjects();
+        const Array<Object::GameObject*> roots = GetTopLevelSelectedObjects();
         const Canvas* canvas = GetCanvas();
         if (roots.IsEmpty() || canvas == nullptr)
         {
@@ -1879,9 +1879,9 @@ namespace JBro
         // 주된 선택의 형제로 붙인다. 고른 것이 없거나 뿌리면 캔버스 뿌리다.
         // `asChild` 면 고른 것 **안에** 붙인다(D-166, 기존 `PasteObjectsAsChild`). 고른 것이 없으면 형제 붙이기와 같다.
         EditorObjectId parentId = InvalidEditorObjectId;
-        if (GameObject* selected = GetSelectedObject())
+        if (Object::GameObject* selected = GetSelectedObject())
         {
-            GameObject* parent = asChild ? selected : selected->GetParent();
+            Object::GameObject* parent = asChild ? selected : selected->GetParent();
             if (parent != nullptr)
             {
                 parentId = m_objectIds.Track(parent);
@@ -1908,10 +1908,10 @@ namespace JBro
             return false;
         }
         const Array<EditorObjectId> pasted = raw->GetPastedRootIds();
-        Array<GameObject*> objects;
+        Array<Object::GameObject*> objects;
         for (std::size_t index = 0; index < pasted.Size(); ++index)
         {
-            if (GameObject* object = m_objectIds.Resolve(pasted[index]))
+            if (Object::GameObject* object = m_objectIds.Resolve(pasted[index]))
             {
                 objects.Add(object);
             }
@@ -1934,7 +1934,7 @@ namespace JBro
         return true;
     }
 
-    Bool EditorApplication::CanPasteComponent(const GameObject& object) const
+    Bool EditorApplication::CanPasteComponent(const Object::GameObject& object) const
     {
         if (false == m_hasComponentClipboard)
         {
@@ -1948,7 +1948,7 @@ namespace JBro
         return ComponentRegistry::Get().CanAttach(object, NameTable::Get().Intern(typeName));
     }
 
-    Bool EditorApplication::PasteComponent(GameObject& object)
+    Bool EditorApplication::PasteComponent(Object::GameObject& object)
     {
         Canvas* canvas = GetCanvas();
         if (canvas == nullptr || false == CanPasteComponent(object))
@@ -1970,7 +1970,7 @@ namespace JBro
         return m_hasComponentClipboard && m_componentClipboard.typeId == component.GetTypeId();
     }
 
-    Bool EditorApplication::PasteComponentValues(GameObject& object, ComponentBase& component)
+    Bool EditorApplication::PasteComponentValues(Object::GameObject& object, ComponentBase& component)
     {
         if (false == CanPasteComponentValues(component))
         {
@@ -3091,7 +3091,7 @@ namespace JBro
                 parallaxX = 0.0f;
                 parallaxY = 0.0f;
             }
-            canvas->ForEachObject([&](GameObject& object) {
+            canvas->ForEachObject([&](Object::GameObject& object) {
                 if (object.GetLayer() != layer || canvas->FindComponentRaw<Component::Transform2D>(object.GetParent()) != nullptr)
                 {
                     return;
@@ -3713,7 +3713,7 @@ namespace JBro
         return m_objectIds;
     }
 
-    void EditorApplication::SetSelectedObject(GameObject* object)
+    void EditorApplication::SetSelectedObject(Object::GameObject* object)
     {
         m_selection.Clear();
         if (object != nullptr)
@@ -3725,15 +3725,15 @@ namespace JBro
             m_canvasSelected = false;
             m_selectedLayer = InvalidLayerId;
         }
-        m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<GameObject>();
+        m_selected = object != nullptr ? object->SafeFromThis() : SafePtr<Object::GameObject>();
     }
 
-    GameObject* EditorApplication::GetSelectedObject() const
+    Object::GameObject* EditorApplication::GetSelectedObject() const
     {
         return m_selected.TryGet();
     }
 
-    void EditorApplication::SelectObjects(JArrayView<GameObject*> objects)
+    void EditorApplication::SelectObjects(JArrayView<Object::GameObject*> objects)
     {
         m_selection.Clear();
         if (objects.size > 0)
@@ -3752,10 +3752,10 @@ namespace JBro
         }
         // 주된 것은 목록의 머리다. 기존 엔진이 그렇게 하고, 한 번에 여럿을
         // 고르는 쪽(사각 선택, 붙여넣기)이 순서를 정해 넘긴다.
-        m_selected = m_selection.IsEmpty() ? SafePtr<GameObject>() : m_selection[0];
+        m_selected = m_selection.IsEmpty() ? SafePtr<Object::GameObject>() : m_selection[0];
     }
 
-    void EditorApplication::AddToSelection(GameObject* object)
+    void EditorApplication::AddToSelection(Object::GameObject* object)
     {
         if (object == nullptr || IsSelected(object))
         {
@@ -3771,7 +3771,7 @@ namespace JBro
         }
     }
 
-    void EditorApplication::RemoveFromSelection(const GameObject* object)
+    void EditorApplication::RemoveFromSelection(const Object::GameObject* object)
     {
         if (object == nullptr)
         {
@@ -3794,11 +3794,11 @@ namespace JBro
         }
         if (m_selected.TryGet() == object)
         {
-            m_selected = m_selection.IsEmpty() ? SafePtr<GameObject>() : m_selection[0];
+            m_selected = m_selection.IsEmpty() ? SafePtr<Object::GameObject>() : m_selection[0];
         }
     }
 
-    Bool EditorApplication::IsSelected(const GameObject* object) const
+    Bool EditorApplication::IsSelected(const Object::GameObject* object) const
     {
         if (object == nullptr)
         {
@@ -3845,7 +3845,7 @@ namespace JBro
         }
         out[0] = '\0';
         const std::size_t chosen = GetSelectionCount();
-        GameObject* primary = m_selected.TryGet();
+        Object::GameObject* primary = m_selected.TryGet();
         if (chosen == 0 || primary == nullptr)
         {
             std::snprintf(out, size, "%s",
@@ -3868,12 +3868,12 @@ namespace JBro
             name, static_cast<JBro::Int32>(chosen) - 1);
     }
 
-    Array<GameObject*> EditorApplication::GetSelectedObjects() const
+    Array<Object::GameObject*> EditorApplication::GetSelectedObjects() const
     {
-        Array<GameObject*> living;
+        Array<Object::GameObject*> living;
         for (std::size_t index = 0; index < m_selection.Size(); ++index)
         {
-            if (GameObject* object = m_selection[index].TryGet())
+            if (Object::GameObject* object = m_selection[index].TryGet())
             {
                 living.Add(object);
             }
@@ -3881,14 +3881,14 @@ namespace JBro
         return living;
     }
 
-    Array<GameObject*> EditorApplication::GetTopLevelSelectedObjects() const
+    Array<Object::GameObject*> EditorApplication::GetTopLevelSelectedObjects() const
     {
-        const Array<GameObject*> living = GetSelectedObjects();
-        Array<GameObject*> roots;
+        const Array<Object::GameObject*> living = GetSelectedObjects();
+        Array<Object::GameObject*> roots;
         for (std::size_t index = 0; index < living.Size(); ++index)
         {
             Bool ancestorSelected = false;
-            for (const GameObject* walk = living[index]->GetParent();
+            for (const Object::GameObject* walk = living[index]->GetParent();
                 walk != nullptr && false == ancestorSelected;
                 walk = walk->GetParent())
             {
@@ -3961,11 +3961,11 @@ namespace JBro
         }
         // **뿌리만 지운다.** 자식은 부모와 함께 사라지므로, 전부를 큐에 넣으면 이미
         // 사라진 것을 한 번 더 지우려 든다.
-        Array<GameObject*> roots;
+        Array<Object::GameObject*> roots;
         canvas->GetRootObjects(roots);
         for (std::size_t index = 0; index < roots.Size(); ++index)
         {
-            if (GameObject* object = roots[index])
+            if (Object::GameObject* object = roots[index])
             {
                 canvas->DestroyObject(object);
             }
@@ -4407,7 +4407,7 @@ namespace JBro
         m_canvasViewRequest.lighting = lighting;
         // 고른 것의 번호를 실어 보낸다(D-276). 요청은 값으로 복사되므로 가리키는 배열은 이 멤버다.
         m_canvasViewSelection.Clear();
-        const Array<GameObject*> selected = GetSelectedObjects();
+        const Array<Object::GameObject*> selected = GetSelectedObjects();
         for (std::size_t index = 0; index < selected.Size(); ++index)
         {
             m_canvasViewSelection.Add(selected[index]->GetInstanceId());

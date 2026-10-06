@@ -17,7 +17,10 @@
 namespace JBro
 {
     class Canvas;
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
     struct PropertyTable;
 
     // 오브젝트 하나를 만든다. 되돌리면 지우고, 다시 하면 **같은 번호로** 되살린다 -
@@ -98,8 +101,8 @@ namespace JBro
     class ObjectToggleCommand : public EditorCommand
     {
     public:
-        using Getter = Bool (*)(const GameObject& object);
-        using Setter = void (*)(GameObject& object, Bool value);
+        using Getter = Bool (*)(const Object::GameObject& object);
+        using Setter = void (*)(Object::GameObject& object, Bool value);
 
         Bool Execute() override;
         void Undo() override;
@@ -200,7 +203,7 @@ namespace JBro
         DeleteObjectCommand(
             Canvas& canvas,
             EditorObjectRegistry& registry,
-            GameObject* object);
+            Object::GameObject* object);
 
         const char* GetName() const override;
         Bool Execute() override;

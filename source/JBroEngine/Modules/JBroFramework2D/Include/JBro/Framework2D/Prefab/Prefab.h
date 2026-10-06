@@ -16,7 +16,7 @@ namespace JBro
     struct PrefabSpawnParams
     {
         // 부모로 붙일 오브젝트. 비어 있으면 최상위로 생성한다.
-        GameObjectHandle parent;
+        Handle::GameObject parent;
         Bool             preserveSourceIdentity = false;
     };
 
@@ -24,8 +24,8 @@ namespace JBro
     class PrefabSpawner
     {
     public:
-        GameObjectHandle Spawn(AssetId prefabAsset, const PrefabSpawnParams& params);
-        Bool             ApplyOverrides(GameObjectHandle instance, AssetId prefabAsset);
-        void             DestroyInstance(GameObjectHandle instance);
+        Handle::GameObject Spawn(AssetId prefabAsset, const PrefabSpawnParams& params);
+        Bool             ApplyOverrides(Handle::GameObject instance, AssetId prefabAsset);
+        void             DestroyInstance(Handle::GameObject instance);
     };
 }

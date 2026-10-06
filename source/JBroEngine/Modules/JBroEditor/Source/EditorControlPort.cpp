@@ -108,7 +108,7 @@ namespace JBro
             writer.WriteBool("Confirming", guide.IsConfirming());
         }
 
-        void Handle(EditorApplication& editor, const String& command, const String& body, String& reply)
+        void HandleCommand(EditorApplication& editor, const String& command, const String& body, String& reply)
         {
             if (command == "guide.start")
             {
@@ -259,7 +259,7 @@ namespace JBro
                 AppendError(client.outbox, "the message has no command");
                 continue;
             }
-            Handle(editor, command, body, client.outbox);
+            HandleCommand(editor, command, body, client.outbox);
         }
         if (false == client.closeAfterSend && client.inbox.size() > MaxMessageBytes)
         {

@@ -14,8 +14,8 @@ namespace JBro::Service
     class Screen2DService
     {
     public:
-        Bool ScreenToLayer(Vector2 pixel, GameObjectHandle object, Vector2& point) const;
-        Bool LayerToScreen(Vector2 point, GameObjectHandle object, Vector2& pixel) const;
+        Bool ScreenToLayer(Vector2 pixel, Handle::GameObject object, Vector2& point) const;
+        Bool LayerToScreen(Vector2 point, Handle::GameObject object, Vector2& pixel) const;
         Bool IsPointerOverButton() const;
     };
 }

@@ -89,7 +89,7 @@ namespace JBro
 
     Bool CreateObjectCommand::Create()
     {
-        GameObject* object = m_canvas->CreateObject(m_name.c_str());
+        Object::GameObject* object = m_canvas->CreateObject(m_name.c_str());
         if (object == nullptr)
         {
             return false;
@@ -114,7 +114,7 @@ namespace JBro
         {
             // 부모가 그 사이에 사라졌으면 뿌리에 둔다. 만들기를 통째로 실패시키면
             // 다시하기가 스택 중간에서 막힌다.
-            if (GameObject* parent = m_registry->Resolve(m_parentId))
+            if (Object::GameObject* parent = m_registry->Resolve(m_parentId))
             {
                 object->SetParent(parent);
             }
@@ -143,7 +143,7 @@ namespace JBro
 
     void CreateObjectCommand::Undo()
     {
-        if (GameObject* object = m_registry->Resolve(m_objectId))
+        if (Object::GameObject* object = m_registry->Resolve(m_objectId))
         {
             m_canvas->DestroyObject(object);
             m_canvas->FlushPendingDestroy();
@@ -165,7 +165,7 @@ namespace JBro
     DeleteObjectCommand::DeleteObjectCommand(
         Canvas& canvas,
         EditorObjectRegistry& registry,
-        GameObject* object)
+        Object::GameObject* object)
         : m_canvas(&canvas)
         , m_registry(&registry)
     {
@@ -201,7 +201,7 @@ namespace JBro
 
     void DeleteObjectCommand::Undo()
     {
-        GameObject* outerParent = m_parentId != InvalidEditorObjectId
+        Object::GameObject* outerParent = m_parentId != InvalidEditorObjectId
             ? m_registry->Resolve(m_parentId)
             : nullptr;
         m_tree.Restore(*m_canvas, *m_registry, outerParent, true);
@@ -247,7 +247,7 @@ namespace JBro
             return false;
         }
         // 부모가 지워졌으면 뿌리에 붙이지 않고 거절한다. 사용자가 고른 자리가 아니다.
-        GameObject* parent = nullptr;
+        Object::GameObject* parent = nullptr;
         if (m_parentId != InvalidEditorObjectId)
         {
             parent = m_registry->Resolve(m_parentId);
@@ -311,7 +311,7 @@ namespace JBro
         , m_objectId(objectId)
         , m_after(name != nullptr ? name : "")
     {
-        GameObject* object = registry.Resolve(objectId);
+        Object::GameObject* object = registry.Resolve(objectId);
         if (object == nullptr)
         {
             return;
@@ -328,7 +328,7 @@ namespace JBro
 
     void RenameObjectCommand::Apply(const String& name)
     {
-        if (GameObject* object = m_registry->Resolve(m_objectId))
+        if (Object::GameObject* object = m_registry->Resolve(m_objectId))
         {
             object->SetName(name.c_str());
         }
@@ -380,7 +380,7 @@ namespace JBro
         // **되살릴 값을 먼저 뜬다**(§11.5). 찾지 못한 오브젝트는 넣지 않는다.
         for (std::size_t index = 0; index < objects.Size(); ++index)
         {
-            const GameObject* object = registry.Resolve(objects[index]);
+            const Object::GameObject* object = registry.Resolve(objects[index]);
             if (object == nullptr)
             {
                 continue;
@@ -415,7 +415,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
         {
-            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            if (Object::GameObject* object = m_registry->Resolve(m_objects[index]))
             {
                 object->SetTag(m_before[index].c_str());
             }
@@ -426,7 +426,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
         {
-            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            if (Object::GameObject* object = m_registry->Resolve(m_objects[index]))
             {
                 object->SetTag(m_after.c_str());
             }
@@ -442,7 +442,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < objects.Size(); ++index)
         {
-            GameObject* object = registry.Resolve(objects[index]);
+            Object::GameObject* object = registry.Resolve(objects[index]);
             if (object == nullptr)
             {
                 continue;
@@ -457,7 +457,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
         {
-            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            if (Object::GameObject* object = m_registry->Resolve(m_objects[index]))
             {
                 m_setter(*object, value);
             }
@@ -467,8 +467,8 @@ namespace JBro
     SetObjectActiveCommand::SetObjectActiveCommand(EditorObjectRegistry& registry,
         const Array<EditorObjectId>& objects, Bool active)
         : ObjectToggleCommand(registry, objects, active,
-            [](const GameObject& object) { return object.IsActiveSelf(); },
-            [](GameObject& object, Bool value) { object.SetActive(value); })
+            [](const Object::GameObject& object) { return object.IsActiveSelf(); },
+            [](Object::GameObject& object, Bool value) { object.SetActive(value); })
     {
     }
 
@@ -480,8 +480,8 @@ namespace JBro
     SetObjectEditorHiddenCommand::SetObjectEditorHiddenCommand(EditorObjectRegistry& registry,
         const Array<EditorObjectId>& objects, Bool hidden)
         : ObjectToggleCommand(registry, objects, hidden,
-            [](const GameObject& object) { return object.IsEditorHidden(); },
-            [](GameObject& object, Bool value) { object.SetEditorHidden(value); })
+            [](const Object::GameObject& object) { return object.IsEditorHidden(); },
+            [](Object::GameObject& object, Bool value) { object.SetEditorHidden(value); })
     {
     }
 
@@ -517,7 +517,7 @@ namespace JBro
     {
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
         {
-            if (GameObject* object = m_registry->Resolve(m_objects[index]))
+            if (Object::GameObject* object = m_registry->Resolve(m_objects[index]))
             {
                 m_setter(*object, m_before[index] != 0);
             }

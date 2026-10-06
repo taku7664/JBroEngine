@@ -8,7 +8,7 @@
 
 namespace JBro
 {
-    GameObjectHandle::GameObjectHandle(const GameObject* object)
+    Handle::GameObject::GameObject(const Object::GameObject* object)
     {
         if (object != nullptr)
         {
@@ -17,19 +17,19 @@ namespace JBro
         }
     }
 
-    Bool GameObjectHandle::IsValid() const
+    Bool Handle::GameObject::IsValid() const
     {
         return Resolve() != nullptr;
     }
 
-    GameObjectHandle::operator bool() const
+    Handle::GameObject::operator bool() const
     {
         return IsValid();
     }
 
-    void GameObjectHandle::Destroy()
+    void Handle::GameObject::Destroy()
     {
-        GameObject* object = Resolve();
+        Object::GameObject* object = Resolve();
         if (object == nullptr)
         {
             ReportInvalidAccess("Destroy", m_instanceId);
@@ -39,9 +39,9 @@ namespace JBro
         m_cached = {};
     }
 
-    void GameObjectHandle::SetActive(Bool active)
+    void Handle::GameObject::SetActive(Bool active)
     {
-        GameObject* object = Resolve();
+        Object::GameObject* object = Resolve();
         if (object == nullptr)
         {
             ReportInvalidAccess("SetActive", m_instanceId);
@@ -50,9 +50,9 @@ namespace JBro
         object->SetActive(active);
     }
 
-    Bool GameObjectHandle::IsActive() const
+    Bool Handle::GameObject::IsActive() const
     {
-        GameObject* object = Resolve();
+        Object::GameObject* object = Resolve();
         if (object == nullptr)
         {
             ReportInvalidAccess("IsActive", m_instanceId);
@@ -61,9 +61,9 @@ namespace JBro
         return object->IsActiveInHierarchy();
     }
 
-    const char* GameObjectHandle::GetTag() const
+    const char* Handle::GameObject::GetTag() const
     {
-        GameObject* object = Resolve();
+        Object::GameObject* object = Resolve();
         if (object == nullptr)
         {
             ReportInvalidAccess("GetTag", m_instanceId);
@@ -73,9 +73,9 @@ namespace JBro
         return tag != nullptr ? tag : "";
     }
 
-    void GameObjectHandle::SetTag(const char* tag)
+    void Handle::GameObject::SetTag(const char* tag)
     {
-        GameObject* object = Resolve();
+        Object::GameObject* object = Resolve();
         if (object == nullptr)
         {
             ReportInvalidAccess("SetTag", m_instanceId);
@@ -84,9 +84,9 @@ namespace JBro
         object->SetTag(tag);
     }
 
-    Bool GameObjectHandle::CompareTag(const char* tag) const
+    Bool Handle::GameObject::CompareTag(const char* tag) const
     {
-        GameObject* object = Resolve();
+        Object::GameObject* object = Resolve();
         if (object == nullptr)
         {
             ReportInvalidAccess("CompareTag", m_instanceId);
@@ -95,14 +95,14 @@ namespace JBro
         return object->CompareTag(tag);
     }
 
-    InstanceId GameObjectHandle::GetInstanceId() const
+    InstanceId Handle::GameObject::GetInstanceId() const
     {
         return m_instanceId;
     }
 
-    InstanceRef GameObjectHandle::FindComponentReference(ComponentTypeId typeId) const
+    InstanceRef Handle::GameObject::FindComponentReference(ComponentTypeId typeId) const
     {
-        GameObject* object = Resolve();
+        Object::GameObject* object = Resolve();
         if (object == nullptr)
         {
             ReportInvalidAccess("GetComponent", m_instanceId);
@@ -111,18 +111,18 @@ namespace JBro
         return object->FindComponentReference(typeId);
     }
 
-    void GameObjectHandle::ReportInvalidAccess(
+    void Handle::GameObject::ReportInvalidAccess(
         const char* operation,
         InstanceId instanceId)
     {
         std::fprintf(
             stderr,
-            "JBro warning: GameObjectHandle::%s on invalid handle (id=%llu)\n",
+            "JBro warning: GameObject::%s on invalid handle (id=%llu)\n",
             operation,
             static_cast<unsigned long long>(instanceId));
     }
 
-    GameObject* GameObjectHandle::Resolve() const
+    Object::GameObject* Handle::GameObject::Resolve() const
     {
         if (m_cached.IsSet())
         {
@@ -131,7 +131,7 @@ namespace JBro
                 RefCategory::Object);
             if (cached != nullptr)
             {
-                return static_cast<GameObject*>(cached);
+                return static_cast<Object::GameObject*>(cached);
             }
         }
 
@@ -149,6 +149,6 @@ namespace JBro
             return nullptr;
         }
         m_cached = resolved.Handle;
-        return static_cast<GameObject*>(resolved.Pointer);
+        return static_cast<Object::GameObject*>(resolved.Pointer);
     }
 }

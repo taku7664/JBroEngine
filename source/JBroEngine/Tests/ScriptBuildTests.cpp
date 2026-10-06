@@ -480,7 +480,7 @@ namespace
 
         // **필드를 더해 다시 빌드해도 붙은 스크립트와 그 값이 이어진다**(cpp-script-plan §3.5 의 완료 조건).
         Canvas* canvas = editor.GetCanvas();
-        GameObject* object = canvas->CreateObject("Player");
+        Object::GameObject* object = canvas->CreateObject("Player");
         GameScriptBase* player = canvas->AttachScript(object, "Player");
         Check(player != nullptr, "the built script attaches");
         const auto field = [](const char* name) -> const PropertyInfo* {

@@ -171,9 +171,9 @@ namespace
         }
     };
 
-    JBro::GameObject* MakeSprite(JBro::Canvas& canvas, const char* name, JBro::Float x, JBro::Float y, JBro::Float width, JBro::Float height)
+    JBro::Object::GameObject* MakeSprite(JBro::Canvas& canvas, const char* name, JBro::Float x, JBro::Float y, JBro::Float width, JBro::Float height)
     {
-        JBro::GameObject* object = canvas.CreateObject(name);
+        JBro::Object::GameObject* object = canvas.CreateObject(name);
         canvas.AttachComponent<JBro::Component::Transform2D>(object)->position = {x, y};
         auto* sprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(object);
         sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
@@ -183,7 +183,7 @@ namespace
 
     JBro::Component::Light2D* MakeLight(JBro::Canvas& canvas, const char* name, JBro::Float x, JBro::Float y)
     {
-        JBro::GameObject* object = canvas.CreateObject(name);
+        JBro::Object::GameObject* object = canvas.CreateObject(name);
         canvas.AttachComponent<JBro::Component::Transform2D>(object)->position = {x, y};
         return canvas.AttachComponent<JBro::Component::Light2D>(object);
     }
@@ -207,7 +207,7 @@ namespace
         Check(framework.Initialize(context), "the 2D framework must initialize with the renderer");
         JBro::Canvas& canvas = *framework.GetCanvas();
 
-        JBro::GameObject* eye = canvas.CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         auto* eyeTransform = canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
         camera->primary = true;
@@ -308,7 +308,7 @@ namespace
         context.renderer = &stage.renderer;
         Check(framework.Initialize(context), "the 2D framework must initialize with the renderer");
         JBro::Canvas& canvas = *framework.GetCanvas();
-        JBro::GameObject* eye = canvas.CreateObject("eye");
+        JBro::Object::GameObject* eye = canvas.CreateObject("eye");
         canvas.AttachComponent<JBro::Component::Transform2D>(eye);
         auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
         camera->primary = true;
@@ -323,7 +323,7 @@ namespace
         light->castShadows = true;
 
         const auto caster = [&](const char* name, JBro::Float x, JBro::Float y) {
-            JBro::GameObject* object = canvas.CreateObject(name);
+            JBro::Object::GameObject* object = canvas.CreateObject(name);
             canvas.AttachComponent<JBro::Component::Transform2D>(object)->position = {x, y};
             canvas.AttachComponent<JBro::Component::ShadowCaster2D>(object);
             return object;
@@ -334,13 +334,13 @@ namespace
         auto* circle = canvas.AttachComponent<JBro::Component::Collider2D>(caster("circle", -1.5f, 0.0f));
         circle->shape = JBro::Component::ColliderShape2D::Circle;
         circle->radius = 0.3f;
-        JBro::GameObject* sign = caster("sign", 0.0f, 1.5f);
+        JBro::Object::GameObject* sign = caster("sign", 0.0f, 1.5f);
         canvas.FindComponentRaw<JBro::Component::ShadowCaster2D>(sign)->shape = JBro::Component::ShadowShape2D::Sprite;
         auto* signSprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(sign);
         signSprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
         signSprite->size = {0.6f, 0.6f};
         signSprite->tint = {0.0f, 0.0f, 1.0f, 1.0f};
-        JBro::GameObject* rock = caster("rock", 0.0f, -1.5f);
+        JBro::Object::GameObject* rock = caster("rock", 0.0f, -1.5f);
         canvas.FindComponentRaw<JBro::Component::Transform2D>(rock)->scale = {-1.0f, 1.0f};
         auto* polygon = canvas.AttachComponent<JBro::Component::Collider2D>(rock);
         polygon->shape = JBro::Component::ColliderShape2D::Polygon;
@@ -352,7 +352,7 @@ namespace
         // 감춘 레이어의 상자는 오른쪽 아래 대각선을 가렸을 것이다.
         JBro::Layer& hidden = canvas.CreateLayer("Hidden");
         hidden.SetVisible(false);
-        JBro::GameObject* ghost = caster("ghost", 1.5f, -1.5f);
+        JBro::Object::GameObject* ghost = caster("ghost", 1.5f, -1.5f);
         canvas.SetObjectLayer(ghost, hidden.GetId());
         auto* ghostBox = canvas.AttachComponent<JBro::Component::Collider2D>(ghost);
         ghostBox->size = {0.6f, 0.6f};

@@ -9,7 +9,10 @@
 
 namespace JBro
 {
-    class GameObject;
+    namespace Object
+    {
+        class GameObject;
+    }
 
     // 컴포넌트를 가리키는 법이다.
     //
@@ -33,10 +36,10 @@ namespace JBro
     };
 
     // 오브젝트에서 그 자리의 컴포넌트를 찾는다. 없으면 nullptr 이다.
-    ComponentBase* FindComponentAt(GameObject& object, ComponentTypeId typeId,
+    ComponentBase* FindComponentAt(Object::GameObject& object, ComponentTypeId typeId,
         UInt32 ordinal);
     // 컴포넌트가 같은 타입 중 몇 번째인지. 그 오브젝트에 없으면 거짓이다.
-    Bool FindComponentOrdinal(const GameObject& object, const ComponentBase& component,
+    Bool FindComponentOrdinal(const Object::GameObject& object, const ComponentBase& component,
         UInt32& ordinal);
 
     // 번호로 오브젝트를 찾고 그 자리의 컴포넌트를 찾는다. 어느 쪽이든 없으면 nullptr 이다.
@@ -44,6 +47,6 @@ namespace JBro
         const ComponentAddress& address);
     // 오브젝트에 붙은 컴포넌트의 주소를 만든다. 오브젝트에 번호가 없으면 매긴다.
     // 그 오브젝트에 붙어 있지 않으면 거짓이다.
-    Bool MakeComponentAddress(EditorObjectRegistry& registry, GameObject& object,
+    Bool MakeComponentAddress(EditorObjectRegistry& registry, Object::GameObject& object,
         const ComponentBase& component, ComponentAddress& address);
 }

@@ -383,7 +383,7 @@ Steps:
             return nullptr;
         }
 
-        Bool AppendObjectPath(EditorApplication& editor, GameObject& object, GuideFocusPath& path)
+        Bool AppendObjectPath(EditorApplication& editor, Object::GameObject& object, GuideFocusPath& path)
         {
             const Layer* layer = object.GetLayer();
             if (layer == nullptr)
@@ -391,9 +391,9 @@ Steps:
                 return false;
             }
             // 조상을 뿌리부터 적어야 한다. 부모 사슬은 아래에서 위로 가므로 먼저 모아 뒤집는다.
-            GameObject* chain[GuideFocusPath::Capacity];
+            Object::GameObject* chain[GuideFocusPath::Capacity];
             UInt32 depth = 0;
-            for (GameObject* walk = &object; walk != nullptr; walk = walk->GetParent())
+            for (Object::GameObject* walk = &object; walk != nullptr; walk = walk->GetParent())
             {
                 if (depth >= GuideFocusPath::Capacity)
                 {

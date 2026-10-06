@@ -12,14 +12,14 @@ namespace JBro
 {
     namespace
     {
-        GameObject* ResolveObject(InstanceId id)
+        Object::GameObject* ResolveObject(InstanceId id)
         {
             if (InvalidInstanceId == id)
             {
                 return nullptr;
             }
             const Internal::ResolvedInstance resolved = Internal::ResolveInstanceById(id, InvalidInstanceId, RefCategory::Object);
-            return static_cast<GameObject*>(resolved.Pointer);
+            return static_cast<Object::GameObject*>(resolved.Pointer);
         }
     }
 
@@ -396,7 +396,7 @@ namespace JBro
         {
             return InvalidInstanceId;
         }
-        GameObject* object = m_canvas->CreateObject(nullptr);
+        Object::GameObject* object = m_canvas->CreateObject(nullptr);
         if (nullptr == object)
         {
             return InvalidInstanceId;
@@ -410,7 +410,7 @@ namespace JBro
         {
             return;
         }
-        GameObject* resolved = ResolveObject(object);
+        Object::GameObject* resolved = ResolveObject(object);
         if (nullptr != resolved)
         {
             m_canvas->DestroyObject(resolved);

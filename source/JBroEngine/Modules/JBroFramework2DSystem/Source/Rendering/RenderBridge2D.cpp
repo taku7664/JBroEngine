@@ -147,7 +147,7 @@ namespace JBro::Internal
             return value < CompositeBlendCount ? static_cast<CompositeBlend>(value.Get()) : CompositeBlend::Normal;
         }
 
-        Bool IsSelected(const GameObject* owner, const InstanceId* selection, UInt32 count)
+        Bool IsSelected(const Object::GameObject* owner, const InstanceId* selection, UInt32 count)
         {
             if (owner == nullptr)
             {
@@ -164,9 +164,9 @@ namespace JBro::Internal
             return false;
         }
 
-        Bool IsInFocus(const GameObject* owner, InstanceId focus)
+        Bool IsInFocus(const Object::GameObject* owner, InstanceId focus)
         {
-            for (const GameObject* at = owner; at != nullptr; at = at->GetParent())
+            for (const Object::GameObject* at = owner; at != nullptr; at = at->GetParent())
             {
                 if (at->GetInstanceId() == focus)
                 {

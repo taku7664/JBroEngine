@@ -58,11 +58,11 @@ namespace JBro
         // 오브젝트에 하나 붙이고 그것을 돌려준다. 실패하면 nullptr 이다.
         // `name` 은 이 항목의 이름이다. 빌트인은 타입이 이미 정해져 있어 보지 않고, 스크립트는 이것으로 붙인다 -
         // 스크립트 항목의 함수는 모든 스크립트가 함께 쓰는 호스트 코드 하나라서 무엇을 붙일지를 받아야 한다.
-        ComponentBase* (*Attach)(Canvas& canvas, GameObject* owner, NameId name) = nullptr;
+        ComponentBase* (*Attach)(Canvas& canvas, Object::GameObject* owner, NameId name) = nullptr;
         // 붙인 것을 뗀다. **붙이는 함수와 짝으로 여기 둔다** - 풀이 메모리를
         // 돌려받으려면 정적 타입이 필요하고, 그것을 아는 자리가 여기뿐이다.
         // `GameObject::DetachComponent` 만 부르면 슬롯만 빠지고 풀 자리는 남는다.
-        Bool (*Detach)(Canvas& canvas, GameObject* owner, ComponentBase* component) = nullptr;
+        Bool (*Detach)(Canvas& canvas, Object::GameObject* owner, ComponentBase* component) = nullptr;
     };
 
     class ComponentRegistry final
@@ -106,7 +106,7 @@ namespace JBro
         //
         // 등록되지 않은 이름은 거짓이다. 붙일 방법이 없는 것을 붙일 수 있다고 말하지 않는다.
         // 스크립트도 본다(`FindAttachable`). 스크립트는 여럿 붙는다.
-        Bool CanAttach(const GameObject& object, NameId name) const;
+        Bool CanAttach(const Object::GameObject& object, NameId name) const;
 
     private:
         Table<NameId, ComponentTypeInfo> m_types;
@@ -130,11 +130,11 @@ namespace JBro
         info.typeId = MakeStableTypeId(T::StaticTypeName());
         info.category = category != nullptr ? category : ComponentCategory::Default;
         info.multiplicity = multiplicity;
-        info.Attach = [](Canvas& canvas, GameObject* owner, NameId) -> ComponentBase*
+        info.Attach = [](Canvas& canvas, Object::GameObject* owner, NameId) -> ComponentBase*
         {
             return canvas.AttachComponent<T>(owner);
         };
-        info.Detach = [](Canvas& canvas, GameObject* owner, ComponentBase* component) -> Bool
+        info.Detach = [](Canvas& canvas, Object::GameObject* owner, ComponentBase* component) -> Bool
         {
             // **타입이 맞는지 여기서 본다.** 아래 내림 변환은 맞을 때만 옳고,
             // 부르는 쪽이 표를 잘못 찾아왔는지 여기 말고는 알 자리가 없다.

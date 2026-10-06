@@ -32,7 +32,7 @@ namespace JBro::EditorActions
         // **컴포넌트마다 인스턴스마다 하위 메뉴를 세운다**(D-220, D-298). 줄 이름은 번역하지 않는 타입
         // 이름이고, 같은 타입이 둘 이상이면 둘째부터 `(2)` 처럼 번호를 붙인다(인스펙터의 슬롯 순서와 같다).
         // 안은 인스펙터 머리 메뉴와 같은 한 벌(`DrawComponentMenuItems`)이다. **거짓이면 슬롯 배열이 바뀌었다.**
-        Bool DrawComponentSubmenus(EditorApplication& editor, GameObject& object,
+        Bool DrawComponentSubmenus(EditorApplication& editor, Object::GameObject& object,
             const ObjectPlacement& placement)
         {
             const Array<ComponentSlot>& components = object.GetComponents();
@@ -96,7 +96,7 @@ namespace JBro::EditorActions
         }
     }
 
-    Bool DrawComponentMenuItems(EditorApplication& editor, GameObject& object, std::size_t slot,
+    Bool DrawComponentMenuItems(EditorApplication& editor, Object::GameObject& object, std::size_t slot,
         const ObjectPlacement& placement)
     {
         const Array<ComponentSlot>& components = object.GetComponents();
@@ -190,14 +190,14 @@ namespace JBro::EditorActions
         return true;
     }
 
-    LayerId ResolveTargetLayer(EditorApplication& editor, GameObject* parent)
+    LayerId ResolveTargetLayer(EditorApplication& editor, Object::GameObject* parent)
     {
         // 부모가 있으면 부모를 따른다. 자식만 다른 칸에 있으면 부모를 감춰도 자식이 남는다.
         if (parent != nullptr)
         {
             return parent->GetLayerId();
         }
-        if (GameObject* selected = editor.GetSelectedObject())
+        if (Object::GameObject* selected = editor.GetSelectedObject())
         {
             return selected->GetLayerId();
         }
@@ -205,7 +205,7 @@ namespace JBro::EditorActions
         return editor.GetSelectedLayer();
     }
 
-    GameObject* CreateObject(EditorApplication& editor, GameObject* parent,
+    Object::GameObject* CreateObject(EditorApplication& editor, Object::GameObject* parent,
         const ObjectPlacement& placement)
     {
         Canvas* canvas = editor.GetCanvas();
@@ -233,12 +233,12 @@ namespace JBro::EditorActions
             return nullptr;
         }
         // 만든 것을 고른다. 만들자마자 이름과 값을 손보는 것이 다음 손짓이다.
-        GameObject* created = ids.Resolve(raw->GetObjectId());
+        Object::GameObject* created = ids.Resolve(raw->GetObjectId());
         editor.SetSelectedObject(created);
         return created;
     }
 
-    Bool Unparent(EditorApplication& editor, GameObject& object)
+    Bool Unparent(EditorApplication& editor, Object::GameObject& object)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr || object.GetParent() == nullptr)
@@ -247,13 +247,13 @@ namespace JBro::EditorActions
         }
         EditorObjectRegistry& ids = editor.GetObjectIds();
         // 뿌리 맨 뒤로 간다. 어디에 놓을지 고른 것이 아니므로 끝이 가장 덜 놀랍다.
-        Array<GameObject*> roots;
+        Array<Object::GameObject*> roots;
         canvas->GetRootObjects(roots);
         return editor.GetCommands().Execute(MakeOwnerPtr<MoveInHierarchyCommand>(
             *canvas, ids, ids.Track(&object), InvalidEditorObjectId, roots.Size()));
     }
 
-    Bool DeleteObject(EditorApplication& editor, GameObject& object)
+    Bool DeleteObject(EditorApplication& editor, Object::GameObject& object)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr)
@@ -286,7 +286,7 @@ namespace JBro::EditorActions
             return editor.GetCommands().Execute(MakeOwnerPtr<DeleteLayerCommand>(*canvas, editor.GetObjectIds(), layer));
         }
         // **맨 위 것들만**이다. 부모를 지우면 자식은 따라 사라진다.
-        const Array<GameObject*> targets = editor.GetTopLevelSelectedObjects();
+        const Array<Object::GameObject*> targets = editor.GetTopLevelSelectedObjects();
         if (targets.Size() == 0)
         {
             return false;
@@ -296,7 +296,7 @@ namespace JBro::EditorActions
         Bool any = false;
         for (std::size_t index = 0; index < targets.Size(); ++index)
         {
-            GameObject* object = targets[index];
+            Object::GameObject* object = targets[index];
             if (object == nullptr)
             {
                 continue;
@@ -310,7 +310,7 @@ namespace JBro::EditorActions
         return any;
     }
 
-    void BuildAddComponentList(const GameObject& object, AddComponentList& out)
+    void BuildAddComponentList(const Object::GameObject& object, AddComponentList& out)
     {
         out.typeNames.Clear();
         out.names.Clear();
@@ -365,7 +365,7 @@ namespace JBro::EditorActions
         }
     }
 
-    Bool AddComponent(EditorApplication& editor, GameObject& object, NameId typeName)
+    Bool AddComponent(EditorApplication& editor, Object::GameObject& object, NameId typeName)
     {
         Canvas* canvas = editor.GetCanvas();
         if (canvas == nullptr
@@ -378,7 +378,7 @@ namespace JBro::EditorActions
             *canvas, editor.GetObjectIds(), objectId, typeName));
     }
 
-    Bool DrawAddComponentMenu(EditorApplication& editor, GameObject& object)
+    Bool DrawAddComponentMenu(EditorApplication& editor, Object::GameObject& object)
     {
         // 가이드가 하위 메뉴 · 갈래 · 항목을 차례로 가리킨다(반례 ④). 인스펙터의 목록과 항목 표식이 같다.
         Widget::SetNextItemTarget(GuideFocusTargets::Action("component.add"));
@@ -440,7 +440,7 @@ namespace JBro::EditorActions
         }
     }
 
-    Bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
+    Bool DrawObjectMenu(EditorApplication& editor, Object::GameObject& object,
         const ObjectPlacement& placement)
     {
         // 우클릭한 것을 고른 것으로 삼는다. 메뉴가 무엇에 대한 것인지 보이는 것과 어긋나면 안 된다.

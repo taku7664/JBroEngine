@@ -93,7 +93,7 @@ namespace JBro
             // 컴포넌트의 주인이다. `ComponentBase` 가 주인을 내주는 길은
             // 핸들뿐이고 원시 포인터 쪽은 private 이라, 그리는 쪽이 이미
             // 알고 있는 것을 여기 담아 온다.
-            GameObject* owner = nullptr;
+            Object::GameObject* owner = nullptr;
             ComponentBase* component = nullptr;
             ComponentTypeId typeId = 0;
             SetPropertyCommand::Path path;
@@ -173,18 +173,18 @@ namespace JBro
             const String& before,
             Bool snapped);
         // 컴포넌트를 붙이고 떼는 손잡이. 둘 다 커맨드로 간다(D-71).
-        void DrawAddComponent(GameObject& object);
+        void DrawAddComponent(Object::GameObject& object);
         // 캔버스 자신을 골랐을 때의 화면이다(D-186).
         void DrawCanvas();
         // 레이어를 골랐을 때의 화면이다(D-279).
         void DrawLayer(LayerId layerId);
         // 머리의 태그 칸(D-297). 프로젝트 태그 목록에서 고르고, 맨 끝 항목이 새 태그를 더한다.
-        void DrawTagField(GameObject& object);
+        void DrawTagField(Object::GameObject& object);
         // 슬롯 `from` 의 컴포넌트를 `to` 자리로. 커맨드로 간다.
-        void MoveComponent(GameObject& object, std::size_t from, std::size_t to);
+        void MoveComponent(Object::GameObject& object, std::size_t from, std::size_t to);
         // 머리(`headerMin`~`headerMax`)를 끌기 출처와 받는 자리로 만든다(D-294). 이번 프레임에 순서를 옮겼으면 참이다.
         Bool DrawComponentDrag(
-            GameObject& object, std::size_t index, const char* typeName, const ImVec2& headerMin, const ImVec2& headerMax);
+            Object::GameObject& object, std::size_t index, const char* typeName, const ImVec2& headerMin, const ImVec2& headerMax);
         // 표의 필드를 **이미 열려 있는 줄 배치 안에** 그린다. 배치를 밖에서
         // 받는 이유는 중첩 구조가 자기 배치를 따로 열어야 하기 때문이다 -
         // 한 표 안에서 다시 표를 열면 칸 폭이 바깥과 따로 논다.
@@ -203,7 +203,7 @@ namespace JBro
         // 번호로 가리키므로(D-72) 주인을 모르면 커맨드를 만들 수 없다.
         struct EditTarget
         {
-            GameObject* owner = nullptr;
+            Object::GameObject* owner = nullptr;
             ComponentBase* component = nullptr;
         };
         Array<EditTarget> CollectEditTargets(const Context& context) const;
@@ -220,7 +220,7 @@ namespace JBro
         // 이름 칸이 들고 있는 글자와, 그것이 누구의 것인지. 고른 것이 바뀌면 다시 든다 -
         // 치던 글자를 그대로 두면 다음 오브젝트의 이름이 엉뚱한 것으로 보인다.
         String m_name;
-        const GameObject* m_namedObject = nullptr;
+        const Object::GameObject* m_namedObject = nullptr;
         // 지난 프레임에 이름 칸이 글자를 받고 있었는가. 그렇지 않으면 칸의 글자를 다시 든다.
         Bool m_nameEditing = false;
         // 레이어 이름 칸의 것이다(D-279). 오브젝트 이름 칸과 같은 규칙이다.

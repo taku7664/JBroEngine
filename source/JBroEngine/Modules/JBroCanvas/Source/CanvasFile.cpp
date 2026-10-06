@@ -131,13 +131,13 @@ namespace JBro
 
         // 부모가 자식보다 먼저 오게 늘어놓는다. 그래야 ParentIndex 가 언제나 자기 앞을
         // 가리키고, 읽는 쪽이 한 번만 훑어도 계층을 세울 수 있다.
-        void CollectInOrder(GameObject* object, Array<GameObject*>& ordered)
+        void CollectInOrder(Object::GameObject* object, Array<Object::GameObject*>& ordered)
         {
             ordered.Add(object);
-            const Array<SafePtr<GameObject>>& children = object->GetChildren();
+            const Array<SafePtr<Object::GameObject>>& children = object->GetChildren();
             for (std::size_t i = 0; i < children.Size(); ++i)
             {
-                GameObject* child = children[i].TryGet();
+                Object::GameObject* child = children[i].TryGet();
                 if (child != nullptr)
                 {
                     CollectInOrder(child, ordered);
@@ -251,13 +251,13 @@ namespace JBro
 
         // 오브젝트 목록을 적는다. `ordered` 는 부모가 자식보다 앞이다. `writeLayer` 면 오브젝트마다 레이어 번호를 적는다(캔버스 파일) - 레이어 에셋은
         // 오브젝트가 모두 그 레이어라 적지 않는다.
-        Bool WriteObjects(Canvas& canvas, YamlWriter& writer, const Array<GameObject*>& ordered, Table<const GameObject*, std::size_t>& indexOf,
+        Bool WriteObjects(Canvas& canvas, YamlWriter& writer, const Array<Object::GameObject*>& ordered, Table<const Object::GameObject*, std::size_t>& indexOf,
             CanvasWriteMode mode, Bool writeLayer, CanvasFileError& error)
         {
             writer.BeginSequence("Objects");
             for (std::size_t i = 0; i < ordered.Size(); ++i)
             {
-                GameObject* object = ordered[i];
+                Object::GameObject* object = ordered[i];
                 // 오브젝트의 이름이다 — `Canvas::CreateObject(name)` 이 거기에 넣는다.
                 error.objectName = object->GetName();
 
@@ -333,7 +333,7 @@ namespace JBro
         // 오브젝트를 만든다. **모두 만든 뒤 컴포넌트를 읽는다**(D-233) - 오브젝트 참조 필드는 뒤에 오는 오브젝트도 가리킬 수 있다. 실패해도 만든 것은
         // `created` 에 남는다 - 거두는 것은 부르는 쪽이다.
         Bool ReadObjects(Canvas& canvas, const YamlDocument& document, UInt32 objects, const ObjectLayerRule& rule,
-            Array<GameObject*>& created, CanvasFileError& error)
+            Array<Object::GameObject*>& created, CanvasFileError& error)
         {
             for (std::size_t i = 0; i < document.GetCount(objects); ++i)
             {
@@ -342,7 +342,7 @@ namespace JBro
                 document.FindScalar(entry, "Name", name);
                 error.objectName = name;
 
-                GameObject* object = canvas.CreateObject(name.c_str());
+                Object::GameObject* object = canvas.CreateObject(name.c_str());
                 if (object == nullptr)
                 {
                     return Fail(error, "an object in this file could not be created");
@@ -400,7 +400,7 @@ namespace JBro
             Internal::ObjectRefRemap remap;
             remap.user = &created;
             remap.toObjectId = [](void* user, Int64 index) -> InstanceId {
-                const Array<GameObject*>& objects = *static_cast<Array<GameObject*>*>(user);
+                const Array<Object::GameObject*>& objects = *static_cast<Array<Object::GameObject*>*>(user);
                 return index >= 0 && static_cast<std::size_t>(index) < objects.Size()
                     ? objects[static_cast<std::size_t>(index)]->GetInstanceId()
                     : InvalidInstanceId;
@@ -409,7 +409,7 @@ namespace JBro
             for (std::size_t i = 0; i < created.Size(); ++i)
             {
                 const UInt32 entry = document.GetElement(objects, i);
-                GameObject* object = created[i];
+                Object::GameObject* object = created[i];
                 error.objectName = object->GetName();
 
                 const UInt32 components = document.Find(entry, "Components");
@@ -486,7 +486,7 @@ namespace JBro
         // 오브젝트 참조를 파일 안 번호로 적는 표다(D-233). 오브젝트 번호는 실행마다 달라 파일에 남길 수 없다. 목록 밖을 가리키면 -1 이다.
         struct FileIndexMap
         {
-            explicit FileIndexMap(const Array<GameObject*>& ordered)
+            explicit FileIndexMap(const Array<Object::GameObject*>& ordered)
             {
                 for (std::size_t i = 0; i < ordered.Size(); ++i)
                 {
@@ -511,10 +511,10 @@ namespace JBro
         // 뿌리부터 자식 순서로 늘어놓는다. 풀 순서는 부모·자식 관계를 모른다.
         // **뿌리의 차례는 캔버스가 들고 있는 보이는 순서다**(D-128) - 풀 순서로 적으면
         // 계층에서 끌어 옮긴 순서가 저장에서 사라진다.
-        Array<GameObject*> roots;
+        Array<Object::GameObject*> roots;
         canvas.GetRootObjects(roots);
 
-        Array<GameObject*> ordered;
+        Array<Object::GameObject*> ordered;
         for (std::size_t i = 0; i < roots.Size(); ++i)
         {
             CollectInOrder(roots[i], ordered);
@@ -526,7 +526,7 @@ namespace JBro
             return Fail(error, "some objects could not be reached from a root");
         }
 
-        Table<const GameObject*, std::size_t> indexOf;
+        Table<const Object::GameObject*, std::size_t> indexOf;
         for (std::size_t i = 0; i < ordered.Size(); ++i)
         {
             indexOf.TryAdd(ordered[i], i);
@@ -650,7 +650,7 @@ namespace JBro
             layerOf.TryAdd(static_cast<JBro::UInt64>(fileId), layer->GetId());
         }
 
-        Array<GameObject*> created;
+        Array<Object::GameObject*> created;
         ObjectLayerRule rule;
         rule.layerOf = &layerOf;
         if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, created, error))
@@ -662,7 +662,7 @@ namespace JBro
         {
             Array<InstanceId> order;
             order.Reserve(created.Size());
-            for (GameObject* object : created)
+            for (Object::GameObject* object : created)
             {
                 order.Add(object->GetInstanceId());
             }
@@ -685,9 +685,9 @@ namespace JBro
             return Fail(error, "there is no such layer in this canvas");
         }
         // 이 레이어의 뿌리를 캔버스의 보이는 순서대로, 자식을 그 뒤에. 부분 트리는 늘 한 레이어다(D-135).
-        Array<GameObject*> roots;
+        Array<Object::GameObject*> roots;
         canvas.GetRootObjects(roots);
-        Array<GameObject*> ordered;
+        Array<Object::GameObject*> ordered;
         for (std::size_t i = 0; i < roots.Size(); ++i)
         {
             if (roots[i]->GetLayerId() == layerId)
@@ -695,7 +695,7 @@ namespace JBro
                 CollectInOrder(roots[i], ordered);
             }
         }
-        Table<const GameObject*, std::size_t> indexOf;
+        Table<const Object::GameObject*, std::size_t> indexOf;
         for (std::size_t i = 0; i < ordered.Size(); ++i)
         {
             indexOf.TryAdd(ordered[i], i);
@@ -751,7 +751,7 @@ namespace JBro
         // 맨 위(맨 앞)에 새 레이어로 선다(기존 엔진과 같다).
         Layer& layer = canvas.CreateLayer(values.name.c_str());
         ApplyLayerNode(layer, values);
-        Array<GameObject*> objects;
+        Array<Object::GameObject*> objects;
         ObjectLayerRule rule;
         rule.fixedLayer = layer.GetId();
         if (false == ReadObjects(canvas, document, document.Find(root, "Objects"), rule, objects, error))
@@ -775,11 +775,11 @@ namespace JBro
 
     namespace
     {
-        void CollectAllObjects(Canvas& canvas, Array<GameObject*>& ordered)
+        void CollectAllObjects(Canvas& canvas, Array<Object::GameObject*>& ordered)
         {
-            Array<GameObject*> roots;
+            Array<Object::GameObject*> roots;
             canvas.GetRootObjects(roots);
-            for (GameObject* root : roots)
+            for (Object::GameObject* root : roots)
             {
                 CollectInOrder(root, ordered);
             }
@@ -794,7 +794,7 @@ namespace JBro
         };
 
         // `WriteCanvasText` 가 쓰는 것과 같은 차례다: 모르는 것은 그 앞에 있던 붙은 것의 개수 자리에 끼운다.
-        void OrderEntries(const GameObject& object, const Array<UnresolvedComponent>* kept, Array<ComponentEntry>& entries)
+        void OrderEntries(const Object::GameObject& object, const Array<UnresolvedComponent>* kept, Array<ComponentEntry>& entries)
         {
             entries.Clear();
             const Array<ComponentSlot>& components = object.GetComponents();
@@ -838,7 +838,7 @@ namespace JBro
     {
         error = CanvasFileError{};
         kept = 0;
-        Array<GameObject*> ordered;
+        Array<Object::GameObject*> ordered;
         CollectAllObjects(canvas, ordered);
 
         // 오브젝트 참조를 이번 실행의 번호로 뜬다. 파일 안 번호는 이 글자가 파일이 아니라서 뜻이 없다.
@@ -848,12 +848,12 @@ namespace JBro
         // **먼저 모두 뜬다.** 하나라도 실패하면 아무것도 떼지 않는다.
         struct Replacement
         {
-            GameObject* object = nullptr;
+            Object::GameObject* object = nullptr;
             Array<UnresolvedComponent> components;
         };
         Array<Replacement> replacements;
         Array<ComponentEntry> entries;
-        for (GameObject* object : ordered)
+        for (Object::GameObject* object : ordered)
         {
             error.objectName = object->GetName();
             const Array<UnresolvedComponent>* existing = canvas.FindUnresolvedComponents(object);
@@ -912,7 +912,7 @@ namespace JBro
     std::size_t ResolveKeptComponents(Canvas& canvas, Array<ComponentResolveNote>& notes)
     {
         notes.Clear();
-        Array<GameObject*> ordered;
+        Array<Object::GameObject*> ordered;
         CollectAllObjects(canvas, ordered);
 
         // 파일에서 온 것은 파일 안 번호를 들고 있다. 그 파일을 읽을 때의 차례로 푼다. 핫 리로드가 뜬 것은 `@번호` 라 이것을 보지 않는다.
@@ -928,7 +928,7 @@ namespace JBro
 
         std::size_t resolved = 0;
         Array<ComponentEntry> entries;
-        for (GameObject* object : ordered)
+        for (Object::GameObject* object : ordered)
         {
             const Array<UnresolvedComponent>* existing = canvas.FindUnresolvedComponents(object);
             if (existing == nullptr || existing->IsEmpty())

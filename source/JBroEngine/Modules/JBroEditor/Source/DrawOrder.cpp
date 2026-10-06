@@ -28,14 +28,14 @@ namespace JBro::EditorActions
         {
             ComponentBase* component = nullptr;
             ComponentTypeId typeId = 0;
-            GameObject* owner = nullptr;
+            Object::GameObject* owner = nullptr;
             Int32 sequence = 0;
             InstanceId id = InvalidInstanceId;
             Bool target = false;
         };
 
         // 오브젝트가 어느 묶음에서 그려지는가. 첫 `SpriteRenderer2D`, 없으면 첫 `Text2D` 의 `renderOrder` 다.
-        Bool FindGroup(Canvas& canvas, GameObject& object, Int32& order)
+        Bool FindGroup(Canvas& canvas, Object::GameObject& object, Int32& order)
         {
             if (const auto* sprite = canvas.FindComponentRaw<Component::SpriteRenderer2D>(&object))
             {
@@ -51,7 +51,7 @@ namespace JBro::EditorActions
         }
 
         template <typename T>
-        void Add(GameObject& owner, ComponentBase& component, const GameObject& target, Int32 order, ComponentTypeId typeId,
+        void Add(Object::GameObject& owner, ComponentBase& component, const Object::GameObject& target, Int32 order, ComponentTypeId typeId,
             Array<DrawEntry>& out)
         {
             const T& drawing = static_cast<const T&>(component);
@@ -70,9 +70,9 @@ namespace JBro::EditorActions
         }
 
         // 그 레이어에서 그 `renderOrder` 로 그리는 컴포넌트를 모두 모은다. 슬롯을 타입 번호로 가린다.
-        void Collect(Canvas& canvas, const GameObject& target, Int32 order, Array<DrawEntry>& out)
+        void Collect(Canvas& canvas, const Object::GameObject& target, Int32 order, Array<DrawEntry>& out)
         {
-            canvas.ForEachObject([&](GameObject& object)
+            canvas.ForEachObject([&](Object::GameObject& object)
             {
                 if (object.GetLayerId() != target.GetLayerId())
                 {
@@ -204,7 +204,7 @@ namespace JBro::EditorActions
         }
 
         // 바꿀 줄을 세운다. 못 하면 까닭을, 할 수 있으면 nullptr 를 돌려준다.
-        const char* Plan(EditorApplication& editor, GameObject& object, DrawOrderMove move, Array<DrawEntry>& entries)
+        const char* Plan(EditorApplication& editor, Object::GameObject& object, DrawOrderMove move, Array<DrawEntry>& entries)
         {
             Canvas* canvas = editor.GetCanvas();
             if (canvas == nullptr)
@@ -235,13 +235,13 @@ namespace JBro::EditorActions
         }
     }
 
-    const char* WhyNoDrawOrder(EditorApplication& editor, GameObject& object, DrawOrderMove move)
+    const char* WhyNoDrawOrder(EditorApplication& editor, Object::GameObject& object, DrawOrderMove move)
     {
         Array<DrawEntry> entries;
         return Plan(editor, object, move, entries);
     }
 
-    Bool MoveDrawOrder(EditorApplication& editor, GameObject& object, DrawOrderMove move)
+    Bool MoveDrawOrder(EditorApplication& editor, Object::GameObject& object, DrawOrderMove move)
     {
         Array<DrawEntry> entries;
         if (Plan(editor, object, move, entries) != nullptr)
