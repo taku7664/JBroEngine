@@ -607,6 +607,12 @@ namespace JBro
         // **레이어를 레이어 에셋(`.jlayer`)으로 저장한다**(D-286, 기존 `SaveLayerAsAssetInFolder`). 에셋 폴더 아래 `folder` 에 레이어 이름으로 겹치지 않게 쓰고,
         // 그 레이어를 그 에셋에서 온 것으로 표시한다(커맨드 - 되돌리면 표시만 빠진다). 만든 파일의 경로이고 실패하면 빈 글자다.
         String SaveLayerAsAsset(LayerId layer, const char* folder);
+        // **레이어 썸네일**(D-287, 기존 `RequestLayerThumbnails`). 계층 창이 그리는 프레임마다 줄 높이로 부른다 - 부르지 않는 프레임이 이어지면 텍스처를 놓는다
+        // (기존 엔진은 요청을 비우는 줄이 빠져 창이 가려져도 매 프레임 전부를 그렸다). 크기는 이 높이에 프로젝트 해상도의 가로세로비다. 한 프레임에
+        // 두 장씩, 아직 그리지 않은 레이어부터 돌아가며 그린다. 숨긴 레이어는 새로 그리지 않는다 - 렌더 추출이 숨긴 레이어를 건너뛴다(§7).
+        void RequestLayerThumbnails(std::uint32_t height);
+        // 그 레이어의 썸네일이다. 아직 그린 적이 없으면 거짓이다.
+        bool GetLayerThumbnail(LayerId layer, TextureHandle& texture, Extent2D& extent) const;
         // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣고 그 레이어를 고른다**(D-286). 커맨드 하나다. 넣지 못하면 경고를 알리고 거짓이다.
         bool AddLayerFromAsset(AssetId asset);
         // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
@@ -855,6 +861,29 @@ namespace JBro
         // 이번 프레임에 요청된 크기의 텍스처를 마련한다. 이미 그 크기면 아무 일도 하지 않는다.
         bool EnsureCanvasViewTexture(const Extent2D& extent);
         void ReleaseCanvasViewTexture();
+        // 썸네일 요청을 엔진에 넘기고 텍스처를 레이어와 맞춘다. UI 를 닫은 뒤, 엔진 프레임 전에 부른다(텍스처는 프레임 밖에서만 만든다).
+        void FlushLayerThumbnails();
+        // 썸네일 텍스처를 놓는다. **이 프레임의 UI 가 이미 그 텍스처를 그리기 목록에 얹었을 수 있으므로** 곧바로 지우지 않고 다음
+        // `FlushLayerThumbnails` 에서 지운다(`now` 면 곧바로 - UI 를 끌 때다).
+        void ReleaseLayerThumbnails(bool now = false);
+        void RetireLayerThumbnail(TextureHandle texture);
+        void DestroyRetiredLayerThumbnails();
+        struct LayerThumbnailSlot
+        {
+            LayerId layer = InvalidLayerId;
+            TextureHandle texture;
+            bool drawn = false;
+        };
+        Array<LayerThumbnailSlot> m_layerThumbnails;
+        Array<TextureHandle> m_retiredLayerThumbnails;
+        Extent2D m_layerThumbnailExtent;
+        // 이 프레임에 계층 창이 바란 높이다. 0 이면 바라지 않았다.
+        std::uint32_t m_layerThumbnailHeight = 0;
+        std::uint32_t m_layerThumbnailIdleFrames = 0;
+        std::size_t m_layerThumbnailCursor = 0;
+        // 캔버스를 다시 읽으면 레이어 번호가 처음부터 다시 매겨진다. 판이 바뀌면 썸네일을 모두 놓는다.
+        std::uint64_t m_canvasGeneration = 0;
+        std::uint64_t m_layerThumbnailGeneration = 0;
         // 재생을 누르기 전의 캔버스 글자다(D-131). 비어 있으면 돌지 않고 있다는 뜻이다.
         String m_simulationSnapshot;
         // 재생을 시작할 때의 로케일이다. 멈추면 이것으로 되돌린다.

@@ -31,6 +31,7 @@ namespace JBro
         void SetSimulationEnabled(bool enabled) override;
         RenderResult Render() override;
         RenderResult RenderEditorView(const EditorViewDesc& view) override;
+        RenderResult RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail) override;
         void Shutdown() override;
         void BindCanvasAssets() override;
         void CollectCanvasAssetIds(Array<AssetId>& ids) override;

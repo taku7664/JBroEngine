@@ -320,6 +320,16 @@ namespace JBro
         return Internal::SubmitEditorView2D(m_renderWorld, *m_context.renderer, view, m_context.debugDraw);
     }
 
+    RenderResult Framework2D::RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail)
+    {
+        const Layer* layer = m_canvas.Get() != nullptr ? m_canvas->FindLayer(thumbnail.layer) : nullptr;
+        if (false == m_initialized || m_context.renderer == nullptr || layer == nullptr)
+        {
+            return RenderResult::NothingToSubmit;
+        }
+        return Internal::SubmitLayerThumbnail2D(m_renderWorld, *m_context.renderer, thumbnail, *layer);
+    }
+
     namespace
     {
         void BindComponentAssetsVisitor(const PropertyTable& table, ComponentBase& component, void* user)

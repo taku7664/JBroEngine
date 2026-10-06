@@ -287,14 +287,15 @@ namespace JBro::Internal
         // 지우므로 뒤 레이어가 앞 레이어의 물체보다 멀어도 위에 보인다. 표준·불투명도 1 인 레이어는 타깃에 바로 그리고(텍스처 없음),
         // 블렌드나 불투명도가 걸린 레이어만 그 뷰를 제 텍스처에 그려 얹는다(`CameraParams::composite`). 대상을 지우는 것은 첫 뷰다.
         // 그릴 것이 없으면 뷰 하나로 지우기만 한다. 디버그 선은 맨 위 레이어의 뷰에 얹는다 - 그 뷰가 얹는 뷰면 따로 하나 더 연다.
+        // `onlyLayer` 가 0 이상이면 그 레이어 차례 하나만 블렌드 없이 그린다(썸네일, D-287).
         bool SubmitLayerViews(const RenderWorld3D& world, Renderer& renderer, const CameraParams& camera, bool editorView,
             const Vector3& cameraPosition, const Quaternion& cameraRotation, const System::DebugDrawSystem* debugDraw,
-            const RenderCamera3D& lineCamera, float viewportHeight)
+            const RenderCamera3D& lineCamera, float viewportHeight, std::int32_t onlyLayer = -1)
         {
             Array<std::uint16_t>& orders = world.GetLayerOrderScratch();
             orders.Clear();
             const auto collect = [&](GameObject* owner, std::uint16_t order) {
-                if (editorView && owner != nullptr && owner->IsEditorHidden())
+                if ((editorView && owner != nullptr && owner->IsEditorHidden()) || (onlyLayer >= 0 && order != static_cast<std::uint16_t>(onlyLayer)))
                 {
                     return;
                 }
@@ -353,8 +354,8 @@ namespace JBro::Internal
                 float parallax = 1.0f;
                 findBlend(orders[at], blend, opacity, parallax);
                 CameraParams layerCamera = camera;
-                layerCamera.composite = ToCompositeBlend3D(blend);
-                layerCamera.compositeOpacity = opacity;
+                layerCamera.composite = onlyLayer >= 0 ? CompositeBlend::Normal : ToCompositeBlend3D(blend);
+                layerCamera.compositeOpacity = onlyLayer >= 0 ? 1.0f : opacity;
                 // **패럴랙스는 그 레이어 뷰의 카메라 위치만 계수배다**(D-285, 기존 `ApplyLayerSpace`). 회전과 투영은 그대로다. 게임 화면만이다 -
                 // 캔버스 뷰는 배치하는 자리라 걸지 않는다.
                 if (false == editorView && parallax != 1.0f)
@@ -367,7 +368,7 @@ namespace JBro::Internal
                 }
                 accepted = PushMeshes(world, renderer, editorView, orders[at]) && accepted;
                 accepted = PushWorldTexts(world, renderer, cameraRotation, orders[at]) && accepted;
-                const bool plain = blend == LayerBlend::Normal && opacity >= 1.0f;
+                const bool plain = onlyLayer >= 0 || (blend == LayerBlend::Normal && opacity >= 1.0f);
                 if (at + 1 == orders.Size() && plain && false == linesDrawn)
                 {
                     PushDebugLines3D(*debugDraw, renderer, lineCamera, viewportHeight);
@@ -434,6 +435,35 @@ namespace JBro::Internal
         parameters.targetExtent = view.extent;
         const bool accepted = SubmitLayerViews(world, renderer, parameters, true, editor.position, editor.rotation,
             view.debugDraw ? debugDraw : nullptr, editor, static_cast<float>(view.extent.height));
+        return accepted ? RenderResult::Submitted : RenderResult::Failed;
+    }
+
+    RenderResult SubmitLayerThumbnail3D(const RenderWorld3D& world, Renderer& renderer, const LayerThumbnailDesc& thumbnail, std::uint16_t layerOrder)
+    {
+        if (false == thumbnail.target.IsValid() || thumbnail.extent.width == 0 || thumbnail.extent.height == 0)
+        {
+            return RenderResult::NothingToSubmit;
+        }
+        const RenderCamera3D* camera = world.GetCamera();
+        CameraParams parameters;
+        const bool drawable = camera != nullptr && BuildCamera3D(*camera, thumbnail.extent, parameters);
+        if (false == drawable)
+        {
+            parameters = CameraParams{};
+        }
+        parameters.target = thumbnail.target;
+        parameters.targetExtent = thumbnail.extent;
+        for (int channel = 0; channel < 4; ++channel)
+        {
+            parameters.clearColor[channel] = thumbnail.clearColor[channel];
+        }
+        if (false == drawable)
+        {
+            // 그릴 카메라가 없다. 바탕만 지운다.
+            return renderer.BeginView(parameters) && renderer.EndView() ? RenderResult::Submitted : RenderResult::Failed;
+        }
+        const bool accepted = SubmitLayerViews(world, renderer, parameters, false, camera->position, camera->rotation, nullptr, *camera,
+            static_cast<float>(thumbnail.extent.height), static_cast<std::int32_t>(layerOrder));
         return accepted ? RenderResult::Submitted : RenderResult::Failed;
     }
 

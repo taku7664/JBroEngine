@@ -1272,6 +1272,125 @@ namespace
         project.Close();
     }
 
+    // **레이어 썸네일은 그 레이어만 게임 카메라로 그린다**(D-287, 기존 `RenderLayerThumbnail`). 바탕은 불투명한 썸네일 색이고(게임 카메라의 지우기 색이
+    // 아니다) 다른 레이어는 없다. 블렌드·불투명도는 무시하고 패럴랙스와 화면 레이어의 앵커는 게임과 같다. 크기가 다르면 같은 그림이 줄어 든다.
+    // 카메라가 없으면 바탕만 지운다.
+    void TestLayerThumbnailsDrawOnlyTheirLayer()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; layer thumbnails not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            ScreenSpaceFrame screen;
+            screen.referenceWidth = 64.0f;
+            screen.referenceHeight = 64.0f;
+            screen.targetWidth = 64.0f;
+            screen.targetHeight = 64.0f;
+            framework.SetScreenSpace(screen);
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject)->position = {1.0f, 0.0f};
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {1.0f, 1.0f, 1.0f, 1.0f};
+            const auto square = [&](const char* name, LayerId layer, float x, float size, Color tint) {
+                GameObject* object = canvas->CreateObject(name);
+                Check(canvas->SetObjectLayer(object, layer), "the square goes on its layer");
+                canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
+                auto* sprite = canvas->AttachComponent<Component::SpriteRenderer2D>(object);
+                sprite->sizeMode = Component::SpriteSizeMode::Custom;
+                sprite->size = {size, size};
+                sprite->tint = tint;
+                return object;
+            };
+            Layer& farLayer = canvas->CreateLayer("Far");
+            farLayer.SetParallax(0.5f);
+            farLayer.SetBlend(LayerBlend::Additive);
+            farLayer.SetOpacity(0.25f);
+            square("hill", farLayer.GetId(), 0.0f, 0.25f, {1.0f, 0.0f, 0.0f, 1.0f});
+            square("tree", canvas->GetDefaultLayer(), 1.0f, 0.25f, {0.0f, 1.0f, 0.0f, 1.0f});
+            Layer& ui = canvas->CreateLayer("UI");
+            ui.SetSpace(LayerSpace::Screen);
+            GameObject* badge = square("badge", ui.GetId(), 0.0f, 8.0f, {0.0f, 0.0f, 1.0f, 1.0f});
+            auto* badgePlace = canvas->FindComponentRaw<Component::Transform2D>(badge);
+            badgePlace->anchor = {1.0f, 1.0f};
+            badgePlace->position = {-8.0f, -8.0f};
+            framework.BindCanvasAssets();
+
+            TextureDesc targetDesc;
+            targetDesc.extent = {64, 64};
+            targetDesc.format = gpu.renderer.GetBackBufferFormat();
+            targetDesc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
+            TextureHandle target = gpu.renderer.GetDevice()->CreateTexture(targetDesc);
+            Check(target.IsValid(), "the thumbnail target is created");
+            Array<std::byte> image;
+            image.Resize(64 * 64 * 4);
+            TextureReadback readback;
+            const auto thumbnail = [&](LayerId layer, Extent2D extent) {
+                JBro::Testing::Tick(framework, 1.0f / 60.0f);
+                Check(gpu.renderer.BeginFrame() == FrameStatus::Ready, "the frame begins");
+                Check(framework.Render() == RenderResult::Submitted, "the game view submits");
+                LayerThumbnailDesc desc;
+                desc.target = target;
+                desc.extent = extent;
+                desc.layer = layer;
+                Check(framework.RenderLayerThumbnail(desc) == RenderResult::Submitted, "the thumbnail submits");
+                Check(gpu.renderer.EndFrame() == FrameStatus::Ready, "the frame presents");
+                Check(gpu.renderer.GetDevice()->ReadTexture(target, image.Data(), image.Size(), readback), "the thumbnail reads back");
+            };
+            // BGRA.
+            const auto channel = [&](std::uint32_t x, std::uint32_t y, int at) {
+                return reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(y) * readback.rowPitch)[x * 4 + at] / 255.0f;
+            };
+            const auto red = [&](std::uint32_t x, std::uint32_t y) { return channel(x, y, 2); };
+            const auto green = [&](std::uint32_t x, std::uint32_t y) { return channel(x, y, 1); };
+            const auto blue = [&](std::uint32_t x, std::uint32_t y) { return channel(x, y, 0); };
+            const auto isBackground = [&](std::uint32_t x, std::uint32_t y) {
+                return std::fabs(red(x, y) - 0.08f) < 0.02f && std::fabs(green(x, y) - 0.09f) < 0.02f && std::fabs(blue(x, y) - 0.11f) < 0.02f;
+            };
+
+            // 두 번 그린다 - 처음 보는 크기의 합성 대상은 다음 프레임에 서므로, 썸네일이 합성한다면 둘째 프레임에서 드러난다.
+            thumbnail(farLayer.GetId(), {64, 64});
+            thumbnail(farLayer.GetId(), {64, 64});
+            Check(red(16, 32) > 0.95f && green(16, 32) < 0.05f, "the far layer is drawn at full red where its parallax puts it, blend and opacity aside");
+            Check(isBackground(32, 32) && isBackground(4, 4), "the other layers are not in it and the rest is the thumbnail background");
+            Check(isBackground(55, 7), "nor is the screen layer");
+
+            thumbnail(canvas->GetDefaultLayer(), {64, 64});
+            Check(green(32, 32) > 0.95f && isBackground(16, 32), "the default layer's thumbnail has only its own square");
+
+            thumbnail(ui.GetId(), {64, 64});
+            Check(blue(55, 7) > 0.95f && isBackground(32, 32) && isBackground(16, 32), "a screen layer keeps its anchor");
+
+            // 32 x 32: 한 유닛이 16 픽셀이다. 패럴랙스 자리 월드 0.5 → x 8.
+            thumbnail(farLayer.GetId(), {32, 32});
+            Check(red(8, 16) > 0.95f && isBackground(16, 16), "a smaller thumbnail is the same picture smaller");
+
+            Check(canvas->DestroyObject(cameraObject), "the camera goes");
+            thumbnail(farLayer.GetId(), {64, 64});
+            Check(isBackground(16, 32) && isBackground(32, 32), "with no camera the thumbnail is only cleared");
+            gpu.renderer.GetDevice()->DestroyTexture(target);
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
     // **패키지의 미리 뜬 아틀라스**(D-232, package-plan 4 단계). 게임 빌드가 미리 떠 싼 아틀라스를 게임의 라이브러리가 뜨지 않고 되살린다 -
     // 미리 뜬 칸 수와 첫 업로드가 느슨한 파일로 뜬 것과 같고, 그려진 글자도 픽셀까지 같다.
     void TestBakedAtlasesRestoreFromAPackage()
@@ -2519,6 +2638,7 @@ int RunTextRenderTests()
         TestScreenLayersDrawOverTheWorld();
         TestLayerBlendReachesTheScreen();
         TestParallaxLayersFollowTheCameraPartly();
+        TestLayerThumbnailsDrawOnlyTheirLayer();
         TestLocalizedTextFollowsTheLocale();
     }
     catch (const std::exception&)

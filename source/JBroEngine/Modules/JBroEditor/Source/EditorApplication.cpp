@@ -1668,6 +1668,7 @@ namespace JBro
             return false;
         }
         m_canvasPath = path;
+        ++m_canvasGeneration;
         return true;
     }
 
@@ -2682,6 +2683,7 @@ namespace JBro
             Log::Write(LogLevel::Error, "editor", "the canvas is busy and cannot be replaced");
             return;
         }
+        ++m_canvasGeneration;
         const String absolute = EditorPaths::JoinPath(GetAssetRoot().c_str(), relative.c_str());
         CanvasFileError error;
         if (false == LoadCanvasAsync(absolute.c_str(), error))
@@ -3418,6 +3420,7 @@ namespace JBro
         if (m_simulationSnapshot.size() != 0)
         {
             ReadCanvasText(*canvas, m_simulationSnapshot.c_str(), m_simulationSnapshot.size(), error);
+            ++m_canvasGeneration;
         }
         m_simulationSnapshot.clear();
         m_objectIds.Clear();
@@ -3585,6 +3588,165 @@ namespace JBro
         m_canvasViewRequested = false;
     }
 
+    void EditorApplication::RequestLayerThumbnails(std::uint32_t height)
+    {
+        m_layerThumbnailHeight = height;
+    }
+
+    bool EditorApplication::GetLayerThumbnail(LayerId layer, TextureHandle& texture, Extent2D& extent) const
+    {
+        for (std::size_t index = 0; index < m_layerThumbnails.Size(); ++index)
+        {
+            const LayerThumbnailSlot& slot = m_layerThumbnails[index];
+            if (slot.layer == layer && slot.drawn && slot.texture.IsValid())
+            {
+                texture = slot.texture;
+                extent = m_layerThumbnailExtent;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void EditorApplication::RetireLayerThumbnail(TextureHandle texture)
+    {
+        if (texture.IsValid())
+        {
+            m_retiredLayerThumbnails.Add(texture);
+        }
+    }
+
+    void EditorApplication::DestroyRetiredLayerThumbnails()
+    {
+        Renderer* renderer = m_engine ? m_engine->GetRenderer() : nullptr;
+        IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
+        for (std::size_t index = 0; index < m_retiredLayerThumbnails.Size() && device != nullptr; ++index)
+        {
+            device->DestroyTexture(m_retiredLayerThumbnails[index]);
+        }
+        m_retiredLayerThumbnails.Clear();
+    }
+
+    void EditorApplication::ReleaseLayerThumbnails(bool now)
+    {
+        for (std::size_t index = 0; index < m_layerThumbnails.Size(); ++index)
+        {
+            RetireLayerThumbnail(m_layerThumbnails[index].texture);
+        }
+        m_layerThumbnails.Clear();
+        m_layerThumbnailExtent = {};
+        m_layerThumbnailCursor = 0;
+        if (now)
+        {
+            DestroyRetiredLayerThumbnails();
+        }
+    }
+
+    void EditorApplication::FlushLayerThumbnails()
+    {
+        // 바란 프레임이 끊긴 지 한참이면 놓는다. 탭을 잠깐 바꾼 것으로는 놓지 않는다 - 돌아오면 지난 그림이 곧바로 보인다.
+        constexpr std::uint32_t ReleaseAfterFrames = 120;
+        constexpr std::size_t PerFrame = 2;
+        const std::uint32_t height = m_layerThumbnailHeight;
+        m_layerThumbnailHeight = 0;
+        // 지난 플러시에서 놓은 것은 지난 프레임의 UI 까지만 쓰였다. 이제 지운다(디바이스가 GPU 가 다 쓴 뒤에 놓는다).
+        DestroyRetiredLayerThumbnails();
+        Canvas* canvas = GetCanvas();
+        Renderer* renderer = m_engine ? m_engine->GetRenderer() : nullptr;
+        IRHIDevice* device = renderer != nullptr ? renderer->GetDevice() : nullptr;
+        if (height == 0 || false == m_uiEnabled || canvas == nullptr || device == nullptr)
+        {
+            if (false == m_layerThumbnails.IsEmpty() && ++m_layerThumbnailIdleFrames > ReleaseAfterFrames)
+            {
+                ReleaseLayerThumbnails();
+            }
+            return;
+        }
+        m_layerThumbnailIdleFrames = 0;
+        const ProjectFile& project = GetProjectFile();
+        const std::uint32_t referenceWidth = project.resolutionWidth != 0 ? project.resolutionWidth : 16;
+        const std::uint32_t referenceHeight = project.resolutionHeight != 0 ? project.resolutionHeight : 9;
+        const Extent2D extent{(std::max)(1u, height * referenceWidth / referenceHeight), height};
+        if (extent.width != m_layerThumbnailExtent.width || extent.height != m_layerThumbnailExtent.height
+            || m_layerThumbnailGeneration != m_canvasGeneration)
+        {
+            ReleaseLayerThumbnails();
+            m_layerThumbnailExtent = extent;
+            m_layerThumbnailGeneration = m_canvasGeneration;
+        }
+        // 레이어와 맞춘다: 없어진 레이어의 칸은 놓고, 새 레이어에는 칸을 만든다.
+        for (std::size_t index = m_layerThumbnails.Size(); index > 0; --index)
+        {
+            if (canvas->FindLayer(m_layerThumbnails[index - 1].layer) == nullptr)
+            {
+                RetireLayerThumbnail(m_layerThumbnails[index - 1].texture);
+                m_layerThumbnails.RemoveAt(index - 1);
+            }
+        }
+        for (std::size_t at = 0; at < canvas->GetLayerCount(); ++at)
+        {
+            const Layer* layer = canvas->GetLayerAt(at);
+            bool found = false;
+            for (std::size_t index = 0; index < m_layerThumbnails.Size() && false == found; ++index)
+            {
+                found = m_layerThumbnails[index].layer == layer->GetId();
+            }
+            if (found)
+            {
+                continue;
+            }
+            TextureDesc desc;
+            desc.extent = extent;
+            desc.format = renderer->GetBackBufferFormat();
+            desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled;
+            LayerThumbnailSlot slot;
+            slot.layer = layer->GetId();
+            slot.texture = device->CreateTexture(desc);
+            if (slot.texture.IsValid())
+            {
+                m_layerThumbnails.Add(slot);
+            }
+        }
+        // 한 프레임에 두 장. 아직 그리지 않은 것부터, 그다음은 돌아가며. 숨긴 레이어는 건너뛴다.
+        std::size_t requested = 0;
+        for (std::size_t index = 0; index < m_layerThumbnails.Size() && requested < PerFrame; ++index)
+        {
+            LayerThumbnailSlot& slot = m_layerThumbnails[index];
+            const Layer* layer = canvas->FindLayer(slot.layer);
+            if (false == slot.drawn && layer != nullptr && layer->IsVisible())
+            {
+                LayerThumbnailDesc desc;
+                desc.target = slot.texture;
+                desc.extent = extent;
+                desc.layer = slot.layer;
+                if (m_engine->RequestLayerThumbnail(desc))
+                {
+                    slot.drawn = true;
+                    ++requested;
+                }
+            }
+        }
+        for (std::size_t step = 0; step < m_layerThumbnails.Size() && requested < PerFrame; ++step)
+        {
+            m_layerThumbnailCursor = (m_layerThumbnailCursor + 1) % m_layerThumbnails.Size();
+            LayerThumbnailSlot& slot = m_layerThumbnails[m_layerThumbnailCursor];
+            const Layer* layer = canvas->FindLayer(slot.layer);
+            if (layer == nullptr || false == layer->IsVisible())
+            {
+                continue;
+            }
+            LayerThumbnailDesc desc;
+            desc.target = slot.texture;
+            desc.extent = extent;
+            desc.layer = slot.layer;
+            if (m_engine->RequestLayerThumbnail(desc))
+            {
+                slot.drawn = true;
+                ++requested;
+            }
+        }
+    }
+
     bool EditorApplication::RequestCanvasView(const Extent2D& extent, float centerX, float centerY, float orthographicSize,
         bool screenSpace, InstanceId focusObject)
     {
@@ -3725,6 +3887,7 @@ namespace JBro
             }
         }
         ReleaseCanvasViewTexture();
+        ReleaseLayerThumbnails(true);
         m_ui.Shutdown();
         m_gameView = {};
         m_gameViewExtent = {};
@@ -4955,6 +5118,8 @@ namespace JBro
             m_engine->RequestEditorView(m_canvasViewRequest);
         }
         m_canvasViewRequested = false;
+        // 레이어 썸네일도 같은 규칙이다(D-287) - 이 프레임에 계층 창이 바랐을 때만 그린다.
+        FlushLayerThumbnails();
         // 커맨드가 돌았으면 에셋 해석을 다시 한다(D-115·D-116). UI 가 닫힌 뒤라 이 프레임의
         // 편집이 전부 들어 있고, 엔진 프레임 전이라 다음 그림부터 새 핸들이 보인다.
         if (m_framework.Get() != nullptr && m_commands.GetRevision() != m_boundRevision)

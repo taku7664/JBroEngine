@@ -3210,6 +3210,11 @@ namespace
         {
             canvasView->SetOpen(false);
         }
+        // 계층 창의 레이어 썸네일도 레이어마다 뷰를 낸다(D-287).
+        if (JBro::EditorPanel* hierarchy = editor.FindPanel("Hierarchy"))
+        {
+            hierarchy->SetOpen(false);
+        }
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle");
@@ -10849,6 +10854,121 @@ namespace
         editor.Shutdown();
     }
 
+    // **계층 창이 레이어마다 썸네일을 그린다**(D-287). 창이 그리는 동안 레이어마다 텍스처가 서고 프로젝트 해상도의 가로세로비로 그려진다 -
+    // 레이어의 초록 사각형이 썸네일 가운데에 있다. 지운 레이어의 칸은 놓이고, 창을 닫고 한참 지나면 모두 놓인다.
+    void TestTheHierarchyDrawsLayerThumbnails()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; layer thumbnails not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroLayerThumbnailProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\n" << "AssetDirectory: Assets\nResolutionWidth: 64\nResolutionHeight: 32\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* cameraObject = canvas->CreateObject("Camera");
+        canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);
+        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
+        camera->primary = true;
+        camera->orthographicSize = 1.0f;
+        JBro::Layer& props = canvas->CreateLayer("Props");
+        const JBro::LayerId propsId = props.GetId();
+        JBro::GameObject* crate = canvas->CreateObject("Crate");
+        canvas->SetObjectLayer(crate, propsId);
+        canvas->AttachComponent<JBro::Component::Transform2D>(crate);
+        auto* sprite = canvas->AttachComponent<JBro::Component::SpriteRenderer2D>(crate);
+        sprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        sprite->size = {0.5f, 0.5f};
+        sprite->tint = {0.0f, 1.0f, 0.0f, 1.0f};
+
+        JBro::TextureHandle texture;
+        JBro::Extent2D extent;
+        Check(false == editor.GetLayerThumbnail(propsId, texture, extent), "nothing is drawn before the hierarchy draws");
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
+        }
+        Check(editor.GetLayerThumbnail(propsId, texture, extent) && texture.IsValid(), "the hierarchy has the layer drawn");
+        Check(extent.height >= 8 && extent.width == extent.height * 2, "at the row height and the project's aspect");
+        JBro::TextureHandle defaultTexture;
+        Check(editor.GetLayerThumbnail(canvas->GetDefaultLayer(), defaultTexture, extent) && defaultTexture.index != texture.index,
+            "every layer has its own thumbnail");
+        {
+            JBro::Array<std::byte> image;
+            image.Resize(static_cast<std::size_t>(extent.width) * extent.height * 4 + 4096);
+            JBro::TextureReadback readback;
+            Check(editor.GetRenderer()->GetDevice()->ReadTexture(texture, image.Data(), image.Size(), readback), "the thumbnail reads back");
+            const auto* centre = reinterpret_cast<const unsigned char*>(image.Data() + static_cast<std::size_t>(extent.height / 2) * readback.rowPitch)
+                + static_cast<std::size_t>(extent.width / 2) * 4;
+            const auto* corner = reinterpret_cast<const unsigned char*>(image.Data());
+            Check(centre[1] > 240 && centre[2] < 16, "the layer's green square is in the middle");
+            Check(corner[1] < 40 && corner[2] < 40 && corner[3] == 255, "around it is the opaque thumbnail background");
+        }
+
+        // 지운 레이어의 칸은 놓인다.
+        Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::DeleteLayerCommand>(*canvas, editor.GetObjectIds(), propsId)), "the layer is deleted");
+        Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
+        Check(false == editor.GetLayerThumbnail(propsId, texture, extent), "a deleted layer has no thumbnail");
+        Check(editor.GetCommands().Undo(), "and comes back");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
+        }
+        // 되살린 레이어는 새 번호다(`DeleteLayerCommand`).
+        JBro::LayerId restoredId = crate->GetLayerId();
+        Check(editor.GetLayerThumbnail(restoredId, texture, extent), "a restored layer is drawn again");
+
+        // 실행을 멈추면 캔버스가 되돌아와 썸네일을 모두 놓는다. 이 프레임의 계층 창은 이미 그 텍스처를 얹었으므로 곧바로 지우면
+        // UI 가 죽은 텍스처를 그려 프레임이 실패한다 - 다음 프레임에 지운다.
+        Check(editor.StartSimulation(), "play must start");
+        Check(editor.Tick(1.0f / 60.0f), "the editor must tick while playing");
+        editor.StopSimulation();
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(1.0f / 60.0f), "the editor must tick after play with thumbnails up");
+        }
+        // 되돌아온 캔버스의 오브젝트는 새것일 수 있다 - 레이어를 이름으로 찾는다.
+        canvas = editor.GetCanvas();
+        for (std::size_t at = 0; at < canvas->GetLayerCount(); ++at)
+        {
+            if (std::strcmp(canvas->GetLayerAt(at)->GetName(), "Props") == 0)
+            {
+                restoredId = canvas->GetLayerAt(at)->GetId();
+            }
+        }
+        Check(editor.GetLayerThumbnail(restoredId, texture, extent), "and the thumbnails come back on the restored canvas");
+
+        // 창을 닫으면 곧바로 놓지 않는다 - 한참 지나서 놓는다.
+        JBro::EditorPanel* hierarchy = editor.FindPanel("Hierarchy");
+        Check(hierarchy != nullptr, "the hierarchy panel is there");
+        hierarchy->SetOpen(false);
+        Check(editor.Tick(1.0f / 60.0f), "the editor must tick");
+        Check(editor.GetLayerThumbnail(restoredId, texture, extent), "a closed hierarchy keeps its thumbnails for a while");
+        for (int frame = 0; frame < 125; ++frame)
+        {
+            editor.Tick(1.0f / 60.0f);
+        }
+        Check(false == editor.GetLayerThumbnail(restoredId, texture, extent)
+                && false == editor.GetLayerThumbnail(canvas->GetDefaultLayer(), texture, extent),
+            "and lets them go once it stays closed");
+        editor.Shutdown();
+    }
+
     // 계층의 줄 하나가 차지한 Id.
     //
     // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
@@ -13752,6 +13872,7 @@ int RunEditorApplicationTests()
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestALayerRowSelectsTheLayerForTheInspector();
     TestLayerAssetsSaveAndLoadInTheEditor();
+    TestTheHierarchyDrawsLayerThumbnails();
     TestTheGizmoCanWorkInWorldAxes();
     TestTheGizmoSnapsToTheGrid();
     TestRemappedShortcutsAreSavedAndReadBack();

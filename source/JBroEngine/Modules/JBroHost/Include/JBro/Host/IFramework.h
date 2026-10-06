@@ -79,6 +79,17 @@ namespace JBro
         float verticalFieldOfView = 60.0f;
     };
 
+    // **레이어 썸네일 하나**(D-287, 기존 `ImEditor::RenderLayerThumbnails`). 그 레이어만 켠 게임 화면의 축소판이다 - 게임 카메라·패럴랙스는 그대로이고,
+    // 블렌드·불투명도는 무시하며(아래 레이어가 없다) 바탕은 `clearColor` 로 불투명하게 지운다(투명하면 ImGui 의 곧은 알파 블렌드에서 어두워진다).
+    // 화면 레이어는 그 맞춤 방식의 화면 뷰다. 게임 카메라가 없는 월드 레이어는 바탕만이다.
+    struct LayerThumbnailDesc
+    {
+        TextureHandle target;
+        Extent2D extent;
+        LayerId layer = InvalidLayerId;
+        float clearColor[4] = {0.08f, 0.09f, 0.11f, 1.0f};
+    };
+
     struct FrameworkContext
     {
         JMemoryContext memory;
@@ -143,6 +154,12 @@ namespace JBro
         virtual RenderResult RenderEditorView(const EditorViewDesc& view)
         {
             (void)view;
+            return RenderResult::NothingToSubmit;
+        }
+        // 같은 프레임에 **레이어 하나의 썸네일**을 제출한다(D-287). `RenderEditorView` 처럼 `Render` 뒤에서만 부른다.
+        virtual RenderResult RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail)
+        {
+            (void)thumbnail;
             return RenderResult::NothingToSubmit;
         }
         virtual void Shutdown() = 0;

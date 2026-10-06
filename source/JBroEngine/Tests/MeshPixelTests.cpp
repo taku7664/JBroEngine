@@ -527,6 +527,60 @@ namespace
         top.SetBlend(JBro::LayerBlend::Multiply);
         mixed = center();
         Check(matches(mixed, below.r * above.r, below.g * above.g, below.b * above.b), "a multiply layer multiplies the one below");
+
+        // **레이어 썸네일**(D-287): 그 레이어만, 블렌드(지금 Multiply)·불투명도 없이 불투명한 썸네일 바탕에. 크기는 대상의 절반이다.
+        // 두 번 그린다 - 썸네일이 합성한다면 합성 대상이 선 둘째 프레임에서 드러난다.
+        top.SetOpacity(0.5f);
+        JBro::TextureDesc thumbnailDesc;
+        thumbnailDesc.extent = {TargetWidth / 2, TargetHeight / 2};
+        thumbnailDesc.format = JBro::TextureFormat::BGRA8Unorm;
+        thumbnailDesc.usage = JBro::TextureUsage::RenderTarget | JBro::TextureUsage::Sampled;
+        const JBro::TextureHandle thumbnailTarget = stage.renderer.GetDevice()->CreateTexture(thumbnailDesc);
+        Check(thumbnailTarget.IsValid(), "the thumbnail target is created");
+        JBro::Array<std::byte> thumbnailImage;
+        thumbnailImage.Resize(static_cast<std::size_t>(TargetWidth / 2) * (TargetHeight / 2) * 4);
+        JBro::TextureReadback thumbnailReadback;
+        // 첫 프레임의 깊이 없는 뷰 수다. 처음 보는 크기는 그 프레임에 메시 없이 그리고 프레임은 버리지 않는다.
+        std::uint32_t firstWithoutDepth = 0xFFFFFFFFu;
+        Pixel firstCentre;
+        const auto thumbnail = [&](JBro::LayerId layer) {
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                JBro::FrameTarget frameTarget;
+                frameTarget.texture = stage.target;
+                frameTarget.extent = {TargetWidth, TargetHeight};
+                Check(stage.renderer.BeginFrame(frameTarget) == JBro::FrameStatus::Ready, "the frame must begin");
+                JBro::Testing::Tick(framework, 1.0f / 60.0f);
+                Check(framework.Render() == JBro::RenderResult::Submitted, "the framework must submit its view");
+                JBro::LayerThumbnailDesc desc;
+                desc.target = thumbnailTarget;
+                desc.extent = thumbnailDesc.extent;
+                desc.layer = layer;
+                Check(framework.RenderLayerThumbnail(desc) == JBro::RenderResult::Submitted, "the thumbnail must submit");
+                Check(stage.renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must finish");
+                if (firstWithoutDepth == 0xFFFFFFFFu)
+                {
+                    firstWithoutDepth = stage.renderer.GetLastFrameStats().viewsWithoutDepthCount;
+                    Check(stage.renderer.GetDevice()->ReadTexture(thumbnailTarget, thumbnailImage.Data(), thumbnailImage.Size(), thumbnailReadback),
+                        "the first thumbnail must read back");
+                    firstCentre = ReadPixel(thumbnailImage, thumbnailReadback.rowPitch, TargetWidth / 4, TargetHeight / 4);
+                }
+            }
+            Check(stage.renderer.GetDevice()->ReadTexture(thumbnailTarget, thumbnailImage.Data(), thumbnailImage.Size(), thumbnailReadback),
+                "the thumbnail must read back");
+        };
+        thumbnail(top.GetId());
+        Check(firstWithoutDepth == 1 && matches(firstCentre, 0.08f, 0.09f, 0.11f),
+            "a thumbnail of a new size is drawn without meshes on its first frame, and the frame goes on");
+        Check(stage.renderer.GetLastFrameStats().viewsWithoutDepthCount == 0, "the thumbnail's depth is there from its second frame");
+        const Pixel topCentre = ReadPixel(thumbnailImage, thumbnailReadback.rowPitch, TargetWidth / 4, TargetHeight / 4);
+        const Pixel corner = ReadPixel(thumbnailImage, thumbnailReadback.rowPitch, 0, 0);
+        Check(matches(topCentre, above.r, above.g, above.b), "the top layer's thumbnail is that layer alone, blend and opacity aside");
+        Check(matches(corner, 0.08f, 0.09f, 0.11f), "on the opaque thumbnail background");
+        thumbnail(canvas.GetDefaultLayer());
+        Check(matches(ReadPixel(thumbnailImage, thumbnailReadback.rowPitch, TargetWidth / 4, TargetHeight / 4), below.r, below.g, below.b),
+            "the bottom layer's thumbnail is its own cube");
+        stage.renderer.GetDevice()->DestroyTexture(thumbnailTarget);
         Check(stage.renderer.GetDevice()->GetValidationErrorCount() == 0, "and the debug layer must have stayed quiet");
 
         framework.Shutdown();

@@ -14,6 +14,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/EditorIcons.h>
 #include <JBro/Editor/EditorPaths.h>
+#include <JBro/Editor/EditorUI.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
 #include <JBro/Editor/Widget/AssetDrag.h>
@@ -28,6 +29,7 @@
 #include <imgui.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <utility>
 
@@ -151,6 +153,8 @@ namespace JBro
                 Loc::TextOr(LocKeys::HierarchyNoProject, "no project is open"));
             return;
         }
+        // **레이어 썸네일은 이 창이 그리는 프레임에만 바란다**(D-287). 높이는 글자 두 줄이다(기존과 같다).
+        m_editor->RequestLayerThumbnails(static_cast<std::uint32_t>(ImGui::GetTextLineHeight() * 2.0f));
 
         CollectGuideRows();
 
@@ -345,7 +349,9 @@ namespace JBro
         }
         Widget::TreeDrawContext row;
         Widget::SetNextItemTarget(GuideFocusTargets::HierarchyLayer(layerId));
-        const bool opened = Widget::TreeBegin("##layer", flags, &row);
+        // 줄은 썸네일 높이(글자 두 줄)다(D-287, 기존 `ImLayerHeader`).
+        const float thumbnailHeight = std::floor(ImGui::GetTextLineHeight() * 2.0f);
+        const bool opened = Widget::TreeBegin("##layer", flags, &row, thumbnailHeight);
         Widget::TreeEnd();
         // **레이어 줄을 누르면 그 레이어를 고른다**(D-279, 기존 `LayerTool` 의 `SelectLayer`). 인스펙터가 레이어의 값을 보이고,
         // 새 오브젝트와 붙여넣기가 그 레이어로 간다. 오브젝트 줄과 같이 **뗄 때** 고른다 - 누르자마자 고르면 줄을 끌어 차례를
@@ -370,7 +376,30 @@ namespace JBro
         if (alive && row.IsVisible)
         {
             const ImVec2 cursor = ImGui::GetCursorScreenPos();
-            ImGui::SetCursorScreenPos(row.ContentRect.Min);
+            // **썸네일은 그리기 목록에 그린다** - 항목으로 두면 줄의 "마지막 항목" 이 그림으로 바뀌어 끌기·우클릭이 줄에 붙지 않는다(기존과 같다).
+            // 아직 그리지 않은 레이어는 테두리만 있다. 크기는 프로젝트 해상도의 가로세로비다.
+            const ImVec2 thumbnailMin(row.ContentRect.Min.x, row.ContentRect.Min.y + (row.ContentRect.GetHeight() - thumbnailHeight) * 0.5f);
+            TextureHandle thumbnail;
+            Extent2D thumbnailExtent;
+            const ProjectFile& project = m_editor->GetProjectFile();
+            float aspect = project.resolutionHeight != 0
+                ? static_cast<float>(project.resolutionWidth) / static_cast<float>(project.resolutionHeight) : 16.0f / 9.0f;
+            const bool hasThumbnail = m_editor->GetLayerThumbnail(layerId, thumbnail, thumbnailExtent);
+            if (hasThumbnail && thumbnailExtent.height != 0)
+            {
+                aspect = static_cast<float>(thumbnailExtent.width) / static_cast<float>(thumbnailExtent.height);
+            }
+            const ImVec2 thumbnailMax(thumbnailMin.x + std::floor(thumbnailHeight * aspect), thumbnailMin.y + thumbnailHeight);
+            ImDrawList* drawList = ImGui::GetWindowDrawList();
+            if (hasThumbnail)
+            {
+                drawList->AddImage(static_cast<ImTextureID>(EditorUI::ToTextureId(thumbnail)), thumbnailMin, thumbnailMax);
+            }
+            drawList->AddRect(thumbnailMin, thumbnailMax, ImGui::GetColorU32(ImGuiCol_Border));
+            // 아이콘과 이름은 썸네일 오른쪽, 줄의 세로 가운데다.
+            ImGui::SetCursorScreenPos(ImVec2(thumbnailMax.x + ImGui::GetStyle().ItemInnerSpacing.x,
+                row.ContentRect.Min.y + (row.ContentRect.GetHeight() - ImGui::GetFrameHeight()) * 0.5f));
+            ImGui::AlignTextToFramePadding();
             // 숨긴 레이어는 흐리게. 화면에 안 나오는 이유가 줄에서 보여야 한다. 앞의 아이콘도 같이 흐리다.
             // 화면 레이어는 아이콘이 화면이다(D-278) - 월드 레이어와 줄 머리에서 갈린다.
             const char* layerIcon = layer.GetSpace() == LayerSpace::Screen ? Icons::ViewScreen : Icons::Layer;

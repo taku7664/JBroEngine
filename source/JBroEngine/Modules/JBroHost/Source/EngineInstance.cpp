@@ -942,6 +942,9 @@ namespace JBro
             m_lastFrameStatus = m_renderer->IsDeviceLost() ? FrameStatus::DeviceLost : FrameStatus::SurfaceLost;
             return false;
         }
+        // 썸네일 요청은 한 프레임짜리다. 이 프레임을 건너뛰어도 남지 않게 먼저 꺼낸다 - 남은 요청이 그 사이에 놓인 텍스처를 가리킬 수 있다.
+        const std::size_t thumbnails = m_layerThumbnailCount;
+        m_layerThumbnailCount = 0;
         const auto beginStatus = m_renderer->BeginFrame(m_gameViewTarget);
         m_lastFrameStatus = beginStatus;
         if (beginStatus == FrameStatus::Skipped)
@@ -985,6 +988,14 @@ namespace JBro
                 }
             }
         }
+        // **레이어 썸네일은 편집 화면 뒤다**(D-287). 같은 프레임에 모아 둔 그릴 것을 쓴다. 실패해도 프레임을 버리지 않는다 - 그 칸이 지난 그림으로 남을 뿐이다.
+        if (m_framework != nullptr && renderResult != RenderResult::Failed)
+        {
+            for (std::size_t index = 0; index < thumbnails; ++index)
+            {
+                m_framework->RenderLayerThumbnail(m_layerThumbnails[index]);
+            }
+        }
         if (renderResult == RenderResult::Failed || m_exitRequested)
         {
             m_lastFrameStatus = renderResult == RenderResult::Failed
@@ -1023,6 +1034,17 @@ namespace JBro
             return false;
         }
         m_gameViewTarget = target;
+        return true;
+    }
+
+    bool EngineInstance::RequestLayerThumbnail(const LayerThumbnailDesc& thumbnail)
+    {
+        if (m_state == State::Ticking || m_layerThumbnailCount >= MaxLayerThumbnails
+            || false == thumbnail.target.IsValid() || thumbnail.extent.width == 0 || thumbnail.extent.height == 0)
+        {
+            return false;
+        }
+        m_layerThumbnails[m_layerThumbnailCount++] = thumbnail;
         return true;
     }
 

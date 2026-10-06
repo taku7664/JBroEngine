@@ -124,6 +124,8 @@ namespace JBro::Internal
             bool composite = true;
             // 있으면 월드 레이어의 패럴랙스를 이 뷰(월드 → 뷰)로 건다(D-285). 게임 화면만 준다 - 캔버스 뷰는 패럴랙스 없이 배치하는 자리다.
             const Matrix3x2* parallaxView = nullptr;
+            // 0 이상이면 이 레이어 차례의 아이템만 넣는다(썸네일, D-287).
+            std::int32_t layerOrder = -1;
         };
 
         // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
@@ -207,6 +209,10 @@ namespace JBro::Internal
                     continue;
                 }
                 if (rule.selection != nullptr && false == IsSelected(item.owner, rule.selection, rule.selectionCount))
+                {
+                    continue;
+                }
+                if (rule.layerOrder >= 0 && item.layerOrder != static_cast<std::uint16_t>(rule.layerOrder))
                 {
                     continue;
                 }
@@ -528,5 +534,61 @@ namespace JBro::Internal
             return RenderResult::Failed;
         }
         return worldSubmitted || screenSubmitted ? RenderResult::Submitted : RenderResult::NothingToSubmit;
+    }
+
+    RenderResult SubmitLayerThumbnail2D(const RenderWorld2D& world, Renderer& renderer, const LayerThumbnailDesc& thumbnail, const Layer& layer)
+    {
+        if (false == thumbnail.target.IsValid() || thumbnail.extent.width == 0 || thumbnail.extent.height == 0)
+        {
+            return RenderResult::NothingToSubmit;
+        }
+        // **게임 화면과 같은 셈이다** - 화면 기준·레터박스·패럴랙스. 크기만 썸네일의 것이다.
+        const RenderCamera2D* camera = world.GetCamera();
+        ScreenSpaceFrame frame = world.GetScreenSpace();
+        frame.targetWidth = static_cast<float>(thumbnail.extent.width);
+        frame.targetHeight = static_cast<float>(thumbnail.extent.height);
+        ApplyCameraArea(camera, frame);
+        CameraParams parameters;
+        SpriteFilterRule rule;
+        rule.composite = false;
+        rule.layerOrder = static_cast<std::int32_t>(layer.GetOrder());
+        CameraView2D cameraView;
+        bool drawable = false;
+        if (layer.GetSpace() == LayerSpace::Screen)
+        {
+            ScreenArea area;
+            ScreenExtent extent;
+            drawable = GetScreenArea(frame, area) && ComputeScreenExtent(layer.GetScaleMode(), frame, extent)
+                && BuildScreenCamera(extent, area, parameters);
+            rule.screenSpace = true;
+            rule.scaleMode = layer.GetScaleMode();
+            rule.anyScaleMode = false;
+        }
+        else if (camera != nullptr && BuildCamera(*camera, frame, parameters))
+        {
+            drawable = true;
+            if (ComputeCameraView2D(*camera, frame, cameraView))
+            {
+                rule.parallaxView = &cameraView.view;
+            }
+        }
+        if (false == drawable)
+        {
+            // 그릴 카메라가 없다. 바탕만 지운다 - 빈 칸과 지난 그림이 남은 칸은 다르다.
+            parameters = CameraParams{};
+        }
+        parameters.target = thumbnail.target;
+        parameters.targetExtent = thumbnail.extent;
+        for (int channel = 0; channel < 4; ++channel)
+        {
+            parameters.clearColor[channel] = thumbnail.clearColor[channel];
+        }
+        if (false == renderer.BeginView(parameters))
+        {
+            return RenderResult::Failed;
+        }
+        const bool accepted = false == drawable || PushSprites(world, renderer, false, rule);
+        const bool closed = renderer.EndView();
+        return accepted && closed ? RenderResult::Submitted : RenderResult::Failed;
     }
 }

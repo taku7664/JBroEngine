@@ -521,34 +521,91 @@ namespace JBro
         m_meshResources.Clear();
     }
 
-    bool Renderer::AcquireDepthTarget(const Extent2D& extent, bool forTexture, TextureHandle& depth)
+    bool Renderer::AcquireDepthTarget(const Extent2D& extent, TextureHandle& depth)
     {
-        DepthTarget& target = m_depthTargets[forTexture ? 1 : 0];
-        if (target.texture.IsValid()
-            && target.extent.width == extent.width && target.extent.height == extent.height)
+        for (DepthTarget& slot : m_depthTargets)
         {
-            depth = target.texture;
-            return true;
+            if (slot.texture.IsValid() && slot.extent.width == extent.width && slot.extent.height == extent.height)
+            {
+                slot.idleFrames = 0;
+                depth = slot.texture;
+                return true;
+            }
         }
-        if (target.texture.IsValid())
+        // 빈 자리가 없으면 가장 오래 안 쓴 것을 내준다. 디바이스가 은퇴 펜스로 지난 프레임이 다 그린 뒤에 놓으므로 여기서
+        // 기다리지 않는다 - 보통 프레임은 GPU 를 기다리지 않는다는 계약이 있다(렌더러 계약 테스트).
+        DepthTarget* chosen = nullptr;
+        for (DepthTarget& slot : m_depthTargets)
         {
-            // 크기가 바뀌었다. 디바이스가 은퇴 펜스로 지난 프레임이 다 그린 뒤에 놓으므로 여기서
-            // 기다리지 않는다 - 보통 프레임은 GPU 를 기다리지 않는다는 계약이 있다(렌더러 계약 테스트).
-            m_device->DestroyTexture(target.texture);
-            target = {};
+            if (false == slot.texture.IsValid())
+            {
+                chosen = &slot;
+                break;
+            }
+            if (chosen == nullptr || slot.idleFrames > chosen->idleFrames)
+            {
+                chosen = &slot;
+            }
+        }
+        if (chosen->texture.IsValid())
+        {
+            m_device->DestroyTexture(chosen->texture);
+            *chosen = {};
         }
         TextureDesc desc;
         desc.extent = extent;
         desc.format = TextureFormat::D32Float;
         desc.usage = TextureUsage::DepthStencil;
-        target.texture = m_device->CreateTexture(desc);
-        if (false == target.texture.IsValid())
+        chosen->texture = m_device->CreateTexture(desc);
+        if (false == chosen->texture.IsValid())
         {
             return false;
         }
-        target.extent = extent;
-        depth = target.texture;
+        chosen->extent = extent;
+        depth = chosen->texture;
         return true;
+    }
+
+    TextureHandle Renderer::FindDepthTarget(const Extent2D& extent)
+    {
+        for (DepthTarget& slot : m_depthTargets)
+        {
+            if (slot.texture.IsValid() && slot.extent.width == extent.width && slot.extent.height == extent.height)
+            {
+                slot.idleFrames = 0;
+                return slot.texture;
+            }
+        }
+        for (std::size_t at = 0; at < m_depthTargetWantCount; ++at)
+        {
+            if (m_depthTargetWants[at].width == extent.width && m_depthTargetWants[at].height == extent.height)
+            {
+                return {};
+            }
+        }
+        if (m_depthTargetWantCount < MaxDepthTargets)
+        {
+            m_depthTargetWants[m_depthTargetWantCount++] = extent;
+        }
+        return {};
+    }
+
+    void Renderer::PrepareDepthTargets()
+    {
+        for (DepthTarget& slot : m_depthTargets)
+        {
+            if (slot.texture.IsValid() && ++slot.idleFrames > DepthTargetIdleFrames)
+            {
+                m_device->DestroyTexture(slot.texture);
+                slot = {};
+            }
+        }
+        for (std::size_t at = 0; at < m_depthTargetWantCount; ++at)
+        {
+            TextureHandle depth;
+            AcquireDepthTarget(m_depthTargetWants[at], depth);
+        }
+        m_depthTargetWantCount = 0;
     }
 
     void Renderer::DestroyDepthTargets()
@@ -565,6 +622,7 @@ namespace JBro
             }
             target = {};
         }
+        m_depthTargetWantCount = 0;
     }
 
     FrameStatus Renderer::BeginFrame(const FrameTarget& target)
@@ -583,9 +641,11 @@ namespace JBro
         // **깊이 텍스처는 프레임을 열기 전에 이 크기로 확보한다.** 디바이스는 프레임 안에서 자원을
         // 만들지 않으므로, 메시가 있는지 알게 되는 `RecordViews` 에서는 늦다. 크기가 같으면 지난
         // 것을 그대로 쓴다 - 2D 프레임이 내는 값은 크기가 바뀔 때의 텍스처 하나뿐이다.
+        // 프레임 타깃과 크기가 다른 뷰(편집 화면·레이어 썸네일)의 깊이는 지난 프레임이 바란 크기로 먼저 만든다.
+        PrepareDepthTargets();
         TextureHandle depth;
         const Extent2D depthExtent = target.texture.IsValid() ? target.extent : m_config.surfaceExtent;
-        if (false == AcquireDepthTarget(depthExtent, target.texture.IsValid(), depth))
+        if (false == AcquireDepthTarget(depthExtent, depth))
         {
             return FrameStatus::InvalidState;
         }
@@ -1042,7 +1102,6 @@ namespace JBro
                 return false;
             }
             const TextureHandle target = ownTarget ? view.camera.target : frameTexture;
-            const bool toTexture = ownTarget || frameToTexture;
             const Extent2D extent = ownTarget ? view.camera.targetExtent : frameExtent;
 
             bool alreadyCleared = false;
@@ -1136,14 +1195,20 @@ namespace JBro
             pass.colorAttachments = {&colorAttachment, 1};
             // **메시나 월드 텍스트가 있는 뷰만 깊이를 단다**(framework3d-plan §2.4, D-222). 스프라이트만 있는 2D 프레임은
             // 전과 같은 패스다. 뷰마다 지운다 - 카메라가 다르면 깊이도 다른 것이고, 3D 레이어는 레이어마다 뷰라 레이어마다 지운다(D-280).
-            const bool withDepth = view.runCount != 0 || view.worldTextRunCount != 0;
+            // **처음 보는 크기의 뷰는 그 프레임에 메시·월드 텍스트 없이 그린다**(D-287) - 깊이 텍스처는 다음 프레임 전에 선다.
+            // 프레임을 버리지 않는다. 프레임 타깃의 깊이는 `BeginFrame` 이 이미 만들었으므로 게임 화면은 늘 깊이가 있다.
             DepthStencilAttachmentDesc depthAttachment;
+            if (view.runCount != 0 || view.worldTextRunCount != 0)
+            {
+                depthAttachment.texture = FindDepthTarget(extent);
+                if (false == depthAttachment.texture.IsValid())
+                {
+                    ++m_currentStats.viewsWithoutDepthCount;
+                }
+            }
+            const bool withDepth = depthAttachment.texture.IsValid();
             if (withDepth)
             {
-                if (false == AcquireDepthTarget(extent, toTexture, depthAttachment.texture))
-                {
-                    return false;
-                }
                 depthAttachment.depthLoadOperation = LoadOperation::Clear;
                 depthAttachment.depthStoreOperation = StoreOperation::Discard;
                 depthAttachment.stencilLoadOperation = LoadOperation::Discard;
@@ -1323,7 +1388,7 @@ namespace JBro
                 }
             }
 
-            if (view.runCount != 0)
+            if (withDepth && view.runCount != 0)
             {
                 const Matrix4x4 viewProjection = Multiply(
                     view.camera.projection,
@@ -1362,7 +1427,7 @@ namespace JBro
             }
 
             // 월드 텍스트는 메시 **뒤**다 - 메시가 쓴 깊이로 가려진다. 파이프라인은 깊이를 보되 쓰지 않는다.
-            if (view.worldTextRunCount != 0)
+            if (withDepth && view.worldTextRunCount != 0)
             {
                 const Matrix4x4 viewProjection = Multiply(
                     view.camera.projection,
