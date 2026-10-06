@@ -40,6 +40,8 @@ namespace JBro
         std::uint16_t layerOrder = 0;
         LayerBlend layerBlend = LayerBlend::Normal;
         float layerOpacity = 1.0f;
+        // 패럴랙스 계수다(D-285). 게임 화면에서 그 레이어 뷰의 카메라 위치가 이 배가 된다.
+        float layerParallax = 1.0f;
     };
 
     // 3D 텍스트의 글자 하나다(D-222). 사각형은 **오브젝트 로컬 XY 평면의 유닛**이고(왼쪽 위와 크기, y 위쪽), 월드 자리·회전·크기는 오브젝트의
@@ -66,6 +68,8 @@ namespace JBro
         std::uint16_t layerOrder = 0;
         LayerBlend layerBlend = LayerBlend::Normal;
         float layerOpacity = 1.0f;
+        // 패럴랙스 계수다(D-285). 게임 화면에서 그 레이어 뷰의 카메라 위치가 이 배가 된다.
+        float layerParallax = 1.0f;
     };
 
     // 2D 의 `RenderWorld2D` 와 같은 자리다. 시스템이 채우고 브리지가 렌더러에 넘긴다.

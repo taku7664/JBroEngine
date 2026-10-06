@@ -321,13 +321,14 @@ namespace JBro::Internal
             std::sort(orders.Data(), orders.Data() + orders.Size());
             SortWorldTexts(world, editorView, cameraPosition);
 
-            const auto findBlend = [&](std::uint16_t order, LayerBlend& blend, float& opacity) {
+            const auto findBlend = [&](std::uint16_t order, LayerBlend& blend, float& opacity, float& parallax) {
                 for (std::size_t index = 0; index < world.GetMeshCount(); ++index)
                 {
                     if (world.GetMesh(index).layerOrder == order)
                     {
                         blend = world.GetMesh(index).layerBlend;
                         opacity = world.GetMesh(index).layerOpacity;
+                        parallax = world.GetMesh(index).layerParallax;
                         return;
                     }
                 }
@@ -337,6 +338,7 @@ namespace JBro::Internal
                     {
                         blend = world.GetText(index).layerBlend;
                         opacity = world.GetText(index).layerOpacity;
+                        parallax = world.GetText(index).layerParallax;
                         return;
                     }
                 }
@@ -348,10 +350,17 @@ namespace JBro::Internal
             {
                 LayerBlend blend = LayerBlend::Normal;
                 float opacity = 1.0f;
-                findBlend(orders[at], blend, opacity);
+                float parallax = 1.0f;
+                findBlend(orders[at], blend, opacity, parallax);
                 CameraParams layerCamera = camera;
                 layerCamera.composite = ToCompositeBlend3D(blend);
                 layerCamera.compositeOpacity = opacity;
+                // **패럴랙스는 그 레이어 뷰의 카메라 위치만 계수배다**(D-285, 기존 `ApplyLayerSpace`). 회전과 투영은 그대로다. 게임 화면만이다 -
+                // 캔버스 뷰는 배치하는 자리라 걸지 않는다.
+                if (false == editorView && parallax != 1.0f)
+                {
+                    layerCamera.view = MakeViewMatrix(Scale(cameraPosition, parallax), cameraRotation);
+                }
                 if (false == renderer.BeginView(layerCamera))
                 {
                     return false;

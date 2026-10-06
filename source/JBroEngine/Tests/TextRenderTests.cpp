@@ -12,6 +12,7 @@
 #include <JBro/Framework2D/Component/Text2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2D/ServiceContext.h>
+#include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/BuiltinComponentTypes2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
@@ -1191,6 +1192,80 @@ namespace
             gpu.Paint(framework);
             Check(gpu.renderer.GetLastFrameStats().compositedLayerCount == 1, "a plain layer is not composited");
             Check(near(gpu.Red(32, 32), 1.0f) && near(gpu.Green(32, 32), 0.2f), "and draws its red straight");
+            framework.Shutdown();
+        }
+        gpu.Close();
+        project.Close();
+    }
+
+    // **패럴랙스 레이어는 카메라보다 덜 움직인다**(D-285, 기존 `ApplyLayerSpace`). 카메라(세로 절반 1 = 32 픽셀/유닛)가 x 1 에 있을 때 계수 0.5 레이어의
+    // 월드 0 은 카메라 위치의 절반만큼 따라와 월드 0.5 로 그려진다 - 화면 x 16. 계수 1 레이어의 월드 1.5 는 x 48 이다. 계수 0 이면 카메라에 붙어
+    // 가운데(x 32)다. 버튼의 역투영은 그려진 자리에서 그 오브젝트의 월드로 돌아온다.
+    void TestParallaxLayersFollowTheCameraPartly()
+    {
+        FontProject project;
+        project.Open(32.0f);
+        Gpu gpu(project.platform, project.memory);
+        if (false == gpu.ready)
+        {
+            std::cout << "  [skip] no D3D12 device; parallax not verified" << std::endl;
+            gpu.Close();
+            project.Close();
+            return;
+        }
+        {
+            Framework2D framework;
+            FrameworkContext context;
+            JBro::Testing::AttachClock(context);
+            context.memory = project.memory;
+            context.assets = &project.assets;
+            context.renderer = &gpu.renderer;
+            Check(framework.Initialize(context), "the framework initializes");
+            ScreenSpaceFrame screen;
+            screen.referenceWidth = 64.0f;
+            screen.referenceHeight = 64.0f;
+            screen.targetWidth = 64.0f;
+            screen.targetHeight = 64.0f;
+            framework.SetScreenSpace(screen);
+            Canvas* canvas = framework.GetCanvas();
+            GameObject* cameraObject = canvas->CreateObject("camera");
+            canvas->AttachComponent<Component::Transform2D>(cameraObject)->position = {1.0f, 0.0f};
+            auto* camera = canvas->AttachComponent<Component::Camera2D>(cameraObject);
+            camera->primary = true;
+            camera->orthographicSize = 1.0f;
+            camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+            const auto square = [&](const char* name, LayerId layer, float x, Color tint) {
+                GameObject* object = canvas->CreateObject(name);
+                Check(canvas->SetObjectLayer(object, layer), "the square goes on its layer");
+                canvas->AttachComponent<Component::Transform2D>(object)->position = {x, 0.0f};
+                auto* sprite = canvas->AttachComponent<Component::SpriteRenderer2D>(object);
+                sprite->sizeMode = Component::SpriteSizeMode::Custom;
+                sprite->size = {0.25f, 0.25f};
+                sprite->tint = tint;
+                return object;
+            };
+            Layer& farLayer = canvas->CreateLayer("Far");
+            farLayer.SetParallax(0.5f);
+            GameObject* hill = square("hill", farLayer.GetId(), 0.0f, {1.0f, 0.0f, 0.0f, 1.0f});
+            square("tree", canvas->GetDefaultLayer(), 1.5f, {0.0f, 1.0f, 0.0f, 1.0f});
+            framework.BindCanvasAssets();
+
+            gpu.Paint(framework);
+            Check(gpu.Red(16, 32) > 0.8f && gpu.Red(0, 32) < 0.1f, "a half parallax layer is drawn half way to where the camera went");
+            Check(gpu.Green(48, 32) > 0.8f, "a plain layer is drawn where it is");
+
+            auto* buttons = canvas->GetSystems().FindSystem<System::Button2DSystem>();
+            Check(buttons != nullptr, "the button system does the picking");
+            Vector2 point;
+            Check(buttons->ScreenToLayer({16.0f, 32.0f}, hill->GetScriptHandle(), point) && std::fabs(point.x) < 0.02f && std::fabs(point.y) < 0.02f,
+                "pressing where the parallax layer was drawn lands on its object");
+            Vector2 pixel;
+            Check(buttons->LayerToScreen({0.0f, 0.0f}, hill->GetScriptHandle(), pixel) && std::fabs(pixel.x - 16.0f) < 0.5f,
+                "and its object goes back to the pixel it was drawn at");
+
+            farLayer.SetParallax(0.0f);
+            gpu.Paint(framework);
+            Check(gpu.Red(32, 32) > 0.8f && gpu.Red(16, 32) < 0.1f, "a zero parallax layer stays with the camera");
             framework.Shutdown();
         }
         gpu.Close();
@@ -2443,6 +2518,7 @@ int RunTextRenderTests()
         TestScreenExtentsFollowTheirScaleMode();
         TestScreenLayersDrawOverTheWorld();
         TestLayerBlendReachesTheScreen();
+        TestParallaxLayersFollowTheCameraPartly();
         TestLocalizedTextFollowsTheLocale();
     }
     catch (const std::exception&)

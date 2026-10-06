@@ -2409,6 +2409,15 @@ namespace JBro
         {
             const float cameraHalfHeight = cameraView.halfHeight;
             const float cameraHalfWidth = cameraView.halfWidth;
+            // **패럴랙스 레이어는 그려진 자리를 지킨다**(D-285). 게임 화면은 그 레이어를 이만큼 옮겨 그리므로 월드 → 화면은 더하고, 화면 → 월드는 뺀다
+            // (월드로 돌아간 레이어도 같은 계수를 든다). 기존 엔진은 계수 1 의 카메라로 옮겨 오브젝트가 튀었다.
+            float parallaxX = 0.0f;
+            float parallaxY = 0.0f;
+            if (layer->GetParallax() != 1.0f && false == ComputeParallaxOffset2D(cameraView.view, layer->GetParallax(), parallaxX, parallaxY))
+            {
+                parallaxX = 0.0f;
+                parallaxY = 0.0f;
+            }
             canvas->ForEachObject([&](GameObject& object) {
                 if (object.GetLayer() != layer || canvas->FindComponentRaw<Component::Transform2D>(object.GetParent()) != nullptr)
                 {
@@ -2424,8 +2433,10 @@ namespace JBro
                 if (space == LayerSpace::Screen)
                 {
                     const Matrix3x2& view = cameraView.view;
-                    const float vx = transform->worldPosition.x * view.m11 + transform->worldPosition.y * view.m21 + view.m31;
-                    const float vy = transform->worldPosition.x * view.m12 + transform->worldPosition.y * view.m22 + view.m32;
+                    const float shownX = transform->worldPosition.x + parallaxX;
+                    const float shownY = transform->worldPosition.y + parallaxY;
+                    const float vx = shownX * view.m11 + shownY * view.m21 + view.m31;
+                    const float vy = shownX * view.m12 + shownY * view.m22 + view.m32;
                     float anchorX = 0.0f;
                     float anchorY = 0.0f;
                     ComputeAnchorPoint(toExtent, transform->anchor.x, transform->anchor.y, anchorX, anchorY);
@@ -2437,8 +2448,8 @@ namespace JBro
                     const float vx = transform->worldPosition.x / fromExtent.halfWidth * cameraHalfWidth;
                     const float vy = transform->worldPosition.y / fromExtent.halfHeight * cameraHalfHeight;
                     const Matrix3x2& eye = cameraTransform->world;
-                    move.x = vx * eye.m11 + vy * eye.m21 + eye.m31;
-                    move.y = vx * eye.m12 + vy * eye.m22 + eye.m32;
+                    move.x = vx * eye.m11 + vy * eye.m21 + eye.m31 - parallaxX;
+                    move.y = vx * eye.m12 + vy * eye.m22 + eye.m32 - parallaxY;
                 }
                 moves.Add(move);
             });

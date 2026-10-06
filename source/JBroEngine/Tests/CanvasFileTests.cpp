@@ -927,6 +927,7 @@ namespace
             glow.SetBlend(JBro::LayerBlend::Additive);
             JBro::Layer& fog = canvas.CreateLayer("Fog");
             fog.SetOpacity(0.25f);
+            fog.SetParallax(0.5f);
             // 아래 그림을 읽는 블렌드도 이름으로 적힌다(D-283).
             canvas.CreateLayer("Tint").SetBlend(JBro::LayerBlend::ColorDodge);
             text = Save(canvas);
@@ -947,6 +948,9 @@ namespace
         Check(base->GetBlend() == JBro::LayerBlend::Normal && base->GetOpacity() == 1.0f, "the default layer stays plain");
         Check(glow->GetBlend() == JBro::LayerBlend::Additive && glow->GetOpacity() == 1.0f, "the glow comes back additive");
         Check(fog->GetBlend() == JBro::LayerBlend::Normal && fog->GetOpacity() == 0.25f, "the fog comes back at a quarter");
+        Check(text.find("Parallax: 0.5") != JBro::String::npos && text.find("Parallax: 1") == JBro::String::npos
+                && fog->GetParallax() == 0.5f && base->GetParallax() == 1.0f,
+            "a parallax layer writes its factor and the default writes nothing (D-285)");
         Check(Save(reopened) == text, "and saving it again writes the same bytes");
 
         // 모르는 블렌드는 추측하지 않고 거절한다.

@@ -11401,6 +11401,28 @@ namespace
             "a restored screen layer keeps its space and scale mode");
         Check(nullptr == editor.MakeLayerSpaceCommand(JBro::InvalidLayerId, JBro::LayerSpace::Screen, JBro::ScreenScaleMode::FixedHeight).Get(),
             "a layer that is not there makes no command");
+
+        // **패럴랙스 레이어도 그려진 자리를 지킨다**(D-285). 카메라가 x 2 에 있으면 계수 0.5 레이어의 월드 1 은 1 + 2 x 0.5 = 2, 곧 화면 가운데에
+        // 그려진다 - 화면 레이어로 바꾸면 x 0 이다(기존 엔진은 계수 1 로 옮겨 x 108 로 튀었다). 월드로 되돌리면 1 이다.
+        canvas->FindComponentRaw<JBro::Component::Transform2D>(eye)->position = {2.0f, 0.0f};
+        JBro::Layer& farLayer = canvas->CreateLayer("Far");
+        farLayer.SetParallax(0.5f);
+        JBro::GameObject* hill = canvas->CreateObject("hill");
+        Check(canvas->SetObjectLayer(hill, farLayer.GetId()), "the hill goes on the parallax layer");
+        auto* hillPlace = canvas->AttachComponent<JBro::Component::Transform2D>(hill);
+        hillPlace->position = {1.0f, 0.0f};
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor settles the moved camera");
+        }
+        JBro::OwnerPtr<JBro::EditorCommand> farToScreen =
+            editor.MakeLayerSpaceCommand(farLayer.GetId(), JBro::LayerSpace::Screen, JBro::ScreenScaleMode::FixedHeight);
+        Check(farToScreen.Get() != nullptr && editor.GetCommands().Execute(std::move(farToScreen)) && closeTo(hillPlace->position.x, 0.0f),
+            "a parallax layer turned to the screen keeps the place the game drew it at");
+        JBro::OwnerPtr<JBro::EditorCommand> farToWorld =
+            editor.MakeLayerSpaceCommand(farLayer.GetId(), JBro::LayerSpace::World, JBro::ScreenScaleMode::FixedHeight);
+        Check(farToWorld.Get() != nullptr && editor.GetCommands().Execute(std::move(farToWorld)) && closeTo(hillPlace->position.x, 1.0f),
+            "and turned back to the world it lands on its own place again");
         editor.Shutdown();
     }
 

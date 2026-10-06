@@ -57,7 +57,8 @@ namespace JBro::Internal
             return true;
         }
 
-        SpriteSubmit BuildSprite(const SpriteRenderItem& source)
+        // `offsetX`·`offsetY` 는 월드에서 옮길 양이다(패럴랙스, D-285). 오브젝트 변환 뒤에 더한다 - 레이어 전체가 같이 움직인다.
+        SpriteSubmit BuildSprite(const SpriteRenderItem& source, float offsetX = 0.0f, float offsetY = 0.0f)
         {
             // Built-in geometry is a centered unit quad. Apply pivot/size before the object transform.
             const Matrix3x2 geometry{source.size.x, 0.0f, 0.0f, source.size.y,
@@ -70,8 +71,8 @@ namespace JBro::Internal
             result.world.linear[1] = world.m21;
             result.world.linear[2] = world.m12;
             result.world.linear[3] = world.m22;
-            result.world.translation[0] = world.m31;
-            result.world.translation[1] = world.m32;
+            result.world.translation[0] = world.m31 + offsetX;
+            result.world.translation[1] = world.m32 + offsetY;
             // 깊이 버퍼가 아직 없다. 그리는 순서는 RenderWorld2D 가 정렬로 끝내고,
             // 이 값은 그 정렬을 GPU 로 옮기기 전까지 평면을 유지한다.
             result.world.depth = 0.0f;
@@ -121,6 +122,8 @@ namespace JBro::Internal
             std::uint32_t selectionCount = 0;
             // 레이어의 블렌드와 불투명도를 렌더러의 묶음으로 낸다(D-279). 선택 외곽선의 마스크는 그린 그대로의 모양이어야 하므로 끈다.
             bool composite = true;
+            // 있으면 월드 레이어의 패럴랙스를 이 뷰(월드 → 뷰)로 건다(D-285). 게임 화면만 준다 - 캔버스 뷰는 패럴랙스 없이 배치하는 자리다.
+            const Matrix3x2* parallaxView = nullptr;
         };
 
         // 캔버스의 `LayerBlend` 와 렌더러의 `CompositeBlend` 는 같은 차례의 같은 열셋이다(D-283). 어긋나면 여기서 빌드가 멈춘다.
@@ -221,7 +224,15 @@ namespace JBro::Internal
                         && renderer.BeginLayer(ToCompositeBlend(item.layerBlend), item.layerOpacity);
                     openLayer = wanted;
                 }
-                batch[count] = BuildSprite(item);
+                float offsetX = 0.0f;
+                float offsetY = 0.0f;
+                if (rule.parallaxView != nullptr && false == item.screenSpace && item.layerParallax != 1.0f
+                    && false == ComputeParallaxOffset2D(*rule.parallaxView, item.layerParallax, offsetX, offsetY))
+                {
+                    offsetX = 0.0f;
+                    offsetY = 0.0f;
+                }
+                batch[count] = BuildSprite(item, offsetX, offsetY);
                 ++count;
                 if (count == BatchSize)
                 {
@@ -489,7 +500,14 @@ namespace JBro::Internal
             {
                 return RenderResult::Failed;
             }
-            const bool accepted = PushSprites(world, renderer, false, SpriteFilterRule{});
+            // 패럴랙스는 그리는 카메라와 같은 뷰로 건다(D-285). 그 뷰를 못 재면(그릴 수 없는 카메라) 위에서 이미 실패했다.
+            CameraView2D cameraView;
+            SpriteFilterRule rule;
+            if (ComputeCameraView2D(*camera, frame, cameraView))
+            {
+                rule.parallaxView = &cameraView.view;
+            }
+            const bool accepted = PushSprites(world, renderer, false, rule);
             // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.
             if (debugDraw != nullptr && debugDraw->IsGameViewVisible())
             {

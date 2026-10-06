@@ -571,6 +571,21 @@ namespace JBro
                         MakeOwnerPtr<SetLayerCompositeCommand>(*canvas, layerId, layer->GetBlend(), opacity));
                 }
             });
+        // 패럴랙스는 월드 레이어에만 뜻이 있다(D-285). 끄는 동안 커맨드가 합쳐진다.
+        if (layer->GetSpace() == LayerSpace::World)
+        {
+            layout.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerParallax, "Parallax Factor"))
+                    .Tooltip(Loc::TextOr(LocKeys::InspectorLayerParallaxTooltip,
+                        "how far this layer moves when the camera moves")),
+                [&]() {
+                    float parallax = layer->GetParallax();
+                    if (Widget::DragFloat("##layerParallax").Range(0.0f, 10.0f).Speed(0.01f).Step(0.05f).Draw(parallax))
+                    {
+                        m_editor->GetCommands().Execute(MakeOwnerPtr<SetLayerParallaxCommand>(*canvas, layerId, parallax));
+                    }
+                });
+        }
         layout.Row(
             Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerSpace, "Space"))
                 .Tooltip(Loc::TextOr(LocKeys::HierarchyLayerScreenTooltip,

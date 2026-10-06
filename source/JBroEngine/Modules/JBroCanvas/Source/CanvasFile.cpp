@@ -186,6 +186,11 @@ namespace JBro
             {
                 writer.WriteFloat("Opacity", layer->GetOpacity());
             }
+            // 패럴랙스도 기본값(1)이면 적지 않는다(D-285). 키는 기존 엔진의 것이다.
+            if (layer->GetParallax() != 1.0f)
+            {
+                writer.WriteFloat("Parallax", layer->GetParallax());
+            }
             writer.EndMap();
         }
         writer.EndSequence();
@@ -324,6 +329,8 @@ namespace JBro
             }
             float opacity = 1.0f;
             document.FindFloat(entry, "Opacity", opacity);
+            float parallax = 1.0f;
+            document.FindFloat(entry, "Parallax", parallax);
 
             // 캔버스는 기본 레이어를 하나 들고 시작한다. 첫 레이어는 그것을 쓴다 —
             // 그러지 않으면 파일을 읽을 때마다 쓰지 않는 레이어가 하나씩 남는다.
@@ -342,6 +349,7 @@ namespace JBro
             layer->SetScaleMode(scaleMode);
             layer->SetBlend(blend);
             layer->SetOpacity(opacity);
+            layer->SetParallax(parallax);
             layerOf.TryAdd(static_cast<std::uint64_t>(fileId), layer->GetId());
         }
 

@@ -75,6 +75,9 @@ namespace
         faded.SetOpacity(1.0f);
         faded.SetBlend(JBro::LayerBlend::Screen);
         Check(faded.NeedsComposite(), "so is a layer with a blend other than normal");
+        faded.SetParallax(0.5f);
+        faded.SetParallax(-1.0f);
+        Check(faded.GetParallax() == 0.5f && faded.NeedsComposite(), "a parallax factor below zero is refused and parallax needs no texture");
         JBro::LayerBlend parsed = JBro::LayerBlend::Normal;
         Check(JBro::ParseLayerBlend("Multiply", parsed) && parsed == JBro::LayerBlend::Multiply
                 && false == JBro::ParseLayerBlend("Plasma", parsed) && parsed == JBro::LayerBlend::Multiply,
@@ -96,8 +99,8 @@ namespace
         Check(foreground != nullptr, "Framework2D must create a runtime layer and its 2D state together");
         JBro::Layer2D* foregroundState = framework.GetLayer2D(foreground->GetId());
         Check(foregroundState != nullptr, "created Framework2D layer must expose its 2D state");
-        foregroundState->SetParallaxFactor(0.5f);
-        Check(foregroundState->GetParallaxFactor() == 0.5f, "Layer2D must retain Framework2D layer settings");
+        foregroundState->SetForceOwnTexture(true);
+        Check(foregroundState->ForcesOwnTexture(), "Layer2D must retain Framework2D layer settings");
         const JBro::LayerId foregroundIndex = foreground->GetId();
         Check(framework.DestroyLayer(foregroundIndex),
             "Framework2D must destroy runtime layer and 2D state together");

@@ -66,6 +66,7 @@ namespace JBro
         // 블렌드와 불투명도도 같이 뜬다(D-279). 안 뜨면 되돌린 레이어가 보통 레이어로 돌아온다.
         LayerBlend m_blend = LayerBlend::Normal;
         float m_opacity = 1.0f;
+        float m_parallax = 1.0f;
         Array<EditorObjectId> m_objects;
         bool m_captured = false;
     };
@@ -169,6 +170,27 @@ namespace JBro
         LayerBlend m_blendAfter = LayerBlend::Normal;
         float m_opacityBefore = 1.0f;
         float m_opacityAfter = 1.0f;
+        bool m_captured = false;
+    };
+
+    // **레이어의 패럴랙스 계수를 바꾼다**(D-285). 인스펙터의 끄는 칸이 낸다 - 같은 레이어끼리 합쳐 끌기 하나가 되돌리기 하나다.
+    class SetLayerParallaxCommand final : public EditorCommand
+    {
+    public:
+        SetLayerParallaxCommand(Canvas& canvas, LayerId layer, float factor);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+        bool CanMerge(const EditorCommand& newer) const override;
+        bool TryMerge(const EditorCommand& newer) override;
+
+    private:
+        Canvas* m_canvas = nullptr;
+        LayerId m_layerId = InvalidLayerId;
+        float m_before = 1.0f;
+        float m_after = 1.0f;
         bool m_captured = false;
     };
 

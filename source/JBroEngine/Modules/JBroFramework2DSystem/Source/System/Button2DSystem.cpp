@@ -132,11 +132,20 @@ namespace JBro::System
         }
         // 뷰 좌표 = -1..1 x 카메라의 반폭·반높이(그리기와 같은 `ComputeCameraView2D`, D-239). 월드 = 카메라 트랜스폼 x 뷰 좌표.
         Matrix3x2 cameraWorld;
-        if (false == Invert(view.view, cameraWorld))
+        if (false == Invert(view.view, cameraWorld)
+            || false == Apply(cameraWorld, nx * view.halfWidth, ny * view.halfHeight, point.x, point.y))
         {
             return false;
         }
-        return Apply(cameraWorld, nx * view.halfWidth, ny * view.halfHeight, point.x, point.y);
+        // **패럴랙스 레이어는 그려진 만큼 옮겨진 자리에서 누른다**(D-285). 그리기와 같은 함수로 잰 양을 빼서 오브젝트의 월드로 돌린다.
+        float offsetX = 0.0f;
+        float offsetY = 0.0f;
+        if (layer.GetParallax() != 1.0f && ComputeParallaxOffset2D(view.view, layer.GetParallax(), offsetX, offsetY))
+        {
+            point.x -= offsetX;
+            point.y -= offsetY;
+        }
+        return true;
     }
 
     bool Button2DSystem::LayerToPixel(const Layer& layer, Vector2 point, float& pixelX, float& pixelY) const
@@ -154,6 +163,13 @@ namespace JBro::System
         }
         float vx = 0.0f;
         float vy = 0.0f;
+        float offsetX = 0.0f;
+        float offsetY = 0.0f;
+        if (layer.GetParallax() != 1.0f && ComputeParallaxOffset2D(view.view, layer.GetParallax(), offsetX, offsetY))
+        {
+            point.x += offsetX;
+            point.y += offsetY;
+        }
         if (false == Apply(view.view, point.x, point.y, vx, vy))
         {
             return false;

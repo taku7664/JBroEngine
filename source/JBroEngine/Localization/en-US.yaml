@@ -284,6 +284,8 @@ Entries:
   inspector.layer_blend_color_burn: Color Burn
   inspector.layer_blend_difference: Difference
   inspector.layer_opacity: Opacity
+  inspector.layer_parallax: Parallax Factor
+  inspector.layer_parallax_tooltip: how far this layer moves when the camera moves; 1 moves with the camera, 0.5 is a half-speed background and 0 stays fixed in the world. Seen in the game view only, not in the canvas view
   inspector.layer_space: Space
   inspector.layer_space_world: World
   inspector.layer_space_screen: Screen

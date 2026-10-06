@@ -116,6 +116,7 @@ namespace JBro
         m_scaleMode = found->GetScaleMode();
         m_blend = found->GetBlend();
         m_opacity = found->GetOpacity();
+        m_parallax = found->GetParallax();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
         canvas.ForEachObject([this, layer](GameObject& object)
         {
@@ -155,6 +156,7 @@ namespace JBro
         restored.SetScaleMode(m_scaleMode);
         restored.SetBlend(m_blend);
         restored.SetOpacity(m_opacity);
+        restored.SetParallax(m_parallax);
         m_layerId = restored.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
@@ -446,6 +448,74 @@ namespace JBro
             layer->SetBlend(blend);
             layer->SetOpacity(opacity);
         }
+    }
+
+    // ── SetLayerParallaxCommand ──────────────────────────────────────────
+
+    SetLayerParallaxCommand::SetLayerParallaxCommand(Canvas& canvas, LayerId layer, float factor)
+        : m_canvas(&canvas)
+        , m_layerId(layer)
+    {
+        const Layer* found = canvas.FindLayer(layer);
+        if (found == nullptr)
+        {
+            return;
+        }
+        m_before = found->GetParallax();
+        // 레이어가 받는 값으로 든다 - 받지 않는 값이면 처음 값 그대로라 바뀐 것이 없다.
+        Layer probe(InvalidLayerId, "");
+        probe.SetParallax(m_before);
+        probe.SetParallax(factor);
+        m_after = probe.GetParallax();
+        m_captured = true;
+    }
+
+    const char* SetLayerParallaxCommand::GetName() const
+    {
+        return "Set Layer Parallax";
+    }
+
+    bool SetLayerParallaxCommand::Execute()
+    {
+        Layer* layer = m_captured ? m_canvas->FindLayer(m_layerId) : nullptr;
+        if (layer == nullptr || m_before == m_after)
+        {
+            return false;
+        }
+        layer->SetParallax(m_after);
+        return true;
+    }
+
+    void SetLayerParallaxCommand::Undo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetParallax(m_before);
+        }
+    }
+
+    void SetLayerParallaxCommand::Redo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetParallax(m_after);
+        }
+    }
+
+    bool SetLayerParallaxCommand::CanMerge(const EditorCommand& newer) const
+    {
+        const auto* other = dynamic_cast<const SetLayerParallaxCommand*>(&newer);
+        return other != nullptr && other->m_canvas == m_canvas && other->m_layerId == m_layerId;
+    }
+
+    bool SetLayerParallaxCommand::TryMerge(const EditorCommand& newer)
+    {
+        if (false == CanMerge(newer))
+        {
+            return false;
+        }
+        m_after = static_cast<const SetLayerParallaxCommand&>(newer).m_after;
+        return true;
     }
 
     // ── SetLayerVisibleCommand ───────────────────────────────────────────

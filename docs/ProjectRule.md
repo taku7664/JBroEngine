@@ -552,9 +552,12 @@
   캔버스 전환 승계(`KeepOnCanvasChange`)와 **합성 순서 캐시(`GetOrder()`)**를 갖는다. GameObject의 실행 수명은
   소유하지 않는다. (MUST) 순서 캐시는 `Canvas`가 레이어 생성·파괴·이동 시 재색인하며 그 외에는 쓰지 않는다. (D-46)
   렌더 추출은 레이어 순서를 정렬 키의 최상위로 쓰고 비가시 레이어를 건너뛴다. (MUST)
-  공간(`LayerSpace`)·맞춤 방식(`ScreenScaleMode`, D-237)과 블렌드(`LayerBlend`)·불투명도(D-279)도 공통 `Layer`가 들고
-  캔버스 파일에 기본값이 아닐 때만 적는다(`Space`·`ScaleMode`·`Blend`·`Opacity`). (MUST)
-  패럴랙스·별도 합성 텍스처·`AnchorToSafeArea`는 Framework2D의 `Layer2D`가 소유한다. (MUST) `Layer2D`는 살아 있는 공통 `Layer`에 대해 **지연 생성**되고,
+  공간(`LayerSpace`)·맞춤 방식(`ScreenScaleMode`, D-237)과 블렌드(`LayerBlend`)·불투명도(D-279)·패럴랙스(D-285)도 공통 `Layer`가 들고
+  캔버스 파일에 기본값이 아닐 때만 적는다(`Space`·`ScaleMode`·`Blend`·`Opacity`·`Parallax`). (MUST)
+  **패럴랙스는 그 레이어를 그리는 카메라의 위치만 계수배다** - 회전·줌은 그대로이고 화면 레이어는 보지 않는다. 2D 는 그 레이어의 아이템을 월드에서
+  `카메라 위치 x (1 - 계수)` 만큼 옮겨 그리고(`ComputeParallaxOffset2D` 하나로 재며 그리기·버튼 역투영·레이어 공간 바꾸기가 함께 쓴다), 3D 는 그 레이어 뷰의
+  카메라 위치를 계수배 한다. 게임 화면(게임 뷰·게임 빌드·썸네일)에만 걸고 캔버스 뷰는 걸지 않는다. 물리·조명은 레이어를 모른다. (MUST) (D-285)
+  별도 합성 텍스처·`AnchorToSafeArea`는 Framework2D의 `Layer2D`가 소유한다. (MUST) `Layer2D`는 살아 있는 공통 `Layer`에 대해 **지연 생성**되고,
   죽은 `Layer`의 상태는 접근 시 정리된다 — 공통 `Canvas`에 수명 콜백을 추가하지 않는다. (D-41, D-46)
 - 별도의 `Scene` 또는 `SceneManager` 실행 계층은 두지 않는다. 이 이름으로 `Canvas`와 중복되는 수명 계층을 다시 만들지 않는다. (MUST)
   금지 대상은 특정 이름이 아니라 **중복 수명 계층 자체**다. 이름만 바꾼 같은 계층도 금지한다.

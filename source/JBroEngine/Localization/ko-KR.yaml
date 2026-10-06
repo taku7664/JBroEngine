@@ -284,6 +284,8 @@ Entries:
   inspector.layer_blend_color_burn: 색상 번
   inspector.layer_blend_difference: 차이
   inspector.layer_opacity: 불투명도
+  inspector.layer_parallax: 패럴랙스 계수
+  inspector.layer_parallax_tooltip: 카메라가 움직일 때 이 레이어가 움직이는 비율입니다. 1 은 카메라와 같이, 0.5 는 절반 빠르기의 원경이고 0 은 월드에 고정됩니다. 게임 화면에서만 보이고 캔버스 뷰에는 적용되지 않습니다
   inspector.layer_space: 공간
   inspector.layer_space_world: 월드
   inspector.layer_space_screen: 화면

@@ -137,6 +137,7 @@ namespace JBro::System
             item.layerOrder = layer != nullptr ? layer->GetOrder() : 0;
             item.layerBlend = layer != nullptr ? layer->GetBlend() : LayerBlend::Normal;
             item.layerOpacity = layer != nullptr ? layer->GetOpacity() : 1.0f;
+            item.layerParallax = layer != nullptr ? layer->GetParallax() : 1.0f;
             item.tint = text.color;
             if (quad.hasTint)
             {

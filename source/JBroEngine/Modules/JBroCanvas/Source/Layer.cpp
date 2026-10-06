@@ -99,6 +99,20 @@ namespace JBro
         return m_blend != LayerBlend::Normal || m_opacity < 1.0f;
     }
 
+    float Layer::GetParallax() const
+    {
+        return m_parallax;
+    }
+
+    void Layer::SetParallax(float factor)
+    {
+        if (false == std::isfinite(factor) || factor < 0.0f)
+        {
+            return;
+        }
+        m_parallax = factor;
+    }
+
     const char* LayerBlendName(LayerBlend blend)
     {
         switch (blend)

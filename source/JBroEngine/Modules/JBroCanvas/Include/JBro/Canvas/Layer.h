@@ -84,6 +84,12 @@ namespace JBro
         // 제 텍스처에 그려 얹어야 하는가 - 블렌드가 `Normal` 이 아니거나 불투명도가 1 보다 작다.
         bool NeedsComposite() const;
 
+        // **패럴랙스 계수**(D-285, 기존 `ParallaxFactor`). 이 레이어를 그리는 카메라의 위치만 이 배가 된다 - 1 은 카메라와 같이, 0.5 는 절반 빠르기의
+        // 원경, 0 은 월드 원점에 붙는다. 회전·줌은 그대로라 0 도 화면 고정이 아니다(화면 고정은 화면 레이어다). 화면 레이어는 보지 않는다.
+        // 게임 화면에만 걸리고 캔버스 뷰는 보지 않는다. 0 보다 작거나 유한하지 않은 값은 받지 않는다.
+        float GetParallax() const;
+        void SetParallax(float factor);
+
     private:
         friend class Canvas;
 
@@ -97,5 +103,6 @@ namespace JBro
         ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
         LayerBlend m_blend = LayerBlend::Normal;
         float      m_opacity = 1.0f;
+        float      m_parallax = 1.0f;
     };
 }
