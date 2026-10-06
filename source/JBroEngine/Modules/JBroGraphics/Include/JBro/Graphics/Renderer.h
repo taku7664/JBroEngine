@@ -33,6 +33,8 @@ namespace JBro
         UInt32 maxLayerGroups = 256;
         // 한 프레임의 2D 라이트(`SubmitLight2D` 의 `Point`·`Spot`) 상한이다(D-291). 0 이면 라이팅을 만들지 않는다. `Global` 은 세지 않는다.
         UInt32 maxLights2D = 1024;
+        // 한 프레임의 그림자 변(`SubmitShadowEdges2D`) 상한이다(D-291). 0 이면 그림자를 그리지 않는다.
+        UInt32 maxShadowEdges2D = 16384;
         Bool validation = false;
     };
 
@@ -202,6 +204,19 @@ namespace JBro
         // `Spot` 의 원뿔 **전체** 각이다. 안쪽 각 안은 빛이 다 닿고 바깥 각에서 0 이 된다.
         Radian innerAngle = Radian(0.0f);
         Radian outerAngle = Radian(1.5707964f);
+        // 참이면 이 뷰의 그림자 변(`SubmitShadowEdges2D`)에 가려진 곳에는 빛이 닿지 않는다. `Global` 은 보지 않는다.
+        // 그림자를 드리우는 라이트는 하나씩 그려진다(그림자 마스크 하나와 라이트맵 패스 하나) - 많이 켜면 비싸다.
+        Bool castShadows = false;
+    };
+
+    // **그림자를 드리우는 변 하나**(D-291, tasks/lighting2d-plan.md 3 단계). 월드 좌표다. 닫힌 모양은 **시계 반대 방향**으로 감아 낸다 - 변의
+    // 바깥 법선이 오른쪽(`(dy, -dx)`)이다. 라이트를 향한 변은 밀어내지 않아 가림막의 안쪽은 밝다. `selfShadow` 면 그 변도 밀어내 가림막 자체가
+    // 제 그늘에 든다 - 두께 없는 선(체인)은 늘 이렇게 낸다.
+    struct ShadowEdge2D
+    {
+        Float from[2] = {0.0f, 0.0f};
+        Float to[2] = {0.0f, 0.0f};
+        Bool selfShadow = false;
     };
 
     struct MeshSubmit
@@ -266,6 +281,12 @@ namespace JBro
         UInt32 droppedLight2DCount = 0;
         // 라이트맵을 그린 뷰다.
         UInt32 litViewCount = 0;
+        // 받은 그림자 변과 상한을 넘어 버린 변이다.
+        UInt32 shadowEdge2DCount = 0;
+        UInt32 droppedShadowEdge2DCount = 0;
+        // 그림자를 그려 깎은 라이트다. 그림자 마스크가 아직 없어 그림자 없이 그린 라이트는 `unshadowedLight2DCount` 다.
+        UInt32 shadowedLight2DCount = 0;
+        UInt32 unshadowedLight2DCount = 0;
         // 라이트맵이 아직 없어 빛을 받는 스프라이트를 빛 없이 그린 뷰다. 그 크기의 라이트맵은 다음 프레임을 열 때 생긴다.
         // 깊이가 달린 뷰(3D)도 여기 든다 - 그 뷰는 라이팅을 보지 않는다.
         UInt32 viewsWithoutLightMapCount = 0;
@@ -303,6 +324,8 @@ namespace JBro
         // **2D 라이트를 낸다**(D-291). 뷰 안에서만 받는다. `Global` 은 색을 뷰의 환경광에 더하고, `Point`·`Spot` 은 라이트맵에 그린다.
         Bool SubmitLight2D(const Light2DSubmit& light);
         Bool SubmitLights2D(JArrayView<Light2DSubmit> lights);
+        // **그림자 변을 낸다**(D-291). 뷰 안에서만 받는다. 그 뷰의 그림자를 드리우는 라이트 모두가 같은 변을 본다. 넘치면 그 묶음을 버리고 센다.
+        Bool SubmitShadowEdges2D(JArrayView<ShadowEdge2D> edges);
         // **이 뒤로 낸 스프라이트가 빛을 받는가**(D-291). 참이면 `SetSpriteLighting(false)` 나 `EndView` 까지 낸 스프라이트는 이 뷰의 라이트맵을
         // 곱해 그린다 - 빛을 받는 레이어의 구간이다. 뷰마다 거짓으로 시작한다. 레이어 묶음(`BeginLayer`)과 겹쳐도 된다.
         // 깊이가 달린 뷰(3D)에서는 보지 않는다.
@@ -372,6 +395,8 @@ namespace JBro
         UInt32 GetSpriteSubmissionLimit() const;
         // 한 프레임에 받는 2D 라이트(`Point`·`Spot`)의 상한이다(D-291). 프레임워크가 제 저장소를 이만큼 잡는다.
         UInt32 GetLight2DLimit() const;
+        // 한 프레임에 받는 그림자 변의 상한이다(D-291).
+        UInt32 GetShadowEdge2DLimit() const;
         // 마지막으로 제시한 백버퍼를 CPU 로 읽는다. **진단과 테스트 경로다** —
         // GPU 를 기다리므로 프레임 안에서 부를 수 없고 매 프레임 경로도 아니다.
         Bool ReadBackBuffer(std::byte* destination, std::size_t destinationSize, TextureReadback& result);
@@ -401,6 +426,11 @@ namespace JBro
             // 이 뷰의 2D 라이트(`m_lights`, `Point`·`Spot`)와 빛을 받는 구간(`m_litRanges`)이다(D-291).
             UInt32 lightOffset = 0;
             UInt32 lightCount = 0;
+            // 업로드가 라이트를 뷰마다 그림자 없는 것 먼저, 그림자를 드리우는 것 뒤로 놓는다. 앞쪽 수다.
+            UInt32 plainLightCount = 0;
+            // 이 뷰의 그림자 변(`m_shadowEdges`)이다.
+            UInt32 shadowEdgeOffset = 0;
+            UInt32 shadowEdgeCount = 0;
             UInt32 litRangeOffset = 0;
             UInt32 litRangeCount = 0;
             // `Global` 라이트의 합이다. 라이트맵을 지우는 색이다.
@@ -429,6 +459,24 @@ namespace JBro
             Float cone[4] = {1.0f, 0.0f, 4.0f, 5.0f};
         };
         static_assert(sizeof(GpuLight2DInstance) == 48, "light instance stride is part of the shader ABI");
+
+        // 그림자 변 하나의 인스턴스다. `BuiltinShadow2D.hlsl` 의 ATTRIBUTE1..2 가 읽는다.
+        struct GpuShadowEdgeInstance
+        {
+            // from xy, to xy.
+            Float edge[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            // x: 라이트를 향해도 밀어내는가(1/0). 나머지는 비운다.
+            Float flags[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+        };
+        static_assert(sizeof(GpuShadowEdgeInstance) == 32, "shadow edge instance stride is part of the shader ABI");
+        static_assert(offsetof(GpuShadowEdgeInstance, flags) == 16, "shadow attribute 2 reads the flags from offset 16");
+        // 그림자를 드리우는 라이트 하나의 자리다. 업로드가 채우고 라이트맵 기록이 읽는다.
+        struct ShadowedLight
+        {
+            UInt32 instance = 0;
+            Float position[2] = {0.0f, 0.0f};
+            Float reach = 0.0f;
+        };
         static_assert(offsetof(GpuLight2DInstance, color) == 16, "light attribute 2 reads the colour from offset 16");
         static_assert(offsetof(GpuLight2DInstance, cone) == 32, "light attribute 3 reads the cone from offset 32");
 
@@ -446,12 +494,13 @@ namespace JBro
         // 레이어를 그려 둘 텍스처다. 뷰의 타깃 크기마다 하나이고 백버퍼 포맷이다. 프레임 안에서는 만들 수 없으므로, 기록 중에
         // 없는 크기를 만나면 바라는 크기로 적어 두고 다음 `BeginFrame` 이 프레임을 열기 전에 만든다. 오래 안 쓰면 놓는다.
         // 쓰임은 둘이다: 레이어를 그리는 자리와, 아래 그림을 읽는 블렌드가 대상을 복사해 두는 자리(D-283). 같은 크기라도 따로 든다.
-        // `LightMap` 은 2D 라이트맵이다(D-291) - 이것만 백버퍼 포맷이 아니라 RGBA16F 다.
+        // `LightMap` 은 2D 라이트맵이다(D-291) - 백버퍼 포맷이 아니라 RGBA16F 다. `ShadowMask` 는 그림자를 드리우는 라이트 하나의 가림막(RGBA8)이다.
         enum class LayerTargetRole : std::uint8_t
         {
             Layer,
             Backdrop,
-            LightMap
+            LightMap,
+            ShadowMask
         };
         struct LayerTarget
         {
@@ -672,9 +721,19 @@ namespace JBro
         Bool CreateBuiltinLightResources();
         void DestroyBuiltinLightResources();
         Bool UploadLightInstances();
-        // 뷰의 라이트맵을 그린다 - 환경광으로 지우고 `Point`·`Spot` 을 더한다. 패스를 열고 닫는다.
-        Bool RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Viewport& viewport, const ScissorRect& scissor);
+        Bool UploadShadowEdges();
+        void WriteLightInstance(const Light2DSubmit& light, GpuLight2DInstance& instance);
+        // 뷰의 라이트맵을 그린다 - 환경광으로 지우고 `Point`·`Spot` 을 더하고, 그림자를 드리우는 라이트는 하나씩 마스크로 깎아 더한다. 패스를 열고 닫는다.
+        Bool RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Extent2D& extent, const Viewport& viewport,
+            const ScissorRect& scissor);
         GraphicsPipelineHandle m_light2DPipeline;
+        // 그림자(D-291 3 단계): 변을 밀어내 마스크에 칠하는 것과, 마스크로 깎으며 라이트 하나를 더하는 것이다.
+        GraphicsPipelineHandle m_shadowMaskPipeline;
+        GraphicsPipelineHandle m_shadowedLight2DPipeline;
+        BufferHandle m_shadowEdgeBuffers[MaxFrameSlots];
+        Array<ShadowEdge2D> m_shadowEdges;
+        Array<GpuShadowEdgeInstance> m_gpuShadowEdges;
+        Array<ShadowedLight> m_shadowedLights;
         GraphicsPipelineHandle m_litSpritePipeline;
         GraphicsPipelineHandle m_litSdfTextPipeline;
         BufferHandle m_lightInstanceBuffers[MaxFrameSlots];

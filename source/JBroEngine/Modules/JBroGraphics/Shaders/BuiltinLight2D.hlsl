@@ -53,7 +53,7 @@ VertexOutput VSMain(VertexInput input)
     return output;
 }
 
-float4 PSMain(VertexOutput input) : SV_TARGET
+float4 Shade(VertexOutput input)
 {
     const float distanceToLight = length(input.offset);
     const float outer = input.shape.z;
@@ -66,4 +66,19 @@ float4 PSMain(VertexOutput input) : SV_TARGET
     const float angular = 1.0f - smoothstep(0.0f, 1.0f, saturate((angle - input.cone.z) / max(input.cone.w - input.cone.z, 0.0001f)));
     // Alpha stays zero: the light map's alpha is not read, and One/One must not grow it.
     return float4(input.color.rgb * (radial * angular), 0.0f);
+}
+
+float4 PSMain(VertexOutput input) : SV_TARGET
+{
+    return Shade(input);
+}
+
+// A shadow-casting light is drawn alone, after its shadow mask (BuiltinShadow2D.hlsl): where the mask is set the
+// light does not reach. The mask is the size of the target and was drawn with the same viewport.
+Texture2D gShadowMask : register(t0);
+
+float4 PSShadowedMain(VertexOutput input) : SV_TARGET
+{
+    const float shadow = saturate(gShadowMask.Load(int3(int2(input.position.xy), 0)).r);
+    return Shade(input) * (1.0f - shadow);
 }

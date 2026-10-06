@@ -27,6 +27,7 @@
 
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>

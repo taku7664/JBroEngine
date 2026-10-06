@@ -53,7 +53,10 @@ $targets = @(
     @{ File = 'BuiltinLight2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinLight2DVS'; Header = 'BuiltinLight2DVS.generated.h' },
     @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLight2DPS'; Header = 'BuiltinLight2DPS.generated.h' },
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpriteLitPS'; Header = 'BuiltinSpriteLitPS.generated.h' },
-    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextLitPS'; Header = 'BuiltinSdfTextLitPS.generated.h' }
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextLitPS'; Header = 'BuiltinSdfTextLitPS.generated.h' },
+    @{ File = 'BuiltinShadow2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinShadow2DVS'; Header = 'BuiltinShadow2DVS.generated.h' },
+    @{ File = 'BuiltinShadow2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinShadow2DPS'; Header = 'BuiltinShadow2DPS.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSShadowedMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLight2DShadowedPS'; Header = 'BuiltinLight2DShadowedPS.generated.h' }
 )
 
 $sm5Targets = @(
@@ -73,7 +76,10 @@ $sm5Targets = @(
     @{ File = 'BuiltinLight2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroBuiltinLight2DVS_SM5'; Header = 'BuiltinLight2DVS_SM5.generated.h' },
     @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinLight2DPS_SM5'; Header = 'BuiltinLight2DPS_SM5.generated.h' },
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinSpriteLitPS_SM5'; Header = 'BuiltinSpriteLitPS_SM5.generated.h' },
-    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinSdfTextLitPS_SM5'; Header = 'BuiltinSdfTextLitPS_SM5.generated.h' }
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinSdfTextLitPS_SM5'; Header = 'BuiltinSdfTextLitPS_SM5.generated.h' },
+    @{ File = 'BuiltinShadow2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroBuiltinShadow2DVS_SM5'; Header = 'BuiltinShadow2DVS_SM5.generated.h' },
+    @{ File = 'BuiltinShadow2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinShadow2DPS_SM5'; Header = 'BuiltinShadow2DPS_SM5.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSShadowedMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinLight2DShadowedPS_SM5'; Header = 'BuiltinLight2DShadowedPS_SM5.generated.h' }
 )
 
 $spirvTargets = @(
@@ -93,7 +99,10 @@ $spirvTargets = @(
     @{ File = 'BuiltinLight2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinLight2DVS_SPV'; Header = 'BuiltinLight2DVS_SPV.generated.h' },
     @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLight2DPS_SPV'; Header = 'BuiltinLight2DPS_SPV.generated.h' },
     @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpriteLitPS_SPV'; Header = 'BuiltinSpriteLitPS_SPV.generated.h' },
-    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextLitPS_SPV'; Header = 'BuiltinSdfTextLitPS_SPV.generated.h' }
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextLitPS_SPV'; Header = 'BuiltinSdfTextLitPS_SPV.generated.h' },
+    @{ File = 'BuiltinShadow2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinShadow2DVS_SPV'; Header = 'BuiltinShadow2DVS_SPV.generated.h' },
+    @{ File = 'BuiltinShadow2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinShadow2DPS_SPV'; Header = 'BuiltinShadow2DPS_SPV.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSShadowedMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLight2DShadowedPS_SPV'; Header = 'BuiltinLight2DShadowedPS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)

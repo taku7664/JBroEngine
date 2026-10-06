@@ -3,6 +3,7 @@
 #include <JBro/AudioTypes/BuiltinAudioComponents.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/ShadowCaster2D.h>
 
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -28,6 +29,7 @@ namespace JBro::Component
             all = RegisterBuiltinProperties<Camera2D>()         && all;
             all = RegisterBuiltinProperties<SpriteRenderer2D>() && all;
             all = RegisterBuiltinProperties<Light2D>() && all;
+            all = RegisterBuiltinProperties<ShadowCaster2D>() && all;
             all = RegisterBuiltinProperties<Text2D>()           && all;
             all = RegisterBuiltinProperties<Button2D>()         && all;
             all = RegisterBuiltinProperties<Rigidbody2D>()      && all;

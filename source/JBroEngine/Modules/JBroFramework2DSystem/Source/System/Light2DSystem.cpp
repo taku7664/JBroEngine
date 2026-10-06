@@ -54,6 +54,7 @@ namespace JBro::System
             item.innerAngle = light.innerAngle;
             item.outerAngle = light.outerAngle;
             item.layerParallax = layer != nullptr ? layer->GetParallax() : Float(1.0f);
+            item.castShadows = light.castShadows;
             if (placed)
             {
                 // 행 벡터 규약이라 첫 행이 오브젝트의 +x 다. 늘이거나 줄인 크기는 방향에 들지 않는다.

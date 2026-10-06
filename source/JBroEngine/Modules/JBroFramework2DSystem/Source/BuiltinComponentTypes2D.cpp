@@ -4,6 +4,7 @@
 #include <JBro/Canvas/ComponentRegistry.h>
 #include <JBro/Framework2D/Component/AudioListener2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/Button2D.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -32,6 +33,7 @@ namespace JBro::Component
             // 기존 엔진 표와 같다: Rendering, 여럿 붙는다(D-200).
             all = RegisterComponentType<Text2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Light2D>(ComponentCategory::Rendering) && all;
+            all = RegisterComponentType<ShadowCaster2D>(ComponentCategory::Rendering) && all;
             all = RegisterComponentType<Rigidbody2D>(
                       ComponentCategory::Physics, ComponentMultiplicity::Single) && all;
             all = RegisterComponentType<Collider2D>(ComponentCategory::Physics) && all;

@@ -66,7 +66,9 @@
    `lit` 을 끈 레이어와 화면 레이어는 그대로다, 저장하고 다시 열어도 같다.~~ → 완료 2026-10-06(D-291 의 "2 단계"). `Light2D.h`, `Light2DSystem`,
    `RenderWorld2D::SubmitLight`, 브리지의 `PushLights`·빛을 받는 구간, `Layer::IsLit`·`Lit`·`SetLayerLitCommand`·인스펙터의 "라이팅 사용",
    시험 `Light2DFrameworkTests.cpp`·캔버스 파일·레이어 커맨드.
-3. 그림자: `ShadowCaster2D`, 단단한 그림자. 완료 조건: 가림막 뒤가 어둡다, 화면 밖 가림막도 그림자를 드리운다, 가림막 안의 라이트(`selfShadow`).
+3. ~~그림자: `ShadowCaster2D`, 단단한 그림자. 완료 조건: 가림막 뒤가 어둡다, 화면 밖 가림막도 그림자를 드리운다, 가림막 안의 라이트(`selfShadow`).~~
+   → 완료 2026-10-06(D-291 의 "3 단계"). `BuiltinShadow2D.hlsl`·`PSShadowedMain`, `Renderer::SubmitShadowEdges2D`, `ShadowCaster2D.h`·`ShadowCaster2DSystem`,
+   브리지의 `PushShadowEdges`. 뮤테이션 12/12.
 4. 부드러운 그림자: 반그림자. 완료 조건: 그림자 가장자리가 거리에 따라 넓어진다, `shadowSoftness` 0 은 3 단계와 같다.
 5. 에디터: 반지름·각도 기즈모(끌어서 고침), 캔버스 뷰의 라이팅 켜고 끄기, 실제 에디터 확인.
 

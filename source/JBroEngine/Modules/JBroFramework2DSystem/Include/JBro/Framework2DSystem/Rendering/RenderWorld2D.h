@@ -81,6 +81,17 @@ namespace JBro
         Degree outerAngle = 60.0f;
         // 라이트가 놓인 레이어의 패럴랙스다(D-286) - 그 레이어의 스프라이트와 함께 옮겨야 제 자리를 비춘다.
         Float layerParallax = 1.0f;
+        Bool castShadows = false;
+    };
+
+    // 그림자를 드리우는 변 하나다(D-291 3 단계). 월드이고, 닫힌 모양은 시계 반대 방향으로 감겼다(렌더러의 `ShadowEdge2D` 와 같은 뜻).
+    struct ShadowEdge2DItem
+    {
+        Vector2 from;
+        Vector2 to;
+        Bool selfShadow = false;
+        // 가림막이 놓인 레이어의 패럴랙스다 - 그 레이어의 스프라이트와 함께 옮겨야 그림이 있는 자리를 가린다.
+        Float layerParallax = 1.0f;
     };
 
     // 정렬은 100B 넘는 아이템이 아니라 이 16B 항목을 움직인다(P-5).
@@ -112,6 +123,12 @@ namespace JBro
         std::size_t GetLightCount() const;
         std::size_t GetDroppedLightCount() const;
         const Light2DRenderItem& GetLight(std::size_t index) const;
+        // 그림자 변 저장소다(D-291). 라이트처럼 프레임 밖에서 잡고, 차면 버리고 센다.
+        Bool ReserveShadowEdges(std::size_t capacity);
+        Bool SubmitShadowEdge(const ShadowEdge2DItem& edge);
+        std::size_t GetShadowEdgeCount() const;
+        std::size_t GetDroppedShadowEdgeCount() const;
+        const ShadowEdge2DItem& GetShadowEdge(std::size_t index) const;
         void Sort();
         void EndFrame();
 
@@ -138,5 +155,7 @@ namespace JBro
         std::size_t             m_droppedSpriteCount = 0;
         Array<Light2DRenderItem> m_lights;
         std::size_t             m_droppedLightCount = 0;
+        Array<ShadowEdge2DItem> m_shadowEdges;
+        std::size_t             m_droppedShadowEdgeCount = 0;
     };
 }

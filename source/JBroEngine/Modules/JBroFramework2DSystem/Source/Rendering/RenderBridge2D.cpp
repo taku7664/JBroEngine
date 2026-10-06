@@ -315,6 +315,46 @@ namespace JBro::Internal
                 light.outerRadius = item.outerRadius;
                 light.innerAngle = Radian(item.innerAngle);
                 light.outerAngle = Radian(item.outerAngle);
+                light.castShadows = item.castShadows;
+                ++count;
+                if (count == BatchSize)
+                {
+                    flush();
+                }
+            }
+            flush();
+        }
+
+        // **렌더 월드의 그림자 변을 열린 뷰에 낸다**(D-291 3 단계). 라이트처럼 가림막이 놓인 레이어의 패럴랙스만큼 옮긴다(게임 화면만).
+        void PushShadowEdges(const RenderWorld2D& world, Renderer& renderer, const Matrix3x2* parallaxView)
+        {
+            constexpr std::size_t BatchSize = 64;
+            ShadowEdge2D batch[BatchSize];
+            std::size_t count = 0;
+            const auto flush = [&]() {
+                if (count != 0)
+                {
+                    renderer.SubmitShadowEdges2D({batch, static_cast<JBro::UInt32>(count)});
+                }
+                count = 0;
+            };
+            for (std::size_t index = 0; index < world.GetShadowEdgeCount(); ++index)
+            {
+                const ShadowEdge2DItem& item = world.GetShadowEdge(index);
+                Float offsetX = 0.0f;
+                Float offsetY = 0.0f;
+                if (parallaxView != nullptr && item.layerParallax != 1.0f
+                    && false == ComputeParallaxOffset2D(*parallaxView, item.layerParallax, offsetX, offsetY))
+                {
+                    offsetX = 0.0f;
+                    offsetY = 0.0f;
+                }
+                ShadowEdge2D& edge = batch[count];
+                edge.from[0] = item.from.x + offsetX;
+                edge.from[1] = item.from.y + offsetY;
+                edge.to[0] = item.to.x + offsetX;
+                edge.to[1] = item.to.y + offsetY;
+                edge.selfShadow = item.selfShadow;
                 ++count;
                 if (count == BatchSize)
                 {
@@ -451,6 +491,7 @@ namespace JBro::Internal
         if (false == view.screenSpace)
         {
             PushLights(world, renderer, nullptr);
+            PushShadowEdges(world, renderer, nullptr);
             rule.lighting = true;
         }
         accepted = PushSprites(world, renderer, true, rule) && accepted;
@@ -592,6 +633,7 @@ namespace JBro::Internal
                 rule.parallaxView = &cameraView.view;
             }
             PushLights(world, renderer, rule.parallaxView);
+            PushShadowEdges(world, renderer, rule.parallaxView);
             rule.lighting = true;
             const Bool accepted = PushSprites(world, renderer, false, rule);
             // 디버그 선은 월드 뷰 안에서 스프라이트 뒤에 그린다(D-243). 화면 레이어가 그 위에 온다.

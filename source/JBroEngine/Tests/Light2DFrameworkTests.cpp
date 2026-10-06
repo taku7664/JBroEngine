@@ -7,6 +7,8 @@
 #include <JBro/VulkanRHI/VulkanRHI.h>
 #include <JBro/Framework2D/Component/Camera2D.h>
 #include <JBro/Framework2D/Component/Light2D.h>
+#include <JBro/Framework2D/Component/Physics2D.h>
+#include <JBro/Framework2D/Component/ShadowCaster2D.h>
 #include <JBro/Framework2D/Component/SpriteRenderer2D.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Framework2DSystem/Framework2D.h>
@@ -102,10 +104,10 @@ namespace
             Check(renderer.GetDevice()->ReadTexture(target, image.Data(), image.Size(), readback), "the target must read back");
         }
 
-        // 게임 카메라로 타깃에 두 번 그린다 - 첫 프레임은 라이트맵이 아직 없다.
+        // 게임 카메라로 타깃에 세 번 그린다 - 첫 프레임은 라이트맵이, 둘째는 그림자 마스크가 아직 없다.
         void RenderGame(JBro::IFramework& framework)
         {
-            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
             {
                 JBro::FrameTarget frameTarget;
                 frameTarget.texture = target;
@@ -278,8 +280,121 @@ namespace
     }
 }
 
+namespace
+{
+    // **`ShadowCaster2D` 가 그림자를 드리우는 라이트를 가린다**(D-291 3 단계). 가운데의 라이트(0.8, 화면을 다 덮는다)를 네 가림막이 둘러싼다:
+    // 오른쪽 상자 콜라이더, 왼쪽 원 콜라이더, 위쪽 스프라이트 사각형, 아래쪽 x 를 뒤집은(거울) 폴리곤 콜라이더. 가림막 뒤는 어둡고 그 옆은 밝다.
+    // 폴리곤은 시계 반대 방향으로 적었지만 거울로 뒤집혀 월드에서는 시계 방향이다 - 감긴 방향을 넓이로 바로잡지 않으면 라이트를 향한 변이 밀려
+    // 안쪽이 어두워진다(처음에는 시계 방향으로 적어 거울과 상쇄되는 바람에 이 검사가 비어 있었다). 감춘 레이어의 가림막은 그림자가 없다.
+    // 패럴랙스 레이어의 가림막은 라이트처럼 그 레이어와 함께 옮겨진다. 라이트가 그림자를 드리우지 않으면 뒤도 밝다.
+    template <typename TModule>
+    void TestShadowCastersShadeTheLight()
+    {
+        Stage<TModule> stage;
+        if (false == stage.Open())
+        {
+            std::cout << "  [skip] no device for this API; shadow casters not verified" << std::endl;
+            return;
+        }
+        JBro::Framework2D framework;
+        JBro::FrameworkContext context;
+        JBro::Testing::AttachClock(context);
+        context.renderer = &stage.renderer;
+        Check(framework.Initialize(context), "the 2D framework must initialize with the renderer");
+        JBro::Canvas& canvas = *framework.GetCanvas();
+        JBro::GameObject* eye = canvas.CreateObject("eye");
+        canvas.AttachComponent<JBro::Component::Transform2D>(eye);
+        auto* camera = canvas.AttachComponent<JBro::Component::Camera2D>(eye);
+        camera->primary = true;
+        camera->orthographicSize = 4.0f;
+        camera->clearColor = {0.0f, 0.0f, 0.0f, 1.0f};
+        MakeSprite(canvas, "ground", 0.0f, 0.0f, 20.0f, 8.0f);
+
+        auto* light = MakeLight(canvas, "light", 0.0f, 0.0f);
+        light->color = {0.8f, 0.8f, 0.8f, 1.0f};
+        light->innerRadius = 6.0f;
+        light->outerRadius = 7.0f;
+        light->castShadows = true;
+
+        const auto caster = [&](const char* name, JBro::Float x, JBro::Float y) {
+            JBro::GameObject* object = canvas.CreateObject(name);
+            canvas.AttachComponent<JBro::Component::Transform2D>(object)->position = {x, y};
+            canvas.AttachComponent<JBro::Component::ShadowCaster2D>(object);
+            return object;
+        };
+        auto* box = canvas.AttachComponent<JBro::Component::Collider2D>(caster("box", 1.5f, 0.0f));
+        box->shape = JBro::Component::ColliderShape2D::Box;
+        box->size = {0.6f, 0.6f};
+        auto* circle = canvas.AttachComponent<JBro::Component::Collider2D>(caster("circle", -1.5f, 0.0f));
+        circle->shape = JBro::Component::ColliderShape2D::Circle;
+        circle->radius = 0.3f;
+        JBro::GameObject* sign = caster("sign", 0.0f, 1.5f);
+        canvas.FindComponentRaw<JBro::Component::ShadowCaster2D>(sign)->shape = JBro::Component::ShadowShape2D::Sprite;
+        auto* signSprite = canvas.AttachComponent<JBro::Component::SpriteRenderer2D>(sign);
+        signSprite->sizeMode = JBro::Component::SpriteSizeMode::Custom;
+        signSprite->size = {0.6f, 0.6f};
+        signSprite->tint = {0.0f, 0.0f, 1.0f, 1.0f};
+        JBro::GameObject* rock = caster("rock", 0.0f, -1.5f);
+        canvas.FindComponentRaw<JBro::Component::Transform2D>(rock)->scale = {-1.0f, 1.0f};
+        auto* polygon = canvas.AttachComponent<JBro::Component::Collider2D>(rock);
+        polygon->shape = JBro::Component::ColliderShape2D::Polygon;
+        // 로컬에서는 시계 반대 방향이다. x 를 뒤집어 월드에서는 시계 방향이 된다.
+        polygon->points.Add({-0.3f, -0.3f});
+        polygon->points.Add({0.3f, -0.3f});
+        polygon->points.Add({0.3f, 0.3f});
+        polygon->points.Add({-0.3f, 0.3f});
+        // 감춘 레이어의 상자는 오른쪽 아래 대각선을 가렸을 것이다.
+        JBro::Layer& hidden = canvas.CreateLayer("Hidden");
+        hidden.SetVisible(false);
+        JBro::GameObject* ghost = caster("ghost", 1.5f, -1.5f);
+        canvas.SetObjectLayer(ghost, hidden.GetId());
+        auto* ghostBox = canvas.AttachComponent<JBro::Component::Collider2D>(ghost);
+        ghostBox->size = {0.6f, 0.6f};
+
+        const auto update = [&]() {
+            JBro::Testing::SharedClock().BeginFrame(Sixtieth);
+            framework.Update();
+        };
+        update();
+        stage.RenderGame(framework);
+        const JBro::RendererFrameStats stats = stage.renderer.GetLastFrameStats();
+        Check(stats.shadowedLight2DCount == 1, "the light casts its shadow");
+        stage.Expect(3.0f, 0.0f, 0.0f, 0.0f, 0.0f, "a box collider shades what is behind it");
+        stage.Expect(3.0f, 1.0f, 0.8f, 0.8f, 0.8f, "and not what is beside it");
+        stage.Expect(-3.0f, 0.0f, 0.0f, 0.0f, 0.0f, "a circle collider shades what is behind it");
+        stage.Expect(-3.0f, 1.0f, 0.8f, 0.8f, 0.8f, "and not what is beside it");
+        stage.Expect(0.0f, 3.0f, 0.0f, 0.0f, 0.0f, "a sprite's rectangle shades what is behind it");
+        stage.Expect(0.0f, 1.5f, 0.0f, 0.0f, 0.8f, "and the sprite itself stays lit");
+        stage.Expect(0.0f, -3.0f, 0.0f, 0.0f, 0.0f, "a mirrored polygon written clockwise shades what is behind it");
+        stage.Expect(0.0f, -1.5f, 0.8f, 0.8f, 0.8f, "and keeps its own inside lit");
+        stage.Expect(3.0f, -3.0f, 0.8f, 0.8f, 0.8f, "a caster on a hidden layer casts no shadow");
+
+        // 패럴랙스 0.5 레이어의 상자는 카메라가 2 가면 1 따라간다. 라이트(기본 레이어)는 그대로다. 상자는 월드 x 2.5 라 화면에서 0.5 이고,
+        // 그 그림자는 화면 x 1.5 쪽으로 뻗는다(카메라 중심에서 잰다).
+        JBro::Layer& far = canvas.CreateLayer("Far");
+        far.SetParallax(0.5f);
+        canvas.SetObjectLayer(JBro::Internal::CanvasAccess::GetOwner(*box), far.GetId());
+        canvas.FindComponentRaw<JBro::Component::Transform2D>(eye)->position = {2.0f, 0.0f};
+        update();
+        stage.RenderGame(framework);
+        stage.Expect(1.5f, 0.0f, 0.0f, 0.0f, 0.0f, "a caster on a parallax layer shades where its layer is drawn");
+        stage.Expect(0.0f, 0.0f, 0.8f, 0.8f, 0.8f, "and not where it would be without the parallax, between the light and the box");
+        canvas.FindComponentRaw<JBro::Component::Transform2D>(eye)->position = {0.0f, 0.0f};
+
+        light->castShadows = false;
+        update();
+        stage.RenderGame(framework);
+        stage.Expect(3.0f, 0.0f, 0.8f, 0.8f, 0.8f, "a light that casts no shadow reaches behind the casters");
+        framework.Shutdown();
+        stage.Close();
+    }
+}
+
 JBro::Int32 RunLight2DFrameworkTests()
 {
+    TestShadowCastersShadeTheLight<JBro::D3D12RHIModule>();
+    TestShadowCastersShadeTheLight<JBro::D3D11RHIModule>();
+    TestShadowCastersShadeTheLight<JBro::VulkanRHIModule>();
     TestLightComponentsLightTheLitLayers<JBro::D3D12RHIModule>();
     TestLightComponentsLightTheLitLayers<JBro::D3D11RHIModule>();
     TestLightComponentsLightTheLitLayers<JBro::VulkanRHIModule>();

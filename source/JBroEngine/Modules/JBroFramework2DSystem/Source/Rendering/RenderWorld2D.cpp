@@ -33,6 +33,47 @@ namespace JBro
         m_screenSprites = 0;
         m_lights.Clear();
         m_droppedLightCount = 0;
+        m_shadowEdges.Clear();
+        m_droppedShadowEdgeCount = 0;
+    }
+
+    Bool RenderWorld2D::ReserveShadowEdges(std::size_t capacity)
+    {
+        try
+        {
+            m_shadowEdges.Reserve(capacity);
+        }
+        catch (const std::bad_alloc&)
+        {
+            return false;
+        }
+        return true;
+    }
+
+    Bool RenderWorld2D::SubmitShadowEdge(const ShadowEdge2DItem& edge)
+    {
+        if (m_shadowEdges.Size() == m_shadowEdges.Capacity())
+        {
+            ++m_droppedShadowEdgeCount;
+            return false;
+        }
+        m_shadowEdges.Add(edge);
+        return true;
+    }
+
+    std::size_t RenderWorld2D::GetShadowEdgeCount() const
+    {
+        return m_shadowEdges.Size();
+    }
+
+    std::size_t RenderWorld2D::GetDroppedShadowEdgeCount() const
+    {
+        return m_droppedShadowEdgeCount;
+    }
+
+    const ShadowEdge2DItem& RenderWorld2D::GetShadowEdge(std::size_t index) const
+    {
+        return m_shadowEdges[index];
     }
 
     Bool RenderWorld2D::ReserveLights(std::size_t capacity)

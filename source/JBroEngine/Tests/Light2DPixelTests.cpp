@@ -385,8 +385,174 @@ namespace
     }
 }
 
+namespace
+{
+    // 가운데가 (x, y) 이고 반 너비가 `half` 인 상자의 네 변을 시계 반대 방향으로 낸다(바깥 법선이 오른쪽).
+    void BoxEdges(JBro::Float x, JBro::Float y, JBro::Float half, JBro::Bool selfShadow, JBro::ShadowEdge2D (&edges)[4])
+    {
+        const JBro::Float corners[4][2] = {{x - half, y - half}, {x + half, y - half}, {x + half, y + half}, {x - half, y + half}};
+        for (JBro::Int32 at = 0; at < 4; ++at)
+        {
+            const JBro::Int32 next = (at + 1) % 4;
+            edges[at].from[0] = corners[at][0];
+            edges[at].from[1] = corners[at][1];
+            edges[at].to[0] = corners[next][0];
+            edges[at].to[1] = corners[next][1];
+            edges[at].selfShadow = selfShadow;
+        }
+    }
+
+    // **그림자 변이 라이트를 가린다**(D-291 3 단계). 흰 바닥을 왼쪽의 라이트(0.8, 화면을 다 덮는다)가 비추고 가운데에 작은 상자(반 너비 0.1)가 있다.
+    // 상자 뒤는 어둡고, 상자 옆을 지나는 빛과 앞은 밝다. 상자의 안쪽은 밝다(라이트를 향한 변은 밀어내지 않는다) - `selfShadow` 면 어둡다.
+    // 그림자를 드리우지 않는 라이트와, 같은 뷰의 그림자 없는 라이트는 마스크를 보지 않는다. 화면 밖의 상자도 화면 안에 그림자를 드리운다(기존 L1).
+    // 라이트맵이 첫 프레임에, 그림자 마스크가 둘째 프레임에 생기므로 셋째 프레임부터 그림자다.
+    template <typename TModule>
+    void TestShadowEdgesBlockTheLight()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "shadow edges"))
+        {
+            return;
+        }
+        JBro::Light2DSubmit light;
+        light.kind = JBro::Light2DKind::Point;
+        light.position[0] = -0.6f;
+        light.position[1] = 0.0f;
+        light.color[0] = 0.8f;
+        light.color[1] = 0.8f;
+        light.color[2] = 0.8f;
+        light.innerRadius = 2.5f;
+        light.outerRadius = 3.0f;
+        light.castShadows = true;
+        JBro::ShadowEdge2D box[4];
+        BoxEdges(0.0f, 0.0f, 0.1f, false, box);
+        const auto scene = [&](const JBro::Light2DSubmit* extra) {
+            return [&, extra]() {
+                Check(stage.renderer.SubmitLight2D(light), "the shadowed light must submit");
+                if (extra != nullptr)
+                {
+                    Check(stage.renderer.SubmitLight2D(*extra), "the other light must submit");
+                }
+                Check(stage.renderer.SubmitShadowEdges2D({box, 4}), "the box edges must submit");
+                Check(stage.renderer.SetSpriteLighting(true), "lighting must turn on");
+                Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f)), "the lit ground must submit");
+            };
+        };
+        stage.Frame(scene(nullptr));
+        stage.Frame(scene(nullptr));
+        JBro::RendererFrameStats stats = stage.renderer.GetLastFrameStats();
+        Check(stats.shadowEdge2DCount == 4 && stats.shadowedLight2DCount == 0 && stats.unshadowedLight2DCount == 1,
+            "the frame that meets the mask size first adds the light without its shadow");
+        stage.Expect(48, 32, 0.8f, 0.8f, 0.8f, "without a mask yet the light reaches behind the box");
+        stage.Frame(scene(nullptr));
+        stats = stage.renderer.GetLastFrameStats();
+        Check(stats.shadowedLight2DCount == 1 && stats.unshadowedLight2DCount == 0, "from the third frame the light casts its shadow");
+        stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "behind the box the light does not reach");
+        stage.Expect(48, 13, 0.8f, 0.8f, 0.8f, "light passing beside the box reaches");
+        stage.Expect(22, 32, 0.8f, 0.8f, 0.8f, "in front of the box it reaches");
+        stage.Expect(32, 32, 0.8f, 0.8f, 0.8f, "the box's own inside stays lit");
+
+        // 같은 뷰의 그림자 없는 라이트는 마스크를 보지 않는다. 상자 뒤에 작은 라이트를 둔다.
+        JBro::Light2DSubmit behind;
+        behind.kind = JBro::Light2DKind::Point;
+        behind.position[0] = 0.5f;
+        behind.position[1] = 0.0f;
+        behind.color[0] = 0.4f;
+        behind.color[1] = 0.4f;
+        behind.color[2] = 0.4f;
+        behind.innerRadius = 0.1f;
+        behind.outerRadius = 0.2f;
+        stage.Frame(scene(&behind));
+        stage.Expect(48, 32, 0.4f, 0.4f, 0.4f, "a light that casts no shadow lights behind the box");
+
+        // 가림막도 제 그늘에 든다.
+        BoxEdges(0.0f, 0.0f, 0.1f, true, box);
+        stage.Frame(scene(nullptr));
+        stage.Expect(32, 32, 0.0f, 0.0f, 0.0f, "a self-shadowing box darkens its own inside");
+        BoxEdges(0.0f, 0.0f, 0.1f, false, box);
+
+        // 그림자를 드리우지 않는 라이트는 변을 보지 않는다.
+        light.castShadows = false;
+        stage.Frame(scene(nullptr));
+        stage.Expect(48, 32, 0.8f, 0.8f, 0.8f, "a light that casts no shadow ignores the edges");
+        light.castShadows = true;
+
+        // 화면 밖의 라이트와 상자도 화면 안에 그림자를 드리운다.
+        light.position[0] = 1.6f;
+        BoxEdges(1.25f, 0.0f, 0.1f, false, box);
+        stage.Frame(scene(nullptr));
+        stage.Expect(48, 32, 0.0f, 0.0f, 0.0f, "a box off the screen still shadows the screen");
+        stage.Expect(48, 13, 0.8f, 0.8f, 0.8f, "beside its shadow the light reaches");
+        stage.Close(rhi);
+    }
+}
+
+namespace
+{
+    // **뷰마다 제 그림자 변을 본다**(D-291 3 단계). 한 프레임에 화면의 왼쪽 절반과 오른쪽 절반을 두 뷰로 그린다. 둘 다 왼쪽 끝의 라이트가 그림자를
+    // 드리우고, 왼쪽 뷰의 상자는 위쪽에, 오른쪽 뷰의 상자는 아래쪽에 있다. 각 뷰의 그림자는 제 상자 뒤에만 진다 - 앞 뷰의 변을 읽으면 자리가 바뀐다.
+    template <typename TModule>
+    void TestEachViewShadowsWithItsOwnEdges()
+    {
+        TModule rhi;
+        Stage stage;
+        if (false == stage.Open(rhi, "shadows per view"))
+        {
+            return;
+        }
+        JBro::Light2DSubmit light;
+        light.kind = JBro::Light2DKind::Point;
+        light.position[0] = -0.9f;
+        light.position[1] = 0.0f;
+        light.color[0] = 0.8f;
+        light.color[1] = 0.8f;
+        light.color[2] = 0.8f;
+        light.innerRadius = 2.5f;
+        light.outerRadius = 3.0f;
+        light.castShadows = true;
+        JBro::ShadowEdge2D upper[4];
+        JBro::ShadowEdge2D lower[4];
+        BoxEdges(-0.5f, 0.2f, 0.1f, false, upper);
+        BoxEdges(-0.5f, -0.2f, 0.1f, false, lower);
+        const auto frame = [&]() {
+            Check(stage.renderer.BeginFrame() == JBro::FrameStatus::Ready, "the frame must begin");
+            for (JBro::Int32 half = 0; half < 2; ++half)
+            {
+                JBro::CameraParams camera = stage.camera;
+                camera.viewport.x = half == 0 ? 0.0f : 32.0f;
+                camera.viewport.width = 32.0f;
+                Check(stage.renderer.BeginView(camera), "the half view must open");
+                Check(stage.renderer.SubmitLight2D(light), "the light must submit");
+                Check(stage.renderer.SubmitShadowEdges2D({half == 0 ? upper : lower, 4}), "the view's edges must submit");
+                Check(stage.renderer.SetSpriteLighting(true), "lighting must turn on");
+                Check(stage.renderer.SubmitSprite(Quad(0.0f, 0.0f, 2.0f, 2.0f, 1.0f)), "the lit ground must submit");
+                Check(stage.renderer.EndView(), "the half view must close");
+            }
+            Check(stage.renderer.EndFrame() == JBro::FrameStatus::Ready, "the frame must present");
+        };
+        for (JBro::Int32 at = 0; at < 3; ++at)
+        {
+            frame();
+        }
+        Check(stage.renderer.ReadBackBuffer(stage.image.Data(), stage.image.Size(), stage.readback), "the renderer must read its own back buffer");
+        // 반 화면 뷰는 월드 -1..1 이 32 픽셀이다. 상자 뒤(월드 x 0.3)는 뷰 안의 x 21 이다. 라이트에서 상자(y ±0.2)를 지난 빛은 그 자리에서 y ±0.61(픽셀 행 12·51)이다.
+        stage.Expect(21, 12, 0.0f, 0.0f, 0.0f, "the left view's box shades the upper side");
+        stage.Expect(21, 51, 0.8f, 0.8f, 0.8f, "and not the lower side");
+        stage.Expect(32 + 21, 51, 0.0f, 0.0f, 0.0f, "the right view's box shades the lower side");
+        stage.Expect(32 + 21, 12, 0.8f, 0.8f, 0.8f, "and not the upper side, which only the left view's edges cover");
+        stage.Close(rhi);
+    }
+}
+
 JBro::Int32 RunLight2DPixelTests()
 {
+    TestEachViewShadowsWithItsOwnEdges<JBro::D3D12RHIModule>();
+    TestEachViewShadowsWithItsOwnEdges<JBro::D3D11RHIModule>();
+    TestEachViewShadowsWithItsOwnEdges<JBro::VulkanRHIModule>();
+    TestShadowEdgesBlockTheLight<JBro::D3D12RHIModule>();
+    TestShadowEdgesBlockTheLight<JBro::D3D11RHIModule>();
+    TestShadowEdgesBlockTheLight<JBro::VulkanRHIModule>();
     TestAPointLightAndTheAmbientLightTheLitSprites<JBro::D3D12RHIModule>();
     TestAPointLightAndTheAmbientLightTheLitSprites<JBro::D3D11RHIModule>();
     TestAPointLightAndTheAmbientLightTheLitSprites<JBro::VulkanRHIModule>();

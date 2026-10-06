@@ -1063,8 +1063,8 @@ namespace
         context.renderer = &renderer;
         Check(framework.Initialize(context), "framework must bind a ready renderer");
         auto* canvas = framework.GetCanvas();
-        Check(canvas->GetSystems().GetSystemCount() == 8,
-            "canvas must own the eight implemented default systems (text since D-200, buttons since D-237, 2D lights since D-291)");
+        Check(canvas->GetSystems().GetSystemCount() == 9,
+            "canvas must own the nine implemented default systems (text since D-200, buttons since D-237, 2D lights and shadow casters since D-291)");
         auto* cameraObject = canvas->CreateObject("camera");
         auto* cameraTransform = canvas->AttachComponent<JBro::Component::Transform2D>(cameraObject);        auto* camera = canvas->AttachComponent<JBro::Component::Camera2D>(cameraObject);
         cameraTransform->position = {2.0f, 3.0f};
@@ -1241,9 +1241,9 @@ namespace
         Check(module.device.waitIdleCount == 1, "shutdown must wait for outstanding GPU work");
         Check(module.device.destroySwapchainCount == 1, "shutdown must destroy the swapchain");
         Check(module.destroyDeviceCount == 1, "shutdown must destroy the device");
-        Check(module.device.destroyPipelineCount == 16,
+        Check(module.device.destroyPipelineCount == 18,
             "shutdown must destroy the built-in sprite, sdf text (each with its over-depth twin), mesh, world text, the two outline, "
-            "the four layer composite, the backdrop blend, the 2D light and the two lit (sprite, sdf text) pipelines");
+            "the four layer composite, the backdrop blend, the 2D light (plain and shadowed), the shadow mask and the two lit (sprite, sdf text) pipelines");
     }
     struct HostOverlayProbe
     {

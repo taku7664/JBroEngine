@@ -3,12 +3,15 @@
 #include "BuiltinLayerBackdropPS.generated.h"
 #include "BuiltinLayerCompositePS.generated.h"
 #include "BuiltinLight2DPS.generated.h"
+#include "BuiltinLight2DShadowedPS.generated.h"
 #include "BuiltinLight2DVS.generated.h"
 #include "BuiltinMeshPS.generated.h"
 #include "BuiltinMeshVS.generated.h"
 #include "BuiltinOutlineCompositePS.generated.h"
 #include "BuiltinOutlineGrowPS.generated.h"
 #include "BuiltinOutlineVS.generated.h"
+#include "BuiltinShadow2DPS.generated.h"
+#include "BuiltinShadow2DVS.generated.h"
 #include "BuiltinSdfTextLitPS.generated.h"
 #include "BuiltinSdfTextPS.generated.h"
 #include "BuiltinSdfTextVS.generated.h"
@@ -26,12 +29,15 @@ namespace JBro::Sm5
 #include "BuiltinLayerBackdropPS_SM5.generated.h"
 #include "BuiltinLayerCompositePS_SM5.generated.h"
 #include "BuiltinLight2DPS_SM5.generated.h"
+#include "BuiltinLight2DShadowedPS_SM5.generated.h"
 #include "BuiltinLight2DVS_SM5.generated.h"
 #include "BuiltinMeshPS_SM5.generated.h"
 #include "BuiltinMeshVS_SM5.generated.h"
 #include "BuiltinOutlineCompositePS_SM5.generated.h"
 #include "BuiltinOutlineGrowPS_SM5.generated.h"
 #include "BuiltinOutlineVS_SM5.generated.h"
+#include "BuiltinShadow2DPS_SM5.generated.h"
+#include "BuiltinShadow2DVS_SM5.generated.h"
 #include "BuiltinSdfTextLitPS_SM5.generated.h"
 #include "BuiltinSdfTextPS_SM5.generated.h"
 #include "BuiltinSdfTextVS_SM5.generated.h"
@@ -48,12 +54,15 @@ namespace JBro::Spv
 #include "BuiltinLayerBackdropPS_SPV.generated.h"
 #include "BuiltinLayerCompositePS_SPV.generated.h"
 #include "BuiltinLight2DPS_SPV.generated.h"
+#include "BuiltinLight2DShadowedPS_SPV.generated.h"
 #include "BuiltinLight2DVS_SPV.generated.h"
 #include "BuiltinMeshPS_SPV.generated.h"
 #include "BuiltinMeshVS_SPV.generated.h"
 #include "BuiltinOutlineCompositePS_SPV.generated.h"
 #include "BuiltinOutlineGrowPS_SPV.generated.h"
 #include "BuiltinOutlineVS_SPV.generated.h"
+#include "BuiltinShadow2DPS_SPV.generated.h"
+#include "BuiltinShadow2DVS_SPV.generated.h"
 #include "BuiltinSdfTextLitPS_SPV.generated.h"
 #include "BuiltinSdfTextPS_SPV.generated.h"
 #include "BuiltinSdfTextVS_SPV.generated.h"
@@ -164,6 +173,9 @@ namespace JBro
             // 라이트와 빛을 받는 구간도 프레임 안에서 자라지 않는다(D-291). 넘치는 라이트는 버리고 센다.
             m_lights.Reserve(config.maxLights2D);
             m_gpuLightInstances.Resize(config.maxLights2D);
+            m_shadowedLights.Reserve(config.maxLights2D);
+            m_shadowEdges.Reserve(config.maxShadowEdges2D);
+            m_gpuShadowEdges.Resize(config.maxShadowEdges2D);
             m_litRanges.Reserve(config.maxLayerGroups);
             m_textureResources.Reserve(64);
             m_gpuSpriteInstances.Resize(config.maxSpriteSubmissions);
@@ -274,6 +286,9 @@ namespace JBro
         m_openLayerGroup = NoLayerGroup;
         m_lights = {};
         m_gpuLightInstances = {};
+        m_shadowedLights = {};
+        m_shadowEdges = {};
+        m_gpuShadowEdges = {};
         m_litRanges = {};
         m_openLitRange = NoLayerGroup;
         m_layerTargetWantCount = 0;
@@ -717,6 +732,7 @@ namespace JBro
         packet.layerGroupOffset = static_cast<JBro::UInt32>(m_layerGroups.Size());
         packet.lightOffset = static_cast<JBro::UInt32>(m_lights.Size());
         packet.litRangeOffset = static_cast<JBro::UInt32>(m_litRanges.Size());
+        packet.shadowEdgeOffset = static_cast<JBro::UInt32>(m_shadowEdges.Size());
         m_views.Add(packet);
         m_activeView = static_cast<JBro::UInt32>(m_views.Size() - 1);
         ++m_currentStats.viewCount;
@@ -894,6 +910,27 @@ namespace JBro
             view.lighting = true;
         }
         return allTaken;
+    }
+
+    Bool Renderer::SubmitShadowEdges2D(JArrayView<ShadowEdge2D> edges)
+    {
+        if (false == m_frameActive || m_activeView == InvalidViewIndex || (edges.size != 0 && edges.data == nullptr))
+        {
+            return false;
+        }
+        if (edges.size == 0)
+        {
+            return true;
+        }
+        if (m_shadowEdges.Size() + edges.size > m_config.maxShadowEdges2D)
+        {
+            m_currentStats.droppedShadowEdge2DCount += edges.size;
+            return false;
+        }
+        m_shadowEdges.Append(edges.data, edges.size);
+        m_views[m_activeView].shadowEdgeCount += edges.size;
+        m_currentStats.shadowEdge2DCount += edges.size;
+        return true;
     }
 
     Bool Renderer::SetSpriteLighting(Bool lit)
@@ -1147,6 +1184,11 @@ namespace JBro
         return m_device != nullptr ? m_config.maxLights2D : UInt32(0);
     }
 
+    UInt32 Renderer::GetShadowEdge2DLimit() const
+    {
+        return m_device != nullptr ? m_config.maxShadowEdges2D : UInt32(0);
+    }
+
     UInt32 Renderer::GetSpriteSubmissionLimit() const
     {
         return m_device != nullptr ? m_config.maxSpriteSubmissions : UInt32(0);
@@ -1269,7 +1311,7 @@ namespace JBro
                 }
                 if (lightMap.IsValid())
                 {
-                    if (false == RecordLightMap(view, lightMap, viewport, scissor))
+                    if (false == RecordLightMap(view, lightMap, extent, viewport, scissor))
                     {
                         return false;
                     }
@@ -1798,11 +1840,13 @@ namespace JBro
             }
             TextureDesc desc;
             desc.extent = m_layerTargetWants[want].extent;
-            const Bool lightMap = m_layerTargetWants[want].role == LayerTargetRole::LightMap;
-            // 라이트맵은 1 을 넘는 빛을 담는다(D-291). 나머지는 타깃에 얹거나 타깃을 복사해 두는 자리라 백버퍼 포맷이다.
-            desc.format = lightMap ? TextureFormat::RGBA16Float : m_config.backBufferFormat;
-            desc.usage = lightMap ? TextureUsage::RenderTarget | TextureUsage::Sampled
-                                  : TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
+            const LayerTargetRole role = m_layerTargetWants[want].role;
+            const Bool lightMap = role == LayerTargetRole::LightMap;
+            const Bool shadowMask = role == LayerTargetRole::ShadowMask;
+            // 라이트맵은 1 을 넘는 빛을 담는다(D-291). 그림자 마스크는 0 과 1 뿐이다. 나머지는 타깃에 얹거나 타깃을 복사해 두는 자리라 백버퍼 포맷이다.
+            desc.format = lightMap ? TextureFormat::RGBA16Float : (shadowMask ? TextureFormat::RGBA8Unorm : m_config.backBufferFormat);
+            desc.usage = lightMap || shadowMask ? TextureUsage::RenderTarget | TextureUsage::Sampled
+                                                : TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
             chosen->texture = m_device->CreateTexture(desc);
             chosen->extent = chosen->texture.IsValid() ? desc.extent : Extent2D{};
             chosen->role = m_layerTargetWants[want].role;
@@ -2212,7 +2256,68 @@ namespace JBro
         desc.pushConstantStages = ShaderStage::Vertex;
         desc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
         m_light2DPipeline = m_device->CreateGraphicsPipeline(desc);
-        return m_light2DPipeline.IsValid();
+        if (false == m_light2DPipeline.IsValid())
+        {
+            return false;
+        }
+        // 그림자를 드리우는 라이트 하나를 마스크(t0)로 깎으며 더한다. 같은 정점과 인스턴스다.
+        GraphicsPipelineDesc shadowedDesc = desc;
+        shadowedDesc.pixelShader = PickShader(m_config.api, JBroBuiltinLight2DShadowedPS, sizeof(JBroBuiltinLight2DShadowedPS),
+            Sm5::JBroBuiltinLight2DShadowedPS_SM5, sizeof(Sm5::JBroBuiltinLight2DShadowedPS_SM5),
+            Spv::JBroBuiltinLight2DShadowedPS_SPV, sizeof(Spv::JBroBuiltinLight2DShadowedPS_SPV));
+        shadowedDesc.sampledTextureCount = 1;
+        shadowedDesc.samplerCount = 1;
+        m_shadowedLight2DPipeline = m_device->CreateGraphicsPipeline(shadowedDesc);
+        if (false == m_shadowedLight2DPipeline.IsValid())
+        {
+            return false;
+        }
+        if (m_config.maxShadowEdges2D == 0)
+        {
+            return true;
+        }
+        // 그림자 마스크(D-291 3 단계): 변 하나가 인스턴스 하나이고, 단위 쿼드가 그 변의 두 끝과 그 먼 사본을 고른다.
+        if (m_config.maxShadowEdges2D > (std::numeric_limits<std::uint32_t>::max)() / sizeof(GpuShadowEdgeInstance))
+        {
+            return false;
+        }
+        BufferDesc edgeBufferDesc;
+        edgeBufferDesc.size = static_cast<std::size_t>(m_config.maxShadowEdges2D) * sizeof(GpuShadowEdgeInstance);
+        edgeBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+        edgeBufferDesc.memory = MemoryType::Upload;
+        for (UInt32 slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
+        {
+            m_shadowEdgeBuffers[slot] = m_device->CreateBuffer(edgeBufferDesc);
+            if (false == m_shadowEdgeBuffers[slot].IsValid())
+            {
+                return false;
+            }
+        }
+        const VertexAttributeDesc edgeAttributes[] = {
+            {1, static_cast<JBro::UInt32>(offsetof(GpuShadowEdgeInstance, edge)), VertexFormat::Float4},
+            {2, static_cast<JBro::UInt32>(offsetof(GpuShadowEdgeInstance, flags)), VertexFormat::Float4}};
+        const VertexBufferLayoutDesc edgeLayouts[] = {
+            {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {static_cast<JBro::UInt32>(sizeof(GpuShadowEdgeInstance)), VertexStepMode::Instance, {edgeAttributes, 2}}};
+        // 마스크는 0 과 1 뿐이다. 겹친 그림자는 `One·One` 으로 더해 1 에서 잘린다.
+        const TextureFormat maskFormats[] = {TextureFormat::RGBA8Unorm};
+        GraphicsPipelineDesc maskDesc;
+        maskDesc.vertexShader = PickShader(m_config.api, JBroBuiltinShadow2DVS, sizeof(JBroBuiltinShadow2DVS),
+            Sm5::JBroBuiltinShadow2DVS_SM5, sizeof(Sm5::JBroBuiltinShadow2DVS_SM5),
+            Spv::JBroBuiltinShadow2DVS_SPV, sizeof(Spv::JBroBuiltinShadow2DVS_SPV));
+        maskDesc.pixelShader = PickShader(m_config.api, JBroBuiltinShadow2DPS, sizeof(JBroBuiltinShadow2DPS),
+            Sm5::JBroBuiltinShadow2DPS_SM5, sizeof(Sm5::JBroBuiltinShadow2DPS_SM5),
+            Spv::JBroBuiltinShadow2DPS_SPV, sizeof(Spv::JBroBuiltinShadow2DPS_SPV));
+        maskDesc.vertexBuffers = {edgeLayouts, 2};
+        maskDesc.colorFormats = {maskFormats, 1};
+        maskDesc.blend = BlendMode::LayerAdditive;
+        maskDesc.cull = CullMode::None;
+        maskDesc.depthTest = false;
+        maskDesc.depthWrite = false;
+        maskDesc.pushConstantStages = ShaderStage::Vertex;
+        maskDesc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4) + sizeof(float) * 4);
+        m_shadowMaskPipeline = m_device->CreateGraphicsPipeline(maskDesc);
+        return m_shadowMaskPipeline.IsValid();
     }
 
     void Renderer::DestroyBuiltinLightResources()
@@ -2221,10 +2326,21 @@ namespace JBro
         {
             return;
         }
-        if (m_light2DPipeline.IsValid())
+        for (GraphicsPipelineHandle* pipeline : {&m_light2DPipeline, &m_shadowedLight2DPipeline, &m_shadowMaskPipeline})
         {
-            m_device->DestroyGraphicsPipeline(m_light2DPipeline);
-            m_light2DPipeline = {};
+            if (pipeline->IsValid())
+            {
+                m_device->DestroyGraphicsPipeline(*pipeline);
+                *pipeline = {};
+            }
+        }
+        for (BufferHandle& buffer : m_shadowEdgeBuffers)
+        {
+            if (buffer.IsValid())
+            {
+                m_device->DestroyBuffer(buffer);
+                buffer = {};
+            }
         }
         for (BufferHandle& buffer : m_lightInstanceBuffers)
         {
@@ -2238,20 +2354,85 @@ namespace JBro
 
     Bool Renderer::UploadLightInstances()
     {
-        // 라이트는 뷰마다 낸 차례로 이어져 있다(`ViewPacket::lightOffset`). 그대로 옮긴다.
+        // 라이트는 뷰마다 낸 차례로 이어져 있다(`ViewPacket::lightOffset`). 뷰 안에서 그림자 없는 라이트를 앞에, 그림자를 드리우는 라이트를 뒤에
+        // 놓는다 - 앞쪽은 인스턴스 드로우 한 번이고 뒤쪽은 하나씩이다. 그림자 변이 없는 뷰의 라이트는 그림자가 없는 것과 같다.
+        m_shadowedLights.Clear();
         const std::size_t count = m_lights.Size();
         if (count == 0)
         {
-            return true;
+            return UploadShadowEdges();
         }
         if (m_gpuLightInstances.Size() < count || m_frame.slot >= MaxFrameSlots || false == m_lightInstanceBuffers[m_frame.slot].IsValid())
         {
             return false;
         }
+        for (ViewPacket& view : m_views)
+        {
+            const UInt32 end = view.lightOffset + view.lightCount;
+            const Bool edges = view.shadowEdgeCount != 0 && m_shadowMaskPipeline.IsValid();
+            UInt32 next = view.lightOffset;
+            for (Int32 pass = 0; pass < 2; ++pass)
+            {
+                for (UInt32 at = view.lightOffset; at < end; ++at)
+                {
+                    const Bool shadowed = edges && m_lights[at].castShadows;
+                    if (shadowed != (pass == 1))
+                    {
+                        continue;
+                    }
+                    WriteLightInstance(m_lights[at], m_gpuLightInstances[next]);
+                    if (shadowed)
+                    {
+                        ShadowedLight entry;
+                        entry.instance = next;
+                        entry.position[0] = m_lights[at].position[0];
+                        entry.position[1] = m_lights[at].position[1];
+                        entry.reach = m_gpuLightInstances[next].shape[2];
+                        m_shadowedLights.Add(entry);
+                    }
+                    ++next;
+                }
+                if (pass == 0)
+                {
+                    view.plainLightCount = next - view.lightOffset;
+                }
+            }
+        }
+        return m_device->WriteBuffer(m_lightInstanceBuffers[m_frame.slot], 0,
+            {reinterpret_cast<const std::byte*>(m_gpuLightInstances.Data()),
+                static_cast<JBro::UInt32>(count * sizeof(GpuLight2DInstance))})
+            && UploadShadowEdges();
+    }
+
+    Bool Renderer::UploadShadowEdges()
+    {
+        const std::size_t count = m_shadowEdges.Size();
+        if (count == 0)
+        {
+            return true;
+        }
+        if (m_gpuShadowEdges.Size() < count || m_frame.slot >= MaxFrameSlots || false == m_shadowEdgeBuffers[m_frame.slot].IsValid())
+        {
+            return false;
+        }
         for (std::size_t at = 0; at < count; ++at)
         {
-            const Light2DSubmit& light = m_lights[at];
-            GpuLight2DInstance& instance = m_gpuLightInstances[at];
+            const ShadowEdge2D& edge = m_shadowEdges[at];
+            GpuShadowEdgeInstance& instance = m_gpuShadowEdges[at];
+            instance.edge[0] = edge.from[0];
+            instance.edge[1] = edge.from[1];
+            instance.edge[2] = edge.to[0];
+            instance.edge[3] = edge.to[1];
+            instance.flags[0] = edge.selfShadow ? 1.0f : 0.0f;
+        }
+        return m_device->WriteBuffer(m_shadowEdgeBuffers[m_frame.slot], 0,
+            {reinterpret_cast<const std::byte*>(m_gpuShadowEdges.Data()),
+                static_cast<JBro::UInt32>(count * sizeof(GpuShadowEdgeInstance))});
+    }
+
+    void Renderer::WriteLightInstance(const Light2DSubmit& light, GpuLight2DInstance& instance)
+    {
+        {
             const Float outer = light.outerRadius > 0.0f ? light.outerRadius : Float(0.0f);
             const Float inner = light.innerRadius < 0.0f ? Float(0.0f) : (light.innerRadius > outer ? outer : light.innerRadius);
             instance.shape[0] = light.position[0];
@@ -2285,12 +2466,10 @@ namespace JBro
                 instance.cone[3] = 5.0f;
             }
         }
-        return m_device->WriteBuffer(m_lightInstanceBuffers[m_frame.slot], 0,
-            {reinterpret_cast<const std::byte*>(m_gpuLightInstances.Data()),
-                static_cast<JBro::UInt32>(count * sizeof(GpuLight2DInstance))});
     }
 
-    Bool Renderer::RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Viewport& viewport, const ScissorRect& scissor)
+    Bool Renderer::RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Extent2D& extent, const Viewport& viewport,
+        const ScissorRect& scissor)
     {
         // 환경광으로 지우고 라이트를 더한다. 알파는 읽지 않는다.
         ColorAttachmentDesc color;
@@ -2307,19 +2486,107 @@ namespace JBro
         m_frame.commands->SetViewport(viewport);
         m_frame.commands->SetScissor(scissor);
         Bool drawn = true;
-        if (view.lightCount != 0)
+        const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+        if (view.plainLightCount != 0)
         {
-            const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
             drawn = m_frame.commands->SetGraphicsPipeline(m_light2DPipeline)
                 && m_frame.commands->SetGraphicsConstants(
                     {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
                 && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
                 && m_frame.commands->SetVertexBuffer(1, m_lightInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
                 && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
-                && m_frame.commands->DrawIndexedInstanced(6, view.lightCount, 0, 0, view.lightOffset);
+                && m_frame.commands->DrawIndexedInstanced(6, view.plainLightCount, 0, 0, view.lightOffset);
         }
         m_frame.commands->EndRenderPass();
-        return drawn;
+        if (false == drawn)
+        {
+            return false;
+        }
+        // **그림자를 드리우는 라이트는 하나씩이다**(D-291 3 단계). 마스크를 지우고 그 라이트에서 이 뷰의 변을 밀어내 칠한 뒤, 마스크로 깎으며 그 라이트
+        // 하나를 라이트맵에 더한다. 마스크가 아직 없는 크기는 그 프레임에 그림자 없이 더한다.
+        const UInt32 shadowedEnd = view.lightOffset + view.lightCount;
+        const TextureHandle mask = view.lightCount > view.plainLightCount ? FindLayerTarget(extent, LayerTargetRole::ShadowMask) : TextureHandle{};
+        for (const ShadowedLight& light : m_shadowedLights)
+        {
+            if (light.instance < view.lightOffset + view.plainLightCount || light.instance >= shadowedEnd)
+            {
+                continue;
+            }
+            if (mask.IsValid())
+            {
+                struct ShadowConstants
+                {
+                    Float viewProjection[16];
+                    Float light[4];
+                };
+                ShadowConstants constants = {};
+                for (Int32 at = 0; at < 16; ++at)
+                {
+                    constants.viewProjection[at] = viewProjection.values[at];
+                }
+                constants.light[0] = light.position[0];
+                constants.light[1] = light.position[1];
+                // 라이트가 닿는 곳보다 멀리 민다. 변의 끝이 라이트 안쪽에 있어도 바깥 반지름의 두 배면 넘는다.
+                constants.light[2] = light.reach * 2.0f;
+                ColorAttachmentDesc maskColor;
+                maskColor.texture = mask;
+                maskColor.loadOperation = LoadOperation::Clear;
+                maskColor.storeOperation = StoreOperation::Store;
+                maskColor.clearColor = {0.0f, 0.0f, 0.0f, 0.0f};
+                RenderPassDesc maskPass;
+                maskPass.colorAttachments = {&maskColor, 1};
+                if (false == m_frame.commands->BeginRenderPass(maskPass))
+                {
+                    return false;
+                }
+                m_frame.commands->SetViewport(viewport);
+                m_frame.commands->SetScissor(scissor);
+                const Bool masked = m_frame.commands->SetGraphicsPipeline(m_shadowMaskPipeline)
+                    && m_frame.commands->SetGraphicsConstants(
+                        {reinterpret_cast<const std::byte*>(&constants), static_cast<JBro::UInt32>(sizeof(constants))})
+                    && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+                    && m_frame.commands->SetVertexBuffer(1, m_shadowEdgeBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuShadowEdgeInstance)), 0)
+                    && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+                    && m_frame.commands->DrawIndexedInstanced(6, view.shadowEdgeCount, 0, 0, view.shadowEdgeOffset);
+                m_frame.commands->EndRenderPass();
+                if (false == masked)
+                {
+                    return false;
+                }
+                ++m_currentStats.shadowedLight2DCount;
+            }
+            else
+            {
+                ++m_currentStats.unshadowedLight2DCount;
+            }
+            ColorAttachmentDesc lightColor;
+            lightColor.texture = lightMap;
+            lightColor.loadOperation = LoadOperation::Load;
+            lightColor.storeOperation = StoreOperation::Store;
+            RenderPassDesc lightPass;
+            lightPass.colorAttachments = {&lightColor, 1};
+            if (false == m_frame.commands->BeginRenderPass(lightPass))
+            {
+                return false;
+            }
+            m_frame.commands->SetViewport(viewport);
+            m_frame.commands->SetScissor(scissor);
+            const Bool lit = m_frame.commands->SetGraphicsPipeline(mask.IsValid() ? m_shadowedLight2DPipeline : m_light2DPipeline)
+                && m_frame.commands->SetGraphicsConstants(
+                    {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
+                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+                && m_frame.commands->SetVertexBuffer(1, m_lightInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
+                && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+                && (false == mask.IsValid()
+                    || (m_frame.commands->SetTexture(0, mask) && m_frame.commands->SetSampler(0, m_nearestSampler)))
+                && m_frame.commands->DrawIndexedInstanced(6, 1, 0, 0, light.instance);
+            m_frame.commands->EndRenderPass();
+            if (false == lit)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     Bool Renderer::UploadMeshInstances()
@@ -2824,6 +3091,8 @@ namespace JBro
         m_layerGroups.Clear();
         m_openLayerGroup = NoLayerGroup;
         m_lights.Clear();
+        m_shadowedLights.Clear();
+        m_shadowEdges.Clear();
         m_litRanges.Clear();
         m_openLitRange = NoLayerGroup;
         m_worldTexts.Clear();

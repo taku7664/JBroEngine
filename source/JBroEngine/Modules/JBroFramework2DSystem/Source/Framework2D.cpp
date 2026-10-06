@@ -14,6 +14,7 @@
 #include <JBro/Framework2DSystem/Network/Transform2DReplication.h>
 #include <JBro/Framework2DSystem/System/Audio2DSystem.h>
 #include <JBro/Framework2DSystem/System/Light2DSystem.h>
+#include <JBro/Framework2DSystem/System/ShadowCaster2DSystem.h>
 #include <JBro/Framework2DSystem/System/Text2DSystem.h>
 #include <JBro/Framework2DSystem/System/Button2DSystem.h>
 #include <JBro/Framework2DSystem/System/Camera2DSystem.h>
@@ -69,7 +70,9 @@ namespace JBro
         {
             const auto capacity = context.renderer != nullptr ? context.renderer->GetSpriteSubmissionLimit() : UInt32(0);
             const auto lightCapacity = context.renderer != nullptr ? context.renderer->GetLight2DLimit() : UInt32(0);
-            if (false == m_renderWorld.ReserveSprites(capacity) || false == m_renderWorld.ReserveLights(lightCapacity))
+            const auto edgeCapacity = context.renderer != nullptr ? context.renderer->GetShadowEdge2DLimit() : UInt32(0);
+            if (false == m_renderWorld.ReserveSprites(capacity) || false == m_renderWorld.ReserveLights(lightCapacity)
+                || false == m_renderWorld.ReserveShadowEdges(edgeCapacity))
             {
                 Shutdown();
                 return false;
@@ -500,6 +503,10 @@ namespace JBro
         sprites.SetSpriteLibrary(&m_spriteLibrary);
         // 라이트도 스프라이트와 같은 차례에 담는다(D-291).
         systems.AddSystem<System::Light2DSystem>().SetRenderWorld(&m_renderWorld);
+        // 그림자 변은 스프라이트 크기가 풀린 뒤에 담는다(D-291 3 단계).
+        System::ShadowCaster2DSystem& casters = systems.AddSystem<System::ShadowCaster2DSystem>();
+        casters.SetRenderWorld(&m_renderWorld);
+        casters.SetSpriteLibrary(&m_spriteLibrary);
         // 글자마다 스프라이트 아이템이다(D-200). 아틀라스와 페이지 텍스처는 이 시스템이 든다 - 캔버스가 시스템을 내릴 때
         // (렌더러보다 먼저) 풀린다.
         System::Text2DSystem& texts = systems.AddSystem<System::Text2DSystem>();

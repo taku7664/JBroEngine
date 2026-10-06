@@ -7,6 +7,7 @@
 #include <JBro/Types/Angle.h>
 
 #include <cstdint>
+#include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 
 namespace JBro::Component
@@ -63,5 +64,7 @@ namespace JBro::Component
         // `Spot` 의 원뿔 **전체** 각이다. 안쪽 각 안은 빛이 다 닿고 바깥 각에서 0 이 된다.
         JBRO_FIELD(Degree, innerAngle, Range(0.0f, 360.0f)) = 30.0f;
         JBRO_FIELD(Degree, outerAngle, Range(0.0f, 360.0f)) = 60.0f;
+        // 참이면 `ShadowCaster2D` 가 이 빛을 가린다. 그림자를 드리우는 라이트는 하나씩 그려져 많이 켜면 비싸다. `Global` 은 보지 않는다.
+        JBRO_FIELD(Bool, castShadows) = false;
     };
 }
