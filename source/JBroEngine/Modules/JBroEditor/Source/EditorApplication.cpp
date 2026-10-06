@@ -2315,6 +2315,78 @@ namespace JBro
         return created;
     }
 
+    String EditorApplication::SaveLayerAsAsset(LayerId layerId, const char* folder)
+    {
+        Canvas* canvas = GetCanvas();
+        const Layer* layer = canvas != nullptr ? canvas->FindLayer(layerId) : nullptr;
+        if (layer == nullptr)
+        {
+            return String();
+        }
+        String text;
+        CanvasFileError error;
+        if (false == WriteLayerText(*canvas, layerId, text, error))
+        {
+            Log::Write(LogLevel::Error, "editor", "the layer could not be written: %s", error.message.c_str());
+            return String();
+        }
+        // 파일 이름은 레이어 이름이다. 경로에 쓸 수 없는 글자는 밑줄로 바꾼다 - 비면 `Layer` 다.
+        char stem[64] = {};
+        std::size_t length = 0;
+        for (const char* at = layer->GetName(); *at != '\0' && length + 1 < sizeof(stem); ++at)
+        {
+            const char c = *at;
+            const bool bad = c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|'
+                || static_cast<unsigned char>(c) < 0x20;
+            stem[length++] = bad ? '_' : c;
+        }
+        if (length == 0)
+        {
+            std::snprintf(stem, sizeof(stem), "Layer");
+        }
+        const String created = WriteNewAssetFile(folder, stem, ".jlayer", text);
+        if (created.empty())
+        {
+            return created;
+        }
+        if (const AssetRecord* record = GetAssetRegistry().FindByPath(created.c_str()))
+        {
+            GetCommands().Execute(MakeOwnerPtr<SetLayerSourceAssetCommand>(*canvas, layerId, record->id));
+            RevealAssetInBrowser(record->id);
+        }
+        return created;
+    }
+
+    bool EditorApplication::AddLayerFromAsset(AssetId asset)
+    {
+        Canvas* canvas = GetCanvas();
+        const AssetRecord* record = canvas != nullptr ? GetAssetRegistry().Find(asset) : nullptr;
+        if (record == nullptr || record->type != AssetType::Layer)
+        {
+            return false;
+        }
+        // 글자는 지금 떠 둔다 - 커맨드가 되돌리기·다시 하기에서 같은 것을 넣는다.
+        const String path = EditorPaths::JoinPath(GetAssetRoot().c_str(), record->relativePath.c_str());
+        Array<std::byte> bytes;
+        if (false == m_platform->ReadWholeFile(path.c_str(), bytes))
+        {
+            GetNotifications().Notify(NotificationLevel::Warning,
+                Loc::TextOr(LocKeys::LayerAssetLoadFailed, "the layer asset could not be read"), record->relativePath.c_str());
+            return false;
+        }
+        const String text(reinterpret_cast<const char*>(bytes.Data()), bytes.Size());
+        auto command = MakeOwnerPtr<AddLayerFromAssetCommand>(*canvas, GetObjectIds(), text, asset);
+        AddLayerFromAssetCommand* raw = command.Get();
+        if (false == GetCommands().Execute(std::move(command)))
+        {
+            GetNotifications().Notify(NotificationLevel::Warning,
+                Loc::TextOr(LocKeys::LayerAssetLoadFailed, "the layer asset could not be read"), record->relativePath.c_str());
+            return false;
+        }
+        SetSelectedLayer(raw->GetLayerId());
+        return true;
+    }
+
     String EditorApplication::CreateStringTableAsset(const char* folder)
     {
         // 본문은 빈 맵의 안내뿐이다. 로케일은 메타의 `StringTable` 블록에 있다 - 인스펙터에서 바꾼다.

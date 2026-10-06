@@ -962,6 +962,95 @@ namespace
         Check(false == JBro::ReadCanvasText(refused, broken.c_str(), broken.size(), error), "an unknown layer blend is refused");
     }
 
+    // **레이어 에셋**(D-286, 기존 `LayerSerializer`). 레이어 하나와 그 오브젝트를 적고, 다른 캔버스의 맨 위에 새 레이어로 읽어 넣는다. 레이어 노드는
+    // 캔버스 파일과 같은 함수로 쓰여 블렌드·패럴랙스가 같이 가고, 레이어 안의 참조는 새 오브젝트끼리 이어지며, 레이어 밖을 가리키던 참조는 비어 온다.
+    // 같은 파일을 두 번 넣으면 서로 다른 두 벌이다. 읽다 실패하면 캔버스는 그대로다. 캔버스 파일은 원본 에셋을 적고 되읽는다.
+    void TestLayerAssetsCarryALayerAndItsObjects()
+    {
+        JBro::Component::RegisterBuiltinComponentProperties2D();
+        JBro::Component::RegisterBuiltinComponentTypes2D();
+        JBro::String text;
+        {
+            JBro::Canvas canvas(JBro::CreateDefaultAllocator());
+            JBro::GameObject* outside = canvas.CreateObject("Outside");
+            canvas.AttachComponent<JBro::Component::Transform2D>(outside);
+            JBro::Layer& props = canvas.CreateLayer("Props");
+            props.SetBlend(JBro::LayerBlend::Screen);
+            props.SetParallax(0.5f);
+            JBro::GameObject* crate = canvas.CreateObject("Crate");
+            JBro::GameObject* lid = canvas.CreateObject("Lid");
+            canvas.SetObjectLayer(crate, props.GetId());
+            lid->SetParent(crate);
+            canvas.SetObjectLayer(crate, props.GetId());
+            canvas.AttachComponent<JBro::Component::Transform2D>(crate)->position = {3.0f, 4.0f};
+            canvas.AttachComponent<JBro::Component::Transform2D>(lid);
+            canvas.AttachComponent<JBro::Component::DistanceJoint2D>(lid)->connectedObject = crate->GetScriptHandle();
+            canvas.AttachComponent<JBro::Component::DistanceJoint2D>(crate)->connectedObject = outside->GetScriptHandle();
+            JBro::CanvasFileError error;
+            Check(JBro::WriteLayerText(canvas, props.GetId(), text, error), "a layer writes as a layer asset");
+        }
+        Check(text.find("Blend: Screen") != JBro::String::npos && text.find("Parallax: 0.5") != JBro::String::npos
+                && text.find("Name: Crate") != JBro::String::npos && text.find("Name: Outside") == JBro::String::npos
+                && text.find("LayerId") == JBro::String::npos && text.find("SourceAsset") == JBro::String::npos,
+            "the file holds the layer node and only that layer's objects, with no layer ids and no link to itself");
+
+        JBro::Canvas target(JBro::CreateDefaultAllocator());
+        target.CreateObject("Existing");
+        JBro::LayerId first = JBro::InvalidLayerId;
+        JBro::CanvasFileError error;
+        Check(JBro::ReadLayerText(target, text.c_str(), text.size(), first, error), "the layer asset reads into a canvas that has things");
+        Check(target.GetLayerCount() == 2 && target.GetLayerAt(1)->GetId() == first, "it lands on top as a new layer");
+        const JBro::Layer* landed = target.FindLayer(first);
+        Check(std::strcmp(landed->GetName(), "Props") == 0 && landed->GetBlend() == JBro::LayerBlend::Screen && landed->GetParallax() == 0.5f
+                && landed->GetSourceAsset().IsNull(),
+            "with the layer's own values and no source until the caller links one");
+        JBro::GameObject* crate = nullptr;
+        JBro::GameObject* lid = nullptr;
+        target.ForEachObject([&](JBro::GameObject& object) {
+            if (std::strcmp(object.GetTag(), "Crate") == 0)
+            {
+                crate = &object;
+            }
+            if (std::strcmp(object.GetTag(), "Lid") == 0)
+            {
+                lid = &object;
+            }
+        });
+        Check(crate != nullptr && lid != nullptr && lid->GetParent() == crate && crate->GetLayerId() == first && lid->GetLayerId() == first,
+            "the objects come back with their parent and on the new layer");
+        const auto* lidJoint = target.FindComponentRaw<JBro::Component::DistanceJoint2D>(lid);
+        const auto* crateJoint = target.FindComponentRaw<JBro::Component::DistanceJoint2D>(crate);
+        Check(lidJoint != nullptr && lidJoint->connectedObject.GetInstanceId() == crate->GetInstanceId(),
+            "a reference inside the layer joins the new objects");
+        Check(crateJoint != nullptr && false == crateJoint->connectedObject.IsValid(), "a reference out of the layer comes back empty");
+
+        JBro::LayerId second = JBro::InvalidLayerId;
+        Check(JBro::ReadLayerText(target, text.c_str(), text.size(), second, error) && second != first && target.GetObjectCount() == 5,
+            "the same asset goes in twice as two separate copies");
+
+        // 읽지 못하는 컴포넌트가 있으면 들어온 것을 다 거둔다.
+        JBro::String broken = text;
+        const std::size_t at = broken.find("Component::DistanceJoint2D");
+        broken.replace(at, 26, "Component::NoSuchComponent");
+        JBro::LayerId refused = JBro::InvalidLayerId;
+        Check(false == JBro::ReadLayerText(target, broken.c_str(), broken.size(), refused, error) && refused == JBro::InvalidLayerId,
+            "a layer asset that does not read is refused");
+        target.FlushPendingDestroy();
+        Check(target.GetLayerCount() == 3 && target.GetObjectCount() == 5, "and leaves the canvas as it was");
+
+        // 캔버스 파일은 원본 에셋을 적고 되읽는다. 레이어 에셋은 적지 않는다(위).
+        JBro::Uuid source;
+        source.high = 0x1234;
+        source.low = 0x5678;
+        target.FindLayer(first)->SetSourceAsset(source);
+        const JBro::String saved = Save(target);
+        Check(saved.find("SourceAsset: ") != JBro::String::npos, "the canvas file writes where a layer came from");
+        JBro::Canvas reopened(JBro::CreateDefaultAllocator());
+        LoadOrFail(reopened, saved);
+        Check(reopened.GetLayerAt(1)->GetSourceAsset() == source && reopened.GetLayerAt(2)->GetSourceAsset().IsNull(),
+            "and reads it back on that layer only");
+    }
+
     void TestTwoTypesCannotShareAName()
     {
         JBro::Component::RegisterBuiltinComponentTypes2D();
@@ -1248,6 +1337,7 @@ int RunCanvasFileTests()
     TestLayersComeBackWithoutPilingUp();
     TestScreenLayersComeBack();
     TestLayerBlendAndOpacityComeBack();
+    TestLayerAssetsCarryALayerAndItsObjects();
     TestTwoTypesCannotShareAName();
     TestReadingRefusesRatherThanGuessing();
     TestAPolygonColliderMakesTheRoundTrip();

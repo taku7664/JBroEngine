@@ -54,6 +54,8 @@ namespace JBro
                 return Icons::Canvas;
             case AssetType::StringTable:
                 return Icons::Language;
+            case AssetType::Layer:
+                return Icons::Layer;
             default:
                 return Icons::File;
             }
@@ -276,7 +278,21 @@ namespace JBro
             m_selection.Clear();
             m_anchor.clear();
         }
+        AcceptLayerDrop(folder);
         Widget::EndDropTarget();
+    }
+
+    // **계층의 레이어 줄을 놓으면 그 폴더에 레이어 에셋으로 저장한다**(D-286, 기존 `SaveLayerAsAssetInFolder`). 받는 자리 안에서 부른다.
+    void AssetBrowserPanel::AcceptLayerDrop(const String& folder)
+    {
+        LayerId layer = InvalidLayerId;
+        if (Widget::AcceptDropValue(Widget::DragKind::HierarchyLayer, layer))
+        {
+            if (m_editor->SaveLayerAsAsset(layer, folder.c_str()).empty())
+            {
+                m_message = Loc::TextOr(LocKeys::AssetsSaveLayerFailed, "the layer could not be saved as an asset");
+            }
+        }
     }
 
     bool AssetBrowserPanel::IsSelected(const String& path) const
@@ -1244,6 +1260,12 @@ namespace JBro
             }
         }
         ImGui::EndChild();
+        // 내용 칸의 빈 곳에 놓은 레이어 줄은 지금 연 폴더로 간다(기존과 같다).
+        if (Widget::BeginDropTarget())
+        {
+            AcceptLayerDrop(m_openFolder);
+            Widget::EndDropTarget();
+        }
 
         // 뗀 프레임이 지나면 누른 줄을 잊는다. 남겨 두면 다른 곳에서 누르고 그 줄 위에서 뗐을 때
         // 그 줄이 골라진다.

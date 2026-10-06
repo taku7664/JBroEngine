@@ -284,6 +284,12 @@ Entries:
   inspector.layer_blend_color_burn: Color Burn
   inspector.layer_blend_difference: Difference
   inspector.layer_opacity: Opacity
+  inspector.layer_source_asset: Layer Asset
+  inspector.layer_source_missing: the asset is gone
+  inspector.layer_source_reveal: show in the asset browser
+  hierarchy.save_layer_asset: Save as Asset
+  assets.save_layer_failed: the layer could not be saved as an asset
+  layer_asset.load_failed: the layer asset could not be read
   inspector.layer_parallax: Parallax Factor
   inspector.layer_parallax_tooltip: how far this layer moves when the camera moves; 1 moves with the camera, 0.5 is a half-speed background and 0 stays fixed in the world. Seen in the game view only, not in the canvas view
   inspector.layer_space: Space

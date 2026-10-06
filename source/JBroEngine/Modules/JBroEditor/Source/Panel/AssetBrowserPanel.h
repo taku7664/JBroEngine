@@ -116,6 +116,7 @@ namespace JBro
         void DrawNewFolderPopup();
         // 폴더 줄이 받는 자리. 파일을 끌어다 놓으면 그 폴더로 옮긴다.
         void DrawFolderDropTarget(const String& folder);
+        void AcceptLayerDrop(const String& folder);
         // 이 폴더가 저 폴더의 안인가(자기 자신 포함). 폴더를 자기 안으로 옮기지 못하게 한다.
         static bool IsInside(const String& path, const String& folder);
 

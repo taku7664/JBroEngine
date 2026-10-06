@@ -16,7 +16,9 @@
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/Widget/Button.h>
 #include <JBro/Editor/Widget/Common.h>
+#include <JBro/Editor/Widget/AssetDrag.h>
 #include <JBro/Editor/Widget/DragDrop.h>
+#include <JBro/Asset/AssetRegistry.h>
 #include <JBro/Editor/Widget/TextField.h>
 #include <JBro/Editor/Widget/Fields.h>
 #include <JBro/Editor/Widget/GuideFocus.h>
@@ -247,7 +249,9 @@ namespace JBro
         // `ImGui::Dummy` 는 넘긴 크기를 **그대로** 쓴다 - `-FLT_MIN` 을 폭으로 넘기면
         // 사각형이 뒤집혀 받는 자리가 아예 생기지 않는다. 실제로 그랬고, 그래서
         // 부모 해제가 되지 않았다. 남은 높이가 0 일 수도 있으므로 한 줄은 보장한다.
-        if (m_dragActive)
+        // **레이어 에셋을 빈자리에 놓으면 맨 위에 새 레이어로 들어온다**(D-286, 기존 `LayerTool` 의 레이어 에셋 드롭). 에셋을 끄는 동안에도 받는 자리를 편다.
+        const bool assetDrag = Widget::IsDragging(Widget::DragKind::Asset);
+        if (m_dragActive || assetDrag)
         {
             const ImVec2 available = ImGui::GetContentRegionAvail();
             const ImVec2 size(
@@ -265,12 +269,28 @@ namespace JBro
                         RecordDrop(*dragged, nullptr, m_roots.Size());
                     }
                 }
+                Widget::AssetDragHeader header;
+                if (assetDrag && Widget::AcceptAssetDrop(header))
+                {
+                    const AssetRecord* record = m_editor->GetAssetRegistry().Find(header.primary);
+                    if (record != nullptr && record->type == AssetType::Layer)
+                    {
+                        m_layerAssetDrop = header.primary;
+                    }
+                }
                 Widget::EndDropTarget();
             }
         }
 
         FlushRangeSelection();
         FlushPendingMove();
+        // 그리는 도중에 레이어를 더하면 지금 도는 레이어 목록이 그 자리에서 달라진다. 다 그린 뒤에 넣는다.
+        if (false == m_layerAssetDrop.IsNull())
+        {
+            const AssetId dropped = m_layerAssetDrop;
+            m_layerAssetDrop = AssetId{};
+            m_editor->AddLayerFromAsset(dropped);
+        }
     }
 
     void HierarchyPanel::FlushRangeSelection()
@@ -553,6 +573,12 @@ namespace JBro
         ImGui::Separator();
         {
             // **마지막 하나는 지우지 못한다.** 캔버스가 레이어 없이 설 수 없다.
+            // **에셋으로 저장**(D-286). 레이어 줄을 에셋 브라우저에 끌어 놓는 것과 같다 - 에셋 폴더의 맨 위에 레이어 이름으로 쓴다.
+            if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchySaveLayerAsset, "Save as Asset"), nullptr,
+                    false == m_editor->GetAssetRoot().empty(), Loc::TextOr(LocKeys::BlockedNoProject, "no project is open"), Icons::Save))
+            {
+                m_editor->SaveLayerAsAsset(layerId, "");
+            }
             const bool canDelete = canvas->GetLayerCount() > 1;
             if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDeleteLayer, "Delete Layer"),
                     nullptr, canDelete,

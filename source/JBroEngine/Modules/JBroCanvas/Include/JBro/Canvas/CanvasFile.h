@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <JBro/Canvas/Layer.h>
 #include <JBro/Types/String.h>
 
 #include <cstddef>
@@ -55,4 +56,14 @@ namespace JBro
     // 기본값으로 두고 넘어간다 — 필드를 더한 것은 예전 씬을 못 읽을 이유가 아니지만,
     // 필드를 지운 것은 그 씬이 들고 있던 값을 버린다는 뜻이라 사람이 알아야 한다.
     bool ReadCanvasText(Canvas& canvas, const char* text, std::size_t length, CanvasFileError& error);
+
+    // **레이어 에셋**(`.jlayer`, D-286, 기존 `LayerSerializer`). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적는다:
+    // `Version`·`Layer`(캔버스 파일의 `Layers` 항목과 같은 함수로 쓴 노드, 캔버스 안 번호와 원본 에셋은 빠진다)·`Objects`(부모는 파일 안 번호).
+    // 레이어 밖의 오브젝트를 가리키는 참조 필드는 비어 있는 것으로 적힌다. 파일은 여기서 열지 않는다(D-112).
+    bool WriteLayerText(Canvas& canvas, LayerId layer, String& text, CanvasFileError& error);
+
+    // 레이어 에셋을 캔버스의 **맨 위에 새 레이어로** 읽어 넣는다(기존 엔진과 같다). 오브젝트는 새로 만들어지고 파일 안 참조는 그 오브젝트끼리 이어진다 -
+    // 같은 에셋을 두 번 넣으면 서로 다른 두 벌이다(기존 엔진은 오브젝트 GUID 를 되살려 두 번 넣지 못했다). 원본 에셋 표시는 부르는 쪽이 단다.
+    // 읽다 실패하면 만든 것을 모두 거두고 거짓이다 - 캔버스는 읽기 전 그대로다.
+    bool ReadLayerText(Canvas& canvas, const char* text, std::size_t length, LayerId& created, CanvasFileError& error);
 }

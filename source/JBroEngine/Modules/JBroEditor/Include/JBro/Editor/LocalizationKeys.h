@@ -168,6 +168,12 @@ namespace JBro::LocKeys
     inline constexpr const char* InspectorLayerBlendColorBurn = "inspector.layer_blend_color_burn";
     inline constexpr const char* InspectorLayerBlendDifference = "inspector.layer_blend_difference";
     inline constexpr const char* InspectorLayerOpacity = "inspector.layer_opacity";
+    inline constexpr const char* InspectorLayerSourceAsset = "inspector.layer_source_asset";
+    inline constexpr const char* InspectorLayerSourceMissing = "inspector.layer_source_missing";
+    inline constexpr const char* InspectorLayerSourceReveal = "inspector.layer_source_reveal";
+    inline constexpr const char* HierarchySaveLayerAsset = "hierarchy.save_layer_asset";
+    inline constexpr const char* AssetsSaveLayerFailed = "assets.save_layer_failed";
+    inline constexpr const char* LayerAssetLoadFailed = "layer_asset.load_failed";
     inline constexpr const char* InspectorLayerParallax = "inspector.layer_parallax";
     inline constexpr const char* InspectorLayerParallaxTooltip = "inspector.layer_parallax_tooltip";
     inline constexpr const char* InspectorLayerSpace = "inspector.layer_space";

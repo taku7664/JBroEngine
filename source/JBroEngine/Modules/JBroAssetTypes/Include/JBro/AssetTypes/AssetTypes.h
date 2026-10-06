@@ -39,7 +39,9 @@ namespace JBro
         // 굵게·기울임 face 를 묶는 폰트 패밀리다(D-225). 본문(`.jfontfamily`)은 표지뿐이고 네 칸은 `.jmeta` 의 `FontFamily` 블록에 있다.
         FontFamily,
         // 게임 문자열 표다(D-226). 파일 하나가 로케일 하나이고(`키: 값` YAML), 로케일은 `.jmeta` 의 `StringTable` 블록에 있다.
-        StringTable
+        StringTable,
+        // 레이어 에셋이다(D-286). 레이어 하나와 그 위의 오브젝트를 캔버스 파일과 같은 모양으로 적은 `.jlayer` 다. 에디터가 계층에 끌어 넣는다.
+        Layer
     };
 
     // 스프라이트 시트를 어떻게 자르는가다. 기존 엔진의 모델을 그대로 잇는다(asset-plan §2.7). `Automatic`(알파 기반

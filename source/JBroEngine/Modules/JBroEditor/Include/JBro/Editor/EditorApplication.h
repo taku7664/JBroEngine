@@ -604,6 +604,11 @@ namespace JBro
         // **새 문자열 표를 만든다**(D-226). `.jstrings` 를 쓰고, 프로젝트에 기본 언어(없으면 첫 언어)가 있으면 메타의 로케일로 적는다.
         // 고르고 에셋 브라우저에서 보인다. 만든 파일의 경로이고 실패하면 빈 글자다.
         String CreateStringTableAsset(const char* folder);
+        // **레이어를 레이어 에셋(`.jlayer`)으로 저장한다**(D-286, 기존 `SaveLayerAsAssetInFolder`). 에셋 폴더 아래 `folder` 에 레이어 이름으로 겹치지 않게 쓰고,
+        // 그 레이어를 그 에셋에서 온 것으로 표시한다(커맨드 - 되돌리면 표시만 빠진다). 만든 파일의 경로이고 실패하면 빈 글자다.
+        String SaveLayerAsAsset(LayerId layer, const char* folder);
+        // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣고 그 레이어를 고른다**(D-286). 커맨드 하나다. 넣지 못하면 경고를 알리고 거짓이다.
+        bool AddLayerFromAsset(AssetId asset);
         // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
         // 재생 전의 언어로 되돌린다(게임이 바꾼 로케일이 편집 화면에 남지 않게).
         String GetPreviewLocale() const;

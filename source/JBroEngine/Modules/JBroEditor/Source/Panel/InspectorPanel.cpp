@@ -505,6 +505,29 @@ namespace JBro
         }
         Widget::SectionHeader(Loc::TextOr(LocKeys::InspectorLayerProperties, "Layer")).Draw();
         Widget::FormLayout layout("##layer");
+        // **원본 에셋은 읽기 전용이다**(D-286, 기존과 같다). 여기서 갈아 끼우는 것은 레이어와 오브젝트를 통째로 바꾸는 일이라 칸 하나로 할 일이 아니다 -
+        // 다른 레이어 에셋은 계층에 끌어 넣는다. 단추는 에셋 브라우저에서 그 파일을 보인다.
+        if (false == layer->GetSourceAsset().IsNull())
+        {
+            layout.Row(
+                Widget::FieldLabel(Loc::TextOr(LocKeys::InspectorLayerSourceAsset, "Layer Asset")),
+                [&]() {
+                    const AssetRecord* record = m_editor->GetAssetRegistry().Find(layer->GetSourceAsset());
+                    if (record == nullptr)
+                    {
+                        Widget::HintText(Loc::TextOr(LocKeys::InspectorLayerSourceMissing, "the asset is gone"));
+                        return;
+                    }
+                    if (Widget::IconButton("##layerSourceReveal", Icons::Search)
+                            .Tooltip(Loc::TextOr(LocKeys::InspectorLayerSourceReveal, "show in the asset browser"))
+                            .Draw())
+                    {
+                        m_editor->RevealAssetInBrowser(record->id);
+                    }
+                    ImGui::SameLine();
+                    Widget::Text(record->relativePath.c_str());
+                });
+        }
         layout.Row(
             Widget::FieldLabel(Loc::TextOr(LocKeys::HierarchyLayerName, "Name")),
             [&]() {

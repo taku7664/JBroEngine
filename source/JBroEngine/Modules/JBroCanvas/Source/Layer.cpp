@@ -99,6 +99,16 @@ namespace JBro
         return m_blend != LayerBlend::Normal || m_opacity < 1.0f;
     }
 
+    const Uuid& Layer::GetSourceAsset() const
+    {
+        return m_sourceAsset;
+    }
+
+    void Layer::SetSourceAsset(const Uuid& asset)
+    {
+        m_sourceAsset = asset;
+    }
+
     float Layer::GetParallax() const
     {
         return m_parallax;

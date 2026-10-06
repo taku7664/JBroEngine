@@ -10768,6 +10768,87 @@ namespace
         editor.Shutdown();
     }
 
+    // **레이어 에셋을 에디터에서 저장하고 넣는다**(D-286). 저장은 레이어 이름의 `.jlayer` 를 쓰고 Layer 로 등록하며 그 레이어를 원본으로 표시한다(되돌리면
+    // 표시만 빠진다). 넣기는 맨 위에 새 레이어로 오브젝트째 들어오고 그 레이어를 고른다. 되돌리면 레이어와 오브젝트가 함께 빠지고, 다시 하면 같은 에디터
+    // 번호로 돌아온다. 레이어 삭제를 되돌리면 원본 표시도 돌아온다.
+    void TestLayerAssetsSaveAndLoadInTheEditor()
+    {
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; layer assets not verified" << std::endl;
+            return;
+        }
+        const std::filesystem::path root = std::filesystem::temp_directory_path() / "JBroLayerAssetProbe";
+        std::error_code code;
+        std::filesystem::remove_all(root, code);
+        std::filesystem::create_directories(root / "Assets", code);
+        const std::filesystem::path projectPath = root / "Probe.jproject";
+        {
+            std::ofstream file(projectPath, std::ios::binary);
+            file << "Version: 1\nEngineVersion: 0.1.0\nFramework: 2D\nRootPath: .\n" << "AssetDirectory: Assets\n";
+        }
+        JBro::ProjectFileError error;
+        Check(editor.OpenProjectFile(projectPath.generic_string().c_str(), error), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::Layer& props = canvas->CreateLayer("Props");
+        props.SetBlend(JBro::LayerBlend::Additive);
+        const JBro::LayerId propsId = props.GetId();
+        JBro::GameObject* crate = canvas->CreateObject("Crate");
+        canvas->SetObjectLayer(crate, propsId);
+        canvas->AttachComponent<JBro::Component::Transform2D>(crate)->position = {2.0f, 1.0f};
+
+        // ── 저장 ─────────────────────────────────────────────
+        const JBro::String saved = editor.SaveLayerAsAsset(propsId, "Layers");
+        Check(saved == "Layers/Props.jlayer" && std::filesystem::exists(root / "Assets" / "Layers" / "Props.jlayer"),
+            "the layer is written under its name as a layer asset");
+        const JBro::AssetRecord* record = editor.GetAssetRegistry().FindByPath(saved.c_str());
+        Check(record != nullptr && record->type == JBro::AssetType::Layer, "and registered as a layer");
+        const JBro::AssetId asset = record->id;
+        Check(props.GetSourceAsset() == asset, "and the layer is marked as coming from it");
+        Check(editor.GetCommands().Undo() && props.GetSourceAsset().IsNull(), "undoing takes the mark off");
+        Check(editor.GetCommands().Redo() && props.GetSourceAsset() == asset, "and redoing puts it back");
+
+        // ── 넣기 ─────────────────────────────────────────────
+        const std::size_t layersBefore = canvas->GetLayerCount();
+        const std::size_t objectsBefore = canvas->GetObjectCount();
+        Check(editor.AddLayerFromAsset(asset), "the layer asset goes into the canvas");
+        Check(canvas->GetLayerCount() == layersBefore + 1 && canvas->GetObjectCount() == objectsBefore + 1, "as a new layer with its object");
+        const JBro::Layer* top = canvas->GetLayerAt(canvas->GetLayerCount() - 1);
+        Check(editor.GetSelectedLayer() == top->GetId() && top->GetSourceAsset() == asset && top->GetBlend() == JBro::LayerBlend::Additive,
+            "on top, chosen, marked and with the saved blend");
+        JBro::GameObject* copy = nullptr;
+        canvas->ForEachObject([&](JBro::GameObject& object) {
+            if (object.GetLayerId() == top->GetId())
+            {
+                copy = &object;
+            }
+        });
+        Check(copy != nullptr && std::strcmp(copy->GetTag(), "Crate") == 0
+                && canvas->FindComponentRaw<JBro::Component::Transform2D>(copy)->position.x == 2.0f,
+            "the object comes with its values");
+        const JBro::EditorObjectId copyId = editor.GetObjectIds().Track(copy);
+        Check(editor.GetCommands().Undo() && canvas->GetLayerCount() == layersBefore && canvas->GetObjectCount() == objectsBefore,
+            "undoing takes the layer and its object out");
+        Check(editor.GetCommands().Redo() && canvas->GetLayerCount() == layersBefore + 1 && canvas->GetObjectCount() == objectsBefore + 1,
+            "redoing brings both back");
+        JBro::GameObject* back = editor.GetObjectIds().Resolve(copyId);
+        Check(back != nullptr && back->GetLayer() != nullptr && back->GetLayer()->GetSourceAsset() == asset,
+            "the object comes back under the same editor id, on a marked layer");
+
+        // ── 레이어 삭제의 되돌리기는 원본 표시를 되살린다 ──────────────
+        Check(editor.GetCommands().Execute(JBro::MakeOwnerPtr<JBro::DeleteLayerCommand>(*canvas, editor.GetObjectIds(), propsId)),
+            "the saved layer is deleted");
+        Check(editor.GetCommands().Undo(), "and restored");
+        Check(crate->GetLayer() != nullptr && crate->GetLayer()->GetSourceAsset() == asset, "a restored layer keeps its source asset");
+        editor.Shutdown();
+    }
+
     // 계층의 줄 하나가 차지한 Id.
     //
     // 줄마다 `PushID(&object)` 를 쌓고 트리 마디가 `"##node"` 로 선다. **펼친 마디는
@@ -13670,6 +13751,7 @@ int RunEditorApplicationTests()
     TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();
     TestALayerRowSelectsTheLayerForTheInspector();
+    TestLayerAssetsSaveAndLoadInTheEditor();
     TestTheGizmoCanWorkInWorldAxes();
     TestTheGizmoSnapsToTheGrid();
     TestRemappedShortcutsAreSavedAndReadBack();

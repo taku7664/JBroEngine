@@ -1,4 +1,6 @@
 ﻿#include <JBro/Editor/Command/LayerCommands.h>
+
+#include <JBro/Canvas/CanvasFile.h>
 #include <JBro/Framework2D/Component/Transform2D.h>
 #include <JBro/Runtime/GameObject.h>
 
@@ -117,6 +119,7 @@ namespace JBro
         m_blend = found->GetBlend();
         m_opacity = found->GetOpacity();
         m_parallax = found->GetParallax();
+        m_sourceAsset = found->GetSourceAsset();
         // 이 레이어에 있던 오브젝트를 **번호로** 적어 둔다. 지웠다 되살려도 같은 것을 가리킨다.
         canvas.ForEachObject([this, layer](GameObject& object)
         {
@@ -157,6 +160,7 @@ namespace JBro
         restored.SetBlend(m_blend);
         restored.SetOpacity(m_opacity);
         restored.SetParallax(m_parallax);
+        restored.SetSourceAsset(m_sourceAsset);
         m_layerId = restored.GetId();
         m_canvas->MoveLayer(m_layerId, m_index);
         for (std::size_t index = 0; index < m_objects.Size(); ++index)
@@ -447,6 +451,176 @@ namespace JBro
         {
             layer->SetBlend(blend);
             layer->SetOpacity(opacity);
+        }
+    }
+
+    // ── SetLayerSourceAssetCommand ───────────────────────────────────────
+
+    SetLayerSourceAssetCommand::SetLayerSourceAssetCommand(Canvas& canvas, LayerId layer, const Uuid& asset)
+        : m_canvas(&canvas)
+        , m_layerId(layer)
+        , m_after(asset)
+    {
+        if (const Layer* found = canvas.FindLayer(layer))
+        {
+            m_before = found->GetSourceAsset();
+            m_captured = true;
+        }
+    }
+
+    const char* SetLayerSourceAssetCommand::GetName() const
+    {
+        return "Link Layer Asset";
+    }
+
+    bool SetLayerSourceAssetCommand::Execute()
+    {
+        Layer* layer = m_captured ? m_canvas->FindLayer(m_layerId) : nullptr;
+        if (layer == nullptr || m_before == m_after)
+        {
+            return false;
+        }
+        layer->SetSourceAsset(m_after);
+        return true;
+    }
+
+    void SetLayerSourceAssetCommand::Undo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetSourceAsset(m_before);
+        }
+    }
+
+    void SetLayerSourceAssetCommand::Redo()
+    {
+        if (Layer* layer = m_canvas->FindLayer(m_layerId))
+        {
+            layer->SetSourceAsset(m_after);
+        }
+    }
+
+    // ── AddLayerFromAssetCommand ─────────────────────────────────────────
+
+    AddLayerFromAssetCommand::AddLayerFromAssetCommand(Canvas& canvas, EditorObjectRegistry& registry, const String& text, const Uuid& asset)
+        : m_canvas(&canvas)
+        , m_registry(&registry)
+        , m_text(text)
+        , m_asset(asset)
+    {
+    }
+
+    const char* AddLayerFromAssetCommand::GetName() const
+    {
+        return "Add Layer From Asset";
+    }
+
+    bool AddLayerFromAssetCommand::Execute()
+    {
+        if (m_captured)
+        {
+            Redo();
+            return m_layerId != InvalidLayerId;
+        }
+        CanvasFileError error;
+        LayerId created = InvalidLayerId;
+        if (false == ReadLayerText(*m_canvas, m_text.c_str(), m_text.size(), created, error))
+        {
+            m_error = error.message;
+            return false;
+        }
+        Layer* layer = m_canvas->FindLayer(created);
+        if (layer == nullptr)
+        {
+            return false;
+        }
+        layer->SetSourceAsset(m_asset);
+        m_layerId = created;
+        m_index = layer->GetOrder();
+        m_name = layer->GetName();
+        m_visible = layer->IsVisible();
+        m_space = layer->GetSpace();
+        m_scaleMode = layer->GetScaleMode();
+        m_blend = layer->GetBlend();
+        m_opacity = layer->GetOpacity();
+        m_parallax = layer->GetParallax();
+        // **되살릴 값을 뜨지 못하면 넣은 것도 거둔다**(§11.5). 반쪽 스냅샷으로는 되돌리기·다시 하기가 오브젝트를 잃는다.
+        Array<GameObject*> roots;
+        m_canvas->GetRootObjects(roots);
+        for (std::size_t index = 0; index < roots.Size(); ++index)
+        {
+            if (roots[index]->GetLayerId() != created)
+            {
+                continue;
+            }
+            ObjectTreeSnapshot tree;
+            if (false == tree.Capture(*m_registry, *roots[index]))
+            {
+                m_trees.Clear();
+                m_captured = true;
+                Undo();
+                m_captured = false;
+                m_error = "the layer could not be captured for undo";
+                return false;
+            }
+            m_trees.Add(std::move(tree));
+        }
+        m_captured = true;
+        return true;
+    }
+
+    void AddLayerFromAssetCommand::Undo()
+    {
+        if (false == m_captured || m_layerId == InvalidLayerId)
+        {
+            return;
+        }
+        for (std::size_t index = m_trees.Size(); index > 0; --index)
+        {
+            m_trees[index - 1].DestroyRoot(*m_canvas, *m_registry);
+        }
+        // 뜨지 못한 채 거두는 길(Execute 의 실패)에서는 나무가 없다 - 레이어 위에 남은 것을 직접 지운다.
+        if (m_trees.IsEmpty())
+        {
+            Array<GameObject*> roots;
+            m_canvas->GetRootObjects(roots);
+            for (std::size_t index = 0; index < roots.Size(); ++index)
+            {
+                if (roots[index]->GetLayerId() == m_layerId)
+                {
+                    m_canvas->DestroyObject(roots[index]);
+                }
+            }
+            m_canvas->FlushPendingDestroy();
+        }
+        m_canvas->DestroyLayer(m_layerId);
+        m_layerId = InvalidLayerId;
+    }
+
+    void AddLayerFromAssetCommand::Redo()
+    {
+        if (false == m_captured || m_layerId != InvalidLayerId)
+        {
+            return;
+        }
+        Layer& layer = m_canvas->CreateLayer(m_name.c_str());
+        layer.SetVisible(m_visible);
+        layer.SetSpace(m_space);
+        layer.SetScaleMode(m_scaleMode);
+        layer.SetBlend(m_blend);
+        layer.SetOpacity(m_opacity);
+        layer.SetParallax(m_parallax);
+        layer.SetSourceAsset(m_asset);
+        m_layerId = layer.GetId();
+        m_canvas->MoveLayer(m_layerId, m_index);
+        for (std::size_t index = 0; index < m_trees.Size(); ++index)
+        {
+            ObjectTreeSnapshot& tree = m_trees[index];
+            for (std::size_t entry = 0; entry < tree.objects.Size(); ++entry)
+            {
+                tree.objects[entry].layer = m_layerId;
+            }
+            tree.Restore(*m_canvas, *m_registry, nullptr, true);
         }
     }
 

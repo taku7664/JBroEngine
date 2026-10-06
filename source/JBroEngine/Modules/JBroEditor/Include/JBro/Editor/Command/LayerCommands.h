@@ -2,6 +2,7 @@
 
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/EditorCommand.h>
+#include <JBro/Editor/Command/ObjectTreeSnapshot.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Types/Array.h>
 #include <JBro/Types/String.h>
@@ -67,6 +68,8 @@ namespace JBro
         LayerBlend m_blend = LayerBlend::Normal;
         float m_opacity = 1.0f;
         float m_parallax = 1.0f;
+        // 원본 에셋 표시도 같이 뜬다(D-286) - 기존 엔진은 레이어 삭제를 되돌리면 이것을 잃었다.
+        Uuid m_sourceAsset;
         Array<EditorObjectId> m_objects;
         bool m_captured = false;
     };
@@ -192,6 +195,64 @@ namespace JBro
         float m_before = 1.0f;
         float m_after = 1.0f;
         bool m_captured = false;
+    };
+
+    // **레이어의 원본 에셋 표시를 바꾼다**(D-286). 레이어를 에셋으로 저장하면 그 레이어가 그 파일에서 온 것으로 표시된다 - 되돌리면 표시만 빠지고
+    // 파일은 남는다(파일 일은 에셋 브라우저의 것이다).
+    class SetLayerSourceAssetCommand final : public EditorCommand
+    {
+    public:
+        SetLayerSourceAssetCommand(Canvas& canvas, LayerId layer, const Uuid& asset);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+    private:
+        Canvas* m_canvas = nullptr;
+        LayerId m_layerId = InvalidLayerId;
+        Uuid m_before;
+        Uuid m_after;
+        bool m_captured = false;
+    };
+
+    // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣는다**(D-286, 기존 `CAddLayerFromAssetCommand`). 파일의 글자는 만들 때 떠 둔다 - 파일이 그 사이에
+    // 바뀌어도 이 커맨드는 같은 것을 넣는다. 처음 실행이 오브젝트를 만든 뒤 그 나무들을 떠 두고, 되돌리면 나무째 지우고 레이어를 뺀다. 다시 하기는
+    // 떠 둔 나무를 **같은 번호로** 되살린다 - 뒤의 커맨드가 그 오브젝트를 번호로 가리켜도 이어진다. 레이어는 새 번호로 선다(`DeleteLayerCommand` 와 같다).
+    class AddLayerFromAssetCommand final : public EditorCommand
+    {
+    public:
+        AddLayerFromAssetCommand(Canvas& canvas, EditorObjectRegistry& registry, const String& text, const Uuid& asset);
+
+        const char* GetName() const override;
+        bool Execute() override;
+        void Undo() override;
+        void Redo() override;
+
+        // 넣은 레이어다. 넣은 뒤 그것을 고르는 쪽이 쓴다. 실패했거나 되돌린 동안은 무효값이다.
+        LayerId GetLayerId() const { return m_layerId; }
+        // 읽지 못했을 때의 까닭이다.
+        const String& GetError() const { return m_error; }
+
+    private:
+        Canvas* m_canvas = nullptr;
+        EditorObjectRegistry* m_registry = nullptr;
+        String m_text;
+        Uuid m_asset;
+        LayerId m_layerId = InvalidLayerId;
+        String m_error;
+        // 처음 실행 뒤에 뜬다 - 레이어의 값(레이어 에셋 글자의 레이어 노드)과 자리, 뿌리 나무들.
+        bool m_captured = false;
+        std::size_t m_index = 0;
+        String m_name;
+        bool m_visible = true;
+        LayerSpace m_space = LayerSpace::World;
+        ScreenScaleMode m_scaleMode = ScreenScaleMode::FixedHeight;
+        LayerBlend m_blend = LayerBlend::Normal;
+        float m_opacity = 1.0f;
+        float m_parallax = 1.0f;
+        Array<ObjectTreeSnapshot> m_trees;
     };
 
     class SetLayerVisibleCommand final : public EditorCommand

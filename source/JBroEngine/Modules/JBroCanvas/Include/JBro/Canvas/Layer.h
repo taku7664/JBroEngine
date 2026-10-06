@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <JBro/Types/Uuid.h>
+
 #include <cstdint>
 
 namespace JBro
@@ -90,6 +92,11 @@ namespace JBro
         float GetParallax() const;
         void SetParallax(float factor);
 
+        // **이 레이어가 어느 레이어 에셋(`.jlayer`)에서 왔는가**(D-286, 기존 `SourceAssetGuid`). 정체 표시일 뿐이다 - 내용은 캔버스에 따로 살고, 레이어를
+        // 고쳐도 그 파일은 그대로다. 비어 있으면 캔버스 안에서만 사는 레이어다. 캔버스 파일의 `SourceAsset` 으로 적는다.
+        const Uuid& GetSourceAsset() const;
+        void SetSourceAsset(const Uuid& asset);
+
     private:
         friend class Canvas;
 
@@ -104,5 +111,6 @@ namespace JBro
         LayerBlend m_blend = LayerBlend::Normal;
         float      m_opacity = 1.0f;
         float      m_parallax = 1.0f;
+        Uuid       m_sourceAsset;
     };
 }
