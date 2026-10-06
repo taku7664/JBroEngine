@@ -82,6 +82,8 @@ todo "에디터 공용 기반" 5 번(외부 에디터 등록 API)과 8 번의 �
    → 완료 2026-10-06(D-284 의 "3 단계"). `EditorGuideActions.cpp` 의 `MenusOf`, 행동 `game.build`. 컴포넌트 추가 하나만 손으로 적는다(하위 메뉴라 행동이 아니다).
 4. ~~스프라이트 뷰어 도크와 비고유 패널. 완료 조건: 기존 뷰어 시험이 그대로 통과한다, `EditorApplication` 에 뷰어 멤버가 없다.~~
    → 완료 2026-10-06(D-284 의 "4 단계"). `Panel/SpriteViewerPanel.h/.cpp`, `EditorApplication::DrawDockAreas`·`DrawPanels`·`OpenSpriteViewer`. 뮤테이션 7/7.
+   실제 에디터에서 패널을 그리는 도중에 연 뷰어가 셋을 틀렸다(떠 있는 창으로 한 번 서서 시트 칸이 좁음·탭이 앞으로 오지 않음·고른 에셋이 덮어써짐).
+   고친 내용과 시험은 D-284 의 "실제 에디터" 문단에 있다.
 
 ## 4. `[열림]`
 

@@ -7145,6 +7145,36 @@ namespace
         fs::remove_all(second, ignored);
     }
 
+    // 패널을 그리는 차례에 스프라이트 뷰어를 연다. 에셋 브라우저의 "스프라이트 뷰어에서 열기" 가 지나는 길이다.
+    class ViewerOpenProbePanel final : public JBro::UniquePanel
+    {
+    public:
+        const char* GetTitle() const override
+        {
+            return "Viewer Open Probe";
+        }
+        JBro::Bool OnCreate(JBro::EditorApplication& editor) override
+        {
+            m_editor = &editor;
+            return true;
+        }
+        // 가려진 탭이어도 갱신은 돈다 - 그리기와 같은 루프 안이다.
+        void OnUpdate(JBro::Float) override
+        {
+            if (false == pending.IsNull())
+            {
+                m_editor->OpenSpriteViewer(pending);
+                pending = {};
+            }
+        }
+        void OnDraw() override {}
+
+        JBro::AssetId pending;
+
+    private:
+        JBro::EditorApplication* m_editor = nullptr;
+    };
+
     // **스프라이트 뷰어는 메인 도크와 나란히 뿌리에 붙는다**(D-155, 기존 `CSpriteViewerDockWindow`).
     // 도구 창(패널)은 메인 도크 안에, 파일을 여는 창은 뿌리에 - 두 겹 도크의 나눔이다(D-134).
     void TestTheSpriteViewerDocksBesideTheMainDock()
@@ -7167,9 +7197,10 @@ namespace
             std::ofstream png(root / "Assets" / "hero.png", std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
-        // 둘째 그림이다. 그림마다 뷰어 패널이 따로 서는지 본다(D-284).
+        // 둘째·셋째 그림이다. 그림마다 뷰어 패널이 따로 서는지 본다(D-284).
+        for (const char* name : {"villain.png", "goblin.png"})
         {
-            std::ofstream png(root / "Assets" / "villain.png", std::ios::binary);
+            std::ofstream png(root / "Assets" / name, std::ios::binary);
             png.write(reinterpret_cast<const char*>(TinyPng), sizeof(TinyPng));
         }
         // **칸을 네 개로 자른다.** 그림은 2x2 인데 자르는 기본값은 그보다 큰 칸이라,
@@ -7477,6 +7508,18 @@ namespace
                     villainSprite = record.id;
                 }
             }
+            // 메인 도크가 앞에 있을 때 연다 - 실제 에디터에서 에셋 브라우저로 여는 길이다. 앞의 고르기가 연 뷰어가 다 나온 뒤에
+            // 메인을 꺼낸다. 나오는 중에 꺼내면 도크가 도로 앞에 선다.
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the viewer opened by the pick must settle");
+            }
+            ImGui::SetWindowFocus(ImGui::FindWindowByName("###MainDock")->Name);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must bring the main dock forward");
+            }
+            Check(false == ImGui::FindWindowByName("###SpriteViewer")->DockTabIsVisible, "the main dock hides the viewer dock");
             Check(editor.OpenSpriteViewer(villain->id), "a second picture opens");
             Check(editor.GetSpriteViewerTabCount() == 2, "in a viewer panel of its own");
             for (JBro::Int32 frame = 0; frame < 4; ++frame)
@@ -7486,20 +7529,43 @@ namespace
             JBro::Array<JBro::EditorPanel*> viewers;
             Check(editor.FindPanels("SpriteViewer", viewers) == 2, "both are found by their type");
             ImGuiWindow* dockWindow = ImGui::FindWindowByName("###SpriteViewer");
+            const auto viewerWindow = [](const JBro::EditorPanel& panel) {
+                char id[JBro::Uuid::TextCapacity] = {};
+                panel.GetId().ToText(id, sizeof(id));
+                std::string label = "###SpriteViewer/";
+                label += id;
+                return ImGui::FindWindowByName(label.c_str());
+            };
+            // **연 그림의 탭이 앞에 온다.** 도크만 앞으로 오고 탭은 먼저 연 그림에 남아 있었다(실제 에디터에서 그랬다).
+            {
+                ImGuiWindow* firstWindow = viewerWindow(*viewers[0]);
+                ImGuiWindow* secondWindow = viewerWindow(*viewers[1]);
+                Check(dockWindow != nullptr && dockWindow->DockTabIsVisible, "opening the second picture brings the viewer dock forward");
+                Check(secondWindow != nullptr && secondWindow->DockTabIsVisible, "with the second picture's tab in front");
+                Check(firstWindow != nullptr && false == firstWindow->DockTabIsVisible, "and the first picture's tab behind it");
+            }
             for (JBro::EditorPanel* panel : viewers)
             {
                 Check(panel->GetKind() == JBro::EditorPanelKind::Instance, "a viewer is an instance panel");
                 Check(std::strcmp(panel->GetDockArea(), "SpriteViewer") == 0, "that belongs to the viewer dock");
-                char id[JBro::Uuid::TextCapacity] = {};
-                panel->GetId().ToText(id, sizeof(id));
-                std::string label = "###SpriteViewer/";
-                label += id;
-                ImGuiWindow* window = ImGui::FindWindowByName(label.c_str());
+                ImGuiWindow* window = viewerWindow(*panel);
                 // 도크 공간의 식별자는 도크 창 안에서 `GetID("DockSpace")` 로 지은 것이다.
                 const ImGuiID viewerDockSpace = dockWindow != nullptr ? ImHashStr("DockSpace", 0, dockWindow->ID) : 0;
                 Check(window != nullptr && window->DockNode != nullptr
                         && ImGui::DockNodeGetRootNode(window->DockNode)->ID == viewerDockSpace,
                     "and is docked inside the viewer dock, not the root or the main dock");
+                // **시트 칸은 패널 폭을 따른다.** 붙기 전의 작은 창 폭으로 굳으면 하한 120 에 남았다(실제 에디터에서 그랬다).
+                // 가려진 탭은 크기가 그대로이므로 둘 다 잰다.
+                const ImGuiWindow* sheet = nullptr;
+                for (ImGuiWindow* child : ImGui::GetCurrentContext()->Windows)
+                {
+                    if (child->ParentWindow == window && std::strstr(child->Name, "##sheet") != nullptr)
+                    {
+                        sheet = child;
+                    }
+                }
+                Check(sheet != nullptr && sheet->Size.x > window->Size.x * 0.4f,
+                    "the sheet column takes most of the panel, not the narrow width of its first frame");
             }
             Check(editor.GetSelectedAsset() == villain->id, "the second picture is the chosen asset");
             JBro::EditorPanel* second = viewers[1];
@@ -7511,6 +7577,78 @@ namespace
                 "and lets go of its sprite");
             Check(editor.OpenSpriteViewer(heroTexture) && editor.GetSpriteViewerTabCount() == 1,
                 "the hero's panel is still the one that opens for the hero");
+
+            // **패널을 그리는 도중에 연 뷰어도 처음부터 도크에 붙는다.** 에셋 브라우저의 메뉴가 그 길이다. 뷰어가 하나도 없으면
+            // 뷰어 도크가 서지 않은 프레임에 새 패널의 차례가 와, 한 프레임 떠 있는 작은 창으로 서고 그 폭이 시트 칸에 굳었다
+            // (실제 에디터에서 그랬다).
+            JBro::Array<JBro::EditorPanel*> open;
+            editor.FindPanels("SpriteViewer", open);
+            for (JBro::EditorPanel* panel : open)
+            {
+                editor.ClosePanel(*panel);
+            }
+            for (JBro::Int32 frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the empty viewer dock must go away");
+            }
+            auto opener = JBro::MakeOwnerPtr<ViewerOpenProbePanel>();
+            ViewerOpenProbePanel* probe = opener.Get();
+            Check(editor.AddPanel(std::move(opener)) != nullptr, "the opener probe must be taken");
+            Check(editor.Tick(Frame), "the probe must settle");
+            probe->pending = villain->id;
+            Check(editor.Tick(Frame), "the probe opens the viewer while the panels draw");
+            Check(probe->pending.IsNull() && editor.GetSpriteViewerTabCount() == 1, "the probe opened the villain");
+            editor.FindPanels("SpriteViewer", open);
+            {
+                ImGuiWindow* window = viewerWindow(*open[0]);
+                Check(window == nullptr || window->DockId != 0, "the viewer opened mid-frame never stands as a floating window");
+            }
+            for (JBro::Int32 frame = 0; frame < 4; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the viewer");
+            }
+            {
+                ImGuiWindow* window = viewerWindow(*open[0]);
+                const ImGuiWindow* sheet = nullptr;
+                for (ImGuiWindow* child : ImGui::GetCurrentContext()->Windows)
+                {
+                    if (window != nullptr && child->ParentWindow == window && std::strstr(child->Name, "##sheet") != nullptr)
+                    {
+                        sheet = child;
+                    }
+                }
+                Check(window != nullptr && window->DockTabIsVisible && sheet != nullptr && sheet->Size.x > window->Size.x * 0.4f,
+                    "and its sheet column takes most of the panel");
+            }
+            // **앞에 다른 그림의 탭이 있을 때 연 그림이 앞에 오고 고른 에셋이 된다.** 뷰어 도크가 나오는 동안 앞의 탭이 잠깐
+            // 보이며 제 그림을 골라, 연 그림을 덮어썼다(실제 에디터에서 그랬다). 연 그림은 새 패널이다 - 새 창은 가려진 도크에서도
+            // 첫 프레임에 한 번 그려져, 앞으로 올 때는 이미 보였던 탭으로 쳐졌다. hero 그림에는 프레임 고르기가 걸려 있어 그 탭은
+            // 제 그림을 고르지 않으므로(D-165) 앞의 탭은 villain 이다.
+            const JBro::AssetRecord* goblin = editor.GetAssetRegistry().FindByPath("goblin.png");
+            Check(goblin != nullptr, "the scan must have registered goblin.png");
+            ImGui::SetWindowFocus(ImGui::FindWindowByName("###MainDock")->Name);
+            for (JBro::Int32 frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must bring the main dock forward");
+            }
+            Check(false == ImGui::FindWindowByName("###SpriteViewer")->DockTabIsVisible, "the main dock hides the viewers");
+            probe->pending = goblin->id;
+            for (JBro::Int32 frame = 0; frame < 6; ++frame)
+            {
+                Check(editor.Tick(Frame), "the editor must settle on the goblin");
+            }
+            Check(editor.FindPanels("SpriteViewer", open) == 2, "the goblin opens beside the villain");
+            JBro::EditorPanel* goblinPanel = std::strcmp(open[0]->GetDisplayTitle(), "goblin.png") == 0 ? open[0] : open[1];
+            Check(std::strcmp(goblinPanel->GetDisplayTitle(), "goblin.png") == 0, "the goblin's panel is found by its title");
+            Check(viewerWindow(*goblinPanel)->DockTabIsVisible, "the goblin's tab comes in front of the villain's");
+            Check(editor.GetSelectedAsset() == goblin->id, "and the goblin stays the chosen asset");
+
+            for (JBro::EditorPanel* panel : open)
+            {
+                editor.ClosePanel(*panel);
+            }
+            editor.ClosePanel(*probe);
+            Check(editor.OpenSpriteViewer(heroTexture), "the hero opens again for the checks below");
         }
         const JBro::AssetHandle held = assets->Find(heroSprite);
         const JBro::UInt32 heldCount = assets->GetReferenceCount(held);

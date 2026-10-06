@@ -451,6 +451,9 @@ namespace JBro
         EditorPanel* FindPanel(const Uuid& id);
         // 그 종류의 패널을 들인 차례로 `out` 에 채우고 수를 돌려준다. 고유 패널이면 0 이나 1 이다.
         UInt32 FindPanels(const char* typeName, Array<EditorPanel*>& out);
+        // 그 도크가 아직 앞으로 나오는 중인가(D-284). 도크가 뿌리 탭 줄에서 골라지기 전이거나 그 안의 패널이 앞으로 와 달라고
+        // 기다리면 참이다. 그동안 보이는 탭은 잠깐 지나가는 탭이라, 탭이 보인다는 것만으로 무언가를 고르면 안 된다.
+        Bool IsDockAreaComingForward(const char* dockArea) const;
         std::size_t GetPanelCount() const;
 
         // 게임 화면이 그려지는 텍스처다. UI 가 꺼져 있으면 비어 있다.
