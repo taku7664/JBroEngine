@@ -74,9 +74,12 @@ todo "에디터 공용 기반" 5 번(외부 에디터 등록 API)과 8 번의 �
    같은 패널이 앞으로 온다, 비고유 패널은 매번 새로 서고 닫으면 파기된다, 모르는 도크의 패널은 거절된다.~~ → 완료 2026-10-06(D-284 의 "1 단계").
    `EditorPanelRegistry.h/.cpp`, `EditorPanel.h`(`UniquePanel`·`InstancePanel`), `EditorApplication::CreatePanel`·`ClosePanel`·`FindPanel(s)`,
    시험 `TestUniqueAndInstancePanels`. 뮤테이션 6/6.
-2. 행동 표와 단축키·편집 메뉴·우클릭 메뉴(오브젝트·빈자리·컴포넌트). 완료 조건: 패널을 하나도 열지 않은 에디터의 단축키 목록에 패널 범위
-   단축키가 다 나온다, 외부 등록 항목이 오브젝트·빈자리 메뉴에 선다, 캔버스 뷰가 등록 핸들을 들지 않는다.
-3. 가이드가 행동 표를 읽는다. 완료 조건: 가이드 표에서 메뉴 위치를 손으로 적은 줄이 없다, 옛 키매핑 이름이 옮겨진다.
+2. ~~행동 표와 단축키·편집 메뉴·우클릭 메뉴(오브젝트·빈자리·컴포넌트). 완료 조건: 패널을 하나도 열지 않은 에디터의 단축키 목록에 패널 범위
+   단축키가 다 나온다, 외부 등록 항목이 오브젝트·빈자리 메뉴에 선다, 캔버스 뷰가 등록 핸들을 들지 않는다.~~ → 완료 2026-10-06(D-284 의 "2 단계").
+   `EditorActionRegistry.h/.cpp`, `CanvasViewPanel::RegisterActions`, `EditorShortcutManager::RenamedId`, 시험 `TestEditorActionsAreRegisteredFromTheStart`·
+   `TestRegisteredActionsAppearInContextMenus`. 이름을 이 단계에서 하나로 맞췄다(3 단계에서 하려던 것). 뮤테이션 7/7.
+3. ~~가이드가 행동 표를 읽는다. 완료 조건: 가이드 표에서 메뉴 위치를 손으로 적은 줄이 없다(옛 키매핑 이름 옮기기는 2 단계에서 섰다).~~
+   → 완료 2026-10-06(D-284 의 "3 단계"). `EditorGuideActions.cpp` 의 `MenusOf`, 행동 `game.build`. 컴포넌트 추가 하나만 손으로 적는다(하위 메뉴라 행동이 아니다).
 4. 스프라이트 뷰어 도크와 비고유 패널. 완료 조건: 기존 뷰어 시험이 그대로 통과한다, `EditorApplication` 에 뷰어 멤버가 없다.
 
 ## 4. `[열림]`

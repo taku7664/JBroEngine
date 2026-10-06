@@ -173,6 +173,8 @@ namespace JBro
         void Write(YamlWriter& writer) const;
         // `Shortcuts:` 맵을 읽어 사용자 조합을 통째로 바꾼다. 읽지 못한 줄은 건너뛴다.
         void Read(const YamlDocument& document, std::uint32_t root);
+        // 바뀐 행동 이름이면 지금 이름을, 아니면 받은 것을 돌려준다(D-284). `Read` 가 옛 파일을 옮길 때 쓴다.
+        static const char* RenamedId(const char* id);
 
         // ── 매 프레임 ───────────────────────────────────────────────
         //

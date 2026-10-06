@@ -7,9 +7,9 @@
 #include <JBro/Editor/Command/LayerCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
 #include <JBro/Editor/ComponentMenuTable.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/EditorNames.h>
-#include <JBro/Editor/EditorShortcuts.h>
 #include <JBro/Editor/Localization.h>
 #include <JBro/Editor/LocalizationKeys.h>
 #include <JBro/Editor/Widget/Basic.h>
@@ -26,25 +26,6 @@ namespace JBro::EditorActions
 {
     namespace
     {
-        // 항목이 회색일 때 띄우는 까닭들이다(D-181). 같은 말을 자리마다 다시 쓰면
-        // 한 곳만 고쳐져 화면마다 다른 말이 나온다.
-        const char* NoProjectReason()
-        {
-            return Loc::TextOr(LocKeys::BlockedNoProject, "no project is open");
-        }
-
-        const char* ClipboardEmptyReason()
-        {
-            return Loc::TextOr(LocKeys::BlockedClipboardEmpty, "nothing has been copied");
-        }
-
-        // **조합키 글자는 단축키 표에서 읽는다**(D-228). 메뉴에 박아 두면 사용자가 키를 바꿔도 메뉴만 옛 글자로 남는다.
-        // 조합을 비워 두었으면 빈 글자다.
-        EditorShortcutText ShortcutKeys(const EditorApplication& editor, EditorShortcut id)
-        {
-            return EditorShortcuts::Describe(editor, id);
-        }
-
         // **컴포넌트마다 더한 항목을 인스턴스마다 하위 메뉴로 세운다**(D-220). 줄 이름은 번역하지 않는 타입
         // 이름이고, 같은 타입이 둘 이상이면 둘째부터 `(2)` 처럼 번호를 붙인다(인스펙터의 슬롯 순서와 같다).
         // 항목이 없는 타입은 줄을 만들지 않는다. **거짓이면 오브젝트가 더 이상 없을 수 있다.**
@@ -239,108 +220,6 @@ namespace JBro::EditorActions
         return any;
     }
 
-    bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent,
-        const ObjectPlacement& placement)
-    {
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.create"));
-        if (false == Widget::MenuItem(
-                Loc::TextOr(LocKeys::HierarchyCreateObject, "Create Object"), nullptr,
-                editor.GetCanvas() != nullptr, NoProjectReason()))
-        {
-            return false;
-        }
-        return CreateObject(editor, parent, placement) != nullptr;
-    }
-
-    bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent,
-        const ObjectPlacement& placement)
-    {
-        // 빈자리의 `오브젝트 추가` 와 같은 행동이다(D-268). `Parent` 를 적으면 이 항목으로 온다.
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.create"));
-        if (false == Widget::MenuItem(
-                Loc::TextOr(LocKeys::HierarchyCreateChild, "Create Child"), nullptr,
-                editor.GetCanvas() != nullptr, NoProjectReason()))
-        {
-            return false;
-        }
-        return CreateObject(editor, &parent, placement) != nullptr;
-    }
-
-    bool DrawUnparentItem(EditorApplication& editor, GameObject& object)
-    {
-        // **부모가 없으면 항목 자체를 내지 않는다.** 회색으로 두면 무엇을 해야 켜지는지
-        // 알 수 없고, 뿌리 오브젝트에는 영원히 켜지지 않는다.
-        if (object.GetParent() == nullptr)
-        {
-            return false;
-        }
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.unparent"));
-        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyUnparent, "Unparent")))
-        {
-            return false;
-        }
-        return Unparent(editor, object);
-    }
-
-    bool DrawCopyItem(EditorApplication& editor)
-    {
-        // 편집 메뉴의 `복사` 와 같은 일이라 할 수 있는지·까닭·하기도 단축키 표의 것이다.
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.copy"));
-        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyCopy, "Copy"),
-                ShortcutKeys(editor, EditorShortcut::Copy).value,
-                EditorShortcuts::CanExecute(editor, EditorShortcut::Copy),
-                EditorShortcuts::WhyBlocked(editor, EditorShortcut::Copy)))
-        {
-            return false;
-        }
-        return EditorShortcuts::Execute(editor, EditorShortcut::Copy);
-    }
-
-    bool DrawPasteItem(EditorApplication& editor)
-    {
-        // 편집 메뉴의 `붙여넣기` 와 같은 일이다(고른 것 밑에 붙는다).
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
-        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"),
-                ShortcutKeys(editor, EditorShortcut::Paste).value,
-                EditorShortcuts::CanExecute(editor, EditorShortcut::Paste),
-                EditorShortcuts::WhyBlocked(editor, EditorShortcut::Paste)))
-        {
-            return false;
-        }
-        return EditorShortcuts::Execute(editor, EditorShortcut::Paste);
-    }
-
-    bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object)
-    {
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste_as_child"));
-        // **고른 것 안으로 붙인다**(D-166, 기존 `PasteObjectsAsChild`). 줄에서 연 메뉴이므로 그 줄이 곧 부모다.
-        // 그래서 할 수 있는지는 표의 것(고른 것이 있어야 함)이 아니라 이 줄의 것이다. 글자만 표에서 온다.
-        if (false == Widget::MenuItem(
-                Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"),
-                ShortcutKeys(editor, EditorShortcut::PasteAsChild).value,
-                editor.HasClipboard(), ClipboardEmptyReason()))
-        {
-            return false;
-        }
-        editor.SetSelectedObject(&object);
-        return editor.PasteClipboard(true);
-    }
-
-    bool DrawDeleteItem(EditorApplication& editor, GameObject& object)
-    {
-        // 계층 줄과 캔버스 뷰가 함께 쓰는 한 벌이라 표식도 한 번이다(D-267). 가이드의 `object.delete` 가 가리킨다.
-        // 이 파일의 다른 항목도 같다 - 항목 하나에 표식 하나, 행동 표(`EditorGuideActions.cpp`)에 줄 하나다(D-268).
-        // 지우는 것은 고른 것(레이어일 수도 있다)이 아니라 우클릭한 이 오브젝트라 할 수 있는지와 하기는 여기 것이다. 글자만 표에서 온다.
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.delete"));
-        if (false == Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyDelete, "Delete"),
-                ShortcutKeys(editor, EditorShortcut::DeleteSelection).value,
-                editor.GetCanvas() != nullptr, NoProjectReason()))
-        {
-            return false;
-        }
-        return DeleteObject(editor, object);
-    }
-
     void BuildAddComponentList(const GameObject& object, AddComponentList& out)
     {
         out.typeNames.Clear();
@@ -455,6 +334,21 @@ namespace JBro::EditorActions
         return added;
     }
 
+    namespace
+    {
+        // 행동 표의 그 행동을 그린다(D-284). 하고 나서 메뉴의 오브젝트가 없을 수 있으면 참이다.
+        bool DrawRemoving(const char* name, const EditorActionContext& context)
+        {
+            EditorActionContext itemContext = context;
+            if (false == EditorActionUi::DrawItem(name, itemContext))
+            {
+                return false;
+            }
+            const EditorActionInfo* action = EditorActionRegistry::Get().Find(name);
+            return action != nullptr && action->mayRemoveObject;
+        }
+    }
+
     bool DrawObjectMenu(EditorApplication& editor, GameObject& object,
         const ObjectPlacement& placement)
     {
@@ -466,71 +360,55 @@ namespace JBro::EditorActions
         {
             editor.SetSelectedObject(&object);
         }
-        bool alive = true;
-        if (DrawCreateChildItem(editor, object, placement))
+        // **항목은 행동 표에서 온다**(D-284). 이름·조합키 글자·회색과 그 까닭·가이드 표식이 편집 메뉴·단축키와 한 줄이다.
+        // 자리는 여기서 정한다 - 기존 엔진과 같은 차례다.
+        EditorActionContext context;
+        context.editor = &editor;
+        context.object = &object;
+        context.placement = placement;
+        context.menu = EditorActionMenu::Object;
+        if (DrawRemoving("object.create", context) || DrawRemoving("object.unparent", context))
         {
-            alive = false;
+            // 만들거나 부모가 바뀌면 지금 도는 자식 배열이 그 자리에서 달라진다.
+            return false;
         }
-        if (alive && DrawUnparentItem(editor, object))
+        // 기존 엔진도 캔버스 뷰와 계층의 오브젝트 메뉴에 이것이 있다(D-180).
+        // 인스펙터까지 눈을 옮기지 않고 그 자리에서 붙인다.
+        ImGui::Separator();
+        DrawAddComponentMenu(editor, object);
+        ImGui::Separator();
+        if (DrawRemoving("object.copy", context) || DrawRemoving("object.paste", context)
+            || DrawRemoving("object.paste_as_child", context))
         {
-            // 부모가 바뀌면 지금 도는 자식 배열이 그 자리에서 달라진다.
-            alive = false;
+            return false;
         }
-        if (alive)
+        // 여럿을 고른 채로는 세우지 않는다(D-220) - 어느 오브젝트의 컴포넌트에 대한 항목인지 흐려진다.
+        if (editor.GetSelectionCount() == 1 && false == DrawComponentSubmenus(editor, object, placement))
         {
-            // 기존 엔진도 캔버스 뷰와 계층의 오브젝트 메뉴에 이것이 있다(D-180).
-            // 인스펙터까지 눈을 옮기지 않고 그 자리에서 붙인다.
-            ImGui::Separator();
-            DrawAddComponentMenu(editor, object);
+            return false;
         }
-        if (alive)
+        // 에디터가 자리를 정하지 않은 행동(패널·도구가 올린 것)은 여기 선다.
+        if (false == EditorActionUi::DrawExtensions(EditorActionMenu::Object, context))
         {
-            ImGui::Separator();
-            DrawCopyItem(editor);
-            if (DrawPasteItem(editor))
-            {
-                alive = false;
-            }
+            return false;
         }
-        if (alive && DrawPasteAsChildItem(editor, object))
-        {
-            alive = false;
-        }
-        if (alive && editor.GetSelectionCount() == 1)
-        {
-            // 여럿을 고른 채로는 세우지 않는다(D-220) - 어느 오브젝트의 컴포넌트에 대한 항목인지 흐려진다.
-            // 지우기는 되돌릴 수 있어도 무거운 손짓이라 맨 끝에 남긴다(기존 엔진도 그랬다).
-            alive = DrawComponentSubmenus(editor, object, placement);
-        }
-        if (alive)
-        {
-            ImGui::Separator();
-            if (DrawDeleteItem(editor, object))
-            {
-                // **여기서 `object` 는 이미 없을 수 있다.**
-                alive = false;
-            }
-        }
-        return alive;
+        // 지우기는 되돌릴 수 있어도 무거운 손짓이라 맨 끝에 남긴다(기존 엔진도 그랬다).
+        ImGui::Separator();
+        // **여기서 `object` 는 이미 없을 수 있다.**
+        return false == DrawRemoving("object.delete", context);
     }
 
     bool DrawBackgroundMenu(EditorApplication& editor, const ObjectPlacement& placement)
     {
-        bool changed = DrawCreateObjectItem(editor, nullptr, placement);
-        if (changed)
+        EditorActionContext context;
+        context.editor = &editor;
+        context.placement = placement;
+        context.menu = EditorActionMenu::Background;
+        // 빈자리의 추가와 붙여넣기는 뿌리에 붙는다. 고른 것 밑이 아니다(`object.paste` 가 메뉴를 보고 고른 것을 비운다).
+        if (DrawRemoving("object.create", context) || DrawRemoving("object.paste", context))
         {
             return true;
         }
-        // 빈자리의 붙여넣기는 뿌리에 붙는다. 고른 것 밑이 아니다.
-        // 행동 표가 빈자리 메뉴의 길을 가진다(D-268) - 표식이 없으면 그 길은 그려지지 않아 늘 편집 메뉴로 넘어갔다.
-        Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::HierarchyPaste, "Paste"),
-                ShortcutKeys(editor, EditorShortcut::Paste).value,
-                editor.HasClipboard(), ClipboardEmptyReason()))
-        {
-            editor.ClearSelection();
-            changed = editor.PasteClipboard();
-        }
-        return changed;
+        return false == EditorActionUi::DrawExtensions(EditorActionMenu::Background, context);
     }
 }

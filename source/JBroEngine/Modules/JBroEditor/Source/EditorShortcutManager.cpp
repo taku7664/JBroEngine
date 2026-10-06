@@ -283,17 +283,56 @@ namespace JBro
         writer.EndMap();
     }
 
+    const char* EditorShortcutManager::RenamedId(const char* id)
+    {
+        // **행동 표가 서며 바뀐 이름이다**(D-284). 가이드와 메뉴가 쓰던 이름으로 하나가 됐다. 사용자 파일에 옛 이름이 남아 있으면
+        // 읽을 때 새 이름으로 옮긴다 - 옮기지 않으면 그 사람이 바꿔 둔 키가 조용히 기본값으로 돌아간다.
+        struct Rename
+        {
+            const char* from;
+            const char* to;
+        };
+        static constexpr Rename Renames[] = {
+            {"editor.save_canvas", "canvas.save"},
+            {"editor.undo", "edit.undo"},
+            {"editor.redo", "edit.redo"},
+            {"editor.copy", "object.copy"},
+            {"editor.paste", "object.paste"},
+            {"editor.paste_as_child", "object.paste_as_child"},
+            {"editor.delete_selection", "object.delete"},
+            {"editor.toggle_play", "simulation.play"},
+            {"editor.toggle_pause", "simulation.pause"},
+            {"editor.step_frame", "simulation.step"},
+        };
+        if (IsBlank(id))
+        {
+            return id;
+        }
+        for (const Rename& rename : Renames)
+        {
+            if (std::strcmp(rename.from, id) == 0)
+            {
+                return rename.to;
+            }
+        }
+        return id;
+    }
+
     void EditorShortcutManager::Read(const YamlDocument& document, std::uint32_t root)
     {
         m_overrides.Clear();
         const std::uint32_t map = document.Find(root, "Shortcuts");
-        if (map != YamlDocument::InvalidNode && document.GetKind(map) == YamlKind::Map)
+        // 지금 이름으로 적힌 줄을 먼저 읽는다. 옛 이름과 새 이름이 둘 다 있으면 새 이름이 이긴다.
+        for (int pass = 0; pass < 2 && map != YamlDocument::InvalidNode && document.GetKind(map) == YamlKind::Map; ++pass)
         {
             for (std::size_t index = 0; index < document.GetCount(map); ++index)
             {
-                const char* id = document.GetKey(map, index);
+                const char* written = document.GetKey(map, index);
+                const char* id = RenamedId(written);
+                const bool renamed = id != written;
                 const std::uint32_t value = document.GetValue(map, index);
-                if (IsBlank(id) || value == YamlDocument::InvalidNode || document.GetKind(value) != YamlKind::Map)
+                if (renamed != (pass == 1) || IsBlank(id) || value == YamlDocument::InvalidNode
+                    || document.GetKind(value) != YamlKind::Map)
                 {
                     continue;
                 }

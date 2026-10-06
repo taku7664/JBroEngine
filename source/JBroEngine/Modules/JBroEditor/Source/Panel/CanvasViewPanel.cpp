@@ -1,5 +1,7 @@
 ﻿#include "CanvasViewPanel.h"
 
+#include <JBro/Editor/EditorActionRegistry.h>
+
 #include <JBro/Runtime/GameObjectHandleReflection.h>
 #include <JBro/Editor/Widget/Basic.h>
 #include <JBro/Editor/Widget/Gizmo.h>
@@ -158,76 +160,114 @@ namespace JBro
             // 0 일 수 없고, 0 을 그대로 쓰면 아무것도 보이지 않는 배율이 된다.
             SetCamera(centerX, centerY, size);
         }
-        // 폴리곤 포인트 편집을 콜라이더의 우클릭 메뉴에서도 켠다. 콜라이더가 여럿이면 누른 것을 고친다.
-        editor.GetComponentMenus().Register(MakeStableTypeId(Component::Collider2D::StaticTypeName()),
-            &CanvasViewPanel::DrawEditPointsItem, this, this);
+        return true;
+    }
+
+
+    namespace
+    {
+        CanvasViewPanel* ActionPanel(const EditorActionContext& context)
+        {
+            return static_cast<CanvasViewPanel*>(context.panel);
+        }
+
+        bool SetTranslate(EditorActionContext& context);
+        bool SetRotate(EditorActionContext& context);
+        bool SetScale(EditorActionContext& context);
+
+        // 폴리곤이 아니면 회색이다. 숨기면 이 기능이 있는지 알 수 없다(D-181).
+        bool CanEditPoints(const EditorActionContext& context)
+        {
+            const auto* collider = static_cast<const Component::Collider2D*>(context.componentPointer);
+            return collider != nullptr && PolygonEditModel::EditsPoints(*collider);
+        }
+        const char* WhyNoEditPoints(const EditorActionContext&)
+        {
+            return Loc::TextOr(LocKeys::CanvasViewEditPointsNotPolygon, "shape must be Polygon");
+        }
+    }
+
+    // 패널 밖의 할 일이 패널의 상태를 고친다. 행동 표의 함수 포인터는 멤버가 아니라서 이 친구가 다리를 놓는다.
+    struct CanvasViewPanelActions
+    {
+        static bool SetMode(EditorActionContext& context, GizmoMode mode)
+        {
+            ActionPanel(context)->m_gizmoMode = mode;
+            return true;
+        }
+        static bool EditPoints(EditorActionContext& context)
+        {
+            // 값도 슬롯도 바꾸지 않는다. 편집 도구를 켜고, 콜라이더가 여럿이면 누른 것을 고친다.
+            CanvasViewPanel* panel = ActionPanel(context);
+            panel->m_editCollider = true;
+            panel->m_pointTarget = context.component;
+            return true;
+        }
+    };
+
+    namespace
+    {
+        bool SetTranslate(EditorActionContext& context)
+        {
+            return CanvasViewPanelActions::SetMode(context, GizmoMode::Translate);
+        }
+        bool SetRotate(EditorActionContext& context)
+        {
+            return CanvasViewPanelActions::SetMode(context, GizmoMode::Rotate);
+        }
+        bool SetScale(EditorActionContext& context)
+        {
+            return CanvasViewPanelActions::SetMode(context, GizmoMode::Scale);
+        }
+        bool EditPoints(EditorActionContext& context)
+        {
+            return CanvasViewPanelActions::EditPoints(context);
+        }
+    }
+
+    void CanvasViewPanel::RegisterActions()
+    {
+        EditorActionRegistry& actions = EditorActionRegistry::Get();
         // **기즈모 모드 단축키는 이 패널에 포커스가 있을 때만 돈다**(D-228). 기본 조합은 기존 기즈모와 같은 W·E·R 이다.
         // 조합키 없는 글자라 글자 칸에 타자를 치는 중에는 돌지 않는다(`whileTyping` 기본 거짓).
         struct Row
         {
-            const char* id;
+            const char* name;
             const char* labelKey;
+            const char* fallback;
             ImGuiKey key;
-            GizmoMode mode;
+            bool (*execute)(EditorActionContext&);
         };
         const Row rows[] = {
-            {"canvas_view.gizmo_translate", LocKeys::GizmoTranslate, ImGuiKey_W, GizmoMode::Translate},
-            {"canvas_view.gizmo_rotate", LocKeys::GizmoRotate, ImGuiKey_E, GizmoMode::Rotate},
-            {"canvas_view.gizmo_scale", LocKeys::GizmoScale, ImGuiKey_R, GizmoMode::Scale},
+            {"canvas_view.gizmo_translate", LocKeys::GizmoTranslate, "Move", ImGuiKey_W, &SetTranslate},
+            {"canvas_view.gizmo_rotate", LocKeys::GizmoRotate, "Rotate", ImGuiKey_E, &SetRotate},
+            {"canvas_view.gizmo_scale", LocKeys::GizmoScale, "Scale", ImGuiKey_R, &SetScale},
         };
-        for (std::size_t index = 0; index < sizeof(rows) / sizeof(rows[0]); ++index)
+        for (const Row& row : rows)
         {
-            EditorShortcutDesc desc;
-            desc.id = rows[index].id;
-            desc.labelKey = rows[index].labelKey;
-            desc.categoryKey = LocKeys::PanelCanvasView;
-            desc.scope = GetTitle();
-            desc.primary.key = rows[index].key;
-            desc.handler = MakeOwnerPtr<GizmoModeShortcut>(*this, rows[index].mode);
-            m_shortcuts[index] = editor.GetShortcuts().Register(std::move(desc));
+            EditorActionInfo info;
+            info.name = row.name;
+            info.labelKey = row.labelKey;
+            info.fallbackLabel = row.fallback;
+            info.categoryKey = LocKeys::PanelCanvasView;
+            info.panelType = TypeName;
+            info.primary.key = row.key;
+            info.Execute = row.execute;
+            actions.Register(info);
         }
-        return true;
-    }
-
-    void CanvasViewPanel::OnDestroy()
-    {
-        if (m_editor != nullptr)
-        {
-            m_editor->GetComponentMenus().Unregister(this);
-            for (ShortcutHandle& handle : m_shortcuts)
-            {
-                m_editor->GetShortcuts().Unregister(handle);
-                handle = InvalidShortcutHandle;
-            }
-        }
-    }
-
-    CanvasViewPanel::GizmoModeShortcut::GizmoModeShortcut(CanvasViewPanel& panel, GizmoMode mode)
-        : m_panel(panel), m_mode(mode)
-    {
-    }
-
-    bool CanvasViewPanel::GizmoModeShortcut::Execute(EditorApplication& editor)
-    {
-        (void)editor;
-        m_panel.m_gizmoMode = m_mode;
-        return true;
-    }
-
-    bool CanvasViewPanel::DrawEditPointsItem(const ComponentMenuContext& context)
-    {
-        CanvasViewPanel* panel = static_cast<CanvasViewPanel*>(context.user);
-        const auto* collider = static_cast<const Component::Collider2D*>(context.component);
-        // 폴리곤이 아니면 회색이다. 숨기면 이 기능이 있는지 알 수 없다(D-181).
-        const bool polygon = collider != nullptr && PolygonEditModel::EditsPoints(*collider);
-        if (Widget::MenuItem(Loc::TextOr(LocKeys::CanvasViewEditPoints, "Edit Points"), nullptr, polygon,
-                Loc::TextOr(LocKeys::CanvasViewEditPointsNotPolygon, "shape must be Polygon")))
-        {
-            panel->m_editCollider = true;
-            panel->m_pointTarget = context.address;
-        }
-        // 값도 슬롯도 바꾸지 않는다. 편집 도구를 켤 뿐이다.
-        return true;
+        // 폴리곤 포인트 편집을 콜라이더의 우클릭 메뉴에서도 켠다(D-220).
+        EditorActionInfo points;
+        points.name = "collider.edit_points";
+        points.labelKey = LocKeys::CanvasViewEditPoints;
+        points.fallbackLabel = "Edit Points";
+        points.categoryKey = LocKeys::PanelCanvasView;
+        points.panelType = TypeName;
+        points.componentType = MakeStableTypeId(Component::Collider2D::StaticTypeName());
+        points.menus = EditorActionMenu::Component;
+        points.CanExecute = &CanEditPoints;
+        points.WhyBlocked = &WhyNoEditPoints;
+        points.Execute = &EditPoints;
+        actions.Register(points);
     }
 
     void CanvasViewPanel::SetCamera(float centerX, float centerY, float orthographicSize)

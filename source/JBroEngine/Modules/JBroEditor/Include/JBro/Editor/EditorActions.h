@@ -54,22 +54,6 @@ namespace JBro
         bool DeleteSelection(EditorApplication& editor);
         bool DeleteObject(EditorApplication& editor, GameObject& object);
 
-        // ── 메뉴 항목 ────────────────────────────────────────────────────
-        //
-        // 이미 열려 있는 메뉴 안에서 부른다. 항목을 그리고, 골렸으면 그 일을 한 뒤 참이다.
-        // **회색으로 보이는 규칙도 여기 있다** - 할 수 없는 것이 눌리면 고장과 구분되지 않는다.
-
-        bool DrawCreateObjectItem(EditorApplication& editor, GameObject* parent,
-            const ObjectPlacement& placement = {});
-        bool DrawCreateChildItem(EditorApplication& editor, GameObject& parent,
-            const ObjectPlacement& placement = {});
-        bool DrawUnparentItem(EditorApplication& editor, GameObject& object);
-        bool DrawCopyItem(EditorApplication& editor);
-        bool DrawPasteItem(EditorApplication& editor);
-        // 그 오브젝트의 자식으로 붙인다(D-166). 줄에서 연 메뉴가 쓴다.
-        bool DrawPasteAsChildItem(EditorApplication& editor, GameObject& object);
-        bool DrawDeleteItem(EditorApplication& editor, GameObject& object);
-
         // **붙일 수 있는 컴포넌트 목록**이다(D-180). 인스펙터의 드롭다운과 오브젝트 메뉴의
         // `컴포넌트 추가` 가 같은 목록을 본다 - 한쪽에만 회색 규칙이 있으면, 목록에서 막힌
         // 것이 메뉴에서는 눌리고 그 뒤로 조용히 아무 일도 일어나지 않는다.

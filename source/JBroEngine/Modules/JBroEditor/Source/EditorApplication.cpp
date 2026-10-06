@@ -9,6 +9,7 @@
 #include <JBro/Editor/Command/CompoundCommand.h>
 #include <JBro/Editor/Command/ComponentCommands.h>
 #include <JBro/Editor/Command/ObjectCommands.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorShortcutManager.h>
@@ -280,10 +281,12 @@ namespace JBro
             }
         }
 
-        // 패널 종류 표를 채운다(D-284). 프로세스에 한 번이다.
-        RegisterBuiltinEditorPanelTypes();
-        // 단축키: 전역 아홉을 올리고 사용자가 바꿔 둔 것을 덮는다(D-228). 패널의 것은 패널이 만들어질 때 올라온다.
-        EditorShortcuts::RegisterBuiltins(*m_shortcuts);
+        // **에디터 리플렉션을 채운다**(D-284). 패널 종류 표와 행동 표는 프로세스에 하나이고 한 번만 채운다. 행동은 모두 여기서
+        // 단축키 관리자와 컴포넌트 메뉴 표에 오른다 - 패널이 열리기 전에도 단축키 목록·키매핑 설정·가이드에 있다.
+        // 사용자가 바꿔 둔 조합은 아래에서 읽어 덮는다(D-228).
+        RegisterBuiltinEditorActions();
+        EditorActionUi::RegisterShortcuts(*m_shortcuts);
+        EditorActionUi::RegisterComponentMenus(m_componentMenus);
         if (config.preferencesPath != nullptr && config.preferencesPath[0] != '\0')
         {
             m_preferencesPath = config.preferencesPath;
@@ -3608,18 +3611,10 @@ namespace JBro
 
     bool EditorApplication::DrawShortcutItem(EditorShortcut id, const char* label, const char* icon)
     {
-        // **글자도 할 수 있는지도 단축키 표에서 온다**(D-132). 메뉴에 박아 두면
-        // 키를 바꿨을 때 화면만 옛 글자로 남는다.
-        const bool enabled = EditorShortcuts::CanExecute(*this, id);
-        const EditorShortcutText keys = EditorShortcuts::Describe(*this, id);
-        // 잠긴 까닭도 같은 표에서 온다(D-181). 회색으로만 두면 무엇을 해야 켜지는지 모른다.
-        const bool chosen = Widget::MenuItem(label, keys.value, enabled,
-            EditorShortcuts::WhyBlocked(*this, id), icon);
-        if (chosen)
-        {
-            EditorShortcuts::Execute(*this, id);
-        }
-        return chosen;
+        // **이름도 글자도 할 수 있는지도 행동 표에서 온다**(D-132·D-284). 메뉴에 박아 두면 키를 바꿨을 때 화면만 옛 글자로 남는다.
+        EditorActionContext context;
+        context.editor = this;
+        return EditorActionUi::DrawItem(EditorShortcuts::ActionId(id), context, label, icon);
     }
 
     void EditorApplication::DrawRootMenuBar()
@@ -3668,13 +3663,10 @@ namespace JBro
                 {
                     RequestSaveProject();
                 }
-                // **게임 빌드**(D-232). 저장된 프로젝트로 빌드한다 - 같은 까닭으로 파일이 있어야 하고 돌고 있지 않아야 한다.
-                Widget::SetNextItemTarget(GuideFocusTargets::Action("game.build"));
-                if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuBuildGame, "Build Game"), nullptr, false == (noFile || playing), why))
-                {
-                    GameBuildReport report;
-                    BuildGameForProject(report);
-                }
+                // **게임 빌드**(D-232). 같은 까닭으로 파일이 있어야 하고 돌고 있지 않아야 한다 - 판정은 행동 표(`game.build`)에 있다.
+                EditorActionContext context;
+                context.editor = this;
+                EditorActionUi::DrawItem("game.build", context);
             }
             ImGui::Separator();
             if (Widget::MenuItem(Loc::TextOr(LocKeys::MenuExit, "Exit")))
@@ -3736,21 +3728,14 @@ namespace JBro
         {
             // **할 수 없는 것은 회색으로 보인다.** 눌리는데 아무 일도 안 하면
             // 고장인지 할 게 없는 건지 알 수 없다. 그 판단은 단축키 표가 한다.
-            // 항목마다 가이드의 행동 이름을 단다(D-268). 오브젝트 메뉴의 같은 항목과 이름이 같다.
-            Widget::SetNextItemTarget(GuideFocusTargets::Action("edit.undo"));
+            // 항목마다 가이드의 행동 이름이 달린다(D-268) - 행동 표의 이름이 곧 표식이고 오브젝트 메뉴의 같은 항목과 같다.
             DrawShortcutItem(EditorShortcut::Undo, Loc::TextOr(LocKeys::MenuUndo, "Undo"));
-            Widget::SetNextItemTarget(GuideFocusTargets::Action("edit.redo"));
             DrawShortcutItem(EditorShortcut::Redo, Loc::TextOr(LocKeys::MenuRedo, "Redo"));
             ImGui::Separator();
-            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.copy"));
             DrawShortcutItem(EditorShortcut::Copy, Loc::TextOr(LocKeys::HierarchyCopy, "Copy"));
-            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste"));
             DrawShortcutItem(EditorShortcut::Paste, Loc::TextOr(LocKeys::HierarchyPaste, "Paste"));
-            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.paste_as_child"));
             DrawShortcutItem(EditorShortcut::PasteAsChild,
                 Loc::TextOr(LocKeys::HierarchyPasteAsChild, "Paste As Child"));
-            // 가이드의 `object.delete` 가 편집 메뉴로 올 때 가리키는 항목이다(D-267).
-            Widget::SetNextItemTarget(GuideFocusTargets::Action("object.delete"));
             DrawShortcutItem(EditorShortcut::DeleteSelection,
                 Loc::TextOr(LocKeys::HierarchyDelete, "Delete"));
             Widget::EndMenu();

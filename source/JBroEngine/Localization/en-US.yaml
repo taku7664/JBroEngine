@@ -150,6 +150,7 @@ Entries:
   blocked.project_has_no_file: only a project opened from a file can be saved
   blocked.pick_an_image: pick an image asset first
   blocked.last_layer: a canvas needs at least one layer
+  blocked.no_parent: the object has no parent
   component_category.Transform: Transform
   component_category.Rendering: Rendering
   component_category.Physics: Physics

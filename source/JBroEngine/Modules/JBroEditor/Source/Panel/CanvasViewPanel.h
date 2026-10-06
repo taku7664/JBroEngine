@@ -3,7 +3,6 @@
 #include <JBro/Canvas/Layer.h>
 #include <JBro/Editor/Command/ComponentAddress.h>
 #include <JBro/Editor/EditorPanel.h>
-#include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
 #include <JBro/Framework2D/Component/Physics2D.h>
@@ -19,7 +18,6 @@
 namespace JBro
 {
     class GameObject;
-    struct ComponentMenuContext;
     namespace Component
     {
         class Text2D;
@@ -43,9 +41,13 @@ namespace JBro
         const char* GetTitle() const override;
         const char* GetDisplayTitle() const override;
         bool OnCreate(EditorApplication& editor) override;
-        void OnDestroy() override;
         void OnDraw() override;
         EditorDock GetPreferredDock() const override { return EditorDock::Center; }
+
+        // **이 패널 종류의 행동을 행동 표에 올린다**(D-284). 에디터가 켜지기 전에 한 번이다 - 패널이 열리기 전에도 단축키 목록과
+        // 가이드에 있다. 기즈모 모드(W·E·R)와 `Collider2D` 우클릭 메뉴의 "포인트 편집" 이다.
+        static void RegisterActions();
+        friend struct CanvasViewPanelActions;
 
         // 이 프로젝트가 3D 인가. **편집 화면의 조작이 여기서 갈린다** - 평면을 밀고 당기는
         // 것으로는 3D 의 뒤를 볼 수 없어, 3D 는 바라보는 점 둘레를 도는 궤도 카메라다.
@@ -132,8 +134,6 @@ namespace JBro
             PolygonPose            pose;
         };
         bool FindPolygonTarget(PolygonTarget& target);
-        // `Collider2D` 의 우클릭 메뉴에 서는 "포인트 편집" 이다(D-220). `context.user` 가 이 패널이다.
-        static bool DrawEditPointsItem(const ComponentMenuContext& context);
         void DrawPolygonEditor(const ViewRect& rect);
         // 버텍스를 우클릭했으면 그 메뉴를 열고 참이다. 캔버스 메뉴 대신이다.
         bool DrawVertexMenu(const ViewRect& rect);
@@ -282,18 +282,6 @@ namespace JBro
         float m_pitchDegrees = -25.0f;
 
         GizmoMode m_gizmoMode = GizmoMode::Translate;
-        // W·E·R 을 누르면 모드를 바꾸는 할 일(D-228). 패널이 `OnDestroy` 에서 등록을 풀므로 패널보다 오래 살지 않는다.
-        class GizmoModeShortcut final : public IEditorShortcutHandler
-        {
-        public:
-            GizmoModeShortcut(CanvasViewPanel& panel, GizmoMode mode);
-            bool Execute(EditorApplication& editor) override;
-
-        private:
-            CanvasViewPanel& m_panel;
-            GizmoMode m_mode;
-        };
-        ShortcutHandle m_shortcuts[3] = {};
         // 손잡이를 오브젝트의 축에 둘지 월드 축에 둘지(D-171). 크기 모드에서는 쓰지 않는다.
         GizmoSpace m_gizmoSpace = GizmoSpace::Local;
         Widget::GizmoState m_gizmoState;

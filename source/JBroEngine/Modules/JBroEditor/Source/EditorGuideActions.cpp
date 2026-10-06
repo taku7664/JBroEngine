@@ -6,6 +6,7 @@
 #include <JBro/Core/StableTypeId.h>
 #include <JBro/Core/Yaml.h>
 #include <JBro/Editor/Command/SetPropertyCommand.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorApplication.h>
 #include <JBro/Editor/Gizmo/GizmoModel.h>
 #include <JBro/Editor/Gizmo/PolygonEditModel.h>
@@ -735,13 +736,42 @@ namespace JBro
 
         // ── 표 ───────────────────────────────────────────────────────
 
-        GuideActionInfo MenuAction(const char* name, const char* summary, std::uint8_t menus, const char* command,
+        // **행동이 어느 메뉴에 있는지는 에디터의 행동 표가 안다**(D-284). 손으로 적으면 메뉴에 항목을 옮겼을 때 가이드만 옛 길로 간다.
+        // 행동 표에 없는 것(컴포넌트 추가 하위 메뉴·인스펙터 칸)만 `extra` 로 더한다.
+        std::uint8_t MenusOf(const char* name, std::uint8_t extra)
+        {
+            std::uint8_t menus = extra;
+            const EditorActionInfo* action = EditorActionRegistry::Get().Find(name);
+            if (action == nullptr)
+            {
+                return menus;
+            }
+            if ((action->menus & EditorActionMenu::Object) != 0)
+            {
+                menus |= ObjectMenu;
+            }
+            if ((action->menus & EditorActionMenu::Background) != 0)
+            {
+                menus |= BackgroundMenu;
+            }
+            if ((action->menus & EditorActionMenu::Edit) != 0)
+            {
+                menus |= EditMenu;
+            }
+            if ((action->menus & EditorActionMenu::File) != 0)
+            {
+                menus |= FileMenu;
+            }
+            return menus;
+        }
+
+        GuideActionInfo MenuAction(const char* name, const char* summary, std::uint8_t extraMenus, const char* command,
             Subject subject, ObjectParam object, const char* objectKey = "Object", bool leavesObject = false)
         {
             GuideActionInfo info;
             info.name = name;
             info.summary = summary;
-            info.menus = menus;
+            info.menus = MenusOf(name, extraMenus);
             info.command = command;
             info.subject = subject;
             info.object = object;
@@ -753,31 +783,34 @@ namespace JBro
 
         const GuideActionInfo* Actions(std::uint32_t& count)
         {
+            // 메뉴 위치를 행동 표에서 받는다. 에디터 없이 가이드를 읽는 자리(시험·목록)에서도 표가 서 있어야 한다.
+            RegisterBuiltinEditorActions();
             static const GuideActionInfo actions[] = {
                 // ── 메뉴 항목: 한 줄씩 ──
                 MenuAction("object.create", "Create an object. With Parent, as its child (from the parent's right-click menu); without, at the root (right-click an empty spot).",
-                    ObjectMenu | BackgroundMenu, "Create Object", Subject::ChildOf, ObjectParam::Optional, "Parent", true),
+                    0, "Create Object", Subject::ChildOf, ObjectParam::Optional, "Parent", true),
                 MenuAction("object.delete", "Delete an object.",
-                    ObjectMenu | EditMenu, "Delete Object", Subject::Same, ObjectParam::Required),
+                    0, "Delete Object", Subject::Same, ObjectParam::Required),
                 MenuAction("object.unparent", "Move an object out of its parent to the root.",
-                    ObjectMenu, "Move In Hierarchy", Subject::Same, ObjectParam::Required, "Object", true),
+                    0, "Move In Hierarchy", Subject::Same, ObjectParam::Required, "Object", true),
                 MenuAction("object.copy", "Copy an object. Ends when Copy is pressed.",
-                    ObjectMenu | EditMenu, nullptr, Subject::Any, ObjectParam::Required),
+                    0, nullptr, Subject::Any, ObjectParam::Required),
                 MenuAction("object.paste", "Paste the copied objects at the root.",
-                    BackgroundMenu | EditMenu, "Paste Objects", Subject::Any, ObjectParam::None, "Object", true),
+                    0, "Paste Objects", Subject::Any, ObjectParam::None, "Object", true),
                 MenuAction("object.paste_as_child", "Paste the copied objects as children of an object.",
-                    ObjectMenu | EditMenu, "Paste Objects", Subject::ChildOf, ObjectParam::Required, "Object", true),
+                    0, "Paste Objects", Subject::ChildOf, ObjectParam::Required, "Object", true),
                 MenuAction("edit.undo", "Undo the last edit. Ends when Undo is pressed.",
-                    EditMenu, nullptr, Subject::Any, ObjectParam::None),
+                    0, nullptr, Subject::Any, ObjectParam::None),
                 MenuAction("edit.redo", "Redo the last undone edit. Ends when Redo is pressed.",
-                    EditMenu, nullptr, Subject::Any, ObjectParam::None),
+                    0, nullptr, Subject::Any, ObjectParam::None),
                 MenuAction("game.build", "Open the File menu and choose Build Game. Ends when Build Game is pressed.",
-                    FileMenu, nullptr, Subject::Any, ObjectParam::None),
+                    0, nullptr, Subject::Any, ObjectParam::None),
                 [] {
                     // 컴포넌트를 적으면 목록의 그 항목까지 가리킨다(반례 ④). 적지 않으면 목록을 열고 검색에 글자를 쳐서 고른다 -
                     // 그때만 키보드를 연다(`ListKeyboard`). 항목을 가리키는 동안 검색하면 그 항목이 걸러져 사라진다.
                     GuideActionInfo info = MenuAction("component.add",
                         "Add a component, from the inspector list or the object's right-click menu. With Component, points at that type in the list and ends when it is attached; otherwise ends when any is.",
+                        // 컴포넌트 추가는 항목이 아니라 하위 메뉴라 행동 표에 없다 - 두 자리를 여기 적는다.
                         InspectorAdd | ObjectMenu, "Add Component", Subject::Same, ObjectParam::Optional, "Object", true);
                     info.takesComponent = true;
                     info.pointsAtListItem = true;

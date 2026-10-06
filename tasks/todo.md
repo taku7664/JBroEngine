@@ -140,8 +140,8 @@
 아래 5~14 는 2026-09-26 에 네 항목을 두고 더 필요한 것을 제안했고 사용자가 모두 넣기로 한 것이다.
 
 - `[진행]` **5. 외부 에디터 등록 API.** → 2026-10-06 에디터 리플렉션(D-284, [editor-reflection-plan.md](./editor-reflection-plan.md))으로 바뀌었다:
-  패널 종류 표와 행동 표가 시작할 때 모든 것을 들고, 패널은 고유·비고유로 나뉜다. 1 단계(패널 종류 표)가 섰다. 8 번의 남은 것(오브젝트·빈자리 메뉴 확장)은
-  2 단계(행동 표)에서 한다. 아래는 처음 적은 것이다.
+  패널 종류 표와 행동 표가 시작할 때 모든 것을 들고, 패널은 고유·비고유로 나뉜다. 1 단계(패널 종류 표)와 2 단계(행동 표, 8 번의 남은 것 포함)가 섰다.
+  아래는 처음 적은 것이다.
   외부 에디터가 창·메뉴 항목·단축키 Action(2 번)·설정 항목(6 번)을 한 입구로 등록한다. 1~4 번의
   "외부 에디터가 부른다" 가 이 입구를 전제로 한다. 지금 툴 창은 `Tool/SpriteViewerWindow` 하나이고 `EditorApplication` 이 직접 만든다.
   정할 것: 등록 시점(에디터 시작 때 한 번인지, 나중에 붙고 떨어질 수 있는지), 외부 에디터가 DLL 인지 정적 링크인지(DLL 경계 규칙).
@@ -161,7 +161,8 @@
     읽는다. `복사`·`붙여넣기` 는 편집 메뉴와 같은 일이라 할 수 있는지·까닭·하기도 표의 것이고, `자식으로 붙여넣기`·`삭제` 는 우클릭한 줄이 대상이라 그 자리의
     판정을 남기고 글자만 표에서 온다(`ProjectRule.md` D-228 절). 시험 `TestContextMenusShowRemappedShortcuts`(`Tests/EditorApplicationTests.cpp`)가 메뉴에 그려진
     글자를 ImGui 로그로 받아 기본 키·바꾼 키·비운 키를 본다. 네 자리를 각각 글자로 되돌린 변이가 모두 잡혔다.
-    남은 것: 외부 에디터가 오브젝트·빈자리 메뉴에 항목을 끼워 넣는 길(5 번의 등록 시점과 함께).
+    ~~남은 것: 외부 에디터가 오브젝트·빈자리 메뉴에 항목을 끼워 넣는 길(5 번의 등록 시점과 함께).~~ → 완료 2026-10-06 · D-284 의 2 단계(행동 표의
+    `EditorActionMenu::Object`·`Background`, `EditorActionUi::DrawExtensions`). 메뉴 항목이 Action 을 가리키는 것도 같이 섰다.
   - ~~`[진행 예정]` **컴포넌트별 우클릭 훅**(2026-09-26 요청, 모양은 D-220 확정). 오브젝트가 가진 컴포넌트에 따라 우클릭 메뉴에 항목이 더해진다
     (첫 사용처: 폴리곤 `Collider2D` 의 "포인트 편집").~~
     → 완료 2026-09-26 · a91cf86·e306aec·7c6db5a·d2ddd11·1fb11c6 (브랜치 `compmenu`) · `ComponentMenuTable`(`Include/JBro/Editor/ComponentMenuTable.h`),
@@ -2960,7 +2961,33 @@ EditorApplication::Tick
   그 프레임 동안 남아 있음·바로 닫기), 기존 `TestThePanelRegistryRefusesWhatItCannotHold` 를 새 뜻으로 고쳤다. 뮤테이션 6/6 이 각자 맞는 단언에서 잡혔다
   (고유 중복 거절·비고유 UUID 공유·창 이름에 UUID 없음·그리는 중 바로 파기·종류 어긋남 받음·고유 닫기가 파기). 처음에는 "그리는 중 바로 파기"가 살아남아
   닫은 직후에도 목록에 있는지를 보게 고쳤다.
-  `[열림]` 2~4 단계(행동 표·가이드·스프라이트 뷰어 도크)는 계획서 §3. 스프라이트 뷰어는 4 단계까지 `EditorApplication` 이 직접 든다.
+  **2 단계(행동 표).** 전역 `EditorActionRegistry` 에 행동 하나가 이름·보이는 이름·무리·기본 조합·범위(`panelType`)·나오는 메뉴(`EditorActionMenu`:
+  파일·편집·시뮬레이션·오브젝트·빈자리·컴포넌트)·보이는가·할 수 있는가·까닭·하기·`mayRemoveObject` 를 든다. 에디터가 켜질 때 `RegisterBuiltinEditorActions`
+  가 열여섯을 올리고(`CanvasViewPanel::RegisterActions` 의 기즈모 셋과 `collider.edit_points` 포함), `EditorActionUi::RegisterShortcuts` 가 **모든 행동을**
+  단축키 관리자에, `RegisterComponentMenus` 가 컴포넌트 행동을 `ComponentMenuTable` 에 건다. 할 일은 패널을 들지 않고 부를 때 `EditorActionContext::panel`
+  (그 종류에서 포커스를 가진 것, 없으면 맨 앞)을 받는다 - 패널 종류의 행동은 그 패널이 없으면 할 수 없다. 편집·파일·시뮬레이션 메뉴와 오브젝트·빈자리 메뉴의
+  항목은 `EditorActionUi::DrawItem(이름)` 으로 그리고(가이드 표식도 행동 이름으로 저절로 달린다), 에디터가 자리를 정하지 않은 행동은 `DrawExtensions` 가
+  공용 항목 뒤에 세운다(todo 8 번의 남은 것). 우클릭한 줄이 대상인 일은 같은 행동이 `context.object` 를 본다 - 그래서 `EditorActions` 의 `Draw*Item`
+  일곱이 없어졌다. **이름을 하나로 맞췄다**: `editor.save_canvas`→`canvas.save`, `editor.undo`/`redo`→`edit.undo`/`redo`, `editor.copy`/`paste`/
+  `paste_as_child`→`object.*`, `editor.delete_selection`→`object.delete`, `editor.toggle_play`/`toggle_pause`/`step_frame`→`simulation.play`/`pause`/`step`.
+  사용자 파일의 옛 이름은 `EditorShortcutManager::RenamedId` 로 옮겨 읽고, 둘 다 적혀 있으면 새 이름이 이긴다. `EditorShortcuts` 는 열거를 행동 이름으로
+  바꾸는 얇은 길로 남았다. 새 로컬라이징 키 `blocked.no_parent`(단축키로 부른 부모 해제의 까닭). 행동 표에 `Unregister` 를 두었다(시험과 나중의 떼는 도구).
+  **달라진 것**: 캔버스 뷰의 W/E/R 은 UI 를 껐다 켜도 같은 등록이 남는다(전에는 패널이 풀고 다시 걸었다). 기본 행동 아홉 말고도 `object.create`·
+  `object.unparent`·`collider.edit_points` 가 단축키 목록에 (조합 없이) 선다.
+  검증: `TestEditorActionsAreRegisteredFromTheStart`(표의 열여섯·거절 넷·UI 없는 에디터의 단축키 관리자에 패널 범위 행동까지·그 범위·패널 없으면 못 함·
+  옛 이름 옮기기·새 이름 이김), `TestRegisteredActionsAppearInContextMenus`(외부 행동이 오브젝트 메뉴의 공용 항목 뒤·빈자리 메뉴·컴포넌트 하위 메뉴에 서고
+  누르면 그 메뉴와 오브젝트·컴포넌트를 받음, 뿌리 오브젝트에 부모 해제 없음), 기존 기즈모 키 시험을 새 뜻으로 고쳤다. 시험용 메뉴 패널이 이미 닫힌 메뉴의
+  닫기 요청을 남겨 다음 메뉴를 바로 닫던 것을 고쳤다. 뮤테이션 7/7(확장 칸 없음·패널 행동 단축키 빠짐·패널 없이 허용·컴포넌트 메뉴 표시·부모 해제 늘 보임·
+  옛 이름 안 옮김·옛 이름이 이김). 처음에 "부모 해제 늘 보임"이 살아남아 단언을 더했다.
+  2 단계의 전체 시험에서 `TestEditPointsFromTheMenuEditsThatCollider` 의 끝("캔버스 뷰가 사라지면 제 항목을 뗀다")이 옛 뜻이라 실패했다 - "줄은 남고
+  캔버스 뷰가 없으면 할 수 없다"로 고쳤다.
+  **3 단계(가이드).** 가이드 행동 표의 `MenuAction` 이 메뉴 위치를 손으로 적지 않고 `MenusOf(이름)` 으로 행동 표에서 받는다(오브젝트·빈자리·편집·파일).
+  손으로 적는 것은 행동 표에 없는 컴포넌트 추가(하위 메뉴와 인스펙터 칸) 하나다. 파일 메뉴의 "게임 빌드"도 행동(`game.build`)이 되어 메뉴가 `DrawItem` 으로
+  그린다. 가이드 표를 처음 지을 때 `RegisterBuiltinEditorActions` 를 불러 에디터 없이 가이드를 읽는 자리에서도 표가 서 있게 했다. 뮤테이션 4/5(편집·빈자리·
+  오브젝트·파일 메뉴를 옮기지 않음은 가이드 시험이 잡았다). "가이드 앞에 표 채우기 빼기"는 살아남았다 - 표가 프로세스 전역이라 앞선 시험이 이미 채운다.
+  2·3 단계는 작업 트리에서 섞여 한 커밋이다.
+  `[열림]` 4 단계(스프라이트 뷰어 도크)는 계획서 §3. 스프라이트 뷰어는 4 단계까지 `EditorApplication` 이 직접 든다. 위키의 단축키 이름(`editor.*`)은
+  로컬에 위키 사본이 없어 고치지 못했다.
 
 - **D-283. 레이어 블렌드를 열셋으로 늘린다 - 빼기·밝게 하기·어둡게 하기·오버레이·소프트 라이트·하드 라이트·색상 닷지·색상 번·차이는 아래 그림을 복사해 셰이더가 섞는다.**
   (2026-10-06, 사용자 지시: "블렌드 모드 추가할건 없니", 제안(1: 블렌드 연산만 바꾸는 빼기·밝게·어둡게, 2: 아래 그림을 읽는 오버레이 등)에 "2까지". Updates: D-279(블렌드가 넷에서

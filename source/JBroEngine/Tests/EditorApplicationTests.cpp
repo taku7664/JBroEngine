@@ -26,6 +26,7 @@
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPaths.h>
 #include <JBro/Editor/EditorPopup.h>
+#include <JBro/Editor/EditorActionRegistry.h>
 #include <JBro/Editor/EditorPanelRegistry.h>
 #include <JBro/Editor/EditorShortcutManager.h>
 #include <JBro/Editor/EditorShortcuts.h>
@@ -12003,7 +12004,7 @@ namespace
             Check(false == std::filesystem::exists(path.c_str(), ignored), "nothing is written until the frame ends");
             Check(editor.Tick(Frame), "the editor must tick");
             const std::string written = ReadWholeText(path);
-            Check(written.find("editor.paste_as_child") != std::string::npos && written.find("Ctrl+Alt+V") != std::string::npos,
+            Check(written.find("object.paste_as_child") != std::string::npos && written.find("Ctrl+Alt+V") != std::string::npos,
                 "the tick must write the remapped shortcut to the preferences file");
             editor.Shutdown();
         }
@@ -12127,18 +12128,17 @@ namespace
         press('T');
         Check(spaceLocked(), "the remapped T does");
 
-        // **UI 를 껐다 켜면 패널이 새로 선다.** 옛 패널이 등록을 풀지 않았으면 새 패널의 등록이 이름 겹침으로 거절되고
-        // 키는 사라진 옛 패널을 부른다.
+        // **패널 종류의 단축키는 에디터가 켜질 때 오르고 패널과 함께 사라지지 않는다**(D-284). UI 를 껐다 켜도 같은 등록이 남고,
+        // 할 일은 패널을 들고 있지 않아 누를 때 그 종류의 패널을 찾는다 - 그래서 사라진 옛 패널을 부를 길이 없다.
         const JBro::ShortcutHandle oldScale = editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle;
         editor.DisableEditorUi();
-        Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle == JBro::InvalidShortcutHandle,
-            "a destroyed canvas view must take its gizmo keys with it");
+        Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle == oldScale,
+            "the gizmo keys stay registered while there is no canvas view");
+        Check(false == editor.GetShortcuts().CanExecute("canvas_view.gizmo_scale", editor),
+            "but have no panel to act on");
         Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on again");
-        // 새 패널이 옛 패널의 주소에 설 수 있어 키가 "닿는지" 만으로는 옛 할 일을 부르는 것과 구분되지 않는다 - 등록 자체를 본다.
-        const JBro::ShortcutHandle newScale = editor.GetShortcuts().Find("canvas_view.gizmo_scale").handle;
-        Check(newScale != JBro::InvalidShortcutHandle && newScale != oldScale, "the new canvas view must register its own gizmo keys");
         Check(editor.GetShortcuts().Find("canvas_view.gizmo_scale").primary == JBro::EditorShortcutBinding{ImGuiKey_T},
-            "and the user's remap must carry over to them");
+            "and the user's remap is still there");
         for (int frame = 0; frame < 3; ++frame)
         {
             Check(editor.Tick(Frame), "the editor must settle again");
@@ -12469,6 +12469,8 @@ namespace
         void Open()
         {
             m_open = true;
+            // 항목을 눌러 이미 닫힌 메뉴에 남은 닫기 요청이 새로 연 메뉴를 닫지 않게 한다.
+            m_close = false;
         }
         void Close()
         {
@@ -12708,6 +12710,228 @@ namespace
         Check(text.find("Ctrl+K") == std::string::npos, "a cleared combination shows no keys");
 
         editor.Shutdown();
+    }
+
+    // 행동 표에 올리는 시험용 행동의 할 일이다(D-284). 몇 번 불렸는지와 받은 문맥을 센다.
+    struct ActionProbe
+    {
+        int runs = 0;
+        std::uint32_t menu = 0;
+        JBro::GameObject* object = nullptr;
+        JBro::ComponentTypeId componentType = 0;
+    };
+    ActionProbe g_actionProbe;
+
+    bool RunActionProbe(JBro::EditorActionContext& context)
+    {
+        ++g_actionProbe.runs;
+        g_actionProbe.menu = context.menu;
+        g_actionProbe.object = context.object;
+        g_actionProbe.componentType = context.component.typeId;
+        return true;
+    }
+
+    void RegisterActionProbes()
+    {
+        JBro::EditorActionInfo menuProbe;
+        menuProbe.name = "probe.menu_item";
+        menuProbe.fallbackLabel = "Probe Menu Item";
+        menuProbe.menus = JBro::EditorActionMenu::Object | JBro::EditorActionMenu::Background;
+        menuProbe.Execute = &RunActionProbe;
+        JBro::EditorActionRegistry::Get().Register(menuProbe);
+
+        JBro::EditorActionInfo componentProbe;
+        componentProbe.name = "probe.component_item";
+        componentProbe.fallbackLabel = "Probe Component Item";
+        componentProbe.menus = JBro::EditorActionMenu::Component;
+        componentProbe.componentType = JBro::MakeStableTypeId(JBro::Component::Transform2D::StaticTypeName());
+        componentProbe.Execute = &RunActionProbe;
+        JBro::EditorActionRegistry::Get().Register(componentProbe);
+    }
+
+    // **행동은 시작할 때 모두 표에 있다**(D-284). 패널을 하나도 열지 않은 에디터의 단축키 관리자에 패널 종류의 단축키까지 있고,
+    // 표는 할 일 없는 행동·모르는 패널 종류·타입 없는 컴포넌트 행동을 거절한다. 사용자 파일의 옛 이름은 새 이름으로 옮겨 읽는다.
+    void TestEditorActionsAreRegisteredFromTheStart()
+    {
+        JBro::RegisterBuiltinEditorActions();
+        JBro::EditorActionRegistry& actions = JBro::EditorActionRegistry::Get();
+        const char* const names[] = {"canvas.save", "game.build", "edit.undo", "edit.redo", "object.create", "object.unparent", "object.copy",
+            "object.paste", "object.paste_as_child", "object.delete", "simulation.play", "simulation.pause", "simulation.step",
+            "canvas_view.gizmo_translate", "canvas_view.gizmo_rotate", "canvas_view.gizmo_scale", "collider.edit_points"};
+        for (const char* name : names)
+        {
+            Check(actions.Find(name) != nullptr, name);
+        }
+        JBro::EditorActionInfo bad;
+        bad.name = "probe.no_execute";
+        Check(false == actions.Register(bad), "an action that does nothing is refused");
+        bad.Execute = &RunActionProbe;
+        bad.panelType = "NoSuchPanel";
+        Check(false == actions.Register(bad), "an action of an unknown panel type is refused");
+        bad.panelType = nullptr;
+        bad.menus = JBro::EditorActionMenu::Component;
+        Check(false == actions.Register(bad), "a component menu action without a type is refused");
+        bad.menus = JBro::EditorActionMenu::None;
+        bad.name = "object.copy";
+        Check(false == actions.Register(bad), "a name already in the table is refused");
+
+        const JBro::String path = TempPath("JBroActionProbe\\EditorPreferences.yaml");
+        std::error_code ignored;
+        std::filesystem::remove_all(TempPath("JBroActionProbe").c_str(), ignored);
+        std::filesystem::create_directories(TempPath("JBroActionProbe").c_str(), ignored);
+        // 옛 이름(`editor.copy`)으로 적힌 사용자 파일이다. 같은 행동이 새 이름으로도 적혀 있으면 새 이름이 이긴다.
+        const char oldFile[] = "Version: 1\nShortcuts:\n  editor.copy:\n    Primary: Ctrl+K\n"
+            "  editor.paste:\n    Primary: Ctrl+J\n  object.paste:\n    Primary: Ctrl+L\n";
+        Check(WriteTextFile(path, oldFile), "the test must be able to write an old preferences file");
+
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.preferencesPath = path.c_str();
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; the action table not verified" << std::endl;
+            return;
+        }
+        // UI 를 켜지 않았다 - 패널이 하나도 없다.
+        Check(editor.GetPanelCount() == 0, "no panel exists before the UI");
+        for (const char* name : names)
+        {
+            if (std::strcmp(name, "collider.edit_points") == 0)
+            {
+                continue;
+            }
+            Check(editor.GetShortcuts().Find(name).handle != JBro::InvalidShortcutHandle,
+                "every action is in the shortcut table before any panel opens");
+        }
+        Check(std::strcmp(editor.GetShortcuts().Find("canvas_view.gizmo_rotate").scope, "CanvasView") == 0,
+            "a panel type's action is scoped to that type");
+        Check(false == editor.GetShortcuts().CanExecute("canvas_view.gizmo_rotate", editor),
+            "and cannot run while no panel of that type exists");
+        Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::Copy).value, "Ctrl+K") == 0,
+            "a key saved under an old name moves to the new name");
+        Check(std::strcmp(JBro::EditorShortcuts::Describe(editor, JBro::EditorShortcut::Paste).value, "Ctrl+L") == 0,
+            "and the new name wins when both are written");
+        editor.Shutdown();
+        std::filesystem::remove_all(TempPath("JBroActionProbe").c_str(), ignored);
+    }
+
+    // **패널·도구가 올린 행동은 오브젝트·빈자리·컴포넌트 메뉴에 선다**(todo 8 번, D-284). 에디터가 자리를 정하지 않은 행동은
+    // 공용 항목 뒤의 확장 칸에 서고, 누르면 그 메뉴와 오브젝트를 받는다.
+    void TestRegisteredActionsAppearInContextMenus()
+    {
+        RegisterActionProbes();
+        JBro::EditorApplication editor;
+        JBro::EditorApplicationConfig config;
+        config.windowVisible = false;
+        config.windowWidth = 1024;
+        config.windowHeight = 768;
+        if (false == editor.Initialize(config))
+        {
+            std::cout << "  [skip] no D3D12 device; context menu actions not verified" << std::endl;
+            return;
+        }
+        JBro::ProjectDescriptor project;
+        constexpr char name[] = "ActionMenuProbe";
+        project.name = {name, sizeof(name) - 1};
+        Check(editor.OpenProject(project), "the probe project must open");
+        Check(editor.EnableEditorUi({64, 48}), "the editor UI must turn on");
+        HWND hwnd = FindOwnEditorWindow();
+        Check(hwnd != nullptr, "the editor window must be findable");
+
+        JBro::Canvas* canvas = editor.GetCanvas();
+        JBro::GameObject* probe = canvas->CreateObject("Probe");
+        Check(canvas->AttachComponent<JBro::Component::Transform2D>(probe) != nullptr, "the probe needs a transform");
+        auto panel = JBro::MakeOwnerPtr<ObjectMenuProbePanel>(probe);
+        ObjectMenuProbePanel* menuProbe = panel.Get();
+        menuProbe->pinned = true;
+        Check(editor.AddPanel(std::move(panel)) != nullptr, "the menu probe panel must be taken");
+        JBro::GameObject* one[] = {probe};
+        editor.SelectObjects({one, 1});
+        for (int frame = 0; frame < 4; ++frame)
+        {
+            Check(editor.Tick(Frame), "the editor must settle");
+        }
+
+        const auto openMenu = [&](bool background) {
+            menuProbe->background = background;
+            menuProbe->Open();
+            for (int frame = 0; frame < 3; ++frame)
+            {
+                Check(editor.Tick(Frame), "the probe menu must open");
+            }
+            ImGuiWindow* menu = FindContextMenuWindow();
+            Check(menu != nullptr, "the probe menu must be on screen");
+            return menu;
+        };
+        const auto closeMenu = [&]() {
+            menuProbe->Close();
+            for (int frame = 0; frame < 2; ++frame)
+            {
+                Check(editor.Tick(Frame), "the probe menu must close");
+            }
+        };
+
+        ImGuiWindow* menu = openMenu(false);
+        Check(menuProbe->drawnText.find("Probe Menu Item") != std::string::npos, "a registered action stands in the object menu");
+        // 뿌리 오브젝트에는 영영 켜지지 않는 `부모 해제` 를 회색으로도 두지 않는다.
+        Check(menuProbe->drawnText.find(JBro::Loc::TextOr(JBro::LocKeys::HierarchyUnparent, "Unparent")) == std::string::npos,
+            "a root object's menu has no unparent item");
+        const std::size_t probeAt = menuProbe->drawnText.find("Probe Menu Item");
+        const std::size_t pasteAt = menuProbe->drawnText.find("Ctrl+V");
+        Check(pasteAt != std::string::npos && pasteAt < probeAt, "after the shared items");
+        Spot spot;
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "Probe Menu Item"), spot),
+            "the registered item must be clickable");
+        g_actionProbe = {};
+        ClickAt(editor, hwnd, spot);
+        Check(g_actionProbe.runs == 1, "clicking it runs the action once");
+        Check(g_actionProbe.menu == JBro::EditorActionMenu::Object && g_actionProbe.object == probe,
+            "with the object menu and the object it was opened on");
+        closeMenu();
+
+        menu = openMenu(true);
+        Check(menuProbe->drawnText.find("Probe Menu Item") != std::string::npos, "and in the background menu");
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, "Probe Menu Item"), spot),
+            "where it is clickable too");
+        g_actionProbe = {};
+        ClickAt(editor, hwnd, spot);
+        Check(g_actionProbe.runs == 1 && g_actionProbe.menu == JBro::EditorActionMenu::Background
+                && g_actionProbe.object == nullptr,
+            "from the background menu it runs with no object");
+        closeMenu();
+
+        // 컴포넌트 메뉴의 행동은 그 타입의 하위 메뉴에 선다.
+        menu = openMenu(false);
+        const char* transformLine = JBro::EditorNames::DisplayTypeName(JBro::NameTable::Get().Resolve(
+            JBro::MakeStableTypeId(JBro::Component::Transform2D::StaticTypeName())));
+        Check(FindItemAnywhereInWindow(editor, hwnd, menu, LabelId(menu->ID, transformLine), spot),
+            "a component type with an action gets its line in the object menu");
+        for (int frame = 0; frame < 3; ++frame)
+        {
+            Check(editor.Tick(Frame), "the submenu must open on hover");
+        }
+        ImGuiWindow* submenu = nullptr;
+        for (ImGuiWindow* window : ImGui::GetCurrentContext()->Windows)
+        {
+            if (window->Active && window != menu && std::strstr(window->Name, "###Menu_") != nullptr)
+            {
+                submenu = window;
+            }
+        }
+        Check(submenu != nullptr, "hovering it opens the component submenu");
+        Check(FindItemAnywhereInWindow(editor, hwnd, submenu, LabelId(submenu->ID, "Probe Component Item"), spot),
+            "the component action stands in it");
+        g_actionProbe = {};
+        ClickAt(editor, hwnd, spot);
+        Check(g_actionProbe.runs == 1 && g_actionProbe.menu == JBro::EditorActionMenu::Component
+                && g_actionProbe.componentType == JBro::MakeStableTypeId(JBro::Component::Transform2D::StaticTypeName()),
+            "clicking it runs the action with that component");
+        editor.Shutdown();
+        // 표는 프로세스에 하나다. 시험용 행동을 남기면 뒤의 시험이 그 메뉴 줄을 본다.
+        Check(JBro::EditorActionRegistry::Get().Unregister("probe.menu_item")
+                && JBro::EditorActionRegistry::Get().Unregister("probe.component_item"),
+            "the probe actions must come off the table");
     }
 
     // **인스펙터 컴포넌트 머리 메뉴도 같은 표를 쓴다**(D-220). 그 메뉴는 이미 인스턴스 하나의 것이라 하위 메뉴 없이
@@ -12992,11 +13216,18 @@ namespace
             "a box collider still shows the item");
         Check(ImGui::GetCurrentContext()->HoveredIdIsDisabled, "but grey, since a box has no points to edit");
 
-        // 캔버스 뷰가 사라질 때 제 항목을 뗀다. 남으면 표가 사라진 패널을 가리킨다.
+        // **항목은 에디터가 켜질 때 행동 표에서 오르고 패널을 들지 않는다**(D-284). 캔버스 뷰가 사라져도 줄은 남지만, 할 일은 누를 때
+        // 그 종류의 패널을 찾으므로 사라진 패널을 가리킬 길이 없다 - 캔버스 뷰가 없으면 할 수 없다.
         const JBro::ComponentTypeId colliderType = left->GetTypeId();
+        editor.DisableEditorUi();
+        Check(editor.GetComponentMenus().Has(colliderType), "the item stays on the table without a canvas view");
+        const JBro::EditorActionInfo* editPoints = JBro::EditorActionRegistry::Get().Find("collider.edit_points");
+        JBro::EditorActionContext context;
+        context.editor = &editor;
+        context.componentPointer = left;
+        Check(editPoints != nullptr && false == JBro::EditorActionUi::CanExecute(*editPoints, context),
+            "but cannot run with no canvas view to edit in");
         editor.Shutdown();
-        Check(false == editor.GetComponentMenus().Has(colliderType),
-            "the canvas view takes its item off the table when it goes");
     }
 
     // **그릴 수 없는 카메라가 있어도 에디터는 돈다**(D-239). 그 전에는 크기 0 인 카메라 하나로 첫 프레임에 꺼졌다(실제 에디터 실측).
@@ -13354,6 +13585,8 @@ int RunEditorApplicationTests()
     TestAnUndrawableCameraKeepsTheEditorRunning();
     TestComponentHooksAreSubmenusPerInstance();
     TestContextMenusShowRemappedShortcuts();
+    TestEditorActionsAreRegisteredFromTheStart();
+    TestRegisteredActionsAppearInContextMenus();
     TestComponentHooksAppearInTheInspectorHeaderMenu();
     TestEditPointsFromTheMenuEditsThatCollider();
     TestRenamingALayerIsOneCommandNotOnePerLetter();

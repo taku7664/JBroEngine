@@ -249,6 +249,7 @@ namespace JBro::LocKeys
     inline constexpr const char* BlockedProjectHasNoFile = "blocked.project_has_no_file";
     inline constexpr const char* BlockedPickAnImage = "blocked.pick_an_image";
     inline constexpr const char* BlockedLastLayer = "blocked.last_layer";
+    inline constexpr const char* BlockedNoParent = "blocked.no_parent";
 
     // ── 컴포넌트 갈래 ────────────────────────────────────────────────────
     //

@@ -8,7 +8,7 @@ namespace JBro
     class EditorApplication;
 
     // 에디터의 **전역** 단축키 열이다(D-132). 한 프레임 진행은 D-242 에서 더했다. 누르는 자리·보이는 글자·바꾸는 자리는 `EditorShortcutManager` 한 표이고(D-228),
-    // 여기는 그 표에 올리는 기본 조합과 할 일(할 수 있는지·왜 못 하는지·하기)을 든다. 메뉴는 이 열거로 가리킨다.
+    // 기본 조합과 할 일(할 수 있는지·왜 못 하는지·하기)은 행동 표(`EditorActionRegistry`, D-284)에 있다. 여기는 열거를 행동 이름으로 바꾸는 얇은 길이다.
     enum class EditorShortcut : std::uint8_t
     {
         SaveCanvas,
@@ -26,10 +26,8 @@ namespace JBro
 
     namespace EditorShortcuts
     {
-        // 표에 저장되는 이름(`editor.save_canvas` 같은 것). 설정 파일에 이 이름으로 사용자의 키가 적힌다.
+        // 행동 이름(`canvas.save` 같은 것). 설정 파일에 이 이름으로 사용자의 키가 적힌다.
         const char* ActionId(EditorShortcut id);
-        // 에디터 전역 단축키 열을 기본 조합(기존 엔진과 같다)으로 관리자에 등록한다. 에디터가 켤 때 한 번.
-        void RegisterBuiltins(EditorShortcutManager& shortcuts);
         // 지금 할 수 있는가. **메뉴가 회색으로 그릴지 정하는 값**이고, 누른 키도 이것을 본다 -
         // 둘이 갈리면 메뉴에서는 못 하는데 키로는 되는 자리가 생긴다.
         bool CanExecute(const EditorApplication& editor, EditorShortcut id);

@@ -150,6 +150,7 @@ Entries:
   blocked.project_has_no_file: 파일에서 연 프로젝트만 저장할 수 있습니다
   blocked.pick_an_image: 그림 에셋을 먼저 고르세요
   blocked.last_layer: 캔버스에는 레이어가 하나 이상 있어야 합니다
+  blocked.no_parent: 부모가 없는 오브젝트입니다
   component_category.Transform: 트랜스폼
   component_category.Rendering: 렌더링
   component_category.Physics: 물리
