@@ -32,6 +32,7 @@
       <AdditionalIncludeDirectories>$(JBroScriptIncludes);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>$(JBroScriptTargetDefines);%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Canvas'">JBRO_TIER_PROBE_CANVAS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'OtherDimension'">JBRO_TIER_PROBE_OTHER_DIMENSION;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'Host'">JBRO_TIER_PROBE_HOST;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'FrameworkSystem'">JBRO_TIER_PROBE_FRAMEWORK_SYSTEM;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(JBroTierProbe)' == 'GameObject'">JBRO_TIER_PROBE_GAME_OBJECT;%(PreprocessorDefinitions)</PreprocessorDefinitions>

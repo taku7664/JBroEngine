@@ -1,0 +1,41 @@
+// SYNTAX TEST "source.jscript" "function declarations, return types and suffixes"
+class Sword : Weapon
+{
+    fn OnStart() callback
+//  ^^ storage.type.function.jscript
+//     ^^^^^^^ entity.name.function.jscript
+//               ^^^^^^^^ storage.modifier.callback.jscript - variable.other.definition.jscript
+    fn Damage() -> Int override
+//              ^^ punctuation.separator.return-type.jscript
+//                 ^^^ support.type.primitive.jscript
+//                     ^^^^^^^^ storage.modifier.override.jscript - variable.other.definition.jscript
+    fn Speed() -> Float require
+//                      ^^^^^^^ storage.modifier.require.jscript - variable.other.definition.jscript
+    fn FindNearest() -> ref Enemy
+//                      ^^^ storage.modifier.ref.jscript
+//                          ^^^^^ entity.name.type.jscript
+    fn Curves() -> Array<Float>
+//                 ^^^^^ support.type.builtin.jscript
+//                       ^^^^^ support.type.primitive.jscript
+    fn Apply(ref HitInfo hit, Int amount)
+//     ^^^^^ entity.name.function.jscript
+//           ^^^ storage.modifier.ref.jscript
+//               ^^^^^^^ entity.name.type.jscript
+//                       ^^^ variable.other.definition.jscript
+//                            ^^^ support.type.primitive.jscript
+//                                ^^^^^^ variable.other.definition.jscript
+    fn Inventory(Int startGold)
+//     ^^^^^^^^^ entity.name.function.jscript
+//                   ^^^^^^^^^ variable.other.definition.jscript
+    static fn SumWeights(ref const Array<DropEntry> table) -> Int
+//  ^^^^^^ storage.modifier.jscript
+//                           ^^^^^ storage.modifier.jscript
+//                                                  ^^^^^ variable.other.definition.jscript
+    public fn TotalWeight() -> Int
+//  ^^^^^^ storage.modifier.jscript
+//            ^^^^^^^^^^^ entity.name.function.jscript
+    {
+        callback = 1
+//      ^^^^^^^^ - storage.modifier.callback.jscript
+    }
+}

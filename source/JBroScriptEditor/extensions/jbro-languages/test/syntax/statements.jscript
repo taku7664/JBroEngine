@@ -1,0 +1,84 @@
+// SYNTAX TEST "source.jscript" "statements, operators, null checks and loops"
+script Probe
+{
+    fn OnUpdate(Float dt) callback
+    {
+        if (hp <= 0 and not isDead)
+//      ^^ keyword.control.jscript
+//             ^^ keyword.operator.comparison.jscript
+//                  ^^^ keyword.operator.logical.jscript
+//                      ^^^ keyword.operator.logical.jscript
+//                          ^^^^^^ - variable.other.definition.jscript
+        else if (hp < 10)
+//      ^^^^ keyword.control.jscript
+//           ^^ keyword.control.jscript
+        if (target is null or home is not null)
+//                 ^^ keyword.operator.is.jscript
+//                    ^^^^ constant.language.null.jscript
+//                         ^^ keyword.operator.logical.jscript
+//                            ^^^^ - variable.other.definition.jscript entity.name.type.jscript
+//                                    ^^^ keyword.operator.logical.jscript
+//                                        ^^^^ constant.language.null.jscript
+        return total
+//      ^^^^^^ keyword.control.jscript
+//             ^^^^^ - variable.other.definition.jscript entity.name.type.jscript
+        return
+//      ^^^^^^ keyword.control.jscript
+        Float hp = enemy.GetHp()
+//      ^^^^^ support.type.primitive.jscript
+//            ^^ variable.other.definition.jscript
+//                      ^ punctuation.accessor.jscript
+        Float ratio = Float(hp) / Float(maxHp)
+//            ^^^^^ variable.other.definition.jscript
+//                    ^^^^^ support.type.primitive.jscript
+//                              ^ keyword.operator.arithmetic.jscript
+        Int cells = Int(width % cellSize)
+//                            ^ keyword.operator.arithmetic.jscript
+        target.position.x += MoveSpeed * dt
+//                        ^^ keyword.operator.assignment.compound.jscript
+//                                     ^ keyword.operator.arithmetic.jscript
+        while (timer > 0.0)
+//      ^^^^^ keyword.control.jscript
+//                     ^^^ constant.numeric.jscript
+        for (i in 0..count)
+//      ^^^ keyword.control.jscript
+//           ^ variable.other.definition.jscript
+//             ^^ keyword.control.in.jscript
+//                ^ constant.numeric.jscript
+//                 ^^ keyword.operator.range.jscript
+        for (ref entry in drops)
+//           ^^^ storage.modifier.ref.jscript
+//               ^^^^^ variable.other.definition.jscript
+//                     ^^ keyword.control.in.jscript
+//                        ^^^^^ - variable.other.definition.jscript
+        for (key, value in scores)
+//           ^^^ variable.other.definition.jscript
+//              ^ punctuation.separator.comma.jscript
+//                ^^^^^ variable.other.definition.jscript
+//                      ^^ keyword.control.in.jscript
+        Int in = 3
+//          ^^ variable.other.definition.jscript - keyword.control.in.jscript
+        count = in + 1
+//              ^^ - keyword.control.in.jscript
+        target is
+//      ^^^^^^ - variable.other.definition.jscript entity.name.type.jscript
+//             ^^ keyword.operator.is.jscript - variable.other.definition.jscript
+        switch (state)
+//      ^^^^^^ keyword.control.jscript
+        case EnemyState.Idle, EnemyState.Dead
+//      ^^^^ keyword.control.jscript
+//           ^^^^^^^^^^ - entity.name.type.jscript variable.other.definition.jscript
+        default
+//      ^^^^^^^ keyword.control.jscript
+        break
+//      ^^^^^ keyword.control.jscript
+        continue
+//      ^^^^^^^^ keyword.control.jscript
+        Bool found = Physics2D.Raycast(from, down, 10.0, ref hit)
+//           ^^^^^ variable.other.definition.jscript
+//                                                       ^^^ storage.modifier.ref.jscript
+//                                                           ^^^ - variable.other.definition.jscript
+        if let box = FieldBox
+//         ^^^ - keyword.other.let.jscript
+    }
+}

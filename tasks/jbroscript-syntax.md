@@ -1,6 +1,9 @@
 ﻿# JBroScript 문법
 
 > 2026-09-15 까지 빡대리와 논의한 **사용자가 쓰는 문법**을 모은 문서다. **언어도 `jbroc` 도 아직 구현하지 않았다.**
+> **2026-09-29 에 참조와 null 을 다시 정했다(D-262).** `ref` 는 빌림만 뜻하고, null 이 될 수 있는 것은 `?` 가 붙은 타입뿐이며,
+> 자동 null 검사(문장 건너뛰기)는 없앴다(§8·§9·§10.4). **같은 날 `jbroc` 은 렉서·파서에서 멈췄다(D-263)** - 파서는 아직 옛 문법을 읽으므로
+> §13 은 그 파서가 읽는 옛 예시로 남기고, 새 문법의 예시는 §14 에 둔다.
 > 컴파일러가 이 문법을 어떻게 검사하고 C++ 로 바꾸는지는 [jbroc-rules.md](./jbroc-rules.md) 에 있다.
 > 논의 과정·근거·버린 안은 [jbroscript-plan.md](./jbroscript-plan.md) §12·§20·§21 에 있고, 둘이 다르면 이 문서가 더 최근이다.
 > 확정 계약이 아니라 계획이므로 `docs/ProjectRule.md` 가 아니라 여기에 둔다.
@@ -168,7 +171,7 @@ fn 이름(매개변수) -> 반환타입 접미사
 fn OnStart() callback                // 반환 없음
 fn HpRatio() -> Float                // Float 반환
 fn MakeHit(Int damage) -> HitInfo    // struct 반환
-fn FindNearest() -> ref Enemy        // ref 반환
+fn FindNearest() -> Enemy?           // 핸들 반환(D-262)
 ```
 
 ### 5.2 접미사 [확정]
@@ -270,7 +273,7 @@ script Priest : Mage, Healer
 | 엔진 값 타입 | **`Vector2`**, `Rect`, `Color` |
 | 엔진 enum | 엔진이 이름을 알려 주는 것 |
 | 사용자 타입 | `script`, `class`, `struct`, `interface`, `enum` |
-| 참조 | `ref T`(§8) |
+| 참조 | 핸들 `T?`, 빌림 `ref T`(§8, D-262) |
 | 컨테이너 | `Array<T>`, `Table<K, V>`(K 는 `Int`·`String`) |
 
 엔진 코드와 맞춰야 하는 것:
@@ -284,7 +287,7 @@ script Priest : Mage, Healer
 ### 7.2 enum 과 컨테이너 [확정]
 
 - **스크립트 enum** 은 멤버를 한 줄에 하나씩 쓴다. 저장 파일에는 숫자가 아니라 이름으로 남는다.
-- 컨테이너에 `ref` 를 담는 표기는 `Array<ref Enemy>` 다.
+- 컨테이너에 핸들을 담는 표기는 `Array<Enemy?>` 다(D-262). 옛 판의 `Array<ref Enemy>` 는 없어졌다 - 컨테이너에는 빌림을 담을 수 없다.
 
 ```
 enum EnemyState
@@ -295,95 +298,95 @@ enum EnemyState
 }
 
 EnemyState state = EnemyState.Idle
-Array<ref Enemy> allies
+Array<Enemy?> allies
 Table<String, Int> scores
 ```
 
-## 8. `ref`
+## 8. 참조와 null (D-262)
 
-### 8.1 정한 것 [확정]
+> **2026-09-29 에 갈아엎었다.** 옛 §8 은 `ref` 하나가 ① 엔진 객체를 오래 가리키기 ② 값을 빌려 제자리에서 고치기 ③ 출력 인자를
+> 모두 맡았다. ①은 대상이 사라지면 스스로 무효가 되지만 ②는 댕글링이 된다 - 옛 §8.2 의 표와 §12 의 1번이 이 섞임에서 나왔다.
+> 엔진도 이미 둘을 다르게 다룬다(①은 `GameObjectHandle`·`Ref<T>`, ②는 C++ 참조). 옛 판은 git 이력에 있다.
 
-- 언어에 **포인터와 참조는 없다.** **`ref` 만** 쓴다.
-- `ref` 는 **단순히 포인터**다. **매개변수·멤버 변수·지역 변수** 어디에나 쓸 수 있다.
-- **null 이 될 수 있는 것은 `ref` 뿐이다.**
-- `ref` 는 **누군가가 소유하고 있는 것**을 가리킨다. 여럿이 함께 쓰는 `class` 인스턴스도 누군가가 소유하고, 나머지는 `ref` 로 가리킨다.
-- **`ref` 매개변수에 넘길 때는 호출하는 쪽에도 `ref` 를 쓴다.**
+### 8.1 엔진 객체는 언제나 핸들이고, 핸들은 언제나 `?` 다 [확정]
+
+- `script`·엔진 컴포넌트·게임 오브젝트는 **값으로 담을 수 없다.** 이 타입의 변수는 언제나 **핸들**이고, 대상이 사라지면 null 이 된다.
+  C++ 로는 `Ref<T>` 와 `GameObjectHandle` 이다(ProjectRule §6.1).
+- 핸들은 대상이 언제든 사라질 수 있으므로 **타입에 `?` 를 붙여야 한다.** `Transform2D target` 은 에러이고 `Transform2D? target` 으로 쓴다.
+- 핸들은 멤버·지역·매개변수·반환·컨테이너 원소 어디에나 둘 수 있다.
 
 ```
-ref Transform2D target               // 멤버
-ref const Array<DropEntry> table     // const 와 함께
+Transform2D? target                  // 멤버
+Array<Enemy?> allies                 // 컨테이너 원소
+fn FindNearest() -> Enemy?           // 반환
+```
 
-fn Apply(ref HitInfo hit)            // 매개변수
+### 8.2 `ref` 는 빌림이다 [확정]
+
+- `ref` 는 **값을 제자리에서 읽고 고치려고 빌리는 것**이다. **매개변수와 `for` 변수에만** 쓴다.
+- 멤버·지역 변수·컨테이너 원소·반환에는 쓸 수 없다(컴파일 에러). 그래서 빌린 것이 빌려준 것보다 오래 살 수 없다.
+- 빌린 매개변수에 넘길 때는 **호출하는 쪽에도 `ref`** 를 쓴다(옛 판과 같다).
+- **출력 인자는 없다.** 엔진의 `bool Raycast(..., RaycastHit2D& hit)` 같은 함수는 `RaycastHit2D?` 를 돌려주는 모양으로 투영한다(§8.4).
+
+```
+fn Heal(ref Stats stats, Int amount) // 빌린 매개변수
 {
-    ref Enemy nearest = FindNearest()    // 지역
+    stats.Hp += amount
 }
 
-Collision2D hit
-Bool found = GetFramework2DServices().Physics2D.Raycast(from, down, 10.0, ref hit)   // 호출하는 쪽에도 ref
-```
+Heal(ref playerStats, 10)            // 호출하는 쪽에도 ref
 
-### 8.2 대상이 사라지면 [열림]
-
-**null 검사만으로는 댕글링을 막을 수 없다.** 파괴된 대상을 가리키는 포인터는 null 이 아니기 때문이다.
-자동 null 검사(§9.2)가 댕글링을 막으려면 **대상이 사라질 때 `ref` 가 스스로 null 이 되어야** 한다.
-
-| `ref` 가 가리키는 것 | 대상이 사라지면 `ref` 가 null 이 되나 |
-|---|---|
-| `script`, 엔진 컴포넌트, 게임 오브젝트 | 된다 |
-| 소유자가 따로 있는 `class` 인스턴스 | 된다 |
-| 다른 객체 안에 **값으로** 들어 있는 `class` | **지금 엔진으로는 안 된다** |
-| 값(`Int`, `Float`, `struct`), 컨테이너 원소 | **안 된다** |
-
-매개변수·지역 변수의 `ref` 는 한 콜백 안에서만 살고 엔진이 파괴를 콜백 뒤로 미루므로 대상이 먼저 사라지지 않는다.
-단 **컨테이너 원소를 가리키는 `ref` 는 같은 함수 안에서도 끊길 수 있다**(원소를 더해 컨테이너가 커지면).
-문제가 되는 것은 표의 아래 두 줄을 **멤버 변수**로 들고 있는 경우다(§12 의 1번). C++ 쪽 사정은 [jbroc-rules.md](./jbroc-rules.md) §4.
-
-## 9. null 검사
-
-### 9.1 문법 [확정]
-
-```
-if (target is null)
+for (ref entry in drops)             // 빌린 for 변수
 {
-    return
+    entry.Weight += 1
 }
 ```
 
-- **`if let` 은 없다.**
-- **[제안]** 반대는 `is not null` 이다.
+### 8.3 `class` 인스턴스는 값으로 소유한다 [확정]
 
-### 9.2 자동 null 검사 `autochecknullable` [확정]
+- `class` 는 **값으로만** 담는다. 다른 곳에 있는 `class` 인스턴스를 오래 가리키는 수단은 없다.
+- 여럿이 함께 써야 하면 그 객체를 `script` 나 컴포넌트로 올려 핸들로 가리키거나, 번호로 가리킨다.
+  옛 §8.2 표의 "소유자가 따로 있는 `class`"·"다른 객체 안에 값으로 들어 있는 `class`" 가 이렇게 사라진다.
 
-- 컴파일러가 **`ref` 를 쓰는 문장**에 null 검사를 자동으로 넣는다. null 이 될 수 있는 것은 `ref` 뿐이므로 `ref` 에만 해당한다.
-- 켜져 있으면 그 문장은 **`ref` 가 null 일 때 걸러지고 에러 로그가 남는다.**
-- **값이 필요한 자리도 같다.** `Float hp = target.GetHp()` 에서 `target` 이 null 이면 대입이 걸러지고 에러 로그가 남는다.
-- **한 문장에 `ref` 가 둘 이상이면 모두를 한 조건으로 검사한다**(`ref1` 과 `ref2` 가 둘 다 null 이 아닐 때만 실행).
-- 끄면 직접 `is null` 로 검사하거나, 자신 있으면 그냥 쓴다.
+### 8.4 값에도 `?` 를 붙일 수 있다 [확정: 방향] · 엔진 타입 [열림]
 
-**[제안]** 선언마다 어트리뷰트로 끄고, 기본은 켜짐이다.
+- `Int?`·`RaycastHit2D?` 처럼 값 타입에 `?` 를 붙이면 "없을 수도 있는 값" 이다. 실패를 알리는 길이 null 하나로 모인다(§10.4).
+- **[열림]** C++ 로 내릴 값 타입이 엔진에 없다(`JBroCore` 의 `Types/` 에 `Optional` 이 없다). JBroCore 에 새 공개 타입을 두는 일이라 확인이 필요하다.
 
-```
-ref Transform2D target
-ref Enemy enemy
+## 9. null 검사 (D-262)
 
-[autochecknullable(false)]
-ref Transform2D home
+### 9.1 검사하지 않고 쓰면 컴파일 에러다 [확정]
 
-fn OnUpdate(Float dt) callback
-{
-    target.position.x += 1.0                     // target 이 null 이면 걸러지고 에러 로그
-    Float hp = enemy.GetHp()                     // enemy 가 null 이면 대입이 걸러지고 에러 로그
-    target.position.y = enemy.GetHeight()        // target 과 enemy 를 함께 검사
+- `?` 타입의 멤버에 닿거나 함수를 부르려면 **먼저 null 이 아님을 보여야 한다.** 보이지 않고 `target.position` 을 쓰면 에러다.
+- 문법은 옛 판 그대로 `is null` / `is not null` 이다. `if let` 은 없다.
 
-    if (home is not null)                        // 자동 검사를 껐으므로 직접 검사한다
-    {
-        home.position.y = 0.0
-    }
-}
-```
+### 9.2 흐름 좁히기 [확정] · 멤버를 좁힌 상태가 언제 풀리나 [열림]
 
-걸러진 뒤의 동작 중 정해야 할 것이 남았다(§12 의 4번). 위 예시에서 `enemy` 가 null 이면 `hp` 는 기본값(0)으로 남고
-다음 줄부터 그 값으로 계속 돈다.
+- `if (x is null) { return }` 다음부터, 그리고 `if (x is not null) { ... }` 의 본문 안에서 `x` 는 null 이 아닌 것으로 본다.
+- 한 콜백 안에서는 이 판단이 뒤집히지 않는다. 엔진이 파괴를 콜백 뒤로 미루기 때문이다(`RequestDestroy`).
+- **[열림]** 멤버를 좁힌 상태가 "그 멤버에 대입할 때까지" 인지 "자기 함수를 부를 때까지" 인지는 타입체커를 만들 때 정한다.
+
+### 9.3 `?.` 과 `??` [확정]
+
+- `x?.F()` 는 `x` 가 null 이면 부르지 않는다. 값이 있는 식이면 결과가 `?` 타입이 된다.
+- `a ?? b` 는 `a` 가 null 이면 `b` 다. 건너뛴 뒤의 값을 **쓰는 사람이 직접** 준다.
+- 그래서 옛 §12 의 4번(걸러진 뒤 선언·`return`·`if`·`while` 은 무엇이 되나)이 사라진다 - 식마다 값이 정해져 있다.
+
+### 9.4 `!` 단언 [확정: 동작] · 구현 [열림]
+
+- `x!` 는 "여기서 `x` 는 null 이 아니다" 라는 단언이다. 검사 없이 쓰고 싶은 자리에 쓴다.
+- **단언이 틀리면 에러 로그를 남기고 그 콜백의 나머지를 건너뛴다.** 게임은 계속 돈다.
+  엔진의 "무효 접근은 로그를 남기고 아무 일도 하지 않는다"(ProjectRule §6.1)를 콜백 단위로 옮긴 것이다.
+- **[열림]** 중단을 호출 사슬 위로 올리는 방식(함수마다 상태를 돌려주는가, 콜백 경계에서 잡는가)은 이미터를 만들 때 정한다.
+
+### 9.5 옛 자동 null 검사는 없앴다 [확정]
+
+옛 §9.2 의 `autochecknullable` 은 `ref` 를 쓰는 문장을 조용히 건너뛰었다. 없앤 까닭은 셋이다.
+
+1. **건너뛴 뒤의 상태가 틀린다.** `Float hp = enemy.GetHp()` 가 걸러지면 `hp` 는 0 으로 남고, 다음 줄의 `if (hp <= 0) { Die() }` 가
+   대상이 없다는 이유로 죽인다. ProjectRule §6.1 의 "대상이 없을 때 기본값을 조용히 돌려주면 찾기 어려운 논리 버그가 된다" 와 부딪힌다.
+2. **값이 필요한 자리에서 뜻을 정할 수 없었다.** `return`·`if`·`while` 이 옛 §12 의 4번으로 열린 채였다.
+3. **어느 줄이 실행됐는지 코드에 보이지 않는다.**
 
 ## 10. 식
 
@@ -391,10 +394,11 @@ fn OnUpdate(Float dt) callback
 
 | 우선순위(높은 것부터) | 연산자 |
 |---|---|
-| 1 | `.` 멤버, `()` 호출, `[]` 인덱싱 |
+| 1 | `.` 멤버, `?.` null 이면 건너뛰는 멤버, `()` 호출, `[]` 인덱싱, 뒤붙이 `!` 단언(D-262) |
 | 2 | 단항 `-`, `not` |
 | 3 | `*` `/` `%` |
 | 4 | `+` `-` |
+| 4.5 | `??`(D-262). 비교보다 먼저 묶인다 - `a ?? b > c` 는 `(a ?? b) > c` 다 |
 | 5 | `<` `<=` `>` `>=` |
 | 6 | `==` `!=` `is null` `is not null` |
 | 7 | `and` |
@@ -427,7 +431,7 @@ if (hp <= 0 and not isDead)
 | 엔진 API 경계의 **손실 없는 넓힘**(예: 엔진이 돌려주는 `Int32` → `Int`) | 된다 | 값이 바뀌지 않는다. 사용자는 `Int` 만 본다 |
 
 - `Int / Int` 는 `Int` 다.
-- **[제안]** `Float` 자리에 온 **정수 리터럴**은 정확히 표현되면 그대로 받는다. `Raycast(from, down, 10, ref hit)` 의 `10` 처럼.
+- **[제안]** `Float` 자리에 온 **정수 리터럴**은 정확히 표현되면 그대로 받는다. `Raycast(from, down, 10)` 의 `10` 처럼.
 - **[제안]** 엔진 컨테이너의 크기(`Array.Size()`)는 C++ 에서 부호 없는 64비트(`std::size_t`)라 `Int` 로 바꾸는 것이 엄밀히는
   손실 가능한 변환이다. 원소가 2^63 개가 될 수 없으므로 **API 투영이 `Int` 를 돌려주는 것으로 정한다**(사용자 쪽 변환이 아니다).
 
@@ -437,9 +441,10 @@ Int cells = Int(width / cellSize)
 Float bad = hp                       // 에러: Int → Float 은 명시해야 한다
 ```
 
-### 10.4 오류 처리 [제안]
+### 10.4 오류 처리 [확정] (D-262)
 
-예외도 `Result` 도 없다. 실패는 `ref` 의 null(자동 검사의 에러 로그), `Bool` 반환, 게임 오브젝트 안전 멤버의 로그로 드러난다.
+예외도 `Result` 도 없다. **실패는 `?` 로 드러난다** - 대상이 없으면 null 핸들, 값이 없으면 `?` 값이다(§8·§9).
+검사를 건너뛰고 싶으면 `!` 로 단언하고, 틀리면 그 콜백만 멈춘다(§9.4). 게임 오브젝트 안전 멤버의 로그는 그대로다.
 
 ## 11. 제어문
 
@@ -513,20 +518,22 @@ switch (state)
 
 ## 12. 열린 것
 
-1. **스스로 null 이 될 수 없는 대상을 멤버 `ref` 로 들고 있는 경우**(§8.2 표의 아래 두 줄). 허용하는가, 금지하는가, 경고하는가.
-   허용하면 댕글링을 자동 null 검사로 막을 수 없다.
+1. ~~스스로 null 이 될 수 없는 대상을 멤버 `ref` 로 들고 있는 경우~~ **사라졌다(D-262).** 멤버에는 핸들만 둘 수 있고 `ref` 는 빌림이다(§8.2·§8.3).
 2. ~~`Vector2` 와 엔진의 `Vector2`~~ **엔진 타입 이름을 `Vector2` 로 바꾼다(2026-09-15 확정).** 이름 변경 작업은 남았다(§7.1).
 3. ~~엔진의 `Int32`·`UInt` 반환을 어떻게 받는가~~ **손실 없는 넓힘은 API 경계에서 저절로, 손실 가능한 변환은 명시(2026-09-15, §10.3).**
    컨테이너 크기를 API 투영이 `Int` 로 돌려주는 것만 [제안]으로 남았다.
-4. **자동 검사로 걸러진 뒤의 동작.**
-   - 선언(`Float hp = enemy.GetHp()`): 변수는 기본값으로 남는가.
-   - `return enemy.GetHp()`: 함수가 무엇을 돌려주는가.
-   - 조건(`if (enemy.IsDead()) { A } else { B }`): `A` 와 `B` 를 둘 다 건너뛰는가.
-   - 반복 조건(`while (enemy.IsAlive())`): 반복을 끝내는가.
+4. ~~자동 검사로 걸러진 뒤의 동작~~ **사라졌다(D-262).** 자동 검사가 없고 `?.`·`??` 가 값을 정한다(§9.3).
 5. ~~`Int` → `Float` 암묵 변환~~ **명시 변환만 허용한다(2026-09-15, §10.3).**
+6. **값 `?` 를 내릴 엔진 타입**(§8.4). JBroCore 에 새 공개 타입이 필요하다.
+7. **멤버를 좁힌 상태가 풀리는 때**(§9.2).
+8. **`!` 가 콜백을 멈추는 구현**(§9.4).
+9. **서비스 이름.** 스크립트는 `GetFramework2DServices().Physics2D` 같은 C++ 배관 대신 `Physics`·`Time`·`Input` 같은 이름으로 쓴다(§14).
+   [확정: 방향] 이름과 게터의 대응표는 jbroc-rules §7 의 엔진 함수 선언 표와 함께 정한다.
 
-## 13. 전체 예시
+## 13. 전체 예시 - 옛 문법 (지금 파서가 읽는 판)
 
+**D-262 이전의 문법이다.** `jbroc` 파서가 이 예시를 읽는 시험이 있어서(`ScriptCompilerParserTests.cpp` 의 `TestTheSyntaxDocumentExampleParses`)
+파서가 새 문법을 읽을 때까지 그대로 둔다. 새 문법의 예시는 §14 다. 편집기 문법 스냅숏(`source/JBroScriptEditor/.../enemy.jscript`)도 이 판이다.
 [제안]·[열림] 항목이 들어간 줄에는 주석으로 표시했다.
 
 ```
@@ -679,6 +686,106 @@ script Enemy : IDamageable
         for (i in 0..table.Size())
         {
             total += table[i].Weight
+        }
+        return total
+    }
+}
+```
+
+## 14. 전체 예시 - 새 문법 (D-262)
+
+§13 과 같은 적을 새 문법으로 쓴다. 훅은 델타를 인자로 받지 않는다(D-242). 서비스 이름(`Time`·`Physics`)은 §12 의 9번이다.
+
+```
+// Enemy.jscript
+
+script Enemy : IDamageable
+{
+    [range(1, 100), category("Stats")]
+    Int MaxHp = 10
+
+    [prop]
+    Float MoveSpeed = 2.0
+
+    [category("Links")]
+    Transform2D? target                              // 핸들은 언제나 ?
+
+    Transform2D? home
+    Int hp = 0
+    EnemyState state = EnemyState.Idle
+    Array<Enemy?> allies
+    LootTable loot = LootTable(8)                    // class 는 값으로 소유한다
+    Vector2 down
+
+    fn OnStart() callback
+    {
+        hp = MaxHp
+        down.y = -1.0
+    }
+
+    fn OnUpdate() callback
+    {
+        switch (state)
+        {
+            case EnemyState.Idle
+            {
+                if (target is not null)
+                {
+                    state = EnemyState.Chasing
+                }
+            }
+            case EnemyState.Chasing
+            {
+                if (target is null)
+                {
+                    state = EnemyState.Idle
+                    return
+                }
+                target.position.x += MoveSpeed * Time.Delta   // 위에서 좁혔다
+            }
+            case EnemyState.Dead
+            {
+                return
+            }
+        }
+
+        home!.position.y = 0.0                       // 단언: 틀리면 로그를 남기고 이 콜백을 멈춘다
+    }
+
+    fn IsGrounded() -> Bool
+    {
+        if (target is null)
+        {
+            return false
+        }
+        RaycastHit2D? hit = Physics.Raycast(target.position, down, 1.0)
+        return hit is not null
+    }
+
+    fn TargetHeight() -> Float
+    {
+        return target?.position.y ?? 0.0             // 없으면 0 - 쓰는 사람이 정한다
+    }
+
+    fn CountLivingAllies() -> Int
+    {
+        Int count = 0
+        for (ally in allies)
+        {
+            if (ally is not null and not ally.IsDead())
+            {
+                count += 1
+            }
+        }
+        return count
+    }
+
+    static fn SumWeights(ref const Array<DropEntry> table) -> Int   // 빌린 매개변수
+    {
+        Int total = 0
+        for (entry in table)
+        {
+            total += entry.Weight
         }
         return total
     }

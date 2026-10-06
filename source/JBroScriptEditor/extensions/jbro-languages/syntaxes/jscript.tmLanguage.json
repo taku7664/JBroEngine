@@ -1,0 +1,354 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "JBroScript",
+	"scopeName": "source.jscript",
+	"fileTypes": [
+		"jscript"
+	],
+	"comment": "Follows tasks/jbroscript-syntax.md in the engine repo. Keywords are the reserved words of section 2.1. callback, override and require are keywords only at the end of a function declaration, and in only inside the parentheses of for; elsewhere they are ordinary names.",
+	"patterns": [
+		{ "include": "#comment" },
+		{ "include": "#attribute" },
+		{ "include": "#type-declaration" },
+		{ "include": "#enum-declaration" },
+		{ "include": "#function-declaration" },
+		{ "include": "#for-header" },
+		{ "include": "#typed-declaration" },
+		{ "include": "#keyword" },
+		{ "include": "#builtin-type" },
+		{ "include": "#literal" },
+		{ "include": "#operator" },
+		{ "include": "#punctuation" }
+	],
+	"repository": {
+		"comment": {
+			"name": "comment.line.double-slash.jscript",
+			"begin": "//",
+			"beginCaptures": {
+				"0": { "name": "punctuation.definition.comment.jscript" }
+			},
+			"end": "$"
+		},
+		"attribute": {
+			"comment": "Attributes only appear where a declaration starts, so a '[' is an attribute only when it opens the line. Indexing and array literals never start a statement.",
+			"name": "meta.attribute.jscript",
+			"begin": "^\\s*(\\[)",
+			"beginCaptures": {
+				"1": { "name": "punctuation.definition.attribute.begin.jscript" }
+			},
+			"end": "\\]",
+			"endCaptures": {
+				"0": { "name": "punctuation.definition.attribute.end.jscript" }
+			},
+			"patterns": [
+				{ "include": "#attribute-arguments" },
+				{
+					"name": "entity.other.attribute-name.jscript",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+				},
+				{
+					"name": "punctuation.separator.attribute.jscript",
+					"match": ","
+				}
+			]
+		},
+		"attribute-arguments": {
+			"name": "meta.attribute.arguments.jscript",
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": { "name": "punctuation.definition.arguments.begin.jscript" }
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": { "name": "punctuation.definition.arguments.end.jscript" }
+			},
+			"patterns": [
+				{ "include": "#literal" },
+				{
+					"name": "punctuation.separator.arguments.jscript",
+					"match": ","
+				}
+			]
+		},
+		"type-declaration": {
+			"comment": "script, class, struct and interface, then an optional ':' and a comma separated list of parents. Multiple inheritance is allowed.",
+			"begin": "\\b(script|class|struct|interface)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+			"beginCaptures": {
+				"1": { "name": "storage.type.$1.jscript" },
+				"2": { "name": "entity.name.type.class.jscript" }
+			},
+			"end": "(?=\\{)|$",
+			"patterns": [
+				{ "include": "#comment" },
+				{
+					"name": "punctuation.separator.inheritance.jscript",
+					"match": ":"
+				},
+				{
+					"name": "punctuation.separator.comma.jscript",
+					"match": ","
+				},
+				{
+					"name": "entity.other.inherited-class.jscript",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+				}
+			]
+		},
+		"enum-declaration": {
+			"comment": "An enum body holds one member per line and nothing else.",
+			"begin": "\\b(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+			"beginCaptures": {
+				"1": { "name": "storage.type.enum.jscript" },
+				"2": { "name": "entity.name.type.enum.jscript" }
+			},
+			"end": "\\}",
+			"endCaptures": {
+				"0": { "name": "punctuation.section.block.end.jscript" }
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{
+					"name": "punctuation.section.block.begin.jscript",
+					"match": "\\{"
+				},
+				{
+					"name": "variable.other.enummember.jscript",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+				}
+			]
+		},
+		"function-declaration": {
+			"comment": "fn Name(parameters) -> ReturnType suffix. The whole line is handled here so that a suffix is never read as a variable declaration: outside this rule 'Int override' would be a field named override.",
+			"begin": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+			"beginCaptures": {
+				"1": { "name": "storage.type.function.jscript" },
+				"2": { "name": "entity.name.function.jscript" }
+			},
+			"end": "(?=\\{)|$",
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#parameters" },
+				{
+					"match": "(->)\\s*(?:(ref)\\s+)?([A-Za-z_][A-Za-z0-9_]*(?:<[^\\n]*?>)?)",
+					"captures": {
+						"1": { "name": "punctuation.separator.return-type.jscript" },
+						"2": { "name": "storage.modifier.ref.jscript" },
+						"3": { "patterns": [ { "include": "#type" } ] }
+					}
+				},
+				{
+					"name": "storage.modifier.$1.jscript",
+					"match": "\\b(callback|override|require)\\b"
+				}
+			]
+		},
+		"parameters": {
+			"begin": "\\(",
+			"beginCaptures": {
+				"0": { "name": "punctuation.section.parameters.begin.jscript" }
+			},
+			"end": "\\)",
+			"endCaptures": {
+				"0": { "name": "punctuation.section.parameters.end.jscript" }
+			},
+			"patterns": [
+				{ "include": "#comment" },
+				{ "include": "#typed-declaration" },
+				{ "include": "#keyword" },
+				{
+					"name": "punctuation.separator.comma.jscript",
+					"match": ","
+				}
+			]
+		},
+		"for-header": {
+			"comment": "for (name in ...), for (ref name in ...) and for (key, value in ...). 'in' is a keyword only here.",
+			"match": "\\b(for)\\s*(\\()\\s*(?:(ref)\\s+)?([A-Za-z_][A-Za-z0-9_]*)(?:\\s*(,)\\s*(?:(ref)\\s+)?([A-Za-z_][A-Za-z0-9_]*))?\\s+(in)\\b",
+			"captures": {
+				"1": { "name": "keyword.control.jscript" },
+				"2": { "name": "punctuation.section.parens.begin.jscript" },
+				"3": { "name": "storage.modifier.ref.jscript" },
+				"4": { "name": "variable.other.definition.jscript" },
+				"5": { "name": "punctuation.separator.comma.jscript" },
+				"6": { "name": "storage.modifier.ref.jscript" },
+				"7": { "name": "variable.other.definition.jscript" },
+				"8": { "name": "keyword.control.in.jscript" }
+			}
+		},
+		"typed-declaration": {
+			"comment": "The type comes before the name and there is no 'var'. A declaration is a type, whitespace, a name, then '=', ')', ',', a comment or the end of the line. Reserved words are never a type or a name, which keeps 'return total' and 'is not null' from reading as declarations.",
+			"match": "(?<![A-Za-z0-9_.])(?!(?:script|class|struct|interface|enum|fn|public|protected|private|static|const|ref|if|else|for|while|switch|case|default|break|continue|return|and|or|not|is|null|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*(?:<[^=\\n]*?>)?)\\s+(?!(?:script|class|struct|interface|enum|fn|public|protected|private|static|const|ref|if|else|for|while|switch|case|default|break|continue|return|and|or|not|is|null|true|false)\\b)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:=(?!=)|\\)|,|//|$))",
+			"captures": {
+				"1": { "patterns": [ { "include": "#type" } ] },
+				"2": { "name": "variable.other.definition.jscript" }
+			}
+		},
+		"type": {
+			"patterns": [
+				{
+					"name": "storage.modifier.ref.jscript",
+					"match": "\\bref\\b"
+				},
+				{
+					"name": "storage.modifier.jscript",
+					"match": "\\bconst\\b"
+				},
+				{ "include": "#builtin-type" },
+				{
+					"name": "entity.name.type.jscript",
+					"match": "\\b[A-Za-z_][A-Za-z0-9_]*\\b"
+				},
+				{
+					"name": "punctuation.definition.typeparameters.begin.jscript",
+					"match": "<"
+				},
+				{
+					"name": "punctuation.definition.typeparameters.end.jscript",
+					"match": ">"
+				},
+				{
+					"name": "punctuation.separator.typeparameters.jscript",
+					"match": ","
+				}
+			]
+		},
+		"builtin-type": {
+			"comment": "Every script type is an engine type. There is no int, float or bool.",
+			"patterns": [
+				{
+					"name": "support.type.primitive.jscript",
+					"match": "\\b(?:Int|Float|Bool|String)\\b"
+				},
+				{
+					"name": "support.type.builtin.jscript",
+					"match": "\\b(?:Vector2|Rect|Color|Array|Table)\\b"
+				}
+			]
+		},
+		"keyword": {
+			"patterns": [
+				{
+					"name": "storage.type.$1.jscript",
+					"match": "\\b(script|class|struct|interface|enum)\\b"
+				},
+				{
+					"name": "storage.type.function.jscript",
+					"match": "\\bfn\\b"
+				},
+				{
+					"name": "storage.modifier.ref.jscript",
+					"match": "\\bref\\b"
+				},
+				{
+					"name": "storage.modifier.jscript",
+					"match": "\\b(?:public|protected|private|static|const)\\b"
+				},
+				{
+					"name": "keyword.control.jscript",
+					"match": "\\b(?:if|else|for|while|switch|case|default|break|continue|return)\\b"
+				},
+				{
+					"name": "keyword.operator.logical.jscript",
+					"match": "\\b(?:and|or|not)\\b"
+				},
+				{
+					"name": "keyword.operator.is.jscript",
+					"match": "\\bis\\b"
+				}
+			]
+		},
+		"literal": {
+			"patterns": [
+				{
+					"name": "constant.language.boolean.jscript",
+					"match": "\\b(?:true|false)\\b"
+				},
+				{
+					"name": "constant.language.null.jscript",
+					"match": "\\bnull\\b"
+				},
+				{
+					"name": "constant.numeric.jscript",
+					"match": "\\b[0-9]+(?:\\.[0-9]+)?\\b"
+				},
+				{
+					"name": "string.quoted.double.jscript",
+					"begin": "\"",
+					"beginCaptures": {
+						"0": { "name": "punctuation.definition.string.begin.jscript" }
+					},
+					"end": "\"",
+					"endCaptures": {
+						"0": { "name": "punctuation.definition.string.end.jscript" }
+					},
+					"patterns": [
+						{
+							"name": "constant.character.escape.jscript",
+							"match": "\\\\."
+						}
+					]
+				}
+			]
+		},
+		"operator": {
+			"patterns": [
+				{
+					"name": "keyword.operator.range.jscript",
+					"match": "\\.\\."
+				},
+				{
+					"name": "keyword.operator.assignment.compound.jscript",
+					"match": "\\+=|-=|\\*=|/="
+				},
+				{
+					"name": "keyword.operator.comparison.jscript",
+					"match": "==|!=|<=|>=|<|>"
+				},
+				{
+					"name": "keyword.operator.assignment.jscript",
+					"match": "="
+				},
+				{
+					"name": "keyword.operator.arithmetic.jscript",
+					"match": "\\+|-|\\*|/|%"
+				}
+			]
+		},
+		"punctuation": {
+			"patterns": [
+				{
+					"name": "punctuation.accessor.jscript",
+					"match": "\\."
+				},
+				{
+					"name": "punctuation.separator.comma.jscript",
+					"match": ","
+				},
+				{
+					"name": "punctuation.section.block.begin.jscript",
+					"match": "\\{"
+				},
+				{
+					"name": "punctuation.section.block.end.jscript",
+					"match": "\\}"
+				},
+				{
+					"name": "punctuation.section.parens.begin.jscript",
+					"match": "\\("
+				},
+				{
+					"name": "punctuation.section.parens.end.jscript",
+					"match": "\\)"
+				},
+				{
+					"name": "punctuation.section.brackets.begin.jscript",
+					"match": "\\["
+				},
+				{
+					"name": "punctuation.section.brackets.end.jscript",
+					"match": "\\]"
+				}
+			]
+		}
+	}
+}

@@ -1,0 +1,66 @@
+// SYNTAX TEST "source.jscript" "declaration kinds, inheritance, enums, modifiers and fields"
+script Knight : ICombatant, IHealable
+class Sword : Weapon
+{
+    public Int Gold = 0
+//  ^^^^^^ storage.modifier.jscript
+//         ^^^ support.type.primitive.jscript
+//             ^^^^ variable.other.definition.jscript
+    protected static Int aliveCount = 0
+//  ^^^^^^^^^ storage.modifier.jscript
+//            ^^^^^^ storage.modifier.jscript
+//                       ^^^^^^^^^^ variable.other.definition.jscript
+    private const Float Gravity = 9.8
+//  ^^^^^^^ storage.modifier.jscript
+//          ^^^^^ storage.modifier.jscript
+//                ^^^^^ support.type.primitive.jscript
+//                      ^^^^^^^ variable.other.definition.jscript
+//                                ^^^ constant.numeric.jscript
+    ref Transform2D target
+//  ^^^ storage.modifier.ref.jscript
+//      ^^^^^^^^^^^ entity.name.type.jscript
+//                  ^^^^^^ variable.other.definition.jscript
+    ref const Array<DropEntry> table
+//  ^^^ storage.modifier.ref.jscript
+//      ^^^^^ storage.modifier.jscript
+//            ^^^^^ support.type.builtin.jscript
+//                  ^^^^^^^^^ entity.name.type.jscript
+//                             ^^^^^ variable.other.definition.jscript
+    Array<ref Enemy> allies
+//  ^^^^^ support.type.builtin.jscript
+//       ^ punctuation.definition.typeparameters.begin.jscript
+//        ^^^ storage.modifier.ref.jscript
+//            ^^^^^ entity.name.type.jscript
+//                   ^^^^^^ variable.other.definition.jscript
+    Table<String, Array<Float>> scores
+//  ^^^^^ support.type.builtin.jscript
+//        ^^^^^^ support.type.primitive.jscript
+//                      ^^^^^ support.type.primitive.jscript
+//                              ^^^^^^ variable.other.definition.jscript
+    Vector2 down
+//  ^^^^^^^ support.type.builtin.jscript
+//          ^^^^ variable.other.definition.jscript
+    EnemyState state = EnemyState.Idle
+//  ^^^^^^^^^^ entity.name.type.jscript
+//             ^^^^^ variable.other.definition.jscript
+//                     ^^^^^^^^^^ - entity.name.type.jscript variable.other.definition.jscript
+    LootTable loot = LootTable(8)
+//  ^^^^^^^^^ entity.name.type.jscript
+//            ^^^^ variable.other.definition.jscript
+    String template
+//         ^^^^^^^^ variable.other.definition.jscript
+    Int override = 0
+//      ^^^^^^^^ variable.other.definition.jscript - storage.modifier.override.jscript
+    int legacy = 0
+//  ^^^ entity.name.type.jscript - support.type.primitive.jscript
+}
+struct DropEntry
+interface ICombatant : IDamageable, IHealable
+enum EnemyState
+{
+    Idle
+//  ^^^^ variable.other.enummember.jscript
+    Chasing   // a member per line
+//  ^^^^^^^ variable.other.enummember.jscript
+//            ^^^^^^^^^^^^^^^^^^^^ comment.line.double-slash.jscript
+}

@@ -1,10 +1,18 @@
 ﻿#include <JBro/Framework2D/ServiceContext.h>
 #include <JBro/Framework2D/Internal/ScriptModuleContext.h>
 #include <JBro/Framework2D/Scripting/GameScript.h>
+#include <JBro/Framework2D/Scripting/ScriptModule.h>
+#include <JBro/AudioTypes/Internal/ScriptModuleContext.h>
+#include <JBro/AudioTypes/Internal/SystemContext.h>
+#include <JBro/InputTypes/Internal/SystemContext.h>
+#include <JBro/Network/Internal/ScriptModuleContext.h>
+#include <JBro/Network/Internal/SystemContext.h>
 #include <JBro/InputTypes/Internal/ScriptModuleContext.h>
 #include <JBro/SaveTypes/Internal/ScriptModuleContext.h>
 #include <JBro/LocalizationTypes/Internal/ScriptModuleContext.h>
 #include <JBro/Internal/InstanceRegistry.h>
+#include <JBro/Reflection/Field.h>
+#include <JBro/Reflection/PropertyRegistry.h>
 #include <JBro/Runtime/ScriptRegistry.h>
 #include <JBro/Runtime/ServiceContext.h>
 #include <JBro/Runtime/TextStore.h>
@@ -16,6 +24,7 @@
 // 내보내기는 `extern "C"`(이름을 꾸미지 않으려고)이고 시그니처는 엔진 값 타입이다(D-290). MSVC 는 C 연결에서 클래스를
 // 돌려주면 C4190("C 와 호환되지 않음")을 낸다 - 부르는 쪽은 C 가 아니라 같은 타입으로 선언한 C++(호스트·시험)이라 해당하지 않는다.
 #pragma warning(disable : 4190)
+#include <cstring>
 
 #ifndef JBRO_SCRIPT_PROBE_REVISION
 #define JBRO_SCRIPT_PROBE_REVISION 1
@@ -27,22 +36,17 @@ namespace
 // 호스트는 그 정의를 보지 못한다 — 그게 이 경로의 요점이다(H5).
     class ProbeRegisteredScript final : public JBro::GameScript2D
 {
+    JBRO_SCRIPT_BODY(ProbeRegisteredScript)
 public:
-    static constexpr const char* StaticTypeName()
-    {
-        return "Probe::RegisteredScript";
-    }
-
-    JBro::ComponentTypeId GetTypeId() const override
-    {
-        return JBro::MakeStableTypeId(StaticTypeName());
-    }
-
     void OnStart() override
     {
         m_started = true;
     }
 
+    // 호스트가 이 필드를 표로 읽고 써야 한다 - 캔버스 파일·인스펙터·되돌리기가 모두 이 길이다(cpp-script-plan §3.1).
+    JBRO_FIELD(JBro::Float, Speed) = 2.5f;
+
+public:
     bool m_started = false;
     // 호스트 쪽 슬롯 크기가 DLL 쪽 sizeof 와 맞는지 보려고 일부러 채운다.
     double m_padding[4] = {1.0, 2.0, 3.0, 4.0};
@@ -53,124 +57,60 @@ extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetScriptRegistr
     return reinterpret_cast<std::uintptr_t>(&JBro::ScriptRegistry::Get());
 }
 
+extern "C" __declspec(dllexport) std::uintptr_t JBroScriptProbe_GetScriptProperties() noexcept
+{
+    return reinterpret_cast<std::uintptr_t>(&JBro::PropertyRegistry::Script());
+}
+
 extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetRegisteredScriptSize() noexcept
 {
     return static_cast<JBro::UInt32>(sizeof(ProbeRegisteredScript));
 }
 
 
-    bool g_loaded = false;
-
-    JBro::Bool LoadModule(const JBro::ScriptModuleLoadContext* context) noexcept
-    {
-        if (context == nullptr
-            || false == JBro::ValidateScriptModuleLoadContext(*context))
-        {
-            return false;
-        }
-        const JBro::Framework2DServiceContext* frameworkServices =
-            JBro::FindFramework2DServiceContext(*context);
-        const JBro::Framework2DSystemContext* frameworkSystems =
-            JBro::FindFramework2DSystemContext(*context);
-        if (frameworkServices == nullptr || frameworkSystems == nullptr)
-        {
-            return false;
-        }
-        if (false == JBro::BindScriptModuleContexts(*context))
-        {
-            return false;
-        }
-        JBro::BindFramework2DServiceContext(*frameworkServices);
-        JBro::BindFramework2DSystemContext(*frameworkSystems);
-        // 입력 블록은 호스트(EngineInstance)가 낸다(D-214). 블록만 손으로 건네는 로더 테스트에는 없으므로 있을 때만 묶는다.
-        if (const JBro::InputServiceContext* inputServices = JBro::FindInputServiceContext(*context))
-        {
-            JBro::BindInputServiceContext(*inputServices);
-        }
-        if (const JBro::InputSystemContext* inputSystems = JBro::FindInputSystemContext(*context))
-        {
-            JBro::BindInputSystemContext(*inputSystems);
-        }
-        // 세이브 블록도 호스트가 낸다(D-218).
-        if (const JBro::SaveServiceContext* saveServices = JBro::FindSaveServiceContext(*context))
-        {
-            JBro::BindSaveServiceContext(*saveServices);
-        }
-        if (const JBro::SaveSystemContext* saveSystems = JBro::FindSaveSystemContext(*context))
-        {
-            JBro::BindSaveSystemContext(*saveSystems);
-        }
-        // 문자열 표도 호스트가 낸다(D-226).
-        if (const JBro::LocalizationServiceContext* localizationServices = JBro::FindLocalizationServiceContext(*context))
-        {
-            JBro::BindLocalizationServiceContext(*localizationServices);
-        }
-        if (const JBro::LocalizationSystemContext* localizationSystems = JBro::FindLocalizationSystemContext(*context))
-        {
-            JBro::BindLocalizationSystemContext(*localizationSystems);
-        }
-        // 이름으로 만들 수 있게 타입을 호스트 표에 등록한다. 여기서 만들어지는
-        // 생성·파괴 함수는 이 DLL 안의 코드이며, 호스트는 그 주소만 부른다.
-        if (false == JBro::RegisterScriptType2D<ProbeRegisteredScript>())
-        {
-            return false;
-        }
-        g_loaded = true;
-        return true;
-    }
-
-    void UnloadModule() noexcept
-    {
-        JBro::BindFramework2DServiceContext({});
-        JBro::BindFramework2DSystemContext({});
-        JBro::BindInputServiceContext({});
-        JBro::BindInputSystemContext({});
-        JBro::BindSaveServiceContext({});
-        JBro::BindSaveSystemContext({});
-        JBro::BindLocalizationServiceContext({});
-        JBro::BindLocalizationSystemContext({});
-        JBro::Internal::InstanceRegistry::Bind(nullptr);
-        JBro::ScriptRegistry::Bind(nullptr);
-        JBro::NameTable::Bind(nullptr);
-        JBro::TextStore::Bind(nullptr);
-        JBro::BindSystemContext({});
-        JBro::BindServiceContext({});
-        g_loaded = false;
-    }
-
-    constexpr JBro::ScriptContextRequirement RequiredContexts[] =
-    {
-        JBro::Framework2DServiceContextRequirement,
-        JBro::Framework2DSystemContextRequirement
-    };
-
-    constexpr JBro::ScriptModuleApi ModuleApi =
-    {
-        JBro::ScriptModuleAbiVersion,
-        sizeof(JBro::ScriptModuleApi),
-        RequiredContexts,
-        2,
-        0,
-        &LoadModule,
-        &UnloadModule
-    };
 }
 
-extern "C" __declspec(dllexport) const JBro::ScriptModuleApi* JBroScriptModule_GetApi(
-    JBro::UInt32 hostAbiVersion,
-    JBro::UInt32 hostApiSize) noexcept
-{
-    if (hostAbiVersion != JBro::ScriptModuleAbiVersion
-        || hostApiSize != sizeof(JBro::ScriptModuleApi))
-    {
-        return nullptr;
-    }
-    return &ModuleApi;
-}
+// 스크립트 등록과 진입점은 한 줄씩이다(cpp-script-plan §3.2). 컨텍스트 검증·바인딩·해제는 엔진(`JBroFramework2D`)이 한다 -
+// 이 파일이 손으로 하던 때는 호스트가 넘기는 오디오·네트워크를 묶지 않았다.
+JBRO_REGISTER_SCRIPT_2D(ProbeRegisteredScript);
 
+JBRO_SCRIPT_MODULE_2D()
+
+// 모듈의 `Load` 가 돌아 등록까지 마쳤는지 본다. 등록은 호스트 표를 묶은 뒤에만 한다.
 extern "C" __declspec(dllexport) JBro::Bool JBroScriptProbe_IsLoaded() noexcept
 {
-    return g_loaded;
+    return JBro::ScriptRegistry::Get().Find(ProbeRegisteredScript::StaticTypeName()) != nullptr;
+}
+
+// 호스트가 넘긴 서비스가 이 DLL 사본에 묶였는지 본다(cpp-script-plan §3.2). `which` 번째 컨텍스트를 바이트로 옮기고,
+// 호스트가 제 것과 견준다. 묶이지 않았다면 이 DLL 의 기본값이 나온다.
+extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_CopyContext(
+    JBro::UInt32 which, void* out, JBro::UInt32 capacity) noexcept
+{
+    struct Entry
+    {
+        const void*   data;
+        JBro::UInt32 size;
+    };
+    const Entry contexts[] =
+    {
+        {&JBro::GetInputServices(), static_cast<JBro::UInt32>(sizeof(JBro::InputServiceContext))},
+        {&JBro::GetInputSystems(), static_cast<JBro::UInt32>(sizeof(JBro::InputSystemContext))},
+        {&JBro::GetSaveServices(), static_cast<JBro::UInt32>(sizeof(JBro::SaveServiceContext))},
+        {&JBro::GetSaveSystems(), static_cast<JBro::UInt32>(sizeof(JBro::SaveSystemContext))},
+        {&JBro::GetLocalizationServices(), static_cast<JBro::UInt32>(sizeof(JBro::LocalizationServiceContext))},
+        {&JBro::GetLocalizationSystems(), static_cast<JBro::UInt32>(sizeof(JBro::LocalizationSystemContext))},
+        {&JBro::GetAudioServices(), static_cast<JBro::UInt32>(sizeof(JBro::AudioServiceContext))},
+        {&JBro::GetAudioSystems(), static_cast<JBro::UInt32>(sizeof(JBro::AudioSystemContext))},
+        {&JBro::GetNetworkServices(), static_cast<JBro::UInt32>(sizeof(JBro::NetworkServiceContext))},
+        {&JBro::GetNetworkSystems(), static_cast<JBro::UInt32>(sizeof(JBro::NetworkSystemContext))},
+    };
+    if (which >= sizeof(contexts) / sizeof(contexts[0]) || contexts[which].size > capacity)
+    {
+        return 0;
+    }
+    std::memcpy(out, contexts[which].data, contexts[which].size);
+    return contexts[which].size;
 }
 
 extern "C" __declspec(dllexport) JBro::UInt32 JBroScriptProbe_GetSystemAbi() noexcept

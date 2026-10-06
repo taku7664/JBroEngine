@@ -9,13 +9,14 @@ namespace JBro
 {
     namespace
     {
-        const ComponentTypeInfo* FindType(NameId typeName)
+        // 스크립트도 찾는다(cpp-script-plan §3.1). 빌트인만 보면 스크립트는 붙이지도, 떼고 되돌리지도 못한다.
+        Bool FindType(NameId typeName, ComponentTypeInfo& out)
         {
             if (typeName == InvalidNameId)
             {
-                return nullptr;
+                return false;
             }
-            return ComponentRegistry::Get().Find(typeName);
+            return ComponentRegistry::Get().FindAttachable(typeName, out);
         }
     }
 
@@ -31,9 +32,10 @@ namespace JBro
         , m_typeName(typeName)
     {
         m_address.objectId = objectId;
-        if (const ComponentTypeInfo* info = FindType(typeName))
+        ComponentTypeInfo info;
+        if (FindType(typeName, info))
         {
-            m_address.typeId = info->typeId;
+            m_address.typeId = info.typeId;
         }
     }
 
@@ -56,7 +58,8 @@ namespace JBro
 
     Bool AddComponentCommand::Attach()
     {
-        const ComponentTypeInfo* info = FindType(m_typeName);
+        ComponentTypeInfo found;
+        const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
         GameObject* object = m_registry->Resolve(m_address.objectId);
         if (info == nullptr || info->Attach == nullptr || object == nullptr)
         {
@@ -69,7 +72,7 @@ namespace JBro
         {
             return false;
         }
-        ComponentBase* component = info->Attach(*m_canvas, object);
+        ComponentBase* component = info->Attach(*m_canvas, object, info->name);
         if (component == nullptr)
         {
             return false;
@@ -101,7 +104,8 @@ namespace JBro
 
     void AddComponentCommand::Undo()
     {
-        const ComponentTypeInfo* info = FindType(m_typeName);
+        ComponentTypeInfo found;
+        const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
         GameObject* object = m_registry->Resolve(m_address.objectId);
         if (false == m_added || info == nullptr || info->Detach == nullptr
             || object == nullptr)
@@ -171,7 +175,8 @@ namespace JBro
 
     Bool RemoveComponentCommand::Detach()
     {
-        const ComponentTypeInfo* info = FindType(m_typeName);
+        ComponentTypeInfo found;
+        const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
         GameObject* object = m_registry->Resolve(m_address.objectId);
         if (info == nullptr || info->Detach == nullptr || object == nullptr)
         {
@@ -198,14 +203,15 @@ namespace JBro
 
     void RemoveComponentCommand::Undo()
     {
-        const ComponentTypeInfo* info = FindType(m_typeName);
+        ComponentTypeInfo found;
+        const ComponentTypeInfo* info = FindType(m_typeName, found) ? &found : nullptr;
         GameObject* object = m_registry->Resolve(m_address.objectId);
         if (false == m_captured || info == nullptr || info->Attach == nullptr
             || object == nullptr)
         {
             return;
         }
-        ComponentBase* component = info->Attach(*m_canvas, object);
+        ComponentBase* component = info->Attach(*m_canvas, object, info->name);
         if (component == nullptr)
         {
             return;

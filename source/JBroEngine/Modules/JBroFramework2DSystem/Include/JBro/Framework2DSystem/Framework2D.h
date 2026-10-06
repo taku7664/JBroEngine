@@ -46,6 +46,7 @@ namespace JBro
         RenderResult RenderLayerThumbnail(const LayerThumbnailDesc& thumbnail) override;
         void Shutdown() override;
         void BindCanvasAssets() override;
+        std::size_t ReleaseModuleScripts() override;
         void CollectCanvasAssetIds(Array<AssetId>& ids) override;
 
         // 물리의 좁은 판정을 나눌 워커 수(D-223). 호스트가 프로젝트를 연 뒤 `ResolvePhysicsWorkerCount` 로 푼 값을 넘긴다.

@@ -1,0 +1,14 @@
+diff --git a/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts b/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
+index 4dc3f87b..32ea8cfd 100644
+--- a/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
++++ b/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
+@@ -2376,7 +2376,8 @@ configurationRegistry.registerConfiguration({
+ 		[ChatAIDisabledSettingId]: {
+ 			type: 'boolean',
+ 			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat and inline suggestions."),
+-			default: false,
++			// JBro patch 0002-remove-chat-ai: AI features are off unless the user turns them on.
++			default: true,
+ 			scope: ConfigurationScope.WINDOW,
+ 		},
+ 		[ChatConfiguration.TitleBarSignInEnabled]: {

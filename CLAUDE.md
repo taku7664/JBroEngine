@@ -22,7 +22,9 @@
 - 최상위 실행 단위는 `Canvas` 다. Canvas가 오브젝트 풀과 타입별 컴포넌트 풀을 직접 소유한다.
   `World` / ECS / `Scene` / `SceneManager` 같은 중복 수명 계층은 이름을 바꿔서도 만들지 않는다
 - 스크립트 참조는 GameObject 전용 16B `GameObjectHandle`과 그 외 타입용 24B `Ref<T>`로 나눈다.
-  GameObjectHandle의 안전 멤버는 무효 접근을 로그로 남기고 무시한다
+  GameObjectHandle의 안전 멤버는 무효 접근을 로그로 남기고 무시한다.
+  **D-302 로 바뀌는 중이다(구현 전)**: 핸들은 `JBro::Handle` 에 엔진 타입과 같은 이름(`GameObject`·`Transform2D`)으로 두고, 빌트인 컴포넌트도 핸들이며,
+  `Ref<T>` 는 스크립트 전용이고, 스크립트는 컴포넌트가 아니다. 엔진 타입은 `JBro::Object::GameObject`·`JBro::Component::*`
 - 차원과 무관한 공개 값 타입은 JBroCore에 한 번만 정의한다. Framework가 같은 공개 타입을
   재정의하지 않으며, 이식 완료는 기존 임시 정의 제거와 결합 공개 헤더 컴파일까지 포함한다
 - 호스트와 게임 DLL 경계를 넘는 데이터는 POD 여야 한다
@@ -74,9 +76,20 @@
 - [tasks/jbroscript-plan.md](./tasks/jbroscript-plan.md) — JBroScript(`.jscript`) 언어와 리플렉션 계획(D-56).
   언어는 **미구현**이고 리플렉션(`PropertyInfo`·`JBRO_FIELD`·컨테이너 조작)은 섰다.
   기존 엔진 JPROP 의 실패 원인과 MSVC 실측 결과를 담고 있다
-- [tasks/jbroscript-syntax.md](./tasks/jbroscript-syntax.md) — JBroScript 사용자 문법 정리본. 확정·제안·열림을 항목마다 표시했다
+- [tasks/jbroscript-syntax.md](./tasks/jbroscript-syntax.md) — JBroScript 사용자 문법 정리본. 확정·제안·열림을 항목마다 표시했다.
+  참조와 null 은 D-262 가 다시 정했다(`ref` 는 빌림, null 은 `?` 타입, 자동 null 검사 없음). §13 은 파서가 읽는 옛 예시, §14 가 새 문법이다
 - [tasks/jbroc-rules.md](./tasks/jbroc-rules.md) — 컴파일러 `jbroc` 규칙 정리본(타입체커·이미터·`ref` 변환·빌드·테스트).
-  `Modules/JBroScriptCompiler` 에 렉서와 파서가, `Modules/JBroc` 에 명령줄 실행 파일이 섰다(§11, D-104·D-105)
+  `Modules/JBroScriptCompiler` 에 렉서와 파서가, `Modules/JBroc` 에 명령줄 실행 파일이 섰다(§11, D-104·D-105).
+  **여기서 멈췄다(D-263)** - 새 문법을 읽게 하는 일은 §11.4 에 있다
+- [tasks/cpp-script-plan.md](./tasks/cpp-script-plan.md) — C++ 게임 스크립트 지원 계획(D-263). `jbroc` 보다 먼저 한다.
+  소스 자리는 기존 엔진과 같다(`Contents/`, `Contents/Scripts/`). 기존 엔진 라이브 컴파일은 참고만 하고 모방하지 않는다 - 그 구조와 아팠던 것 C1~C3 이 §1, 지금 엔진에 있는 것과 없는 것(진입점 보일러플레이트·프로젝트 만들기·에디터 빌드·
+  핫 리로드를 거는 곳·오브젝트 만들기)이 §2, 단계([제안] 순서: 스크립트 프로퍼티 표를 호스트로·진입점 한 줄·프로젝트·빌드·핫 리로드·API 구멍·3D)가 §3, `[열림]` 이 §4 에 있다.
+  **3.1·3.2 가 섰다**(D-264·D-265). 스크립트 프로퍼티 표가 호스트로 오고, 캔버스 파일이 모르는 컴포넌트를 읽은 그대로 되쓰며, 에디터는 `FindAttachable` 로 스크립트를 붙인다.
+  스크립트는 `JBRO_SCRIPT_BODY`·`JBRO_FIELD` 로 적고, `.cpp` 마다 `JBRO_REGISTER_SCRIPT_2D` 한 줄, 프로젝트에 `JBRO_SCRIPT_MODULE_2D()` 하나다.
+  3.3 도 섰다(D-266) - 에셋 브라우저의 `스크립트` 뿌리에서 우클릭 `새 스크립트`, 프로젝트 파일은 한 번만 쓰고 엔진 위치는 `JBroEngine.props` 를 열 때마다 맞춘다.
+  3.4 도 섰다(D-299) - 파일 메뉴 `스크립트 빌드` 가 MSBuild 를 자식 프로세스로 띄우고, 오류는 `빌드 결과` 패널에서 눌러 에디터 설정에서 고른 편집기로 그 줄을 연다.
+  3.5 도 섰다(D-300) - 빌드가 성공하거나 DLL 파일이 바뀌면 캔버스의 스크립트를 글자로 떠 두고 DLL 을 갈아 끼운 뒤 같은 자리·같은 번호로 되살린다(재생 중이면 멈춘 뒤).
+  담당자에게 넘길 남은 일이 §3.3 끝에 있다
 - [tasks/launcher-plan.md](./tasks/launcher-plan.md) — 런처 JBro Launcher(C# / WinUI 3) 계획(D-97·D-100).
   에디터 실행 인자 규약(D-97)과 앱 뼈대(`source/JBroLauncher`)가 섰다.
   런처와 에디터는 프로세스 경계로만 만나고, 같은 리포에 둔다.
@@ -134,7 +147,7 @@
   참조만 한다. 네 단계가 모두 섰다 - 패널 종류 표, 행동 표 `EditorActionRegistry`(메뉴 항목·단축키·우클릭 확장이 한 줄에서 나온다), 가이드가 메뉴
   위치를 행동 표에서 받음, 스프라이트 뷰어가 뿌리의 뷰어 도크와 그림마다 비고유 패널로 섬
 - [tasks/ide-plan.md](./tasks/ide-plan.md) — 스크립트 편집기 JBro Script Editor(Code-OSS 포크) 계획(D-87).
-  편집기 리포는 `F:\Project\JBroScriptEditor`(원격 없음)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
+  편집기는 `source/JBroScriptEditor` 에 있고(D-261), upstream 체크아웃은 리포 밖 `JBRO_EDITOR_WORK`(이 기계는 `F:\Project\JBroScriptEditor`)다. 새 문법의 강조 확장과 코어 패치 0001~0003 이 섰고
   upstream 을 패치해 개발 실행으로 띄울 수 있다. 설치본(포크 빌드)은 **아직 없다**(D-102).
   `.jscript` 전용이고 기능은 내장 확장으로, 언어 지식은 `jbroc --lsp` 에 둔다
 

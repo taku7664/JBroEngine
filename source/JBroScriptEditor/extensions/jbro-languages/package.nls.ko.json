@@ -1,0 +1,4 @@
+{
+	"displayName": "JBroScript 언어 기본 지원",
+	"description": "JBroScript(.jscript) 문법 강조와 JBro 프로젝트 파일의 YAML 연결을 제공합니다."
+}

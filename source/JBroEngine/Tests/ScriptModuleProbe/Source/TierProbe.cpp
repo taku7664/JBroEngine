@@ -13,11 +13,17 @@
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Audio
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=Task
 //   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=TextRendering
+//   msbuild JBroEngine.slnx /p:Configuration=Debug /p:Platform=x64 /p:JBroTierProbe=OtherDimension
 //
 // 마지막 것만 C1083 이 아니라 #error 다. GameObject.h 는 스크립트 DLL 이 링크하는 모듈에
 // 있어 경로로는 막을 수 없고, 프렐류드를 거쳤는지로 막는다(§9.5).
 
 #include <JBro/ScriptAPI.h>
+
+#if defined(JBRO_TIER_PROBE_OTHER_DIMENSION)
+// 2D 스크립트 프로젝트는 3D 진입점을 보지 못한다(D-15, cpp-script-plan §3.2). 3D 의 include 경로가 없어 C1083 으로 실패해야 한다.
+#include <JBro/Framework3D/Scripting/ScriptModule.h>
+#endif
 
 #if defined(JBRO_TIER_PROBE_CANVAS)
 #include <JBro/Canvas/Canvas.h>

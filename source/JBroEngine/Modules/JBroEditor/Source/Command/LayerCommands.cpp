@@ -559,7 +559,7 @@ namespace JBro
                 continue;
             }
             ObjectTreeSnapshot tree;
-            if (false == tree.Capture(*m_registry, *roots[index]))
+            if (false == tree.Capture(*m_canvas, *m_registry, *roots[index]))
             {
                 m_trees.Clear();
                 m_captured = true;

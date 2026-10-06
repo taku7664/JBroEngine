@@ -34,6 +34,7 @@
 #include <JBro/Framework3D/Component/Physics3D.h>
 #include <JBro/Framework3D/Component/Text3D.h>
 #include <JBro/Framework3D/Component/Transform3D.h>
+#include <JBro/Framework3D/Scripting/GameScript.h>
 #include <JBro/Framework3D/ServiceContext.h>
 #include <JBro/Types/Math3D.h>
 

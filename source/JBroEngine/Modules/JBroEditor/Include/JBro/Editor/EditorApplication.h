@@ -10,6 +10,8 @@
 #include <JBro/Editor/EditorGuideFocus.h>
 #include <JBro/Editor/EditorNotifications.h>
 #include <JBro/Editor/EditorSpriteContours.h>
+#include <JBro/Editor/ScriptBuild.h>
+#include <JBro/Editor/ScriptProject.h>
 #include <JBro/Editor/EditorObjectRegistry.h>
 #include <JBro/Editor/EditorPanel.h>
 #include <JBro/Editor/EditorPopup.h>
@@ -53,6 +55,7 @@ namespace JBro
     class GameObject;
     class Renderer;
     class EngineInstance;
+    class ScriptDLLLoader;
     namespace System
     {
         class DebugDrawSystem;
@@ -342,6 +345,8 @@ namespace JBro
         // 스크립트 DLL 을 싣지 못한 사유다. 실었거나 프로젝트가 스크립트를 가리키지
         // 않으면 비어 있다.
         const String& GetScriptModuleError() const;
+        // 실린 스크립트 DLL 이다. 세대(`GetGeneration`)가 다시 실을 때마다 바뀐다(D-300). 엔진이 없으면 널이다.
+        const ScriptDLLLoader* GetScriptModule() const;
         // 프로젝트 파일이 있는 폴더를 기준으로 상대경로를 푼다.
         // `.jproject` 의 `LastOpenedCanvasPath` 처럼 그 파일 안의 경로가 전부 상대다.
         String ResolveProjectPath(const char* relativePath) const;
@@ -641,6 +646,49 @@ namespace JBro
         Bool GetLayerThumbnail(LayerId layer, TextureHandle& texture, Extent2D& extent) const;
         // **레이어 에셋을 캔버스 맨 위에 새 레이어로 넣고 그 레이어를 고른다**(D-287). 커맨드 하나다. 넣지 못하면 경고를 알리고 거짓이다.
         Bool AddLayerFromAsset(AssetId asset);
+        // **스크립트 자리**(cpp-script-plan §3.3, D-266). `<프로젝트>/<ScriptSourceDirectory>` 와 그 아래 `Scripts`. 프로젝트가 없으면 빈 글자다.
+        String GetScriptContentsRoot() const;
+        String GetScriptRoot() const;
+        // 스크립트 `.h`/`.cpp` 를 `folder`(스크립트 자리 기준 상대경로, 빈 글자면 `Scripts` 뿌리)에 만든다. 스크립트 프로젝트가 없으면
+        // 먼저 만들고 엔진 위치(`JBroEngine.props`)를 맞춘다. 만든 헤더의 실제 경로이고, 실패하면 빈 글자이며 `error` 에 까닭이 있다.
+        String CreateScript(const char* folder, const char* className, const Array<ScriptProject::FieldSpec>& fields, String& error);
+        // 스크립트 폴더의 파일이 바뀔 때마다 오른다. 에셋 브라우저가 디스크를 다시 읽을지 이것으로 정한다.
+        UInt64 GetScriptFilesRevision() const { return m_scriptFilesRevision; }
+        // 새 스크립트 창이 이름을 매 프레임 본다. `folder` 는 스크립트 자리 기준 상대경로다.
+        ScriptProject::NameProblem CheckScriptName(const char* folder, const char* name);
+        // 스크립트 자리의 폴더와 소스 파일(`.h`·`.hpp`·`.cpp`·`.inl`)을 `Scripts` 기준 상대경로로 모은다. 디스크를 읽으므로 매 프레임 부르지 않는다.
+        void CollectScriptFiles(Array<String>& folders, Array<String>& files);
+        // 스크립트 파일을 이 PC 가 그 확장자에 건 프로그램으로 연다(Visual Studio 등). `relativePath` 는 `Scripts` 기준이다.
+        Bool OpenScriptFile(const char* relativePath);
+        Bool RevealScriptPath(const char* relativePath);
+        // 새 스크립트 창을 띄운다(`NewScriptPopup`).
+        void OpenNewScriptPopup(const char* folder);
+
+        // **스크립트를 빌드한다**(cpp-script-plan §3.4, D-299). MSBuild 를 자식 프로세스로 띄우고 곧바로 돌아온다 - 끝은 `Tick` 이 보고
+        // 진단을 `빌드 결과` 창과 로그에 낸다. 이미 돌고 있거나, 스크립트 프로젝트가 없거나, MSBuild 를 못 찾으면 거짓이고 알림으로 까닭을 말한다.
+        Bool BuildScripts();
+        enum class ScriptBuildState : std::uint8_t
+        {
+            Idle,
+            Running,
+            Succeeded,
+            Failed
+        };
+        ScriptBuildState GetScriptBuildState() const { return m_scriptBuildState; }
+        const Array<ScriptBuild::Diagnostic>& GetScriptDiagnostics() const { return m_scriptDiagnostics; }
+        void ClearScriptDiagnostics();
+        // 진단 하나를 고른 편집기로 그 줄에 연다. 편집기를 못 찾거나 `System` 이면 셸 기본 앱으로 파일만 연다.
+        Bool OpenScriptDiagnostic(std::size_t index);
+        // 오류 줄을 여는 편집기다(D-299). 에디터 설정에 저장된다.
+        ScriptBuild::EditorKind GetScriptEditor() const { return m_scriptEditor; }
+        void SetScriptEditor(ScriptBuild::EditorKind kind);
+        // **스크립트 DLL 을 다시 싣는다**(cpp-script-plan §3.5, D-300). 캔버스의 스크립트를 글자로 떠 두고, DLL 을 갈아 끼운 뒤 같은 자리·같은
+        // 컴포넌트 번호로 되살린다. 필드는 이름이 맞고 읽히는 것만 잇고 나머지는 로그로 알린다. 새 DLL 이 모르는 스크립트는 값을 든 채 남는다.
+        // 에디터 빌드가 성공했을 때와 DLL 파일이 바뀌었을 때(Visual Studio 빌드) 저절로 부른다(사용자 결정 2026-09-29).
+        // **재생 중이면 멈출 때까지 미루고** 거짓이다. 갈아 끼웠으면 참이다.
+        Bool ReloadScripts();
+        Bool IsScriptReloadPending() const { return m_scriptReloadPending; }
+        void MarkScriptFilesChanged() { ++m_scriptFilesRevision; }
         // 캔버스 뷰가 `textKey` 텍스트를 보이는 언어다(D-226). 엔진의 로케일 그 자체다 - 저장하지 않는다. 재생이 끝나면
         // 재생 전의 언어로 되돌린다(게임이 바꾼 로케일이 편집 화면에 남지 않게).
         String GetPreviewLocale() const;
@@ -941,6 +989,29 @@ namespace JBro
         // 만든 쪽이 무엇을 만들었는지 기억한다. `IFramework` 에는 캔버스로 가는 길이 없고,
         // 그것을 뚫으려면 호스트 계층이 `Canvas` 를 보아야 한다(D-42 가 막는 방향이다).
         FrameworkKind m_frameworkKind = FrameworkKind::Framework2D;
+        UInt64 m_scriptFilesRevision = 1;
+        // 스크립트 빌드(D-299). 프로세스는 `Tick` 이 끝을 보고 닫는다. 프로젝트를 닫으면 도는 빌드를 끝낸다.
+        void PollScriptBuild();
+        // 에디터 설정에서 고른 편집기로 그 파일의 그 줄을 연다. 편집기를 못 찾았거나 기본 앱이면 셸로 파일만 연다.
+        Bool OpenInScriptEditor(const String& file, UInt32 line);
+        // 스크립트 DLL 파일이 바뀌었는지 0.5 초마다 본다(D-300). 바뀐 시각이 다음 확인에도 그대로면(다 썼으면) 다시 싣는다.
+        // 에디터 빌드가 도는 동안은 보지 않는다 - 빌드가 끝나면 그쪽이 싣는다. 미룬 리로드도 여기서 푼다.
+        void PollScriptModuleFile(Float deltaTime);
+        void RememberScriptModuleTime();
+        Bool m_scriptReloadPending = false;
+        // 마지막으로 실은 DLL 의 수정 시각과, 바뀐 것을 처음 본 시각이다.
+        UInt64 m_scriptModuleTime = 0;
+        UInt64 m_scriptModuleSeenTime = 0;
+        Float m_scriptModulePollTimer = 0.0f;
+        String GetToolScratchFolder() const;
+        ChildProcess m_scriptBuild;
+        ScriptBuildState m_scriptBuildState = ScriptBuildState::Idle;
+        Array<ScriptBuild::Diagnostic> m_scriptDiagnostics;
+        String m_scriptBuildLog;
+        // 한 번 찾은 도구 경로다. 편집기 경로는 고른 편집기가 바뀌면 다시 찾는다.
+        String m_msbuildPath;
+        String m_scriptEditorPath;
+        ScriptBuild::EditorKind m_scriptEditor = ScriptBuild::EditorKind::VisualStudio;
         // 상대경로를 풀 기준이다. 파일로 열었을 때만 채워진다.
         String m_projectFilePath;
         // 글자 표가 사는 곳과 지금 언어·폴백이다(D-146). 언어를 바꾸려면 다시 읽어야 하고,

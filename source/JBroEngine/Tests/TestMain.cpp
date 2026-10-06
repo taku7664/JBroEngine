@@ -87,6 +87,10 @@ JBro::Int32 RunContextBoundaryTests();
 JBro::Int32 RunScriptApiPreludeTests();
 JBro::Int32 RunPublicHeaderCompositionTests();
 JBro::Int32 RunScriptDLLLoaderTests();
+JBro::Int32 RunScriptModuleEntryTests();
+JBro::Int32 RunScriptProjectTests();
+JBro::Int32 RunScriptBuildTests();
+JBro::Int32 RunScriptHotReloadTests();
 JBro::Int32 RunScriptCompilerLexerTests();
 JBro::Int32 RunScriptCompilerParserTests();
 JBro::Int32 RunScriptCompilerCommandLineTests();
@@ -518,6 +522,22 @@ int main()
             return 1;
         }
         if (false == RunSuite("ScriptDLLLoader", &RunScriptDLLLoaderTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptModuleEntry", &RunScriptModuleEntryTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptProject", &RunScriptProjectTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptBuild", &RunScriptBuildTests))
+        {
+            return 1;
+        }
+        if (false == RunSuite("ScriptHotReload", &RunScriptHotReloadTests))
         {
             return 1;
         }

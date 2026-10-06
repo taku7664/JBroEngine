@@ -1,0 +1,44 @@
+{
+	"name": "jbro-languages",
+	"displayName": "%displayName%",
+	"description": "%description%",
+	"publisher": "jbro",
+	"version": "0.0.1",
+	"private": true,
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"categories": [
+		"Programming Languages"
+	],
+	"contributes": {
+		"languages": [
+			{
+				"id": "jbroscript",
+				"aliases": [
+					"JBroScript",
+					"jbroscript"
+				],
+				"extensions": [
+					".jscript"
+				],
+				"configuration": "./language-configuration.json"
+			},
+			{
+				"id": "yaml",
+				"extensions": [
+					".jproject",
+					".jcanvas",
+					".jprefab"
+				]
+			}
+		],
+		"grammars": [
+			{
+				"language": "jbroscript",
+				"scopeName": "source.jscript",
+				"path": "./syntaxes/jscript.tmLanguage.json"
+			}
+		]
+	}
+}

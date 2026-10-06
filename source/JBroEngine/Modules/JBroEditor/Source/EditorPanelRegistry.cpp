@@ -3,6 +3,7 @@
 #include <JBro/Editor/LocalizationKeys.h>
 
 #include "Panel/AssetBrowserPanel.h"
+#include "Panel/BuildResultsPanel.h"
 #include "Panel/CanvasViewPanel.h"
 #include "Panel/EditorSettingsPanel.h"
 #include "Panel/SimulationViewPanel.h"
@@ -134,6 +135,8 @@ namespace JBro
         RegisterEditorPanelType<AssetBrowserPanel>(true);
         RegisterEditorPanelType<StatsPanel>(true);
         RegisterEditorPanelType<LogPanel>(true);
+        // 스크립트 빌드의 결과(D-299). 로그 옆 아래 칸에 탭으로 선다.
+        RegisterEditorPanelType<BuildResultsPanel>(true);
         RegisterEditorPanelType<ProjectSettingsPanel>(true);
         RegisterEditorPanelType<ProfilerPanel>(true);
         RegisterEditorPanelType<ShortcutPanel>(true);

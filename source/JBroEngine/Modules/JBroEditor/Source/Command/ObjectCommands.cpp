@@ -102,7 +102,7 @@ namespace JBro
             {
                 if (info->Attach != nullptr)
                 {
-                    ComponentBase* component = info->Attach(*m_canvas, object);
+                    ComponentBase* component = info->Attach(*m_canvas, object, info->name);
                     if (component != nullptr && m_hasPosition)
                     {
                         WriteSpawnPosition(*component, info->typeId, m_position);
@@ -177,7 +177,7 @@ namespace JBro
             ? m_registry->Track(object->GetParent())
             : InvalidEditorObjectId;
         m_objectId = m_registry->Track(object);
-        m_captured = m_tree.Capture(registry, *object);
+        m_captured = m_tree.Capture(canvas, registry, *object);
     }
 
     const char* DeleteObjectCommand::GetName() const
