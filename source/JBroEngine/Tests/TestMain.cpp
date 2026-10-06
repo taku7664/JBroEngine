@@ -22,6 +22,7 @@ JBro::Int32 RunReflectionContainerTests();
 JBro::Int32 RunBuiltinComponentPropertyTests();
 JBro::Int32 RunScriptSchedulingTests();
 JBro::Int32 RunSpritePixelTests();
+JBro::Int32 RunLight2DPixelTests();
 JBro::Int32 RunProjectFileTests();
 JBro::Int32 RunYamlTests();
 JBro::Int32 RunDelegateTests();
@@ -323,6 +324,10 @@ int main()
             return 1;
         }
         if (RunSpritePixelTests() != 0)
+        {
+            return 1;
+        }
+        if (RunLight2DPixelTests() != 0)
         {
             return 1;
         }

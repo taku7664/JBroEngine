@@ -49,7 +49,11 @@ $targets = @(
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineGrowPS'; Header = 'BuiltinOutlineGrowPS.generated.h' },
     @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineCompositePS'; Header = 'BuiltinOutlineCompositePS.generated.h' },
     @{ File = 'BuiltinLayerComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerCompositePS'; Header = 'BuiltinLayerCompositePS.generated.h' },
-    @{ File = 'BuiltinLayerBackdrop.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerBackdropPS'; Header = 'BuiltinLayerBackdropPS.generated.h' }
+    @{ File = 'BuiltinLayerBackdrop.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerBackdropPS'; Header = 'BuiltinLayerBackdropPS.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinLight2DVS'; Header = 'BuiltinLight2DVS.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLight2DPS'; Header = 'BuiltinLight2DPS.generated.h' },
+    @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpriteLitPS'; Header = 'BuiltinSpriteLitPS.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextLitPS'; Header = 'BuiltinSdfTextLitPS.generated.h' }
 )
 
 $sm5Targets = @(
@@ -65,7 +69,11 @@ $sm5Targets = @(
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinOutlineGrowPS_SM5'; Header = 'BuiltinOutlineGrowPS_SM5.generated.h' },
     @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinOutlineCompositePS_SM5'; Header = 'BuiltinOutlineCompositePS_SM5.generated.h' },
     @{ File = 'BuiltinLayerComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinLayerCompositePS_SM5'; Header = 'BuiltinLayerCompositePS_SM5.generated.h' },
-    @{ File = 'BuiltinLayerBackdrop.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinLayerBackdropPS_SM5'; Header = 'BuiltinLayerBackdropPS_SM5.generated.h' }
+    @{ File = 'BuiltinLayerBackdrop.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinLayerBackdropPS_SM5'; Header = 'BuiltinLayerBackdropPS_SM5.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_5_0'; Name = 'JBroBuiltinLight2DVS_SM5'; Header = 'BuiltinLight2DVS_SM5.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinLight2DPS_SM5'; Header = 'BuiltinLight2DPS_SM5.generated.h' },
+    @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinSpriteLitPS_SM5'; Header = 'BuiltinSpriteLitPS_SM5.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_5_0'; Name = 'JBroBuiltinSdfTextLitPS_SM5'; Header = 'BuiltinSdfTextLitPS_SM5.generated.h' }
 )
 
 $spirvTargets = @(
@@ -81,7 +89,11 @@ $spirvTargets = @(
     @{ File = 'BuiltinOutlineGrow.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineGrowPS_SPV'; Header = 'BuiltinOutlineGrowPS_SPV.generated.h' },
     @{ File = 'BuiltinOutlineComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinOutlineCompositePS_SPV'; Header = 'BuiltinOutlineCompositePS_SPV.generated.h' },
     @{ File = 'BuiltinLayerComposite.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerCompositePS_SPV'; Header = 'BuiltinLayerCompositePS_SPV.generated.h' },
-    @{ File = 'BuiltinLayerBackdrop.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerBackdropPS_SPV'; Header = 'BuiltinLayerBackdropPS_SPV.generated.h' }
+    @{ File = 'BuiltinLayerBackdrop.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLayerBackdropPS_SPV'; Header = 'BuiltinLayerBackdropPS_SPV.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'VSMain'; Profile = 'vs_6_0'; Name = 'JBroBuiltinLight2DVS_SPV'; Header = 'BuiltinLight2DVS_SPV.generated.h' },
+    @{ File = 'BuiltinLight2D.hlsl'; Entry = 'PSMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinLight2DPS_SPV'; Header = 'BuiltinLight2DPS_SPV.generated.h' },
+    @{ File = 'BuiltinSprite.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSpriteLitPS_SPV'; Header = 'BuiltinSpriteLitPS_SPV.generated.h' },
+    @{ File = 'BuiltinSdfText.hlsl'; Entry = 'PSLitMain'; Profile = 'ps_6_0'; Name = 'JBroBuiltinSdfTextLitPS_SPV'; Header = 'BuiltinSdfTextLitPS_SPV.generated.h' }
 )
 
 foreach ($t in $targets)
@@ -108,11 +120,14 @@ foreach ($t in $sm5Targets)
     "$($t.Header) <- $($t.File) ($($t.Profile) $($t.Entry))"
 }
 
+# The Vulkan backend asks every module for the entry points VSMain and PSMain (VulkanPipeline.cpp). A second pixel
+# entry in the same file (PSLitMain, D-291) is renamed to PSMain in its own module; D3D bytecode carries no name.
 foreach ($t in $spirvTargets)
 {
     $source = Join-Path $here $t.File
     $header = Join-Path $out $t.Header
-    & $vkdxc -spirv -T $t.Profile -E $t.Entry -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -Vn $t.Name -Fh $header $source
+    $entryName = if ($t.Profile.StartsWith('vs')) { 'VSMain' } else { 'PSMain' }
+    & $vkdxc -spirv -T $t.Profile -E $t.Entry "-fspv-entrypoint-name=$entryName" -D JBRO_SPIRV=1 -fvk-t-shift 8 0 -fvk-s-shift 16 0 -Vn $t.Name -Fh $header $source
     if ($LASTEXITCODE -ne 0)
     {
         throw "dxc -spirv failed for $($t.Entry) in $($t.File)"

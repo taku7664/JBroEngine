@@ -62,7 +62,7 @@ VertexOutput VSMain(VertexInput input)
     return output;
 }
 
-float4 PSMain(VertexOutput input) : SV_TARGET
+float4 Shade(VertexOutput input)
 {
     const float distanceValue = gTexture.Sample(gSampler, input.uv).a;
     // Half a screen pixel of distance on either side of an edge is the antialiasing band.
@@ -80,4 +80,19 @@ float4 PSMain(VertexOutput input) : SV_TARGET
     const float3 premultiplied = input.fill.rgb * fillAlpha + input.outline.rgb * outlineAlpha;
     const float3 color = alpha > 0.0001f ? premultiplied / alpha : float3(0.0f, 0.0f, 0.0f);
     return float4(color, alpha);
+}
+
+float4 PSMain(VertexOutput input) : SV_TARGET
+{
+    return Shade(input);
+}
+
+// t1: the view's light map (D-291); see BuiltinSprite.hlsl PSLitMain.
+Texture2D gLightMap : register(t1);
+
+float4 PSLitMain(VertexOutput input) : SV_TARGET
+{
+    const float4 color = Shade(input);
+    const float3 light = gLightMap.Load(int3(int2(input.position.xy), 0)).rgb;
+    return float4(color.rgb * light, color.a);
 }

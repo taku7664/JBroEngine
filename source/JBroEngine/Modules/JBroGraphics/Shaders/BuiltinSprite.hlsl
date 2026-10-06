@@ -63,3 +63,14 @@ float4 PSMain(VertexOutput input) : SV_TARGET
 {
     return gTexture.Sample(gSampler, input.uv) * input.tint;
 }
+
+// t1: the view's light map (D-291), the size of the target and drawn with the same viewport, so the texel under
+// this pixel is read with Load at the pixel's own position. Only the lit pipeline binds it.
+Texture2D gLightMap : register(t1);
+
+float4 PSLitMain(VertexOutput input) : SV_TARGET
+{
+    const float4 color = gTexture.Sample(gSampler, input.uv) * input.tint;
+    const float3 light = gLightMap.Load(int3(int2(input.position.xy), 0)).rgb;
+    return float4(color.rgb * light, color.a);
+}

@@ -181,5 +181,6 @@
   ~~화면 공간 UI 텍스트~~ → 완료 2026-09-27 · 화면 레이어와 앵커(D-237, [ui-plan.md](./ui-plan.md)). 그리기·에디터·입력(`Button2D`)의 세 단계가 섰다.
   레이아웃 컨테이너·스크롤·마스크·텍스트 입력·게임패드 포커스는 ui-plan §4 의 `[열림]` 이다.
   ~~옛한글~~ → 완료 2026-09-27 · GSUB 의 옛한글 자모 기능을 커널이 직접 읽는다(D-238, text-plan §7). 다른 옛한글 폰트의 실측과 일반 GSUB 는 `[열림]` 이다.
-- `[열림]` 기존 엔진의 2D 라이팅·소프트 섀도(`RenderWeave` 의 occluder·light·composite·tonemap 패스)·Shape 렌더러.
-  렌더 패스 그래프(공용 todo)가 먼저다.
+- `[진행]` **2D 라이팅·소프트 섀도**(D-291, [lighting2d-plan.md](./lighting2d-plan.md)). 렌더 패스 그래프를 기다리지 않는다(사용자 확인). 1 단계(렌더러: RGBA16F 라이트맵·빛을 받는
+  스프라이트)가 섰다. 남은 것은 프레임워크(`Light2D`·`Layer::lit`)·그림자(`ShadowCaster2D`)·부드러운 그림자·에디터다.
+- `[열림]` 기존 엔진의 Shape 렌더러(`Square2D`·`Circle2D`·`Polygon2D`).

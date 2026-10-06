@@ -6,6 +6,7 @@
 #include <JBro/Types/Matrix4x4.h>
 
 #include <cstddef>
+#include <JBro/Types/Angle.h>
 #include <JBro/Types/Bool.h>
 #include <JBro/Types/Float.h>
 #include <JBro/Types/UInt.h>
@@ -28,7 +29,10 @@ namespace JBro
         // 월드 텍스트(3D 뷰의 글자 사각형) 제출 상한이다. 0 이면 월드 텍스트를 받지 않는다(D-222).
         UInt32 maxWorldTextSubmissions = 16384;
         // 한 프레임의 레이어 묶음(`BeginLayer`) 상한이다(D-279). 뷰마다 합성하는 레이어 수의 합이다.
+        // 빛을 받는 구간(`SetSpriteLighting`)도 같은 상한이다 - 둘 다 레이어마다 하나다.
         UInt32 maxLayerGroups = 256;
+        // 한 프레임의 2D 라이트(`SubmitLight2D` 의 `Point`·`Spot`) 상한이다(D-291). 0 이면 라이팅을 만들지 않는다. `Global` 은 세지 않는다.
+        UInt32 maxLights2D = 1024;
         Bool validation = false;
     };
 
@@ -173,6 +177,33 @@ namespace JBro
     // 제출 패킷의 크기는 스프라이트 제출 비용이다(위 주석). 늘리기 전에 벤치마크(`JBRO_BENCH`)로 잰다.
     static_assert(sizeof(SpriteSubmit) == 84, "the sprite packet size is measured - see the outline fields");
 
+    // 2D 라이트의 종류다(D-291). 캔버스의 `Light2DType` 과 같은 셋이고, 렌더러는 캔버스를 모르므로 제 이름을 둔다(`CompositeBlend` 처럼).
+    enum class Light2DKind : std::uint8_t
+    {
+        // 뷰 전체에 같은 빛이다(환경광). 라이트맵을 지우는 색에 더해진다.
+        Global,
+        Point,
+        Spot,
+    };
+
+    // **2D 라이트 하나**(D-291, tasks/lighting2d-plan.md §2.2). 뷰 안에서 낸다. 값은 월드 좌표다 - 화면 자리는 렌더러가 뷰의 카메라로 셈한다.
+    // 라이트가 하나라도 있는 뷰는 빛을 받는 스프라이트(`SetSpriteLighting`)를 라이트맵에 곱해 그린다. 라이트가 없는 뷰는 그대로 그린다.
+    struct Light2DSubmit
+    {
+        Light2DKind kind = Light2DKind::Point;
+        Float position[2] = {0.0f, 0.0f};
+        // `Spot` 의 축이다(월드, 길이 1). 다른 종류는 보지 않는다.
+        Float direction[2] = {1.0f, 0.0f};
+        // 색에 세기를 곱한 값이다. 1 을 넘어도 된다 - 라이트맵은 16 비트 실수다.
+        Float color[3] = {1.0f, 1.0f, 1.0f};
+        // 이 안은 빛이 다 닿고, `outerRadius` 에서 0 이 된다. `Global` 은 보지 않는다.
+        Float innerRadius = 0.0f;
+        Float outerRadius = 1.0f;
+        // `Spot` 의 원뿔 **전체** 각이다. 안쪽 각 안은 빛이 다 닿고 바깥 각에서 0 이 된다.
+        Radian innerAngle = Radian(0.0f);
+        Radian outerAngle = Radian(1.5707964f);
+    };
+
     struct MeshSubmit
     {
         Matrix4x4 world;
@@ -229,6 +260,15 @@ namespace JBro
         // 깊이 텍스처가 아직 없어 메시·월드 텍스트를 빼고 그린 뷰다(D-288). 처음 보는 크기의 뷰(편집 화면·레이어 썸네일)이고, 그 크기의 깊이는
         // 다음 프레임을 열 때 생긴다.
         UInt32 viewsWithoutDepthCount = 0;
+        // 받은 2D 라이트다(`Global` 포함, D-291).
+        UInt32 light2DCount = 0;
+        // 상한(`RendererConfig::maxLights2D`)을 넘어 버린 라이트다.
+        UInt32 droppedLight2DCount = 0;
+        // 라이트맵을 그린 뷰다.
+        UInt32 litViewCount = 0;
+        // 라이트맵이 아직 없어 빛을 받는 스프라이트를 빛 없이 그린 뷰다. 그 크기의 라이트맵은 다음 프레임을 열 때 생긴다.
+        // 깊이가 달린 뷰(3D)도 여기 든다 - 그 뷰는 라이팅을 보지 않는다.
+        UInt32 viewsWithoutLightMapCount = 0;
     };
 
     class Renderer final
@@ -260,6 +300,13 @@ namespace JBro
         // 깊이가 달린 뷰(메시·월드 텍스트가 있는 3D 뷰)에서는 묶음을 보지 않고 그대로 그린다.
         Bool BeginLayer(CompositeBlend blend, Float opacity);
         Bool EndLayer();
+        // **2D 라이트를 낸다**(D-291). 뷰 안에서만 받는다. `Global` 은 색을 뷰의 환경광에 더하고, `Point`·`Spot` 은 라이트맵에 그린다.
+        Bool SubmitLight2D(const Light2DSubmit& light);
+        Bool SubmitLights2D(JArrayView<Light2DSubmit> lights);
+        // **이 뒤로 낸 스프라이트가 빛을 받는가**(D-291). 참이면 `SetSpriteLighting(false)` 나 `EndView` 까지 낸 스프라이트는 이 뷰의 라이트맵을
+        // 곱해 그린다 - 빛을 받는 레이어의 구간이다. 뷰마다 거짓으로 시작한다. 레이어 묶음(`BeginLayer`)과 겹쳐도 된다.
+        // 깊이가 달린 뷰(3D)에서는 보지 않는다.
+        Bool SetSpriteLighting(Bool lit);
 
         // 메시 지오메트리를 GPU 에 올리고 `MeshSubmit::mesh` 에 넣을 핸들을 준다. 프레임 밖에서만
         // 부른다. 빈 배열·너무 큰 배열·프레임 안이면 빈 핸들이다.
@@ -349,7 +396,39 @@ namespace JBro
             // 이 뷰의 레이어 묶음(`m_layerGroups`)이다. 스프라이트 번호 순이다.
             UInt32 layerGroupOffset = 0;
             UInt32 layerGroupCount = 0;
+            // 이 뷰의 2D 라이트(`m_lights`, `Point`·`Spot`)와 빛을 받는 구간(`m_litRanges`)이다(D-291).
+            UInt32 lightOffset = 0;
+            UInt32 lightCount = 0;
+            UInt32 litRangeOffset = 0;
+            UInt32 litRangeCount = 0;
+            // `Global` 라이트의 합이다. 라이트맵을 지우는 색이다.
+            Float ambient[3] = {0.0f, 0.0f, 0.0f};
+            // 라이트를 하나라도 받았는가(`Global` 포함). 거짓이면 빛을 받는 구간도 그대로 그린다.
+            Bool lighting = false;
+            // 빛을 받는 스프라이트 구간이 있는가. 업로드가 채운다.
+            Bool hasLitRun = false;
         };
+
+        // `SetSpriteLighting(true)` 와 `false` 사이에 낸 스프라이트 번호 구간 [first, end) 다(D-291).
+        struct LitRange
+        {
+            UInt32 firstSprite = 0;
+            UInt32 endSprite = 0;
+        };
+
+        // 라이트 하나의 인스턴스다. `BuiltinLight2D.hlsl` 의 ATTRIBUTE1..3 이 읽는다.
+        struct GpuLight2DInstance
+        {
+            // 중심 xy, 바깥 반지름, 안쪽 반지름.
+            Float shape[4] = {0.0f, 0.0f, 1.0f, 0.0f};
+            // 색 × 세기. w 는 비운다.
+            Float color[4] = {1.0f, 1.0f, 1.0f, 0.0f};
+            // 스포트 축 xy, 안쪽 반각, 바깥 반각(라디안). 점 라이트는 4·5 라 모든 방향이 안쪽이다.
+            Float cone[4] = {1.0f, 0.0f, 4.0f, 5.0f};
+        };
+        static_assert(sizeof(GpuLight2DInstance) == 48, "light instance stride is part of the shader ABI");
+        static_assert(offsetof(GpuLight2DInstance, color) == 16, "light attribute 2 reads the colour from offset 16");
+        static_assert(offsetof(GpuLight2DInstance, cone) == 32, "light attribute 3 reads the cone from offset 32");
 
         static constexpr UInt32 NoLayerGroup = 0xFFFFFFFFu;
 
@@ -365,10 +444,12 @@ namespace JBro
         // 레이어를 그려 둘 텍스처다. 뷰의 타깃 크기마다 하나이고 백버퍼 포맷이다. 프레임 안에서는 만들 수 없으므로, 기록 중에
         // 없는 크기를 만나면 바라는 크기로 적어 두고 다음 `BeginFrame` 이 프레임을 열기 전에 만든다. 오래 안 쓰면 놓는다.
         // 쓰임은 둘이다: 레이어를 그리는 자리와, 아래 그림을 읽는 블렌드가 대상을 복사해 두는 자리(D-283). 같은 크기라도 따로 든다.
+        // `LightMap` 은 2D 라이트맵이다(D-291) - 이것만 백버퍼 포맷이 아니라 RGBA16F 다.
         enum class LayerTargetRole : std::uint8_t
         {
             Layer,
-            Backdrop
+            Backdrop,
+            LightMap
         };
         struct LayerTarget
         {
@@ -397,6 +478,8 @@ namespace JBro
             Bool sdf = false;
             // 이 구간이 든 레이어 묶음(`m_layerGroups` 의 자리)이다. 묶음 경계에서 구간이 끊긴다.
             UInt32 layerGroup = NoLayerGroup;
+            // 빛을 받는 구간이면 참이다(D-291). 빛을 받는 구간의 경계에서 끊긴다.
+            Bool lit = false;
         };
 
         // 같은 메시를 그리는 인스턴스들의 연속 구간이다(D-110). 업로드가 뷰 안에서 메시별로 모아 놓으므로
@@ -583,6 +666,21 @@ namespace JBro
         GraphicsPipelineHandle m_layerCompositePipelines[4];
         // 아래 그림을 읽는 블렌드 아홉이 함께 쓰는 하나다(덮어쓰기, D-283). 어느 식인지는 상수가 고른다.
         GraphicsPipelineHandle m_layerBackdropPipeline;
+        // **2D 라이팅**(D-291). 라이트맵에 라이트를 더하는 것(RGBA16F, `One·One`)과, 라이트맵을 곱해 그리는 스프라이트·SDF 텍스트다.
+        Bool CreateBuiltinLightResources();
+        void DestroyBuiltinLightResources();
+        Bool UploadLightInstances();
+        // 뷰의 라이트맵을 그린다 - 환경광으로 지우고 `Point`·`Spot` 을 더한다. 패스를 열고 닫는다.
+        Bool RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Viewport& viewport, const ScissorRect& scissor);
+        GraphicsPipelineHandle m_light2DPipeline;
+        GraphicsPipelineHandle m_litSpritePipeline;
+        GraphicsPipelineHandle m_litSdfTextPipeline;
+        BufferHandle m_lightInstanceBuffers[MaxFrameSlots];
+        Array<Light2DSubmit> m_lights;
+        Array<GpuLight2DInstance> m_gpuLightInstances;
+        Array<LitRange> m_litRanges;
+        // 열린 빛을 받는 구간(`m_litRanges` 의 자리)이다. 없으면 `NoLayerGroup` 이다.
+        UInt32 m_openLitRange = NoLayerGroup;
         Array<LayerGroup> m_layerGroups;
         UInt32 m_openLayerGroup = NoLayerGroup;
         LayerTarget m_layerTargets[MaxLayerTargets];

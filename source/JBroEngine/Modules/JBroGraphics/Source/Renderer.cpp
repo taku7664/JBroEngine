@@ -2,13 +2,17 @@
 
 #include "BuiltinLayerBackdropPS.generated.h"
 #include "BuiltinLayerCompositePS.generated.h"
+#include "BuiltinLight2DPS.generated.h"
+#include "BuiltinLight2DVS.generated.h"
 #include "BuiltinMeshPS.generated.h"
 #include "BuiltinMeshVS.generated.h"
 #include "BuiltinOutlineCompositePS.generated.h"
 #include "BuiltinOutlineGrowPS.generated.h"
 #include "BuiltinOutlineVS.generated.h"
+#include "BuiltinSdfTextLitPS.generated.h"
 #include "BuiltinSdfTextPS.generated.h"
 #include "BuiltinSdfTextVS.generated.h"
+#include "BuiltinSpriteLitPS.generated.h"
 #include "BuiltinSpritePS.generated.h"
 #include "BuiltinSpriteVS.generated.h"
 #include "BuiltinWorldTextPS.generated.h"
@@ -21,13 +25,17 @@ namespace JBro::Sm5
     using BYTE = unsigned char;
 #include "BuiltinLayerBackdropPS_SM5.generated.h"
 #include "BuiltinLayerCompositePS_SM5.generated.h"
+#include "BuiltinLight2DPS_SM5.generated.h"
+#include "BuiltinLight2DVS_SM5.generated.h"
 #include "BuiltinMeshPS_SM5.generated.h"
 #include "BuiltinMeshVS_SM5.generated.h"
 #include "BuiltinOutlineCompositePS_SM5.generated.h"
 #include "BuiltinOutlineGrowPS_SM5.generated.h"
 #include "BuiltinOutlineVS_SM5.generated.h"
+#include "BuiltinSdfTextLitPS_SM5.generated.h"
 #include "BuiltinSdfTextPS_SM5.generated.h"
 #include "BuiltinSdfTextVS_SM5.generated.h"
+#include "BuiltinSpriteLitPS_SM5.generated.h"
 #include "BuiltinSpritePS_SM5.generated.h"
 #include "BuiltinSpriteVS_SM5.generated.h"
 #include "BuiltinWorldTextPS_SM5.generated.h"
@@ -39,13 +47,17 @@ namespace JBro::Spv
 {
 #include "BuiltinLayerBackdropPS_SPV.generated.h"
 #include "BuiltinLayerCompositePS_SPV.generated.h"
+#include "BuiltinLight2DPS_SPV.generated.h"
+#include "BuiltinLight2DVS_SPV.generated.h"
 #include "BuiltinMeshPS_SPV.generated.h"
 #include "BuiltinMeshVS_SPV.generated.h"
 #include "BuiltinOutlineCompositePS_SPV.generated.h"
 #include "BuiltinOutlineGrowPS_SPV.generated.h"
 #include "BuiltinOutlineVS_SPV.generated.h"
+#include "BuiltinSdfTextLitPS_SPV.generated.h"
 #include "BuiltinSdfTextPS_SPV.generated.h"
 #include "BuiltinSdfTextVS_SPV.generated.h"
+#include "BuiltinSpriteLitPS_SPV.generated.h"
 #include "BuiltinSpritePS_SPV.generated.h"
 #include "BuiltinSpriteVS_SPV.generated.h"
 #include "BuiltinWorldTextPS_SPV.generated.h"
@@ -149,6 +161,10 @@ namespace JBro
             m_spriteRuns.Reserve(config.maxSpriteSubmissions);
             // 레이어 묶음도 프레임 안에서 자라지 않는다. 넘치면 묶지 않고 센다.
             m_layerGroups.Reserve(config.maxLayerGroups);
+            // 라이트와 빛을 받는 구간도 프레임 안에서 자라지 않는다(D-291). 넘치는 라이트는 버리고 센다.
+            m_lights.Reserve(config.maxLights2D);
+            m_gpuLightInstances.Resize(config.maxLights2D);
+            m_litRanges.Reserve(config.maxLayerGroups);
             m_textureResources.Reserve(64);
             m_gpuSpriteInstances.Resize(config.maxSpriteSubmissions);
             m_gpuTextInstances.Resize(config.maxSpriteSubmissions);
@@ -203,7 +219,7 @@ namespace JBro
         m_device = device;
         m_swapchain = swapchain;
         if (false == CreateBuiltinSpriteResources() || false == CreateBuiltinMeshResources()
-            || false == CreateBuiltinWorldTextResources())
+            || false == CreateBuiltinWorldTextResources() || false == CreateBuiltinLightResources())
         {
             Shutdown();
             return false;
@@ -227,6 +243,7 @@ namespace JBro
             DestroyTextureResources();
             DestroyDepthTargets();
             DestroyLayerTargets();
+            DestroyBuiltinLightResources();
             DestroyBuiltinWorldTextResources();
             DestroyBuiltinMeshResources();
             DestroyBuiltinSpriteResources();
@@ -255,6 +272,10 @@ namespace JBro
         m_meshRuns = {};
         m_layerGroups = {};
         m_openLayerGroup = NoLayerGroup;
+        m_lights = {};
+        m_gpuLightInstances = {};
+        m_litRanges = {};
+        m_openLitRange = NoLayerGroup;
         m_layerTargetWantCount = 0;
         m_meshHistogram = {};
         m_meshResources = {};
@@ -694,6 +715,8 @@ namespace JBro
         packet.meshOffset = static_cast<JBro::UInt32>(m_meshes.Size());
         packet.worldTextOffset = static_cast<JBro::UInt32>(m_worldTexts.Size());
         packet.layerGroupOffset = static_cast<JBro::UInt32>(m_layerGroups.Size());
+        packet.lightOffset = static_cast<JBro::UInt32>(m_lights.Size());
+        packet.litRangeOffset = static_cast<JBro::UInt32>(m_litRanges.Size());
         m_views.Add(packet);
         m_activeView = static_cast<JBro::UInt32>(m_views.Size() - 1);
         ++m_currentStats.viewCount;
@@ -833,6 +856,78 @@ namespace JBro
         return true;
     }
 
+    Bool Renderer::SubmitLight2D(const Light2DSubmit& light)
+    {
+        return SubmitLights2D({&light, 1});
+    }
+
+    Bool Renderer::SubmitLights2D(JArrayView<Light2DSubmit> lights)
+    {
+        if (false == m_frameActive || m_activeView == InvalidViewIndex || (lights.size != 0 && lights.data == nullptr))
+        {
+            return false;
+        }
+        ViewPacket& view = m_views[m_activeView];
+        Bool allTaken = true;
+        for (std::size_t at = 0; at < lights.size; ++at)
+        {
+            const Light2DSubmit& light = lights.data[at];
+            ++m_currentStats.light2DCount;
+            if (light.kind == Light2DKind::Global)
+            {
+                // 환경광은 지우는 색이다. 셋을 더하기만 하면 되므로 담아 두지 않는다.
+                for (Int32 channel = 0; channel < 3; ++channel)
+                {
+                    view.ambient[channel] += light.color[channel];
+                }
+                view.lighting = true;
+                continue;
+            }
+            if (m_lights.Size() >= m_config.maxLights2D)
+            {
+                ++m_currentStats.droppedLight2DCount;
+                allTaken = false;
+                continue;
+            }
+            m_lights.Add(light);
+            ++view.lightCount;
+            view.lighting = true;
+        }
+        return allTaken;
+    }
+
+    Bool Renderer::SetSpriteLighting(Bool lit)
+    {
+        if (false == m_frameActive || m_activeView == InvalidViewIndex)
+        {
+            return false;
+        }
+        const Bool open = m_openLitRange != NoLayerGroup;
+        if (lit == open)
+        {
+            return true;
+        }
+        if (false == lit)
+        {
+            m_litRanges[m_openLitRange].endSprite = static_cast<JBro::UInt32>(m_sprites.Size());
+            m_openLitRange = NoLayerGroup;
+            return true;
+        }
+        if (m_litRanges.Size() >= m_config.maxLayerGroups)
+        {
+            // 구간을 열지 못하면 빛 없이 그린다. 레이어 묶음과 같은 정책이다.
+            ++m_currentStats.droppedLayerCount;
+            return false;
+        }
+        LitRange range;
+        range.firstSprite = static_cast<JBro::UInt32>(m_sprites.Size());
+        range.endSprite = range.firstSprite;
+        m_litRanges.Add(range);
+        m_openLitRange = static_cast<JBro::UInt32>(m_litRanges.Size() - 1);
+        ++m_views[m_activeView].litRangeCount;
+        return true;
+    }
+
     Bool Renderer::EndView()
     {
         if (false == m_frameActive || m_activeView == InvalidViewIndex)
@@ -842,6 +937,10 @@ namespace JBro
         if (m_openLayerGroup != NoLayerGroup)
         {
             EndLayer();
+        }
+        if (m_openLitRange != NoLayerGroup)
+        {
+            SetSpriteLighting(false);
         }
 
         m_activeView = InvalidViewIndex;
@@ -1074,7 +1173,8 @@ namespace JBro
             m_currentStats.skippedViewCount += static_cast<JBro::UInt32>(m_views.Size());
             return true;
         }
-        if (false == UploadSpriteInstances() || false == UploadMeshInstances() || false == UploadWorldTextInstances())
+        if (false == UploadSpriteInstances() || false == UploadMeshInstances() || false == UploadWorldTextInstances()
+            || false == UploadLightInstances())
         {
             return false;
         }
@@ -1142,6 +1242,38 @@ namespace JBro
                 || viewport.minDepth > viewport.maxDepth)
             {
                 return false;
+            }
+
+            // 소수 자리의 뷰포트를 정수 시저로 옮긴다. 안쪽으로 자르면 마지막 열이 잘린다 - 바깥으로 넉넉히 잡는다.
+            const ScissorRect scissor = {
+                static_cast<JBro::Int32>(std::floor(viewport.x)),
+                static_cast<JBro::Int32>(std::floor(viewport.y)),
+                static_cast<JBro::Int32>(std::ceil(right)),
+                static_cast<JBro::Int32>(std::ceil(bottom))};
+
+            // **라이트맵을 먼저 그린다**(D-291). 빛을 받는 스프라이트가 있고 라이트를 받은 뷰만이다. 타깃과 같은 크기의 RGBA16F 이고, 빛을 받는
+            // 구간이 제 픽셀 자리에서 읽어 곱한다 - 따로 합성하지 않으므로 레이어 묶음 안에서도 같다. 처음 보는 크기는 이 프레임에 빛 없이
+            // 그리고 다음 프레임 전에 선다. 깊이가 달린 뷰(3D)는 라이팅을 보지 않는다.
+            TextureHandle lightMap;
+            if (view.hasLitRun && view.lighting)
+            {
+                const Bool depthWork = view.runCount != 0 || view.worldTextRunCount != 0;
+                if (false == depthWork && m_light2DPipeline.IsValid())
+                {
+                    lightMap = FindLayerTarget(extent, LayerTargetRole::LightMap);
+                }
+                if (lightMap.IsValid())
+                {
+                    if (false == RecordLightMap(view, lightMap, viewport, scissor))
+                    {
+                        return false;
+                    }
+                    ++m_currentStats.litViewCount;
+                }
+                else
+                {
+                    ++m_currentStats.viewsWithoutLightMapCount;
+                }
             }
 
             // **뷰를 통째로 얹는 경우**(D-280, 3D 레이어). 그릴 곳이 타깃이 아니라 레이어 텍스처다. 텍스처가 아직 없는 크기면 그대로 그린다.
@@ -1224,12 +1356,6 @@ namespace JBro
                 return false;
             }
 
-            // 소수 자리의 뷰포트를 정수 시저로 옮긴다. 안쪽으로 자르면 마지막 열이 잘린다 - 바깥으로 넉넉히 잡는다.
-            const ScissorRect scissor = {
-                static_cast<JBro::Int32>(std::floor(viewport.x)),
-                static_cast<JBro::Int32>(std::floor(viewport.y)),
-                static_cast<JBro::Int32>(std::ceil(right)),
-                static_cast<JBro::Int32>(std::ceil(bottom))};
             m_frame.commands->SetViewport(viewport);
             m_frame.commands->SetScissor(scissor);
 
@@ -1244,8 +1370,11 @@ namespace JBro
                 // 스프라이트와 SDF 텍스트가 번갈아 오면 구간마다 파이프라인과 인스턴스 버퍼를 갈아 끼운다. 파이프라인을 바꾸면
                 // 루트 상수와 텍스처 자리가 비므로 상수도 다시 넣는다. 스프라이트만 있는 뷰는 예전처럼 한 번만 묶는다.
                 const Bool overDepth = withDepth;
-                const auto bindShading = [&](Bool sdf) {
-                    const GraphicsPipelineHandle pipeline = sdf
+                // 빛을 받는 구간은 라이트맵이 있을 때만 라이트맵을 곱하는 파이프라인이다(D-291). 라이트맵은 깊이가 없는 뷰에만 선다.
+                const auto bindShading = [&](Bool sdf, Bool lit) {
+                    const GraphicsPipelineHandle pipeline = lit
+                        ? (sdf ? m_litSdfTextPipeline : m_litSpritePipeline)
+                        : sdf
                         ? (overDepth ? m_sdfTextOverDepthPipeline : m_sdfTextPipeline)
                         : (overDepth ? m_spriteOverDepthPipeline : m_spritePipeline);
                     return m_frame.commands->SetGraphicsPipeline(pipeline)
@@ -1257,8 +1386,12 @@ namespace JBro
                             0)
                         && m_frame.commands->SetGraphicsConstants(constants);
                 };
+                const auto litOf = [&](const SpriteRun& run) {
+                    return run.lit && lightMap.IsValid();
+                };
                 const Bool firstSdf = view.spriteRunCount != 0 && m_spriteRuns[view.spriteRunOffset].sdf;
-                if (false == bindShading(firstSdf)
+                const Bool firstLit = view.spriteRunCount != 0 && litOf(m_spriteRuns[view.spriteRunOffset]);
+                if (false == bindShading(firstSdf, firstLit)
                     || false == m_frame.commands->SetVertexBuffer(
                         0,
                         m_spriteVertexBuffer,
@@ -1272,11 +1405,12 @@ namespace JBro
                     return false;
                 }
                 Bool boundSdf = firstSdf;
+                Bool boundLit = firstLit;
                 // **레이어 묶음은 제 텍스처에 그렸다 얹는다**(D-279). 묶음에 들어가면 타깃의 패스를 닫고 레이어 텍스처를 투명하게 지운
                 // 패스를 열고, 나오면 그 텍스처를 타깃에 얹는다. 패스를 바꾸면 묶어 둔 것이 풀리므로 다시 묶는다. 깊이가 달린 뷰는
                 // 패스를 끊으면 깊이를 다시 실어야 해서 묶음을 보지 않는다.
-                const auto bindAll = [&](Bool sdf) {
-                    return bindShading(sdf)
+                const auto bindAll = [&](Bool sdf, Bool lit) {
+                    return bindShading(sdf, lit)
                         && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
                         && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0);
                 };
@@ -1341,24 +1475,28 @@ namespace JBro
                             }
                         }
                     }
+                    const Bool runLit = litOf(run);
                     if (rebind)
                     {
-                        if (false == bindAll(run.sdf))
+                        if (false == bindAll(run.sdf, runLit))
                         {
                             return false;
                         }
                         boundSdf = run.sdf;
+                        boundLit = runLit;
                         rebind = false;
                     }
-                    if (run.sdf != boundSdf)
+                    if (run.sdf != boundSdf || runLit != boundLit)
                     {
-                        if (false == bindShading(run.sdf))
+                        if (false == bindShading(run.sdf, runLit))
                         {
                             return false;
                         }
                         boundSdf = run.sdf;
+                        boundLit = runLit;
                     }
-                    if (false == m_frame.commands->SetTexture(0, run.texture)
+                    if ((runLit && false == m_frame.commands->SetTexture(1, lightMap))
+                        || false == m_frame.commands->SetTexture(0, run.texture)
                         || false == m_frame.commands->SetSampler(0, run.sampler)
                         || false == m_frame.commands->DrawIndexedInstanced(
                             6,
@@ -1655,8 +1793,11 @@ namespace JBro
             }
             TextureDesc desc;
             desc.extent = m_layerTargetWants[want].extent;
-            desc.format = m_config.backBufferFormat;
-            desc.usage = TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
+            const Bool lightMap = m_layerTargetWants[want].role == LayerTargetRole::LightMap;
+            // 라이트맵은 1 을 넘는 빛을 담는다(D-291). 나머지는 타깃에 얹거나 타깃을 복사해 두는 자리라 백버퍼 포맷이다.
+            desc.format = lightMap ? TextureFormat::RGBA16Float : m_config.backBufferFormat;
+            desc.usage = lightMap ? TextureUsage::RenderTarget | TextureUsage::Sampled
+                                  : TextureUsage::RenderTarget | TextureUsage::Sampled | TextureUsage::CopyDestination;
             chosen->texture = m_device->CreateTexture(desc);
             chosen->extent = chosen->texture.IsValid() ? desc.extent : Extent2D{};
             chosen->role = m_layerTargetWants[want].role;
@@ -1800,6 +1941,20 @@ namespace JBro
         pipelineDesc.sampledTextureCount = 1;
         pipelineDesc.samplerCount = 1;
         m_spritePipeline = m_device->CreateGraphicsPipeline(pipelineDesc);
+        // 라이트맵(t1)을 곱하는 쌍둥이다(D-291). 라이트맵은 깊이가 없는 뷰에만 서므로 깊이 판은 없다.
+        if (m_config.maxLights2D != 0)
+        {
+            GraphicsPipelineDesc litDesc = pipelineDesc;
+            litDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSpriteLitPS, sizeof(JBroBuiltinSpriteLitPS),
+                Sm5::JBroBuiltinSpriteLitPS_SM5, sizeof(Sm5::JBroBuiltinSpriteLitPS_SM5),
+                Spv::JBroBuiltinSpriteLitPS_SPV, sizeof(Spv::JBroBuiltinSpriteLitPS_SPV));
+            litDesc.sampledTextureCount = 2;
+            m_litSpritePipeline = m_device->CreateGraphicsPipeline(litDesc);
+            if (false == m_litSpritePipeline.IsValid())
+            {
+                return false;
+            }
+        }
         // 깊이가 달린 패스용 쌍둥이. 포맷은 맞추고 깊이는 끈다 - 스프라이트는 제출 순서로 겹친다.
         pipelineDesc.depthFormat = TextureFormat::D32Float;
         pipelineDesc.depthTest = false;
@@ -1847,6 +2002,19 @@ namespace JBro
         textDesc.vertexBuffers = {textLayouts, 2};
         textDesc.depthFormat = TextureFormat::Unknown;
         m_sdfTextPipeline = m_device->CreateGraphicsPipeline(textDesc);
+        if (m_config.maxLights2D != 0)
+        {
+            GraphicsPipelineDesc litDesc = textDesc;
+            litDesc.pixelShader = PickShader(m_config.api, JBroBuiltinSdfTextLitPS, sizeof(JBroBuiltinSdfTextLitPS),
+                Sm5::JBroBuiltinSdfTextLitPS_SM5, sizeof(Sm5::JBroBuiltinSdfTextLitPS_SM5),
+                Spv::JBroBuiltinSdfTextLitPS_SPV, sizeof(Spv::JBroBuiltinSdfTextLitPS_SPV));
+            litDesc.sampledTextureCount = 2;
+            m_litSdfTextPipeline = m_device->CreateGraphicsPipeline(litDesc);
+            if (false == m_litSdfTextPipeline.IsValid())
+            {
+                return false;
+            }
+        }
         textDesc.depthFormat = TextureFormat::D32Float;
         m_sdfTextOverDepthPipeline = m_device->CreateGraphicsPipeline(textDesc);
         if (false == m_sdfTextPipeline.IsValid() || false == m_sdfTextOverDepthPipeline.IsValid())
@@ -1988,6 +2156,165 @@ namespace JBro
                 buffer = {};
             }
         }
+    }
+
+    Bool Renderer::CreateBuiltinLightResources()
+    {
+        // 상한이 0 이면 라이팅을 만들지 않는다. 라이트는 다 버려지고 빛을 받는 구간은 그대로 그려진다.
+        if (m_device == nullptr || m_config.maxLights2D == 0)
+        {
+            return m_device != nullptr;
+        }
+        if (m_config.maxLights2D > (std::numeric_limits<std::uint32_t>::max)() / sizeof(GpuLight2DInstance))
+        {
+            return false;
+        }
+        BufferDesc instanceBufferDesc;
+        instanceBufferDesc.size = static_cast<std::size_t>(m_config.maxLights2D) * sizeof(GpuLight2DInstance);
+        instanceBufferDesc.usage = BufferUsage::Vertex | BufferUsage::CopySource;
+        instanceBufferDesc.memory = MemoryType::Upload;
+        for (UInt32 slot = 0; slot < m_config.maxFramesInFlight && slot < MaxFrameSlots; ++slot)
+        {
+            m_lightInstanceBuffers[slot] = m_device->CreateBuffer(instanceBufferDesc);
+            if (false == m_lightInstanceBuffers[slot].IsValid())
+            {
+                return false;
+            }
+        }
+        const VertexAttributeDesc vertexAttributes[] = {{0, 0, VertexFormat::Float2}};
+        const VertexAttributeDesc instanceAttributes[] = {
+            {1, static_cast<JBro::UInt32>(offsetof(GpuLight2DInstance, shape)), VertexFormat::Float4},
+            {2, static_cast<JBro::UInt32>(offsetof(GpuLight2DInstance, color)), VertexFormat::Float4},
+            {3, static_cast<JBro::UInt32>(offsetof(GpuLight2DInstance, cone)), VertexFormat::Float4}};
+        const VertexBufferLayoutDesc layouts[] = {
+            {static_cast<JBro::UInt32>(sizeof(float) * 2), VertexStepMode::Vertex, {vertexAttributes, 1}},
+            {static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), VertexStepMode::Instance, {instanceAttributes, 3}}};
+        // 라이트맵은 1 을 넘는 빛을 담는다. 라이트는 서로 더한다 - `LayerAdditive` 가 `One·One` 이다.
+        const TextureFormat colorFormats[] = {TextureFormat::RGBA16Float};
+        GraphicsPipelineDesc desc;
+        desc.vertexShader = PickShader(m_config.api, JBroBuiltinLight2DVS, sizeof(JBroBuiltinLight2DVS),
+            Sm5::JBroBuiltinLight2DVS_SM5, sizeof(Sm5::JBroBuiltinLight2DVS_SM5),
+            Spv::JBroBuiltinLight2DVS_SPV, sizeof(Spv::JBroBuiltinLight2DVS_SPV));
+        desc.pixelShader = PickShader(m_config.api, JBroBuiltinLight2DPS, sizeof(JBroBuiltinLight2DPS),
+            Sm5::JBroBuiltinLight2DPS_SM5, sizeof(Sm5::JBroBuiltinLight2DPS_SM5),
+            Spv::JBroBuiltinLight2DPS_SPV, sizeof(Spv::JBroBuiltinLight2DPS_SPV));
+        desc.vertexBuffers = {layouts, 2};
+        desc.colorFormats = {colorFormats, 1};
+        desc.blend = BlendMode::LayerAdditive;
+        desc.cull = CullMode::None;
+        desc.depthTest = false;
+        desc.depthWrite = false;
+        desc.pushConstantStages = ShaderStage::Vertex;
+        desc.pushConstantBytes = static_cast<JBro::UInt32>(sizeof(Matrix4x4));
+        m_light2DPipeline = m_device->CreateGraphicsPipeline(desc);
+        return m_light2DPipeline.IsValid();
+    }
+
+    void Renderer::DestroyBuiltinLightResources()
+    {
+        if (m_device == nullptr)
+        {
+            return;
+        }
+        if (m_light2DPipeline.IsValid())
+        {
+            m_device->DestroyGraphicsPipeline(m_light2DPipeline);
+            m_light2DPipeline = {};
+        }
+        for (BufferHandle& buffer : m_lightInstanceBuffers)
+        {
+            if (buffer.IsValid())
+            {
+                m_device->DestroyBuffer(buffer);
+                buffer = {};
+            }
+        }
+    }
+
+    Bool Renderer::UploadLightInstances()
+    {
+        // 라이트는 뷰마다 낸 차례로 이어져 있다(`ViewPacket::lightOffset`). 그대로 옮긴다.
+        const std::size_t count = m_lights.Size();
+        if (count == 0)
+        {
+            return true;
+        }
+        if (m_gpuLightInstances.Size() < count || m_frame.slot >= MaxFrameSlots || false == m_lightInstanceBuffers[m_frame.slot].IsValid())
+        {
+            return false;
+        }
+        for (std::size_t at = 0; at < count; ++at)
+        {
+            const Light2DSubmit& light = m_lights[at];
+            GpuLight2DInstance& instance = m_gpuLightInstances[at];
+            const Float outer = light.outerRadius > 0.0f ? light.outerRadius : Float(0.0f);
+            const Float inner = light.innerRadius < 0.0f ? Float(0.0f) : (light.innerRadius > outer ? outer : light.innerRadius);
+            instance.shape[0] = light.position[0];
+            instance.shape[1] = light.position[1];
+            instance.shape[2] = outer;
+            instance.shape[3] = inner;
+            instance.color[0] = light.color[0];
+            instance.color[1] = light.color[1];
+            instance.color[2] = light.color[2];
+            instance.color[3] = 0.0f;
+            if (light.kind == Light2DKind::Spot)
+            {
+                // 각은 원뿔 전체다. 축에서 재는 반각으로 넘긴다. 안쪽이 바깥보다 넓으면 바깥에서 끊는다.
+                const Float length = std::sqrt(light.direction[0] * light.direction[0] + light.direction[1] * light.direction[1]);
+                const Float axisX = length > 0.00001f ? light.direction[0] / length : Float(1.0f);
+                const Float axisY = length > 0.00001f ? light.direction[1] / length : Float(0.0f);
+                constexpr Float Pi = 3.14159265f;
+                const Float halfOuter = Float::Clamp(light.outerAngle.Get() * 0.5f, 0.0f, Pi);
+                const Float halfInner = Float::Clamp(light.innerAngle.Get() * 0.5f, 0.0f, halfOuter);
+                instance.cone[0] = axisX;
+                instance.cone[1] = axisY;
+                instance.cone[2] = halfInner;
+                instance.cone[3] = halfOuter;
+            }
+            else
+            {
+                // 축에서 잰 각은 π 를 넘지 않는다. 이보다 넓은 원뿔은 모든 방향이다.
+                instance.cone[0] = 1.0f;
+                instance.cone[1] = 0.0f;
+                instance.cone[2] = 4.0f;
+                instance.cone[3] = 5.0f;
+            }
+        }
+        return m_device->WriteBuffer(m_lightInstanceBuffers[m_frame.slot], 0,
+            {reinterpret_cast<const std::byte*>(m_gpuLightInstances.Data()),
+                static_cast<JBro::UInt32>(count * sizeof(GpuLight2DInstance))});
+    }
+
+    Bool Renderer::RecordLightMap(const ViewPacket& view, TextureHandle lightMap, const Viewport& viewport, const ScissorRect& scissor)
+    {
+        // 환경광으로 지우고 라이트를 더한다. 알파는 읽지 않는다.
+        ColorAttachmentDesc color;
+        color.texture = lightMap;
+        color.loadOperation = LoadOperation::Clear;
+        color.storeOperation = StoreOperation::Store;
+        color.clearColor = {view.ambient[0], view.ambient[1], view.ambient[2], 0.0f};
+        RenderPassDesc desc;
+        desc.colorAttachments = {&color, 1};
+        if (false == m_frame.commands->BeginRenderPass(desc))
+        {
+            return false;
+        }
+        m_frame.commands->SetViewport(viewport);
+        m_frame.commands->SetScissor(scissor);
+        Bool drawn = true;
+        if (view.lightCount != 0)
+        {
+            const Matrix4x4 viewProjection = Multiply(view.camera.projection, view.camera.view);
+            drawn = m_frame.commands->SetGraphicsPipeline(m_light2DPipeline)
+                && m_frame.commands->SetGraphicsConstants(
+                    {reinterpret_cast<const std::byte*>(viewProjection.values), static_cast<JBro::UInt32>(sizeof(viewProjection.values))})
+                && m_frame.commands->SetVertexBuffer(0, m_spriteVertexBuffer, static_cast<JBro::UInt32>(sizeof(float) * 2), 0)
+                && m_frame.commands->SetVertexBuffer(1, m_lightInstanceBuffers[m_frame.slot], static_cast<JBro::UInt32>(sizeof(GpuLight2DInstance)), 0)
+                && m_frame.commands->SetIndexBuffer(m_spriteIndexBuffer, IndexFormat::UInt16, 0)
+                && m_frame.commands->DrawIndexedInstanced(6, view.lightCount, 0, 0, view.lightOffset);
+        }
+        m_frame.commands->EndRenderPass();
+        return drawn;
     }
 
     Bool Renderer::UploadMeshInstances()
@@ -2258,7 +2585,8 @@ namespace JBro
             m_spriteOverDepthPipeline = {};
         }
         for (GraphicsPipelineHandle* pipeline :
-            {&m_sdfTextPipeline, &m_sdfTextOverDepthPipeline, &m_outlineGrowPipeline, &m_outlineCompositePipeline})
+            {&m_sdfTextPipeline, &m_sdfTextOverDepthPipeline, &m_outlineGrowPipeline, &m_outlineCompositePipeline,
+                &m_litSpritePipeline, &m_litSdfTextPipeline})
         {
             if (pipeline->IsValid())
             {
@@ -2357,12 +2685,16 @@ namespace JBro
             ViewPacket& view = m_views[viewIndex];
             view.spriteRunOffset = static_cast<JBro::UInt32>(m_spriteRuns.Size());
             view.spriteRunCount = 0;
+            view.hasLitRun = false;
             UInt64 lastTextureKey = 0;
             UInt64 lastSamplerKey = 0;
             SpriteRun* last = nullptr;
             // 묶음은 스프라이트 번호 순이다. 지나간 묶음을 넘기며 이 스프라이트가 든 묶음을 찾는다(D-279).
             UInt32 groupCursor = view.layerGroupOffset;
             const UInt32 groupEnd = view.layerGroupOffset + view.layerGroupCount;
+            // 빛을 받는 구간도 같은 걸음으로 찾는다(D-291).
+            UInt32 litCursor = view.litRangeOffset;
+            const UInt32 litEnd = view.litRangeOffset + view.litRangeCount;
             const UInt32 viewEnd = view.spriteOffset + view.spriteCount;
             for (UInt32 index = view.spriteOffset; index < viewEnd; ++index)
             {
@@ -2373,6 +2705,11 @@ namespace JBro
                 }
                 const UInt32 layerGroup = groupCursor < groupEnd && index >= m_layerGroups[groupCursor].firstSprite
                     ? groupCursor : NoLayerGroup;
+                while (litCursor < litEnd && index >= m_litRanges[litCursor].endSprite)
+                {
+                    ++litCursor;
+                }
+                const Bool lit = litCursor < litEnd && index >= m_litRanges[litCursor].firstSprite;
                 const Bool sdf = item.shading == SpriteShading::SdfText;
                 if (sdf)
                 {
@@ -2422,7 +2759,7 @@ namespace JBro
                 const Bool linear = item.filter == SpriteFilter::Linear;
                 const UInt64 samplerKey = linear ? linearKey : nearestKey;
                 if (last != nullptr && lastTextureKey == textureKey && lastSamplerKey == samplerKey && last->sdf == sdf
-                    && last->layerGroup == layerGroup)
+                    && last->layerGroup == layerGroup && last->lit == lit)
                 {
                     ++last->instanceCount;
                     continue;
@@ -2434,6 +2771,8 @@ namespace JBro
                 run.instanceCount = 1;
                 run.sdf = sdf;
                 run.layerGroup = layerGroup;
+                run.lit = lit;
+                view.hasLitRun = view.hasLitRun || lit;
                 last = &m_spriteRuns.Add(run);
                 lastTextureKey = textureKey;
                 lastSamplerKey = samplerKey;
@@ -2479,6 +2818,9 @@ namespace JBro
         m_spriteRuns.Clear();
         m_layerGroups.Clear();
         m_openLayerGroup = NoLayerGroup;
+        m_lights.Clear();
+        m_litRanges.Clear();
+        m_openLitRange = NoLayerGroup;
         m_worldTexts.Clear();
         m_worldTextRuns.Clear();
         m_currentStats = {};
